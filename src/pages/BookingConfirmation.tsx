@@ -162,24 +162,33 @@ const BookingConfirmation = () => {
   const isPaid = booking.payment_status === "paid";
   const paymentCancelled = paymentStatus === "cancelled";
 
+  const canonicalPropertyUrl = property?.slug
+    ? `https://sleepinafrica.roomsonline.co.za/p/${property.slug}`
+    : "https://sleepinafrica.roomsonline.co.za";
+
+  const inIframe = typeof window !== "undefined" && window.parent !== window;
+  const isWhitelabelHost =
+    typeof window !== "undefined" && !/roomsonline\.co\.za$|lovable\.(app|dev)$|localhost/.test(window.location.hostname);
+
   const handleShare = async () => {
-    const shareUrl = window.location.href;
-    try {
-      if (navigator.share) {
+    const shareUrl = canonicalPropertyUrl;
+    // navigator.share is unreliable inside cross-origin iframes and on white-label hosts — go straight to clipboard.
+    if (!inIframe && !isWhitelabelHost && navigator.share) {
+      try {
         await navigator.share({ title: `Booking at ${property?.name}`, url: shareUrl });
         return;
+      } catch {
+        // fall through to clipboard
       }
-    } catch (e) {
-      // Share API can fail in iframes/embeds — fall through to clipboard
     }
     try {
       await navigator.clipboard.writeText(shareUrl);
       toast.success("Link copied to clipboard!");
     } catch {
-      // Clipboard API may also fail in iframes — show the URL for manual copy
       toast.info("Copy this link to share: " + shareUrl);
     }
   };
+
 
   return wrapLayout(
     <div className="min-h-[70vh] flex items-center justify-center px-4 py-12 sm:py-20">
