@@ -169,9 +169,38 @@ const BookingConfirmation = () => {
     ? `https://sleepinafrica.roomsonline.co.za/p/${property.slug}`
     : "https://sleepinafrica.roomsonline.co.za";
 
+  const CANONICAL_HOST_RE = /(^|\.)roomsonline\.co\.za$|\.lovable\.(app|dev)$|^localhost$/i;
+  const isCanonicalHost = (host: string) => CANONICAL_HOST_RE.test(host);
+
   const inIframe = typeof window !== "undefined" && window.parent !== window;
   const isWhitelabelHost =
-    typeof window !== "undefined" && !/roomsonline\.co\.za$|lovable\.(app|dev)$|localhost/.test(window.location.hostname);
+    typeof window !== "undefined" && !isCanonicalHost(window.location.hostname);
+
+  // Resolve where "Close" should send the user back to. Priority:
+  //   1. ?return_url= (http/https only)
+  //   2. document.referrer if it's a WL (non-canonical) origin
+  //   3. Current host root if we're on a WL host
+  //   4. Canonical property page
+  const resolveCloseTarget = (): string => {
+    const rawReturn = searchParams.get("return_url") || searchParams.get("returnUrl");
+    if (rawReturn) {
+      try {
+        const u = new URL(rawReturn);
+        if (u.protocol === "http:" || u.protocol === "https:") return u.toString();
+      } catch { /* ignore */ }
+    }
+    const ref = initialReferrerRef.current;
+    if (ref) {
+      try {
+        const u = new URL(ref);
+        if (!isCanonicalHost(u.hostname)) return u.toString();
+      } catch { /* ignore */ }
+    }
+    if (typeof window !== "undefined" && isWhitelabelHost) {
+      return window.location.origin + "/";
+    }
+    return canonicalPropertyUrl;
+  };
 
   const handleShare = async () => {
     const shareUrl = canonicalPropertyUrl;
