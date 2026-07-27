@@ -474,7 +474,26 @@ export default function PMSDashboard() {
     enabled: !!propertyId,
   });
 
-  // Fetch rate seasons & prices & rate plan base rates
+  // Recent bookings — surfaces newly created reservations regardless of calendar window
+  const { data: recentBookings = [] } = useQuery({
+    queryKey: ["pms-recent-bookings", propertyId],
+    queryFn: async () => {
+      if (!propertyId) return [] as BookingRow[];
+      const { data } = await supabase
+        .from("bookings")
+        .select("id, guest_name, guest_email, check_in_date, check_out_date, status, payment_status, total_price, created_at, booking_channel, room_type_id, rolos_room_ids, adults, children, infants, teens")
+        .eq("property_id", propertyId)
+        .neq("status", "cancelled")
+        .gte("check_out_date", format(new Date(), "yyyy-MM-dd"))
+        .order("created_at", { ascending: false })
+        .limit(10);
+      return (data || []) as BookingRow[];
+    },
+    enabled: !!propertyId,
+    refetchInterval: 60_000,
+  });
+
+
   const { data: ratePlansWithRate = [] } = useQuery({
     queryKey: ["pms-cal-rate-plans", propertyId],
     queryFn: async () => {
