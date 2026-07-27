@@ -107,7 +107,43 @@ export function useAuth() {
   }, []);
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    // Local scope first — guarantees the client-side session is cleared even
+    // if the network request for global sign-out fails or is slow. Without
+    // this, a failed global signOut leaves the session in localStorage and
+    // the auth listener immediately re-hydrates the user on the next route.
+    try {
+      await supabase.auth.signOut({ scope: "local" });
+    } catch (err) {
+      console.warn("Local signOut failed:", err);
+    }
+    // Best-effort global sign-out (revoke refresh token server-side).
+    try {
+      await supabase.auth.signOut({ scope: "global" });
+    } catch (err) {
+      console.warn("Global signOut failed (session already cleared locally):", err);
+    }
+    // Belt-and-braces: purge any lingering supabase auth keys from storage.
+    try {
+      const keys: string[] = [];
+      for (let i = 0; i < localStorage.length; i += 1) {
+        const k = localStorage.key(i);
+        if (k && (k.startsWith("sb-") || k.includes("supabase.auth"))) keys.push(k);
+      }
+      keys.forEach((k) => localStorage.removeItem(k));
+    } catch (err) {
+      console.warn("Storage purge failed:", err);
+    }
+    // Clear local React state immediately so any consumer re-render sees
+    // signed-out state before navigation.
+    setSession(null);
+    setUser(null);
+    setIsAdmin(false);
+    setIsDev(false);
+    setIsFearlessLeader(false);
+    setIsSalesRep(false);
+    setSalesRepId(null);
+    setProfile(null);
+    setUserRole("owner");
   };
 
   return { user, session, loading, isAdmin, isDev, isFearlessLeader, isSalesRep, salesRepId, profile, userRole, signOut };
