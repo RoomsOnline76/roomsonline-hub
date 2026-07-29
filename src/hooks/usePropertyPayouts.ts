@@ -139,7 +139,7 @@ export function usePropertyPayouts(periodMonth?: string) {
           commission_amount: commAmount,
           fees: totalFees,
           net_amount: p.gross - commAmount - totalFees,
-          booking_count: p.count,
+          booking_count: p.bookingIds.size,
           has_banking: !!bankMap[pid]?.exists,
           banking_verified: !!bankMap[pid]?.verified,
           billing_strategy: billing?.billing_strategy || 'default',
