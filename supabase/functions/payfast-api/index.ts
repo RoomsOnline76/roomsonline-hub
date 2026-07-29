@@ -767,6 +767,8 @@ Deno.serve(async (req) => {
           merchant_id_masked: maskId(creds.merchantId),
           is_sandbox: creds.isSandbox,
           configured: !!(creds.merchantId && creds.merchantKey),
+          onsite_supported: creds.onsiteSupported !== false,
+
           source: "payfast-api",
           action: "resolve_credentials",
         }),
