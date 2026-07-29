@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { callPmsApi } from "@/hooks/usePmsApi";
 import { supabase } from "@/integrations/supabase/client";
@@ -32,6 +32,29 @@ interface VatConfig {
   vatRate: number;
   vatNumber: string;
 }
+
+const PAID_STATUSES = ["paid", "completed", "success", "succeeded"];
+
+const isSameMoney = (left: number, right: number) => Math.abs(Number(left || 0) - Number(right || 0)) < 0.01;
+
+const isAccommodationLine = (transaction: Transaction, bookingTotal: number) => {
+  const text = `${transaction.transaction_type || ""} ${transaction.description || ""}`.toLowerCase();
+  return (
+    isSameMoney(transaction.amount, bookingTotal) ||
+    text.includes("accommodation") ||
+    text.includes("room rate") ||
+    text.includes("stay charge") ||
+    text.includes("booking total")
+  );
+};
+
+const isMirroredOnlinePayment = (transaction: Transaction, bookingTotal: number) => {
+  const text = `${transaction.transaction_type || ""} ${transaction.description || ""}`.toLowerCase();
+  return (
+    isSameMoney(Math.abs(transaction.amount), bookingTotal) &&
+    (text.includes("online") || text.includes("gateway") || text.includes("payfast") || text.includes("booking"))
+  );
+};
 
 export function BookingInvoice({ bookingId, guestName, guestEmail, checkIn, checkOut, adults, totalPrice, propertyId, paymentStatus }: BookingInvoiceProps) {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -81,12 +104,15 @@ export function BookingInvoice({ bookingId, guestName, guestEmail, checkIn, chec
     load();
   }, [bookingId, propertyId]);
 
-  const charges = transactions.filter(t => t.amount > 0);
-  const payments = transactions.filter(t => t.amount < 0);
-
-  const subtotal = charges.length > 0
-    ? charges.reduce((s, t) => s + t.amount, 0)
-    : totalPrice;
+  const charges = useMemo(() => transactions.filter(t => t.amount > 0), [transactions]);
+  const payments = useMemo(() => transactions.filter(t => t.amount < 0), [transactions]);
+  const accommodationAlreadyRecorded = useMemo(
+    () => charges.some(t => isAccommodationLine(t, totalPrice)),
+    [charges, totalPrice],
+  );
+  const accommodationLineAmount = totalPrice > 0 && !accommodationAlreadyRecorded ? totalPrice : 0;
+  const folioChargesTotal = charges.reduce((s, t) => s + t.amount, 0);
+  const subtotal = accommodationLineAmount + folioChargesTotal;
 
   const isVat = vatConfig.isVatRegistered;
   const vatRate = vatConfig.vatRate / 100;
@@ -103,14 +129,16 @@ export function BookingInvoice({ bookingId, guestName, guestEmail, checkIn, chec
   const vatAmount = isVat ? vatableAmount - (vatableAmount / (1 + vatRate)) : 0;
 
   const folioPayments = payments.reduce((s, t) => s + Math.abs(t.amount), 0);
-  // Payments taken through the online gateway are not always mirrored onto the folio,
-  // so fall back to the gateway transactions (or the booking's paid flag) before
-  // declaring a balance outstanding.
-  const isPaidFlag = ["paid", "completed", "success", "succeeded"].includes(String(paymentStatus || "").toLowerCase());
-  const externalPaid = gatewayPaid > 0 ? gatewayPaid : (isPaidFlag ? subtotal : 0);
-  const totalPayments = folioPayments > 0 ? folioPayments : externalPaid;
+  // Payments taken through the online gateway are not always mirrored onto the folio.
+  // They only settle the original booking amount; later minibar/extras remain due
+  // until recorded as their own folio payments.
+  const isPaidFlag = PAID_STATUSES.includes(String(paymentStatus || "").toLowerCase());
+  const externalBookingPaid = Math.min(totalPrice, gatewayPaid > 0 ? gatewayPaid : (isPaidFlag ? totalPrice : 0));
+  const hasMirroredGatewayPayment = payments.some(t => isMirroredOnlinePayment(t, totalPrice));
+  const onlineBookingPayment = hasMirroredGatewayPayment ? 0 : externalBookingPaid;
+  const totalPayments = folioPayments + onlineBookingPayment;
   const balance = Math.max(0, subtotal - totalPayments);
-  const settledExternally = folioPayments === 0 && totalPayments > 0;
+  const settledExternally = onlineBookingPayment > 0;
 
   const invoiceNumber = `INV-${bookingId.slice(0, 8).toUpperCase()}`;
   const today = new Date().toLocaleDateString("en-ZA");
@@ -209,17 +237,18 @@ export function BookingInvoice({ bookingId, guestName, guestEmail, checkIn, chec
             </tr>
           </thead>
           <tbody>
-            {charges.length > 0 ? charges.map(t => (
+            {accommodationLineAmount > 0 && (
+              <tr className="border-b border-border/50">
+                <td className="py-1.5">Accommodation</td>
+                <td className="py-1.5 text-right">R{accommodationLineAmount.toLocaleString()}</td>
+              </tr>
+            )}
+            {charges.map(t => (
               <tr key={t.id} className="border-b border-border/50">
                 <td className="py-1.5">{t.description}</td>
                 <td className="py-1.5 text-right">R{t.amount.toLocaleString()}</td>
               </tr>
-            )) : (
-              <tr className="border-b border-border/50">
-                <td className="py-1.5">Accommodation</td>
-                <td className="py-1.5 text-right">R{totalPrice.toLocaleString()}</td>
-              </tr>
-            )}
+            ))}
 
             {isVat ? (
               <>
@@ -257,7 +286,7 @@ export function BookingInvoice({ bookingId, guestName, guestEmail, checkIn, chec
             {settledExternally && (
               <div className="flex justify-between text-xs py-1 border-b border-border/30">
                 <span>Online payment received</span>
-                <span className="text-green-600">-R{totalPayments.toLocaleString()}</span>
+                <span className="text-green-600">-R{onlineBookingPayment.toLocaleString()}</span>
               </div>
             )}
           </>
