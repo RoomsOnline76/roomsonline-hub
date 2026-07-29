@@ -40,6 +40,8 @@ export function InlineCheckout({
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [payFastUuid, setPayFastUuid] = useState<string | null>(null);
+  const [payFastSandbox, setPayFastSandbox] = useState<boolean | undefined>(undefined);
+  const [payFastCredentialSource, setPayFastCredentialSource] = useState<string | null>(null);
   const [bookingId, setBookingId] = useState<string | null>(null);
   const [showPayFastModal, setShowPayFastModal] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -159,6 +161,8 @@ export function InlineCheckout({
 
       setBookingId(booking.id);
       setPayFastUuid(data.uuid);
+      if (typeof data.is_sandbox === "boolean") setPayFastSandbox(data.is_sandbox);
+      if (data.credential_source) setPayFastCredentialSource(data.credential_source);
       setShowPayFastModal(true);
     } catch (err) {
       console.error('Payment initiation error:', err);
@@ -369,6 +373,8 @@ export function InlineCheckout({
           amount={totalPrice}
           propertyName={stays.map(s => s.property_name).join(', ')}
             uuid={payFastUuid}
+            isSandbox={payFastSandbox}
+            credentialSource={payFastCredentialSource}
         />
       )}
     </>
