@@ -224,8 +224,25 @@ function generateEmailHeader(brand: ReturnType<typeof resolveBranding>, property
 
 // Helper: generate the email footer row
 function generateEmailFooter(brand: ReturnType<typeof resolveBranding>, property: any): string {
+  // True white-label (own brand, not a ROL'OS-hosted property): never surface RoomsOnline.
+  const isWhiteLabel = brand.isBranded && !property.is_rol_property;
+  if (isWhiteLabel) {
+    const contactBits = [property.contact_phone || property.phone, property.contact_email || property.email]
+      .filter(Boolean)
+      .join(" · ");
+    return `
+      <tr>
+        <td style="padding: 20px 40px; background-color: #fafafa; border-radius: 0 0 8px 8px; text-align: center;">
+          <div style="border-top: 1px solid #e5e5e5; padding-top: 15px;">
+            <p style="margin: 0 0 6px; color: #333; font-size: 13px;"><strong>${property.name}</strong></p>
+            ${contactBits ? `<p style="margin: 0; color: #888; font-size: 11px;">${contactBits}</p>` : ""}
+          </div>
+        </td>
+      </tr>
+    `;
+  }
   if (brand.isBranded) {
-    // For branded/ROL'OS properties: only the subtle "Powered by" line — no ROL logo, no "Kind regards"
+    // ROL'OS-hosted branded property: subtle "Powered by" line only — no ROL logo, no "Kind regards"
     return `
       <tr>
         <td style="padding: 20px 40px; background-color: #fafafa; border-radius: 0 0 8px 8px; text-align: center;">
@@ -236,6 +253,7 @@ function generateEmailFooter(brand: ReturnType<typeof resolveBranding>, property
       </tr>
     `;
   }
+
   return `
     <tr>
       <td style="padding: 30px 40px; background-color: #fafafa; border-radius: 0 0 8px 8px; text-align: center;">
