@@ -94,6 +94,16 @@ export const pmsIntegrationStatus: Record<string, MilestoneStatus> = {
     pushBooking: true,
     liveMonitor: true,
   },
+  roomsonline: {
+    // ROLOS is the internal, fully-deployed PMS. All core capabilities are live:
+    // auth, health monitoring, availability pull, sync, booking push, and live monitoring.
+    auth: true,
+    healthCheck: true,
+    pullAvailability: true,
+    syncIn: true,
+    pushBooking: true,
+    liveMonitor: true,
+  },
   checkfront: {
     // 🟠 Token pair + OAuth2 auth implemented in checkfront-api edge function
     auth: 'pending',
