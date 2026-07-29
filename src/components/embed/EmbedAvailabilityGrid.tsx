@@ -60,6 +60,8 @@ export function EmbedAvailabilityGrid({
               </th>
               {dates.map((d, i) => {
                 const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+                const cellBg = isWeekend ? darken(brandColor, 0.12) : brandColor;
+                const cellText = surfaceForegroundPair(cellBg, fontColor);
                 return (
                   <th
                     key={d.toISOString()}
@@ -67,20 +69,21 @@ export function EmbedAvailabilityGrid({
                       ...thStyle,
                       minWidth: "58px",
                       textAlign: "center",
-                      background: isWeekend ? darken(brandColor, 0.12) : brandColor,
-                      color: fontColor,
+                      background: cellBg,
+                      color: cellText.fg,
                       borderRadius: i === dates.length - 1 && !onBook ? "0 8px 8px 0" : undefined,
                     }}
                   >
-                    <div style={{ fontSize: "10px", opacity: 0.7, textTransform: "uppercase", letterSpacing: "0.04em" }}>{format(d, "EEE")}</div>
-                    <div style={{ fontWeight: 700, fontSize: "14px" }}>{format(d, "d")}</div>
-                    <div style={{ fontSize: "9px", opacity: 0.6, textTransform: "uppercase" }}>{format(d, "MMM")}</div>
+                    <div style={{ fontSize: "10px", textTransform: "uppercase", letterSpacing: "0.04em", color: cellText.muted }}>{format(d, "EEE")}</div>
+                    <div style={{ fontWeight: 700, fontSize: "14px", color: cellText.fg }}>{format(d, "d")}</div>
+                    <div style={{ fontSize: "9px", textTransform: "uppercase", color: cellText.muted }}>{format(d, "MMM")}</div>
                   </th>
                 );
               })}
               {onBook && (
-                <th style={{ ...thStyle, width: "48px", background: brandColor, color: fontColor, borderRadius: "0 8px 8px 0" }} />
+                <th style={{ ...thStyle, width: "48px", background: brandColor, color: headerText.fg, borderRadius: "0 8px 8px 0" }} />
               )}
+
             </tr>
           </thead>
           <tbody>
