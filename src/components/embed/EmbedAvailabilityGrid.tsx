@@ -1,5 +1,7 @@
 import { useState, useMemo } from "react";
 import { format, addDays, eachDayOfInterval, isBefore, startOfDay } from "date-fns";
+import { surfaceForegroundPair } from "@/lib/brandOverride";
+
 
 interface RoomAvailability {
   roomId: string;
