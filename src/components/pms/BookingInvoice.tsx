@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { callPmsApi } from "@/hooks/usePmsApi";
 import { supabase } from "@/integrations/supabase/client";
+import type { Json } from "@/integrations/supabase/types";
 import { toast } from "sonner";
 import { Printer, Mail } from "lucide-react";
 
@@ -33,6 +34,11 @@ interface VatConfig {
   vatNumber: string;
 }
 
+interface EmailResponse {
+  ok?: boolean;
+  reason?: string;
+}
+
 const PAID_STATUSES = ["paid", "completed", "success", "succeeded"];
 
 const isSameMoney = (left: number, right: number) => Math.abs(Number(left || 0) - Number(right || 0)) < 0.01;
@@ -56,6 +62,21 @@ const isMirroredOnlinePayment = (transaction: Transaction, bookingTotal: number)
   );
 };
 
+const isRecord = (value: Json | null | undefined): value is Record<string, Json | undefined> => {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+};
+
+const getVatNumber = (amenities: Json | null | undefined) => {
+  if (!isRecord(amenities)) return "";
+  const vatNumber = amenities.vat_number;
+  return typeof vatNumber === "string" ? vatNumber : "";
+};
+
+const getErrorMessage = (error: unknown) => {
+  if (error instanceof Error) return error.message;
+  return "Unknown error";
+};
+
 export function BookingInvoice({ bookingId, guestName, guestEmail, checkIn, checkOut, adults, totalPrice, propertyId, paymentStatus }: BookingInvoiceProps) {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [gatewayPaid, setGatewayPaid] = useState(0);
@@ -71,25 +92,23 @@ export function BookingInvoice({ bookingId, guestName, guestEmail, checkIn, chec
       const [folioRes, propRes, brandRes, payRes] = await Promise.all([
         callPmsApi<{ transactions: Transaction[] }>("get_folio", { booking_id: bookingId }),
         supabase.from("properties").select("name, amenities").eq("id", propertyId).single(),
-        supabase.from("rolos_brand_config" as any).select("is_vat_registered, vat_rate, vat_number").eq("property_id", propertyId).maybeSingle(),
+        supabase.from("rolos_brand_config").select("is_vat_registered, vat_rate, vat_number").eq("property_id", propertyId).maybeSingle(),
         supabase.from("payment_transactions").select("amount, status").eq("booking_id", bookingId),
       ]);
       if (folioRes.success && folioRes.data) setTransactions(folioRes.data.transactions || []);
       if (propRes.data) setPropertyName(propRes.data.name);
-      const settled = (payRes.data || []).filter((p: any) => ["completed", "paid", "success", "succeeded"].includes(String(p.status || "").toLowerCase()));
-      setGatewayPaid(settled.reduce((s: number, p: any) => s + Number(p.amount || 0), 0));
+      const settled = (payRes.data || []).filter(p => PAID_STATUSES.includes(String(p.status || "").toLowerCase()));
+      setGatewayPaid(settled.reduce((s, p) => s + Number(p.amount || 0), 0));
 
       
-      const amenities = (propRes.data?.amenities as any) || {};
-      const amenityVatNumber = amenities?.vat_number || "";
+      const amenityVatNumber = getVatNumber(propRes.data?.amenities);
       
       if (brandRes.data) {
-        const b = brandRes.data as any;
-        const brandIsVat = b.is_vat_registered ?? false;
-        const brandVatNumber = b.vat_number || "";
+        const brandIsVat = brandRes.data.is_vat_registered ?? false;
+        const brandVatNumber = brandRes.data.vat_number || "";
         setVatConfig({
           isVatRegistered: brandIsVat || !!amenityVatNumber,
-          vatRate: b.vat_rate ?? 15,
+          vatRate: brandRes.data.vat_rate ?? 15,
           vatNumber: brandVatNumber || amenityVatNumber,
         });
       } else if (amenityVatNumber) {
@@ -174,14 +193,14 @@ export function BookingInvoice({ bookingId, guestName, guestEmail, checkIn, chec
     try {
       const { data, error } = await supabase.functions.invoke("send-booking-email", {
         body: { booking_id: bookingId, bookingId: bookingId, type: "invoice", status: "success" },
-      });
+      }) as { data: EmailResponse | null; error: Error | null };
       if (error) throw error;
-      if (data && (data as any).ok === false) {
-        throw new Error((data as any).reason || "Email provider rejected the send");
+      if (data?.ok === false) {
+        throw new Error(data.reason || "Email provider rejected the send");
       }
       toast.success(`Invoice emailed to ${guestEmail}`);
-    } catch (e: any) {
-      toast.error("Failed to email invoice: " + (e.message || "Unknown error"));
+    } catch (e) {
+      toast.error("Failed to email invoice: " + getErrorMessage(e));
     }
     setEmailing(false);
   };
