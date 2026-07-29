@@ -31,7 +31,7 @@ function describeError(e: unknown): string {
 
 // ── Provider registry with credential schemas ──────────────────────────────────
 
-interface CredentialField {
+export interface CredentialField {
   key: string;
   label: string;
   placeholder: string;
@@ -39,7 +39,7 @@ interface CredentialField {
   helpUrl?: string;
 }
 
-interface ProviderDef {
+export interface ProviderDef {
   value: string;
   label: string;
   website: string | null;
@@ -49,7 +49,7 @@ interface ProviderDef {
   region: "sa" | "international";
 }
 
-const SA_PROVIDERS: ProviderDef[] = [
+export const SA_PROVIDERS: ProviderDef[] = [
   {
     value: "payfast", label: "PayFast", website: "https://payfast.io", region: "sa",
     docsUrl: "https://developers.payfast.co.za/",
@@ -150,7 +150,7 @@ const SA_PROVIDERS: ProviderDef[] = [
   },
 ];
 
-const INTERNATIONAL_PROVIDERS: ProviderDef[] = [
+export const INTERNATIONAL_PROVIDERS: ProviderDef[] = [
   {
     value: "stripe", label: "Stripe", website: "https://stripe.com", region: "international",
     docsUrl: "https://docs.stripe.com/api",
@@ -196,7 +196,7 @@ const INTERNATIONAL_PROVIDERS: ProviderDef[] = [
   },
 ];
 
-const ALL_PROVIDERS = [...SA_PROVIDERS, ...INTERNATIONAL_PROVIDERS];
+export const ALL_PROVIDERS = [...SA_PROVIDERS, ...INTERNATIONAL_PROVIDERS];
 
 // ── Component ──────────────────────────────────────────────────────────────────
 
