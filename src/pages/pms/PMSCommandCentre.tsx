@@ -259,7 +259,8 @@ export default function PMSCommandCentre() {
           propsWithActiveTypes.add(rt.property_id);
         }
       }
-      setRoomTypeNameById(rtNameById);
+
+
 
       for (const rt of hostfullyResult.data || []) {
         const slug = slugify(rt.name);
