@@ -33,8 +33,9 @@ interface VatConfig {
   vatNumber: string;
 }
 
-export function BookingInvoice({ bookingId, guestName, guestEmail, checkIn, checkOut, adults, totalPrice, propertyId }: BookingInvoiceProps) {
+export function BookingInvoice({ bookingId, guestName, guestEmail, checkIn, checkOut, adults, totalPrice, propertyId, paymentStatus }: BookingInvoiceProps) {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [gatewayPaid, setGatewayPaid] = useState(0);
   const [propertyName, setPropertyName] = useState("");
   const [vatConfig, setVatConfig] = useState<VatConfig>({ isVatRegistered: false, vatRate: 15, vatNumber: "" });
   const [loading, setLoading] = useState(true);
@@ -44,13 +45,17 @@ export function BookingInvoice({ bookingId, guestName, guestEmail, checkIn, chec
   useEffect(() => {
     const load = async () => {
       setLoading(true);
-      const [folioRes, propRes, brandRes] = await Promise.all([
+      const [folioRes, propRes, brandRes, payRes] = await Promise.all([
         callPmsApi<{ transactions: Transaction[] }>("get_folio", { booking_id: bookingId }),
         supabase.from("properties").select("name, amenities").eq("id", propertyId).single(),
         supabase.from("rolos_brand_config" as any).select("is_vat_registered, vat_rate, vat_number").eq("property_id", propertyId).maybeSingle(),
+        supabase.from("payment_transactions").select("amount, status").eq("booking_id", bookingId),
       ]);
       if (folioRes.success && folioRes.data) setTransactions(folioRes.data.transactions || []);
       if (propRes.data) setPropertyName(propRes.data.name);
+      const settled = (payRes.data || []).filter((p: any) => ["completed", "paid", "success", "succeeded"].includes(String(p.status || "").toLowerCase()));
+      setGatewayPaid(settled.reduce((s: number, p: any) => s + Number(p.amount || 0), 0));
+
       
       const amenities = (propRes.data?.amenities as any) || {};
       const amenityVatNumber = amenities?.vat_number || "";
