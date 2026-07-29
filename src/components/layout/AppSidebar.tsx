@@ -15,6 +15,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useAuth } from "@/hooks/useAuth";
+import { useAdminActionCounts } from "@/hooks/useAdminActionCounts";
 import { supabase } from "@/integrations/supabase/client";
 import rolLogo from "@/assets/rol-logo.png";
 import { useHelp } from "@/contexts/HelpContext";
