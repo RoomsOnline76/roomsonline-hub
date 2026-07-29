@@ -40,6 +40,10 @@ export function EmbedAvailabilityGrid({
 
   const canGoBack = !isBefore(addDays(new Date(startDate), offset - 1), today);
 
+  // Never trust the supplied font colour blindly — enforce readability on the brand bar.
+  const headerText = useMemo(() => surfaceForegroundPair(brandColor, fontColor), [brandColor, fontColor]);
+
+
   return (
     <div style={{ overflowX: "auto", width: "100%", padding: "4px 0" }}>
       {/* Navigation */}
