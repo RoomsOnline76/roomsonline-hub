@@ -370,31 +370,43 @@ export const PayFastOnsiteModal = ({
           )}
 
           {/* Waiting for PayFast Modal - only show if there's an error reopening */}
-          {!isLoading && !error && paymentUuid && !payFastActive && (
+          {!isLoading && !redirecting && !error && paymentUuid && scriptLoaded && !payFastActive && (
             <div className="text-center py-4">
               <p className="text-sm text-muted-foreground mb-4">
                 Click below to open the payment window.
               </p>
-              <Button onClick={() => triggerOnsitePayment(paymentUuid)} variant="default">
+              <Button
+                onClick={() => {
+                  triggeredRef.current = true;
+                  triggerOnsitePayment(paymentUuid);
+                }}
+                variant="default"
+              >
                 Open Payment Window
               </Button>
             </div>
           )}
 
           {/* Security Badge */}
-          <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
-            <ShieldCheck className="h-4 w-4" />
-            <span>Secured by PayFast · SSL Encrypted</span>
+          <div className="flex flex-col items-center justify-center gap-1 text-xs text-muted-foreground">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4" />
+              <span>Secured by PayFast · SSL Encrypted</span>
+            </div>
+            {credentialSource === "byo" && (
+              <span>Payments settle directly to {propertyName}'s own PayFast account.</span>
+            )}
           </div>
 
-          {/* Sandbox Notice */}
-          {isSandbox && (
+          {/* Sandbox Notice — only when the resolved merchant account is in test mode */}
+          {sandboxMode === true && (
             <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg p-3 text-center">
               <p className="text-xs text-amber-700 dark:text-amber-400">
                 🔧 Test Mode: Use card 4000000000000002 with any future date and CVV
               </p>
             </div>
           )}
+
         </div>
 
         {/* Cancel Button */}
