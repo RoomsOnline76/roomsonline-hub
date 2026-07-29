@@ -460,7 +460,36 @@ Deno.serve(async (req) => {
       
       console.log("[PayFast] ITN data:", JSON.stringify(itnData));
       console.log("[PayFast] ITN key order:", itnKeyOrder.join(", "));
-      
+
+      // Resolve the merchant account this payment was originally created against,
+      // so the signature is verified with the correct passphrase (BYO or ROL).
+      const itnRef = itnData.m_payment_id;
+      if (itnRef) {
+        const { data: originTx } = await supabase
+          .from("payment_transactions")
+          .select("booking_id, merchant_id, credential_source, bookings(property_id)")
+          .eq("m_payment_id", itnRef)
+          .maybeSingle();
+
+        if (originTx) {
+          const originPropertyId = (originTx as any)?.bookings?.property_id || null;
+          await applyPropertyCredentials(originPropertyId);
+
+          // Guard: the posted merchant must match the account we initiated with.
+          if (
+            originTx.merchant_id &&
+            itnData.merchant_id &&
+            String(originTx.merchant_id) !== String(itnData.merchant_id)
+          ) {
+            console.error("[PayFast] ITN merchant mismatch", {
+              expected: maskId(originTx.merchant_id),
+              received: maskId(itnData.merchant_id),
+            });
+            return new Response("OK", { status: 200, headers: corsHeaders });
+          }
+        }
+      }
+
       // Validate source IP
       const sourceIp = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() 
         || req.headers.get("cf-connecting-ip")
@@ -479,6 +508,7 @@ Deno.serve(async (req) => {
         console.error("[PayFast] Invalid signature");
         return new Response("OK", { status: 200, headers: corsHeaders });
       }
+
       
       // Server-side validation (optional but recommended)
       // const isValid = await validateWithPayFast(itnData, isSandbox);
