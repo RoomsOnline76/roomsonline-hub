@@ -884,7 +884,12 @@ function generatePropertyNotificationEmail(booking: any, property: any): string 
           </tr>
           ` : ""}
 
-          <!-- Action Required -->
+          <!-- Action Required (only when the property has no PMS to receive the booking) -->
+          ${(() => {
+            const sys = String(property.external_system || "").toLowerCase();
+            const hasPms = !!property.is_rol_property || (!!sys && sys !== "manual" && sys !== "none" && sys !== "native");
+            if (hasPms) return "";
+            return `
           <tr>
             <td style="padding: 0 40px 20px;">
               <div style="background-color: #eff6ff; border: 1px solid #3b82f6; border-radius: 8px; padding: 20px;">
@@ -895,7 +900,9 @@ function generatePropertyNotificationEmail(booking: any, property: any): string 
                 </p>
               </div>
             </td>
-          </tr>
+          </tr>`;
+          })()}
+
 
           <!-- Footer -->
           <tr>
