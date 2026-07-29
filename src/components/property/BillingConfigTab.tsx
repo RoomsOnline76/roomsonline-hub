@@ -176,7 +176,7 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
     } as any;
   }, [selectedPreset]);
 
-  const persistBuilder = (nextStrategy: string, v: BillingConfigValue, startDate: string) => {
+  const persistBuilder = (nextStrategy: string, v: BillingConfigValue, startDate: string, enabled: boolean) => {
     // Sync BYO toggle → property.allow_custom_payment_provider so ROLOS/Integrations
     // unlocks or locks the gateway configurator accordingly. Replaces the old
     // dedicated Payment Providers tab.
