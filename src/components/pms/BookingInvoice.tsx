@@ -14,7 +14,9 @@ interface BookingInvoiceProps {
   adults: number;
   totalPrice: number;
   propertyId: string;
+  paymentStatus?: string | null;
 }
+
 
 interface Transaction {
   id: string;
