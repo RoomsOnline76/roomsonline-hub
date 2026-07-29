@@ -861,7 +861,7 @@ export default function PMSDashboard() {
       map.set(prop.id, { roomTypes: propRoomTypes, rooms: propRooms, bookings: propBookings, overrideMap: oMap, roomsByType: rbtMap, propertyData: propData });
     }
     return map;
-  }, [isPortfolioMode, portfolioProperties, portfolioRoomTypesRaw, portfolioRoomsRaw, portfolioBookingsRaw, portfolioOverridesRaw, portfolioPropertiesData]);
+  }, [isPortfolioMode, portfolioProperties, portfolioRoomTypesRaw, portfolioRoomsRaw, portfolioBookingsRaw, portfolioOverridesRaw, portfolioPropertiesData, portfolioAliasRoomTypes]);
 
   // Resolve room names for a booking (single or portfolio mode)
   const getBookingRoomNames = useCallback((b: BookingRow): string[] => {
