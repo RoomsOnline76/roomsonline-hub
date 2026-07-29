@@ -154,10 +154,12 @@ export function AppSidebar() {
     window.location.replace("/auth");
   };
 
-  // Get badge for a nav item (special case: access requests)
+  // Get badge for a nav item (access requests + properties awaiting review)
   const getBadge = (item: NavItem): number | undefined => {
     if (item.id === 'access-requests' && pendingRequests > 0) return pendingRequests;
+    if (item.id === 'review-queue' && reviewQueueCount > 0) return reviewQueueCount;
     return item.badge;
+
   };
 
   const NavLink = ({ item }: { item: NavItem }) => {
