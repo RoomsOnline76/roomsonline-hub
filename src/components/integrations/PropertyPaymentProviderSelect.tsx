@@ -12,6 +12,23 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
+/** Turns Error / PostgrestError / unknown into readable text (never "[object Object]"). */
+function describeError(e: unknown): string {
+  if (!e) return "Unknown error";
+  if (typeof e === "string") return e;
+  if (e instanceof Error && e.message) return e.message;
+  const err = e as { message?: string; details?: string; hint?: string; code?: string };
+  const parts = [err.message, err.details, err.hint, err.code ? `(${err.code})` : undefined]
+    .filter(Boolean);
+  if (parts.length > 0) return parts.join(" — ");
+  try {
+    return JSON.stringify(e);
+  } catch {
+    return "Unknown error";
+  }
+}
+
+
 // ── Provider registry with credential schemas ──────────────────────────────────
 
 interface CredentialField {
@@ -272,7 +289,7 @@ export function PropertyPaymentProviderSelect({ propertyId }: PropertyPaymentPro
     },
     onError: (e: unknown) =>
       toast.error("Failed to update payment providers", {
-        description: e instanceof Error ? e.message : String(e),
+        description: describeError(e),
       }),
   });
 
@@ -312,7 +329,7 @@ export function PropertyPaymentProviderSelect({ propertyId }: PropertyPaymentPro
     },
     onError: (e: unknown) =>
       toast.error("Failed to save credentials", {
-        description: e instanceof Error ? e.message : String(e),
+        description: describeError(e),
       }),
   });
 
