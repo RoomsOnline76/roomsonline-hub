@@ -121,7 +121,8 @@ export function MobileBottomNav() {
                         {accessibleItems.map((item) => {
                           const Icon = item.icon;
                           const active = isActive(item.href);
-                          
+                          const pending = actionCounts[item.id] || 0;
+
                           return (
                             <button
                               key={item.id}
@@ -136,10 +137,18 @@ export function MobileBottomNav() {
                                   : "hover:bg-muted text-muted-foreground hover:text-foreground"
                               )}
                             >
-                              <Icon className="h-5 w-5" />
+                              <span className="relative">
+                                <Icon className="h-5 w-5" />
+                                {pending > 0 && (
+                                  <span className="absolute -right-2 -top-1.5 min-w-[16px] rounded-full bg-primary px-1 text-[9px] font-semibold leading-4 text-primary-foreground">
+                                    {pending}
+                                  </span>
+                                )}
+                              </span>
                               <span className="text-[10px] font-medium text-center leading-tight">
                                 {item.title}
                               </span>
+
                             </button>
                           );
                         })}
