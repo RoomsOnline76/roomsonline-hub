@@ -42,6 +42,9 @@ export const PayFastOnsiteModal = ({
   const [error, setError] = useState<string | null>(null);
   const [scriptLoaded, setScriptLoaded] = useState(false);
   const [payFastActive, setPayFastActive] = useState(false);
+  const [redirecting, setRedirecting] = useState(false);
+  const watchdogRef = useRef<number | null>(null);
+
 
   // Load PayFast onsite script
   useEffect(() => {
