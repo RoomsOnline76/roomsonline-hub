@@ -1046,6 +1046,53 @@ Deno.serve(async (req) => {
       
       // Request UUID from PayFast onsite API
       const onsiteUrl = isSandbox ? PAYFAST_SANDBOX_ONSITE_URL : PAYFAST_PRODUCTION_ONSITE_URL;
+
+      /**
+       * Fallback: this merchant account can't do in-page (onsite) checkout, so hand
+       * the client the signed fields for PayFast's hosted redirect checkout instead.
+       * The signed fields are identical to the ones `initiate_payment` builds.
+       */
+      const respondWithRedirectCheckout = async (reason: string) => {
+        console.log("[PayFast] Falling back to redirect checkout:", reason);
+
+        await supabase.from("payment_transactions").insert({
+          booking_id,
+          amount: booking.total_price,
+          currency: "ZAR",
+          status: "pending",
+          payment_provider: "payfast",
+          m_payment_id: transRef,
+          merchant_id: merchantId,
+          credential_source: credentialSource,
+          gateway_response: { trans_ref: transRef, form_fields: formFields, onsite: false, fallback_reason: reason },
+        });
+
+        await supabase
+          .from("bookings")
+          .update({ payment_reference: transRef, payment_status: "pending", payment_method: "payfast" })
+          .eq("id", booking_id);
+
+        return new Response(
+          JSON.stringify({
+            success: true,
+            onsite_unavailable: true,
+            fallback_reason: reason,
+            trans_ref: transRef,
+            checkout_url: isSandbox ? PAYFAST_SANDBOX_URL : PAYFAST_PRODUCTION_URL,
+            form_fields: formFields,
+            is_sandbox: isSandbox,
+            credential_source: credentialSource,
+            source: "payfast-api",
+            action: "initiate_onsite_payment",
+          }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      };
+
+      // Known-incapable merchant account: skip the onsite round-trip entirely.
+      if (!onsiteSupported) {
+        return await respondWithRedirectCheckout("account_onsite_disabled");
+      }
       
       console.log("[PayFast] Requesting onsite UUID from:", onsiteUrl);
       
@@ -1075,16 +1122,26 @@ Deno.serve(async (req) => {
       
       if (!uuid) {
         console.error("[PayFast] No UUID received from onsite API. PayFast error:", payfastError);
-        // Return 200 with success:false so supabase.functions.invoke passes the body to the client
-        return new Response(
-          JSON.stringify({ 
-            success: false, 
-            error: payfastError || "Failed to initiate onsite payment",
-            details: payfastError ? `PayFast: ${payfastError}` : undefined
-          }),
-          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+        // Never dead-end checkout: hand the guest the hosted redirect flow.
+        return await respondWithRedirectCheckout(payfastError ? `payfast_error:${payfastError}` : "no_uuid");
       }
+
+      // Pre-flight: a valid UUID that 404s means the merchant account does not have
+      // Onsite Payments enabled (typical for BYO accounts).
+      try {
+        const preflight = await fetch(`${onsiteUrl}/${uuid}`, { method: "GET", redirect: "manual" });
+        console.log("[PayFast] Onsite preflight status:", preflight.status, "uuid:", uuid);
+        if (preflight.status >= 400) {
+          if (credentialSource === "byo") {
+            await markOnsiteUnsupported(supabase, credentialOwnerPropertyId);
+          }
+          return await respondWithRedirectCheckout(`onsite_preflight_${preflight.status}`);
+        }
+      } catch (e) {
+        console.error("[PayFast] Onsite preflight failed:", e);
+        return await respondWithRedirectCheckout("onsite_preflight_error");
+      }
+
       
       // Create payment transaction record
       const { error: txError } = await supabase
