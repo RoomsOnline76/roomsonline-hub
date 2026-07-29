@@ -22,6 +22,7 @@ import { PUBLIC_DOMAIN } from "@/lib/config";
 import { format } from "date-fns";
 import { GoogleFontPicker } from "@/components/property/GoogleFontPicker";
 import { RevenueShareSection } from "@/components/portfolio/RevenueShareSection";
+import { PortfolioPaymentProviderCard } from "@/components/portfolio/PortfolioPaymentProviderCard";
 
 interface PortfolioBranding {
   primary_color?: string;
@@ -70,6 +71,7 @@ interface Property {
   brand_heading_font: string | null;
   brand_body_font: string | null;
   amenities: any;
+  payment_provider_override?: boolean | null;
 }
 
 // Review platform IDs per property: { propertyId: { google_place_id, tripadvisor_id } }
@@ -136,7 +138,7 @@ export default function AdminPortfolios() {
     queryFn: async () => {
       const { data } = await supabase
         .from("properties")
-        .select("id, name, owner_email, city, brand_primary_color, brand_secondary_color, brand_font_color, brand_logo_url, brand_heading_font, brand_body_font, amenities")
+        .select("id, name, owner_email, city, brand_primary_color, brand_secondary_color, brand_font_color, brand_logo_url, brand_heading_font, brand_body_font, amenities, payment_provider_override")
         .eq("is_active", true)
         .order("name");
       return (data || []) as Property[];
@@ -892,6 +894,16 @@ export default function AdminPortfolios() {
                               portfolioId={p.id}
                               properties={memberProps.map((mp) => ({ id: mp.id, name: mp.name }))}
                               isAdmin
+                            />
+                          </div>
+                          <div className="mt-4">
+                            <PortfolioPaymentProviderCard
+                              portfolioId={p.id}
+                              properties={memberProps.map((mp) => ({
+                                id: mp.id,
+                                name: mp.name,
+                                payment_provider_override: mp.payment_provider_override,
+                              }))}
                             />
                           </div>
                         </TableCell>
