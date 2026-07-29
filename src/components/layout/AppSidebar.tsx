@@ -216,6 +216,7 @@ export function AppSidebar() {
 
     if (section.collapsible) {
       const isOpen = collapsedSections[section.id] ?? (section.defaultOpen ?? false);
+      const pending = sectionPending(section);
 
       return (
         <div key={section.id}>
@@ -223,22 +224,32 @@ export function AppSidebar() {
             <CollapsibleTrigger asChild>
               <button
                 className={cn(
-                  "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-all",
+                  "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-all relative",
                   "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
                   "text-sidebar-foreground/70"
                 )}
               >
                 <SectionIcon className="h-4 w-4 shrink-0" />
+                {/* Collapsed section/sidebar: show a dot so hidden queues stay visible */}
+                {pending > 0 && (collapsed || !isOpen) && (
+                  <span className="absolute left-6 top-1.5 h-2 w-2 rounded-full bg-primary" />
+                )}
                 {!collapsed && (
                   <>
                     <span className="flex-1 text-left text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/50">
                       {section.label}
                     </span>
+                    {pending > 0 && !isOpen && (
+                      <span className="rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-semibold leading-none text-primary-foreground">
+                        {pending}
+                      </span>
+                    )}
                     <ChevronDown className={cn("h-3 w-3 transition-transform", isOpen && "rotate-180")} />
                   </>
                 )}
               </button>
             </CollapsibleTrigger>
+
             <CollapsibleContent className="space-y-1 mt-1">
               {visibleItems.map((item) => (
                 <NavLink key={item.id} item={item} />
