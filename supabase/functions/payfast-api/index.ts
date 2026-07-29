@@ -421,6 +421,8 @@ Deno.serve(async (req) => {
     let passphrase = rawPassphrase.replace(/[\x00-\x1F\x7F-\x9F\u200B-\u200D\uFEFF]/g, "").trim();
     let isSandbox = Deno.env.get("PAYFAST_SANDBOX") !== "false"; // Default to sandbox
     let credentialSource: "byo" | "rol" = "rol";
+    let onsiteSupported = true;
+    let credentialOwnerPropertyId: string | null = null;
 
     /** Swap in the property's BYO merchant account when configured. */
     const applyPropertyCredentials = async (propertyId?: string | null) => {
@@ -430,15 +432,19 @@ Deno.serve(async (req) => {
       passphrase = creds.passphrase;
       isSandbox = creds.isSandbox;
       credentialSource = creds.source;
+      onsiteSupported = creds.onsiteSupported !== false;
+      credentialOwnerPropertyId = creds.ownerPropertyId;
       console.log("[PayFast] Credentials resolved:", {
         property_id: propertyId || null,
         credential_source: creds.source,
         inherited: creds.inherited,
         merchant_id: maskId(creds.merchantId),
         is_sandbox: creds.isSandbox,
+        onsite_supported: onsiteSupported,
       });
       return creds;
     };
+
 
 
     const url = new URL(req.url);
