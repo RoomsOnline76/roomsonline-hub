@@ -288,7 +288,13 @@ export function PropertyPaymentProviderSelect({ propertyId }: PropertyPaymentPro
         .eq("integration_type", "payment_credentials")
         .maybeSingle();
       if (error) throw error;
-      return (data?.config as Record<string, string>) || {};
+      const raw = (data?.config as Record<string, unknown>) || {};
+      // The checklist ticks share this row — keep them out of the credential fields.
+      const creds: Record<string, string> = {};
+      for (const [k, v] of Object.entries(raw)) {
+        if (k !== BYO_CHECKLIST_KEY && typeof v === "string") creds[k] = v;
+      }
+      return creds;
     },
     enabled: !!propertyId,
   });
