@@ -825,7 +825,12 @@ export default function PMSDashboard() {
       // This prevents valid units like GRYSBOK from disappearing when duplicate type rows exist.
       const propRooms = normalizeRoomsToCanonicalRoomTypes(propRoomsRawForProp, propRoomTypesRaw, propRoomTypes);
       const propBookingsRaw = portfolioBookingsRaw.filter(b => (b as any).property_id === prop.id) as BookingRow[];
-      const propBookings = autoAssignBookings(propBookingsRaw, propRooms, propRoomTypes) as BookingRow[];
+      const propAliasTypes = [
+        ...portfolioAliasRoomTypes.filter(t => t.property_id === prop.id),
+        ...propRoomTypesRaw.map(rt => ({ id: rt.id, name: rt.name, property_id: prop.id })),
+      ];
+      const propBookings = autoAssignBookings(propBookingsRaw, propRooms, propRoomTypes, propAliasTypes) as BookingRow[];
+
       const propOverrides = portfolioOverridesRaw.filter(o => (o as any).property_id === prop.id);
 
       const oMap = new Map<string, AvailabilityOverride>();
