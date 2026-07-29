@@ -23,6 +23,8 @@ import { format } from "date-fns";
 import { GoogleFontPicker } from "@/components/property/GoogleFontPicker";
 import { RevenueShareSection } from "@/components/portfolio/RevenueShareSection";
 import { PortfolioPaymentProviderCard } from "@/components/portfolio/PortfolioPaymentProviderCard";
+import { BrandReadabilityPanel } from "@/components/branding/BrandReadabilityPanel";
+
 
 interface PortfolioBranding {
   primary_color?: string;
@@ -555,33 +557,33 @@ export default function AdminPortfolios() {
           <p className="text-[10px] text-muted-foreground">Upload a video file or paste a YouTube/direct video URL.</p>
         </div>
 
-        {/* Contrast Warnings */}
-        {brandPrimary && (() => {
-          const bg = brandLightBgColor || "#ffffff";
-          const checks = [
-            { label: "Primary on background", ratio: contrastRatio(brandPrimary, bg) },
-            ...(brandFontColor ? [{ label: "Font on background", ratio: contrastRatio(brandFontColor, bg) }] : []),
-            ...(brandMutedTextColor ? [{ label: "Muted text on background", ratio: contrastRatio(brandMutedTextColor, bg) }] : []),
-            { label: "White on primary (buttons)", ratio: contrastRatio("#ffffff", brandPrimary) },
-          ];
-          const failures = checks.filter(c => c.ratio < 3);
-          const warnings = checks.filter(c => c.ratio >= 3 && c.ratio < 4.5);
-          if (failures.length === 0 && warnings.length === 0) return null;
-          return (
-            <div className="rounded-lg border border-yellow-300 bg-yellow-50 dark:bg-yellow-900/20 dark:border-yellow-700 p-2.5 space-y-1">
-              <p className="text-[10px] font-semibold flex items-center gap-1 text-yellow-800 dark:text-yellow-300">
-                <AlertTriangle className="h-3 w-3" /> Contrast Issues Detected
-              </p>
-              {failures.map((c, i) => (
-                <p key={i} className="text-[10px] text-red-700 dark:text-red-400">✕ {c.label}: {c.ratio.toFixed(1)} (needs ≥4.5)</p>
-              ))}
-              {warnings.map((c, i) => (
-                <p key={i} className="text-[10px] text-yellow-700 dark:text-yellow-400">⚠ {c.label}: {c.ratio.toFixed(1)} (large text only)</p>
-              ))}
-              <p className="text-[10px] text-muted-foreground">The system will auto-correct unreadable text at runtime, but adjusting colours is recommended.</p>
-            </div>
-          );
-        })()}
+        {/* Readability examples + auto-correct */}
+        {brandPrimary && (
+          <BrandReadabilityPanel
+            entityLabel="portfolio"
+            palette={{
+              brand_primary_color: brandPrimary,
+              brand_secondary_color: brandSecondary,
+              brand_font_color: brandFontColor,
+              brand_heading_text_color: brandHeadingTextColor,
+              brand_body_text_color: brandBodyTextColor,
+              brand_muted_text_color: brandMutedTextColor,
+              brand_light_bg_color: brandLightBgColor,
+              brand_dark_bg_color: brandDarkBgColor,
+            }}
+            onApply={(patch) => {
+              if (patch.brand_primary_color) setBrandPrimary(patch.brand_primary_color);
+              if (patch.brand_secondary_color) setBrandSecondary(patch.brand_secondary_color);
+              if (patch.brand_font_color) setBrandFontColor(patch.brand_font_color);
+              if (patch.brand_heading_text_color) setBrandHeadingTextColor(patch.brand_heading_text_color);
+              if (patch.brand_body_text_color) setBrandBodyTextColor(patch.brand_body_text_color);
+              if (patch.brand_muted_text_color) setBrandMutedTextColor(patch.brand_muted_text_color);
+              if (patch.brand_light_bg_color) setBrandLightBgColor(patch.brand_light_bg_color);
+              if (patch.brand_dark_bg_color) setBrandDarkBgColor(patch.brand_dark_bg_color);
+            }}
+          />
+        )}
+
 
         {/* Property Brand Override Toggle */}
         <div className="flex items-center justify-between gap-3 pt-2 pb-1 px-1 rounded-lg border border-border bg-muted/20 p-3">

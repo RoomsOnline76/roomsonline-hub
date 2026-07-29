@@ -12,6 +12,8 @@ import { EmbedTripAdvisorReviews } from "@/components/embed/EmbedTripAdvisorRevi
 import { EmbedReviewPlatforms } from "@/components/embed/EmbedReviewPlatforms";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { surfaceForegroundPair } from "@/lib/brandOverride";
+
 import { MapPin, Phone, Mail, Tag, ChevronDown, Users, BedDouble, Bath, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -227,12 +229,17 @@ export default function EmbedProperty() {
   const brandColor = brandColorParam
     ? decodeURIComponent(brandColorParam)
     : (isWhiteLabelContext ? (property?.brand_primary_color || ROL_PINK) : ROL_PINK);
-  const fontColor = brandFontParam
+  const requestedFontColor = brandFontParam
     ? decodeURIComponent(brandFontParam)
     : (isWhiteLabelContext ? (property?.brand_font_color || "#ffffff") : "#ffffff");
+  // Readability guard: text sitting ON the brand bar must clear WCAG AA against it.
+  const brandSurfaceText = surfaceForegroundPair(brandColor, requestedFontColor);
+  const fontColor = brandSurfaceText.fg;
+  const fontColorMuted = brandSurfaceText.muted;
   const logoUrl = brandLogoParam
     ? decodeURIComponent(brandLogoParam)
     : (isWhiteLabelContext ? property?.brand_logo_url : null);
+
 
   const nights = useMemo(() => {
     if (!checkIn || !checkOut) return 0;

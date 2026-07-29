@@ -9,6 +9,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { CopyBrandingModal } from "./CopyBrandingModal";
 import { GoogleFontPicker } from "./GoogleFontPicker";
+import { BrandReadabilityPanel } from "@/components/branding/BrandReadabilityPanel";
+
 
 export interface BrandingData {
   brand_logo_url: string;
@@ -383,53 +385,20 @@ export function BrandingTab({ data, onChange, propertyId, onDirty, canToggleBran
 
 
       {hasColors && (
-        <Card>
-          <CardHeader className="py-3 px-4">
-            <CardTitle className="text-sm flex items-center gap-2">
-              <Type className="h-4 w-4 text-primary" />
-              Font Readability Preview
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="py-3 px-4 space-y-4">
-            <p className="text-xs text-muted-foreground">
-              Review how your font colour appears on each brand background. Aim for AA contrast (4.5:1 ratio) for full readability.
-            </p>
-
-            {data.brand_primary_color && data.brand_font_color && (
-              <FontPreviewCard bgColor={data.brand_primary_color} bgLabel="Primary" fontColor={data.brand_font_color} />
-            )}
-
-            {data.brand_secondary_color && data.brand_font_color && (
-              <FontPreviewCard bgColor={data.brand_secondary_color} bgLabel="Secondary" fontColor={data.brand_font_color} />
-            )}
-
-            {/* White & dark backgrounds for light/dark mode */}
-            {data.brand_font_color && (
-              <>
-                <FontPreviewCard bgColor="#ffffff" bgLabel="Light Mode" fontColor={data.brand_font_color} />
-                <FontPreviewCard bgColor="#1a1a2e" bgLabel="Dark Mode" fontColor={data.brand_font_color} />
-              </>
-            )}
-
-            {/* Primary colour as text on white/dark */}
-            {data.brand_primary_color && (
-              <div className="space-y-2">
-                <span className="text-xs font-medium text-muted-foreground">Primary as Accent Text</span>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="rounded-lg border border-border p-4" style={{ backgroundColor: "#ffffff" }}>
-                    <p className="text-sm font-semibold" style={{ color: data.brand_primary_color }}>Book Now →</p>
-                    <ContrastBadge ratio={getContrastRatio("#ffffff", data.brand_primary_color)} />
-                  </div>
-                  <div className="rounded-lg border border-border p-4" style={{ backgroundColor: "#1a1a2e" }}>
-                    <p className="text-sm font-semibold" style={{ color: data.brand_primary_color }}>Book Now →</p>
-                    <ContrastBadge ratio={getContrastRatio("#1a1a2e", data.brand_primary_color)} />
-                  </div>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        <BrandReadabilityPanel
+          palette={{
+            brand_primary_color: data.brand_primary_color,
+            brand_secondary_color: data.brand_secondary_color,
+            brand_font_color: data.brand_font_color,
+          }}
+          onApply={(patch) => {
+            onChange({ ...data, ...patch } as BrandingData);
+            onDirty();
+          }}
+          entityLabel="property"
+        />
       )}
+
 
       {/* Live Combined Preview */}
       {hasColors && (

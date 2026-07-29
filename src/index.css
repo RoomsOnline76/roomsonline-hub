@@ -38,11 +38,14 @@ h1, h2, h3, h4, h5, h6, .font-heading {
     /* Primary - ROL Pink */
     --primary: 326 82% 51%;
     --primary-foreground: 0 0% 100%;
+    --primary-foreground-muted: 0 0% 88%;
     --primary-text-safe: 326 82% 51%;
 
     /* Secondary */
     --secondary: 40 6% 94%;
     --secondary-foreground: 220 20% 12%;
+    --secondary-foreground-muted: 220 20% 30%;
+
 
     /* Muted */
     --muted: 40 6% 94%;
@@ -51,6 +54,8 @@ h1, h2, h3, h4, h5, h6, .font-heading {
     /* Accent - Brushed Gold */
     --accent: 38 70% 52%;
     --accent-foreground: 220 20% 12%;
+    --accent-foreground-muted: 220 20% 30%;
+
 
     /* Midnight Blue - for special elements */
     --midnight: 220 45% 22%;
@@ -112,10 +117,12 @@ h1, h2, h3, h4, h5, h6, .font-heading {
     /* Primary - ROL Pink (lighter for dark mode) */
     --primary: 326 85% 60%;
     --primary-foreground: 0 0% 100%;
+    --primary-foreground-muted: 0 0% 88%;
     --primary-text-safe: 326 85% 60%;
 
     --secondary: 220 15% 18%;
     --secondary-foreground: 40 6% 95%;
+    --secondary-foreground-muted: 40 6% 80%;
 
     --muted: 220 15% 18%;
     --muted-foreground: 220 10% 65%;
@@ -123,6 +130,8 @@ h1, h2, h3, h4, h5, h6, .font-heading {
     /* Accent - Brighter gold for dark mode */
     --accent: 38 75% 55%;
     --accent-foreground: 220 20% 12%;
+    --accent-foreground-muted: 220 20% 28%;
+
 
     --midnight: 220 40% 35%;
 
@@ -644,3 +653,13 @@ button {
   @apply absolute inset-0;
   background: radial-gradient(circle at 30% 70%, hsl(38 70% 52% / 0.15) 0%, transparent 50%);
 }
+
+/* ── On-brand-surface text utilities ──
+   Use inside bg-primary / bg-secondary / bg-accent blocks so text stays
+   readable when a property brand overrides the surface colour. */
+.on-primary { color: hsl(var(--primary-foreground)); }
+.on-primary-muted { color: hsl(var(--primary-foreground-muted)); }
+.on-secondary { color: hsl(var(--secondary-foreground)); }
+.on-secondary-muted { color: hsl(var(--secondary-foreground-muted)); }
+.on-accent { color: hsl(var(--accent-foreground)); }
+.on-accent-muted { color: hsl(var(--accent-foreground-muted)); }
