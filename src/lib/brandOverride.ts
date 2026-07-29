@@ -309,12 +309,12 @@ export function buildBrandVarsMap(brand: PropertyBrand): Record<string, string> 
 
   // Card / page surface muted text safety (>= 4.5:1 for body copy)
   {
-    const cardMutedSource =
-      brand.mutedTextColor || (vars["--muted-foreground"] ? null : null) || preferredFg || bestForegroundFor(effectiveBgHex);
-    const safeCardMuted = enforceContrast(cardMutedSource, effectiveBgHex, 4.5);
+    const base = brand.mutedTextColor || mixHex(bestForegroundFor(effectiveBgHex), effectiveBgHex, 0.35);
+    const safeCardMuted = enforceContrast(base, effectiveBgHex, 4.5);
     const hsl = hexToHsl(safeCardMuted);
     if (hsl) vars["--muted-foreground"] = hsl;
   }
+
 
 
   return vars;
