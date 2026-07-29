@@ -515,13 +515,16 @@ Deno.serve(async (req) => {
         return new Response("OK", { status: 200, headers: corsHeaders });
       }
 
-      
-      // Server-side validation (optional but recommended)
-      // const isValid = await validateWithPayFast(itnData, isSandbox);
-      // if (!isValid) {
-      //   console.error("[PayFast] Server validation failed");
-      //   return new Response("OK", { status: 200, headers: corsHeaders });
-      // }
+
+      // Server-side validation with PayFast. Several merchant accounts (ROL +
+      // every BYO property) share this single notify endpoint, so we confirm the
+      // payload with PayFast itself before treating it as authoritative.
+      const isValid = await validateWithPayFast(itnData, isSandbox);
+      if (!isValid) {
+        console.error("[PayFast] Server validation failed for", itnData.m_payment_id);
+        return new Response("OK", { status: 200, headers: corsHeaders });
+      }
+
       
       // Extract payment details
       const mPaymentId = itnData.m_payment_id; // Our reference
@@ -620,7 +623,40 @@ Deno.serve(async (req) => {
       }
       
       // Determine status
-      const newStatus = paymentStatus === "COMPLETE" ? "paid" : paymentStatus === "FAILED" ? "failed" : "cancelled";
+      let newStatus = paymentStatus === "COMPLETE" ? "paid" : paymentStatus === "FAILED" ? "failed" : "cancelled";
+
+      // Amount guard: never confirm a booking on a mismatched gross amount.
+      const expectedAmount = Number(transaction.amount ?? 0);
+      if (newStatus === "paid" && expectedAmount > 0 && Math.abs(amountGross - expectedAmount) > 0.01) {
+        console.error("[PayFast] ITN amount mismatch — not confirming", {
+          m_payment_id: mPaymentId,
+          expected: expectedAmount,
+          received: amountGross,
+        });
+        await supabase
+          .from("payment_transactions")
+          .update({
+            status: "failed",
+            transaction_ref: pfPaymentId,
+            pf_payment_id: pfPaymentId,
+            signature_valid: true,
+            gateway_response: { ...itnData, rol_error: "amount_mismatch", rol_expected_amount: expectedAmount },
+          })
+          .eq("id", transaction.id);
+
+        await supabase.from("sync_logs").insert({
+          booking_id: transaction.booking_id,
+          property_id: null,
+          external_system: "payfast",
+          sync_type: "payment_itn",
+          status: "error",
+          message: `PayFast ITN amount mismatch: expected ${expectedAmount}, received ${amountGross}`,
+          response_data: itnData,
+        });
+
+        return new Response("OK", { status: 200, headers: corsHeaders });
+      }
+
       
       // Update payment transaction
       await supabase
@@ -1089,10 +1125,14 @@ Deno.serve(async (req) => {
         );
       };
 
-      // Known-incapable merchant account: skip the onsite round-trip entirely.
+      // Onsite (in-page) capture is an opt-in PayFast merchant feature. BYO accounts
+      // use the hosted redirect flow unless the owner has explicitly opted in.
       if (!onsiteSupported) {
-        return await respondWithRedirectCheckout("account_onsite_disabled");
+        return await respondWithRedirectCheckout(
+          credentialSource === "byo" ? "byo_uses_redirect_checkout" : "account_onsite_disabled",
+        );
       }
+
       
       console.log("[PayFast] Requesting onsite UUID from:", onsiteUrl);
       

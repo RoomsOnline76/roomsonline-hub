@@ -613,12 +613,13 @@ export function PropertyPaymentProviderSelect({ propertyId }: PropertyPaymentPro
                           ? `Merchant ${settlement.merchant_id_masked}${settlement.is_sandbox ? " — sandbox mode" : ""}`
                           : "Save your own merchant credentials below to settle directly to your account."}
                       </p>
-                      {settlement.credential_source === "byo" && settlement.onsite_supported === false && (
+                      {settlement.credential_source === "byo" && (
                         <p className="text-xs text-muted-foreground">
-                          This account uses redirect checkout — enable Onsite Payments in the PayFast
-                          dashboard for in-page checkout.
+                          Guests are sent to PayFast's secure hosted checkout. Payment confirmation
+                          returns to us automatically — nothing to configure in your PayFast dashboard.
                         </p>
                       )}
+
                     </div>
 
                   </div>
