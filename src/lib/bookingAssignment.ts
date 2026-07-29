@@ -40,7 +40,8 @@ const nameKey = (propertyId: string | null | undefined, name: string) => `${prop
 export function autoAssignBookings<T extends AssignableBooking>(
   bookings: T[],
   rooms: AssignableRoom[],
-  roomTypes: AssignableRoomType[] = []
+  roomTypes: AssignableRoomType[] = [],
+  aliasRoomTypes: AssignableRoomType[] = []
 ): T[] {
   if (!bookings.length || !rooms.length) return bookings;
   const visibleRoomIds = new Set(rooms.map((r) => r.id));
@@ -53,26 +54,34 @@ export function autoAssignBookings<T extends AssignableBooking>(
     roomsByType.get(r.room_type_id)!.push(r);
   }
 
-  // type-name → rooms (fallback for duplicate / orphan room_type rows)
+  // type-name → rooms (fallback for duplicate / orphan room_type rows).
+  // `aliasRoomTypes` lets callers pass in foreign catalogues (e.g. hostfully_room_types)
+  // so that a booking whose room_type_id came from another system still resolves by name.
   const typeInfoById = new Map<string, { name: string; property_id?: string | null }>();
-  for (const t of roomTypes) typeInfoById.set(t.id, { name: norm(t.name), property_id: t.property_id });
+  for (const t of [...aliasRoomTypes, ...roomTypes]) {
+    typeInfoById.set(t.id, { name: norm(t.name), property_id: t.property_id });
+  }
 
   const roomsByTypeName = new Map<string, AssignableRoom[]>();
+  const pushByName = (key: string, room: AssignableRoom) => {
+    if (!roomsByTypeName.has(key)) roomsByTypeName.set(key, []);
+    const list = roomsByTypeName.get(key)!;
+    if (!list.some((r) => r.id === room.id)) list.push(room);
+  };
+
   for (const r of rooms) {
     const typeInfo = r.room_type_id ? typeInfoById.get(r.room_type_id) : undefined;
-    const tn = typeInfo?.name;
-    if (!tn) continue;
-    const scopedKey = nameKey(r.property_id || typeInfo?.property_id, tn);
-    if (!roomsByTypeName.has(scopedKey)) roomsByTypeName.set(scopedKey, []);
-    roomsByTypeName.get(scopedKey)!.push(r);
+    // Every name a unit can be recognised by: its type name, its number and its label.
+    const names = [typeInfo?.name, norm(r.room_number), norm(r.room_name)].filter(Boolean) as string[];
+    for (const tn of names) {
+      pushByName(nameKey(r.property_id || typeInfo?.property_id, tn), r);
 
-    // Retain a global fallback for legacy single-property callers that do not
-    // have property_id on rows, but prefer the scoped key whenever possible.
-    if (!r.property_id && !typeInfo?.property_id) {
-      if (!roomsByTypeName.has(tn)) roomsByTypeName.set(tn, []);
-      roomsByTypeName.get(tn)!.push(r);
+      // Retain a global fallback for legacy single-property callers that do not
+      // have property_id on rows, but prefer the scoped key whenever possible.
+      if (!r.property_id && !typeInfo?.property_id) pushByName(tn, r);
     }
   }
+
 
   // Track occupied date ranges per room id (start inclusive, end exclusive)
   const roomOccupancy = new Map<string, Array<{ start: string; end: string }>>();
