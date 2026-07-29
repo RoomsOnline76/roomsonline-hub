@@ -270,7 +270,10 @@ export function PropertyPaymentProviderSelect({ propertyId }: PropertyPaymentPro
       queryClient.invalidateQueries({ queryKey: ["active-payment-gateway"] });
       toast.success("Payment providers updated");
     },
-    onError: () => toast.error("Failed to update payment providers"),
+    onError: (e: unknown) =>
+      toast.error("Failed to update payment providers", {
+        description: e instanceof Error ? e.message : String(e),
+      }),
   });
 
   // ── Save credentials mutation ─────────────────────────────────────────────
