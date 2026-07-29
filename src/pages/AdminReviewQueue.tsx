@@ -364,18 +364,22 @@ export default function AdminReviewQueue() {
             </div>
             
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[160px] h-8 text-sm">
+              <SelectTrigger className="w-[180px] h-8 text-sm">
                 <SelectValue placeholder="All Statuses" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="review_pending">Pending Review</SelectItem>
-                <SelectItem value="activation_ready">Ready to Activate</SelectItem>
-                <SelectItem value="review_failed">Review Failed</SelectItem>
-                <SelectItem value="rejected">Rejected</SelectItem>
-                <SelectItem value="onboarding_active">In Onboarding</SelectItem>
+                <SelectItem value="pending">Pending Review</SelectItem>
+                <SelectItem value="ready">Ready to Activate</SelectItem>
+                <SelectItem value="attention">Needs Attention</SelectItem>
+                <SelectItem value="onboarding">In Onboarding</SelectItem>
+                <SelectItem value="draft_pre_contract">Draft</SelectItem>
+                <SelectItem value="contract_sent">Contract Sent</SelectItem>
+                <SelectItem value="contract_signed">Contract Signed</SelectItem>
+                <SelectItem value="inactive">Inactive / Archived</SelectItem>
               </SelectContent>
             </Select>
+
             
             <Select value={intentFilter} onValueChange={setIntentFilter}>
               <SelectTrigger className="w-[140px] h-8 text-sm">
