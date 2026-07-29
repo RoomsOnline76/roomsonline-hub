@@ -784,7 +784,17 @@ Deno.serve(async (req) => {
         );
       }
       
+      // Use the property's own PayFast account when BYO is configured
+      await applyPropertyCredentials((booking as any).property_id);
+      if (!merchantId || !merchantKey) {
+        return new Response(
+          JSON.stringify({ success: false, error: "PayFast not configured for this property" }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
       const transRef = generateTransRef();
+
       const amount = booking.total_price.toFixed(2);
       const propertyName = (booking.properties as any)?.name || "RoomsOnline";
       const propertySlug = (booking.properties as any)?.slug || "";
