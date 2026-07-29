@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Loader2, CreditCard, ShieldCheck, AlertCircle } from "lucide-react";
@@ -42,6 +42,9 @@ export const PayFastOnsiteModal = ({
   const [error, setError] = useState<string | null>(null);
   const [scriptLoaded, setScriptLoaded] = useState(false);
   const [payFastActive, setPayFastActive] = useState(false);
+  const [redirecting, setRedirecting] = useState(false);
+  const watchdogRef = useRef<number | null>(null);
+
 
   // Load PayFast onsite script
   useEffect(() => {
@@ -78,6 +81,57 @@ export const PayFastOnsiteModal = ({
     };
   }, [isOpen, isSandbox]);
 
+  // Hand off to PayFast's hosted (redirect) checkout — used whenever in-page
+  // onsite checkout is unavailable for the merchant account.
+  const submitRedirectCheckout = useCallback(
+    (checkoutUrl: string, fields: Record<string, string>) => {
+      console.log("[PayFast Onsite] Redirecting to hosted checkout:", checkoutUrl);
+      setRedirecting(true);
+      const form = document.createElement("form");
+      form.method = "POST";
+      form.action = checkoutUrl;
+      form.style.display = "none";
+      Object.entries(fields || {}).forEach(([name, value]) => {
+        const input = document.createElement("input");
+        input.type = "hidden";
+        input.name = name;
+        input.value = String(value ?? "");
+        form.appendChild(input);
+      });
+      document.body.appendChild(form);
+      form.submit();
+    },
+    []
+  );
+
+  // Watchdog fallback: onsite was triggered but nothing happened (e.g. the PayFast
+  // frame 404'd). Fetch redirect-checkout fields and send the guest there instead.
+  const fallbackToRedirect = useCallback(async () => {
+    try {
+      const { supabase } = await import("@/integrations/supabase/client");
+      const { data } = await supabase.functions.invoke("payfast-api", {
+        body: { action: "initiate_payment", booking_id: bookingId },
+      });
+      if (data?.success && data?.checkout_url && data?.form_fields) {
+        submitRedirectCheckout(data.checkout_url, data.form_fields);
+        return;
+      }
+      setPayFastActive(false);
+      setError(data?.error || "Payment window could not be opened. Please try again.");
+    } catch (err) {
+      console.error("[PayFast Onsite] Redirect fallback failed:", err);
+      setPayFastActive(false);
+      setError("Payment window could not be opened. Please try again.");
+    }
+  }, [bookingId, submitRedirectCheckout]);
+
+  const clearWatchdog = useCallback(() => {
+    if (watchdogRef.current) {
+      clearTimeout(watchdogRef.current);
+      watchdogRef.current = null;
+    }
+  }, []);
+
   // Trigger PayFast onsite payment
   const triggerOnsitePayment = useCallback((uuid: string) => {
     if (!window.payfast_do_onsite_payment) {
@@ -97,6 +151,7 @@ export const PayFastOnsiteModal = ({
         { uuid: uuid },
         (result: boolean) => {
           console.log("[PayFast Onsite] Payment callback result:", result);
+          clearWatchdog();
           setPayFastActive(false);
           
           if (result === true) {
@@ -110,12 +165,27 @@ export const PayFastOnsiteModal = ({
           }
         }
       );
+
+      // If the PayFast frame never renders (account without Onsite Payments →
+      // the /onsite/process/<uuid> URL 404s), switch to hosted checkout.
+      clearWatchdog();
+      watchdogRef.current = window.setTimeout(() => {
+        const frame = document.querySelector<HTMLIFrameElement>(
+          'iframe[src*="/onsite/"], iframe[src*="payfast"]'
+        );
+        const visible = !!frame && frame.getBoundingClientRect().height > 40;
+        if (!visible) {
+          console.warn("[PayFast Onsite] No payment frame detected — falling back to redirect checkout");
+          void fallbackToRedirect();
+        }
+      }, 8000);
     } catch (err) {
       console.error("[PayFast Onsite] Error triggering payment:", err);
+      clearWatchdog();
       setPayFastActive(false);
       setError("Failed to open payment window. Please try again.");
     }
-  }, [onPaymentSuccess, onPaymentCancelled]);
+  }, [onPaymentSuccess, onPaymentCancelled, clearWatchdog, fallbackToRedirect]);
 
   // Get payment UUID and trigger modal
   useEffect(() => {
@@ -149,6 +219,14 @@ export const PayFastOnsiteModal = ({
           throw new Error(apiError.message || "Failed to initiate payment");
         }
 
+        // Merchant account can't do in-page checkout — go to hosted checkout.
+        if (data?.success && data?.onsite_unavailable && data?.checkout_url && data?.form_fields) {
+          console.log("[PayFast Onsite] Onsite unavailable:", data.fallback_reason);
+          setIsLoading(false);
+          submitRedirectCheckout(data.checkout_url, data.form_fields);
+          return;
+        }
+
         if (!data?.success || !data?.uuid) {
           const errorMessage = data?.details || data?.error || "Failed to get payment identifier";
           throw new Error(errorMessage);
@@ -169,17 +247,24 @@ export const PayFastOnsiteModal = ({
     };
 
     initiatePayment();
-  }, [isOpen, scriptLoaded, paymentUuid, preProvidedUuid, bookingId, triggerOnsitePayment]);
+  }, [isOpen, scriptLoaded, paymentUuid, preProvidedUuid, bookingId, triggerOnsitePayment, submitRedirectCheckout]);
+
 
   // Reset state on close
   useEffect(() => {
     if (!isOpen) {
+      clearWatchdog();
       setPaymentUuid(null);
       setError(null);
       setIsLoading(false);
       setPayFastActive(false);
+      setRedirecting(false);
     }
-  }, [isOpen]);
+  }, [isOpen, clearWatchdog]);
+
+  // Clear watchdog on unmount
+  useEffect(() => () => clearWatchdog(), [clearWatchdog]);
+
 
   const handleRetry = () => {
     setPaymentUuid(null);
@@ -218,13 +303,16 @@ export const PayFastOnsiteModal = ({
             <p className="text-3xl font-bold text-primary">{formatCurrency(amount)}</p>
           </div>
 
-          {/* Loading State */}
-          {isLoading && (
+          {/* Loading / Redirecting State */}
+          {(isLoading || redirecting) && (
             <div className="flex flex-col items-center justify-center py-8">
               <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
-              <p className="text-sm text-muted-foreground">Preparing secure payment...</p>
+              <p className="text-sm text-muted-foreground">
+                {redirecting ? "Redirecting to secure payment…" : "Preparing secure payment..."}
+              </p>
             </div>
           )}
+
 
           {/* Error State */}
           {error && (

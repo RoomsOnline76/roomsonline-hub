@@ -299,6 +299,8 @@ export function PropertyPaymentProviderSelect({ propertyId }: PropertyPaymentPro
     merchant_id_masked: string;
     is_sandbox: boolean;
     configured: boolean;
+    onsite_supported?: boolean;
+
   }
 
   const { data: settlement } = useQuery({
@@ -611,7 +613,14 @@ export function PropertyPaymentProviderSelect({ propertyId }: PropertyPaymentPro
                           ? `Merchant ${settlement.merchant_id_masked}${settlement.is_sandbox ? " — sandbox mode" : ""}`
                           : "Save your own merchant credentials below to settle directly to your account."}
                       </p>
+                      {settlement.credential_source === "byo" && settlement.onsite_supported === false && (
+                        <p className="text-xs text-muted-foreground">
+                          This account uses redirect checkout — enable Onsite Payments in the PayFast
+                          dashboard for in-page checkout.
+                        </p>
+                      )}
                     </div>
+
                   </div>
                 )}
 
