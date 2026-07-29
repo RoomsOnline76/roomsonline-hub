@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
+import { resolvePayfastCredentials, maskId } from "../_shared/paymentCredentials.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -411,23 +412,34 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // PayFast credentials
-    const merchantId = Deno.env.get("PAYFAST_MERCHANT_ID");
-    const merchantKey = Deno.env.get("PAYFAST_MERCHANT_KEY");
-    // Get passphrase and strip ALL whitespace/invisible chars (not just trim)
+    // PayFast credentials — default to the RoomsOnline facilitator account.
+    // These are replaced per-request by the property's own (BYO) merchant when
+    // one is configured (see resolvePayfastCredentials below).
+    let merchantId = (Deno.env.get("PAYFAST_MERCHANT_ID") || "").trim();
+    let merchantKey = (Deno.env.get("PAYFAST_MERCHANT_KEY") || "").trim();
     const rawPassphrase = Deno.env.get("PAYFAST_PASSPHRASE") || "";
-    // Remove any non-printable characters and trim
-    const passphrase = rawPassphrase.replace(/[\x00-\x1F\x7F-\x9F\u200B-\u200D\uFEFF]/g, "").trim();
-    const isSandbox = Deno.env.get("PAYFAST_SANDBOX") !== "false"; // Default to sandbox
-    
-    // Debug: log passphrase details (masked for security but showing first/last chars)
-    const maskedPass = passphrase.length > 4 
-      ? `${passphrase.slice(0,3)}...${passphrase.slice(-3)}` 
-      : "[too short]";
-    console.log(`[PayFast] Passphrase: "${maskedPass}" (${passphrase.length} chars)`);
-    console.log(`[PayFast] All char codes: ${[...passphrase].map(c => c.charCodeAt(0)).join(',')}`);
-    // Expected: DawieCarikeSLPafrica247 = 22 chars
-    // D=68, a=97, w=119, i=105, e=101, C=67, a=97, r=114, i=105, k=107, e=101, S=83, L=76, P=80, a=97, f=102, r=114, i=105, c=99, a=97, 2=50, 4=52, 7=55
+    let passphrase = rawPassphrase.replace(/[\x00-\x1F\x7F-\x9F\u200B-\u200D\uFEFF]/g, "").trim();
+    let isSandbox = Deno.env.get("PAYFAST_SANDBOX") !== "false"; // Default to sandbox
+    let credentialSource: "byo" | "rol" = "rol";
+
+    /** Swap in the property's BYO merchant account when configured. */
+    const applyPropertyCredentials = async (propertyId?: string | null) => {
+      const creds = await resolvePayfastCredentials(supabase, propertyId);
+      merchantId = creds.merchantId;
+      merchantKey = creds.merchantKey;
+      passphrase = creds.passphrase;
+      isSandbox = creds.isSandbox;
+      credentialSource = creds.source;
+      console.log("[PayFast] Credentials resolved:", {
+        property_id: propertyId || null,
+        credential_source: creds.source,
+        inherited: creds.inherited,
+        merchant_id: maskId(creds.merchantId),
+        is_sandbox: creds.isSandbox,
+      });
+      return creds;
+    };
+
 
     const url = new URL(req.url);
     
@@ -448,7 +460,36 @@ Deno.serve(async (req) => {
       
       console.log("[PayFast] ITN data:", JSON.stringify(itnData));
       console.log("[PayFast] ITN key order:", itnKeyOrder.join(", "));
-      
+
+      // Resolve the merchant account this payment was originally created against,
+      // so the signature is verified with the correct passphrase (BYO or ROL).
+      const itnRef = itnData.m_payment_id;
+      if (itnRef) {
+        const { data: originTx } = await supabase
+          .from("payment_transactions")
+          .select("booking_id, merchant_id, credential_source, bookings(property_id)")
+          .eq("m_payment_id", itnRef)
+          .maybeSingle();
+
+        if (originTx) {
+          const originPropertyId = (originTx as any)?.bookings?.property_id || null;
+          await applyPropertyCredentials(originPropertyId);
+
+          // Guard: the posted merchant must match the account we initiated with.
+          if (
+            originTx.merchant_id &&
+            itnData.merchant_id &&
+            String(originTx.merchant_id) !== String(itnData.merchant_id)
+          ) {
+            console.error("[PayFast] ITN merchant mismatch", {
+              expected: maskId(originTx.merchant_id),
+              received: maskId(itnData.merchant_id),
+            });
+            return new Response("OK", { status: 200, headers: corsHeaders });
+          }
+        }
+      }
+
       // Validate source IP
       const sourceIp = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() 
         || req.headers.get("cf-connecting-ip")
@@ -467,6 +508,7 @@ Deno.serve(async (req) => {
         console.error("[PayFast] Invalid signature");
         return new Response("OK", { status: 200, headers: corsHeaders });
       }
+
       
       // Server-side validation (optional but recommended)
       // const isValid = await validateWithPayFast(itnData, isSandbox);
@@ -705,6 +747,28 @@ Deno.serve(async (req) => {
       );
     }
     
+    // RESOLVE CREDENTIALS — reports which merchant account a property settles to.
+    // Never returns secrets; merchant id is masked.
+    if (action === "resolve_credentials") {
+      const propertyId = typeof body?.property_id === "string" ? body.property_id : null;
+      const creds = await resolvePayfastCredentials(supabase, propertyId);
+      return new Response(
+        JSON.stringify({
+          success: true,
+          credential_source: creds.source,
+          inherited: creds.inherited,
+          owner_property_id: creds.ownerPropertyId,
+          merchant_id_masked: maskId(creds.merchantId),
+          is_sandbox: creds.isSandbox,
+          configured: !!(creds.merchantId && creds.merchantKey),
+          source: "payfast-api",
+          action: "resolve_credentials",
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    
+
     // Validate credentials for other actions
     if (!merchantId || !merchantKey) {
       console.error("[PayFast] Missing credentials");
@@ -742,7 +806,17 @@ Deno.serve(async (req) => {
         );
       }
       
+      // Use the property's own PayFast account when BYO is configured
+      await applyPropertyCredentials((booking as any).property_id);
+      if (!merchantId || !merchantKey) {
+        return new Response(
+          JSON.stringify({ success: false, error: "PayFast not configured for this property" }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
       const transRef = generateTransRef();
+
       const amount = booking.total_price.toFixed(2);
       const propertyName = (booking.properties as any)?.name || "RoomsOnline";
       const propertySlug = (booking.properties as any)?.slug || "";
@@ -786,7 +860,10 @@ Deno.serve(async (req) => {
           status: "pending",
           payment_provider: "payfast",
           m_payment_id: transRef,
+          merchant_id: merchantId,
+          credential_source: credentialSource,
           gateway_response: { trans_ref: transRef, form_fields: formFields },
+
         });
       
       if (txError) {
@@ -812,6 +889,8 @@ Deno.serve(async (req) => {
           checkout_url: payfastUrl,
           form_fields: formFields,
           is_sandbox: isSandbox,
+          credential_source: credentialSource,
+
           source: "payfast-api",
           action: "initiate_payment",
         }),
@@ -910,7 +989,17 @@ Deno.serve(async (req) => {
         );
       }
       
+      // Use the property's own PayFast account when BYO is configured
+      await applyPropertyCredentials((booking as any).property_id);
+      if (!merchantId || !merchantKey) {
+        return new Response(
+          JSON.stringify({ success: false, error: "PayFast not configured for this property" }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
       const transRef = generateTransRef();
+
       const amount = booking.total_price.toFixed(2);
       const propertyName = (booking.properties as any)?.name || "RoomsOnline";
       
@@ -999,7 +1088,10 @@ Deno.serve(async (req) => {
           status: "pending",
           payment_provider: "payfast",
           m_payment_id: transRef,
+          merchant_id: merchantId,
+          credential_source: credentialSource,
           gateway_response: { trans_ref: transRef, uuid, onsite: true },
+
         });
       
       if (txError) {
@@ -1022,6 +1114,8 @@ Deno.serve(async (req) => {
           uuid: uuid,
           trans_ref: transRef,
           is_sandbox: isSandbox,
+          credential_source: credentialSource,
+
           source: "payfast-api",
           action: "initiate_onsite_payment",
         }),

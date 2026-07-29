@@ -290,6 +290,32 @@ export function PropertyPaymentProviderSelect({ propertyId }: PropertyPaymentPro
     enabled: !!propertyId,
   });
 
+  // ── Where do payments actually settle? (asks the backend, no secrets) ──────
+
+  interface SettlementInfo {
+    credential_source: "byo" | "rol";
+    inherited: boolean;
+    owner_property_id: string | null;
+    merchant_id_masked: string;
+    is_sandbox: boolean;
+    configured: boolean;
+  }
+
+  const { data: settlement } = useQuery({
+    queryKey: ["payfast-settlement", propertyId],
+    queryFn: async (): Promise<SettlementInfo | null> => {
+      const { data, error } = await supabase.functions.invoke("payfast-api", {
+        body: { action: "resolve_credentials", property_id: propertyId },
+      });
+      if (error) return null;
+      return (data as SettlementInfo) ?? null;
+    },
+    enabled: !!propertyId,
+    staleTime: 60 * 1000,
+  });
+
+
+
   useEffect(() => {
     if (savedCredentials) {
       setCredentialValues(savedCredentials);
@@ -353,6 +379,8 @@ export function PropertyPaymentProviderSelect({ propertyId }: PropertyPaymentPro
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["payment-credentials", propertyId] });
+      queryClient.invalidateQueries({ queryKey: ["payfast-settlement", propertyId] });
+
       setHasCredChanges(false);
       toast.success("Payment credentials saved securely");
     },
@@ -561,6 +589,32 @@ export function PropertyPaymentProviderSelect({ propertyId }: PropertyPaymentPro
                     )}
                   </div>
                 )}
+
+                {settlement && (
+                  <div
+                    className={cn(
+                      "rounded-lg border px-3 py-2.5 flex items-start gap-2",
+                      settlement.credential_source === "byo"
+                        ? "border-primary/30 bg-primary/5"
+                        : "border-border bg-muted/40",
+                    )}
+                  >
+                    <ShieldCheck className="h-4 w-4 mt-0.5 shrink-0 text-primary" />
+                    <div className="flex-1 min-w-0 space-y-0.5">
+                      <p className="text-sm font-medium">
+                        {settlement.credential_source === "byo"
+                          ? `Payments settle to this property's own PayFast account${settlement.inherited ? " (inherited from the portfolio)" : ""}`
+                          : "Payments settle to the Rooms Online facilitator account"}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {settlement.credential_source === "byo"
+                          ? `Merchant ${settlement.merchant_id_masked}${settlement.is_sandbox ? " — sandbox mode" : ""}`
+                          : "Save your own merchant credentials below to settle directly to your account."}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
 
                 {!inheritsFromPortfolio && (
                 <>
