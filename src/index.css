@@ -54,6 +54,8 @@ h1, h2, h3, h4, h5, h6, .font-heading {
     /* Accent - Brushed Gold */
     --accent: 38 70% 52%;
     --accent-foreground: 220 20% 12%;
+    --accent-foreground-muted: 220 20% 30%;
+
 
     /* Midnight Blue - for special elements */
     --midnight: 220 45% 22%;
