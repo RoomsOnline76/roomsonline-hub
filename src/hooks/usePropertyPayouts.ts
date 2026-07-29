@@ -94,29 +94,31 @@ export function usePropertyPayouts(periodMonth?: string) {
       const bankMap: Record<string, { exists: boolean; verified: boolean }> = {};
       (bankDetails || []).forEach((b: any) => { bankMap[b.property_id] = { exists: true, verified: b.is_verified }; });
 
-      // Group by property
+      // Group by property (count distinct bookings, not transactions)
       const propertyMap: Record<string, {
         property_name: string;
         owner_email: string | null;
         gross: number;
-        count: number;
+        bookingIds: Set<string>;
       }> = {};
 
       (transactions || []).forEach((tx: any) => {
         const booking = tx.bookings;
         if (!booking?.properties) return;
+        if (EXCLUDED_BOOKING_STATUSES.includes(String(booking.status || '').toLowerCase())) return;
         const pid = booking.properties.id;
         if (!propertyMap[pid]) {
           propertyMap[pid] = {
             property_name: booking.properties.name,
             owner_email: booking.properties.owner_email,
             gross: 0,
-            count: 0,
+            bookingIds: new Set<string>(),
           };
         }
-        propertyMap[pid].gross += tx.amount || 0;
-        propertyMap[pid].count += 1;
+        propertyMap[pid].gross += Number(tx.amount) || 0;
+        propertyMap[pid].bookingIds.add(booking.id);
       });
+
 
       const result: PropertyPayout[] = Object.entries(propertyMap).map(([pid, p]) => {
         const billing = billingMap[pid];
