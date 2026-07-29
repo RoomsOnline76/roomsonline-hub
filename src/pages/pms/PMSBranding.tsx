@@ -662,55 +662,23 @@ export default function PMSBranding() {
               </CardContent>
             </Card>
 
-            {/* Contrast preview */}
+            {/* Readability examples + auto-correct */}
             {hasColors && visual.brand_primary_color && (
-              <Card>
-                <CardHeader><CardTitle className="text-sm flex items-center gap-2"><Type className="h-4 w-4 text-primary" /> Contrast Check</CardTitle></CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="grid grid-cols-2 gap-3">
-                    {visual.brand_font_color && (
-                      <div className="rounded-lg border border-border p-4 space-y-1" style={{ backgroundColor: visual.brand_primary_color }}>
-                        <p className="text-sm font-semibold" style={{ color: visual.brand_font_color }}>Heading</p>
-                        <p className="text-xs" style={{ color: visual.brand_font_color, opacity: 0.85 }}>Body text preview</p>
-                        <ContrastBadge ratio={getContrastRatio(visual.brand_primary_color, visual.brand_font_color)} />
-                      </div>
-                    )}
-                    {visual.brand_secondary_color && visual.brand_font_color && (
-                      <div className="rounded-lg border border-border p-4 space-y-1" style={{ backgroundColor: visual.brand_secondary_color }}>
-                        <p className="text-sm font-semibold" style={{ color: visual.brand_font_color }}>Heading</p>
-                        <p className="text-xs" style={{ color: visual.brand_font_color, opacity: 0.85 }}>Body text preview</p>
-                        <ContrastBadge ratio={getContrastRatio(visual.brand_secondary_color, visual.brand_font_color)} />
-                      </div>
-                    )}
-                    {/* Surface-aware: primary text on page background */}
-                    <div className="rounded-lg border border-border p-4 space-y-1" style={{ backgroundColor: visual.brand_light_bg_color || "#ffffff" }}>
-                      <p className="text-sm font-semibold" style={{ color: visual.brand_primary_color }}>Primary as text</p>
-                      <p className="text-xs" style={{ color: visual.brand_muted_text_color || visual.brand_font_color || "#666666", opacity: 0.85 }}>Muted text preview</p>
-                      <ContrastBadge ratio={getContrastRatio(visual.brand_primary_color, visual.brand_light_bg_color || "#ffffff")} />
-                    </div>
-                    {/* Button readability */}
-                    <div className="rounded-lg border border-border p-4 space-y-1" style={{ backgroundColor: visual.brand_primary_color }}>
-                      <p className="text-sm font-semibold" style={{ color: "#ffffff" }}>Button text</p>
-                      <p className="text-xs" style={{ color: "#ffffff", opacity: 0.85 }}>White on primary</p>
-                      <ContrastBadge ratio={getContrastRatio(visual.brand_primary_color, "#ffffff")} />
-                    </div>
-                  </div>
-                  {(() => {
-                    const bg = visual.brand_light_bg_color || "#ffffff";
-                    const primaryOnBg = getContrastRatio(visual.brand_primary_color, bg);
-                    if (primaryOnBg < 3) {
-                      return (
-                        <div className="flex items-start gap-1.5 text-[10px] text-yellow-700 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/20 rounded p-2 border border-yellow-200 dark:border-yellow-800">
-                          <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
-                          <span>Primary colour has low contrast on page background ({primaryOnBg.toFixed(1)}). The system will auto-darken text at runtime for readability.</span>
-                        </div>
-                      );
-                    }
-                    return null;
-                  })()}
-                </CardContent>
-              </Card>
+              <BrandReadabilityPanel
+                palette={{
+                  brand_primary_color: visual.brand_primary_color,
+                  brand_secondary_color: visual.brand_secondary_color,
+                  brand_font_color: visual.brand_font_color,
+                  brand_heading_text_color: visual.brand_heading_text_color,
+                  brand_body_text_color: visual.brand_body_text_color,
+                  brand_muted_text_color: visual.brand_muted_text_color,
+                  brand_light_bg_color: visual.brand_light_bg_color,
+                  brand_dark_bg_color: visual.brand_dark_bg_color,
+                }}
+                onApply={(patch) => setVisual((p) => ({ ...p, ...patch }))}
+              />
             )}
+
 
             {/* ─── Business Identity ─── */}
             <Card>
