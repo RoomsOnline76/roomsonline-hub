@@ -9,6 +9,9 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { CreditCard, ExternalLink, Eye, EyeOff, Save, ShieldCheck, Loader2, Globe, MapPin, ChevronDown, Building2 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { usePropertyPortfolioPayment } from "@/hooks/usePortfolioPaymentConfig";
+import { usePropertyAllowsCustomPayment } from "@/hooks/usePropertyAllowsCustomPayment";
+import { ByoSetupChecklist } from "@/components/integrations/ByoSetupChecklist";
+import { BYO_CHECKLIST_KEY } from "@/lib/byoSetupChecklist";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
