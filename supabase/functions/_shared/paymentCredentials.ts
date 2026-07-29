@@ -50,6 +50,7 @@ function envPayfastCredentials(): PayfastCredentials {
     source: "rol",
     ownerPropertyId: null,
     inherited: false,
+    onsiteSupported: true,
   };
 }
 
@@ -69,8 +70,35 @@ function extractPayfast(config: Record<string, unknown> | null) {
     merchantKey,
     passphrase: clean((config as any).passphrase),
     isSandbox: sandboxFlag === true || sandboxFlag === "true",
+    onsiteSupported: (config as any).onsite_supported !== false,
   };
 }
+
+/**
+ * Persist "this merchant account cannot do Onsite payments" on the BYO config so
+ * future checkouts skip the onsite attempt and go straight to redirect checkout.
+ */
+export async function markOnsiteUnsupported(
+  supabase: any,
+  ownerPropertyId: string | null,
+): Promise<void> {
+  if (!ownerPropertyId) return;
+  try {
+    const { data: row } = await supabase
+      .from("integration_configs")
+      .select("id, config")
+      .eq("integration_type", "payment_credentials")
+      .eq("is_active", true)
+      .eq("property_id", ownerPropertyId)
+      .maybeSingle();
+    if (!row?.id) return;
+    const nextConfig = { ...((row.config as Record<string, unknown>) || {}), onsite_supported: false };
+    await supabase.from("integration_configs").update({ config: nextConfig }).eq("id", row.id);
+  } catch (e) {
+    console.error("[paymentCredentials] failed to flag onsite_supported=false:", e);
+  }
+}
+
 
 /**
  * Resolve the PayFast merchant account that should be used for a property.
