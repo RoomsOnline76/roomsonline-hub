@@ -377,6 +377,21 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
             />
           </div>
 
+          {/* Billing activation switch (admin only) */}
+          {isAdmin && (
+            <div className="flex items-start justify-between gap-4 rounded-md border p-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">Billing active</Label>
+                <p className="text-[11px] text-muted-foreground">
+                  While this is off, no subscription invoices are generated and no payment reminder
+                  emails are sent — safe for testing and onboarding.
+                </p>
+              </div>
+              <Switch checked={billingEnabled} onCheckedChange={setBillingEnabled} />
+            </div>
+          )}
+
+
           <Button onClick={handleSave} disabled={upsert.isPending} className="w-full">
             {upsert.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
             {isPortfolioScope ? "Save Portfolio Billing Config" : "Save Billing Config"}
