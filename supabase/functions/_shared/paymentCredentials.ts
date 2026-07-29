@@ -20,7 +20,13 @@ export interface PayfastCredentials {
   ownerPropertyId: string | null;
   /** True when the BYO config came from another property in the same portfolio */
   inherited: boolean;
+  /**
+   * False when this merchant account is known NOT to support PayFast Onsite
+   * (in-page) payments — checkout must use the hosted redirect flow instead.
+   */
+  onsiteSupported: boolean;
 }
+
 
 /** Strip invisible / control characters that break PayFast signatures. */
 function clean(value: unknown): string {
