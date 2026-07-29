@@ -86,28 +86,40 @@ export default function AdminReviewQueue() {
   const [intentFilter, setIntentFilter] = useState<string>("all");
   const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(null);
   
+  // Status groupings — kept in one place so cards, filters and counts agree.
+  const STATUS_GROUPS = {
+    pending: ['review_pending'] as ListingStatus[],
+    ready: ['activation_ready'] as ListingStatus[],
+    attention: ['review_failed', 'rejected'] as ListingStatus[],
+    onboarding: ['draft_pre_contract', 'contract_sent', 'contract_signed', 'onboarding_active'] as ListingStatus[],
+  };
+  const QUEUE_STATUSES: ListingStatus[] = [
+    ...STATUS_GROUPS.pending,
+    ...STATUS_GROUPS.ready,
+    ...STATUS_GROUPS.attention,
+    ...STATUS_GROUPS.onboarding,
+  ];
+
+  const includeInactive = statusFilter === 'inactive';
+
   // Fetch properties for review
-  const { data: properties, isLoading, refetch } = useQuery({
-    queryKey: ["review-queue-properties"],
+  const { data: properties, isLoading, isFetching, refetch, dataUpdatedAt } = useQuery({
+    queryKey: ["review-queue-properties", includeInactive],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("properties")
         .select("id, name, slug, property_type, listing_status, listing_intent, owner_email, owner_name, created_at, updated_at, images")
         .is("permanently_deleted_at", null)
         .eq("is_active", true)
-        .in("listing_status", [
-          'review_pending', 
-          'activation_ready', 
-          'review_failed',
-          'rejected',
-          'onboarding_active'
-        ])
+        .in("listing_status", includeInactive ? ['inactive' as ListingStatus] : QUEUE_STATUSES)
         .order("updated_at", { ascending: false });
       
       if (error) throw error;
       return (data || []) as PropertyForReview[];
     },
     enabled: isAdmin || isDev,
+    refetchOnWindowFocus: true,
+    refetchInterval: 60_000,
   });
   
   // Filtered properties
@@ -129,8 +141,15 @@ export default function AdminReviewQueue() {
         if (!matchesName && !matchesOwner && !matchesStatus && !matchesIntent && !matchesPropertyType && !matchesUpdated) return false;
       }
       
-      // Status filter
-      if (statusFilter !== "all" && p.listing_status !== statusFilter) return false;
+      // Status filter (group keys filter to a set of statuses)
+      if (statusFilter !== "all" && statusFilter !== "inactive") {
+        const group = STATUS_GROUPS[statusFilter as keyof typeof STATUS_GROUPS];
+        if (group) {
+          if (!group.includes(p.listing_status)) return false;
+        } else if (p.listing_status !== statusFilter) {
+          return false;
+        }
+      }
       
       // Intent filter
       if (intentFilter !== "all" && p.listing_intent !== intentFilter) return false;
@@ -139,13 +158,26 @@ export default function AdminReviewQueue() {
     });
   }, [properties, searchQuery, statusFilter, intentFilter]);
   
-  // Group properties by status
-  const pendingReview = filteredProperties.filter(p => p.listing_status === 'review_pending');
-  const readyToActivate = filteredProperties.filter(p => p.listing_status === 'activation_ready');
-  const needsAttention = filteredProperties.filter(p => 
-    p.listing_status === 'review_failed' || p.listing_status === 'rejected'
-  );
-  const inOnboarding = filteredProperties.filter(p => p.listing_status === 'onboarding_active');
+  // Counts always reflect the full queue, never the active filters
+  const counts = useMemo(() => {
+    const all = properties || [];
+    const inGroup = (g: ListingStatus[]) => all.filter(p => g.includes(p.listing_status)).length;
+    return {
+      total: all.length,
+      pending: inGroup(STATUS_GROUPS.pending),
+      ready: inGroup(STATUS_GROUPS.ready),
+      attention: inGroup(STATUS_GROUPS.attention),
+      onboarding: inGroup(STATUS_GROUPS.onboarding),
+    };
+  }, [properties]);
+
+  const handleRefresh = async () => {
+    // Quality scores are cached per property for 30s — clear them too.
+    queryClient.invalidateQueries({ queryKey: ["activation-readiness"] });
+    const res = await refetch();
+    toast.success(`Queue refreshed — ${res.data?.length ?? 0} properties`);
+  };
+
   
   const handleReviewComplete = () => {
     refetch();
