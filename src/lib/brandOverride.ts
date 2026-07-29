@@ -99,6 +99,59 @@ function ensureReadable(fgHex: string, bgHex: string, minRatio = 4.5): string {
   return bgLight ? "#1a1a2e" : "#f0f0f5";
 }
 
+/** Public: nudge a colour until it is readable on a surface (hue preserved where possible) */
+export function enforceContrast(fgHex: string, bgHex: string, minRatio = 4.5): string {
+  if (!fgHex || !bgHex) return fgHex;
+  return ensureReadable(fgHex, bgHex, minRatio);
+}
+
+/** Public: best plain foreground (near-white or near-black) for a surface */
+export function bestForegroundFor(bgHex: string): string {
+  if (!bgHex) return "#ffffff";
+  const white = contrastRatio("#ffffff", bgHex);
+  const dark = contrastRatio("#1a1a2e", bgHex);
+  return white >= dark ? "#ffffff" : "#1a1a2e";
+}
+
+/** Mix two hex colours (0 = a, 1 = b) */
+export function mixHex(a: string, b: string, amount: number): string {
+  const pa = a.replace("#", "");
+  const pb = b.replace("#", "");
+  if (pa.length < 6 || pb.length < 6) return a;
+  const ch = (i: number) => {
+    const va = parseInt(pa.substring(i, i + 2), 16);
+    const vb = parseInt(pb.substring(i, i + 2), 16);
+    return Math.round(va + (vb - va) * amount).toString(16).padStart(2, "0");
+  };
+  return `#${ch(0)}${ch(2)}${ch(4)}`;
+}
+
+/**
+ * Foreground pair for a branded surface:
+ * - `fg`: solid readable text (>= 4.5:1)
+ * - `muted`: softened secondary text on the same surface (>= 3:1)
+ */
+export function surfaceForegroundPair(
+  bgHex: string,
+  preferredFg?: string | null,
+): { fg: string; muted: string } {
+  const fallback = bestForegroundFor(bgHex);
+  let fg = fallback;
+  if (preferredFg && contrastRatio(preferredFg, bgHex) >= 4.5) {
+    fg = preferredFg;
+  }
+  // muted = fg blended toward the surface, but never below 3:1
+  let muted = fg;
+  for (let i = 3; i >= 0; i--) {
+    const candidate = mixHex(fg, bgHex, i * 0.08); // up to 24% toward surface
+    if (contrastRatio(candidate, bgHex) >= 3) {
+      muted = candidate;
+      break;
+    }
+  }
+  return { fg, muted };
+}
+
 /** Lighten a hex color by mixing with white */
 function lightenHex(hex: string, factor: number): string {
   const clean = hex.replace("#", "");
@@ -107,6 +160,7 @@ function lightenHex(hex: string, factor: number): string {
   const b = Math.round(parseInt(clean.substring(4, 6), 16) + (255 - parseInt(clean.substring(4, 6), 16)) * factor);
   return `#${Math.min(255, r).toString(16).padStart(2, "0")}${Math.min(255, g).toString(16).padStart(2, "0")}${Math.min(255, b).toString(16).padStart(2, "0")}`;
 }
+
 
 /** Compute CSS variable map from brand config */
 export function buildBrandVarsMap(brand: PropertyBrand): Record<string, string> {
