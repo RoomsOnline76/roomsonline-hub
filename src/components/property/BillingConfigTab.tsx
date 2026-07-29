@@ -15,6 +15,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { normalizeTiers, PricingTier } from "@/lib/billingTierResolver";
 import {
   BillingConfigBuilder,
@@ -145,6 +146,7 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
   const [strategy, setStrategy] = useState<string>("default");
   const [builder, setBuilder] = useState<BillingConfigValue>(emptyBuilderValue());
   const [billingStartDate, setBillingStartDate] = useState("");
+  const [billingEnabled, setBillingEnabled] = useState(false);
   const [presetJustApplied, setPresetJustApplied] = useState<string | null>(null);
 
   useEffect(() => {
@@ -152,6 +154,7 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
       setStrategy(config.billing_strategy || "default");
       setBuilder(configToBuilder(config));
       setBillingStartDate(config.billing_start_date || "");
+      setBillingEnabled(!!(config as unknown as { billing_enabled?: boolean }).billing_enabled);
     }
   }, [config]);
 
@@ -173,7 +176,7 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
     } as any;
   }, [selectedPreset]);
 
-  const persistBuilder = (nextStrategy: string, v: BillingConfigValue, startDate: string) => {
+  const persistBuilder = (nextStrategy: string, v: BillingConfigValue, startDate: string, enabled: boolean) => {
     // Sync BYO toggle → property.allow_custom_payment_provider so ROLOS/Integrations
     // unlocks or locks the gateway configurator accordingly. Replaces the old
     // dedicated Payment Providers tab.
@@ -216,6 +219,7 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
       pricelabs_setup_fee: isRolosPms && v.pricelabs_enabled ? toNum(v.pricelabs_setup_fee) : null,
       tier_pricing_json: v.volume_tiers_enabled ? (v.tier_pricing_json as any) : null,
       billing_start_date: startDate || null,
+      billing_enabled: enabled,
     } as any);
   };
 
@@ -227,12 +231,12 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
       setBuilder(next);
       setPresetJustApplied(presetLabel(preset));
       // Immediately persist preset values to this property.
-      persistBuilder(slug, next, billingStartDate);
+      persistBuilder(slug, next, billingStartDate, billingEnabled);
     }
   };
 
   const handleSave = () => {
-    persistBuilder(strategy, builder, billingStartDate);
+    persistBuilder(strategy, builder, billingStartDate, billingEnabled);
   };
 
   if (isLoading) {
@@ -372,6 +376,21 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
               className="text-xs"
             />
           </div>
+
+          {/* Billing activation switch (admin only) */}
+          {isAdmin && (
+            <div className="flex items-start justify-between gap-4 rounded-md border p-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">Billing active</Label>
+                <p className="text-[11px] text-muted-foreground">
+                  While this is off, no subscription invoices are generated and no payment reminder
+                  emails are sent — safe for testing and onboarding.
+                </p>
+              </div>
+              <Switch checked={billingEnabled} onCheckedChange={setBillingEnabled} />
+            </div>
+          )}
+
 
           <Button onClick={handleSave} disabled={upsert.isPending} className="w-full">
             {upsert.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}

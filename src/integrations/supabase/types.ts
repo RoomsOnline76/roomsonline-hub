@@ -3609,6 +3609,7 @@ export type Database = {
       }
       portfolio_billing_configs: {
         Row: {
+          billing_enabled: boolean
           billing_start_date: string | null
           billing_strategy: Database["public"]["Enums"]["billing_strategy"]
           branding_addon_billing_mode: string | null
@@ -3652,6 +3653,7 @@ export type Database = {
           widget_flat_commission_rate: number | null
         }
         Insert: {
+          billing_enabled?: boolean
           billing_start_date?: string | null
           billing_strategy?: Database["public"]["Enums"]["billing_strategy"]
           branding_addon_billing_mode?: string | null
@@ -3695,6 +3697,7 @@ export type Database = {
           widget_flat_commission_rate?: number | null
         }
         Update: {
+          billing_enabled?: boolean
           billing_start_date?: string | null
           billing_strategy?: Database["public"]["Enums"]["billing_strategy"]
           branding_addon_billing_mode?: string | null
@@ -4701,6 +4704,7 @@ export type Database = {
       }
       property_billing_configs: {
         Row: {
+          billing_enabled: boolean
           billing_start_date: string | null
           billing_strategy: Database["public"]["Enums"]["billing_strategy"]
           branding_addon_billing_mode: string | null
@@ -4746,6 +4750,7 @@ export type Database = {
           widget_flat_commission_rate: number | null
         }
         Insert: {
+          billing_enabled?: boolean
           billing_start_date?: string | null
           billing_strategy?: Database["public"]["Enums"]["billing_strategy"]
           branding_addon_billing_mode?: string | null
@@ -4791,6 +4796,7 @@ export type Database = {
           widget_flat_commission_rate?: number | null
         }
         Update: {
+          billing_enabled?: boolean
           billing_start_date?: string | null
           billing_strategy?: Database["public"]["Enums"]["billing_strategy"]
           branding_addon_billing_mode?: string | null

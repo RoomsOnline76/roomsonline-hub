@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CheckCircle2, Clock, AlertTriangle, Copy, ExternalLink, XCircle } from "lucide-react";
 import { toast } from "sonner";
+import { ADMIN_DOMAIN } from "@/lib/config";
 
 interface Props {
   scope: "property" | "portfolio";
@@ -50,7 +51,8 @@ export function SubscriptionStatusPanel({ scope, entityId }: Props) {
   const pendingCharges = data?.pendingCharges || [];
   const unbilledCharges = pendingCharges.filter((c: any) => !c.invoiced_on_invoice_id);
   const unbilledTotal = unbilledCharges.reduce((s: number, c: any) => s + Number(c.amount || 0), 0);
-  const payUrl = latest?.payfast_token ? `${window.location.origin}/subscribe/pay/${latest.payfast_token}` : null;
+  // GLOBAL RULE: shareable payment links must never use the preview/lovable host.
+  const payUrl = latest?.payfast_token ? `${ADMIN_DOMAIN}/subscribe/pay/${latest.payfast_token}` : null;
 
   const copyLink = () => {
     if (!payUrl) return;
