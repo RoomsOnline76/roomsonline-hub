@@ -289,6 +289,34 @@ export function buildBrandVarsMap(brand: PropertyBrand): Record<string, string> 
     }
   }
 
+  // ── Surface-aware foreground pairs ──
+  // Text placed ON a branded surface (header bars, calendar headers, footers)
+  // must always be readable, even when the owner supplied explicit font colours.
+  const preferredFg = brand.bodyTextColor || brand.fontColor || null;
+  const surfaces: Array<[string, string | null | undefined]> = [
+    ["primary", brand.primaryColor],
+    ["secondary", brand.secondaryColor],
+    ["accent", brand.darkBgColor],
+  ];
+  surfaces.forEach(([name, hex]) => {
+    if (!hex) return;
+    const { fg, muted } = surfaceForegroundPair(hex, preferredFg);
+    const fgHsl = hexToHsl(fg);
+    const mutedHsl = hexToHsl(muted);
+    if (fgHsl) vars[`--${name}-foreground`] = fgHsl;
+    if (mutedHsl) vars[`--${name}-foreground-muted`] = mutedHsl;
+  });
+
+  // Card / page surface muted text safety (>= 4.5:1 for body copy)
+  {
+    const cardMutedSource =
+      brand.mutedTextColor || (vars["--muted-foreground"] ? null : null) || preferredFg || bestForegroundFor(effectiveBgHex);
+    const safeCardMuted = enforceContrast(cardMutedSource, effectiveBgHex, 4.5);
+    const hsl = hexToHsl(safeCardMuted);
+    if (hsl) vars["--muted-foreground"] = hsl;
+  }
+
+
   return vars;
 }
 
