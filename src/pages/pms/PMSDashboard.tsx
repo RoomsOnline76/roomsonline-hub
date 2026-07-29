@@ -391,6 +391,23 @@ export default function PMSDashboard() {
     enabled: !!propertyId,
   });
 
+  // Foreign room-type catalogue (public/overview listing). Bookings created from the
+  // public booking engine carry a hostfully_room_types id, which must still resolve to
+  // a physical ROL'OS unit — otherwise the booking lands in the UNASSIGNED lane.
+  const { data: aliasRoomTypes = [] } = useQuery({
+    queryKey: ["pms-cal-alias-room-types", propertyId],
+    queryFn: async () => {
+      if (!propertyId) return [];
+      const { data } = await supabase
+        .from("hostfully_room_types")
+        .select("id, name")
+        .eq("property_id", propertyId);
+      return (data || []).map((t) => ({ id: t.id, name: t.name || "", property_id: propertyId }));
+    },
+    enabled: !!propertyId,
+  });
+
+
   // Fetch rooms
   const { data: rooms = [] } = useQuery({
     queryKey: ["pms-cal-rooms", propertyId, roomTypes.map(t => t.id).join(","), roomTypeNamesForRooms.map(t => t.id).join(",")],
@@ -446,9 +463,29 @@ export default function PMSDashboard() {
   const bookingsLoading = bookingsInfinite.isLoading;
 
   const bookings: BookingRow[] = useMemo(
-    () => autoAssignBookings(bookingsRaw, rooms, roomTypes) as BookingRow[],
-    [bookingsRaw, rooms, roomTypes]
+    () => autoAssignBookings(bookingsRaw, rooms, roomTypes, [...aliasRoomTypes, ...roomTypeNamesForRooms]) as BookingRow[],
+    [bookingsRaw, rooms, roomTypes, aliasRoomTypes, roomTypeNamesForRooms]
   );
+
+  // Persist resolved unit assignments so folio, housekeeping and check-in all agree
+  // with what the grid shows (the matcher itself is presentation-only).
+  useEffect(() => {
+    const pending = bookings.filter((b) => {
+      const resolved = b.rolos_room_ids || [];
+      const original = bookingsRaw.find((raw) => raw.id === b.id)?.rolos_room_ids || [];
+      return resolved.length > 0 && original.length === 0;
+    });
+    if (!pending.length) return;
+    let cancelled = false;
+    (async () => {
+      for (const b of pending) {
+        if (cancelled) return;
+        await supabase.from("bookings").update({ rolos_room_ids: b.rolos_room_ids }).eq("id", b.id);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [bookings, bookingsRaw]);
+
 
   const openBookingSheet = useCallback((booking: BookingRow, tab: BookingDetailTab = "details") => {
     setBookingSheetTab(tab);
@@ -721,6 +758,19 @@ export default function PMSDashboard() {
     enabled: isPortfolioMode,
   });
 
+  const { data: portfolioAliasRoomTypes = [] } = useQuery({
+    queryKey: ["pms-portfolio-alias-room-types", portfolioPropertyIds],
+    queryFn: async () => {
+      if (!portfolioPropertyIds.length) return [];
+      const { data } = await supabase
+        .from("hostfully_room_types")
+        .select("id, name, property_id")
+        .in("property_id", portfolioPropertyIds);
+      return (data || []).map((t) => ({ id: t.id, name: t.name || "", property_id: t.property_id }));
+    },
+    enabled: isPortfolioMode,
+  });
+
   const { data: portfolioPropertiesData = [] } = useQuery({
     queryKey: ["pms-portfolio-props-data", portfolioPropertyIds],
     queryFn: async () => {
@@ -733,6 +783,7 @@ export default function PMSDashboard() {
     },
     enabled: isPortfolioMode,
   });
+
 
   // Group portfolio data by property
   const portfolioDataByProperty = useMemo(() => {
@@ -774,7 +825,12 @@ export default function PMSDashboard() {
       // This prevents valid units like GRYSBOK from disappearing when duplicate type rows exist.
       const propRooms = normalizeRoomsToCanonicalRoomTypes(propRoomsRawForProp, propRoomTypesRaw, propRoomTypes);
       const propBookingsRaw = portfolioBookingsRaw.filter(b => (b as any).property_id === prop.id) as BookingRow[];
-      const propBookings = autoAssignBookings(propBookingsRaw, propRooms, propRoomTypes) as BookingRow[];
+      const propAliasTypes = [
+        ...portfolioAliasRoomTypes.filter(t => t.property_id === prop.id),
+        ...propRoomTypesRaw.map(rt => ({ id: rt.id, name: rt.name, property_id: prop.id })),
+      ];
+      const propBookings = autoAssignBookings(propBookingsRaw, propRooms, propRoomTypes, propAliasTypes) as BookingRow[];
+
       const propOverrides = portfolioOverridesRaw.filter(o => (o as any).property_id === prop.id);
 
       const oMap = new Map<string, AvailabilityOverride>();
@@ -805,7 +861,7 @@ export default function PMSDashboard() {
       map.set(prop.id, { roomTypes: propRoomTypes, rooms: propRooms, bookings: propBookings, overrideMap: oMap, roomsByType: rbtMap, propertyData: propData });
     }
     return map;
-  }, [isPortfolioMode, portfolioProperties, portfolioRoomTypesRaw, portfolioRoomsRaw, portfolioBookingsRaw, portfolioOverridesRaw, portfolioPropertiesData]);
+  }, [isPortfolioMode, portfolioProperties, portfolioRoomTypesRaw, portfolioRoomsRaw, portfolioBookingsRaw, portfolioOverridesRaw, portfolioPropertiesData, portfolioAliasRoomTypes]);
 
   // Resolve room names for a booking (single or portfolio mode)
   const getBookingRoomNames = useCallback((b: BookingRow): string[] => {
@@ -2214,11 +2270,23 @@ function MonthRoomTypeRows({ rt, weekDates, typeRooms, bookings, getRateForDate,
                     const colors = getStatusColor(b.status);
                     const isStart = b.check_in_date === dateStr;
                     return (
-                      <button key={b.id} onClick={() => onSelectBooking(b)} onDoubleClick={() => onSelectBooking(b, "folio")} className={cn("absolute inset-y-0.5 inset-x-0.5 rounded-sm border flex items-center px-1 overflow-hidden cursor-pointer hover:opacity-90", colors.bg, colors.border)}>
-                        {isStart && <span className={cn("text-[9px] font-medium truncate", colors.text)}>{b.guest_name}</span>}
+                      <button
+                        key={b.id}
+                        onClick={() => onSelectBooking(b)}
+                        onDoubleClick={() => onSelectBooking(b, "folio")}
+                        title={`${b.guest_name} · ${b.check_in_date} → ${b.check_out_date} · ${b.status} — click to open, double-click for folio`}
+                        className={cn("absolute inset-y-0.5 inset-x-0.5 rounded-sm border flex items-center gap-1 px-1 overflow-hidden cursor-pointer hover:opacity-90", colors.bg, colors.border)}
+                      >
+                        {isStart && (
+                          <>
+                            <span className={cn("text-[9px] font-medium truncate", colors.text)}>{b.guest_name}</span>
+                            {hasSpecialIndicator(b) && <AlertTriangle className="h-2.5 w-2.5 text-amber-500 ml-auto shrink-0" />}
+                          </>
+                        )}
                       </button>
                     );
                   })}
+
                 </td>
               );
             })}
