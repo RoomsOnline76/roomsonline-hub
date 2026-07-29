@@ -6,7 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { CreditCard, ExternalLink, Eye, EyeOff, Save, ShieldCheck, Loader2, Globe, MapPin, ChevronDown } from "lucide-react";
+import { CreditCard, ExternalLink, Eye, EyeOff, Save, ShieldCheck, Loader2, Globe, MapPin, ChevronDown, Building2 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { usePropertyPortfolioPayment } from "@/hooks/usePortfolioPaymentConfig";
+import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -206,6 +209,32 @@ interface PropertyPaymentProviderSelectProps {
 
 export function PropertyPaymentProviderSelect({ propertyId }: PropertyPaymentProviderSelectProps) {
   const queryClient = useQueryClient();
+  const { isAdmin, isDev, isFearlessLeader } = useAuth();
+  const canOverride = !!(isAdmin || isDev || isFearlessLeader);
+  const {
+    portfolioName,
+    config: portfolioConfig,
+    inherits: inheritsFromPortfolio,
+    isOverriding,
+  } = usePropertyPortfolioPayment(propertyId);
+
+  const overrideMutation = useMutation({
+    mutationFn: async (value: boolean) => {
+      const { error } = await supabase
+        .from("properties")
+        .update({ payment_provider_override: value } as any)
+        .eq("id", propertyId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["property-portfolio-payment-context", propertyId] });
+      queryClient.invalidateQueries({ queryKey: ["property-payment-providers", propertyId] });
+      toast.success("Payment provider inheritance updated");
+    },
+    onError: (e: unknown) =>
+      toast.error("Failed to update inheritance", { description: describeError(e) }),
+  });
+
   const [visibleFields, setVisibleFields] = useState<Record<string, boolean>>({});
   const [credentialValues, setCredentialValues] = useState<Record<string, string>>({});
   const [hasCredChanges, setHasCredChanges] = useState(false);
@@ -501,6 +530,40 @@ export function PropertyPaymentProviderSelect({ propertyId }: PropertyPaymentPro
               </div>
             ) : (
               <>
+                {portfolioName && (
+                  <div className="rounded-lg border border-primary/30 bg-primary/5 px-3 py-2.5 space-y-2">
+                    <div className="flex items-start gap-2">
+                      <Building2 className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium">
+                          {inheritsFromPortfolio
+                            ? `Inherited from the ${portfolioName} portfolio`
+                            : `Overriding the ${portfolioName} portfolio`}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {inheritsFromPortfolio
+                            ? portfolioConfig?.allow_custom_payment_provider
+                              ? `Provider: ${(portfolioConfig?.payment_providers || []).map((v) => ALL_PROVIDERS.find((x) => x.value === v)?.label || v).join(", ") || "none"} — managed in Admin → Portfolios.`
+                              : "Custom providers are disabled portfolio-wide; the Rooms Online PayFast gateway is used."
+                            : "This property uses its own payment provider settings below."}
+                        </p>
+                      </div>
+                    </div>
+                    {canOverride && (
+                      <div className="flex items-center justify-between rounded-md bg-background/70 px-2.5 py-1.5">
+                        <span className="text-xs">Override portfolio payment settings</span>
+                        <Switch
+                          checked={isOverriding}
+                          disabled={overrideMutation.isPending}
+                          onCheckedChange={(v) => overrideMutation.mutate(v)}
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {!inheritsFromPortfolio && (
+                <>
                 <Collapsible open={saOpen} onOpenChange={setSaOpen}>
                   <CollapsibleTrigger className="flex items-center justify-between w-full rounded-lg border px-3 py-2 hover:bg-muted/30 transition-colors">
                     <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
@@ -559,6 +622,8 @@ export function PropertyPaymentProviderSelect({ propertyId }: PropertyPaymentPro
                       Save Credentials
                     </Button>
                   </div>
+                )}
+                </>
                 )}
               </>
             )}
