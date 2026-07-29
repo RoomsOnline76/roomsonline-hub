@@ -26,6 +26,7 @@ import {
 import { PriceLabsAdminPushCard } from "./PriceLabsAdminPushCard";
 import { SubscriptionStatusPanel } from "./SubscriptionStatusPanel";
 import { SubscriptionInvoiceDownloadCenter } from "./SubscriptionInvoiceDownloadCenter";
+import { ByoSetupChecklist } from "@/components/integrations/ByoSetupChecklist";
 
 interface BillingConfigTabProps {
   propertyId: string;
@@ -128,6 +129,23 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
   });
   const customProviderEnabled = !!propertyFlag?.allow_custom_payment_provider;
   const isRolosPms = !!propertyFlag?.is_rol_property;
+
+  // Provider the owner settles with — drives the BYO setup checklist below.
+  const { data: byoProviderHint } = useQuery({
+    queryKey: ["property-byo-provider-hint", propertyId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("properties")
+        .select("payment_provider, payment_providers")
+        .eq("id", propertyId)
+        .maybeSingle();
+      const row = data as { payment_provider?: string | null; payment_providers?: string[] | null } | null;
+      return row?.payment_providers?.[0] || row?.payment_provider || "payfast";
+    },
+    enabled: !!propertyId,
+    staleTime: 60 * 1000,
+  });
+
 
   // Sibling property names when this property is a portfolio member.
   const { data: siblingProps } = useQuery({
@@ -355,6 +373,17 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
               ) : null
             }
           />
+
+          {/* ── Owner setup checklist for the BYO gateway ─────────────── */}
+          {builder.byo_gateway_enabled && (
+            <ByoSetupChecklist
+              propertyId={propertyId}
+              provider={byoProviderHint}
+              readOnly
+            />
+          )}
+
+
 
           {/* Live summary */}
           <div className="rounded-md bg-muted/30 border border-dashed p-2 text-[11px] text-muted-foreground">

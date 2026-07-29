@@ -9,6 +9,9 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { CreditCard, ExternalLink, Eye, EyeOff, Save, ShieldCheck, Loader2, Globe, MapPin, ChevronDown, Building2 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { usePropertyPortfolioPayment } from "@/hooks/usePortfolioPaymentConfig";
+import { usePropertyAllowsCustomPayment } from "@/hooks/usePropertyAllowsCustomPayment";
+import { ByoSetupChecklist } from "@/components/integrations/ByoSetupChecklist";
+import { BYO_CHECKLIST_KEY } from "@/lib/byoSetupChecklist";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -217,6 +220,7 @@ export function PropertyPaymentProviderSelect({ propertyId }: PropertyPaymentPro
     inherits: inheritsFromPortfolio,
     isOverriding,
   } = usePropertyPortfolioPayment(propertyId);
+  const { allowed: byoAllowed } = usePropertyAllowsCustomPayment(propertyId);
 
   const overrideMutation = useMutation({
     mutationFn: async (value: boolean) => {
@@ -285,7 +289,13 @@ export function PropertyPaymentProviderSelect({ propertyId }: PropertyPaymentPro
         .eq("integration_type", "payment_credentials")
         .maybeSingle();
       if (error) throw error;
-      return (data?.config as Record<string, string>) || {};
+      const raw = (data?.config as Record<string, unknown>) || {};
+      // The checklist ticks share this row — keep them out of the credential fields.
+      const creds: Record<string, string> = {};
+      for (const [k, v] of Object.entries(raw)) {
+        if (k !== BYO_CHECKLIST_KEY && typeof v === "string") creds[k] = v;
+      }
+      return creds;
     },
     enabled: !!propertyId,
   });
@@ -356,15 +366,19 @@ export function PropertyPaymentProviderSelect({ propertyId }: PropertyPaymentPro
     mutationFn: async (creds: Record<string, string>) => {
       const { data: existing } = await supabase
         .from("integration_configs")
-        .select("id")
+        .select("id, config")
         .eq("property_id", propertyId)
         .eq("integration_type", "payment_credentials")
         .maybeSingle();
 
       if (existing) {
+        // Preserve the BYO setup checklist ticks stored alongside the credentials.
+        const prev = (existing.config as Record<string, unknown>) || {};
+        const merged: Record<string, unknown> = { ...creds };
+        if (prev[BYO_CHECKLIST_KEY]) merged[BYO_CHECKLIST_KEY] = prev[BYO_CHECKLIST_KEY];
         const { error } = await supabase
           .from("integration_configs")
-          .update({ config: creds, updated_at: new Date().toISOString() })
+          .update({ config: merged as never, updated_at: new Date().toISOString() })
           .eq("id", existing.id);
         if (error) throw error;
       } else {
@@ -382,6 +396,7 @@ export function PropertyPaymentProviderSelect({ propertyId }: PropertyPaymentPro
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["payment-credentials", propertyId] });
       queryClient.invalidateQueries({ queryKey: ["payfast-settlement", propertyId] });
+      queryClient.invalidateQueries({ queryKey: ["byo-checklist", propertyId] });
 
       setHasCredChanges(false);
       toast.success("Payment credentials saved securely");
@@ -615,8 +630,8 @@ export function PropertyPaymentProviderSelect({ propertyId }: PropertyPaymentPro
                       </p>
                       {settlement.credential_source === "byo" && (
                         <p className="text-xs text-muted-foreground">
-                          Guests are sent to PayFast's secure hosted checkout. Payment confirmation
-                          returns to us automatically — nothing to configure in your PayFast dashboard.
+                          Guests use your gateway's secure checkout and confirmation returns to us
+                          automatically — complete the activation steps below in your provider account.
                         </p>
                       )}
 
@@ -624,6 +639,24 @@ export function PropertyPaymentProviderSelect({ propertyId }: PropertyPaymentPro
 
                   </div>
                 )}
+
+                {(byoAllowed || settlement?.credential_source === "byo") && (
+                  <ByoSetupChecklist
+                    propertyId={propertyId}
+                    provider={
+                      selectedProviders[0] ||
+                      (portfolioConfig?.payment_providers || [])[0] ||
+                      "payfast"
+                    }
+                    auto={{
+                      credentialsResolved: settlement?.credential_source === "byo",
+                      isSandbox: settlement?.is_sandbox,
+                      onsiteSupported: settlement?.onsite_supported,
+                    }}
+                  />
+                )}
+
+
 
 
                 {!inheritsFromPortfolio && (
