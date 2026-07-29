@@ -1,35 +1,36 @@
-## What's wrong (verified)
+## Goal
 
-**1. Booking lands in UNASSIGNED**
-The Carike Test booking (`de1a10c1…`, Fonteinhutte, 20–22 Aug 2026, confirmed/paid) carries `room_type_id = c2184bdd…`, which exists in **`hostfully_room_types`** (name "GALJOEN"), not in `rolos_room_types`. The dashboard's auto-assign helper only indexes `rolos_room_types`, so it can't map the type by id or by name, and the booking falls into the UNASSIGNED lane. There is also no `rolos_booking_rooms` row for it (that table is empty), so nothing downstream — folio, housekeeping, check-in — knows which chalet it is.
+Three fixes: clean up the Jongensfontein test invoices, stop the cron creating a new invoice every day, and make every "Pay" link use the production domain instead of the Lovable preview URL.
 
-**2. Email content**
-- `send-booking-email` always renders the "Action Required … this property is not connected to a PMS" block in the owner/property notification, even for ROLOS-PMS or PMS-connected properties.
-- Both the owner notification and the branded guest email hard-code the "Powered by RoomsOnline · Rooms Done Right" footer, so white-label properties (Fonteinhutte has `brand_override_enabled = true`, `#1B7FAD`, own logo) still show RoomsOnline at the bottom.
+## What I found
+
+- All 9 invoices belong to the **Jongensfontein portfolio** (`22a7d374…`), all `activation`, ZAR 450, created daily at 06:00 (7 still `pending`, 2 already `cancelled`).
+- `billing-subscription-cron` de-duplicates on `period_start = today`, so an activation invoice is created **fresh every day** (and twice on some days).
+- The edge functions already build pay links from `SITE_URL` (correct production domain). The **frontend** is the problem: `SubscriptionInvoiceDownloadCenter.tsx` and `SubscriptionStatusPanel.tsx` build the pay URL with `window.location.origin`, which in preview is the `lovableproject.com` host — so Pay opens the Lovable domain, and PayFast/cancel round-trips stay there.
 
 ## Plan
 
-### A. Room resolution (assignment)
-1. Extend `src/lib/bookingAssignment.ts` to accept an extra "alias" name source and to match rooms by **room type name → room_number / room_name** (case-insensitive), so a booking whose `room_type_id` comes from any catalogue (Hostfully, legacy, ROLOS duplicates) resolves to the correct `rolos_rooms` unit.
-2. In `PMSDashboard.tsx`, `PMSRooms.tsx`, `PMSHousekeeping.tsx`: also fetch `hostfully_room_types (id, name, property_id)` for the visible properties and pass them into `autoAssignBookings` as alias types.
-3. Persist the resolution instead of leaving it presentation-only: when a booking resolves to exactly one free unit, upsert a `rolos_booking_rooms` row (booking_id, room_id) so folio, housekeeping and check-in all agree. A migration will add the needed insert/update RLS policy + grants if not already present.
-4. Add a manual **"Assign room"** control in the booking sheet (and a right-click/dropdown on the UNASSIGNED chip) listing free units for those dates, for cases the matcher can't resolve.
+**1. Cancel the test invoices (migration)**
+- Set all `pending` `subscription_invoices` for portfolio `22a7d374-7e2e-4194-8d32-aa870813359e` to `cancelled`.
+- Release any `subscription_charge_items` reserved against those invoices (`invoiced_on_invoice_id = null`) so they aren't lost.
+- Set that portfolio's billing config to a non-billing state so the cron stops: clear `billing_start_date` and set `subscription_status = 'inactive'`.
 
-### B. UNASSIGNED lane usability
-5. Render the unassigned chips with the same content as assigned ones (guest name, nights, status colour, special-request dot) and the same click / double-click behaviour (open details / open folio), so the booking can be opened, checked in and have billables added even before a unit is assigned.
+**2. Add an explicit billing on/off switch**
+- Add `billing_enabled boolean not null default false` to `property_billing_configs` and `portfolio_billing_configs`.
+- Backfill `true` only where a subscription invoice has actually been paid; everything else stays off.
+- Surface it as an admin-only "Billing active" toggle in the billing config UI, with a note that no invoices or reminder emails are issued while it's off.
 
-### C. Emails (`supabase/functions/send-booking-email/index.ts`)
-6. Only render the "Action Required — not connected to a PMS" block when the property genuinely has no PMS: skip it when the property is on ROLOS PMS or has a connected external system (`external_system` other than manual/none, or an active `pms_credentials` / `owner_pms_credentials` link). For ROLOS/connected properties, replace it with a short "This booking is already in your ROLOS dashboard" line plus the dashboard link.
-7. Make the footer branding-aware, reusing the existing `resolveBranding()` result:
-   - **Branded / white-label** → property name, property logo, property contact details (via `_shared/email-footer.ts`); no RoomsOnline mention.
-   - **Canonical ROL** → keep the existing "Powered by RoomsOnline · Rooms Done Right" line.
-   Apply to the guest email, the owner notification and the admin alert.
-8. Redeploy `send-booking-email`.
+**3. Stop duplicate invoice generation (cron fix)**
+- Skip any entity where `billing_enabled` is false or `billing_start_date` is null.
+- For activation invoices, de-duplicate on *any* existing pending/paid activation invoice for the entity rather than on `period_start = today`.
+- Replace `.maybeSingle()` with an ordered `limit(1)` lookup so multiple pending rows can't throw.
+- Add a DB unique partial index preventing more than one pending invoice per entity per `period_start`.
 
-### D. Backfill
-9. One-off assignment of the existing Carike Test booking to the GALJOEN unit (`69a7996c…`) so the dashboard shows it correctly straight away.
+**4. Production-domain pay links (frontend)**
+- Use `ADMIN_DOMAIN` from `src/lib/config.ts` instead of `window.location.origin` in `SubscriptionInvoiceDownloadCenter.tsx` and `SubscriptionStatusPanel.tsx`.
+- Sweep the remaining `window.location.origin` link builders that generate shareable/payment URLs and point them at the config domains too.
+- Confirm `payfast-api` return/cancel URLs for subscriptions resolve to `sleepinafrica.roomsonline.co.za` (they already default there; the Lovable host was only inherited from the frontend link).
 
 ## Technical notes
-- Matching key: normalise names (trim + lowercase) and scope by `property_id`; prefer exact `room_type_id` match, then type-name → `rolos_rooms.room_type_id` name, then type-name → `rolos_rooms.room_number` / `room_name`.
-- Conflict check keeps the existing start-inclusive / end-exclusive overlap logic, so a unit is never double-assigned.
-- No changes to adapter-locked PMS files; all work is in dashboard UI, the assignment helper, and the booking email function.
+
+Files touched: `supabase/functions/billing-subscription-cron/index.ts`, `src/components/property/SubscriptionInvoiceDownloadCenter.tsx`, `src/components/property/SubscriptionStatusPanel.tsx`, the admin billing config builder, plus two migrations (invoice cancellation + `billing_enabled` column/index).
