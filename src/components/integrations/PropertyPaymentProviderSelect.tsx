@@ -379,6 +379,8 @@ export function PropertyPaymentProviderSelect({ propertyId }: PropertyPaymentPro
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["payment-credentials", propertyId] });
+      queryClient.invalidateQueries({ queryKey: ["payfast-settlement", propertyId] });
+
       setHasCredChanges(false);
       toast.success("Payment credentials saved securely");
     },
