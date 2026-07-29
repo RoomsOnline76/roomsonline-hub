@@ -1,29 +1,54 @@
-## Context
+## Problem
 
-- PayFast "Onsite Payments" (in-page card capture) is an opt-in merchant feature. Property-owned (BYO) accounts generally don't have it, which is what produced the 404 on `/onsite/process/<uuid>`.
-- The hosted redirect flow requires no merchant opt-in and is the correct default for BYO.
-- ITN already works for BYO: `notify_url` always points at our own `payfast-api` function, and the handler resolves the originating merchant from `payment_transactions.m_payment_id` before verifying the signature with that account's passphrase. No change needed to how success is detected.
+On the Jongensfontein/Dassiesingel booking pages, text sitting **on top of the dark blue brand surfaces** (property header bar, the calendar header row with "Room Type / WED 29 JUL") renders in a low-contrast grey/blue instead of white.
 
-## What to change
+Confirmed from the code: `src/lib/brandOverride.ts` computes `--primary-foreground` / `--secondary-foreground` / `--accent-foreground` with `autoForeground()`, but `--muted-foreground` (and any explicit `bodyTextColor` / `mutedTextColor` / legacy `fontColor`) is derived **only against the page background**, never against the brand-coloured surfaces. Components render subtitles, weekday labels and helper text with `text-muted-foreground` inside `bg-primary` / `bg-accent` blocks, so a dark navy or grey muted colour lands on a dark navy bar. The existing "dynamic contrast safety" block only runs when no explicit foreground is set, so branded properties (which do set colours) bypass it entirely.
 
-**1. BYO defaults to hosted redirect — no onsite round-trip**
+## What to build
 
-In `payfast-api`, treat onsite as available only for the RoomsOnline facilitator account. When the resolved credential source is `byo`, go straight to the signed hosted-checkout payload (the existing `respondWithRedirectCheckout` path) instead of requesting an onsite UUID and pre-flighting it. Keep the pre-flight as a safety net for the ROL account only.
+### 1. Surface-aware contrast engine (`src/lib/brandOverride.ts`)
 
-Optionally allow an explicit per-property opt-in (`onsite_supported: true` saved in the property's payment config) for owners who *have* enabled Onsite in their PayFast dashboard.
+- Add exported helpers: `bestForegroundFor(bgHex)` (returns near-white or near-black, whichever wins the ratio) and `enforceContrast(fgHex, bgHex, min)` reusing existing `ensureReadable`.
+- For **every** branded surface (primary, secondary, accent, card/light bg, dark bg) compute and emit a matched foreground pair, always enforcing ≥ 4.5:1 — even when the user supplied an explicit font colour. If the user's colour fails on that surface, the surface pair uses the corrected value while the page-level `--foreground` keeps their choice.
+- Emit new tokens for muted/secondary text on brand surfaces:
+  - `--primary-foreground-muted`, `--secondary-foreground-muted`, `--accent-foreground-muted` (~75% opacity-equivalent tint of the surface foreground, still ≥ 3:1).
+- Keep `--primary-text-safe` as-is.
 
-**2. Confirm payment server-side, not just by signature**
+### 2. Use the tokens where the bug shows
 
-The ITN handler currently has PayFast's server-side validation call commented out. Enable it: after signature + source-IP checks pass, POST the ITN payload back to the correct host (`sandbox.payfast.co.za` or `www.payfast.co.za`) `/eng/query/validate` and only mark the booking paid on a `VALID` response. This matters more for BYO, where several merchant accounts share one notify endpoint.
+Audit and update the booking/embed surfaces that currently place `text-muted-foreground` (or unqualified text) inside branded bars:
+- Property header bar in `src/pages/Booking.tsx` (name + location subtitle, promo-code button).
+- Rate-calendar header row (weekday/date labels, "Room Type" cell) and month-nav buttons.
+- Equivalent blocks in `src/pages/EmbedProperty.tsx` and `src/pages/EmbedPortfolio.tsx`.
 
-Also verify `amount_gross` against the booking total before marking paid, and log a mismatch rather than confirming.
+Replace with `text-[hsl(var(--primary-foreground))]` / `--primary-foreground-muted` (via small semantic utility classes added to `index.css`, e.g. `.on-primary` / `.on-primary-muted`) so nothing is hardcoded and non-branded pages are unaffected.
 
-**3. UI wording**
+### 3. Rigorous examples in the branding editors
 
-In the ROLOS payment provider card, replace the "enable Onsite Payments in the PayFast dashboard" hint with a plain statement that guests are sent to PayFast's secure hosted checkout, and that payment confirmation returns automatically via ITN. Remove the implication that the owner must change anything in their PayFast dashboard.
+In `src/components/property/BrandingTab.tsx`, `src/pages/pms/PMSBranding.tsx`, and the portfolio branding card in `src/pages/admin/AdminPortfolios.tsx`, replace the current small swatch/badge check with a shared `BrandReadabilityPanel` component that renders **live miniature replicas** of the real surfaces using the entered colours:
+- Booking header bar (logo block, title, subtitle, promo button)
+- Rate calendar header + one price row + Book button
+- Room card on light background
+- Checkout summary panel with totals and muted fine print
+- Footer / dark accent band
+
+Each replica shows a pass/fail ratio badge on the exact text pairs that appear in production.
+
+### 4. Auto-correct proposal the user accepts
+
+Add `src/lib/brandAutoCorrect.ts`:
+- `proposeBrandFixes(brand): BrandFix[]` where each fix = `{ field, label, current, proposed, reason, ratioBefore, ratioAfter }`.
+- Rules: force white/near-white surface foregrounds on dark brand colours; nudge muted text lightness until it clears 4.5:1 (3:1 for large/secondary text); darken/lighten primary when used as text on the page background; correct light-bg vs body-text pairs; fall back to `#FFFFFF` / `#1A1A2E` when a hue nudge can't reach the threshold.
+- The proposals preserve hue — only lightness/saturation move — so brand identity stays intact.
+
+UI: a "Readability auto-correct" card appearing above the palette whenever any fix exists, listing each proposed change as a before/after swatch row with the reason and ratio improvement, with per-row checkboxes plus **Accept proposed changes** and **Dismiss** actions. Accepting writes the values into the form state (still requires the normal Save), and shows the preview replicas re-rendering with the corrected palette.
+
+### 5. Runtime safety net
+
+The engine change in step 1 means even un-corrected legacy palettes render readable text on branded surfaces, so existing live properties are fixed without anyone editing their branding.
 
 ## Technical notes
 
-- Files: `supabase/functions/payfast-api/index.ts`, `supabase/functions/_shared/paymentCredentials.ts`, `src/components/integrations/PropertyPaymentProviderSelect.tsx`, `src/components/booking/PayFastOnsiteModal.tsx` (the 8-second watchdog stays as a fallback but should rarely fire once BYO skips onsite).
-- No database migration required; `onsite_supported` continues to live in the property's `integration_configs` payment config.
-- ITN merchant-mismatch guard, IP allow-list, and per-account passphrase resolution stay exactly as they are.
+- No schema changes; all new tokens are CSS variables computed client-side, and accepted fixes save into the existing brand colour columns.
+- `BrandReadabilityPanel` and `brandAutoCorrect` live in `src/components/branding/` and `src/lib/` so property, portfolio and PMS editors share one implementation.
+- Verification: load `/embed/property/dassiesingel?wl=1` and the portfolio embed via Playwright, screenshot the header and calendar header, and assert computed contrast ≥ 4.5:1 on the previously failing text nodes.
