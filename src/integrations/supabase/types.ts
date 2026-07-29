@@ -3757,6 +3757,44 @@ export type Database = {
           },
         ]
       }
+      portfolio_payment_configs: {
+        Row: {
+          allow_custom_payment_provider: boolean
+          created_at: string
+          credentials: Json
+          id: string
+          payment_providers: string[]
+          portfolio_id: string
+          updated_at: string
+        }
+        Insert: {
+          allow_custom_payment_provider?: boolean
+          created_at?: string
+          credentials?: Json
+          id?: string
+          payment_providers?: string[]
+          portfolio_id: string
+          updated_at?: string
+        }
+        Update: {
+          allow_custom_payment_provider?: boolean
+          created_at?: string
+          credentials?: Json
+          id?: string
+          payment_providers?: string[]
+          portfolio_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "portfolio_payment_configs_portfolio_id_fkey"
+            columns: ["portfolio_id"]
+            isOneToOne: true
+            referencedRelation: "property_portfolios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       portfolio_revenue_share_config: {
         Row: {
           created_at: string
@@ -4276,6 +4314,7 @@ export type Database = {
           owner_notes: string | null
           owner_pms_credential_id: string | null
           payment_provider: string | null
+          payment_provider_override: boolean
           payment_providers: string[] | null
           permanently_deleted_at: string | null
           pms_managed_fields: string[] | null
@@ -4369,6 +4408,7 @@ export type Database = {
           owner_notes?: string | null
           owner_pms_credential_id?: string | null
           payment_provider?: string | null
+          payment_provider_override?: boolean
           payment_providers?: string[] | null
           permanently_deleted_at?: string | null
           pms_managed_fields?: string[] | null
@@ -4462,6 +4502,7 @@ export type Database = {
           owner_notes?: string | null
           owner_pms_credential_id?: string | null
           payment_provider?: string | null
+          payment_provider_override?: boolean
           payment_providers?: string[] | null
           permanently_deleted_at?: string | null
           pms_managed_fields?: string[] | null
@@ -11912,6 +11953,10 @@ export type Database = {
           user_id: string
           user_role: string
         }[]
+      }
+      sync_portfolio_payment_config: {
+        Args: { _portfolio_id: string; _property_id?: string }
+        Returns: undefined
       }
       trigger_daily_health_report: { Args: never; Returns: undefined }
       trigger_system_health_check: { Args: never; Returns: undefined }
