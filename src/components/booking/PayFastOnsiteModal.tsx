@@ -304,10 +304,12 @@ export const PayFastOnsiteModal = ({
 
 
   const handleRetry = () => {
+    triggeredRef.current = false;
     setPaymentUuid(null);
     setError(null);
     setPayFastActive(false);
   };
+
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-ZA", {
