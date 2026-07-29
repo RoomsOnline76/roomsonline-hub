@@ -910,11 +910,16 @@ function generatePropertyNotificationEmail(booking: any, property: any): string 
               <p style="margin: 0 0 15px; color: #666; font-size: 14px;">
                 This notification was sent on behalf of your guests.
               </p>
+              ${(brand.isBranded && !property.is_rol_property) ? `
+              <div style="border-top: 1px solid #e5e5e5; padding-top: 15px; margin-top: 10px;">
+                <p style="margin: 0; color: #888; font-size: 11px;"><strong>${property.name}</strong></p>
+              </div>` : `
               <div style="border-top: 1px solid #e5e5e5; padding-top: 15px; margin-top: 10px;">
                 <p style="margin: 0; color: #aaa; font-size: 11px;">Powered by <a href="https://roomsonline.co.za" style="color: #aaa; text-decoration: none;">RoomsOnline</a> · Rooms Done Right</p>
-              </div>
+              </div>`}
             </td>
           </tr>
+
           
         </table>
       </td>
