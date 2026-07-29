@@ -618,10 +618,7 @@ serve(async (req) => {
         
         let query = supabase
           .from("rol_bank_export_batches")
-          .select(`
-            *,
-            profiles!rol_bank_export_batches_created_by_fkey(email, full_name)
-          `)
+          .select("*")
           .order("created_at", { ascending: false });
 
         if (batchStatus) {
@@ -638,7 +635,25 @@ serve(async (req) => {
           });
         }
 
-        return buildResponse(action, true, batches);
+        // Attach creator profiles (no FK relationship exists, so fetch separately)
+        const creatorIds = [...new Set((batches || []).map((b) => b.created_by).filter(Boolean))];
+        let profileMap: Record<string, { email: string; full_name: string }> = {};
+        if (creatorIds.length > 0) {
+          const { data: profs } = await supabase
+            .from("profiles")
+            .select("id, email, full_name")
+            .in("id", creatorIds);
+          profileMap = Object.fromEntries(
+            (profs || []).map((p) => [p.id, { email: p.email, full_name: p.full_name }])
+          );
+        }
+
+        return buildResponse(
+          action,
+          true,
+          (batches || []).map((b) => ({ ...b, profiles: profileMap[b.created_by] || null }))
+        );
+
       }
 
       case "get_batch_details": {
