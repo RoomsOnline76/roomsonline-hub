@@ -397,61 +397,45 @@ export default function AdminReviewQueue() {
         </CardContent>
       </Card>
       
-      {/* Status Summary Cards */}
-      <div className="grid grid-cols-4 gap-4 mb-4">
-        <Card className="border-orange-200 bg-orange-50 dark:bg-orange-950/20">
-          <CardContent className="py-3 px-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-muted-foreground">Pending Review</p>
-                <p className="text-2xl font-bold text-orange-600">{pendingReview.length}</p>
-              </div>
-              <ClipboardCheck className="h-8 w-8 text-orange-400" />
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card className="border-green-200 bg-green-50 dark:bg-green-950/20">
-          <CardContent className="py-3 px-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-muted-foreground">Ready to Activate</p>
-                <p className="text-2xl font-bold text-green-600">{readyToActivate.length}</p>
-              </div>
-              <ShieldCheck className="h-8 w-8 text-green-400" />
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card className="border-red-200 bg-red-50 dark:bg-red-950/20">
-          <CardContent className="py-3 px-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-muted-foreground">Needs Attention</p>
-                <p className="text-2xl font-bold text-red-600">{needsAttention.length}</p>
-              </div>
-              <AlertTriangle className="h-8 w-8 text-red-400" />
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card className="border-yellow-200 bg-yellow-50 dark:bg-yellow-950/20">
-          <CardContent className="py-3 px-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-muted-foreground">In Onboarding</p>
-                <p className="text-2xl font-bold text-yellow-600">{inOnboarding.length}</p>
-              </div>
-              <RefreshCw className="h-8 w-8 text-yellow-400" />
-            </div>
-          </CardContent>
-        </Card>
+      {/* Status Summary Cards — click to filter */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+        {([
+          { key: 'pending', label: 'Pending Review', value: counts.pending, icon: ClipboardCheck, border: 'border-orange-200', bg: 'bg-orange-50 dark:bg-orange-950/20', text: 'text-orange-600', iconColor: 'text-orange-400' },
+          { key: 'ready', label: 'Ready to Activate', value: counts.ready, icon: ShieldCheck, border: 'border-green-200', bg: 'bg-green-50 dark:bg-green-950/20', text: 'text-green-600', iconColor: 'text-green-400' },
+          { key: 'attention', label: 'Needs Attention', value: counts.attention, icon: AlertTriangle, border: 'border-red-200', bg: 'bg-red-50 dark:bg-red-950/20', text: 'text-red-600', iconColor: 'text-red-400' },
+          { key: 'onboarding', label: 'In Onboarding', value: counts.onboarding, icon: RefreshCw, border: 'border-yellow-200', bg: 'bg-yellow-50 dark:bg-yellow-950/20', text: 'text-yellow-600', iconColor: 'text-yellow-400' },
+        ] as const).map(card => {
+          const Icon = card.icon;
+          const active = statusFilter === card.key;
+          return (
+            <Card
+              key={card.key}
+              role="button"
+              tabIndex={0}
+              onClick={() => setStatusFilter(active ? 'all' : card.key)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setStatusFilter(active ? 'all' : card.key); } }}
+              className={`${card.border} ${card.bg} cursor-pointer transition-shadow hover:shadow-md ${active ? 'ring-2 ring-primary' : ''}`}
+            >
+              <CardContent className="py-3 px-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-muted-foreground">{card.label}</p>
+                    <p className={`text-2xl font-bold ${card.text}`}>{card.value}</p>
+                    <p className="text-[10px] text-muted-foreground">of {counts.total} in queue</p>
+                  </div>
+                  <Icon className={`h-8 w-8 ${card.iconColor}`} />
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
       
       {/* Properties Table */}
       <Card>
         <CardHeader className="py-3 px-4">
           <CardTitle className="text-sm">Properties ({filteredProperties.length})</CardTitle>
+
         </CardHeader>
         <CardContent className="p-0">
           {isLoading ? (
