@@ -653,3 +653,13 @@ button {
   @apply absolute inset-0;
   background: radial-gradient(circle at 30% 70%, hsl(38 70% 52% / 0.15) 0%, transparent 50%);
 }
+
+/* ── On-brand-surface text utilities ──
+   Use inside bg-primary / bg-secondary / bg-accent blocks so text stays
+   readable when a property brand overrides the surface colour. */
+.on-primary { color: hsl(var(--primary-foreground)); }
+.on-primary-muted { color: hsl(var(--primary-foreground-muted)); }
+.on-secondary { color: hsl(var(--secondary-foreground)); }
+.on-secondary-muted { color: hsl(var(--secondary-foreground-muted)); }
+.on-accent { color: hsl(var(--accent-foreground)); }
+.on-accent-muted { color: hsl(var(--accent-foreground-muted)); }
