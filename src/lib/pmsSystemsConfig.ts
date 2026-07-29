@@ -215,7 +215,7 @@ export const ALL_PMS_SYSTEMS: PMSSystemConfig[] = [
   {
     key: 'rentalsunited',
     name: 'Rentals United',
-    description: 'Channel manager and distribution platform for vacation rentals',
+    description: 'Channel manager and distribution platform — XML API + GC API (sandbox, pre-certification)',
     category: 'channel_manager',
     hasCustomCard: true,
     deploymentStatus: 'in_development',
