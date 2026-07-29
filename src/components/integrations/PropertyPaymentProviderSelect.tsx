@@ -290,6 +290,32 @@ export function PropertyPaymentProviderSelect({ propertyId }: PropertyPaymentPro
     enabled: !!propertyId,
   });
 
+  // ── Where do payments actually settle? (asks the backend, no secrets) ──────
+
+  interface SettlementInfo {
+    credential_source: "byo" | "rol";
+    inherited: boolean;
+    owner_property_id: string | null;
+    merchant_id_masked: string;
+    is_sandbox: boolean;
+    configured: boolean;
+  }
+
+  const { data: settlement } = useQuery({
+    queryKey: ["payfast-settlement", propertyId],
+    queryFn: async (): Promise<SettlementInfo | null> => {
+      const { data, error } = await supabase.functions.invoke("payfast-api", {
+        body: { action: "resolve_credentials", property_id: propertyId },
+      });
+      if (error) return null;
+      return (data as SettlementInfo) ?? null;
+    },
+    enabled: !!propertyId,
+    staleTime: 60 * 1000,
+  });
+
+
+
   useEffect(() => {
     if (savedCredentials) {
       setCredentialValues(savedCredentials);
