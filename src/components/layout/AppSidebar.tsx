@@ -130,13 +130,19 @@ export function AppSidebar() {
     window.location.replace("/auth");
   };
 
-  // Get badge for a nav item (access requests + properties awaiting review)
+  // Badge for a nav item: live approval/action queue count, else static config badge.
   const getBadge = (item: NavItem): number | undefined => {
-    if (item.id === 'access-requests' && pendingRequests > 0) return pendingRequests;
-    if (item.id === 'review-queue' && reviewQueueCount > 0) return reviewQueueCount;
+    const live = actionCounts[item.id];
+    if (live && live > 0) return live;
     return item.badge;
-
   };
+
+  /** Any pending action inside a section (used for the collapsed-section dot). */
+  const sectionPending = (section: NavSection): number =>
+    section.items
+      .filter(canAccessItem)
+      .reduce((sum, item) => sum + (actionCounts[item.id] || 0), 0);
+
 
   const NavLink = ({ item }: { item: NavItem }) => {
     if (!canAccessItem(item)) return null;
