@@ -227,12 +227,17 @@ export default function EmbedProperty() {
   const brandColor = brandColorParam
     ? decodeURIComponent(brandColorParam)
     : (isWhiteLabelContext ? (property?.brand_primary_color || ROL_PINK) : ROL_PINK);
-  const fontColor = brandFontParam
+  const requestedFontColor = brandFontParam
     ? decodeURIComponent(brandFontParam)
     : (isWhiteLabelContext ? (property?.brand_font_color || "#ffffff") : "#ffffff");
+  // Readability guard: text sitting ON the brand bar must clear WCAG AA against it.
+  const brandSurfaceText = surfaceForegroundPair(brandColor, requestedFontColor);
+  const fontColor = brandSurfaceText.fg;
+  const fontColorMuted = brandSurfaceText.muted;
   const logoUrl = brandLogoParam
     ? decodeURIComponent(brandLogoParam)
     : (isWhiteLabelContext ? property?.brand_logo_url : null);
+
 
   const nights = useMemo(() => {
     if (!checkIn || !checkOut) return 0;
