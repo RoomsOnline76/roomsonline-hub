@@ -12,6 +12,8 @@ import { EmbedTripAdvisorReviews } from "@/components/embed/EmbedTripAdvisorRevi
 import { EmbedReviewPlatforms } from "@/components/embed/EmbedReviewPlatforms";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { surfaceForegroundPair } from "@/lib/brandOverride";
+
 import { MapPin, Phone, Mail, Tag, ChevronDown, Users, BedDouble, Bath, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
