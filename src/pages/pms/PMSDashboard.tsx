@@ -758,6 +758,19 @@ export default function PMSDashboard() {
     enabled: isPortfolioMode,
   });
 
+  const { data: portfolioAliasRoomTypes = [] } = useQuery({
+    queryKey: ["pms-portfolio-alias-room-types", portfolioPropertyIds],
+    queryFn: async () => {
+      if (!portfolioPropertyIds.length) return [];
+      const { data } = await supabase
+        .from("hostfully_room_types")
+        .select("id, name, property_id")
+        .in("property_id", portfolioPropertyIds);
+      return (data || []).map((t) => ({ id: t.id, name: t.name || "", property_id: t.property_id }));
+    },
+    enabled: isPortfolioMode,
+  });
+
   const { data: portfolioPropertiesData = [] } = useQuery({
     queryKey: ["pms-portfolio-props-data", portfolioPropertyIds],
     queryFn: async () => {
@@ -770,6 +783,7 @@ export default function PMSDashboard() {
     },
     enabled: isPortfolioMode,
   });
+
 
   // Group portfolio data by property
   const portfolioDataByProperty = useMemo(() => {
