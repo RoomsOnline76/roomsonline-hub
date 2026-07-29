@@ -219,6 +219,7 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
       pricelabs_setup_fee: isRolosPms && v.pricelabs_enabled ? toNum(v.pricelabs_setup_fee) : null,
       tier_pricing_json: v.volume_tiers_enabled ? (v.tier_pricing_json as any) : null,
       billing_start_date: startDate || null,
+      billing_enabled: enabled,
     } as any);
   };
 
@@ -230,12 +231,12 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
       setBuilder(next);
       setPresetJustApplied(presetLabel(preset));
       // Immediately persist preset values to this property.
-      persistBuilder(slug, next, billingStartDate);
+      persistBuilder(slug, next, billingStartDate, billingEnabled);
     }
   };
 
   const handleSave = () => {
-    persistBuilder(strategy, builder, billingStartDate);
+    persistBuilder(strategy, builder, billingStartDate, billingEnabled);
   };
 
   if (isLoading) {
