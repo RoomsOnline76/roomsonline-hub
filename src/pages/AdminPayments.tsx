@@ -99,13 +99,16 @@ export default function AdminPayments() {
 
       const { data: all } = await supabase.from('payment_transactions').select('amount, status');
       if (all) {
+        // Gateways write 'paid'; some providers write 'completed'/'succeeded'.
+        const isSettled = (s: string | null) => ['paid', 'completed', 'succeeded', 'success'].includes(String(s || '').toLowerCase());
         setTxStats({
-          totalRevenue: all.filter(t => t.status === 'completed').reduce((s, t) => s + (t.amount || 0), 0),
-          pendingAmount: all.filter(t => t.status === 'pending').reduce((s, t) => s + (t.amount || 0), 0),
-          failedCount: all.filter(t => t.status === 'failed').length,
-          successCount: all.filter(t => t.status === 'completed').length,
+          totalRevenue: all.filter(t => isSettled(t.status)).reduce((s, t) => s + (Number(t.amount) || 0), 0),
+          pendingAmount: all.filter(t => t.status === 'pending').reduce((s, t) => s + (Number(t.amount) || 0), 0),
+          failedCount: all.filter(t => ['failed', 'cancelled'].includes(String(t.status || '').toLowerCase())).length,
+          successCount: all.filter(t => isSettled(t.status)).length,
         });
       }
+
     } catch (error) {
       console.error('Error loading payments:', error);
       toast.error('Failed to load payment data');
