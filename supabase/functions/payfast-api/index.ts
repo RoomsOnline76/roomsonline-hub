@@ -1066,7 +1066,10 @@ Deno.serve(async (req) => {
           status: "pending",
           payment_provider: "payfast",
           m_payment_id: transRef,
+          merchant_id: merchantId,
+          credential_source: credentialSource,
           gateway_response: { trans_ref: transRef, uuid, onsite: true },
+
         });
       
       if (txError) {
