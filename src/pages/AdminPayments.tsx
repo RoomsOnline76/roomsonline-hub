@@ -50,8 +50,7 @@ interface CommissionPayout {
   rep_id: string;
   rep_name: string;
   rep_code: string;
-  period_start: string;
-  period_end: string;
+  period_month: string;
   total_amount: number;
   status: string;
   has_banking: boolean;
@@ -82,7 +81,7 @@ export default function AdminPayments() {
       setLoading(true);
       let query = supabase
         .from('payment_transactions')
-        .select(`*, bookings!inner(guest_name, properties!inner(name))`)
+        .select(`*, bookings!inner(guest_name, properties!bookings_property_id_fkey(name))`)
         .order('created_at', { ascending: false })
         .limit(50);
       if (statusFilter !== 'all') query = query.eq('status', statusFilter);
