@@ -50,22 +50,30 @@ export function MobileBottomNav() {
   const NavButton = ({ item }: { item: NavItem }) => {
     const active = isActive(item.href);
     const Icon = item.icon;
-    
+    // "Admin" rolls up every pending queue; other items use their own count.
+    const pending = item.id === adminMobileNavItem.id ? totalPending : (actionCounts[item.id] || 0);
+
     return (
       <button
         onClick={() => navigate(item.href)}
-        aria-label={item.title}
+        aria-label={pending > 0 ? `${item.title} (${pending} need attention)` : item.title}
         aria-current={active ? "page" : undefined}
         className={cn(
-          "flex flex-col items-center justify-center gap-0.5 flex-1 py-2 min-h-[56px] transition-colors",
+          "flex flex-col items-center justify-center gap-0.5 flex-1 py-2 min-h-[56px] transition-colors relative",
           active ? "text-primary" : "text-muted-foreground hover:text-foreground"
         )}
       >
-        <Icon className={cn("h-5 w-5", active && "text-primary")} />
+        <span className="relative">
+          <Icon className={cn("h-5 w-5", active && "text-primary")} />
+          {pending > 0 && (
+            <span className="absolute -right-1.5 -top-1 h-2 w-2 rounded-full bg-primary ring-2 ring-background" />
+          )}
+        </span>
         <span className="text-[10px] font-medium">{item.title}</span>
       </button>
     );
   };
+
 
   // Get all accessible sections for the More sheet
   const accessibleSections = navigationConfig.filter(section => 
