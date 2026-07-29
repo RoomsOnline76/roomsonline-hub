@@ -72,6 +72,7 @@ export function AppSidebar() {
   });
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
   const [pendingRequests, setPendingRequests] = useState(0);
+  const [reviewQueueCount, setReviewQueueCount] = useState(0);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [hasRolProperties, setHasRolProperties] = useState(false);
   
@@ -80,10 +81,12 @@ export function AppSidebar() {
   }, [collapsed]);
 
   useEffect(() => {
-    if (isAdmin) {
+    if (isAdmin || isDev) {
       loadPendingRequests();
+      loadReviewQueueCount();
     }
-  }, [isAdmin]);
+  }, [isAdmin, isDev]);
+
 
   useEffect(() => {
     const checkRolProperties = async () => {
