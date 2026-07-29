@@ -9,6 +9,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { CopyBrandingModal } from "./CopyBrandingModal";
 import { GoogleFontPicker } from "./GoogleFontPicker";
+import { BrandReadabilityPanel } from "@/components/branding/BrandReadabilityPanel";
+
 
 export interface BrandingData {
   brand_logo_url: string;
