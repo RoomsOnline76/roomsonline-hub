@@ -310,7 +310,10 @@ export function PropertyPaymentProviderSelect({ propertyId }: PropertyPaymentPro
       setHasCredChanges(false);
       toast.success("Payment credentials saved securely");
     },
-    onError: () => toast.error("Failed to save credentials"),
+    onError: (e: unknown) =>
+      toast.error("Failed to save credentials", {
+        description: e instanceof Error ? e.message : String(e),
+      }),
   });
 
   // ── Handlers ──────────────────────────────────────────────────────────────
