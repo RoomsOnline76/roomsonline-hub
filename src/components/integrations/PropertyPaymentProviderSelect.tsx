@@ -365,15 +365,19 @@ export function PropertyPaymentProviderSelect({ propertyId }: PropertyPaymentPro
     mutationFn: async (creds: Record<string, string>) => {
       const { data: existing } = await supabase
         .from("integration_configs")
-        .select("id")
+        .select("id, config")
         .eq("property_id", propertyId)
         .eq("integration_type", "payment_credentials")
         .maybeSingle();
 
       if (existing) {
+        // Preserve the BYO setup checklist ticks stored alongside the credentials.
+        const prev = (existing.config as Record<string, unknown>) || {};
+        const merged: Record<string, unknown> = { ...creds };
+        if (prev[BYO_CHECKLIST_KEY]) merged[BYO_CHECKLIST_KEY] = prev[BYO_CHECKLIST_KEY];
         const { error } = await supabase
           .from("integration_configs")
-          .update({ config: creds, updated_at: new Date().toISOString() })
+          .update({ config: merged as never, updated_at: new Date().toISOString() })
           .eq("id", existing.id);
         if (error) throw error;
       } else {
