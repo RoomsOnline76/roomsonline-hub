@@ -22,7 +22,13 @@ interface PayFastOnsiteModalProps {
   bookingId: string;
   amount: number;
   propertyName: string;
+  /**
+   * Optional seed for the sandbox banner. When omitted the modal resolves the
+   * real mode from the payfast-api response (per-property BYO vs ROL account).
+   */
   isSandbox?: boolean;
+  /** Optional seed: "byo" = property's own merchant account, "rol" = facilitator. */
+  credentialSource?: string | null;
   uuid?: string; // Optional pre-fetched UUID to skip double API call
 }
 
@@ -34,7 +40,8 @@ export const PayFastOnsiteModal = ({
   bookingId,
   amount,
   propertyName,
-  isSandbox = true,
+  isSandbox,
+  credentialSource: credentialSourceProp,
   uuid: preProvidedUuid,
 }: PayFastOnsiteModalProps) => {
   const [isLoading, setIsLoading] = useState(false);
@@ -43,20 +50,37 @@ export const PayFastOnsiteModal = ({
   const [scriptLoaded, setScriptLoaded] = useState(false);
   const [payFastActive, setPayFastActive] = useState(false);
   const [redirecting, setRedirecting] = useState(false);
+  // null = not yet resolved. Never show the test-mode banner while unknown.
+  const [sandboxMode, setSandboxMode] = useState<boolean | null>(isSandbox ?? null);
+  const [credentialSource, setCredentialSource] = useState<string | null>(credentialSourceProp ?? null);
   const watchdogRef = useRef<number | null>(null);
+  const triggeredRef = useRef(false);
 
-
-  // Load PayFast onsite script
+  // Keep resolved state in sync with caller-provided seeds.
   useEffect(() => {
-    if (!isOpen) return;
+    if (typeof isSandbox === "boolean") setSandboxMode(isSandbox);
+  }, [isSandbox]);
+  useEffect(() => {
+    if (credentialSourceProp) setCredentialSource(credentialSourceProp);
+  }, [credentialSourceProp]);
 
-    const scriptId = "payfast-onsite-script";
+  // A pre-fetched UUID means the caller already initiated; if it didn't tell us
+  // the mode, assume production so we never load sandbox assets for a live account.
+  useEffect(() => {
+    if (isOpen && preProvidedUuid && sandboxMode === null) setSandboxMode(false);
+  }, [isOpen, preProvidedUuid, sandboxMode]);
+
+  // Load PayFast onsite script — only once we know which environment applies.
+  useEffect(() => {
+    if (!isOpen || sandboxMode === null) return;
+
+    const scriptId = sandboxMode ? "payfast-onsite-script-sandbox" : "payfast-onsite-script-live";
     let script = document.getElementById(scriptId) as HTMLScriptElement | null;
 
     if (!script) {
       script = document.createElement("script");
       script.id = scriptId;
-      script.src = isSandbox
+      script.src = sandboxMode
         ? "https://sandbox.payfast.co.za/onsite/engine.js"
         : "https://www.payfast.co.za/onsite/engine.js";
       script.async = true;
@@ -79,7 +103,8 @@ export const PayFastOnsiteModal = ({
     return () => {
       // Don't remove script - it may be needed for other payments
     };
-  }, [isOpen, isSandbox]);
+  }, [isOpen, sandboxMode]);
+
 
   // Hand off to PayFast's hosted (redirect) checkout — used whenever in-page
   // onsite checkout is unavailable for the merchant account.
