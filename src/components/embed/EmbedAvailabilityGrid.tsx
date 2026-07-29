@@ -61,7 +61,7 @@ export function EmbedAvailabilityGrid({
         <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: "0", fontSize: "12px" }}>
           <thead>
             <tr>
-              <th style={{ ...thStyle, minWidth: "140px", textAlign: "left", background: brandColor, color: fontColor, borderRadius: "8px 0 0 8px" }}>
+              <th style={{ ...thStyle, minWidth: "140px", textAlign: "left", background: brandColor, color: headerText.fg, borderRadius: "8px 0 0 8px" }}>
                 Room Type
               </th>
               {dates.map((d, i) => {
