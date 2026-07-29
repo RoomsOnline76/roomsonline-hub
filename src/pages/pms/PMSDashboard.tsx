@@ -391,6 +391,23 @@ export default function PMSDashboard() {
     enabled: !!propertyId,
   });
 
+  // Foreign room-type catalogue (public/overview listing). Bookings created from the
+  // public booking engine carry a hostfully_room_types id, which must still resolve to
+  // a physical ROL'OS unit — otherwise the booking lands in the UNASSIGNED lane.
+  const { data: aliasRoomTypes = [] } = useQuery({
+    queryKey: ["pms-cal-alias-room-types", propertyId],
+    queryFn: async () => {
+      if (!propertyId) return [];
+      const { data } = await supabase
+        .from("hostfully_room_types")
+        .select("id, name")
+        .eq("property_id", propertyId);
+      return (data || []).map((t) => ({ id: t.id, name: t.name || "", property_id: propertyId }));
+    },
+    enabled: !!propertyId,
+  });
+
+
   // Fetch rooms
   const { data: rooms = [] } = useQuery({
     queryKey: ["pms-cal-rooms", propertyId, roomTypes.map(t => t.id).join(","), roomTypeNamesForRooms.map(t => t.id).join(",")],
