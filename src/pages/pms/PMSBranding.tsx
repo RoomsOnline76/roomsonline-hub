@@ -14,6 +14,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { usePMSBrand } from "@/contexts/PMSBrandContext";
 import { PoweredByRolOS } from "@/components/pms/PoweredByRolOS";
+import { BrandReadabilityPanel } from "@/components/branding/BrandReadabilityPanel";
+
 
 interface BrandConfig {
   business_name: string;
