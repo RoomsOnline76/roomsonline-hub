@@ -22,7 +22,9 @@ export const BADGED_ROUTES = [
 ];
 
 /** Count helper that degrades to 0 instead of throwing the sidebar over. */
-async function safeCount(run: () => Promise<{ count: number | null; error: unknown }>): Promise<number> {
+async function safeCount(
+  run: () => PromiseLike<{ count: number | null; error: unknown }>
+): Promise<number> {
   try {
     const { count, error } = await run();
     if (error) return 0;
@@ -31,6 +33,7 @@ async function safeCount(run: () => Promise<{ count: number | null; error: unkno
     return 0;
   }
 }
+
 
 /**
  * Properties whose owner submitted the onboarding form (token used) but that
