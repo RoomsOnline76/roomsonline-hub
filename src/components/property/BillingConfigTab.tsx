@@ -146,6 +146,7 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
   const [strategy, setStrategy] = useState<string>("default");
   const [builder, setBuilder] = useState<BillingConfigValue>(emptyBuilderValue());
   const [billingStartDate, setBillingStartDate] = useState("");
+  const [billingEnabled, setBillingEnabled] = useState(false);
   const [presetJustApplied, setPresetJustApplied] = useState<string | null>(null);
 
   useEffect(() => {
@@ -153,6 +154,7 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
       setStrategy(config.billing_strategy || "default");
       setBuilder(configToBuilder(config));
       setBillingStartDate(config.billing_start_date || "");
+      setBillingEnabled(!!(config as unknown as { billing_enabled?: boolean }).billing_enabled);
     }
   }, [config]);
 
