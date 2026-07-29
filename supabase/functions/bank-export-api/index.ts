@@ -669,10 +669,7 @@ serve(async (req) => {
         // Get batch
         const { data: batch, error: batchError } = await supabase
           .from("rol_bank_export_batches")
-          .select(`
-            *,
-            profiles!rol_bank_export_batches_created_by_fkey(email, full_name)
-          `)
+          .select("*")
           .eq("id", batch_id)
           .single();
 
@@ -682,6 +679,15 @@ serve(async (req) => {
             message: "Batch not found",
             details: batchError,
           });
+        }
+
+        if (batch?.created_by) {
+          const { data: creator } = await supabase
+            .from("profiles")
+            .select("email, full_name")
+            .eq("id", batch.created_by)
+            .maybeSingle();
+          (batch as Record<string, unknown>).profiles = creator || null;
         }
 
         // Get lines
