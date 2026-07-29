@@ -253,12 +253,18 @@ export const PayFastOnsiteModal = ({
   // Reset state on close
   useEffect(() => {
     if (!isOpen) {
+      clearWatchdog();
       setPaymentUuid(null);
       setError(null);
       setIsLoading(false);
       setPayFastActive(false);
+      setRedirecting(false);
     }
-  }, [isOpen]);
+  }, [isOpen, clearWatchdog]);
+
+  // Clear watchdog on unmount
+  useEffect(() => () => clearWatchdog(), [clearWatchdog]);
+
 
   const handleRetry = () => {
     setPaymentUuid(null);
