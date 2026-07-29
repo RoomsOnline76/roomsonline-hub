@@ -463,9 +463,29 @@ export default function PMSDashboard() {
   const bookingsLoading = bookingsInfinite.isLoading;
 
   const bookings: BookingRow[] = useMemo(
-    () => autoAssignBookings(bookingsRaw, rooms, roomTypes) as BookingRow[],
-    [bookingsRaw, rooms, roomTypes]
+    () => autoAssignBookings(bookingsRaw, rooms, roomTypes, [...aliasRoomTypes, ...roomTypeNamesForRooms]) as BookingRow[],
+    [bookingsRaw, rooms, roomTypes, aliasRoomTypes, roomTypeNamesForRooms]
   );
+
+  // Persist resolved unit assignments so folio, housekeeping and check-in all agree
+  // with what the grid shows (the matcher itself is presentation-only).
+  useEffect(() => {
+    const pending = bookings.filter((b) => {
+      const resolved = b.rolos_room_ids || [];
+      const original = bookingsRaw.find((raw) => raw.id === b.id)?.rolos_room_ids || [];
+      return resolved.length > 0 && original.length === 0;
+    });
+    if (!pending.length) return;
+    let cancelled = false;
+    (async () => {
+      for (const b of pending) {
+        if (cancelled) return;
+        await supabase.from("bookings").update({ rolos_room_ids: b.rolos_room_ids }).eq("id", b.id);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [bookings, bookingsRaw]);
+
 
   const openBookingSheet = useCallback((booking: BookingRow, tab: BookingDetailTab = "details") => {
     setBookingSheetTab(tab);
