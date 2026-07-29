@@ -272,7 +272,7 @@ export function PropertyPaymentProviderSelect({ propertyId }: PropertyPaymentPro
     },
     onError: (e: unknown) =>
       toast.error("Failed to update payment providers", {
-        description: e instanceof Error ? e.message : String(e),
+        description: describeError(e),
       }),
   });
 
