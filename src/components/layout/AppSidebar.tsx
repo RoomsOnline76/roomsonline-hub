@@ -72,6 +72,7 @@ export function AppSidebar() {
   });
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
   const [pendingRequests, setPendingRequests] = useState(0);
+  const [reviewQueueCount, setReviewQueueCount] = useState(0);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [hasRolProperties, setHasRolProperties] = useState(false);
   
@@ -80,10 +81,12 @@ export function AppSidebar() {
   }, [collapsed]);
 
   useEffect(() => {
-    if (isAdmin) {
+    if (isAdmin || isDev) {
       loadPendingRequests();
+      loadReviewQueueCount();
     }
-  }, [isAdmin]);
+  }, [isAdmin, isDev]);
+
 
   useEffect(() => {
     const checkRolProperties = async () => {
@@ -108,6 +111,18 @@ export function AppSidebar() {
       .eq("status", "pending");
     setPendingRequests(count || 0);
   };
+
+  /** Properties awaiting an admin decision in the Review Queue. */
+  const loadReviewQueueCount = async () => {
+    const { count } = await supabase
+      .from("properties")
+      .select("id", { count: "exact", head: true })
+      .is("permanently_deleted_at", null)
+      .eq("is_active", true)
+      .in("listing_status", ["review_pending", "activation_ready", "review_failed"]);
+    setReviewQueueCount(count || 0);
+  };
+
 
   const isActive = (href: string) => location.pathname === href;
 
@@ -139,10 +154,12 @@ export function AppSidebar() {
     window.location.replace("/auth");
   };
 
-  // Get badge for a nav item (special case: access requests)
+  // Get badge for a nav item (access requests + properties awaiting review)
   const getBadge = (item: NavItem): number | undefined => {
     if (item.id === 'access-requests' && pendingRequests > 0) return pendingRequests;
+    if (item.id === 'review-queue' && reviewQueueCount > 0) return reviewQueueCount;
     return item.badge;
+
   };
 
   const NavLink = ({ item }: { item: NavItem }) => {
