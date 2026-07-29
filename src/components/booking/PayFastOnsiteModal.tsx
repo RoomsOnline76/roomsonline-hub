@@ -212,15 +212,15 @@ export const PayFastOnsiteModal = ({
     }
   }, [onPaymentSuccess, onPaymentCancelled, clearWatchdog, fallbackToRedirect]);
 
-  // Get payment UUID and trigger modal
+  // Get payment UUID (does not need the script yet — the response tells us
+  // which environment the merchant account settles to).
   useEffect(() => {
-    if (!isOpen || !scriptLoaded || paymentUuid) return;
+    if (!isOpen || paymentUuid) return;
 
     // If UUID was pre-provided, use it directly (skip API call)
     if (preProvidedUuid) {
       console.log("[PayFast Onsite] Using pre-provided UUID:", preProvidedUuid);
       setPaymentUuid(preProvidedUuid);
-      triggerOnsitePayment(preProvidedUuid);
       return;
     }
 
@@ -244,6 +244,10 @@ export const PayFastOnsiteModal = ({
           throw new Error(apiError.message || "Failed to initiate payment");
         }
 
+        // Trust the backend for environment + settlement account.
+        if (typeof data?.is_sandbox === "boolean") setSandboxMode(data.is_sandbox);
+        if (data?.credential_source) setCredentialSource(data.credential_source);
+
         // Merchant account can't do in-page checkout — go to hosted checkout.
         if (data?.success && data?.onsite_unavailable && data?.checkout_url && data?.form_fields) {
           console.log("[PayFast Onsite] Onsite unavailable:", data.fallback_reason);
@@ -260,10 +264,6 @@ export const PayFastOnsiteModal = ({
         console.log("[PayFast Onsite] Received UUID:", data.uuid);
         setPaymentUuid(data.uuid);
         setIsLoading(false);
-        
-        // Trigger PayFast immediately after getting UUID
-        triggerOnsitePayment(data.uuid);
-        
       } catch (err) {
         console.error("[PayFast Onsite] Initiation error:", err);
         setError(err instanceof Error ? err.message : "Payment initiation failed");
@@ -272,20 +272,32 @@ export const PayFastOnsiteModal = ({
     };
 
     initiatePayment();
-  }, [isOpen, scriptLoaded, paymentUuid, preProvidedUuid, bookingId, triggerOnsitePayment, submitRedirectCheckout]);
+  }, [isOpen, paymentUuid, preProvidedUuid, bookingId, submitRedirectCheckout]);
+
+  // Once we have a UUID and the correct engine script, open the payment window.
+  useEffect(() => {
+    if (!isOpen || !paymentUuid || !scriptLoaded || redirecting) return;
+    if (triggeredRef.current) return;
+    triggeredRef.current = true;
+    triggerOnsitePayment(paymentUuid);
+  }, [isOpen, paymentUuid, scriptLoaded, redirecting, triggerOnsitePayment]);
 
 
   // Reset state on close
   useEffect(() => {
     if (!isOpen) {
       clearWatchdog();
+      triggeredRef.current = false;
       setPaymentUuid(null);
       setError(null);
       setIsLoading(false);
       setPayFastActive(false);
       setRedirecting(false);
+      setSandboxMode(isSandbox ?? null);
+      setCredentialSource(credentialSourceProp ?? null);
     }
-  }, [isOpen, clearWatchdog]);
+  }, [isOpen, clearWatchdog, isSandbox, credentialSourceProp]);
+
 
   // Clear watchdog on unmount
   useEffect(() => () => clearWatchdog(), [clearWatchdog]);
