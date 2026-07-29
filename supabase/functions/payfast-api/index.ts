@@ -747,6 +747,28 @@ Deno.serve(async (req) => {
       );
     }
     
+    // RESOLVE CREDENTIALS — reports which merchant account a property settles to.
+    // Never returns secrets; merchant id is masked.
+    if (action === "resolve_credentials") {
+      const propertyId = typeof body?.property_id === "string" ? body.property_id : null;
+      const creds = await resolvePayfastCredentials(supabase, propertyId);
+      return new Response(
+        JSON.stringify({
+          success: true,
+          credential_source: creds.source,
+          inherited: creds.inherited,
+          owner_property_id: creds.ownerPropertyId,
+          merchant_id_masked: maskId(creds.merchantId),
+          is_sandbox: creds.isSandbox,
+          configured: !!(creds.merchantId && creds.merchantKey),
+          source: "payfast-api",
+          action: "resolve_credentials",
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    
+
     // Validate credentials for other actions
     if (!merchantId || !merchantKey) {
       console.error("[PayFast] Missing credentials");
