@@ -1,7 +1,8 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { callPmsApi } from "@/hooks/usePmsApi";
 import { supabase } from "@/integrations/supabase/client";
+import type { Json } from "@/integrations/supabase/types";
 import { toast } from "sonner";
 import { Printer, Mail } from "lucide-react";
 
@@ -33,6 +34,49 @@ interface VatConfig {
   vatNumber: string;
 }
 
+interface EmailResponse {
+  ok?: boolean;
+  reason?: string;
+}
+
+const PAID_STATUSES = ["paid", "completed", "success", "succeeded"];
+
+const isSameMoney = (left: number, right: number) => Math.abs(Number(left || 0) - Number(right || 0)) < 0.01;
+
+const isAccommodationLine = (transaction: Transaction, bookingTotal: number) => {
+  const text = `${transaction.transaction_type || ""} ${transaction.description || ""}`.toLowerCase();
+  return (
+    isSameMoney(transaction.amount, bookingTotal) ||
+    text.includes("accommodation") ||
+    text.includes("room rate") ||
+    text.includes("stay charge") ||
+    text.includes("booking total")
+  );
+};
+
+const isMirroredOnlinePayment = (transaction: Transaction, bookingTotal: number) => {
+  const text = `${transaction.transaction_type || ""} ${transaction.description || ""}`.toLowerCase();
+  return (
+    isSameMoney(Math.abs(transaction.amount), bookingTotal) &&
+    (text.includes("online") || text.includes("gateway") || text.includes("payfast") || text.includes("booking"))
+  );
+};
+
+const isRecord = (value: Json | null | undefined): value is Record<string, Json | undefined> => {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+};
+
+const getVatNumber = (amenities: Json | null | undefined) => {
+  if (!isRecord(amenities)) return "";
+  const vatNumber = amenities.vat_number;
+  return typeof vatNumber === "string" ? vatNumber : "";
+};
+
+const getErrorMessage = (error: unknown) => {
+  if (error instanceof Error) return error.message;
+  return "Unknown error";
+};
+
 export function BookingInvoice({ bookingId, guestName, guestEmail, checkIn, checkOut, adults, totalPrice, propertyId, paymentStatus }: BookingInvoiceProps) {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [gatewayPaid, setGatewayPaid] = useState(0);
@@ -48,25 +92,23 @@ export function BookingInvoice({ bookingId, guestName, guestEmail, checkIn, chec
       const [folioRes, propRes, brandRes, payRes] = await Promise.all([
         callPmsApi<{ transactions: Transaction[] }>("get_folio", { booking_id: bookingId }),
         supabase.from("properties").select("name, amenities").eq("id", propertyId).single(),
-        supabase.from("rolos_brand_config" as any).select("is_vat_registered, vat_rate, vat_number").eq("property_id", propertyId).maybeSingle(),
+        supabase.from("rolos_brand_config").select("is_vat_registered, vat_rate, vat_number").eq("property_id", propertyId).maybeSingle(),
         supabase.from("payment_transactions").select("amount, status").eq("booking_id", bookingId),
       ]);
       if (folioRes.success && folioRes.data) setTransactions(folioRes.data.transactions || []);
       if (propRes.data) setPropertyName(propRes.data.name);
-      const settled = (payRes.data || []).filter((p: any) => ["completed", "paid", "success", "succeeded"].includes(String(p.status || "").toLowerCase()));
-      setGatewayPaid(settled.reduce((s: number, p: any) => s + Number(p.amount || 0), 0));
+      const settled = (payRes.data || []).filter(p => PAID_STATUSES.includes(String(p.status || "").toLowerCase()));
+      setGatewayPaid(settled.reduce((s, p) => s + Number(p.amount || 0), 0));
 
       
-      const amenities = (propRes.data?.amenities as any) || {};
-      const amenityVatNumber = amenities?.vat_number || "";
+      const amenityVatNumber = getVatNumber(propRes.data?.amenities);
       
       if (brandRes.data) {
-        const b = brandRes.data as any;
-        const brandIsVat = b.is_vat_registered ?? false;
-        const brandVatNumber = b.vat_number || "";
+        const brandIsVat = brandRes.data.is_vat_registered ?? false;
+        const brandVatNumber = brandRes.data.vat_number || "";
         setVatConfig({
           isVatRegistered: brandIsVat || !!amenityVatNumber,
-          vatRate: b.vat_rate ?? 15,
+          vatRate: brandRes.data.vat_rate ?? 15,
           vatNumber: brandVatNumber || amenityVatNumber,
         });
       } else if (amenityVatNumber) {
@@ -81,12 +123,15 @@ export function BookingInvoice({ bookingId, guestName, guestEmail, checkIn, chec
     load();
   }, [bookingId, propertyId]);
 
-  const charges = transactions.filter(t => t.amount > 0);
-  const payments = transactions.filter(t => t.amount < 0);
-
-  const subtotal = charges.length > 0
-    ? charges.reduce((s, t) => s + t.amount, 0)
-    : totalPrice;
+  const charges = useMemo(() => transactions.filter(t => t.amount > 0), [transactions]);
+  const payments = useMemo(() => transactions.filter(t => t.amount < 0), [transactions]);
+  const accommodationAlreadyRecorded = useMemo(
+    () => charges.some(t => isAccommodationLine(t, totalPrice)),
+    [charges, totalPrice],
+  );
+  const accommodationLineAmount = totalPrice > 0 && !accommodationAlreadyRecorded ? totalPrice : 0;
+  const folioChargesTotal = charges.reduce((s, t) => s + t.amount, 0);
+  const subtotal = accommodationLineAmount + folioChargesTotal;
 
   const isVat = vatConfig.isVatRegistered;
   const vatRate = vatConfig.vatRate / 100;
@@ -103,14 +148,16 @@ export function BookingInvoice({ bookingId, guestName, guestEmail, checkIn, chec
   const vatAmount = isVat ? vatableAmount - (vatableAmount / (1 + vatRate)) : 0;
 
   const folioPayments = payments.reduce((s, t) => s + Math.abs(t.amount), 0);
-  // Payments taken through the online gateway are not always mirrored onto the folio,
-  // so fall back to the gateway transactions (or the booking's paid flag) before
-  // declaring a balance outstanding.
-  const isPaidFlag = ["paid", "completed", "success", "succeeded"].includes(String(paymentStatus || "").toLowerCase());
-  const externalPaid = gatewayPaid > 0 ? gatewayPaid : (isPaidFlag ? subtotal : 0);
-  const totalPayments = folioPayments > 0 ? folioPayments : externalPaid;
+  // Payments taken through the online gateway are not always mirrored onto the folio.
+  // They only settle the original booking amount; later minibar/extras remain due
+  // until recorded as their own folio payments.
+  const isPaidFlag = PAID_STATUSES.includes(String(paymentStatus || "").toLowerCase());
+  const externalBookingPaid = Math.min(totalPrice, gatewayPaid > 0 ? gatewayPaid : (isPaidFlag ? totalPrice : 0));
+  const hasMirroredGatewayPayment = payments.some(t => isMirroredOnlinePayment(t, totalPrice));
+  const onlineBookingPayment = hasMirroredGatewayPayment ? 0 : externalBookingPaid;
+  const totalPayments = folioPayments + onlineBookingPayment;
   const balance = Math.max(0, subtotal - totalPayments);
-  const settledExternally = folioPayments === 0 && totalPayments > 0;
+  const settledExternally = onlineBookingPayment > 0;
 
   const invoiceNumber = `INV-${bookingId.slice(0, 8).toUpperCase()}`;
   const today = new Date().toLocaleDateString("en-ZA");
@@ -146,14 +193,14 @@ export function BookingInvoice({ bookingId, guestName, guestEmail, checkIn, chec
     try {
       const { data, error } = await supabase.functions.invoke("send-booking-email", {
         body: { booking_id: bookingId, bookingId: bookingId, type: "invoice", status: "success" },
-      });
+      }) as { data: EmailResponse | null; error: Error | null };
       if (error) throw error;
-      if (data && (data as any).ok === false) {
-        throw new Error((data as any).reason || "Email provider rejected the send");
+      if (data?.ok === false) {
+        throw new Error(data.reason || "Email provider rejected the send");
       }
       toast.success(`Invoice emailed to ${guestEmail}`);
-    } catch (e: any) {
-      toast.error("Failed to email invoice: " + (e.message || "Unknown error"));
+    } catch (e) {
+      toast.error("Failed to email invoice: " + getErrorMessage(e));
     }
     setEmailing(false);
   };
@@ -209,17 +256,18 @@ export function BookingInvoice({ bookingId, guestName, guestEmail, checkIn, chec
             </tr>
           </thead>
           <tbody>
-            {charges.length > 0 ? charges.map(t => (
+            {accommodationLineAmount > 0 && (
+              <tr className="border-b border-border/50">
+                <td className="py-1.5">Accommodation</td>
+                <td className="py-1.5 text-right">R{accommodationLineAmount.toLocaleString()}</td>
+              </tr>
+            )}
+            {charges.map(t => (
               <tr key={t.id} className="border-b border-border/50">
                 <td className="py-1.5">{t.description}</td>
                 <td className="py-1.5 text-right">R{t.amount.toLocaleString()}</td>
               </tr>
-            )) : (
-              <tr className="border-b border-border/50">
-                <td className="py-1.5">Accommodation</td>
-                <td className="py-1.5 text-right">R{totalPrice.toLocaleString()}</td>
-              </tr>
-            )}
+            ))}
 
             {isVat ? (
               <>
@@ -257,7 +305,7 @@ export function BookingInvoice({ bookingId, guestName, guestEmail, checkIn, chec
             {settledExternally && (
               <div className="flex justify-between text-xs py-1 border-b border-border/30">
                 <span>Online payment received</span>
-                <span className="text-green-600">-R{totalPayments.toLocaleString()}</span>
+                <span className="text-green-600">-R{onlineBookingPayment.toLocaleString()}</span>
               </div>
             )}
           </>
