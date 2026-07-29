@@ -99,13 +99,16 @@ export default function AdminPayments() {
 
       const { data: all } = await supabase.from('payment_transactions').select('amount, status');
       if (all) {
+        // Gateways write 'paid'; some providers write 'completed'/'succeeded'.
+        const isSettled = (s: string | null) => ['paid', 'completed', 'succeeded', 'success'].includes(String(s || '').toLowerCase());
         setTxStats({
-          totalRevenue: all.filter(t => t.status === 'completed').reduce((s, t) => s + (t.amount || 0), 0),
-          pendingAmount: all.filter(t => t.status === 'pending').reduce((s, t) => s + (t.amount || 0), 0),
-          failedCount: all.filter(t => t.status === 'failed').length,
-          successCount: all.filter(t => t.status === 'completed').length,
+          totalRevenue: all.filter(t => isSettled(t.status)).reduce((s, t) => s + (Number(t.amount) || 0), 0),
+          pendingAmount: all.filter(t => t.status === 'pending').reduce((s, t) => s + (Number(t.amount) || 0), 0),
+          failedCount: all.filter(t => ['failed', 'cancelled'].includes(String(t.status || '').toLowerCase())).length,
+          successCount: all.filter(t => isSettled(t.status)).length,
         });
       }
+
     } catch (error) {
       console.error('Error loading payments:', error);
       toast.error('Failed to load payment data');
@@ -172,10 +175,14 @@ export default function AdminPayments() {
 
   const getStatusBadge = (status: string) => {
     switch (status) {
+      case 'paid':
+      case 'succeeded':
+      case 'success':
       case 'completed':
-        return <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20">Completed</Badge>;
+        return <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20">Paid</Badge>;
       case 'pending':
         return <Badge variant="secondary">Pending</Badge>;
+
       case 'failed':
         return <Badge variant="destructive">Failed</Badge>;
       default:
@@ -283,7 +290,7 @@ export default function AdminPayments() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Status</SelectItem>
-                      <SelectItem value="completed">Completed</SelectItem>
+                      <SelectItem value="paid">Paid</SelectItem>
                       <SelectItem value="pending">Pending</SelectItem>
                       <SelectItem value="failed">Failed</SelectItem>
                     </SelectContent>
