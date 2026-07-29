@@ -3906,8 +3906,12 @@ export default function AdminKeys() {
               <BedDouble className="h-5 w-5 text-primary" />
               <span className="font-semibold">Rentals United</span>
               <Badge variant="outline" className="text-xs">
-                XML API
+                XML + GC API
               </Badge>
+              <Badge variant="secondary" className="text-xs">
+                Sandbox — pre-certification
+              </Badge>
+
             </div>
             <div className="flex items-center gap-2">
               <div onClick={(e) => e.stopPropagation()}>
