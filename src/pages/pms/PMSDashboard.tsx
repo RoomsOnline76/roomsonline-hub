@@ -2953,6 +2953,8 @@ function BookingDetail({
             adults={b.adults}
             totalPrice={b.total_price}
             propertyId={propertyId}
+            paymentStatus={b.payment_status}
+
           />
         </TabsContent>
 
