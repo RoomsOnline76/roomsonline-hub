@@ -53,7 +53,7 @@ export function usePropertyPayouts(periodMonth?: string) {
             total_price,
             status,
             payment_status,
-            properties!inner(id, name, owner_email)
+            properties!bookings_property_id_fkey!inner(id, name, owner_email)
           )
         `)
         .eq('status', 'completed')
