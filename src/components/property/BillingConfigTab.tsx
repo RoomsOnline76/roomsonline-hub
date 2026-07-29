@@ -15,6 +15,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { normalizeTiers, PricingTier } from "@/lib/billingTierResolver";
 import {
   BillingConfigBuilder,
