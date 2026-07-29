@@ -299,6 +299,8 @@ export function PropertyPaymentProviderSelect({ propertyId }: PropertyPaymentPro
     merchant_id_masked: string;
     is_sandbox: boolean;
     configured: boolean;
+    onsite_supported?: boolean;
+
   }
 
   const { data: settlement } = useQuery({
