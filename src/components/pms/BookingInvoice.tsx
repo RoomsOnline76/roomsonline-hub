@@ -102,8 +102,16 @@ export function BookingInvoice({ bookingId, guestName, guestEmail, checkIn, chec
   const exclAmount = isVat ? vatableAmount / (1 + vatRate) + refundableTotal : subtotal;
   const vatAmount = isVat ? vatableAmount - (vatableAmount / (1 + vatRate)) : 0;
 
-  const totalPayments = payments.reduce((s, t) => s + Math.abs(t.amount), 0);
-  const balance = subtotal - totalPayments;
+  const folioPayments = payments.reduce((s, t) => s + Math.abs(t.amount), 0);
+  // Payments taken through the online gateway are not always mirrored onto the folio,
+  // so fall back to the gateway transactions (or the booking's paid flag) before
+  // declaring a balance outstanding.
+  const isPaidFlag = ["paid", "completed", "success", "succeeded"].includes(String(paymentStatus || "").toLowerCase());
+  const externalPaid = gatewayPaid > 0 ? gatewayPaid : (isPaidFlag ? subtotal : 0);
+  const totalPayments = folioPayments > 0 ? folioPayments : externalPaid;
+  const balance = Math.max(0, subtotal - totalPayments);
+  const settledExternally = folioPayments === 0 && totalPayments > 0;
+
   const invoiceNumber = `INV-${bookingId.slice(0, 8).toUpperCase()}`;
   const today = new Date().toLocaleDateString("en-ZA");
   const invoiceTitle = isVat ? "Tax Invoice" : "Invoice";
