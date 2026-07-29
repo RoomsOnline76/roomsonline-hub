@@ -24,6 +24,8 @@ export interface AssignableRoom {
   property_id?: string | null;
   room_type_id: string | null;
   status?: string | null;
+  room_number?: string | null;
+  room_name?: string | null;
 }
 
 export interface AssignableRoomType {
