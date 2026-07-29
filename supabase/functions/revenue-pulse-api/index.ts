@@ -50,13 +50,12 @@ serve(async (req) => {
           id, total_price, calculated_commission, commission_rate_applied, commission_type,
           check_in_date, check_out_date, status, payment_status, booking_channel,
           integration_type, created_at, property_id,
-          properties ( id, name )
+          properties!bookings_property_id_fkey ( id, name )
         `)
         .gte("check_in_date", startDate)
         .lte("check_in_date", endDate)
         .in("status", ["confirmed", "completed"])
-        .not("status", "eq", "failed")
-        .not("payment_status", "eq", "failed");
+        .in("payment_status", ["paid", "partially_paid", "deposit_paid"]);
 
       if (bookingsError) throw bookingsError;
 
