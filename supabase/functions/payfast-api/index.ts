@@ -1092,6 +1092,8 @@ Deno.serve(async (req) => {
           uuid: uuid,
           trans_ref: transRef,
           is_sandbox: isSandbox,
+          credential_source: credentialSource,
+
           source: "payfast-api",
           action: "initiate_onsite_payment",
         }),
