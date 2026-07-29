@@ -411,23 +411,34 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // PayFast credentials
-    const merchantId = Deno.env.get("PAYFAST_MERCHANT_ID");
-    const merchantKey = Deno.env.get("PAYFAST_MERCHANT_KEY");
-    // Get passphrase and strip ALL whitespace/invisible chars (not just trim)
+    // PayFast credentials — default to the RoomsOnline facilitator account.
+    // These are replaced per-request by the property's own (BYO) merchant when
+    // one is configured (see resolvePayfastCredentials below).
+    let merchantId = (Deno.env.get("PAYFAST_MERCHANT_ID") || "").trim();
+    let merchantKey = (Deno.env.get("PAYFAST_MERCHANT_KEY") || "").trim();
     const rawPassphrase = Deno.env.get("PAYFAST_PASSPHRASE") || "";
-    // Remove any non-printable characters and trim
-    const passphrase = rawPassphrase.replace(/[\x00-\x1F\x7F-\x9F\u200B-\u200D\uFEFF]/g, "").trim();
-    const isSandbox = Deno.env.get("PAYFAST_SANDBOX") !== "false"; // Default to sandbox
-    
-    // Debug: log passphrase details (masked for security but showing first/last chars)
-    const maskedPass = passphrase.length > 4 
-      ? `${passphrase.slice(0,3)}...${passphrase.slice(-3)}` 
-      : "[too short]";
-    console.log(`[PayFast] Passphrase: "${maskedPass}" (${passphrase.length} chars)`);
-    console.log(`[PayFast] All char codes: ${[...passphrase].map(c => c.charCodeAt(0)).join(',')}`);
-    // Expected: DawieCarikeSLPafrica247 = 22 chars
-    // D=68, a=97, w=119, i=105, e=101, C=67, a=97, r=114, i=105, k=107, e=101, S=83, L=76, P=80, a=97, f=102, r=114, i=105, c=99, a=97, 2=50, 4=52, 7=55
+    let passphrase = rawPassphrase.replace(/[\x00-\x1F\x7F-\x9F\u200B-\u200D\uFEFF]/g, "").trim();
+    let isSandbox = Deno.env.get("PAYFAST_SANDBOX") !== "false"; // Default to sandbox
+    let credentialSource: "byo" | "rol" = "rol";
+
+    /** Swap in the property's BYO merchant account when configured. */
+    const applyPropertyCredentials = async (propertyId?: string | null) => {
+      const creds = await resolvePayfastCredentials(supabase, propertyId);
+      merchantId = creds.merchantId;
+      merchantKey = creds.merchantKey;
+      passphrase = creds.passphrase;
+      isSandbox = creds.isSandbox;
+      credentialSource = creds.source;
+      console.log("[PayFast] Credentials resolved:", {
+        property_id: propertyId || null,
+        credential_source: creds.source,
+        inherited: creds.inherited,
+        merchant_id: maskId(creds.merchantId),
+        is_sandbox: creds.isSandbox,
+      });
+      return creds;
+    };
+
 
     const url = new URL(req.url);
     
