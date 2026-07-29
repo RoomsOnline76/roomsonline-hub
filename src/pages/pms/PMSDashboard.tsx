@@ -2270,11 +2270,23 @@ function MonthRoomTypeRows({ rt, weekDates, typeRooms, bookings, getRateForDate,
                     const colors = getStatusColor(b.status);
                     const isStart = b.check_in_date === dateStr;
                     return (
-                      <button key={b.id} onClick={() => onSelectBooking(b)} onDoubleClick={() => onSelectBooking(b, "folio")} className={cn("absolute inset-y-0.5 inset-x-0.5 rounded-sm border flex items-center px-1 overflow-hidden cursor-pointer hover:opacity-90", colors.bg, colors.border)}>
-                        {isStart && <span className={cn("text-[9px] font-medium truncate", colors.text)}>{b.guest_name}</span>}
+                      <button
+                        key={b.id}
+                        onClick={() => onSelectBooking(b)}
+                        onDoubleClick={() => onSelectBooking(b, "folio")}
+                        title={`${b.guest_name} · ${b.check_in_date} → ${b.check_out_date} · ${b.status} — click to open, double-click for folio`}
+                        className={cn("absolute inset-y-0.5 inset-x-0.5 rounded-sm border flex items-center gap-1 px-1 overflow-hidden cursor-pointer hover:opacity-90", colors.bg, colors.border)}
+                      >
+                        {isStart && (
+                          <>
+                            <span className={cn("text-[9px] font-medium truncate", colors.text)}>{b.guest_name}</span>
+                            {hasSpecialIndicator(b) && <AlertTriangle className="h-2.5 w-2.5 text-amber-500 ml-auto shrink-0" />}
+                          </>
+                        )}
                       </button>
                     );
                   })}
+
                 </td>
               );
             })}
