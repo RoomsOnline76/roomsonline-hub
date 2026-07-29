@@ -15,6 +15,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useAuth } from "@/hooks/useAuth";
+import { useAdminActionCounts } from "@/hooks/useAdminActionCounts";
 import { supabase } from "@/integrations/supabase/client";
 import rolLogo from "@/assets/rol-logo.png";
 import { useHelp } from "@/contexts/HelpContext";
@@ -71,22 +72,15 @@ export function AppSidebar() {
     return saved ? JSON.parse(saved) : false;
   });
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
-  const [pendingRequests, setPendingRequests] = useState(0);
-  const [reviewQueueCount, setReviewQueueCount] = useState(0);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [hasRolProperties, setHasRolProperties] = useState(false);
-  
+
+  // Live "needs action" counters for approval/admin queues.
+  const { counts: actionCounts } = useAdminActionCounts({ isAdmin, isDev, isFearlessLeader });
+
   useEffect(() => {
     localStorage.setItem("sidebar-collapsed", JSON.stringify(collapsed));
   }, [collapsed]);
-
-  useEffect(() => {
-    if (isAdmin || isDev) {
-      loadPendingRequests();
-      loadReviewQueueCount();
-    }
-  }, [isAdmin, isDev]);
-
 
   useEffect(() => {
     const checkRolProperties = async () => {
@@ -104,24 +98,7 @@ export function AppSidebar() {
     checkRolProperties();
   }, [user, isDev, isAdmin]);
 
-  const loadPendingRequests = async () => {
-    const { count } = await supabase
-      .from("access_requests")
-      .select("*", { count: "exact", head: true })
-      .eq("status", "pending");
-    setPendingRequests(count || 0);
-  };
 
-  /** Properties awaiting an admin decision in the Review Queue. */
-  const loadReviewQueueCount = async () => {
-    const { count } = await supabase
-      .from("properties")
-      .select("id", { count: "exact", head: true })
-      .is("permanently_deleted_at", null)
-      .eq("is_active", true)
-      .in("listing_status", ["review_pending", "activation_ready", "review_failed"]);
-    setReviewQueueCount(count || 0);
-  };
 
 
   const isActive = (href: string) => location.pathname === href;
@@ -154,13 +131,19 @@ export function AppSidebar() {
     window.location.replace("/auth");
   };
 
-  // Get badge for a nav item (access requests + properties awaiting review)
+  // Badge for a nav item: live approval/action queue count, else static config badge.
   const getBadge = (item: NavItem): number | undefined => {
-    if (item.id === 'access-requests' && pendingRequests > 0) return pendingRequests;
-    if (item.id === 'review-queue' && reviewQueueCount > 0) return reviewQueueCount;
+    const live = actionCounts[item.id];
+    if (live && live > 0) return live;
     return item.badge;
-
   };
+
+  /** Any pending action inside a section (used for the collapsed-section dot). */
+  const sectionPending = (section: NavSection): number =>
+    section.items
+      .filter(canAccessItem)
+      .reduce((sum, item) => sum + (actionCounts[item.id] || 0), 0);
+
 
   const NavLink = ({ item }: { item: NavItem }) => {
     if (!canAccessItem(item)) return null;
@@ -233,6 +216,7 @@ export function AppSidebar() {
 
     if (section.collapsible) {
       const isOpen = collapsedSections[section.id] ?? (section.defaultOpen ?? false);
+      const pending = sectionPending(section);
 
       return (
         <div key={section.id}>
@@ -240,22 +224,32 @@ export function AppSidebar() {
             <CollapsibleTrigger asChild>
               <button
                 className={cn(
-                  "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-all",
+                  "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-all relative",
                   "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
                   "text-sidebar-foreground/70"
                 )}
               >
                 <SectionIcon className="h-4 w-4 shrink-0" />
+                {/* Collapsed section/sidebar: show a dot so hidden queues stay visible */}
+                {pending > 0 && (collapsed || !isOpen) && (
+                  <span className="absolute left-6 top-1.5 h-2 w-2 rounded-full bg-primary" />
+                )}
                 {!collapsed && (
                   <>
                     <span className="flex-1 text-left text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/50">
                       {section.label}
                     </span>
+                    {pending > 0 && !isOpen && (
+                      <span className="rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-semibold leading-none text-primary-foreground">
+                        {pending}
+                      </span>
+                    )}
                     <ChevronDown className={cn("h-3 w-3 transition-transform", isOpen && "rotate-180")} />
                   </>
                 )}
               </button>
             </CollapsibleTrigger>
+
             <CollapsibleContent className="space-y-1 mt-1">
               {visibleItems.map((item) => (
                 <NavLink key={item.id} item={item} />
