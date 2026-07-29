@@ -220,6 +220,7 @@ export function PropertyPaymentProviderSelect({ propertyId }: PropertyPaymentPro
     inherits: inheritsFromPortfolio,
     isOverriding,
   } = usePropertyPortfolioPayment(propertyId);
+  const { allowed: byoAllowed } = usePropertyAllowsCustomPayment(propertyId);
 
   const overrideMutation = useMutation({
     mutationFn: async (value: boolean) => {
@@ -395,6 +396,7 @@ export function PropertyPaymentProviderSelect({ propertyId }: PropertyPaymentPro
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["payment-credentials", propertyId] });
       queryClient.invalidateQueries({ queryKey: ["payfast-settlement", propertyId] });
+      queryClient.invalidateQueries({ queryKey: ["byo-checklist", propertyId] });
 
       setHasCredChanges(false);
       toast.success("Payment credentials saved securely");
