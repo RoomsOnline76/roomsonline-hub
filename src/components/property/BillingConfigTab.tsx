@@ -26,6 +26,7 @@ import {
 import { PriceLabsAdminPushCard } from "./PriceLabsAdminPushCard";
 import { SubscriptionStatusPanel } from "./SubscriptionStatusPanel";
 import { SubscriptionInvoiceDownloadCenter } from "./SubscriptionInvoiceDownloadCenter";
+import { ByoSetupChecklist } from "@/components/integrations/ByoSetupChecklist";
 
 interface BillingConfigTabProps {
   propertyId: string;
@@ -355,6 +356,17 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
               ) : null
             }
           />
+
+          {/* ── Owner setup checklist for the BYO gateway ─────────────── */}
+          {builder.byo_gateway_enabled && (
+            <ByoSetupChecklist
+              propertyId={propertyId}
+              provider={byoProviderHint}
+              readOnly
+            />
+          )}
+
+
 
           {/* Live summary */}
           <div className="rounded-md bg-muted/30 border border-dashed p-2 text-[11px] text-muted-foreground">
