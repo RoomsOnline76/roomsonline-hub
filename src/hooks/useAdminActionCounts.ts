@@ -108,7 +108,7 @@ export function useAdminActionCounts({ isAdmin, isDev, isFearlessLeader }: UseAd
             .select("id", { count: "exact", head: true })
             .is("permanently_deleted_at", null)
             .eq("is_active", true)
-            .in("listing_status", ["review_pending", "activation_ready", "review_failed"])
+            .in("listing_status", ["review_pending", "activation_ready", "review_failed", "rejected"])
         ),
         safeCount(() =>
           supabase

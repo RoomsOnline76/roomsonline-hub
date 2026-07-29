@@ -86,28 +86,40 @@ export default function AdminReviewQueue() {
   const [intentFilter, setIntentFilter] = useState<string>("all");
   const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(null);
   
+  // Status groupings — kept in one place so cards, filters and counts agree.
+  const STATUS_GROUPS = {
+    pending: ['review_pending'] as ListingStatus[],
+    ready: ['activation_ready'] as ListingStatus[],
+    attention: ['review_failed', 'rejected'] as ListingStatus[],
+    onboarding: ['draft_pre_contract', 'contract_sent', 'contract_signed', 'onboarding_active'] as ListingStatus[],
+  };
+  const QUEUE_STATUSES: ListingStatus[] = [
+    ...STATUS_GROUPS.pending,
+    ...STATUS_GROUPS.ready,
+    ...STATUS_GROUPS.attention,
+    ...STATUS_GROUPS.onboarding,
+  ];
+
+  const includeInactive = statusFilter === 'inactive';
+
   // Fetch properties for review
-  const { data: properties, isLoading, refetch } = useQuery({
-    queryKey: ["review-queue-properties"],
+  const { data: properties, isLoading, isFetching, refetch, dataUpdatedAt } = useQuery({
+    queryKey: ["review-queue-properties", includeInactive],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("properties")
         .select("id, name, slug, property_type, listing_status, listing_intent, owner_email, owner_name, created_at, updated_at, images")
         .is("permanently_deleted_at", null)
         .eq("is_active", true)
-        .in("listing_status", [
-          'review_pending', 
-          'activation_ready', 
-          'review_failed',
-          'rejected',
-          'onboarding_active'
-        ])
+        .in("listing_status", includeInactive ? ['inactive' as ListingStatus] : QUEUE_STATUSES)
         .order("updated_at", { ascending: false });
       
       if (error) throw error;
       return (data || []) as PropertyForReview[];
     },
     enabled: isAdmin || isDev,
+    refetchOnWindowFocus: true,
+    refetchInterval: 60_000,
   });
   
   // Filtered properties
@@ -129,8 +141,15 @@ export default function AdminReviewQueue() {
         if (!matchesName && !matchesOwner && !matchesStatus && !matchesIntent && !matchesPropertyType && !matchesUpdated) return false;
       }
       
-      // Status filter
-      if (statusFilter !== "all" && p.listing_status !== statusFilter) return false;
+      // Status filter (group keys filter to a set of statuses)
+      if (statusFilter !== "all" && statusFilter !== "inactive") {
+        const group = STATUS_GROUPS[statusFilter as keyof typeof STATUS_GROUPS];
+        if (group) {
+          if (!group.includes(p.listing_status)) return false;
+        } else if (p.listing_status !== statusFilter) {
+          return false;
+        }
+      }
       
       // Intent filter
       if (intentFilter !== "all" && p.listing_intent !== intentFilter) return false;
@@ -139,13 +158,26 @@ export default function AdminReviewQueue() {
     });
   }, [properties, searchQuery, statusFilter, intentFilter]);
   
-  // Group properties by status
-  const pendingReview = filteredProperties.filter(p => p.listing_status === 'review_pending');
-  const readyToActivate = filteredProperties.filter(p => p.listing_status === 'activation_ready');
-  const needsAttention = filteredProperties.filter(p => 
-    p.listing_status === 'review_failed' || p.listing_status === 'rejected'
-  );
-  const inOnboarding = filteredProperties.filter(p => p.listing_status === 'onboarding_active');
+  // Counts always reflect the full queue, never the active filters
+  const counts = useMemo(() => {
+    const all = properties || [];
+    const inGroup = (g: ListingStatus[]) => all.filter(p => g.includes(p.listing_status)).length;
+    return {
+      total: all.length,
+      pending: inGroup(STATUS_GROUPS.pending),
+      ready: inGroup(STATUS_GROUPS.ready),
+      attention: inGroup(STATUS_GROUPS.attention),
+      onboarding: inGroup(STATUS_GROUPS.onboarding),
+    };
+  }, [properties]);
+
+  const handleRefresh = async () => {
+    // Quality scores are cached per property for 30s — clear them too.
+    queryClient.invalidateQueries({ queryKey: ["activation-readiness"] });
+    const res = await refetch();
+    toast.success(`Queue refreshed — ${res.data?.length ?? 0} properties`);
+  };
+
   
   const handleReviewComplete = () => {
     refetch();
@@ -304,11 +336,17 @@ export default function AdminReviewQueue() {
         title="Property Review Queue"
         subtitle="Review and approve properties for activation"
         actions={
-          <Button variant="outline" size="sm" onClick={() => refetch()}>
-            <RefreshCw className="h-3.5 w-3.5 mr-1" />
-            Refresh
-          </Button>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground hidden sm:inline">
+              {dataUpdatedAt ? `Updated ${formatDistanceToNow(new Date(dataUpdatedAt), { addSuffix: true })}` : ""}
+            </span>
+            <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isFetching}>
+              <RefreshCw className={`h-3.5 w-3.5 mr-1 ${isFetching ? "animate-spin" : ""}`} />
+              Refresh
+            </Button>
+          </div>
         }
+
       />
       
       {/* Filters */}
@@ -326,18 +364,22 @@ export default function AdminReviewQueue() {
             </div>
             
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[160px] h-8 text-sm">
+              <SelectTrigger className="w-[180px] h-8 text-sm">
                 <SelectValue placeholder="All Statuses" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="review_pending">Pending Review</SelectItem>
-                <SelectItem value="activation_ready">Ready to Activate</SelectItem>
-                <SelectItem value="review_failed">Review Failed</SelectItem>
-                <SelectItem value="rejected">Rejected</SelectItem>
-                <SelectItem value="onboarding_active">In Onboarding</SelectItem>
+                <SelectItem value="pending">Pending Review</SelectItem>
+                <SelectItem value="ready">Ready to Activate</SelectItem>
+                <SelectItem value="attention">Needs Attention</SelectItem>
+                <SelectItem value="onboarding">In Onboarding</SelectItem>
+                <SelectItem value="draft_pre_contract">Draft</SelectItem>
+                <SelectItem value="contract_sent">Contract Sent</SelectItem>
+                <SelectItem value="contract_signed">Contract Signed</SelectItem>
+                <SelectItem value="inactive">Inactive / Archived</SelectItem>
               </SelectContent>
             </Select>
+
             
             <Select value={intentFilter} onValueChange={setIntentFilter}>
               <SelectTrigger className="w-[140px] h-8 text-sm">
@@ -355,61 +397,45 @@ export default function AdminReviewQueue() {
         </CardContent>
       </Card>
       
-      {/* Status Summary Cards */}
-      <div className="grid grid-cols-4 gap-4 mb-4">
-        <Card className="border-orange-200 bg-orange-50 dark:bg-orange-950/20">
-          <CardContent className="py-3 px-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-muted-foreground">Pending Review</p>
-                <p className="text-2xl font-bold text-orange-600">{pendingReview.length}</p>
-              </div>
-              <ClipboardCheck className="h-8 w-8 text-orange-400" />
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card className="border-green-200 bg-green-50 dark:bg-green-950/20">
-          <CardContent className="py-3 px-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-muted-foreground">Ready to Activate</p>
-                <p className="text-2xl font-bold text-green-600">{readyToActivate.length}</p>
-              </div>
-              <ShieldCheck className="h-8 w-8 text-green-400" />
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card className="border-red-200 bg-red-50 dark:bg-red-950/20">
-          <CardContent className="py-3 px-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-muted-foreground">Needs Attention</p>
-                <p className="text-2xl font-bold text-red-600">{needsAttention.length}</p>
-              </div>
-              <AlertTriangle className="h-8 w-8 text-red-400" />
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card className="border-yellow-200 bg-yellow-50 dark:bg-yellow-950/20">
-          <CardContent className="py-3 px-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-muted-foreground">In Onboarding</p>
-                <p className="text-2xl font-bold text-yellow-600">{inOnboarding.length}</p>
-              </div>
-              <RefreshCw className="h-8 w-8 text-yellow-400" />
-            </div>
-          </CardContent>
-        </Card>
+      {/* Status Summary Cards — click to filter */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+        {([
+          { key: 'pending', label: 'Pending Review', value: counts.pending, icon: ClipboardCheck, border: 'border-orange-200', bg: 'bg-orange-50 dark:bg-orange-950/20', text: 'text-orange-600', iconColor: 'text-orange-400' },
+          { key: 'ready', label: 'Ready to Activate', value: counts.ready, icon: ShieldCheck, border: 'border-green-200', bg: 'bg-green-50 dark:bg-green-950/20', text: 'text-green-600', iconColor: 'text-green-400' },
+          { key: 'attention', label: 'Needs Attention', value: counts.attention, icon: AlertTriangle, border: 'border-red-200', bg: 'bg-red-50 dark:bg-red-950/20', text: 'text-red-600', iconColor: 'text-red-400' },
+          { key: 'onboarding', label: 'In Onboarding', value: counts.onboarding, icon: RefreshCw, border: 'border-yellow-200', bg: 'bg-yellow-50 dark:bg-yellow-950/20', text: 'text-yellow-600', iconColor: 'text-yellow-400' },
+        ] as const).map(card => {
+          const Icon = card.icon;
+          const active = statusFilter === card.key;
+          return (
+            <Card
+              key={card.key}
+              role="button"
+              tabIndex={0}
+              onClick={() => setStatusFilter(active ? 'all' : card.key)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setStatusFilter(active ? 'all' : card.key); } }}
+              className={`${card.border} ${card.bg} cursor-pointer transition-shadow hover:shadow-md ${active ? 'ring-2 ring-primary' : ''}`}
+            >
+              <CardContent className="py-3 px-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-muted-foreground">{card.label}</p>
+                    <p className={`text-2xl font-bold ${card.text}`}>{card.value}</p>
+                    <p className="text-[10px] text-muted-foreground">of {counts.total} in queue</p>
+                  </div>
+                  <Icon className={`h-8 w-8 ${card.iconColor}`} />
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
       
       {/* Properties Table */}
       <Card>
         <CardHeader className="py-3 px-4">
           <CardTitle className="text-sm">Properties ({filteredProperties.length})</CardTitle>
+
         </CardHeader>
         <CardContent className="p-0">
           {isLoading ? (
