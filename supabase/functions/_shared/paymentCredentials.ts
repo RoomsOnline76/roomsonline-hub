@@ -70,7 +70,11 @@ function extractPayfast(config: Record<string, unknown> | null) {
     merchantKey,
     passphrase: clean((config as any).passphrase),
     isSandbox: sandboxFlag === true || sandboxFlag === "true",
-    onsiteSupported: (config as any).onsite_supported !== false,
+    // PayFast "Onsite Payments" (in-page card capture) is an opt-in merchant
+    // feature. Property-owned accounts almost never have it, so BYO defaults to
+    // the hosted redirect flow unless the owner explicitly opts in.
+    onsiteSupported: (config as any).onsite_supported === true,
+
   };
 }
 
