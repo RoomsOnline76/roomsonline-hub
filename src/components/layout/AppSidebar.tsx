@@ -71,22 +71,15 @@ export function AppSidebar() {
     return saved ? JSON.parse(saved) : false;
   });
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
-  const [pendingRequests, setPendingRequests] = useState(0);
-  const [reviewQueueCount, setReviewQueueCount] = useState(0);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [hasRolProperties, setHasRolProperties] = useState(false);
-  
+
+  // Live "needs action" counters for approval/admin queues.
+  const { counts: actionCounts } = useAdminActionCounts({ isAdmin, isDev, isFearlessLeader });
+
   useEffect(() => {
     localStorage.setItem("sidebar-collapsed", JSON.stringify(collapsed));
   }, [collapsed]);
-
-  useEffect(() => {
-    if (isAdmin || isDev) {
-      loadPendingRequests();
-      loadReviewQueueCount();
-    }
-  }, [isAdmin, isDev]);
-
 
   useEffect(() => {
     const checkRolProperties = async () => {
@@ -104,24 +97,7 @@ export function AppSidebar() {
     checkRolProperties();
   }, [user, isDev, isAdmin]);
 
-  const loadPendingRequests = async () => {
-    const { count } = await supabase
-      .from("access_requests")
-      .select("*", { count: "exact", head: true })
-      .eq("status", "pending");
-    setPendingRequests(count || 0);
-  };
 
-  /** Properties awaiting an admin decision in the Review Queue. */
-  const loadReviewQueueCount = async () => {
-    const { count } = await supabase
-      .from("properties")
-      .select("id", { count: "exact", head: true })
-      .is("permanently_deleted_at", null)
-      .eq("is_active", true)
-      .in("listing_status", ["review_pending", "activation_ready", "review_failed"]);
-    setReviewQueueCount(count || 0);
-  };
 
 
   const isActive = (href: string) => location.pathname === href;
