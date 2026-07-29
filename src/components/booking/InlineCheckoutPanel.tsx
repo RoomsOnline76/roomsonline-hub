@@ -60,6 +60,8 @@ export function InlineCheckoutPanel({
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [payFastUuid, setPayFastUuid] = useState<string | null>(null);
+  const [payFastSandbox, setPayFastSandbox] = useState<boolean | undefined>(undefined);
+  const [payFastCredentialSource, setPayFastCredentialSource] = useState<string | null>(null);
   const [bookingId, setBookingId] = useState<string | null>(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [pendingPaymentAmount, setPendingPaymentAmount] = useState(0);
@@ -178,6 +180,8 @@ export function InlineCheckoutPanel({
         });
         if (error || !data?.success) throw new Error(data?.error || "Payment initiation failed");
         setPayFastUuid(data.uuid);
+        if (typeof data.is_sandbox === "boolean") setPayFastSandbox(data.is_sandbox);
+        if (data.credential_source) setPayFastCredentialSource(data.credential_source);
         setShowPaymentModal(true);
       }
     } catch (err) {
@@ -469,8 +473,9 @@ export function InlineCheckoutPanel({
         bookingId={bookingId || ""}
         amount={pendingPaymentAmount}
         propertyName={firstStay?.property_name || ""}
-        isSandbox={true}
         uuid={payFastUuid || undefined}
+        isSandbox={payFastSandbox}
+        credentialSource={payFastCredentialSource}
       />
     </>
   );

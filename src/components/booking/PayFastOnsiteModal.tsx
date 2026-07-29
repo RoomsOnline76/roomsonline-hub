@@ -22,7 +22,13 @@ interface PayFastOnsiteModalProps {
   bookingId: string;
   amount: number;
   propertyName: string;
+  /**
+   * Optional seed for the sandbox banner. When omitted the modal resolves the
+   * real mode from the payfast-api response (per-property BYO vs ROL account).
+   */
   isSandbox?: boolean;
+  /** Optional seed: "byo" = property's own merchant account, "rol" = facilitator. */
+  credentialSource?: string | null;
   uuid?: string; // Optional pre-fetched UUID to skip double API call
 }
 
@@ -34,7 +40,8 @@ export const PayFastOnsiteModal = ({
   bookingId,
   amount,
   propertyName,
-  isSandbox = true,
+  isSandbox,
+  credentialSource: credentialSourceProp,
   uuid: preProvidedUuid,
 }: PayFastOnsiteModalProps) => {
   const [isLoading, setIsLoading] = useState(false);
@@ -43,20 +50,37 @@ export const PayFastOnsiteModal = ({
   const [scriptLoaded, setScriptLoaded] = useState(false);
   const [payFastActive, setPayFastActive] = useState(false);
   const [redirecting, setRedirecting] = useState(false);
+  // null = not yet resolved. Never show the test-mode banner while unknown.
+  const [sandboxMode, setSandboxMode] = useState<boolean | null>(isSandbox ?? null);
+  const [credentialSource, setCredentialSource] = useState<string | null>(credentialSourceProp ?? null);
   const watchdogRef = useRef<number | null>(null);
+  const triggeredRef = useRef(false);
 
-
-  // Load PayFast onsite script
+  // Keep resolved state in sync with caller-provided seeds.
   useEffect(() => {
-    if (!isOpen) return;
+    if (typeof isSandbox === "boolean") setSandboxMode(isSandbox);
+  }, [isSandbox]);
+  useEffect(() => {
+    if (credentialSourceProp) setCredentialSource(credentialSourceProp);
+  }, [credentialSourceProp]);
 
-    const scriptId = "payfast-onsite-script";
+  // A pre-fetched UUID means the caller already initiated; if it didn't tell us
+  // the mode, assume production so we never load sandbox assets for a live account.
+  useEffect(() => {
+    if (isOpen && preProvidedUuid && sandboxMode === null) setSandboxMode(false);
+  }, [isOpen, preProvidedUuid, sandboxMode]);
+
+  // Load PayFast onsite script — only once we know which environment applies.
+  useEffect(() => {
+    if (!isOpen || sandboxMode === null) return;
+
+    const scriptId = sandboxMode ? "payfast-onsite-script-sandbox" : "payfast-onsite-script-live";
     let script = document.getElementById(scriptId) as HTMLScriptElement | null;
 
     if (!script) {
       script = document.createElement("script");
       script.id = scriptId;
-      script.src = isSandbox
+      script.src = sandboxMode
         ? "https://sandbox.payfast.co.za/onsite/engine.js"
         : "https://www.payfast.co.za/onsite/engine.js";
       script.async = true;
@@ -79,7 +103,8 @@ export const PayFastOnsiteModal = ({
     return () => {
       // Don't remove script - it may be needed for other payments
     };
-  }, [isOpen, isSandbox]);
+  }, [isOpen, sandboxMode]);
+
 
   // Hand off to PayFast's hosted (redirect) checkout — used whenever in-page
   // onsite checkout is unavailable for the merchant account.
@@ -187,15 +212,15 @@ export const PayFastOnsiteModal = ({
     }
   }, [onPaymentSuccess, onPaymentCancelled, clearWatchdog, fallbackToRedirect]);
 
-  // Get payment UUID and trigger modal
+  // Get payment UUID (does not need the script yet — the response tells us
+  // which environment the merchant account settles to).
   useEffect(() => {
-    if (!isOpen || !scriptLoaded || paymentUuid) return;
+    if (!isOpen || paymentUuid) return;
 
     // If UUID was pre-provided, use it directly (skip API call)
     if (preProvidedUuid) {
       console.log("[PayFast Onsite] Using pre-provided UUID:", preProvidedUuid);
       setPaymentUuid(preProvidedUuid);
-      triggerOnsitePayment(preProvidedUuid);
       return;
     }
 
@@ -219,6 +244,10 @@ export const PayFastOnsiteModal = ({
           throw new Error(apiError.message || "Failed to initiate payment");
         }
 
+        // Trust the backend for environment + settlement account.
+        if (typeof data?.is_sandbox === "boolean") setSandboxMode(data.is_sandbox);
+        if (data?.credential_source) setCredentialSource(data.credential_source);
+
         // Merchant account can't do in-page checkout — go to hosted checkout.
         if (data?.success && data?.onsite_unavailable && data?.checkout_url && data?.form_fields) {
           console.log("[PayFast Onsite] Onsite unavailable:", data.fallback_reason);
@@ -235,10 +264,6 @@ export const PayFastOnsiteModal = ({
         console.log("[PayFast Onsite] Received UUID:", data.uuid);
         setPaymentUuid(data.uuid);
         setIsLoading(false);
-        
-        // Trigger PayFast immediately after getting UUID
-        triggerOnsitePayment(data.uuid);
-        
       } catch (err) {
         console.error("[PayFast Onsite] Initiation error:", err);
         setError(err instanceof Error ? err.message : "Payment initiation failed");
@@ -247,30 +272,44 @@ export const PayFastOnsiteModal = ({
     };
 
     initiatePayment();
-  }, [isOpen, scriptLoaded, paymentUuid, preProvidedUuid, bookingId, triggerOnsitePayment, submitRedirectCheckout]);
+  }, [isOpen, paymentUuid, preProvidedUuid, bookingId, submitRedirectCheckout]);
+
+  // Once we have a UUID and the correct engine script, open the payment window.
+  useEffect(() => {
+    if (!isOpen || !paymentUuid || !scriptLoaded || redirecting) return;
+    if (triggeredRef.current) return;
+    triggeredRef.current = true;
+    triggerOnsitePayment(paymentUuid);
+  }, [isOpen, paymentUuid, scriptLoaded, redirecting, triggerOnsitePayment]);
 
 
   // Reset state on close
   useEffect(() => {
     if (!isOpen) {
       clearWatchdog();
+      triggeredRef.current = false;
       setPaymentUuid(null);
       setError(null);
       setIsLoading(false);
       setPayFastActive(false);
       setRedirecting(false);
+      setSandboxMode(isSandbox ?? null);
+      setCredentialSource(credentialSourceProp ?? null);
     }
-  }, [isOpen, clearWatchdog]);
+  }, [isOpen, clearWatchdog, isSandbox, credentialSourceProp]);
+
 
   // Clear watchdog on unmount
   useEffect(() => () => clearWatchdog(), [clearWatchdog]);
 
 
   const handleRetry = () => {
+    triggeredRef.current = false;
     setPaymentUuid(null);
     setError(null);
     setPayFastActive(false);
   };
+
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-ZA", {
@@ -331,31 +370,43 @@ export const PayFastOnsiteModal = ({
           )}
 
           {/* Waiting for PayFast Modal - only show if there's an error reopening */}
-          {!isLoading && !error && paymentUuid && !payFastActive && (
+          {!isLoading && !redirecting && !error && paymentUuid && scriptLoaded && !payFastActive && (
             <div className="text-center py-4">
               <p className="text-sm text-muted-foreground mb-4">
                 Click below to open the payment window.
               </p>
-              <Button onClick={() => triggerOnsitePayment(paymentUuid)} variant="default">
+              <Button
+                onClick={() => {
+                  triggeredRef.current = true;
+                  triggerOnsitePayment(paymentUuid);
+                }}
+                variant="default"
+              >
                 Open Payment Window
               </Button>
             </div>
           )}
 
           {/* Security Badge */}
-          <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
-            <ShieldCheck className="h-4 w-4" />
-            <span>Secured by PayFast · SSL Encrypted</span>
+          <div className="flex flex-col items-center justify-center gap-1 text-xs text-muted-foreground">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4" />
+              <span>Secured by PayFast · SSL Encrypted</span>
+            </div>
+            {credentialSource === "byo" && (
+              <span>Payments settle directly to {propertyName}'s own PayFast account.</span>
+            )}
           </div>
 
-          {/* Sandbox Notice */}
-          {isSandbox && (
+          {/* Sandbox Notice — only when the resolved merchant account is in test mode */}
+          {sandboxMode === true && (
             <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg p-3 text-center">
               <p className="text-xs text-amber-700 dark:text-amber-400">
                 🔧 Test Mode: Use card 4000000000000002 with any future date and CVV
               </p>
             </div>
           )}
+
         </div>
 
         {/* Cancel Button */}
