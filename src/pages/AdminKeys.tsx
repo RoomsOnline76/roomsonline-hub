@@ -3906,8 +3906,12 @@ export default function AdminKeys() {
               <BedDouble className="h-5 w-5 text-primary" />
               <span className="font-semibold">Rentals United</span>
               <Badge variant="outline" className="text-xs">
-                XML API
+                XML + GC API
               </Badge>
+              <Badge variant="secondary" className="text-xs">
+                Sandbox — pre-certification
+              </Badge>
+
             </div>
             <div className="flex items-center gap-2">
               <div onClick={(e) => e.stopPropagation()}>
@@ -3944,8 +3948,18 @@ export default function AdminKeys() {
         <AccordionContent>
           <div className="pt-4 space-y-4">
             <p className="text-sm text-muted-foreground">
-              Channel manager and distribution platform for vacation rentals — XML API integration
+              Channel manager and distribution platform for vacation rentals — XML API + GC (Global Connect) API.
             </p>
+            <div className="rounded-md border border-border bg-muted/40 p-3 text-xs space-y-1">
+              <p className="font-medium">Account</p>
+              <p className="text-muted-foreground">
+                API access to the XML and GC API granted to <span className="font-medium">sleepinafrica@roomsonline.co.za</span>.
+              </p>
+              <p className="text-muted-foreground">
+                Status: Sandbox, pre-certification — development phase. Milestone markers reset for the new account.
+              </p>
+            </div>
+
 
             {/* Active Environment Toggle */}
             <EnvironmentToggle
