@@ -13,6 +13,7 @@ import {
 import { useState } from "react";
 import { navigationConfig } from "@/config/navigation";
 import { useAuth } from "@/hooks/useAuth";
+import { useAdminActionCounts } from "@/hooks/useAdminActionCounts";
 
 export function MobileBottomNav() {
   const location = useLocation();
@@ -20,7 +21,12 @@ export function MobileBottomNav() {
   const [moreOpen, setMoreOpen] = useState(false);
   const { userRole } = useAuth();
 
+  const isAdmin = hasMinRole(userRole, 'admin');
+  const isDev = hasMinRole(userRole, 'dev');
+  const { counts: actionCounts, totalPending } = useAdminActionCounts({ isAdmin, isDev });
+
   const isActive = (href: string) => location.pathname === href;
+
 
   // Build visible nav items based on role - admin/dev get Admin first
   const visibleItems: NavItem[] = [];
