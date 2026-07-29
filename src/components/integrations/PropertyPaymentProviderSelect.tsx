@@ -312,7 +312,7 @@ export function PropertyPaymentProviderSelect({ propertyId }: PropertyPaymentPro
     },
     onError: (e: unknown) =>
       toast.error("Failed to save credentials", {
-        description: e instanceof Error ? e.message : String(e),
+        description: describeError(e),
       }),
   });
 
