@@ -112,10 +112,12 @@ h1, h2, h3, h4, h5, h6, .font-heading {
     /* Primary - ROL Pink (lighter for dark mode) */
     --primary: 326 85% 60%;
     --primary-foreground: 0 0% 100%;
+    --primary-foreground-muted: 0 0% 88%;
     --primary-text-safe: 326 85% 60%;
 
     --secondary: 220 15% 18%;
     --secondary-foreground: 40 6% 95%;
+    --secondary-foreground-muted: 40 6% 80%;
 
     --muted: 220 15% 18%;
     --muted-foreground: 220 10% 65%;
@@ -123,6 +125,8 @@ h1, h2, h3, h4, h5, h6, .font-heading {
     /* Accent - Brighter gold for dark mode */
     --accent: 38 75% 55%;
     --accent-foreground: 220 20% 12%;
+    --accent-foreground-muted: 220 20% 28%;
+
 
     --midnight: 220 40% 35%;
 
