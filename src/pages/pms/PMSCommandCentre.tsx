@@ -266,8 +266,12 @@ export default function PMSCommandCentre() {
         // Map ALL IDs (active + inactive) so old cache IDs resolve to names
         nameMap[rt.id] = rt.name;
         nameMap[slug] = rt.name;
+        // Bookings made through the public booking engine carry a hostfully room-type id;
+        // resolving it here keeps them off the "Unassigned" lane.
+        rtNameById[rt.id] = rt.name.trim().toLowerCase();
         if (rt.hostfully_room_id) {
           nameMap[rt.hostfully_room_id] = rt.name;
+          rtNameById[rt.hostfully_room_id] = rt.name.trim().toLowerCase();
         }
         if (rt.is_active) {
           activeRoomKeys.add(rt.id);
@@ -276,6 +280,8 @@ export default function PMSCommandCentre() {
           propsWithActiveTypes.add(rt.property_id);
         }
       }
+      setRoomTypeNameById(rtNameById);
+
 
       // Amenities JSONB fallback
       for (const prop of propsResult.data || []) {
