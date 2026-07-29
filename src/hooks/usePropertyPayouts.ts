@@ -172,17 +172,19 @@ export function usePropertyPayouts(periodMonth?: string) {
       .from('payment_transactions')
       .select(`
         bookings!inner(
-          id, guest_name, check_in_date, check_out_date, total_price, status, payment_status
+          id, property_id, guest_name, check_in_date, check_out_date, total_price, status, payment_status
         )
       `)
-      .eq('status', 'completed')
+      .in('status', SETTLED_TX_STATUSES)
+      .eq('bookings.property_id', propertyId)
       .order('created_at', { ascending: false });
 
     return (data || [])
-      .filter((tx: any) => tx.bookings?.id)
       .map((tx: any) => tx.bookings)
+      .filter((b: any) => b?.id && !EXCLUDED_BOOKING_STATUSES.includes(String(b.status || '').toLowerCase()))
       .filter((b: any, i: number, arr: any[]) => arr.findIndex((x: any) => x.id === b.id) === i);
   };
+
 
   return { payouts, loading, stats, refresh: loadPayouts, fetchBookingDetails };
 }
