@@ -23,6 +23,8 @@ import { format } from "date-fns";
 import { GoogleFontPicker } from "@/components/property/GoogleFontPicker";
 import { RevenueShareSection } from "@/components/portfolio/RevenueShareSection";
 import { PortfolioPaymentProviderCard } from "@/components/portfolio/PortfolioPaymentProviderCard";
+import { BrandReadabilityPanel } from "@/components/branding/BrandReadabilityPanel";
+
 
 interface PortfolioBranding {
   primary_color?: string;
