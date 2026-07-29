@@ -119,9 +119,9 @@ export default function AdminPayments() {
       setCommissionsLoading(true);
       const { data: reports, error } = await supabase
         .from('rep_commission_reports')
-        .select(`id, rep_id, period_start, period_end, total_commission, status, sales_reps!inner(display_name, rep_code, id)`)
+        .select(`id, rep_id, period_month, total_amount, status, sales_reps!inner(display_name, rep_code, id)`)
         .in('status', ['approved', 'paid'])
-        .order('period_end', { ascending: false })
+        .order('period_month', { ascending: false })
         .limit(50);
       if (error) throw error;
 
@@ -141,8 +141,8 @@ export default function AdminPayments() {
         id: r.id, rep_id: r.rep_id,
         rep_name: r.sales_reps?.display_name || 'Unknown',
         rep_code: r.sales_reps?.rep_code || '',
-        period_start: r.period_start, period_end: r.period_end,
-        total_amount: r.total_commission || 0, status: r.status,
+        period_month: r.period_month,
+        total_amount: r.total_amount || 0, status: r.status,
         has_banking: !!bankingMap[r.rep_id]?.exists,
         banking_verified: !!bankingMap[r.rep_id]?.verified,
       })));
@@ -371,7 +371,7 @@ export default function AdminPayments() {
                           </div>
                         </TableCell>
                         <TableCell className="text-sm">
-                          {format(new Date(p.period_start), 'MMM d')} – {format(new Date(p.period_end), 'MMM d, yyyy')}
+                          {p.period_month ? format(new Date(p.period_month), 'MMMM yyyy') : '—'}
                         </TableCell>
                         <TableCell className="font-semibold">R{p.total_amount.toLocaleString()}</TableCell>
                         <TableCell>
