@@ -630,8 +630,8 @@ export function PropertyPaymentProviderSelect({ propertyId }: PropertyPaymentPro
                       </p>
                       {settlement.credential_source === "byo" && (
                         <p className="text-xs text-muted-foreground">
-                          Guests are sent to PayFast's secure hosted checkout. Payment confirmation
-                          returns to us automatically — nothing to configure in your PayFast dashboard.
+                          Guests use your gateway's secure checkout and confirmation returns to us
+                          automatically — complete the activation steps below in your provider account.
                         </p>
                       )}
 
@@ -639,6 +639,24 @@ export function PropertyPaymentProviderSelect({ propertyId }: PropertyPaymentPro
 
                   </div>
                 )}
+
+                {(byoAllowed || settlement?.credential_source === "byo") && (
+                  <ByoSetupChecklist
+                    propertyId={propertyId}
+                    provider={
+                      selectedProviders[0] ||
+                      (portfolioConfig?.payment_providers || [])[0] ||
+                      "payfast"
+                    }
+                    auto={{
+                      credentialsResolved: settlement?.credential_source === "byo",
+                      isSandbox: settlement?.is_sandbox,
+                      onsiteSupported: settlement?.onsite_supported,
+                    }}
+                  />
+                )}
+
+
 
 
                 {!inheritsFromPortfolio && (
