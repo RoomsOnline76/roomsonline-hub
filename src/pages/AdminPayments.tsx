@@ -175,10 +175,14 @@ export default function AdminPayments() {
 
   const getStatusBadge = (status: string) => {
     switch (status) {
+      case 'paid':
+      case 'succeeded':
+      case 'success':
       case 'completed':
-        return <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20">Completed</Badge>;
+        return <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20">Paid</Badge>;
       case 'pending':
         return <Badge variant="secondary">Pending</Badge>;
+
       case 'failed':
         return <Badge variant="destructive">Failed</Badge>;
       default:
