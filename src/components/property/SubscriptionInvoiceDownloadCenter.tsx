@@ -53,8 +53,9 @@ export function SubscriptionInvoiceDownloadCenter({ scope, entityId }: Props) {
         <div className="divide-y">
           {invoices.map((inv: any) => {
             const styleCls = STATUS_STYLES[inv.status] || STATUS_STYLES.pending;
+            // GLOBAL RULE: always link to the production domain, never the preview host.
             const payUrl = inv.status === "pending" && inv.payfast_token
-              ? `${window.location.origin}/subscribe/pay/${inv.payfast_token}`
+              ? `${ADMIN_DOMAIN}/subscribe/pay/${inv.payfast_token}`
               : null;
             return (
               <div key={inv.id} className="flex items-center justify-between gap-2 py-2">
