@@ -515,13 +515,16 @@ Deno.serve(async (req) => {
         return new Response("OK", { status: 200, headers: corsHeaders });
       }
 
-      
-      // Server-side validation (optional but recommended)
-      // const isValid = await validateWithPayFast(itnData, isSandbox);
-      // if (!isValid) {
-      //   console.error("[PayFast] Server validation failed");
-      //   return new Response("OK", { status: 200, headers: corsHeaders });
-      // }
+
+      // Server-side validation with PayFast. Several merchant accounts (ROL +
+      // every BYO property) share this single notify endpoint, so we confirm the
+      // payload with PayFast itself before treating it as authoritative.
+      const isValid = await validateWithPayFast(itnData, isSandbox);
+      if (!isValid) {
+        console.error("[PayFast] Server validation failed for", itnData.m_payment_id);
+        return new Response("OK", { status: 200, headers: corsHeaders });
+      }
+
       
       // Extract payment details
       const mPaymentId = itnData.m_payment_id; // Our reference
