@@ -55,8 +55,7 @@ serve(async (req) => {
         .gte("check_in_date", startDate)
         .lte("check_in_date", endDate)
         .in("status", ["confirmed", "completed"])
-        .not("status", "eq", "failed")
-        .not("payment_status", "eq", "failed");
+        .in("payment_status", ["paid", "partially_paid", "deposit_paid"]);
 
       if (bookingsError) throw bookingsError;
 
