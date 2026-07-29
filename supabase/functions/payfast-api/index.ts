@@ -1089,10 +1089,14 @@ Deno.serve(async (req) => {
         );
       };
 
-      // Known-incapable merchant account: skip the onsite round-trip entirely.
+      // Onsite (in-page) capture is an opt-in PayFast merchant feature. BYO accounts
+      // use the hosted redirect flow unless the owner has explicitly opted in.
       if (!onsiteSupported) {
-        return await respondWithRedirectCheckout("account_onsite_disabled");
+        return await respondWithRedirectCheckout(
+          credentialSource === "byo" ? "byo_uses_redirect_checkout" : "account_onsite_disabled",
+        );
       }
+
       
       console.log("[PayFast] Requesting onsite UUID from:", onsiteUrl);
       
