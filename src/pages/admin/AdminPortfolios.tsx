@@ -924,6 +924,18 @@ export default function AdminPortfolios() {
             <DialogTitle>Edit Portfolio</DialogTitle>
           </DialogHeader>
           {renderFormFields()}
+          {editPortfolio && (
+            <div className="mt-4">
+              <PortfolioPaymentProviderCard
+                portfolioId={editPortfolio.id}
+                properties={getMemberProperties(editPortfolio.id).map((mp) => ({
+                  id: mp.id,
+                  name: mp.name,
+                  payment_provider_override: mp.payment_provider_override,
+                }))}
+              />
+            </div>
+          )}
           <DialogFooter>
             <Button onClick={() => updateMutation.mutate()} disabled={!formName.trim() || updateMutation.isPending} size="sm">
               {updateMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
