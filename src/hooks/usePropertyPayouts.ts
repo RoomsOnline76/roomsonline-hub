@@ -29,6 +29,12 @@ export interface PayoutBookingDetail {
   payment_status: string | null;
 }
 
+// payment_transactions.status is written as 'paid' by the gateway handlers;
+// older/other providers may write 'completed'/'succeeded'. Accept all of them.
+const SETTLED_TX_STATUSES = ['paid', 'completed', 'succeeded', 'success'];
+// Cancelled/refunded stays are never paid out to the property.
+const EXCLUDED_BOOKING_STATUSES = ['cancelled', 'canceled', 'refunded', 'no_show'];
+
 export function usePropertyPayouts(periodMonth?: string) {
   const [payouts, setPayouts] = useState<PropertyPayout[]>([]);
   const [loading, setLoading] = useState(true);
@@ -37,8 +43,8 @@ export function usePropertyPayouts(periodMonth?: string) {
     try {
       setLoading(true);
 
-      // Get completed payment transactions with booking + property info
-      const { data: transactions, error: txError } = await supabase
+      // Get settled payment transactions with booking + property info
+      let query = supabase
         .from('payment_transactions')
         .select(`
           amount,
@@ -56,10 +62,21 @@ export function usePropertyPayouts(periodMonth?: string) {
             properties!bookings_property_id_fkey!inner(id, name, owner_email)
           )
         `)
-        .eq('status', 'completed')
+        .in('status', SETTLED_TX_STATUSES)
         .order('created_at', { ascending: false });
 
+      if (periodMonth) {
+        // periodMonth is YYYY-MM — bound the transaction date to that month
+        const start = `${periodMonth}-01`;
+        const startDate = new Date(`${start}T00:00:00Z`);
+        const end = new Date(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth() + 1, 1));
+        query = query.gte('created_at', startDate.toISOString()).lt('created_at', end.toISOString());
+      }
+
+      const { data: transactions, error: txError } = await query;
+
       if (txError) throw txError;
+
 
       // Get billing configs for all properties
       const { data: billingConfigs } = await supabase
