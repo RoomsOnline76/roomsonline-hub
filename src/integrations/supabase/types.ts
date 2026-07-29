@@ -2881,10 +2881,12 @@ export type Database = {
           amount: number
           booking_id: string | null
           created_at: string | null
+          credential_source: string | null
           currency: string | null
           gateway_response: Json | null
           id: string
           m_payment_id: string | null
+          merchant_id: string | null
           payment_method: string | null
           payment_provider: string | null
           pf_payment_id: string | null
@@ -2897,10 +2899,12 @@ export type Database = {
           amount: number
           booking_id?: string | null
           created_at?: string | null
+          credential_source?: string | null
           currency?: string | null
           gateway_response?: Json | null
           id?: string
           m_payment_id?: string | null
+          merchant_id?: string | null
           payment_method?: string | null
           payment_provider?: string | null
           pf_payment_id?: string | null
@@ -2913,10 +2917,12 @@ export type Database = {
           amount?: number
           booking_id?: string | null
           created_at?: string | null
+          credential_source?: string | null
           currency?: string | null
           gateway_response?: Json | null
           id?: string
           m_payment_id?: string | null
+          merchant_id?: string | null
           payment_method?: string | null
           payment_provider?: string | null
           pf_payment_id?: string | null
