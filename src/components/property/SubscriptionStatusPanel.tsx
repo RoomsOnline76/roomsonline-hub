@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CheckCircle2, Clock, AlertTriangle, Copy, ExternalLink, XCircle } from "lucide-react";
 import { toast } from "sonner";
+import { ADMIN_DOMAIN } from "@/lib/config";
 
 interface Props {
   scope: "property" | "portfolio";
