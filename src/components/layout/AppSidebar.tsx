@@ -112,6 +112,18 @@ export function AppSidebar() {
     setPendingRequests(count || 0);
   };
 
+  /** Properties awaiting an admin decision in the Review Queue. */
+  const loadReviewQueueCount = async () => {
+    const { count } = await supabase
+      .from("properties")
+      .select("id", { count: "exact", head: true })
+      .is("permanently_deleted_at", null)
+      .eq("is_active", true)
+      .in("listing_status", ["review_pending", "activation_ready", "review_failed"]);
+    setReviewQueueCount(count || 0);
+  };
+
+
   const isActive = (href: string) => location.pathname === href;
 
   const canAccessItem = (item: NavItem) => {
