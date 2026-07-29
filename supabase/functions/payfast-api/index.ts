@@ -867,6 +867,8 @@ Deno.serve(async (req) => {
           checkout_url: payfastUrl,
           form_fields: formFields,
           is_sandbox: isSandbox,
+          credential_source: credentialSource,
+
           source: "payfast-api",
           action: "initiate_payment",
         }),
