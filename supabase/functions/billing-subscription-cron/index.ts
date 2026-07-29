@@ -119,21 +119,44 @@ async function ensureInvoiceAndEmail(supabase: any, resend: Resend, opts: {
   const psStr = periodStart.toISOString().slice(0, 10);
   const peStr = periodEnd.toISOString().slice(0, 10);
 
-  // Skip if a pending invoice for this period exists already
-  const { data: existing } = await supabase
+  // Hard gate: never invoice unless billing has been explicitly switched on.
+  if (cfg.billing_enabled !== true) {
+    console.log(`[cron] Skip ${scope} ${entityId}: billing_enabled is off`);
+    return { skipped: true, reason: "billing_disabled" };
+  }
+  if (!cfg.billing_start_date) {
+    return { skipped: true, reason: "no_billing_start_date" };
+  }
+
+  const entityCol = scope === "property" ? "property_id" : "portfolio_id";
+
+  // Activation invoices are once-off: if ANY activation invoice already exists
+  // (pending or paid) we must never mint another one — this is what caused a new
+  // invoice to be created on every daily run. Renewals still de-dupe per period.
+  let existingQuery = supabase
     .from("subscription_invoices")
-    .select("id, payfast_token, reminder_count, email_sent_at")
-    .eq(scope === "property" ? "property_id" : "portfolio_id", entityId)
-    .eq("period_start", psStr)
-    .eq("status", "pending")
-    .maybeSingle();
+    .select("id, payfast_token, reminder_count, email_sent_at, status")
+    .eq(entityCol, entityId);
+
+  existingQuery = isRenewal
+    ? existingQuery.eq("period_start", psStr).eq("status", "pending")
+    : existingQuery.eq("invoice_kind", "activation").in("status", ["pending", "paid"]);
+
+  const { data: existingRows } = await existingQuery
+    .order("created_at", { ascending: false })
+    .limit(1);
+  const existing = existingRows?.[0] ?? null;
+
+  if (existing && existing.status === "paid") {
+    return { skipped: true, reason: "already_paid", invoice_id: existing.id };
+  }
 
   let invoice = existing;
   if (!invoice) {
     const subscriptionAmount = await computeSubscriptionAmount(supabase, cfg, scope, entityId);
 
     // Pull pending once-off charges for this entity
-    const chargeCol = scope === "property" ? "property_id" : "portfolio_id";
+    const chargeCol = entityCol;
     const { data: pendingCharges } = await supabase
       .from("subscription_charge_items")
       .select("id, kind, description, amount, currency")
@@ -169,7 +192,7 @@ async function ensureInvoiceAndEmail(supabase: any, resend: Resend, opts: {
       invoice_kind: isRenewal ? "renewal" : "activation",
       owner_id: ownerId,
     };
-    insert[scope === "property" ? "property_id" : "portfolio_id"] = entityId;
+    insert[entityCol] = entityId;
     const { data: created, error: crErr } = await supabase.from("subscription_invoices").insert(insert).select("id, payfast_token, reminder_count, email_sent_at").single();
     if (crErr) { console.error("[cron] insert error:", crErr); return { error: crErr }; }
     invoice = created;
@@ -231,6 +254,7 @@ Deno.serve(async (req) => {
     .from("property_billing_configs")
     .select("*, properties!inner(id, name, owner_id, owner_email, is_active)")
     .lte("billing_start_date", todayStr)
+    .eq("billing_enabled", true)
     .eq("subscription_status", "pending")
     .eq("properties.is_active", true);
   for (const cfg of propStart ?? []) {
@@ -247,6 +271,7 @@ Deno.serve(async (req) => {
     .from("portfolio_billing_configs")
     .select("*, property_portfolios!inner(id, name, owner_id)")
     .lte("billing_start_date", todayStr)
+    .eq("billing_enabled", true)
     .eq("subscription_status", "pending");
   for (const cfg of portStart ?? []) {
     const pf = (cfg as any).property_portfolios;
@@ -266,6 +291,7 @@ Deno.serve(async (req) => {
   const { data: propRenew } = await supabase
     .from("property_billing_configs")
     .select("*, properties!inner(id, name, owner_id, owner_email)")
+    .eq("billing_enabled", true)
     .eq("subscription_status", "active")
     .lte("current_period_end", in5Str);
   for (const cfg of propRenew ?? []) {
@@ -281,6 +307,7 @@ Deno.serve(async (req) => {
   const { data: portRenew } = await supabase
     .from("portfolio_billing_configs")
     .select("*, property_portfolios!inner(id, name, owner_id)")
+    .eq("billing_enabled", true)
     .eq("subscription_status", "active")
     .lte("current_period_end", in5Str);
   for (const cfg of portRenew ?? []) {
