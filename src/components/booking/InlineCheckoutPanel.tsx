@@ -469,7 +469,6 @@ export function InlineCheckoutPanel({
         bookingId={bookingId || ""}
         amount={pendingPaymentAmount}
         propertyName={firstStay?.property_name || ""}
-        isSandbox={true}
         uuid={payFastUuid || undefined}
       />
     </>

@@ -35,6 +35,7 @@ interface PaymentGatewayRouterProps {
   propertyId?: string;
   currency?: string;
   isSandbox?: boolean;
+  credentialSource?: string | null;
   uuid?: string;
   /** Called when PayFast/Stripe modal payment succeeds (non-redirect gateways) */
   onPaymentSuccess?: () => void;
@@ -59,7 +60,8 @@ export function PaymentGatewayRouter({
   propertyName,
   propertyId,
   currency = "ZAR",
-  isSandbox = true,
+  isSandbox,
+  credentialSource,
   uuid,
   onPaymentSuccess,
   onPaymentCancelled,
@@ -77,6 +79,7 @@ export function PaymentGatewayRouter({
         amount={amount}
         propertyName={propertyName}
         isSandbox={isSandbox}
+        credentialSource={credentialSource}
         uuid={uuid}
       />
     );
@@ -143,6 +146,7 @@ export function PaymentGatewayRouter({
       amount={amount}
       propertyName={propertyName}
       isSandbox={isSandbox}
+      credentialSource={credentialSource}
       uuid={uuid}
     />
   );

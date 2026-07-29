@@ -3015,7 +3015,6 @@ const Booking = () => {
         amount={pendingPaymentAmount}
         propertyName={property?.name || ""}
         propertyId={property?.id}
-        isSandbox={true}
       />
       </>)
   );

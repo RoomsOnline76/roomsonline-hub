@@ -368,8 +368,7 @@ export function InlineCheckout({
           bookingId={bookingId}
           amount={totalPrice}
           propertyName={stays.map(s => s.property_name).join(', ')}
-          isSandbox={true}
-          uuid={payFastUuid}
+            uuid={payFastUuid}
         />
       )}
     </>

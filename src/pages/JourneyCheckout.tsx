@@ -682,8 +682,7 @@ export default function JourneyCheckout() {
           bookingId={paymentBookingId}
           amount={effectiveTotal}
           propertyName={`Journey: ${sortedStays.length} destinations`}
-          isSandbox={true}
-          uuid={paymentUuid || undefined}
+            uuid={paymentUuid || undefined}
         />
       )}
     </PublicLayout>
