@@ -320,6 +320,126 @@ export function buildBrandVarsMap(brand: PropertyBrand): Record<string, string> 
   return vars;
 }
 
+/* ------------------------------------------------------------------ *
+ * ROLOS PMS (admin UI) branding — mode aware
+ * ------------------------------------------------------------------ */
+
+export type UiMode = "light" | "dark";
+
+export interface PmsBrandPalette {
+  primaryColor?: string | null;
+  secondaryColor?: string | null;
+  fontColor?: string | null;
+  accentColor?: string | null;
+  headingFont?: string | null;
+  bodyFont?: string | null;
+}
+
+/** Actual surfaces used by the ROLOS shell, per mode (mirrors index.css). */
+export const PMS_SURFACES: Record<UiMode, { page: string; card: string; sidebar: string }> = {
+  light: { page: "#FFFFFF", card: "#FFFFFF", sidebar: "#FAFAF8" },
+  // 220 20% 8% / 220 18% 12% / 220 18% 10%
+  dark: { page: "#10131A", card: "#191D26", sidebar: "#151922" },
+};
+
+/**
+ * Build ROLOS UI CSS variables for a brand palette in a specific mode.
+ *
+ * Rules:
+ * - Only brand *identity* tokens are overridden (primary, ring, accent, charts,
+ *   sidebar highlight, fonts). Structural surfaces (`--background`, `--card`,
+ *   `--muted`, `--border`) are NEVER touched, so the dark theme survives.
+ * - Every colour is contrast-corrected against the surface for the ACTIVE mode,
+ *   preserving hue by mixing toward white/black only.
+ */
+export function buildPmsBrandVars(palette: PmsBrandPalette, mode: UiMode): Record<string, string> {
+  const vars: Record<string, string> = {};
+  const surface = PMS_SURFACES[mode];
+  const towardText = mode === "dark" ? "#ffffff" : "#000000";
+
+  /** Keep a brand colour recognisable but visible as a *surface* in this mode. */
+  const adaptSurface = (hex: string): string => {
+    // A brand surface must separate from the page background (>= 1.6:1) and its
+    // own label must be readable. Nudge toward the mode's text direction.
+    let candidate = hex;
+    for (let i = 0; i <= 12 && contrastRatio(candidate, surface.page) < 1.6; i++) {
+      candidate = mixHex(hex, towardText, i * 0.06);
+    }
+    return candidate;
+  };
+
+  /** Keep a brand colour readable as *text/fill* on the page (>= 3:1 for UI). */
+  const adaptAccentText = (hex: string, min = 3): string => {
+    if (contrastRatio(hex, surface.page) >= min) return hex;
+    for (let i = 1; i <= 20; i++) {
+      const candidate = mixHex(hex, towardText, i * 0.05);
+      if (contrastRatio(candidate, surface.page) >= min) return candidate;
+    }
+    return enforceContrast(hex, surface.page, min);
+  };
+
+  if (palette.primaryColor) {
+    const primary = adaptSurface(palette.primaryColor);
+    const hsl = hexToHsl(primary);
+    if (hsl) {
+      vars["--primary"] = hsl;
+      vars["--primary-foreground"] = hexToHsl(bestForegroundFor(primary)) ?? autoForeground(primary);
+      vars["--ring"] = hsl;
+      vars["--chart-1"] = hsl;
+      vars["--sidebar-primary"] = hsl;
+      vars["--sidebar-primary-foreground"] =
+        hexToHsl(bestForegroundFor(primary)) ?? autoForeground(primary);
+      vars["--sidebar-ring"] = hsl;
+    }
+    // Brand colour used as text (links, active labels) on the page surface.
+    const safeText = hexToHsl(adaptAccentText(palette.primaryColor, 4.5));
+    if (safeText) vars["--primary-text-safe"] = safeText;
+  }
+
+  // Secondary is a decorative brand tint only — it never becomes `--muted`,
+  // because that token carries the theme's surface contract.
+  if (palette.secondaryColor) {
+    const secondary = adaptSurface(palette.secondaryColor);
+    const hsl = hexToHsl(secondary);
+    if (hsl) {
+      vars["--chart-2"] = hsl;
+      vars["--brand-secondary"] = hsl;
+      vars["--brand-secondary-foreground"] =
+        hexToHsl(bestForegroundFor(secondary)) ?? autoForeground(secondary);
+    }
+  }
+
+  // Sidebar / menu highlight.
+  if (palette.accentColor) {
+    const accent = adaptSurface(palette.accentColor);
+    const hsl = hexToHsl(accent);
+    if (hsl) {
+      vars["--accent"] = hsl;
+      vars["--accent-foreground"] = hexToHsl(bestForegroundFor(accent)) ?? autoForeground(accent);
+      vars["--sidebar-accent"] = hsl;
+      vars["--sidebar-accent-foreground"] =
+        hexToHsl(bestForegroundFor(accent)) ?? autoForeground(accent);
+    }
+  }
+
+  // Owner font colour is honoured ONLY when it is readable in this mode.
+  // In dark mode a near-black brand font colour is dropped, not forced.
+  if (palette.fontColor && contrastRatio(palette.fontColor, surface.card) >= 4.5) {
+    const hsl = hexToHsl(palette.fontColor);
+    if (hsl) {
+      vars["--foreground"] = hsl;
+      vars["--card-foreground"] = hsl;
+      vars["--popover-foreground"] = hsl;
+    }
+  }
+
+  if (palette.headingFont) vars["--font-heading"] = `'${palette.headingFont}', serif`;
+  if (palette.bodyFont) vars["--font-body"] = `'${palette.bodyFont}', sans-serif`;
+
+  return vars;
+}
+
+
 /**
  * Apply brand CSS vars to document.documentElement so all portals
  * (drawers, dialogs, modals) inherit the overridden colours.

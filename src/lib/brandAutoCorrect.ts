@@ -27,6 +27,8 @@ export interface BrandPalette {
 
 export type BrandField = keyof BrandPalette;
 export type BrandMode = "light" | "dark";
+/** Which product surface the problem shows up on. */
+export type BrandScope = "booking" | "rolos";
 
 export interface BrandFix {
   id: string;
@@ -41,7 +43,10 @@ export interface BrandFix {
   severity: "fail" | "warn";
   /** Which presentation mode(s) the underlying problem shows up in. */
   modes: BrandMode[];
+  /** Guest-facing booking pages, or the ROLOS admin interface. */
+  scope: BrandScope;
 }
+
 
 export const AA_TEXT = 4.5;
 export const AA_LARGE = 3;
@@ -93,6 +98,15 @@ function reconcileForBothModes(fg: string, bgA: string, bgB: string, min: number
   return best ? best.hex : null;
 }
 
+/* ── ROLOS shell surfaces (mirrors PMS_SURFACES in brandOverride.ts) ── */
+export const ROLOS_LIGHT_PAGE = "#FFFFFF";
+export const ROLOS_DARK_PAGE = "#10131A";
+export const ROLOS_DARK_CARD = "#191D26";
+const ROLOS_MODES: { mode: BrandMode; page: string; label: string }[] = [
+  { mode: "light", page: ROLOS_LIGHT_PAGE, label: "day" },
+  { mode: "dark", page: ROLOS_DARK_PAGE, label: "dark" },
+];
+
 interface CheckSpec {
   id: string;
   field: BrandField;
@@ -103,6 +117,9 @@ interface CheckSpec {
   min: number;
   reason: string;
   mode: BrandMode;
+  /** Defaults to the guest-facing booking pages. */
+  scope?: BrandScope;
+
   /** When true, propose a plain white/near-black foreground rather than a nudge */
   preferPlain?: boolean;
   /** When true, the *background* is corrected instead of the text colour. */
@@ -281,9 +298,64 @@ export function proposeBrandFixes(palette: BrandPalette): BrandFix[] {
     });
   }
 
+  /* ── ROLOS ADMIN UI — the PMS shell, both modes ───────────────── */
+  // The ROLOS surfaces are fixed by the app theme (they are not brandable),
+  // so only the brand colours themselves can move.
+  if (primary) {
+    ROLOS_MODES.forEach(({ mode, page, label }) => {
+      specs.push({
+        id: `rolos-primary-${mode}`,
+        field: "brand_primary_color",
+        label: "Primary colour inside ROLOS",
+        surface: `ROLOS buttons, active nav & charts (${label})`,
+        fg: primary,
+        bg: page,
+        min: AA_LARGE,
+        mode,
+        scope: "rolos",
+        reason: `Your primary colour is used for buttons, the active menu item and chart series inside the ROLOS interface — it must separate from the ${label} shell background.`,
+        alsoReadableOn: mode === "light" ? ROLOS_DARK_PAGE : ROLOS_LIGHT_PAGE,
+      });
+    });
+  }
+  if (secondary) {
+    ROLOS_MODES.forEach(({ mode, page, label }) => {
+      specs.push({
+        id: `rolos-secondary-${mode}`,
+        field: "brand_secondary_color",
+        label: "Secondary colour inside ROLOS",
+        surface: `ROLOS badges & chart series (${label})`,
+        fg: secondary,
+        bg: page,
+        min: AA_LARGE,
+        mode,
+        scope: "rolos",
+        reason: `The secondary colour tints badges and secondary chart series in the ROLOS interface and must stay distinguishable on the ${label} shell.`,
+        alsoReadableOn: mode === "light" ? ROLOS_DARK_PAGE : ROLOS_LIGHT_PAGE,
+      });
+    });
+  }
+  if (heading) {
+    specs.push({
+      id: "rolos-font-dark",
+      field: headingField,
+      label: "Brand font colour inside ROLOS (dark)",
+      surface: "ROLOS cards & tables (dark)",
+      fg: heading,
+      bg: ROLOS_DARK_CARD,
+      min: AA_TEXT,
+      mode: "dark",
+      scope: "rolos",
+      reason:
+        "This font colour cannot be used on ROLOS cards in dark mode. ROLOS now falls back to the theme text colour automatically — accepting this proposal lets your own colour be used in both modes instead.",
+      alsoReadableOn: ROLOS_LIGHT_PAGE,
+    });
+  }
+
   const fixes: BrandFix[] = [];
 
   for (const spec of specs) {
+    const scope: BrandScope = spec.scope ?? "booking";
     const before = contrastRatio(spec.fg, spec.bg);
     if (before >= spec.min) continue;
 
@@ -308,9 +380,9 @@ export function proposeBrandFixes(palette: BrandPalette): BrandFix[] {
       : contrastRatio(proposed, spec.bg);
     if (after <= before) continue;
 
-    // If the same field is proposed twice, keep the stricter (higher-ratio) proposal
-    // and merge the failing modes so the UI can report "day + dark".
-    const existing = fixes.find((f) => f.field === spec.field);
+    // If the same field is proposed twice for the same scope, keep the stricter
+    // proposal and merge the failing modes so the UI can report "day + dark".
+    const existing = fixes.find((f) => f.field === spec.field && f.scope === scope);
     if (existing) {
       if (!existing.modes.includes(spec.mode)) existing.modes.push(spec.mode);
       if (after > existing.ratioAfter) {
@@ -334,8 +406,10 @@ export function proposeBrandFixes(palette: BrandPalette): BrandFix[] {
       ratioAfter: after,
       severity: before < spec.min * 0.7 ? "fail" : "warn",
       modes: [spec.mode],
+      scope,
     });
   }
+
 
   return fixes;
 }
@@ -359,9 +433,24 @@ export function readabilityScore(palette: BrandPalette): number {
   return Math.max(10, 100 - penalty);
 }
 
-/** Score restricted to a single presentation mode. */
-export function readabilityScoreForMode(palette: BrandPalette, mode: BrandMode): number {
-  const fixes = proposeBrandFixes(palette).filter((f) => f.modes.includes(mode));
+/** Score restricted to a single presentation mode (optionally one scope). */
+export function readabilityScoreForMode(
+  palette: BrandPalette,
+  mode: BrandMode,
+  scope?: BrandScope,
+): number {
+  const fixes = proposeBrandFixes(palette).filter(
+    (f) => f.modes.includes(mode) && (!scope || f.scope === scope),
+  );
+
+  if (fixes.length === 0) return 100;
+  const penalty = fixes.reduce((sum, f) => sum + (f.severity === "fail" ? 22 : 12), 0);
+  return Math.max(10, 100 - penalty);
+}
+
+/** Score restricted to one product surface (booking pages vs ROLOS UI). */
+export function readabilityScoreForScope(palette: BrandPalette, scope: BrandScope): number {
+  const fixes = proposeBrandFixes(palette).filter((f) => f.scope === scope);
   if (fixes.length === 0) return 100;
   const penalty = fixes.reduce((sum, f) => sum + (f.severity === "fail" ? 22 : 12), 0);
   return Math.max(10, 100 - penalty);

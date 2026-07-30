@@ -20,9 +20,13 @@ import {
   applyBrandFixes,
   readabilityScore,
   readabilityScoreForMode,
+  readabilityScoreForScope,
   AA_TEXT,
   AA_LARGE,
   DEFAULT_DARK_BG,
+  ROLOS_LIGHT_PAGE,
+  ROLOS_DARK_PAGE,
+  ROLOS_DARK_CARD,
   type BrandPalette,
   type BrandFix,
   type BrandMode,
@@ -71,6 +75,8 @@ export function BrandReadabilityPanel({ palette, onApply, entityLabel = "propert
   const score = useMemo(() => readabilityScore(palette), [palette]);
   const dayScore = useMemo(() => readabilityScoreForMode(palette, "light"), [palette]);
   const darkScore = useMemo(() => readabilityScoreForMode(palette, "dark"), [palette]);
+  const bookingScore = useMemo(() => readabilityScoreForScope(palette, "booking"), [palette]);
+  const rolosScore = useMemo(() => readabilityScoreForScope(palette, "rolos"), [palette]);
 
   const signature = useMemo(
     () => fixes.map((f) => `${f.field}:${f.proposed}`).sort().join("|"),
@@ -117,6 +123,14 @@ export function BrandReadabilityPanel({ palette, onApply, entityLabel = "propert
   const onDark = surfaceForegroundPair(darkBg, bodyBrand);
   const borderTint = dark ? "#ffffff33" : mutedBrand + "40";
 
+  // ROLOS shell surfaces are owned by the app theme — they never take brand colours.
+  const rolosPage = dark ? ROLOS_DARK_PAGE : ROLOS_LIGHT_PAGE;
+  const rolosCard = dark ? ROLOS_DARK_CARD : "#FFFFFF";
+  const rolosSidebar = dark ? "#151922" : "#FAFAF8";
+  const rolosText = dark ? "#F2F4F8" : "#12151C";
+  const rolosMuted = dark ? "#9AA3B2" : "#667085";
+
+
   const toggle = (id: string) =>
     setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
 
@@ -145,9 +159,28 @@ export function BrandReadabilityPanel({ palette, onApply, entityLabel = "propert
             </p>
           </CardHeader>
           <CardContent className="space-y-3">
-            {fixes.map((fix) => (
-              <FixRow key={fix.id} fix={fix} checked={selected.includes(fix.id)} onToggle={() => toggle(fix.id)} />
-            ))}
+            {(["booking", "rolos"] as const).map((scope) => {
+              const group = fixes.filter((f) => f.scope === scope);
+              if (group.length === 0) return null;
+              return (
+                <div key={scope} className="space-y-2">
+                  <div className="text-[10px] font-semibold uppercase tracking-wide text-foreground/70">
+                    {scope === "booking"
+                      ? "Guest booking pages"
+                      : "ROLOS interface (admin & PMS)"}
+                  </div>
+                  {group.map((fix) => (
+                    <FixRow
+                      key={fix.id}
+                      fix={fix}
+                      checked={selected.includes(fix.id)}
+                      onToggle={() => toggle(fix.id)}
+                    />
+                  ))}
+                </div>
+              );
+            })}
+
             <div className="flex flex-wrap gap-2 pt-1">
               <Button size="sm" onClick={accept} disabled={selected.length === 0}>
                 <Check className="h-4 w-4 mr-1" /> Accept proposed changes ({selected.length})
@@ -218,6 +251,8 @@ export function BrandReadabilityPanel({ palette, onApply, entityLabel = "propert
             </div>
             <Badge variant="outline" className="text-[10px]">Day {dayScore}/100</Badge>
             <Badge variant="outline" className="text-[10px]">Dark {darkScore}/100</Badge>
+            <Badge variant="outline" className="text-[10px]">Booking {bookingScore}/100</Badge>
+            <Badge variant="outline" className="text-[10px]">ROLOS UI {rolosScore}/100</Badge>
           </div>
           <p className="text-xs text-muted-foreground">
             These are exact replicas of the surfaces guests see. Every text pair is checked against the
@@ -362,6 +397,42 @@ export function BrandReadabilityPanel({ palette, onApply, entityLabel = "propert
               </div>
               <div className="text-[10px]" style={{ color: onDark.muted }}>
                 info@jongensfontein.co.za · +27 44 000 0000
+              </div>
+            </div>
+          </Replica>
+
+          {/* 6. ROLOS shell — surfaces are theme-owned, only brand colours move */}
+          <Replica
+            title={`ROLOS interface (${dark ? "dark" : "day"} mode)`}
+            checks={[
+              { label: "Primary on ROLOS shell", fg: primary, bg: rolosPage, min: AA_LARGE },
+              { label: "Button label on primary", fg: onPrimary.fg, bg: primary, min: AA_TEXT },
+              { label: "Card text", fg: rolosText, bg: rolosCard, min: AA_TEXT },
+            ]}
+          >
+            <div className="flex overflow-hidden rounded-md border" style={{ borderColor: dark ? "#ffffff22" : "#00000015", background: rolosPage }}>
+              <div className="w-24 shrink-0 p-2 space-y-1" style={{ background: rolosSidebar }}>
+                <div
+                  className="rounded px-2 py-1 text-[9px] font-medium"
+                  style={{ background: primary, color: onPrimary.fg }}
+                >
+                  Dashboard
+                </div>
+                <div className="px-2 py-1 text-[9px]" style={{ color: rolosMuted }}>Reservations</div>
+                <div className="px-2 py-1 text-[9px]" style={{ color: rolosMuted }}>Housekeeping</div>
+              </div>
+              <div className="flex-1 p-3 space-y-2">
+                <div className="text-xs font-semibold" style={{ color: rolosText }}>Occupancy today</div>
+                <div className="rounded-md border p-2" style={{ background: rolosCard, borderColor: dark ? "#ffffff1a" : "#00000012" }}>
+                  <div className="text-[10px]" style={{ color: rolosMuted }}>Rooms occupied</div>
+                  <div className="text-sm font-semibold" style={{ color: primary }}>18 / 24</div>
+                </div>
+                <span
+                  className="inline-block rounded px-2 py-1 text-[10px] font-medium"
+                  style={{ background: primary, color: onPrimary.fg }}
+                >
+                  New booking
+                </span>
               </div>
             </div>
           </Replica>
