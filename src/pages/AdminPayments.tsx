@@ -69,7 +69,40 @@ export default function AdminPayments() {
     totalRevenue: 0, pendingAmount: 0, failedCount: 0, successCount: 0,
   });
 
-  const { payouts, loading: payoutsLoading, stats: payoutStats } = usePropertyPayouts();
+  const [payoutPeriod, setPayoutPeriod] = useState<string>('this_month');
+
+  const payoutRange = useMemo(() => {
+    const now = new Date();
+    const startOfMonth = (offset: number) =>
+      new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + offset, 1));
+    switch (payoutPeriod) {
+      case 'this_month':
+        return { from: startOfMonth(0).toISOString(), to: startOfMonth(1).toISOString() };
+      case 'last_month':
+        return { from: startOfMonth(-1).toISOString(), to: startOfMonth(0).toISOString() };
+      case 'last_90':
+        return { from: new Date(now.getTime() - 90 * 86400000).toISOString(), to: undefined };
+      default:
+        return { from: undefined, to: undefined };
+    }
+  }, [payoutPeriod]);
+
+  const payoutRangeLabel = useMemo(() => {
+    if (payoutPeriod === 'all') return 'All time, by payment date';
+    const fromD = payoutRange.from ? new Date(payoutRange.from) : null;
+    const toD = payoutRange.to ? new Date(new Date(payoutRange.to).getTime() - 86400000) : new Date();
+    if (!fromD) return 'By payment date';
+    return `${format(fromD, 'd MMM yyyy')} – ${format(toD, 'd MMM yyyy')}, by payment date`;
+  }, [payoutPeriod, payoutRange]);
+
+  const {
+    payouts,
+    loading: payoutsLoading,
+    stats: payoutStats,
+    lastUpdated: payoutsUpdatedAt,
+    refresh: refreshPayouts,
+  } = usePropertyPayouts(payoutRange);
+
 
   useEffect(() => {
     loadPayments();
@@ -264,18 +297,42 @@ export default function AdminPayments() {
         <TabsContent value="payouts">
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <CardTitle className="flex items-center gap-2"><Building2 className="h-5 w-5" />Property Payout Summary</CardTitle>
-                  <CardDescription>Net amounts due to each property after commission and fees</CardDescription>
+                  <CardDescription>
+                    Net amounts due to each property after commission and fees · {payoutRangeLabel}
+                    {payoutsUpdatedAt && (
+                      <span className="block text-xs mt-0.5">
+                        As at {format(payoutsUpdatedAt, 'd MMM yyyy HH:mm')}
+                      </span>
+                    )}
+                  </CardDescription>
                 </div>
-                <Button variant="outline" size="sm"><Download className="h-4 w-4 mr-2" />Export</Button>
+                <div className="flex items-center gap-2">
+                  <Select value={payoutPeriod} onValueChange={setPayoutPeriod}>
+                    <SelectTrigger className="w-[150px] h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="this_month">This month</SelectItem>
+                      <SelectItem value="last_month">Last month</SelectItem>
+                      <SelectItem value="last_90">Last 90 days</SelectItem>
+                      <SelectItem value="all">All time</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button variant="outline" size="sm" onClick={() => refreshPayouts()} disabled={payoutsLoading}>
+                    {payoutsLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Refresh'}
+                  </Button>
+                  <Button variant="outline" size="sm"><Download className="h-4 w-4 mr-2" />Export</Button>
+                </div>
               </div>
             </CardHeader>
             <CardContent>
               <PropertyPayoutTable payouts={payouts} loading={payoutsLoading} />
             </CardContent>
           </Card>
+
         </TabsContent>
 
         {/* Transactions tab */}

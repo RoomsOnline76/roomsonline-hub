@@ -7,6 +7,9 @@ import {
   CommissionGlobalsLike,
 } from "@/lib/commissionResolver";
 
+/** Where the money figure came from: a settled gateway transaction, or the booking record itself. */
+export type PayoutSource = "gateway" | "booking";
+
 export interface PropertyPayout {
   property_id: string;
   property_name: string;
@@ -18,6 +21,8 @@ export interface PropertyPayout {
   fees: number;
   net_amount: number;
   booking_count: number;
+  /** Of booking_count, how many were counted off the booking record (no gateway transaction). */
+  booking_recorded_count: number;
   has_banking: boolean;
   banking_verified: boolean;
   billing_strategy: string;
@@ -39,6 +44,7 @@ export interface PayoutBookingDetail {
   commission_amount: number;
   commission_rate: number;
   commission_type: CommissionType;
+  source: PayoutSource;
 }
 
 // payment_transactions.status is written as 'paid' by the gateway handlers;
@@ -46,6 +52,9 @@ export interface PayoutBookingDetail {
 const SETTLED_TX_STATUSES = ['paid', 'completed', 'succeeded', 'success'];
 // Cancelled/refunded stays are never paid out to the property.
 const EXCLUDED_BOOKING_STATUSES = ['cancelled', 'canceled', 'refunded', 'no_show'];
+// Booking-level paid markers used when no gateway transaction exists.
+const PAID_BOOKING_STATUSES = ['paid', 'settled', 'completed'];
+
 
 const BOOKING_ORIGIN_FIELDS =
   'id, property_id, guest_name, check_in_date, check_out_date, total_price, status, payment_status, integration_type, booking_channel, source_url, calculated_commission, commission_rate_applied, commission_type';
@@ -111,9 +120,30 @@ async function loadCommercialTerms(propertyIds: string[]): Promise<Record<string
   return out;
 }
 
-export function usePropertyPayouts(periodMonth?: string) {
+export interface PayoutPeriod {
+  /** Inclusive ISO start of the payment window. Omit for "all time". */
+  from?: string;
+  /** Exclusive ISO end of the payment window. */
+  to?: string;
+}
+
+/** Accepts a { from, to } range, or a legacy "YYYY-MM" month string. */
+function normalisePeriod(period?: PayoutPeriod | string): PayoutPeriod {
+  if (!period) return {};
+  if (typeof period === 'string') {
+    const startDate = new Date(`${period}-01T00:00:00Z`);
+    const end = new Date(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth() + 1, 1));
+    return { from: startDate.toISOString(), to: end.toISOString() };
+  }
+  return period;
+}
+
+export function usePropertyPayouts(period?: PayoutPeriod | string) {
   const [payouts, setPayouts] = useState<PropertyPayout[]>([]);
   const [loading, setLoading] = useState(true);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+
+  const { from, to } = normalisePeriod(period);
 
   const loadPayouts = async () => {
     try {
@@ -134,31 +164,48 @@ export function usePropertyPayouts(periodMonth?: string) {
         .in('status', SETTLED_TX_STATUSES)
         .order('created_at', { ascending: false });
 
-      if (periodMonth) {
-        // periodMonth is YYYY-MM — bound the transaction date to that month
-        const start = `${periodMonth}-01`;
-        const startDate = new Date(`${start}T00:00:00Z`);
-        const end = new Date(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth() + 1, 1));
-        query = query.gte('created_at', startDate.toISOString()).lt('created_at', end.toISOString());
-      }
+      if (from) query = query.gte('created_at', from);
+      if (to) query = query.lt('created_at', to);
 
       const { data: transactions, error: txError } = await query;
+
 
       if (txError) throw txError;
 
       // Group gross per booking first — commission is resolved per booking origin.
-      const bookingGross: Record<string, { booking: any; gross: number }> = {};
+      const bookingGross: Record<string, { booking: any; gross: number; source: PayoutSource }> = {};
       (transactions || []).forEach((tx: any) => {
         const booking = tx.bookings;
         if (!booking?.properties) return;
         if (EXCLUDED_BOOKING_STATUSES.includes(String(booking.status || '').toLowerCase())) return;
-        if (!bookingGross[booking.id]) bookingGross[booking.id] = { booking, gross: 0 };
+        if (!bookingGross[booking.id]) bookingGross[booking.id] = { booking, gross: 0, source: 'gateway' };
         bookingGross[booking.id].gross += Number(tx.amount) || 0;
+      });
+
+      // Second pass: bookings flagged paid on the booking record but with no settled
+      // gateway transaction (manual capture, folio settlement, imported PMS stays).
+      let bookingQuery = supabase
+        .from('bookings')
+        .select(`${BOOKING_ORIGIN_FIELDS}, created_at, properties!bookings_property_id_fkey!inner(id, name, owner_email)`)
+        .in('payment_status', PAID_BOOKING_STATUSES)
+        .order('created_at', { ascending: false });
+      if (from) bookingQuery = bookingQuery.gte('created_at', from);
+      if (to) bookingQuery = bookingQuery.lt('created_at', to);
+
+      const { data: paidBookings } = await bookingQuery;
+      (paidBookings || []).forEach((b: any) => {
+        if (!b?.properties) return;
+        if (bookingGross[b.id]) return; // already counted from a settled transaction
+        if (EXCLUDED_BOOKING_STATUSES.includes(String(b.status || '').toLowerCase())) return;
+        const gross = Number(b.total_price) || 0;
+        if (gross <= 0) return;
+        bookingGross[b.id] = { booking: b, gross, source: 'booking' };
       });
 
       const propertyIds = Array.from(
         new Set(Object.values(bookingGross).map((b) => b.booking.properties.id as string)),
       );
+
 
       const [scopes, terms, bankRes, globalsRes] = await Promise.all([
         loadBillingScopes(propertyIds),
@@ -179,9 +226,10 @@ export function usePropertyPayouts(periodMonth?: string) {
         gross: number;
         commission: number;
         bookingIds: Set<string>;
+        bookingRecorded: number;
       }> = {};
 
-      Object.values(bookingGross).forEach(({ booking, gross }) => {
+      Object.values(bookingGross).forEach(({ booking, gross, source }) => {
         const pid = booking.properties.id as string;
         const resolved = scopes[pid];
         const config = resolved?.config || null;
@@ -194,6 +242,7 @@ export function usePropertyPayouts(periodMonth?: string) {
             gross: 0,
             commission: 0,
             bookingIds: new Set<string>(),
+            bookingRecorded: 0,
           };
         }
 
@@ -204,6 +253,7 @@ export function usePropertyPayouts(periodMonth?: string) {
         propertyMap[pid].gross += gross;
         propertyMap[pid].commission += commission.amount;
         propertyMap[pid].bookingIds.add(booking.id);
+        if (source === 'booking') propertyMap[pid].bookingRecorded += 1;
       });
 
       const result: PropertyPayout[] = Object.entries(propertyMap).map(([pid, p]) => {
@@ -227,6 +277,7 @@ export function usePropertyPayouts(periodMonth?: string) {
           fees: totalFees,
           net_amount: p.gross - commAmount - totalFees,
           booking_count: p.bookingIds.size,
+          booking_recorded_count: p.bookingRecorded,
           has_banking: !!bankMap[pid]?.exists,
           banking_verified: !!bankMap[pid]?.verified,
           billing_strategy: billing?.billing_strategy || 'default',
@@ -239,6 +290,7 @@ export function usePropertyPayouts(periodMonth?: string) {
 
       result.sort((a, b) => b.gross_amount - a.gross_amount);
       setPayouts(result);
+      setLastUpdated(new Date());
     } catch (error) {
       console.error('Error loading property payouts:', error);
     } finally {
@@ -246,7 +298,8 @@ export function usePropertyPayouts(periodMonth?: string) {
     }
   };
 
-  useEffect(() => { loadPayouts(); }, [periodMonth]);
+  useEffect(() => { loadPayouts(); }, [from, to]);
+
 
   const stats = useMemo(() => ({
     totalDue: payouts.reduce((s, p) => s + p.net_amount, 0),
@@ -256,20 +309,42 @@ export function usePropertyPayouts(periodMonth?: string) {
   }), [payouts]);
 
   const fetchBookingDetails = async (propertyId: string): Promise<PayoutBookingDetail[]> => {
-    const { data } = await supabase
+    let txQuery = supabase
       .from('payment_transactions')
-      .select(`amount, bookings!inner(${BOOKING_ORIGIN_FIELDS})`)
+      .select(`amount, created_at, bookings!inner(${BOOKING_ORIGIN_FIELDS})`)
       .in('status', SETTLED_TX_STATUSES)
       .eq('bookings.property_id', propertyId)
       .order('created_at', { ascending: false });
+    if (from) txQuery = txQuery.gte('created_at', from);
+    if (to) txQuery = txQuery.lt('created_at', to);
 
-    const grouped: Record<string, { booking: any; gross: number }> = {};
+    const { data } = await txQuery;
+
+    const grouped: Record<string, { booking: any; gross: number; source: PayoutSource }> = {};
     (data || []).forEach((tx: any) => {
       const b = tx.bookings;
       if (!b?.id) return;
       if (EXCLUDED_BOOKING_STATUSES.includes(String(b.status || '').toLowerCase())) return;
-      if (!grouped[b.id]) grouped[b.id] = { booking: b, gross: 0 };
+      if (!grouped[b.id]) grouped[b.id] = { booking: b, gross: 0, source: 'gateway' };
       grouped[b.id].gross += Number(tx.amount) || 0;
+    });
+
+    let paidQuery = supabase
+      .from('bookings')
+      .select(`${BOOKING_ORIGIN_FIELDS}, created_at`)
+      .eq('property_id', propertyId)
+      .in('payment_status', PAID_BOOKING_STATUSES)
+      .order('created_at', { ascending: false });
+    if (from) paidQuery = paidQuery.gte('created_at', from);
+    if (to) paidQuery = paidQuery.lt('created_at', to);
+
+    const { data: paidBookings } = await paidQuery;
+    (paidBookings || []).forEach((b: any) => {
+      if (!b?.id || grouped[b.id]) return;
+      if (EXCLUDED_BOOKING_STATUSES.includes(String(b.status || '').toLowerCase())) return;
+      const gross = Number(b.total_price) || 0;
+      if (gross <= 0) return;
+      grouped[b.id] = { booking: b, gross, source: 'booking' };
     });
 
     const [scopes, terms, globalsRes] = await Promise.all([
@@ -281,7 +356,7 @@ export function usePropertyPayouts(periodMonth?: string) {
     const globals =
       (globalsRes.data || []).find((g: any) => g.strategy === (config?.billing_strategy || 'default')) || null;
 
-    return Object.values(grouped).map(({ booking, gross }) => {
+    return Object.values(grouped).map(({ booking, gross, source }) => {
       const termKey = `${propertyId}:${booking.commission_type === 'pms' ? 'pms' : 'listing'}`;
       const commission = resolveBookingCommission(booking, gross, config, globals as any, terms[termKey] ?? null);
       return {
@@ -296,9 +371,11 @@ export function usePropertyPayouts(periodMonth?: string) {
         commission_amount: commission.amount,
         commission_rate: commission.rate,
         commission_type: commission.type,
+        source,
       };
     });
   };
 
-  return { payouts, loading, stats, refresh: loadPayouts, fetchBookingDetails };
+  return { payouts, loading, stats, lastUpdated, refresh: loadPayouts, fetchBookingDetails };
 }
+

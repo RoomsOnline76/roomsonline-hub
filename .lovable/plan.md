@@ -1,23 +1,26 @@
-## What the data shows
+## What the payout summary shows today
 
-I checked the actual rows behind your screenshot. The 8 "Pending" ZAR 950 entries for Dawie Erasmus map to **only 2 bookings** (7 attempts on one booking, 1 on another) — so bookings are *not* being duplicated. The checkout page already reuses an existing pending booking for the same property/dates/email.
+I checked the code and the live data:
 
-What duplicates is the **payment transaction record**: every retry through `payfast-api` inserts a fresh `payment_transactions` row with a new `m_payment_id`, and nothing ever closes the previous pending row. There are three insert sites in that function (hosted redirect, onsite, and the redirect fallback), all doing a plain insert.
+- **Period: all time.** `usePropertyPayouts()` on Admin → Payments is called with no period argument, so it aggregates every settled payment transaction ever recorded. There is no date filter and no label saying so — which is why the period is unclear.
+- **Why recent payouts appear missing:** the summary is built *only* from rows in `payment_transactions` with status `paid/completed/succeeded/success`. Bookings that are marked paid but have no settled transaction row (e.g. booking `eb9f3b81…`, checked out, `payment_status = paid`, zero settled transactions) never appear. Recent gateway retries also sit as `pending` (8 pending rows on 2026-07-29) and are correctly excluded, but the guest-facing booking looks paid to staff.
 
-## Fix
+## Proposed changes
 
-1. **One open payment row per booking.** Add a `recordPendingTransaction()` helper in `payfast-api` that first looks for the booking's existing `pending` PayFast row:
-   - if found: update it in place with the new reference, amount, merchant and credential source, and push the superseded reference into `gateway_response.previous_refs` (plus an `attempts` counter);
-   - if not found: insert as today.
-   Replace all three insert sites with this helper.
+1. **Add a visible period selector + label**
+   - Add a period control to the Property Payout Summary card: `This month`, `Last month`, `Last 90 days`, `All time` (default: `This month`), plus a specific-month picker.
+   - Show the resolved range in the card subtitle ("1 – 31 July 2026, by payment date").
+   - Extend `usePropertyPayouts` to accept a `{ from, to }` range instead of only a `YYYY-MM` string, keeping the existing month behaviour.
 
-2. **Late-ITN safety.** Because references get rolled forward, the ITN handler gains a fallback lookup: if no row matches `m_payment_id`, search `gateway_response->previous_refs` for that reference. A payment that completes on an older attempt still confirms the correct booking, and the amount guard already in place still applies.
+2. **Include paid bookings that have no settled transaction row**
+   - After loading settled transactions, run a second query for bookings in the period with `payment_status IN ('paid','partially_paid')` and a non-excluded status that have no settled transaction.
+   - Attribute their gross from the booking's paid amount (transactions where present, else `total_price`), so manually captured / folio-settled stays are counted.
+   - Tag these rows in the drill-down as `Booking-recorded` vs `Gateway-settled` so admins can see the source of each amount.
 
-3. **Stale pending cleanup (display).** Pending rows older than the PayFast session window stay in the table but are shown as "Expired" rather than "Pending" in the payments list, so the admin view doesn't imply money is in flight.
+3. **Date basis clarity**
+   - Aggregate on payment date (transaction `created_at`; booking `created_at` for booking-recorded rows) and state that on the card, since "payout period" is otherwise ambiguous against check-out dates.
+   - Add a small "as at <timestamp>" line with the existing refresh action.
 
 ## Technical notes
 
-- Files touched: `supabase/functions/payfast-api/index.ts` (helper + 3 call sites + ITN fallback lookup), and the payments list badge mapping in `src/pages/AdminPayments.tsx` for the expired display state.
-- No schema change required — `previous_refs` lives inside the existing `gateway_response` JSONB.
-- No change to booking creation; the existing dedup there is working correctly.
-- Optional (say the word): mark the 7 orphaned Dassiesingel pending rows from 29 Jul as cancelled so the test noise clears out.
+Files touched: `src/hooks/usePropertyPayouts.ts` (range params, second fetch pass, source tagging), `src/pages/AdminPayments.tsx` (period control + labels), `src/components/payments/PropertyPayoutTable.tsx` (source badge in drill-down). No schema or edge-function changes required.
