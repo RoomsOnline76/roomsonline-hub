@@ -139,25 +139,28 @@ export default function AdminIntegrations() {
           </Card>
         ) : selectedProperty && currentProperty ? (
           <div className="space-y-6">
-            {/* HyperGuest Certification Portal (admin-only, global) — collapsed by default */}
+            {/* Rentals United Certification (admin-only) — includes the Discounts suite */}
             {isInternalUser && (
-              <Collapsible>
-                <Card>
-                  <CollapsibleTrigger className="w-full flex items-center justify-between px-6 py-4 text-left hover:bg-muted/40 transition-colors [&[data-state=open]>svg]:rotate-180">
-                    <div>
-                      <div className="text-sm font-semibold">HyperGuest Certification Portal</div>
-                      <div className="text-xs text-muted-foreground">Admin-only certification tooling — click to expand</div>
+              <Card>
+                <CardContent className="py-4 flex items-center justify-between gap-3 flex-wrap">
+                  <div>
+                    <div className="text-sm font-semibold">Rentals United — Certification Console</div>
+                    <div className="text-xs text-muted-foreground">
+                      Endpoint suites (read-only, mandatory, discounts, full), refresh compliance, discount rules and
+                      white-label readiness.
                     </div>
-                    <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform" />
-                  </CollapsibleTrigger>
-                  <CollapsibleContent>
-                    <div className="border-t px-6 py-4">
-                      <HyperGuestPortalAdminCard />
-                    </div>
-                  </CollapsibleContent>
-                </Card>
-              </Collapsible>
+                  </div>
+                  <Button asChild size="sm" variant="outline" className="gap-1.5">
+                    <RouterLink to="/admin/integrations/rentals-united">
+                      Open console <ChevronRight className="h-4 w-4" />
+                    </RouterLink>
+                  </Button>
+                </CardContent>
+              </Card>
             )}
+
+            {/* HyperGuest Certification Portal — hidden while HyperGuest is parked */}
+
 
             {/* PayFast Environment Toggle */}
             <PayFastEnvironmentToggle />
