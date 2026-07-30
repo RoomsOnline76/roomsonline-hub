@@ -311,15 +311,71 @@ Deno.serve(async (req) => {
       return json({ success: true, properties: results });
     }
 
-    // ── user_management (parked) ──
+    // ── Phase 5: RU user management (parked behind a single switch) ──
+    const readUserMgmtFlag = async (): Promise<{ enabled: boolean; note: string; updated_at?: string | null }> => {
+      const { data } = await admin
+        .from("ru_platform_settings")
+        .select("value, updated_at")
+        .eq("key", "user_management")
+        .maybeSingle();
+      const v = (data?.value ?? {}) as { enabled?: boolean; note?: string };
+      return {
+        enabled: v.enabled === true,
+        note: v.note ?? "Parked — awaiting Rentals United confirmation of the ROLOS PMS profile.",
+        updated_at: data?.updated_at ?? null,
+      };
+    };
+
     if (action === "user_management") {
+      const flag = await readUserMgmtFlag();
       const { data, error } = await admin.functions.invoke("rentalsunited-api", { body: { action: "list_users" } });
+      const probeOk = !error && !!data?.success;
       return json({
         success: true,
-        enabled: false,
-        note: "Sub-user creation stays disabled until Rentals United confirms the PMS profile. Guest Communication API is out of scope.",
-        probe: error ? { ok: false, error: error.message } : { ok: !!data?.success, preview: preview(data, 1500) },
+        enabled: flag.enabled,
+        note: flag.note,
+        updated_at: flag.updated_at,
+        guest_communication: "Out of scope — Guest Communication API is not implemented.",
+        endpoints: [
+          { action: "list_users", ru_method: "Pull_ListMyUsers_RQ", implemented: true, gated: false, status: probeOk ? "reachable" : "unverified" },
+          { action: "create_user", ru_method: "Push_CreateUser_RQ", implemented: true, gated: true, status: flag.enabled ? "enabled" : "disabled" },
+          { action: "fill_company_details", ru_method: "Push_FillCompanyDetails_RQ", implemented: true, gated: true, status: flag.enabled ? "enabled" : "disabled" },
+        ],
+        users: data?.users ?? [],
+        probe: error ? { ok: false, error: error.message } : { ok: probeOk, preview: preview(data, 1500) },
       });
+    }
+
+    // ── set_user_management: the one switch that unparks Phase 5 ──
+    if (action === "set_user_management") {
+      const enabled = body.enabled === true;
+      const note = typeof body.note === "string" && body.note.trim()
+        ? body.note.trim()
+        : enabled
+          ? "Enabled — Rentals United confirmed the ROLOS PMS profile; sub-user creation is live."
+          : "Parked — awaiting Rentals United confirmation of the ROLOS PMS profile.";
+      const { error } = await admin
+        .from("ru_platform_settings")
+        .upsert({ key: "user_management", value: { enabled, note }, updated_by: user.id, updated_at: new Date().toISOString() }, { onConflict: "key" });
+      if (error) return json({ success: false, error: { code: "SAVE_FAILED", message: error.message } }, 500);
+      return json({ success: true, enabled, note });
+    }
+
+    // ── create_user / fill_company_details: only run when the switch is on ──
+    if (action === "create_user" || action === "fill_company_details") {
+      const flag = await readUserMgmtFlag();
+      if (!flag.enabled) {
+        return json({
+          success: false,
+          error: { code: "USER_MGMT_DISABLED", message: "RU user management is parked. Enable it on the Users tab once Rentals United confirms the PMS profile." },
+        }, 409);
+      }
+      const payload = action === "create_user"
+        ? { action: "create_user", user: body.user }
+        : { action: "fill_company_details", ru_property_id: body.ru_property_id, company: body.company };
+      const { data, error } = await admin.functions.invoke("rentalsunited-api", { body: payload });
+      if (error) return json({ success: false, error: { code: "RU_CALL_FAILED", message: error.message } }, 502);
+      return json({ success: !!data?.success, result: data, preview: preview(data, 2000) });
     }
 
     // ── run_suite ──
