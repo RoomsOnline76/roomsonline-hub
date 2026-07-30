@@ -2899,6 +2899,7 @@ export default function PropertyForm({
         description: formData.description || null,
         address: formData.address,
         city: formData.city,
+        postal_code: formData.postal_code || null,
         country: formData.country,
         latitude: latitude,
         longitude: longitude,
