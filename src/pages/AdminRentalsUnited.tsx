@@ -68,6 +68,7 @@ export default function AdminRentalsUnited() {
   const [triggering, setTriggering] = useState<string | null>(null);
   // Properties toggled in this session stay on the board even when switched off.
   const [stickyIds, setStickyIds] = useState<Set<string>>(new Set());
+  const [addOpen, setAddOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
