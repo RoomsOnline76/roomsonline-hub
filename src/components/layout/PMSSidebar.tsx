@@ -32,6 +32,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { usePMSBrand } from "@/contexts/PMSBrandContext";
 import { usePmsStaffRole } from "@/hooks/usePmsStaffRole";
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
+import { usePmsHousekeepingCounts } from "@/hooks/usePmsHousekeepingCounts";
 import { getVisibleModules, type PmsModule } from "@/lib/pmsPermissions";
 import { PoweredByRolOS } from "@/components/pms/PoweredByRolOS";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
