@@ -226,9 +226,10 @@ export function usePropertyPayouts(period?: PayoutPeriod | string) {
         gross: number;
         commission: number;
         bookingIds: Set<string>;
+        bookingRecorded: number;
       }> = {};
 
-      Object.values(bookingGross).forEach(({ booking, gross }) => {
+      Object.values(bookingGross).forEach(({ booking, gross, source }) => {
         const pid = booking.properties.id as string;
         const resolved = scopes[pid];
         const config = resolved?.config || null;
@@ -241,6 +242,7 @@ export function usePropertyPayouts(period?: PayoutPeriod | string) {
             gross: 0,
             commission: 0,
             bookingIds: new Set<string>(),
+            bookingRecorded: 0,
           };
         }
 
@@ -251,6 +253,7 @@ export function usePropertyPayouts(period?: PayoutPeriod | string) {
         propertyMap[pid].gross += gross;
         propertyMap[pid].commission += commission.amount;
         propertyMap[pid].bookingIds.add(booking.id);
+        if (source === 'booking') propertyMap[pid].bookingRecorded += 1;
       });
 
       const result: PropertyPayout[] = Object.entries(propertyMap).map(([pid, p]) => {
@@ -274,6 +277,7 @@ export function usePropertyPayouts(period?: PayoutPeriod | string) {
           fees: totalFees,
           net_amount: p.gross - commAmount - totalFees,
           booking_count: p.bookingIds.size,
+          booking_recorded_count: p.bookingRecorded,
           has_banking: !!bankMap[pid]?.exists,
           banking_verified: !!bankMap[pid]?.verified,
           billing_strategy: billing?.billing_strategy || 'default',
@@ -286,6 +290,7 @@ export function usePropertyPayouts(period?: PayoutPeriod | string) {
 
       result.sort((a, b) => b.gross_amount - a.gross_amount);
       setPayouts(result);
+      setLastUpdated(new Date());
     } catch (error) {
       console.error('Error loading property payouts:', error);
     } finally {
@@ -293,7 +298,8 @@ export function usePropertyPayouts(period?: PayoutPeriod | string) {
     }
   };
 
-  useEffect(() => { loadPayouts(); }, [periodMonth]);
+  useEffect(() => { loadPayouts(); }, [from, to]);
+
 
   const stats = useMemo(() => ({
     totalDue: payouts.reduce((s, p) => s + p.net_amount, 0),
