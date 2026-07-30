@@ -160,7 +160,11 @@ export function RuCertificationConsole({ properties }: { properties: PropertyLit
   const [discountsLoading, setDiscountsLoading] = useState(false);
   const [draft, setDraft] = useState({ discount_type: "long_stay", threshold: "7", discount_percent: "10", date_from: "", date_to: "" });
 
-  const [userMgmt, setUserMgmt] = useState<{ enabled: boolean; note: string; probe?: any } | null>(null);
+  const [userMgmt, setUserMgmt] = useState<UserMgmtState | null>(null);
+  const [userMgmtLoading, setUserMgmtLoading] = useState(false);
+  const [savingFlag, setSavingFlag] = useState(false);
+  const [userDraft, setUserDraft] = useState({ first_name: "", last_name: "", email: "", password: "" });
+  const [creatingUser, setCreatingUser] = useState(false);
 
   const candidateProperties = useMemo(
     () => properties.filter((p) => p.ru_push_enabled || p.rentalsunited_property_id),
