@@ -63,6 +63,21 @@ interface CadenceRule {
   next_due_at: string | null;
   state: "green" | "amber" | "red";
 }
+interface CronJob {
+  jobname: string;
+  schedule: string;
+  active: boolean;
+  last_run_at: string | null;
+  last_status: string | null;
+}
+
+interface ExpectedJob {
+  jobname: string;
+  schedule: string;
+  fn: string;
+  label: string;
+}
+
 
 interface ReadinessRow {
   property_id: string;
