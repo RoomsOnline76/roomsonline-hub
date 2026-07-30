@@ -122,11 +122,15 @@ export function useAdminActionCounts({ isAdmin, isDev, isFearlessLeader }: UseAd
             .select("id", { count: "exact", head: true })
             .eq("status", "pending_approval")
         ),
+        // Only payments that still need attention: pending and not yet aged out.
+        // Older pending rows are abandoned checkout retries (shown as "Expired"
+        // and hidden by default on /admin/payments), so they must not badge.
         safeCount(() =>
           supabase
             .from("payment_transactions")
             .select("id", { count: "exact", head: true })
             .eq("status", "pending")
+            .gte("created_at", new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString())
         ),
         countOnboardingAwaitingReview(),
         canSeeDevQueues
