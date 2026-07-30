@@ -1960,6 +1960,24 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Channel Manager billing entitlement gate — archived listings must never
+    // receive further pushes until billing is re-enabled by admin.
+    if (!dry_run && (property as { ru_archived?: boolean }).ru_archived) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: {
+            code: 'CHANNEL_MANAGER_DISABLED',
+            message:
+              'Channel Manager billing is disabled for this property, so its Rentals United listing is archived. Re-enable the Channel Manager in Billing to resume syncing.',
+          },
+        }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+
+
     const { data: roomTypes } = await supabase
       .from('hostfully_room_types')
       .select('id, name, description, max_guests, bedrooms, bathrooms, beds, bed_configuration, linked_rolos_id, amenities, images, check_in_time, check_out_time, check_in_instructions, cleaning_fee, security_deposit, address_street, address_postal_code, latitude, longitude, property_type, cancellation_policy, room_size, rentalsunited_property_id')
