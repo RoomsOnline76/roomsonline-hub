@@ -348,16 +348,20 @@ serve(async (req) => {
 type ResolveFn = (prop: number | null | undefined, global: number | null | undefined, fallback: number) => number;
 
 const PMS_INTEGRATION_TYPES = ['rolos', 'widget', 'embed', 'api', 'wordpress', 'booking_bar'];
-const PMS_CHANNELS = ['direct', 'widget', 'embed', 'api'];
+const PMS_CHANNELS = ['direct', 'widget', 'embed', 'api', 'white_label', 'whitelabel'];
+const EXTERNAL_CHANNELS = ['booking.com', 'booking_com', 'expedia', 'airbnb', 'vrbo', 'lekkeslaap', 'google', 'hyperguest', 'nightsbridge', 'channel'];
 
-function resolveCommissionType(booking: any): 'listing' | 'pms' {
+function resolveCommissionType(booking: any): 'listing' | 'pms' | 'external' {
   if (!booking) return 'listing';
+  const channel = String(booking.booking_channel || '').toLowerCase();
+  if (channel && EXTERNAL_CHANNELS.some((c) => channel.includes(c))) return 'external';
   if (booking.integration_type && PMS_INTEGRATION_TYPES.includes(booking.integration_type)) return 'pms';
-  if (booking.booking_channel && PMS_CHANNELS.includes(booking.booking_channel)) return 'pms';
+  if (channel && PMS_CHANNELS.includes(channel)) return 'pms';
   if (booking.source_url && (
     booking.source_url.includes('widget') ||
     booking.source_url.includes('embed') ||
-    booking.source_url.includes('wordpress')
+    booking.source_url.includes('wordpress') ||
+    booking.source_url.includes('wl=1')
   )) return 'pms';
   return 'listing';
 }
@@ -366,6 +370,17 @@ async function calcDefault(
   supabase: any, propertyId: string, booking: any, amount: number, config: any, globals: any, resolve: ResolveFn
 ): Promise<BillingResult> {
   const commissionType = resolveCommissionType(booking);
+
+  // Reservations pushed in from third-party channels carry no ROL commission —
+  // the OTA already bills the property directly.
+  if (commissionType === 'external') {
+    return {
+      amount: 0,
+      type: 'commission',
+      metadata: { rate: 0, commission_type: 'external', source: 'channel_sourced' },
+    };
+  }
+
   const hardcodedDefault = commissionType === 'pms' ? 2 : 10;
 
   // Check commercial terms first
@@ -380,8 +395,16 @@ async function calcDefault(
     .order("effective_from", { ascending: false })
     .limit(1);
 
+  // Per-origin rate: dedicated column → legacy shared column → global default → hardcoded.
+  const configRate = commissionType === 'pms'
+    ? config?.pms_commission_rate
+    : (config?.listing_commission_rate ?? config?.commission_rate);
+  const globalRate = commissionType === 'pms'
+    ? (globals?.pms_commission_rate ?? null)
+    : (globals?.listing_commission_rate ?? globals?.default_commission_rate);
+
   const rate = terms?.[0]?.revenue_share_percent
-    ?? resolve(config?.commission_rate, globals?.default_commission_rate, hardcodedDefault);
+    ?? resolve(configRate, globalRate, hardcodedDefault);
   const commission = amount * (rate / 100);
 
   return {
@@ -390,6 +413,7 @@ async function calcDefault(
     metadata: { rate, commission_type: commissionType, source: terms?.[0] ? 'commercial_term' : 'config' },
   };
 }
+
 
 async function calcWidget(
   supabase: any, propertyId: string, amount: number, config: any, globals: any, resolve: ResolveFn
