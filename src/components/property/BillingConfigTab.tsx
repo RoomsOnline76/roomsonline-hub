@@ -39,6 +39,8 @@ function presetToBuilder(row: BillingDefault): BillingConfigValue {
   const v = emptyBuilderValue();
   v.commission_enabled = row.default_commission_rate != null && row.default_commission_rate > 0 && row.strategy !== "widget";
   v.commission_rate = row.default_commission_rate != null ? String(row.default_commission_rate) : "";
+  v.pms_commission_rate = (row as any).pms_commission_rate != null ? String((row as any).pms_commission_rate) : "";
+
   v.widget_tiers_enabled = row.strategy === "widget" && (row as any).widget_flat_commission_rate == null;
   v.widget_flat_enabled = (row as any).widget_flat_commission_rate != null;
   v.widget_flat_rate = (row as any).widget_flat_commission_rate != null ? String((row as any).widget_flat_commission_rate) : "";
