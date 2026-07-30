@@ -763,14 +763,24 @@ Deno.serve(async (req) => {
         plainPassword?: string | null,
       ) => {
         if (!account?.id) return { sent: false, error: "No local RU account row" };
-        if (account.company_details_sent) return { sent: true, skipped: true as const };
+        // Idempotent: treat it as done only when RU actually confirmed it.
+        if (account.company_details_sent === true && account.company_filled_at) {
+          return { sent: true, skipped: true as const };
+        }
 
-        let password: string | null = plainPassword ?? null;
+        // Password sources, in order: this call, an admin-supplied password
+        // (adopted accounts), or the encrypted copy stored at creation time.
+        let password: string | null = plainPassword ?? (body.ru_login_password as string | undefined) ?? null;
         if (!password && account.ru_login_password_enc) {
           const { data: decrypted } = await admin.rpc("decrypt_sensitive_text", {
             encrypted_data: account.ru_login_password_enc,
           });
           password = (decrypted as string | null) ?? null;
+        }
+        if (password && !account.ru_login_password_enc) {
+          // Persist it so later retries/backfills never need the operator again.
+          const { data: enc } = await admin.rpc("encrypt_sensitive_text", { plaintext: password });
+          if (enc) await admin.from("ru_owner_accounts").update({ ru_login_password_enc: enc }).eq("id", account.id);
         }
         if (!password) {
           await admin
@@ -781,9 +791,10 @@ Deno.serve(async (req) => {
             sent: false,
             deferred: true as const,
             error:
-              "The sub-user login password is not held locally (the account was adopted rather than created here), so RU company details must be completed once in the RU UI (User Profile → Company Profile), or the sub-user recreated with a fresh email.",
+              "The sub-user login password is not held locally (the account was adopted rather than created here). Supply it once (Complete company details → paste the RU sub-user password) so Push_FillCompanyDetails_RQ can authenticate, or recreate the sub-user with a fresh email.",
           };
         }
+
 
         // Resolve company info from the portfolio (preferred) or the property.
         let companyName = ownerName || "";
