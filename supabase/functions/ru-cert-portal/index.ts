@@ -949,11 +949,23 @@ Deno.serve(async (req) => {
           success: true,
           created: false,
           company_details_sent: companyResult.sent,
+          company_details_manual_required: Boolean((companyResult as any).deferred),
           company_details_warning: companyResult.sent ? null : companyResult.error,
           account: refreshed ?? existing.account,
           scope: existing.scope,
         });
       }
+
+      if (action === "ensure_company_details") {
+        return json({
+          success: false,
+          error: {
+            code: "NO_RU_SUBUSER",
+            message: "No Rentals United sub-user exists yet for this owner — run Create sub-user first.",
+          },
+        }, 409);
+      }
+
 
 
       // Create the RU sub-user
