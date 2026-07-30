@@ -688,7 +688,9 @@ Deno.serve(async (req) => {
     }
 
     // ── ensure_owner_account: Phase 1 sub-user (portfolio-first) ──
-    if (action === "ensure_owner_account") {
+    // `ensure_company_details` is the same atomic flow: it re-enters here, finds the
+    // existing sub-user and (re)submits Push_FillCompanyDetails_RQ until it sticks.
+    if (action === "ensure_owner_account" || action === "ensure_company_details") {
       const propertyId: string | null = body.property_id ?? null;
       let portfolioId: string | null = body.portfolio_id ?? null;
       if (!propertyId && !portfolioId) {
@@ -761,14 +763,24 @@ Deno.serve(async (req) => {
         plainPassword?: string | null,
       ) => {
         if (!account?.id) return { sent: false, error: "No local RU account row" };
-        if (account.company_details_sent) return { sent: true, skipped: true as const };
+        // Idempotent: treat it as done only when RU actually confirmed it.
+        if (account.company_details_sent === true && account.company_filled_at) {
+          return { sent: true, skipped: true as const };
+        }
 
-        let password: string | null = plainPassword ?? null;
+        // Password sources, in order: this call, an admin-supplied password
+        // (adopted accounts), or the encrypted copy stored at creation time.
+        let password: string | null = plainPassword ?? (body.ru_login_password as string | undefined) ?? null;
         if (!password && account.ru_login_password_enc) {
           const { data: decrypted } = await admin.rpc("decrypt_sensitive_text", {
             encrypted_data: account.ru_login_password_enc,
           });
           password = (decrypted as string | null) ?? null;
+        }
+        if (password && !account.ru_login_password_enc) {
+          // Persist it so later retries/backfills never need the operator again.
+          const { data: enc } = await admin.rpc("encrypt_sensitive_text", { plaintext: password });
+          if (enc) await admin.from("ru_owner_accounts").update({ ru_login_password_enc: enc }).eq("id", account.id);
         }
         if (!password) {
           await admin
@@ -779,9 +791,10 @@ Deno.serve(async (req) => {
             sent: false,
             deferred: true as const,
             error:
-              "The sub-user login password is not held locally (the account was adopted rather than created here), so RU company details must be completed once in the RU UI (User Profile → Company Profile), or the sub-user recreated with a fresh email.",
+              "The sub-user login password is not held locally (the account was adopted rather than created here). Supply it once (Complete company details → paste the RU sub-user password) so Push_FillCompanyDetails_RQ can authenticate, or recreate the sub-user with a fresh email.",
           };
         }
+
 
         // Resolve company info from the portfolio (preferred) or the property.
         let companyName = ownerName || "";
@@ -857,26 +870,38 @@ Deno.serve(async (req) => {
           location_ids: locationIds,
         };
 
-        const { data: filled, error: fillErr } = await admin.functions.invoke("rentalsunited-api", {
-          body: {
-            action: "fill_company_details",
-            company,
-            auth_username: account.ru_login_email ?? ownerEmail,
-            auth_password: password,
-          },
-        });
+        // Retry transient RU/network failures — Phase 1 must not be left half-done.
+        let filled: any = null;
+        let fillErr: any = null;
+        let lastMessage = "";
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          const res = await admin.functions.invoke("rentalsunited-api", {
+            body: {
+              action: "fill_company_details",
+              company,
+              auth_username: account.ru_login_email ?? ownerEmail,
+              auth_password: password,
+            },
+          });
+          filled = res.data;
+          fillErr = res.error;
+          if (!fillErr && filled?.success) break;
+          lastMessage = String(
+            (filled as any)?.error?.message ?? fillErr?.message ?? "Rentals United rejected the company details",
+          );
+          // Validation/schema rejections will never succeed on retry.
+          const permanent = /INCOMPLETE|requires these|invalid|credential|password|authenticat/i.test(lastMessage);
+          if (permanent || attempt === 3) break;
+          await new Promise((r) => setTimeout(r, attempt * 900));
+        }
         if (fillErr || !filled?.success) {
           await admin
             .from("ru_owner_accounts")
             .update({ company_details_status: "failed" })
             .eq("id", account.id);
-          return {
-            sent: false,
-            error: String(
-              (filled as any)?.error?.message ?? fillErr?.message ?? "Rentals United rejected the company details",
-            ),
-          };
+          return { sent: false, error: lastMessage };
         }
+
         await admin
           .from("ru_owner_accounts")
           .update({
@@ -924,11 +949,23 @@ Deno.serve(async (req) => {
           success: true,
           created: false,
           company_details_sent: companyResult.sent,
+          company_details_manual_required: Boolean((companyResult as any).deferred),
           company_details_warning: companyResult.sent ? null : companyResult.error,
           account: refreshed ?? existing.account,
           scope: existing.scope,
         });
       }
+
+      if (action === "ensure_company_details") {
+        return json({
+          success: false,
+          error: {
+            code: "NO_RU_SUBUSER",
+            message: "No Rentals United sub-user exists yet for this owner — run Create sub-user first.",
+          },
+        }, 409);
+      }
+
 
 
       // Create the RU sub-user
@@ -1072,10 +1109,12 @@ Deno.serve(async (req) => {
         created: !adopted,
         adopted,
         company_details_sent: companyResult.sent,
+        company_details_manual_required: Boolean((companyResult as any).deferred),
         company_details_warning: companyResult.sent ? null : companyResult.error,
         account: finalAccount ?? saved,
         scope: portfolioId ? "portfolio" : "property",
       });
+
 
 
     }
