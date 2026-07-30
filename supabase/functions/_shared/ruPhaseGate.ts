@@ -51,6 +51,8 @@ export interface RuOwnerAccount {
   scope: string | null;
   company_details_sent: boolean | null;
   company_filled_at: string | null;
+  company_details_status?: string | null;
+  ru_login_password_enc?: unknown;
 }
 
 /** Resolve the portfolio a property belongs to (if any). */
@@ -160,7 +162,7 @@ export async function evaluatePhases(
     );
   }
   if (account && !account.company_filled_at && account.company_details_sent !== true) {
-    p1Blockers.push("Company details have not been submitted to Rentals United (Push_FillCompanyDetails_RQ).");
+    p1Blockers.push("Company details have not been submitted to Rentals United (Push_FillCompanyDetails_RQ) \u2014 run \"Complete company details\".");
   }
 
   // ── Phase 2 ──
@@ -221,6 +223,11 @@ export async function evaluatePhases(
         ru_owner_id: account?.ru_owner_id ?? null,
         ru_user_id: account?.ru_user_id ?? null,
         company_filled_at: account?.company_filled_at ?? null,
+        company_details_status: account?.company_details_status ?? null,
+        // True when RU company details can only be completed with an operator-supplied
+        // sub-user password (adopted accounts) — surfaced so the UI can prompt for it.
+        company_details_manual_required:
+          Boolean(account) && !account?.company_filled_at && !account?.ru_login_password_enc,
         user_management_enabled: subUserLive,
       },
     },
