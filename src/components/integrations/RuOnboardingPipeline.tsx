@@ -4,6 +4,15 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
+import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { extractFunctionError } from "@/lib/functionError";
@@ -83,6 +92,8 @@ export function RuOnboardingPipeline({ propertyId, readOnly = false, standalone 
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState<PhaseKey | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [passwordOpen, setPasswordOpen] = useState(false);
+  const [passwordValue, setPasswordValue] = useState("");
 
   const load = useCallback(async () => {
     if (!propertyId) return;
@@ -123,6 +134,14 @@ export function RuOnboardingPipeline({ propertyId, readOnly = false, standalone 
           fnError ? await extractFunctionError(fnError, "Action failed") : data?.error?.message ?? "Action failed",
           { duration: 10000 },
         );
+      } else if (data?.company_details_manual_required) {
+        // Stored credentials could not authenticate — ask for the password in-app
+        // (never via a native browser prompt, which exposes the host URL).
+        setPasswordOpen(true);
+        toast.warning(
+          String(data.company_details_warning ?? "The stored sub-user password could not be used — enter it once to continue."),
+          { duration: 10000 },
+        );
       } else if (data?.company_details_warning) {
         // Sub-user is in place but Push_FillCompanyDetails_RQ still outstanding.
         toast.warning(String(data.company_details_warning), { duration: 12000 });
@@ -130,8 +149,23 @@ export function RuOnboardingPipeline({ propertyId, readOnly = false, standalone 
         toast.success(successMsg);
       }
       await load();
+      return data;
     },
     [load],
+  );
+
+  const submitCompanyDetails = useCallback(
+    (password?: string) =>
+      runAction(
+        "p1_subuser",
+        {
+          action: "ensure_company_details",
+          property_id: propertyId,
+          ...(password ? { ru_login_password: password } : {}),
+        },
+        "Company details submitted to Rentals United",
+      ),
+    [runAction, propertyId],
   );
 
   const pushToRu = useCallback(async () => {
@@ -164,31 +198,9 @@ export function RuOnboardingPipeline({ propertyId, readOnly = false, standalone 
 
     if (phase.key === "p1_subuser" && phase.status !== "passed") {
       const hasSubUser = Boolean(phase.detail?.ru_owner_id);
-      const manualPassword = Boolean(phase.detail?.company_details_manual_required);
       if (hasSubUser) {
         return (
-          <Button
-            size="sm"
-            disabled={disabled}
-            onClick={() => {
-              let pwd: string | null = null;
-              if (manualPassword) {
-                pwd = window.prompt(
-                  "Rentals United applies company details to whichever account signs in, so the sub-user password is required. Paste the RU sub-user password (it will be stored encrypted):",
-                );
-                if (!pwd) return;
-              }
-              runAction(
-                "p1_subuser",
-                {
-                  action: "ensure_company_details",
-                  property_id: propertyId,
-                  ...(pwd ? { ru_login_password: pwd } : {}),
-                },
-                "Company details submitted to Rentals United",
-              );
-            }}
-          >
+          <Button size="sm" disabled={disabled} onClick={() => submitCompanyDetails()}>
             {spinner ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BadgeCheck className="mr-2 h-4 w-4" />}
             Complete company details
           </Button>
@@ -306,6 +318,42 @@ export function RuOnboardingPipeline({ propertyId, readOnly = false, standalone 
       {!loading && phases.length === 0 && !error && (
         <p className="text-sm text-muted-foreground">No onboarding data yet.</p>
       )}
+
+      <Dialog open={passwordOpen} onOpenChange={setPasswordOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rentals United sub-user password</DialogTitle>
+            <DialogDescription>
+              We normally sign in with the password stored encrypted for this sub-user. It could not be used
+              (usually because the account was adopted rather than created here). Enter it once — it will be
+              stored encrypted and reused automatically from now on.
+            </DialogDescription>
+          </DialogHeader>
+          <Input
+            type="password"
+            autoComplete="off"
+            value={passwordValue}
+            onChange={(e) => setPasswordValue(e.target.value)}
+            placeholder="RU sub-user password"
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPasswordOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              disabled={!passwordValue || busy !== null}
+              onClick={async () => {
+                const pwd = passwordValue;
+                setPasswordOpen(false);
+                setPasswordValue("");
+                await submitCompanyDetails(pwd);
+              }}
+            >
+              Submit company details
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 
