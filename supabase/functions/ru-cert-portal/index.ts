@@ -446,37 +446,73 @@ Deno.serve(async (req) => {
       }
 
       if (runDiscounts) {
-        let longStay: { threshold: number; discount_percent: number }[] = [];
-        let lastMinute: { threshold: number; discount_percent: number }[] = [];
+        type DiscountRow = { threshold: number; discount_percent: number; date_from: string | null; date_to: string | null };
+        let longStay: DiscountRow[] = [];
+        let lastMinute: DiscountRow[] = [];
         if (propertyId) {
           const { data: discounts } = await admin
             .from("ru_discounts")
-            .select("discount_type, threshold, discount_percent")
+            .select("discount_type, threshold, discount_percent, date_from, date_to")
             .eq("property_id", propertyId)
             .eq("is_active", true)
             .order("threshold");
-          longStay = (discounts ?? []).filter((d: any) => d.discount_type === "long_stay");
-          lastMinute = (discounts ?? []).filter((d: any) => d.discount_type === "last_minute");
+          longStay = (discounts ?? []).filter((d: any) => d.discount_type === "long_stay") as DiscountRow[];
+          lastMinute = (discounts ?? []).filter((d: any) => d.discount_type === "last_minute") as DiscountRow[];
         }
 
-        const mapEntries = (rows: { threshold: number; discount_percent: number }[]) =>
-          rows.map((r) => ({ value: Number(r.threshold), discount: Number(r.discount_percent) }));
+        // RUDiscountEntry wire shape — long stay: nights_from = threshold nights.
+        // Last minute: nights_from/nights_to map to DaysToArrivalFrom/To, so a
+        // "within N days of arrival" rule is 0 -> threshold.
+        const mapLongStay = (rows: DiscountRow[]) =>
+          rows.map((r) => ({
+            date_from: r.date_from ?? isoDate(0),
+            date_to: r.date_to ?? isoDate(365),
+            nights_from: Number(r.threshold),
+            nights_to: 999,
+            discount_percentage: Number(r.discount_percent),
+          }));
+        const mapLastMinute = (rows: DiscountRow[]) =>
+          rows.map((r) => ({
+            date_from: r.date_from ?? isoDate(0),
+            date_to: r.date_to ?? isoDate(365),
+            nights_from: 0,
+            nights_to: Number(r.threshold),
+            discount_percentage: Number(r.discount_percent),
+          }));
 
         await call(
           "Push long-stay discounts",
           "push_long_stay_discounts",
-          { ru_property_id: ruPropertyId, discounts: mapEntries(longStay) },
+          { ru_property_id: ruPropertyId, discounts: mapLongStay(longStay) },
           { mandatory: false, skip: noProp ?? (longStay.length === 0 ? "No active long-stay discounts configured for this property." : undefined) },
         );
-        await call("Verify long-stay discounts", "get_long_stay_discounts", { ru_property_id: ruPropertyId }, { mandatory: false, skip: noProp ?? (longStay.length === 0 ? "Nothing pushed." : undefined) });
+        await call(
+          "Verify long-stay discounts",
+          "get_long_stay_discounts",
+          { ru_property_id: ruPropertyId },
+          {
+            mandatory: false,
+            skip: noProp ?? (longStay.length === 0 ? "Nothing pushed." : undefined),
+            assert: (d) => (/<LongStay/i.test(String(d?.raw_xml ?? "")) ? null : "RU did not echo any long-stay discounts"),
+          },
+        );
 
         await call(
           "Push last-minute discounts",
           "push_last_minute_discounts",
-          { ru_property_id: ruPropertyId, discounts: mapEntries(lastMinute) },
+          { ru_property_id: ruPropertyId, discounts: mapLastMinute(lastMinute) },
           { mandatory: false, skip: noProp ?? (lastMinute.length === 0 ? "No active last-minute discounts configured for this property." : undefined) },
         );
-        await call("Verify last-minute discounts", "get_last_minute_discounts", { ru_property_id: ruPropertyId }, { mandatory: false, skip: noProp ?? (lastMinute.length === 0 ? "Nothing pushed." : undefined) });
+        await call(
+          "Verify last-minute discounts",
+          "get_last_minute_discounts",
+          { ru_property_id: ruPropertyId },
+          {
+            mandatory: false,
+            skip: noProp ?? (lastMinute.length === 0 ? "Nothing pushed." : undefined),
+            assert: (d) => (/<LastMinute/i.test(String(d?.raw_xml ?? "")) ? null : "RU did not echo any last-minute discounts"),
+          },
+        );
       }
 
       const passed = steps.filter((s) => s.status === "passed").length;

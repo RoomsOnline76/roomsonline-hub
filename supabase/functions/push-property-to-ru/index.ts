@@ -1310,16 +1310,56 @@ async function pushDiscounts(
     return result;
   }
 
-  if (!specials || specials.length === 0) {
+  const today = new Date();
+  const todayStr = today.toISOString().slice(0, 10);
+  const oneYearStr = new Date(today.getFullYear() + 1, today.getMonth(), today.getDate()).toISOString().slice(0, 10);
+
+  // RU-specific discount rules authored in ROLOS (Phase 3) — these are the canonical
+  // source for Push_PutLongStayDiscounts_RQ / Push_PutLastMinuteDiscounts_RQ and are
+  // merged with any percentage specials configured on the property.
+  const { data: ruRules, error: ruRulesErr } = await supabase
+    .from('ru_discounts')
+    .select('discount_type, threshold, discount_percent, date_from, date_to')
+    .eq('property_id', propertyId)
+    .eq('is_active', true)
+    .order('threshold');
+
+  if (ruRulesErr) {
+    result.discount_errors.push(`Failed to load RU discount rules: ${ruRulesErr.message}`);
+  }
+
+  const ruLongStay: LongStayTier[] = (ruRules ?? [])
+    .filter((r: any) => r.discount_type === 'long_stay')
+    .map((r: any) => ({
+      date_from: r.date_from || todayStr,
+      date_to: r.date_to || oneYearStr,
+      nights_from: Number(r.threshold),
+      nights_to: 999,
+      percentage: Number(r.discount_percent),
+    }));
+
+  const ruLastMinute: LastMinuteTier[] = (ruRules ?? [])
+    .filter((r: any) => r.discount_type === 'last_minute')
+    .map((r: any) => ({
+      date_from: r.date_from || todayStr,
+      date_to: r.date_to || oneYearStr,
+      days_to_arrival_from: 0,
+      days_to_arrival_to: Number(r.threshold),
+      percentage: Number(r.discount_percent),
+    }));
+
+  const hasRuRules = ruLongStay.length > 0 || ruLastMinute.length > 0;
+
+  if ((!specials || specials.length === 0) && !hasRuRules) {
     // 8.3 — Empty: skip RU calls, log to sync_logs
     result.discounts_skipped = true;
-    console.log(`[push-property-to-ru] No active discount specials for property ${propertyId} — skipping RU discount endpoints`);
+    console.log(`[push-property-to-ru] No active discount rules for property ${propertyId} — skipping RU discount endpoints`);
     try {
       await supabase.from('sync_logs').insert({
         property_id: propertyId,
         sync_type: 'discounts_verification',
         status: 'skipped',
-        message: 'No active discount specials configured; skipped Push_PutLongStayDiscounts_RQ and Push_PutLastMinuteDiscounts_RQ',
+        message: 'No active discount rules configured; skipped Push_PutLongStayDiscounts_RQ and Push_PutLastMinuteDiscounts_RQ',
         metadata: { ru_property_ids: ruPropertyIds.map(r => r.ruId) },
       });
     } catch (logErr) {
@@ -1328,23 +1368,19 @@ async function pushDiscounts(
     return result;
   }
 
-  console.log(`[push-property-to-ru] Found ${specials.length} active percentage discounts for property ${propertyId}`);
-
-  const today = new Date();
-  const todayStr = today.toISOString().slice(0, 10);
-  const oneYearStr = new Date(today.getFullYear() + 1, today.getMonth(), today.getDate()).toISOString().slice(0, 10);
+  console.log(`[push-property-to-ru] Discounts for ${propertyId}: ${specials?.length ?? 0} specials + ${ruLongStay.length + ruLastMinute.length} RU rules`);
 
   for (const { ruId, roomTypeId } of ruPropertyIds) {
     if (ruId <= 0) continue;
 
-    const applicableSpecials = specials.filter((s: SpecialRow) => {
+    const applicableSpecials = (specials ?? []).filter((s: SpecialRow) => {
       if (!s.applicable_room_ids || s.applicable_room_ids.length === 0) return true;
       if (!roomTypeId) return true;
       return s.applicable_room_ids.includes(roomTypeId);
     });
 
-    const longStayDiscounts: LongStayTier[] = [];
-    const lastMinuteDiscounts: LastMinuteTier[] = [];
+    const longStayDiscounts: LongStayTier[] = [...ruLongStay];
+    const lastMinuteDiscounts: LastMinuteTier[] = [...ruLastMinute];
 
     for (const special of applicableSpecials as SpecialRow[]) {
       const dateFrom = special.valid_from || todayStr;
@@ -1386,11 +1422,28 @@ async function pushDiscounts(
     if (!lsValidation.ok) result.discount_errors.push(...lsValidation.errors.map(e => `RU ${ruId}: ${e}`));
     if (!lmValidation.ok) result.discount_errors.push(...lmValidation.errors.map(e => `RU ${ruId}: ${e}`));
 
+    // Wire-format mapping — rentalsunited-api validates RUDiscountEntry
+    // ({ date_from, date_to, nights_from, nights_to, discount_percentage }).
+    const lsWire = longStayDiscounts.map(d => ({
+      date_from: d.date_from,
+      date_to: d.date_to,
+      nights_from: d.nights_from,
+      nights_to: d.nights_to,
+      discount_percentage: d.percentage,
+    }));
+    const lmWire = lastMinuteDiscounts.map(d => ({
+      date_from: d.date_from,
+      date_to: d.date_to,
+      nights_from: d.days_to_arrival_from,
+      nights_to: d.days_to_arrival_to,
+      discount_percentage: d.percentage,
+    }));
+
     // 8.1 — Push long stay
     if (longStayDiscounts.length > 0 && lsValidation.ok) {
       try {
         const { data: lsResult, error: lsErr } = await supabase.functions.invoke('rentalsunited-api', {
-          body: { action: 'push_long_stay_discounts', ru_property_id: ruId, discounts: longStayDiscounts },
+          body: { action: 'push_long_stay_discounts', ru_property_id: ruId, discounts: lsWire },
         });
         if (lsErr || !lsResult?.success) {
           result.discount_errors.push(`Long stay (RU ${ruId}): ${lsErr?.message || lsResult?.error?.message || 'Unknown error'}`);
@@ -1407,7 +1460,7 @@ async function pushDiscounts(
     if (lastMinuteDiscounts.length > 0 && lmValidation.ok) {
       try {
         const { data: lmResult, error: lmErr } = await supabase.functions.invoke('rentalsunited-api', {
-          body: { action: 'push_last_minute_discounts', ru_property_id: ruId, discounts: lastMinuteDiscounts },
+          body: { action: 'push_last_minute_discounts', ru_property_id: ruId, discounts: lmWire },
         });
         if (lmErr || !lmResult?.success) {
           result.discount_errors.push(`Last minute (RU ${ruId}): ${lmErr?.message || lmResult?.error?.message || 'Unknown error'}`);
