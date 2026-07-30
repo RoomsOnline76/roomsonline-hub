@@ -155,6 +155,10 @@ export default function PMSHousekeeping() {
   const [resolveNotes, setResolveNotes] = useState("");
   // Per-property toggle to expand the otherwise-collapsed "Ready" column.
   const [readyExpanded, setReadyExpanded] = useState<Record<string, boolean>>({});
+  // Room columns start collapsed — operators expand only the queue they are working.
+  const [colOpen, setColOpen] = useState<Record<string, boolean>>({});
+  const isColOpen = useCallback((key: string) => !!colOpen[key], [colOpen]);
+  const toggleCol = useCallback((key: string) => setColOpen(prev => ({ ...prev, [key]: !prev[key] })), []);
   // Action-card queue drawer: which workload the user drilled into.
   const [queue, setQueue] = useState<null | "clean" | "tasks" | "maintenance" | "ready">(null);
 
@@ -591,9 +595,15 @@ export default function PMSHousekeeping() {
 
           {/* ─── Needs Cleaning ─────────────────────── */}
           <div className="space-y-3">
-            <h2 className="font-semibold text-warning flex items-center gap-2">
-              <Sparkles className="h-4 w-4" /> Needs Cleaning ({dirtyRooms.length})
-            </h2>
+            <button
+              type="button"
+              onClick={() => toggleCol(`${section.id}:dirty`)}
+              className="w-full flex items-center justify-between font-semibold text-warning"
+            >
+              <span className="flex items-center gap-2"><Sparkles className="h-4 w-4" /> Needs Cleaning ({dirtyRooms.length})</span>
+              {isColOpen(`${section.id}:dirty`) ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </button>
+            {isColOpen(`${section.id}:dirty`) && (<>
             {dirtyRooms.map(room => {
               const tasks = tasksForRoom(room.id);
               const openDockets = openMaintenanceForRoom(room.id);
@@ -683,13 +693,20 @@ export default function PMSHousekeeping() {
               );
             })}
             {dirtyRooms.length === 0 && <p className="text-sm text-muted-foreground">All clean!</p>}
+            </>)}
           </div>
 
           {/* ─── Maintenance ────────────────────────── */}
           <div className="space-y-3">
-            <h2 className="font-semibold text-destructive flex items-center gap-2">
-              <Wrench className="h-4 w-4" /> Maintenance ({maintenanceRooms.length + (orphanedDockets.length > 0 ? 1 : 0)})
-            </h2>
+            <button
+              type="button"
+              onClick={() => toggleCol(`${section.id}:maint`)}
+              className="w-full flex items-center justify-between font-semibold text-destructive"
+            >
+              <span className="flex items-center gap-2"><Wrench className="h-4 w-4" /> Maintenance ({maintenanceRooms.length + (orphanedDockets.length > 0 ? 1 : 0)})</span>
+              {isColOpen(`${section.id}:maint`) ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </button>
+            {isColOpen(`${section.id}:maint`) && (<>
             {orphanedDockets.length > 0 && (
               <Card className="border-l-4 border-l-destructive">
                 <CardContent className="py-3 space-y-2">
@@ -789,13 +806,20 @@ export default function PMSHousekeeping() {
               );
             })}
             {maintenanceRooms.length === 0 && orphanedDockets.length === 0 && <p className="text-sm text-muted-foreground">No issues.</p>}
+            </>)}
           </div>
 
           {/* ─── In House (Occupied) ───────────────── */}
           <div className="space-y-3">
-            <h2 className="font-semibold text-info flex items-center gap-2">
-              <BedDouble className="h-4 w-4" /> In House ({occupiedRooms.length})
-            </h2>
+            <button
+              type="button"
+              onClick={() => toggleCol(`${section.id}:inhouse`)}
+              className="w-full flex items-center justify-between font-semibold text-info"
+            >
+              <span className="flex items-center gap-2"><BedDouble className="h-4 w-4" /> In House ({occupiedRooms.length})</span>
+              {isColOpen(`${section.id}:inhouse`) ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </button>
+            {isColOpen(`${section.id}:inhouse`) && (<>
             {occupiedRooms.map(room => {
               const guest = guestForRoom(room.id);
               return (
@@ -821,6 +845,7 @@ export default function PMSHousekeeping() {
               );
             })}
             {occupiedRooms.length === 0 && <p className="text-sm text-muted-foreground">No guests in house.</p>}
+            </>)}
           </div>
 
           {/* ─── Ready ──────────────────────────────── */}
