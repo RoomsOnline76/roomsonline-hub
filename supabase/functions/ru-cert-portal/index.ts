@@ -861,7 +861,7 @@ Deno.serve(async (req) => {
       if (saveErr) return json({ success: false, error: { code: "SAVE_FAILED", message: saveErr.message } }, 500);
 
 
-      return json({ success: true, created: true, account: saved, scope: portfolioId ? "portfolio" : "property" });
+      return json({ success: true, created: !adopted, adopted, account: saved, scope: portfolioId ? "portfolio" : "property" });
     }
 
     // ── order_mcq: Phase 4.3 Minimum Content Quality check ──
