@@ -13,8 +13,8 @@ interface Props {
 }
 
 const STATUS_META: Record<string, { label: string; icon: any; className: string }> = {
-  active:   { label: "Active",   icon: CheckCircle2, className: "bg-green-500/10 text-green-700 border-green-500/40" },
-  pending:  { label: "Pending",  icon: Clock,        className: "bg-amber-500/10 text-amber-700 border-amber-500/40" },
+  active:   { label: "Active",   icon: CheckCircle2, className: "bg-green-500/10 text-success border-green-500/40" },
+  pending:  { label: "Pending",  icon: Clock,        className: "bg-amber-500/10 text-warning border-amber-500/40" },
   past_due: { label: "Past due", icon: AlertTriangle,className: "bg-destructive/10 text-destructive border-destructive/40" },
   cancelled:{ label: "Cancelled",icon: XCircle,      className: "bg-muted text-muted-foreground border-border" },
 };
@@ -83,7 +83,7 @@ export function SubscriptionStatusPanel({ scope, entityId }: Props) {
         </div>
         {unbilledTotal > 0 && (
           <div className="rounded border border-amber-400/50 bg-amber-50/40 p-2">
-            <div className="text-[11px] font-medium text-amber-800">
+            <div className="text-[11px] font-medium text-warning">
               Pending one-off charges — added to next invoice
             </div>
             <ul className="mt-1 space-y-0.5">

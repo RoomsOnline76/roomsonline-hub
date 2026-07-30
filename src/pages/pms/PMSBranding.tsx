@@ -94,9 +94,9 @@ function getContrastRatio(a: string, b: string): number {
 }
 
 function ContrastBadge({ ratio }: { ratio: number }) {
-  if (ratio >= 4.5) return <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"><ShieldCheck className="h-3 w-3" />AA ({ratio.toFixed(1)})</span>;
-  if (ratio >= 3) return <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300"><AlertTriangle className="h-3 w-3" />Large only ({ratio.toFixed(1)})</span>;
-  return <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300"><AlertTriangle className="h-3 w-3" />Poor ({ratio.toFixed(1)})</span>;
+  if (ratio >= 4.5) return <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-success-surface text-success dark:bg-green-900/30 dark:text-green-300"><ShieldCheck className="h-3 w-3" />AA ({ratio.toFixed(1)})</span>;
+  if (ratio >= 3) return <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-warning-surface text-warning dark:bg-yellow-900/30 dark:text-yellow-300"><AlertTriangle className="h-3 w-3" />Large only ({ratio.toFixed(1)})</span>;
+  return <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-danger-surface text-destructive dark:bg-red-900/30 dark:text-red-300"><AlertTriangle className="h-3 w-3" />Poor ({ratio.toFixed(1)})</span>;
 }
 
 function ColorField({ label, description, value, onChange }: { label: string; description: string; value: string; onChange: (v: string) => void }) {
@@ -794,8 +794,8 @@ export default function PMSBranding() {
                   </div>
                   {!visual.brand_primary_color && (
                     <div className="flex items-center gap-2 p-2 rounded-md bg-amber-500/10 border border-amber-500/20">
-                      <AlertTriangle className="h-3.5 w-3.5 text-amber-600 shrink-0" />
-                      <p className="text-xs text-amber-700">Set a primary colour above for the branded page to display your identity.</p>
+                      <AlertTriangle className="h-3.5 w-3.5 text-warning shrink-0" />
+                      <p className="text-xs text-warning">Set a primary colour above for the branded page to display your identity.</p>
                     </div>
                   )}
                   <p className="text-xs text-muted-foreground">

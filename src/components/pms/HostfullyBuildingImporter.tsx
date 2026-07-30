@@ -232,7 +232,7 @@ export function HostfullyBuildingImporter({
                 >
                   <div className={`flex items-center gap-3 p-3 rounded-lg border transition-colors ${
                     isImported 
-                      ? "bg-green-50 border-green-200 dark:bg-green-950/20 dark:border-green-800"
+                      ? "bg-success-surface border-success-border dark:bg-green-950/20 dark:border-green-800"
                       : isSelected 
                         ? "bg-primary/5 border-primary/20" 
                         : "bg-muted/50 hover:bg-muted"

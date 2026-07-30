@@ -20,6 +20,11 @@ export interface BrandingData {
   brand_override_enabled: boolean;
   brand_heading_font: string;
   brand_body_font: string;
+  brand_heading_text_color?: string;
+  brand_body_text_color?: string;
+  brand_muted_text_color?: string;
+  brand_light_bg_color?: string;
+  brand_dark_bg_color?: string;
 }
 
 interface BrandingTabProps {
@@ -66,20 +71,20 @@ function ContrastBadge({ ratio }: { ratio: number }) {
   const passesAALarge = ratio >= 3;
   if (passesAA) {
     return (
-      <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">
+      <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-success-surface text-success dark:bg-green-900/30 dark:text-green-300">
         <ShieldCheck className="h-3 w-3" /> AA Pass ({ratio.toFixed(1)}:1)
       </span>
     );
   }
   if (passesAALarge) {
     return (
-      <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300">
+      <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-warning-surface text-warning dark:bg-yellow-900/30 dark:text-yellow-300">
         <AlertTriangle className="h-3 w-3" /> Large text only ({ratio.toFixed(1)}:1)
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300">
+    <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-danger-surface text-destructive dark:bg-red-900/30 dark:text-red-300">
       <AlertTriangle className="h-3 w-3" /> Poor contrast ({ratio.toFixed(1)}:1)
     </span>
   );
@@ -352,7 +357,13 @@ export function BrandingTab({ data, onChange, propertyId, onDirty, canToggleBran
           </p>
           <ColorField label="Primary Colour" description="Main brand colour used for buttons, headers, and accents" value={data.brand_primary_color} onChange={(v) => updateField("brand_primary_color", v)} />
           <ColorField label="Secondary Colour" description="Supporting colour used for backgrounds, highlights, and secondary elements" value={data.brand_secondary_color} onChange={(v) => updateField("brand_secondary_color", v)} />
-          <ColorField label="Font Colour" description="Primary text colour for headings and body content" value={data.brand_font_color} onChange={(v) => updateField("brand_font_color", v)} />
+          <ColorField label="Font Colour" description="Fallback text colour used when the specific text colours below are empty" value={data.brand_font_color} onChange={(v) => updateField("brand_font_color", v)} />
+          <ColorField label="Heading Text" description="Colour for headings and titles" value={data.brand_heading_text_color || ""} onChange={(v) => updateField("brand_heading_text_color", v)} />
+          <ColorField label="Body Text" description="Colour for paragraphs and general copy" value={data.brand_body_text_color || ""} onChange={(v) => updateField("brand_body_text_color", v)} />
+          <ColorField label="Muted Text" description="Colour for dates, fine print and helper text" value={data.brand_muted_text_color || ""} onChange={(v) => updateField("brand_muted_text_color", v)} />
+          <ColorField label="Light Background" description="Page and card background used in day presentation" value={data.brand_light_bg_color || ""} onChange={(v) => updateField("brand_light_bg_color", v)} />
+          <ColorField label="Dark Background" description="Footer, accent bands and dark presentation background" value={data.brand_dark_bg_color || ""} onChange={(v) => updateField("brand_dark_bg_color", v)} />
+
         </CardContent>
       </Card>
 
@@ -390,6 +401,11 @@ export function BrandingTab({ data, onChange, propertyId, onDirty, canToggleBran
             brand_primary_color: data.brand_primary_color,
             brand_secondary_color: data.brand_secondary_color,
             brand_font_color: data.brand_font_color,
+            brand_heading_text_color: data.brand_heading_text_color,
+            brand_body_text_color: data.brand_body_text_color,
+            brand_muted_text_color: data.brand_muted_text_color,
+            brand_light_bg_color: data.brand_light_bg_color,
+            brand_dark_bg_color: data.brand_dark_bg_color,
           }}
           onApply={(patch) => {
             onChange({ ...data, ...patch } as BrandingData);

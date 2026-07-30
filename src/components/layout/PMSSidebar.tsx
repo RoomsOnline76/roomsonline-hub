@@ -120,8 +120,8 @@ export function PMSSidebar() {
         onClick={() => navigateWithProperty(item.href)}
         className={cn(
           "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-all",
-          "hover:bg-accent hover:text-accent-foreground",
-          active && "bg-accent text-primary border-l-2 border-primary",
+          "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+          active && "bg-primary/15 text-primary border-l-2 border-primary",
           !active && "text-foreground/80"
         )}
       >

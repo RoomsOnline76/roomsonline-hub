@@ -725,6 +725,11 @@ export default function PropertyForm({
     brand_override_enabled: false,
     brand_heading_font: "",
     brand_body_font: "",
+    brand_heading_text_color: "",
+    brand_body_text_color: "",
+    brand_muted_text_color: "",
+    brand_light_bg_color: "",
+    brand_dark_bg_color: "",
   });
 
   // ROL Spec state
@@ -2245,6 +2250,11 @@ export default function PropertyForm({
             brand_override_enabled: (data as any).brand_override_enabled ?? false,
             brand_heading_font: (data as any).brand_heading_font || "",
             brand_body_font: (data as any).brand_body_font || "",
+            brand_heading_text_color: (data as any).brand_heading_text_color || "",
+            brand_body_text_color: (data as any).brand_body_text_color || "",
+            brand_muted_text_color: (data as any).brand_muted_text_color || "",
+            brand_light_bg_color: (data as any).brand_light_bg_color || "",
+            brand_dark_bg_color: (data as any).brand_dark_bg_color || "",
           });
 
           // Load is_rol_property and is_test_property
@@ -2938,6 +2948,11 @@ export default function PropertyForm({
         brand_override_enabled: brandingData.brand_override_enabled,
         brand_heading_font: brandingData.brand_heading_font || null,
         brand_body_font: brandingData.brand_body_font || null,
+        brand_heading_text_color: brandingData.brand_heading_text_color || null,
+        brand_body_text_color: brandingData.brand_body_text_color || null,
+        brand_muted_text_color: brandingData.brand_muted_text_color || null,
+        brand_light_bg_color: brandingData.brand_light_bg_color || null,
+        brand_dark_bg_color: brandingData.brand_dark_bg_color || null,
         amenities: {
           offerings: {
             accommodation: isAccommodation,

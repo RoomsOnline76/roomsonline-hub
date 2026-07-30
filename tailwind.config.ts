@@ -71,7 +71,30 @@ export default {
           stale: "hsl(var(--status-stale))",
           syncing: "hsl(var(--status-syncing))",
         },
+        success: {
+          DEFAULT: "hsl(var(--success))",
+          foreground: "hsl(var(--success-foreground))",
+          surface: "hsl(var(--success-surface))",
+          border: "hsl(var(--success-border))",
+        },
+        warning: {
+          DEFAULT: "hsl(var(--warning))",
+          foreground: "hsl(var(--warning-foreground))",
+          surface: "hsl(var(--warning-surface))",
+          border: "hsl(var(--warning-border))",
+        },
+        info: {
+          DEFAULT: "hsl(var(--info))",
+          foreground: "hsl(var(--info-foreground))",
+          surface: "hsl(var(--info-surface))",
+          border: "hsl(var(--info-border))",
+        },
+        danger: {
+          surface: "hsl(var(--danger-surface))",
+          border: "hsl(var(--danger-border))",
+        },
       },
+
       borderRadius: {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",

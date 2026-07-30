@@ -923,8 +923,8 @@ export function RoomManagerTab({
                   </div>
                 </div>
 
-                <div className="bg-blue-50 border border-blue-200 rounded-md p-2">
-                  <p className="text-xs text-blue-700">
+                <div className="bg-info-surface border border-info-border rounded-md p-2">
+                  <p className="text-xs text-info">
                     <strong>INFO:</strong> Align "Max adult" with rate type if Person Rate is applied.
                   </p>
                 </div>
@@ -1069,8 +1069,8 @@ export function RoomManagerTab({
 
           {/* Facilities Sub-tab */}
           <TabsContent value="facilities" className="p-6 space-y-4">
-            <div className="bg-amber-50 border border-amber-200 rounded-md p-2 mb-4">
-              <p className="text-sm text-amber-700">
+            <div className="bg-warning-surface border border-warning-border rounded-md p-2 mb-4">
+              <p className="text-sm text-warning">
                 <strong>Manual Entry:</strong> Facilities are not available from the PMS API. Select the facilities available in this room type.
               </p>
             </div>
@@ -1140,8 +1140,8 @@ export function RoomManagerTab({
                   </div>
                 </div>
               ) : (
-                <div className="bg-amber-50 border border-amber-200 rounded-md p-2 mb-4">
-                  <p className="text-sm text-amber-700">
+                <div className="bg-warning-surface border border-warning-border rounded-md p-2 mb-4">
+                  <p className="text-sm text-warning">
                     <strong>Manual Entry:</strong> Amenities are not available from the PMS API. Select the amenities available in this room type.
                   </p>
                 </div>
@@ -1260,8 +1260,8 @@ export function RoomManagerTab({
                 className="max-w-xs"
               />
             </div>
-            <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
-              <p className="text-sm text-blue-700">
+            <div className="bg-info-surface border border-info-border rounded-md p-3">
+              <p className="text-sm text-info">
                 Inputting a value here will override the split % specified in House Style for this room.
               </p>
             </div>

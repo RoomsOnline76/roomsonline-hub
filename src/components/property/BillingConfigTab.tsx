@@ -346,7 +346,7 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
               </SelectContent>
             </Select>
             {presetJustApplied && (
-              <p className="text-[11px] text-emerald-700 dark:text-emerald-400">
+              <p className="text-[11px] text-success dark:text-emerald-400">
                 Loaded defaults from <strong>{presetJustApplied}</strong>. Customize any component below before saving.
               </p>
             )}

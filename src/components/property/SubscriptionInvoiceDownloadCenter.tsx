@@ -12,8 +12,8 @@ interface Props {
 }
 
 const STATUS_STYLES: Record<string, string> = {
-  paid: "bg-green-500/10 text-green-700 border-green-500/40",
-  pending: "bg-amber-500/10 text-amber-700 border-amber-500/40",
+  paid: "bg-green-500/10 text-success border-green-500/40",
+  pending: "bg-amber-500/10 text-warning border-amber-500/40",
   past_due: "bg-destructive/10 text-destructive border-destructive/40",
   cancelled: "bg-muted text-muted-foreground border-border",
   failed: "bg-destructive/10 text-destructive border-destructive/40",

@@ -204,9 +204,9 @@ export function RatesOverviewPanel({
             <div>
               <div className="text-3xl font-bold text-foreground">
                 {issues.length === 0 ? (
-                  <CheckCircle className="h-8 w-8 mx-auto text-green-600" />
+                  <CheckCircle className="h-8 w-8 mx-auto text-success" />
                 ) : (
-                  <span className="text-yellow-600">{issues.length}</span>
+                  <span className="text-warning">{issues.length}</span>
                 )}
               </div>
               <p className="text-xs text-muted-foreground">
@@ -235,7 +235,7 @@ export function RatesOverviewPanel({
                   >
                     <AlertCircle className={cn(
                       "h-3 w-3 mr-1",
-                      issue.severity === 'error' ? "text-destructive" : "text-yellow-600"
+                      issue.severity === 'error' ? "text-destructive" : "text-warning"
                     )} />
                     {issue.message}
                   </Badge>

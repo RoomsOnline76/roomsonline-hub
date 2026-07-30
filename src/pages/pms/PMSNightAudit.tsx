@@ -13,7 +13,7 @@ import { format } from "date-fns";
 function StatusBadge({ status }: { status: string }) {
   switch (status) {
     case "completed":
-      return <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-200"><CheckCircle2 className="w-3 h-3 mr-1" />Completed</Badge>;
+      return <Badge className="bg-emerald-500/10 text-success border-success-border"><CheckCircle2 className="w-3 h-3 mr-1" />Completed</Badge>;
     case "failed":
       return <Badge variant="destructive"><XCircle className="w-3 h-3 mr-1" />Failed</Badge>;
     case "running":
@@ -116,7 +116,7 @@ export default function PMSNightAudit() {
         </Card>
         <Card>
           <CardContent className="pt-4 pb-3 flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-amber-500/10"><Receipt className="w-5 h-5 text-amber-600" /></div>
+            <div className="p-2 rounded-lg bg-amber-500/10"><Receipt className="w-5 h-5 text-warning" /></div>
             <div>
               <p className="text-xs text-muted-foreground">Last Charges</p>
               <p className="text-lg font-bold">{lastCompleted?.charges_posted || 0}</p>
@@ -125,7 +125,7 @@ export default function PMSNightAudit() {
         </Card>
         <Card>
           <CardContent className="pt-4 pb-3 flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-blue-500/10"><BedDouble className="w-5 h-5 text-blue-600" /></div>
+            <div className="p-2 rounded-lg bg-blue-500/10"><BedDouble className="w-5 h-5 text-info" /></div>
             <div>
               <p className="text-xs text-muted-foreground">Rooms Rolled</p>
               <p className="text-lg font-bold">{lastCompleted?.rooms_rolled || 0}</p>
@@ -134,7 +134,7 @@ export default function PMSNightAudit() {
         </Card>
         <Card>
           <CardContent className="pt-4 pb-3 flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-emerald-500/10"><Sparkles className="w-5 h-5 text-emerald-600" /></div>
+            <div className="p-2 rounded-lg bg-emerald-500/10"><Sparkles className="w-5 h-5 text-success" /></div>
             <div>
               <p className="text-xs text-muted-foreground">Folios Closed</p>
               <p className="text-lg font-bold">{lastCompleted?.folios_closed || 0}</p>

@@ -145,7 +145,7 @@ export function Beds24PropertyLookup({
 
             {source === "unavailable" ? (
               <div className="flex items-start gap-2 rounded-md border border-border bg-muted/40 p-3 text-xs">
-                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
                 <div>
                   <div className="font-medium">Catalogue not accessible</div>
                   <div className="mt-1 text-muted-foreground">{reason}</div>

@@ -27,12 +27,12 @@ export function EnvironmentToggle({
         <div className="flex items-center gap-2">
           <Label className="text-sm font-medium">Active Environment</Label>
           {isSandbox ? (
-            <Badge variant="outline" className="text-xs gap-1 bg-amber-500/10 text-amber-600 border-amber-500/30">
+            <Badge variant="outline" className="text-xs gap-1 bg-amber-500/10 text-warning border-amber-500/30">
               <FlaskConical className="h-3 w-3" />
               Testing
             </Badge>
           ) : (
-            <Badge variant="outline" className="text-xs gap-1 bg-green-500/10 text-green-600 border-green-500/30">
+            <Badge variant="outline" className="text-xs gap-1 bg-green-500/10 text-success border-green-500/30">
               <Rocket className="h-3 w-3" />
               Live
             </Badge>
@@ -43,7 +43,7 @@ export function EnvironmentToggle({
         </p>
       </div>
       <div className="flex items-center gap-2">
-        <span className={`text-sm transition-colors ${isSandbox ? 'font-semibold text-amber-600' : 'text-muted-foreground'}`}>
+        <span className={`text-sm transition-colors ${isSandbox ? 'font-semibold text-warning' : 'text-muted-foreground'}`}>
           Sandbox
         </span>
         <Switch
@@ -52,7 +52,7 @@ export function EnvironmentToggle({
           disabled={disabled || isLoading}
           className="data-[state=checked]:bg-green-600"
         />
-        <span className={`text-sm transition-colors ${isProduction ? 'font-semibold text-green-600' : 'text-muted-foreground'}`}>
+        <span className={`text-sm transition-colors ${isProduction ? 'font-semibold text-success' : 'text-muted-foreground'}`}>
           Production
         </span>
       </div>

@@ -67,7 +67,7 @@ export function CrossPropertyPipelineCard({ propertyId }: Props) {
               return (
                 <div key={a.id} className="flex items-center justify-between text-xs p-2 rounded-md hover:bg-muted/30">
                   <div className="flex items-center gap-2 min-w-0">
-                    {isEarned ? <ArrowDownLeft className="h-3 w-3 text-green-600" /> : <ArrowUpRight className="h-3 w-3 text-amber-600" />}
+                    {isEarned ? <ArrowDownLeft className="h-3 w-3 text-success" /> : <ArrowUpRight className="h-3 w-3 text-warning" />}
                     <span className="truncate">{a.booking_id.slice(0, 8)}</span>
                     <Badge variant="outline" className="text-[9px]">{a.origin_type}</Badge>
                   </div>

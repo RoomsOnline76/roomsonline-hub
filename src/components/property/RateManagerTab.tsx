@@ -346,7 +346,7 @@ export function RateManagerTab({
                           {rateType.pms_synced && !isRolProperty ? (
                             <Badge variant="outline" className="text-xs bg-primary/10"><Cloud className="h-3 w-3 mr-1" />PMS</Badge>
                           ) : (
-                            <Badge variant="outline" className="text-xs bg-amber-100 text-amber-700">Manual</Badge>
+                            <Badge variant="outline" className="text-xs bg-warning-surface text-warning">Manual</Badge>
                           )}
                         </div>
                       </div>

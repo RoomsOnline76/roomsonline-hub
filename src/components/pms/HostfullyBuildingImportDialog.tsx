@@ -317,7 +317,7 @@ export function HostfullyBuildingImportDialog({
           <DialogDescription>
             Select buildings to import as ROL properties. Units are grouped into room types.
             {alreadyImportedCount > 0 && (
-              <span className="block mt-1 text-green-600">
+              <span className="block mt-1 text-success">
                 {alreadyImportedCount} building{alreadyImportedCount !== 1 ? 's' : ''} already imported — re-selecting will overwrite.
               </span>
             )}
@@ -353,7 +353,7 @@ export function HostfullyBuildingImportDialog({
                 >
                   <div className={`flex items-center gap-3 p-3 rounded-lg border transition-colors ${
                     isImported
-                      ? "bg-green-50 border-green-200 dark:bg-green-950/20 dark:border-green-800"
+                      ? "bg-success-surface border-success-border dark:bg-green-950/20 dark:border-green-800"
                       : isSelected
                         ? "bg-primary/5 border-primary/20"
                         : "bg-muted/50 hover:bg-muted"

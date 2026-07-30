@@ -93,14 +93,14 @@ export function CheckoutConfirmationDialog({
               </div>
               <div className="bg-muted/50 rounded-md p-2.5 text-center">
                 <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Payments</p>
-                <p className="font-semibold text-green-600">R{totalPayments.toLocaleString()}</p>
+                <p className="font-semibold text-success">R{totalPayments.toLocaleString()}</p>
               </div>
             </div>
 
             {balance > 0 && (
               <div className="flex items-center gap-2 text-sm bg-amber-500/10 rounded-md p-2.5">
-                <AlertTriangle className="h-3.5 w-3.5 text-amber-600 shrink-0" />
-                <span className="text-amber-700">Outstanding balance: <strong>R{balance.toLocaleString()}</strong></span>
+                <AlertTriangle className="h-3.5 w-3.5 text-warning shrink-0" />
+                <span className="text-warning">Outstanding balance: <strong>R{balance.toLocaleString()}</strong></span>
               </div>
             )}
 
@@ -125,7 +125,7 @@ export function CheckoutConfirmationDialog({
 
             <div className={`rounded-md p-3 text-center ${netSettlement > 0 ? "bg-destructive/10" : "bg-green-500/10"}`}>
               <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Net Settlement</p>
-              <p className={`text-lg font-bold ${netSettlement > 0 ? "text-destructive" : "text-green-600"}`}>
+              <p className={`text-lg font-bold ${netSettlement > 0 ? "text-destructive" : "text-success"}`}>
                 R{netSettlement.toLocaleString()}
               </p>
               {refundableCharges.length > 0 && (

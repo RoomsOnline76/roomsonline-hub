@@ -118,9 +118,9 @@ export function SmartRoomInput({ onRoomParsed, propertyContext, className }: Sma
   };
 
   const getConfidenceColor = (confidence: number) => {
-    if (confidence >= 0.8) return 'text-green-600';
-    if (confidence >= 0.6) return 'text-yellow-600';
-    return 'text-orange-600';
+    if (confidence >= 0.8) return 'text-success';
+    if (confidence >= 0.6) return 'text-warning';
+    return 'text-warning';
   };
 
   return (

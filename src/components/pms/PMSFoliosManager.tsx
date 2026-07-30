@@ -66,7 +66,7 @@ export function PMSFoliosManager({ propertyId }: PMSFoliosManagerProps) {
                     <TableCell>{folio.booking?.check_out_date ? format(new Date(folio.booking.check_out_date), "dd MMM") : "—"}</TableCell>
                     <TableCell><FolioStatusBadge status={folio.status} /></TableCell>
                     <TableCell className="text-right font-mono">
-                      <span className={Number(folio.balance) > 0 ? "text-destructive" : "text-emerald-600"}>
+                      <span className={Number(folio.balance) > 0 ? "text-destructive" : "text-success"}>
                         R {Number(folio.balance || 0).toFixed(2)}
                       </span>
                     </TableCell>
@@ -135,7 +135,7 @@ function FolioDetailSheet({ folioId, propertyId, open, onClose, onRecordPayment 
                 <Card>
                   <CardContent className="py-3 px-4">
                     <p className="text-xs text-muted-foreground">Balance</p>
-                    <p className={`text-lg font-bold ${Number(folio?.balance || 0) > 0 ? "text-destructive" : "text-emerald-600"}`}>
+                    <p className={`text-lg font-bold ${Number(folio?.balance || 0) > 0 ? "text-destructive" : "text-success"}`}>
                       R {Number(folio?.balance || 0).toFixed(2)}
                     </p>
                   </CardContent>
@@ -173,11 +173,11 @@ function FolioDetailSheet({ folioId, propertyId, open, onClose, onRecordPayment 
                         {Number(tx.amount) > 0 ? (
                           <ArrowUpRight className="w-4 h-4 text-destructive" />
                         ) : (
-                          <ArrowDownLeft className="w-4 h-4 text-emerald-600" />
+                          <ArrowDownLeft className="w-4 h-4 text-success" />
                         )}
                         <span>{tx.description}</span>
                       </div>
-                      <span className={`font-mono ${Number(tx.amount) > 0 ? "text-destructive" : "text-emerald-600"}`}>
+                      <span className={`font-mono ${Number(tx.amount) > 0 ? "text-destructive" : "text-success"}`}>
                         {Number(tx.amount) > 0 ? "" : "-"}R {Math.abs(Number(tx.amount)).toFixed(2)}
                       </span>
                     </div>
@@ -199,7 +199,7 @@ function FolioDetailSheet({ folioId, propertyId, open, onClose, onRecordPayment 
                         {p.reference && <span className="text-muted-foreground ml-2">({p.reference})</span>}
                       </div>
                       <div className="text-right">
-                        <span className="font-mono text-emerald-600">R {Number(p.amount).toFixed(2)}</span>
+                        <span className="font-mono text-success">R {Number(p.amount).toFixed(2)}</span>
                         <Badge variant={p.status === "completed" ? "default" : "secondary"} className="ml-2 text-xs">
                           {p.status}
                         </Badge>
