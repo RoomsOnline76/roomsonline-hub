@@ -16,10 +16,10 @@ import { autoAssignBookings } from "@/lib/bookingAssignment";
 import { toast } from "sonner";
 
 const STATUS_COLORS: Record<string, string> = {
-  available: "bg-emerald-500/10 text-emerald-700 border-emerald-500/20",
-  occupied: "bg-blue-500/10 text-blue-700 border-blue-500/20",
-  dirty: "bg-amber-500/10 text-amber-700 border-amber-500/20",
-  maintenance: "bg-red-500/10 text-red-700 border-red-500/20",
+  available: "bg-emerald-500/10 text-success border-emerald-500/20",
+  occupied: "bg-blue-500/10 text-info border-blue-500/20",
+  dirty: "bg-amber-500/10 text-warning border-amber-500/20",
+  maintenance: "bg-red-500/10 text-destructive border-red-500/20",
   out_of_order: "bg-destructive/10 text-destructive border-destructive/20",
 };
 
@@ -339,7 +339,7 @@ export default function PMSRooms() {
           </CardHeader>
           <CardContent className="space-y-2">
             <Badge className={STATUS_COLORS[displayStatus] || ""} variant="outline">{displayStatus}</Badge>
-            {activeBooking?.guest_name && <p className="text-xs text-blue-700 dark:text-blue-300 truncate">Guest: {activeBooking.guest_name}</p>}
+            {activeBooking?.guest_name && <p className="text-xs text-info dark:text-blue-300 truncate">Guest: {activeBooking.guest_name}</p>}
             {room.room_type_name && <p className="text-xs text-muted-foreground">{room.room_type_name}</p>}
             <Select value={displayStatus} onValueChange={(v) => handleStatusChange(room.id, v)}>
               <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>

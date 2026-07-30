@@ -291,12 +291,12 @@ export function OwnerPMSConnectionCard({
             </div>
             <div className="flex items-center gap-2">
               {environment === 'sandbox' && (
-                <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-200">
+                <Badge variant="outline" className="text-xs bg-warning-surface text-warning border-warning-border">
                   Sandbox
                 </Badge>
               )}
               {isConnected && (
-                <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+                <Badge variant="outline" className="text-xs bg-success-surface text-success border-success-border">
                   <Check className="h-3 w-3 mr-1" />
                   Connected
                 </Badge>

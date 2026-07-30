@@ -146,7 +146,7 @@ export function BookingNotesTab({ bookingId, guestId, specialRequests, modificat
       )}
 
       {!guestId && (
-        <p className="text-xs text-amber-600 bg-amber-500/10 p-2 rounded">No guest profile linked — complaints will be available after guest profile is created.</p>
+        <p className="text-xs text-warning bg-amber-500/10 p-2 rounded">No guest profile linked — complaints will be available after guest profile is created.</p>
       )}
 
       {/* Special Requests */}

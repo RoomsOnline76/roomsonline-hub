@@ -11,14 +11,14 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 
 const SEASON_COLORS = [
-  { name: "Red", value: "red", bg: "bg-red-200", border: "border-red-400", text: "text-red-800", cell: "bg-red-100" },
-  { name: "Orange", value: "orange", bg: "bg-orange-200", border: "border-orange-400", text: "text-orange-800", cell: "bg-orange-100" },
-  { name: "Amber", value: "amber", bg: "bg-amber-200", border: "border-amber-400", text: "text-amber-800", cell: "bg-amber-100" },
-  { name: "Yellow", value: "yellow", bg: "bg-yellow-200", border: "border-yellow-400", text: "text-yellow-800", cell: "bg-yellow-100" },
-  { name: "Teal", value: "teal", bg: "bg-teal-200", border: "border-teal-400", text: "text-teal-800", cell: "bg-teal-100" },
-  { name: "Blue", value: "blue", bg: "bg-blue-200", border: "border-blue-400", text: "text-blue-800", cell: "bg-blue-100" },
+  { name: "Red", value: "red", bg: "bg-red-200", border: "border-danger-border", text: "text-destructive", cell: "bg-danger-surface" },
+  { name: "Orange", value: "orange", bg: "bg-orange-200", border: "border-warning-border", text: "text-warning", cell: "bg-warning-surface" },
+  { name: "Amber", value: "amber", bg: "bg-amber-200", border: "border-warning-border", text: "text-warning", cell: "bg-warning-surface" },
+  { name: "Yellow", value: "yellow", bg: "bg-yellow-200", border: "border-warning-border", text: "text-warning", cell: "bg-warning-surface" },
+  { name: "Teal", value: "teal", bg: "bg-teal-200", border: "border-success-border", text: "text-success", cell: "bg-success-surface" },
+  { name: "Blue", value: "blue", bg: "bg-blue-200", border: "border-info-border", text: "text-info", cell: "bg-info-surface" },
   { name: "Purple", value: "purple", bg: "bg-purple-200", border: "border-purple-400", text: "text-purple-800", cell: "bg-purple-100" },
-  { name: "Green", value: "green", bg: "bg-green-200", border: "border-green-400", text: "text-green-800", cell: "bg-green-100" },
+  { name: "Green", value: "green", bg: "bg-green-200", border: "border-success-border", text: "text-success", cell: "bg-success-surface" },
 ];
 
 const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];

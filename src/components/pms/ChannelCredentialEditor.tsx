@@ -104,7 +104,7 @@ export function ChannelCredentialEditor({ channelName }: ChannelCredentialEditor
           API Credentials
         </div>
         {hasConfig ? (
-          <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300 text-[10px]">
+          <Badge className="bg-success-surface text-success dark:bg-emerald-900/50 dark:text-emerald-300 text-[10px]">
             <CheckCircle2 className="h-3 w-3 mr-1" />
             Configured
           </Badge>

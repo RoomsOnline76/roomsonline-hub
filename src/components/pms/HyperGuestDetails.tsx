@@ -108,7 +108,7 @@ export function HyperGuestDetails({ propertyId }: HyperGuestDetailsProps) {
         <div className="flex items-center gap-2 text-xs rounded-md bg-muted/50 p-2">
           <Badge variant="outline" className="text-xs">ROL'OS</Badge>
           <ArrowRight className="h-3 w-3 text-muted-foreground" />
-          <Badge className="text-xs bg-indigo-500/10 text-indigo-600 border-indigo-500/20">HyperGuest</Badge>
+          <Badge className="text-xs bg-indigo-500/10 text-info border-indigo-500/20">HyperGuest</Badge>
           <ArrowRight className="h-3 w-3 text-muted-foreground" />
           <Badge variant="outline" className="text-xs">Booking.com</Badge>
           <span className="text-muted-foreground ml-1">+ OTAs</span>

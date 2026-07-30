@@ -36,10 +36,10 @@ const ASSIGNABLE_ROLES: PmsStaffRole[] = [
 ];
 
 const SHIFT_TYPES = [
-  { value: "morning", label: "Morning", color: "bg-amber-500/10 text-amber-700 border-amber-200" },
-  { value: "afternoon", label: "Afternoon", color: "bg-blue-500/10 text-blue-700 border-blue-200" },
-  { value: "night", label: "Night", color: "bg-indigo-500/10 text-indigo-700 border-indigo-200" },
-  { value: "full_day", label: "Full Day", color: "bg-emerald-500/10 text-emerald-700 border-emerald-200" },
+  { value: "morning", label: "Morning", color: "bg-amber-500/10 text-warning border-warning-border" },
+  { value: "afternoon", label: "Afternoon", color: "bg-blue-500/10 text-info border-info-border" },
+  { value: "night", label: "Night", color: "bg-indigo-500/10 text-info border-info-border" },
+  { value: "full_day", label: "Full Day", color: "bg-emerald-500/10 text-success border-success-border" },
   { value: "custom", label: "Custom", color: "bg-muted text-muted-foreground border-border" },
 ];
 
@@ -370,12 +370,12 @@ export default function PMSStaff() {
                           </TableCell>
                           <TableCell>
                             {member.is_active ? (
-                              <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-200">Active</Badge>
+                              <Badge className="bg-emerald-500/10 text-success border-success-border">Active</Badge>
                             ) : (
                               <Badge variant="outline" className="text-muted-foreground">Inactive</Badge>
                             )}
                             {member.must_change_password && (
-                              <Badge variant="outline" className="ml-1 text-amber-600 border-amber-200 text-[10px]">Needs PW Change</Badge>
+                              <Badge variant="outline" className="ml-1 text-warning border-warning-border text-[10px]">Needs PW Change</Badge>
                             )}
                           </TableCell>
                           <TableCell>

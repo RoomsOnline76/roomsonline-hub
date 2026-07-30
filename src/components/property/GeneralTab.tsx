@@ -560,7 +560,7 @@ export function GeneralTab(props: GeneralTabProps) {
                     </div>
                     <div className="flex items-center gap-2 pt-1">
                       <Checkbox id="is_test_property" checked={isTestProperty} onCheckedChange={(c) => { setIsTestProperty(c as boolean); setIsDirty(true); }} />
-                      <Label htmlFor="is_test_property" className="text-xs cursor-pointer text-orange-600">⚠ Test / Sandbox</Label>
+                      <Label htmlFor="is_test_property" className="text-xs cursor-pointer text-warning">⚠ Test / Sandbox</Label>
                     </div>
                   </>
                 )}
@@ -762,7 +762,7 @@ export function GeneralTab(props: GeneralTabProps) {
                   <Label htmlFor="google_maps_link" className="text-xs">Google Maps Link {noStreetAddress && '*'}</Label>
                   <div className="flex items-center gap-2">
                     <Input id="google_maps_link" value={googleMapsLink} onChange={(e) => handleGoogleMapsLinkChange(e.target.value)} placeholder="Paste Google Maps link to extract GPS" className="flex-1 h-7 text-xs font-mono" required={noStreetAddress} />
-                    {googleMapsLink && latitude && longitude && <span className="text-xs text-green-600 flex items-center gap-1"><Check className="h-3 w-3" /></span>}
+                    {googleMapsLink && latitude && longitude && <span className="text-xs text-success flex items-center gap-1"><Check className="h-3 w-3" /></span>}
                   </div>
                 </div>
               </div>

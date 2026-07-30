@@ -71,20 +71,20 @@ function ContrastBadge({ ratio }: { ratio: number }) {
   const passesAALarge = ratio >= 3;
   if (passesAA) {
     return (
-      <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">
+      <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-success-surface text-success dark:bg-green-900/30 dark:text-green-300">
         <ShieldCheck className="h-3 w-3" /> AA Pass ({ratio.toFixed(1)}:1)
       </span>
     );
   }
   if (passesAALarge) {
     return (
-      <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300">
+      <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-warning-surface text-warning dark:bg-yellow-900/30 dark:text-yellow-300">
         <AlertTriangle className="h-3 w-3" /> Large text only ({ratio.toFixed(1)}:1)
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300">
+    <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-danger-surface text-destructive dark:bg-red-900/30 dark:text-red-300">
       <AlertTriangle className="h-3 w-3" /> Poor contrast ({ratio.toFixed(1)}:1)
     </span>
   );

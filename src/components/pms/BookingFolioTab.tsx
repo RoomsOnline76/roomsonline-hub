@@ -36,11 +36,11 @@ interface BookingFolioTabProps {
 }
 
 const CATEGORY_COLORS: Record<string, string> = {
-  tax: "bg-amber-500/15 text-amber-700 border-amber-300",
-  fee: "bg-blue-500/15 text-blue-700 border-blue-300",
+  tax: "bg-amber-500/15 text-warning border-warning-border",
+  fee: "bg-blue-500/15 text-info border-info-border",
   deposit: "bg-violet-500/15 text-violet-700 border-violet-300",
-  surcharge: "bg-rose-500/15 text-rose-700 border-rose-300",
-  custom: "bg-slate-500/15 text-slate-700 border-slate-300",
+  surcharge: "bg-rose-500/15 text-destructive border-danger-border",
+  custom: "bg-slate-500/15 text-foreground/80 border-border",
 };
 
 export function BookingFolioTab({ bookingId }: BookingFolioTabProps) {
@@ -164,11 +164,11 @@ export function BookingFolioTab({ bookingId }: BookingFolioTabProps) {
         </div>
         <div className="bg-muted/50 rounded-md p-3 text-center">
           <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Payments</p>
-          <p className="text-sm font-semibold text-green-600">R{totalPayments.toLocaleString()}</p>
+          <p className="text-sm font-semibold text-success">R{totalPayments.toLocaleString()}</p>
         </div>
         <div className={`rounded-md p-3 text-center ${balance > 0 ? "bg-destructive/10" : "bg-green-500/10"}`}>
           <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Balance</p>
-          <p className={`text-sm font-bold ${balance > 0 ? "text-destructive" : "text-green-600"}`}>R{balance.toLocaleString()}</p>
+          <p className={`text-sm font-bold ${balance > 0 ? "text-destructive" : "text-success"}`}>R{balance.toLocaleString()}</p>
         </div>
       </div>
 
@@ -192,7 +192,7 @@ export function BookingFolioTab({ bookingId }: BookingFolioTabProps) {
                   <span className="text-xs font-semibold">R{c.amount.toLocaleString()}</span>
                   {c.is_refundable && (
                     c.refund_status === "processed" ? (
-                      <Badge variant="outline" className="text-[9px] px-1.5 py-0 bg-green-500/15 text-green-700 border-green-300">
+                      <Badge variant="outline" className="text-[9px] px-1.5 py-0 bg-green-500/15 text-success border-success-border">
                         <ShieldCheck className="h-2.5 w-2.5 mr-0.5" />Refunded
                       </Badge>
                     ) : c.refund_status === "pending" ? (
@@ -283,13 +283,13 @@ export function BookingFolioTab({ bookingId }: BookingFolioTabProps) {
             {transactions.map(t => (
               <div key={t.id} className="flex items-center justify-between text-sm py-1.5 px-2 rounded bg-muted/30">
                 <div className="flex items-center gap-2">
-                  {t.amount < 0 ? <CreditCard className="h-3 w-3 text-green-600" /> : <Receipt className="h-3 w-3 text-muted-foreground" />}
+                  {t.amount < 0 ? <CreditCard className="h-3 w-3 text-success" /> : <Receipt className="h-3 w-3 text-muted-foreground" />}
                   <div>
                     <p className="text-xs font-medium">{t.description}</p>
                     <p className="text-[10px] text-muted-foreground">{new Date(t.created_at).toLocaleString()}</p>
                   </div>
                 </div>
-                <span className={`text-xs font-semibold ${t.amount < 0 ? "text-green-600" : ""}`}>
+                <span className={`text-xs font-semibold ${t.amount < 0 ? "text-success" : ""}`}>
                   {t.amount < 0 ? "-" : ""}R{Math.abs(t.amount).toLocaleString()}
                 </span>
               </div>

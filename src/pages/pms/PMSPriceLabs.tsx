@@ -554,7 +554,7 @@ export function PriceLabsPanel({ propertyId, loading: propLoading = false, embed
                   {suggestions.map((s) => {
                     const delta = s.current_price ? ((s.suggested_price - s.current_price) / s.current_price) * 100 : 0;
                     const Icon = delta > 1 ? ArrowUpRight : delta < -1 ? ArrowDownRight : Minus;
-                    const deltaColor = delta > 1 ? "text-green-600" : delta < -1 ? "text-red-600" : "text-muted-foreground";
+                    const deltaColor = delta > 1 ? "text-success" : delta < -1 ? "text-destructive" : "text-muted-foreground";
                     return (
                       <TableRow key={s.id} className={s.applied_at ? "opacity-60" : ""}>
                         <TableCell>

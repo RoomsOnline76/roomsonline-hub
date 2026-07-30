@@ -100,9 +100,9 @@ export function WebsiteSyncModal({
   };
 
   const getConfidenceColor = (confidence: number): string => {
-    if (confidence >= 0.9) return "text-green-600";
-    if (confidence >= 0.75) return "text-yellow-600";
-    return "text-orange-600";
+    if (confidence >= 0.9) return "text-success";
+    if (confidence >= 0.75) return "text-warning";
+    return "text-warning";
   };
 
   return (
@@ -210,7 +210,7 @@ export function WebsiteSyncModal({
                         </div>
 
                         {hasExisting && (
-                          <div className="flex items-center gap-1 mt-2 text-xs text-amber-600">
+                          <div className="flex items-center gap-1 mt-2 text-xs text-warning">
                             <AlertTriangle className="h-3 w-3" />
                             <span>Field already has data</span>
                           </div>

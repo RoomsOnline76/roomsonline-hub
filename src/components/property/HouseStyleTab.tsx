@@ -43,14 +43,14 @@ export function HouseStyleTab(props: HouseStyleTabProps) {
       <Card>
         <CardHeader><CardTitle>COMPANY LOGO</CardTitle></CardHeader>
         <CardContent className="space-y-4">
-          <div className={cn("border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors", isLogoUploading ? "border-primary bg-primary/5" : "border-blue-300 bg-blue-50")}
+          <div className={cn("border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors", isLogoUploading ? "border-primary bg-primary/5" : "border-info-border bg-info-surface")}
             onDragOver={(e) => e.preventDefault()} onDrop={handleLogoDrop} onClick={() => document.getElementById("logo-upload")?.click()}>
             {companyLogo ? (
               <div className="relative">
                 <img src={companyLogo} alt="Company Logo" className="max-h-48 mx-auto" />
                 <Button size="sm" variant="destructive" className="absolute top-2 right-2" onClick={(e) => { e.stopPropagation(); setCompanyLogo(null); }}><X className="h-4 w-4" /></Button>
               </div>
-            ) : (<><Upload className="h-12 w-12 mx-auto mb-4 text-blue-500" /><p className="text-sm text-blue-700">Click or Drag and drop image to upload</p></>)}
+            ) : (<><Upload className="h-12 w-12 mx-auto mb-4 text-blue-500" /><p className="text-sm text-info">Click or Drag and drop image to upload</p></>)}
             <input id="logo-upload" type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
           </div>
         </CardContent>
@@ -90,9 +90,9 @@ export function HouseStyleTab(props: HouseStyleTabProps) {
               <div key={f.id}><Label htmlFor={`merchant-${f.id}`}>{f.label}</Label><Input id={`merchant-${f.id}`} value={merchantDetails[f.id]} onChange={(e) => setMerchantDetails({ ...merchantDetails, [f.id]: e.target.value })} /></div>
             ))}
           </div>
-          <div className="bg-blue-50 border border-blue-200 rounded p-3 space-y-1">
-            <p className="text-sm text-blue-700">• Split % will be of the total booking. The amount will be credited to RoomsOnline</p>
-            <p className="text-sm text-blue-700">• Decimal split amount percentage will be round off to whole number</p>
+          <div className="bg-info-surface border border-info-border rounded p-3 space-y-1">
+            <p className="text-sm text-info">• Split % will be of the total booking. The amount will be credited to RoomsOnline</p>
+            <p className="text-sm text-info">• Decimal split amount percentage will be round off to whole number</p>
           </div>
         </CardContent>
       </Card>

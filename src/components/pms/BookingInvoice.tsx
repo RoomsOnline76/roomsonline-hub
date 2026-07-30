@@ -299,19 +299,19 @@ export function BookingInvoice({ bookingId, guestName, guestEmail, checkIn, chec
             {payments.map(t => (
               <div key={t.id} className="flex justify-between text-xs py-1 border-b border-border/30">
                 <span>{t.description}</span>
-                <span className="text-green-600">-R{Math.abs(t.amount).toLocaleString()}</span>
+                <span className="text-success">-R{Math.abs(t.amount).toLocaleString()}</span>
               </div>
             ))}
             {settledExternally && (
               <div className="flex justify-between text-xs py-1 border-b border-border/30">
                 <span>Online payment received</span>
-                <span className="text-green-600">-R{onlineBookingPayment.toLocaleString()}</span>
+                <span className="text-success">-R{onlineBookingPayment.toLocaleString()}</span>
               </div>
             )}
           </>
         )}
 
-        <div className={`mt-4 p-3 rounded-md text-center font-bold ${balance > 0 ? "bg-red-500/10 text-red-700" : "bg-green-500/10 text-green-700"}`}>
+        <div className={`mt-4 p-3 rounded-md text-center font-bold ${balance > 0 ? "bg-red-500/10 text-destructive" : "bg-green-500/10 text-success"}`}>
           {balance > 0 ? `Balance Due: R${balance.toLocaleString()}` : "Paid in Full — R0.00 Due"}
         </div>
 

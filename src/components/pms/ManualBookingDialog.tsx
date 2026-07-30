@@ -410,7 +410,7 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
             </div>
 
             {rateUnresolved && form.room_type_id && nights > 0 && (
-              <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium">
+              <p className="text-[11px] text-warning dark:text-amber-400 font-medium">
                 Rate unavailable for this room type / date — please enter Total Price manually below.
               </p>
             )}

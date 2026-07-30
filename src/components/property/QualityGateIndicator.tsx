@@ -96,10 +96,10 @@ export function QualityGateIndicator({
 
   // Determine overall status color
   const statusColor = passed 
-    ? "text-green-600" 
+    ? "text-success" 
     : blockers.length > 0 
       ? "text-destructive" 
-      : "text-yellow-600";
+      : "text-warning";
 
   const statusBg = passed 
     ? "bg-green-500/10 border-green-500/30" 
@@ -230,7 +230,7 @@ export function QualityGateIndicator({
             {/* Warnings Section */}
             {warnings.length > 0 && (
               <div className="space-y-1.5">
-                <div className="flex items-center gap-1.5 text-xs font-medium text-yellow-600">
+                <div className="flex items-center gap-1.5 text-xs font-medium text-warning">
                   <AlertTriangle className="h-3.5 w-3.5" />
                   Warnings
                 </div>
@@ -247,7 +247,7 @@ export function QualityGateIndicator({
             {/* Passed Checks (collapsed by default) */}
             {passed && checks.filter(c => c.passed).length > 0 && (
               <div className="space-y-1.5">
-                <div className="flex items-center gap-1.5 text-xs font-medium text-green-600">
+                <div className="flex items-center gap-1.5 text-xs font-medium text-success">
                   <CheckCircle2 className="h-3.5 w-3.5" />
                   All Checks Passed ({checks.filter(c => c.passed).length})
                 </div>
@@ -269,7 +269,7 @@ function CheckItem({ check, onNavigate }: CheckItemProps) {
   const severityIcon = check.severity === 'blocker' 
     ? <XCircle className="h-3 w-3 text-destructive flex-shrink-0" />
     : check.severity === 'warning'
-      ? <AlertTriangle className="h-3 w-3 text-yellow-600 flex-shrink-0" />
+      ? <AlertTriangle className="h-3 w-3 text-warning flex-shrink-0" />
       : <Info className="h-3 w-3 text-blue-500 flex-shrink-0" />;
 
   return (

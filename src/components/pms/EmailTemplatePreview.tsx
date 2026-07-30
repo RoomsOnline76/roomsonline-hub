@@ -87,7 +87,7 @@ export function EmailTemplatePreview({
 
           {/* Email body */}
           <div
-            className="mx-4 my-4 bg-white rounded-md shadow-sm p-6 text-sm"
+            className="mx-4 my-4 bg-card rounded-md shadow-sm p-6 text-sm"
             style={{
               fontFamily: "Arial, sans-serif",
               color: brandColors?.font || "#333",

@@ -444,10 +444,10 @@ export default function PMSHousekeeping() {
 
         {/* Fallback banner */}
         {usingFallback && (
-          <Card className="border-amber-300 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800">
+          <Card className="border-warning-border bg-warning-surface dark:bg-amber-950/20 dark:border-amber-800">
             <CardContent className="py-3 flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
-              <p className="text-xs text-amber-700 dark:text-amber-400">No physical rooms configured. Showing room types as fallback. Add rooms in the Room Inventory page for full housekeeping tracking.</p>
+              <AlertTriangle className="h-4 w-4 text-warning shrink-0" />
+              <p className="text-xs text-warning dark:text-amber-400">No physical rooms configured. Showing room types as fallback. Add rooms in the Room Inventory page for full housekeeping tracking.</p>
             </CardContent>
           </Card>
         )}
@@ -481,7 +481,7 @@ export default function PMSHousekeeping() {
 
           {/* ─── Needs Cleaning ─────────────────────── */}
           <div className="space-y-3">
-            <h2 className="font-semibold text-amber-700 flex items-center gap-2">
+            <h2 className="font-semibold text-warning flex items-center gap-2">
               <Sparkles className="h-4 w-4" /> Needs Cleaning ({dirtyRooms.length})
             </h2>
             {dirtyRooms.map(room => {
@@ -501,7 +501,7 @@ export default function PMSHousekeeping() {
                         <p className="font-bold">{room.room_number}</p>
                         <p className="text-xs text-muted-foreground">{roomTypeName(room.room_type_id)}</p>
                       </div>
-                      <Badge variant="outline" className="text-xs text-amber-600 border-amber-300">dirty</Badge>
+                      <Badge variant="outline" className="text-xs text-warning border-warning-border">dirty</Badge>
                     </div>
                     {/* Active cleaning tasks */}
                     {tasks.map(task => (
@@ -577,7 +577,7 @@ export default function PMSHousekeeping() {
 
           {/* ─── Maintenance ────────────────────────── */}
           <div className="space-y-3">
-            <h2 className="font-semibold text-red-700 flex items-center gap-2">
+            <h2 className="font-semibold text-destructive flex items-center gap-2">
               <Wrench className="h-4 w-4" /> Maintenance ({maintenanceRooms.length + (orphanedDockets.length > 0 ? 1 : 0)})
             </h2>
             {orphanedDockets.length > 0 && (
@@ -683,7 +683,7 @@ export default function PMSHousekeeping() {
 
           {/* ─── In House (Occupied) ───────────────── */}
           <div className="space-y-3">
-            <h2 className="font-semibold text-blue-700 flex items-center gap-2">
+            <h2 className="font-semibold text-info flex items-center gap-2">
               <BedDouble className="h-4 w-4" /> In House ({occupiedRooms.length})
             </h2>
             {occupiedRooms.map(room => {
@@ -702,9 +702,9 @@ export default function PMSHousekeeping() {
                       <div className="min-w-0">
                         <p className="font-bold truncate">{room.room_number}</p>
                         <p className="text-xs text-muted-foreground truncate">{roomTypeName(room.room_type_id)}</p>
-                        {guest && <p className="text-xs text-blue-700 dark:text-blue-300 truncate">Guest: {guest}</p>}
+                        {guest && <p className="text-xs text-info dark:text-blue-300 truncate">Guest: {guest}</p>}
                       </div>
-                      <Badge className="text-xs bg-blue-500/20 text-blue-700 dark:text-blue-300 border border-blue-500/40">in house</Badge>
+                      <Badge className="text-xs bg-blue-500/20 text-info dark:text-blue-300 border border-blue-500/40">in house</Badge>
                     </div>
                   </CardContent>
                 </Card>
@@ -723,7 +723,7 @@ export default function PMSHousekeeping() {
             return (
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <h2 className="font-semibold text-emerald-700 flex items-center gap-2">
+                  <h2 className="font-semibold text-success flex items-center gap-2">
                     <ShieldCheck className="h-4 w-4" /> Ready ({cleanRooms.length})
                   </h2>
                   {readyClean.length > 0 && (
@@ -755,9 +755,9 @@ export default function PMSHousekeeping() {
                           <p className="text-xs text-muted-foreground">{roomTypeName(room.room_type_id)}</p>
                         </div>
                         <div className="mt-1 space-y-2">
-                          <div className="flex items-center gap-1.5 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded p-1.5">
-                            <AlertTriangle className="h-3 w-3 text-amber-600 shrink-0" />
-                            <span className="text-xs text-amber-700 dark:text-amber-400">
+                          <div className="flex items-center gap-1.5 bg-warning-surface dark:bg-amber-950/30 border border-warning-border dark:border-amber-800 rounded p-1.5">
+                            <AlertTriangle className="h-3 w-3 text-warning shrink-0" />
+                            <span className="text-xs text-warning dark:text-amber-400">
                               {openDockets.length} open docket{openDockets.length > 1 ? "s" : ""}
                             </span>
                           </div>
@@ -814,7 +814,7 @@ export default function PMSHousekeeping() {
                           <Badge
                             key={room.id}
                             variant="outline"
-                            className="text-xs font-medium border-emerald-300 text-emerald-700 dark:text-emerald-400 cursor-pointer hover:bg-emerald-500/10"
+                            className="text-xs font-medium border-success-border text-success dark:text-emerald-400 cursor-pointer hover:bg-emerald-500/10"
                             title={`${roomTypeName(room.room_type_id)} — click to add a maintenance docket`}
                             onClick={() => openDocketForRoom(room.id)}
                             role="button"

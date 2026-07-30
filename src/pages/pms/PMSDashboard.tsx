@@ -211,12 +211,12 @@ function normalizeRoomsToCanonicalRoomTypes<T extends Room>(
 }
 
 const STATUS_COLORS: Record<string, { bg: string; text: string; border: string }> = {
-  confirmed: { bg: "bg-blue-500/20", text: "text-blue-700 dark:text-blue-300", border: "border-blue-500/40" },
-  pending: { bg: "bg-amber-500/20", text: "text-amber-700 dark:text-amber-300", border: "border-amber-500/40" },
-  checked_in: { bg: "bg-green-500/20", text: "text-green-700 dark:text-green-300", border: "border-green-500/40" },
-  checked_out: { bg: "bg-slate-500/20", text: "text-slate-700 dark:text-slate-300", border: "border-slate-500/40" },
-  cancelled: { bg: "bg-red-500/20", text: "text-red-700 dark:text-red-300 line-through", border: "border-red-500/40" },
-  no_show: { bg: "bg-rose-500/20", text: "text-rose-700 dark:text-rose-300", border: "border-rose-500/40" },
+  confirmed: { bg: "bg-blue-500/20", text: "text-info dark:text-blue-300", border: "border-blue-500/40" },
+  pending: { bg: "bg-amber-500/20", text: "text-warning dark:text-amber-300", border: "border-amber-500/40" },
+  checked_in: { bg: "bg-green-500/20", text: "text-success dark:text-green-300", border: "border-green-500/40" },
+  checked_out: { bg: "bg-slate-500/20", text: "text-foreground/80 dark:text-slate-300", border: "border-slate-500/40" },
+  cancelled: { bg: "bg-red-500/20", text: "text-destructive dark:text-red-300 line-through", border: "border-red-500/40" },
+  no_show: { bg: "bg-rose-500/20", text: "text-destructive dark:text-rose-300", border: "border-rose-500/40" },
 };
 
 const STATUS_BADGE_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
@@ -1290,9 +1290,9 @@ export default function PMSDashboard() {
 
   const statCards = [
     { label: "Total Rooms", value: effectiveStats.totalRooms, icon: Building2, color: "text-foreground" },
-    { label: "Available", value: effectiveStats.available, icon: BedDouble, color: "text-emerald-600" },
-    { label: "Occupied", value: `${effectiveStats.occupied} (${effectiveStats.occupancyPct}%)`, icon: Users, color: "text-blue-600" },
-    { label: "Arrivals Today", value: effectiveArrivals.length, icon: CalendarCheck, color: "text-amber-600" },
+    { label: "Available", value: effectiveStats.available, icon: BedDouble, color: "text-success" },
+    { label: "Occupied", value: `${effectiveStats.occupied} (${effectiveStats.occupancyPct}%)`, icon: Users, color: "text-info" },
+    { label: "Arrivals Today", value: effectiveArrivals.length, icon: CalendarCheck, color: "text-warning" },
     { label: "Departures Today", value: effectiveDepartures.length, icon: TrendingUp, color: "text-purple-600" },
     ...(effectiveStats.dirty > 0 ? [{ label: "Dirty", value: effectiveStats.dirty, icon: AlertTriangle, color: "text-amber-500" }] : []),
     ...(effectiveStats.maintenance > 0 ? [{ label: "Maintenance", value: effectiveStats.maintenance, icon: Ban, color: "text-destructive" }] : []),
@@ -1362,7 +1362,7 @@ export default function PMSDashboard() {
             <Card className="border-amber-500/30">
               <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
                 <CardTitle className="text-sm flex items-center gap-2">
-                  <CalendarCheck className="h-4 w-4 text-amber-600" />
+                  <CalendarCheck className="h-4 w-4 text-warning" />
                   Today's Arrivals
                 </CardTitle>
                 <Badge variant="secondary" className="text-[10px]">{effectiveArrivals.length}</Badge>
@@ -1510,7 +1510,7 @@ export default function PMSDashboard() {
             <CardContent className="p-3 flex items-start gap-3">
               <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
               <div className="flex-1 space-y-1">
-                <p className="text-sm font-semibold text-amber-700 dark:text-amber-400">Housekeeping Alert</p>
+                <p className="text-sm font-semibold text-warning dark:text-amber-400">Housekeeping Alert</p>
                 {urgentRooms.map((u) => (
                   <p key={u.room.id} className="text-sm text-foreground">
                     <span className="font-medium">{u.room.room_name || u.room.room_number}</span> is {u.issue} — guest <span className="font-medium">{u.guestName}</span> checking in today
@@ -1890,21 +1890,21 @@ function DateHeaderCell({ date, season, className: extraClass }: { date: Date; s
   const cellContent = (
     <div className={cn(
       "px-0.5 py-1.5 text-center",
-      today ? "bg-primary/15 ring-1 ring-inset ring-primary/40" : holiday ? "bg-green-50 dark:bg-green-950/20" : weekend ? "bg-red-50/60 dark:bg-red-950/15" : "",
+      today ? "bg-primary/15 ring-1 ring-inset ring-primary/40" : holiday ? "bg-success-surface dark:bg-green-950/20" : weekend ? "bg-red-50/60 dark:bg-red-950/15" : "",
       extraClass,
     )}>
-      <div className={cn("text-[10px] font-semibold uppercase", today ? "text-primary" : holiday ? "text-green-700 dark:text-green-400" : weekend ? "text-red-500" : "text-muted-foreground")}>
+      <div className={cn("text-[10px] font-semibold uppercase", today ? "text-primary" : holiday ? "text-success dark:text-green-400" : weekend ? "text-red-500" : "text-muted-foreground")}>
         {format(date, "EEE")}
       </div>
-      <div className={cn("text-sm font-bold", today ? "text-primary" : holiday ? "text-green-700 dark:text-green-400" : weekend ? "text-red-500" : "text-foreground")}>
+      <div className={cn("text-sm font-bold", today ? "text-primary" : holiday ? "text-success dark:text-green-400" : weekend ? "text-red-500" : "text-foreground")}>
         {format(date, "d")}
       </div>
-      <div className={cn("text-[9px]", today ? "text-primary" : holiday ? "text-green-700 dark:text-green-400" : weekend ? "text-red-500" : "text-muted-foreground")}>
+      <div className={cn("text-[9px]", today ? "text-primary" : holiday ? "text-success dark:text-green-400" : weekend ? "text-red-500" : "text-muted-foreground")}>
         {format(date, "MMM")}
       </div>
       {today && <div className="text-[7px] font-bold text-primary mt-0.5">TODAY</div>}
-      {holiday && !today && <div className="text-[7px] font-semibold text-green-700 dark:text-green-400 mt-0.5 animate-pulse-glow truncate max-w-[4.5rem] mx-auto leading-tight" title={holiday}>{holiday}</div>}
-      {season?.is_peak && !today && !holiday && <div className="text-[7px] text-amber-600 font-medium mt-0.5">PEAK</div>}
+      {holiday && !today && <div className="text-[7px] font-semibold text-success dark:text-green-400 mt-0.5 animate-pulse-glow truncate max-w-[4.5rem] mx-auto leading-tight" title={holiday}>{holiday}</div>}
+      {season?.is_peak && !today && !holiday && <div className="text-[7px] text-warning font-medium mt-0.5">PEAK</div>}
     </div>
   );
 
@@ -2167,8 +2167,8 @@ function MonthRoomTypeRows({ rt, weekDates, typeRooms, bookings, getRateForDate,
   return (
     <>
       {/* Room type header row (merged with booking bars for single-room types) */}
-      <tr className={cn("bg-slate-100 dark:bg-slate-800", isSingleRoom && singleRoomOOS && "opacity-50")}>
-        <td className="border p-1 font-semibold text-xs text-foreground sticky left-0 bg-slate-100 dark:bg-slate-800 z-10">
+      <tr className={cn("bg-muted dark:bg-slate-800", isSingleRoom && singleRoomOOS && "opacity-50")}>
+        <td className="border p-1 font-semibold text-xs text-foreground sticky left-0 bg-muted dark:bg-slate-800 z-10">
           <div className="flex items-center gap-1.5 px-1">
             <BedDouble className="h-3 w-3 text-muted-foreground shrink-0" />
             <div className="min-w-0">
@@ -2205,7 +2205,7 @@ function MonthRoomTypeRows({ rt, weekDates, typeRooms, bookings, getRateForDate,
                       )}
                       {!isSingleRoom && (
                         <div className="text-[8px] font-semibold mt-0.5">
-                          <span className={avail > 0 ? "text-emerald-600" : "text-red-500"}>{avail}</span>
+                          <span className={avail > 0 ? "text-success" : "text-red-500"}>{avail}</span>
                           {booked > 0 && <span className="text-muted-foreground"> / {booked}b</span>}
                         </div>
                       )}
@@ -2256,7 +2256,7 @@ function MonthRoomTypeRows({ rt, weekDates, typeRooms, bookings, getRateForDate,
         return (
           <tr className="bg-amber-50/50 dark:bg-amber-950/10">
             <td className="border p-1 sticky left-0 bg-amber-50/50 dark:bg-amber-950/10 z-10">
-              <span className="text-[10px] text-amber-600 italic pl-5">Unassigned</span>
+              <span className="text-[10px] text-warning italic pl-5">Unassigned</span>
             </td>
             {weekDates.map((date, i) => {
               const dateStr = format(date, "yyyy-MM-dd");
@@ -2385,8 +2385,8 @@ function RoomTypeSection({ rt, dates, roomsByType, bookings, getRateForDate, get
   return (
     <>
       {/* Room type header row (merged with booking bars for single-room types) */}
-      <tr className={cn("bg-slate-100 dark:bg-slate-800", isSingleRoom && singleRoomOOS && "opacity-50")}>
-        <td className="border p-1 font-semibold text-xs text-foreground sticky left-0 bg-slate-100 dark:bg-slate-800 z-10 min-w-[160px]">
+      <tr className={cn("bg-muted dark:bg-slate-800", isSingleRoom && singleRoomOOS && "opacity-50")}>
+        <td className="border p-1 font-semibold text-xs text-foreground sticky left-0 bg-muted dark:bg-slate-800 z-10 min-w-[160px]">
           <div className="flex items-center gap-1.5 px-1">
             <BedDouble className="h-3 w-3 text-muted-foreground shrink-0" />
             <div className="min-w-0">
@@ -2422,7 +2422,7 @@ function RoomTypeSection({ rt, dates, roomsByType, bookings, getRateForDate, get
                       )}
                       {!isSingleRoom && (
                         <div className="text-[8px] font-semibold mt-0.5">
-                          <span className={avail > 0 ? "text-emerald-600" : "text-red-500"}>{avail}</span>
+                          <span className={avail > 0 ? "text-success" : "text-red-500"}>{avail}</span>
                           {booked > 0 && <span className="text-muted-foreground"> / {booked}b</span>}
                         </div>
                       )}
@@ -2678,7 +2678,7 @@ function BookingDetail({
       const unready = assignedRooms.filter(r => r.status !== "available" && r.status !== "occupied");
       if (unready.length > 0) {
         btns.push(
-          <div key="room-warning" className="w-full bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-md p-2 text-xs text-amber-700 dark:text-amber-400 flex items-center gap-2">
+          <div key="room-warning" className="w-full bg-warning-surface dark:bg-amber-950/30 border border-warning-border dark:border-amber-800 rounded-md p-2 text-xs text-warning dark:text-amber-400 flex items-center gap-2">
             <AlertTriangle className="h-4 w-4 shrink-0" />
             <span>Room{unready.length > 1 ? "s" : ""} not ready: {unready.map(r => `${r.room_number} (${r.status})`).join(", ")}</span>
           </div>
@@ -2929,7 +2929,7 @@ function BookingDetail({
               {b.special_requests && (
                 <>
                   <Separator />
-                  <div><h4 className="text-xs font-semibold uppercase tracking-wider text-amber-600 flex items-center gap-1 mb-1"><MessageSquare className="h-3 w-3" />Special Requests</h4>
+                  <div><h4 className="text-xs font-semibold uppercase tracking-wider text-warning flex items-center gap-1 mb-1"><MessageSquare className="h-3 w-3" />Special Requests</h4>
                   <p className="text-sm bg-amber-500/10 p-2 rounded-md border border-amber-500/20 whitespace-pre-wrap">{b.special_requests}</p></div>
                 </>
               )}

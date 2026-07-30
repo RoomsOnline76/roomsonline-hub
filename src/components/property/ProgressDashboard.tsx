@@ -121,10 +121,10 @@ export function ProgressDashboard({ propertyId: propId, embedded = false }: Prog
             <div className="flex items-center gap-3">
               <div className={cn(
                 "p-2 rounded-full",
-                progress.status === 'live' ? "bg-green-100 text-green-600" :
-                progress.status === 'rejected' ? "bg-red-100 text-red-600" :
-                progress.status === 'review_pending' ? "bg-blue-100 text-blue-600" :
-                "bg-amber-100 text-amber-600"
+                progress.status === 'live' ? "bg-success-surface text-success" :
+                progress.status === 'rejected' ? "bg-danger-surface text-destructive" :
+                progress.status === 'review_pending' ? "bg-info-surface text-info" :
+                "bg-warning-surface text-warning"
               )}>
                 {(() => {
                   const Icon = STATUS_ICONS[progress.status];
@@ -153,9 +153,9 @@ export function ProgressDashboard({ propertyId: propId, embedded = false }: Prog
             <div className="flex items-baseline gap-2">
               <span className={cn(
                 "text-3xl font-bold",
-                progress.scoreBand.label === 'ROL Platinum' || progress.scoreBand.label === 'ROL Gold' ? "text-green-600" :
-                progress.scoreBand.label === 'ROL Silver' ? "text-amber-600" :
-                "text-red-600"
+                progress.scoreBand.label === 'ROL Platinum' || progress.scoreBand.label === 'ROL Gold' ? "text-success" :
+                progress.scoreBand.label === 'ROL Silver' ? "text-warning" :
+                "text-destructive"
               )}>
                 {progress.score}
               </span>
@@ -237,7 +237,7 @@ export function ProgressDashboard({ propertyId: propId, embedded = false }: Prog
                         )}>
                           <div className={cn(
                             "p-2 rounded-full border-2 transition-colors",
-                            step.completed ? "bg-green-100 border-green-500 text-green-600" :
+                            step.completed ? "bg-success-surface border-green-500 text-success" :
                             step.current ? "bg-primary/10 border-primary text-primary" :
                             "bg-muted border-muted-foreground/30 text-muted-foreground"
                           )}>
@@ -427,12 +427,12 @@ function BlockerItem({ item, type, propertyId }: BlockerItemProps) {
   return (
     <div className={cn(
       "flex items-start gap-2 p-2 rounded text-sm",
-      type === 'blocker' ? "bg-red-50 dark:bg-red-950/20" : "bg-amber-50 dark:bg-amber-950/20"
+      type === 'blocker' ? "bg-danger-surface dark:bg-red-950/20" : "bg-warning-surface dark:bg-amber-950/20"
     )}>
       {type === 'blocker' ? (
         <XCircle className="h-4 w-4 text-destructive flex-shrink-0 mt-0.5" />
       ) : (
-        <AlertTriangle className="h-4 w-4 text-amber-600 flex-shrink-0 mt-0.5" />
+        <AlertTriangle className="h-4 w-4 text-warning flex-shrink-0 mt-0.5" />
       )}
       <div className="flex-1 min-w-0">
         <p className="font-medium text-wrap">{item.name}</p>

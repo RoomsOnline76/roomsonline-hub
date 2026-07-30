@@ -152,15 +152,15 @@ export function CommissionTab({ propertyId, isAdmin }: CommissionTabProps) {
     const isFuture = term.effective_from > now;
     const isPast = term.effective_to && term.effective_to < now;
 
-    if (isActive) return <Badge className="bg-green-500/10 text-green-600 border-green-500/20">Active</Badge>;
-    if (isFuture) return <Badge variant="outline" className="text-blue-600 border-blue-500/20"><Clock className="w-3 h-3 mr-1" />Scheduled</Badge>;
+    if (isActive) return <Badge className="bg-green-500/10 text-success border-green-500/20">Active</Badge>;
+    if (isFuture) return <Badge variant="outline" className="text-info border-blue-500/20"><Clock className="w-3 h-3 mr-1" />Scheduled</Badge>;
     if (isPast) return <Badge variant="secondary">Expired</Badge>;
     return <Badge variant="outline">{term.contract_status || "draft"}</Badge>;
   };
 
   const getTypeBadge = (type: string) => {
     if (type === "pms") return <Badge variant="outline" className="text-violet-600 border-violet-500/20"><Server className="w-3 h-3 mr-1" />PMS</Badge>;
-    return <Badge variant="outline" className="text-sky-600 border-sky-500/20"><Globe className="w-3 h-3 mr-1" />Listing</Badge>;
+    return <Badge variant="outline" className="text-info border-sky-500/20"><Globe className="w-3 h-3 mr-1" />Listing</Badge>;
   };
 
   if (loading) {
