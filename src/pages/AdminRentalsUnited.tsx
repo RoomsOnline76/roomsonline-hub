@@ -170,12 +170,21 @@ export default function AdminRentalsUnited() {
       <Tabs defaultValue="sync" className="space-y-6">
         <TabsList>
           <TabsTrigger value="sync">Sync observability</TabsTrigger>
+          <TabsTrigger value="errors">Error handling</TabsTrigger>
           <TabsTrigger value="cert">Certification &amp; compliance</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="errors">
+          <RuErrorHandlingTab
+            runs={runs}
+            propertyNameById={new Map(properties.map((p) => [p.id, p.name]))}
+          />
+        </TabsContent>
 
         <TabsContent value="cert">
           <RuCertificationConsole properties={properties} />
         </TabsContent>
+
 
         <TabsContent value="sync" className="space-y-6">
         {/* KPI Cards */}
