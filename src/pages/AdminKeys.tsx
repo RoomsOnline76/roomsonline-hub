@@ -3971,24 +3971,26 @@ export default function AdminKeys() {
             {editingRentalsunited ? (
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="ru-apikey">API Key</Label>
+                  <Label htmlFor="ru-apikey">AccessKey</Label>
                   <Input
                     id="ru-apikey"
                     type="password"
                     value={rentalsunitedApiKey}
                     onChange={(e) => setRentalsunitedApiKey(e.target.value)}
-                    placeholder={rentalsunitedCredentials?.api_key ? "••••••••" : "Enter API key"}
+                    placeholder={rentalsunitedCredentials?.api_key ? "••••••••" : "Enter RU XML AccessKey"}
                   />
+                  <p className="text-xs text-muted-foreground">Use the AccessKey issued for the Rentals United XML API.</p>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="ru-apisecret">API Secret</Label>
+                  <Label htmlFor="ru-apisecret">SecretKey</Label>
                   <Input
                     id="ru-apisecret"
                     type="password"
                     value={rentalsunitedApiSecret}
                     onChange={(e) => setRentalsunitedApiSecret(e.target.value)}
-                    placeholder={(rentalsunitedCredentials as any)?.api_secret ? "••••••••" : "Enter API secret"}
+                    placeholder={(rentalsunitedCredentials as any)?.api_secret ? "••••••••" : "Enter RU XML SecretKey"}
                   />
+                  <p className="text-xs text-muted-foreground">Use the SecretKey paired with the XML AccessKey.</p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="ru-endpoint">Endpoint URL</Label>
@@ -4021,13 +4023,13 @@ export default function AdminKeys() {
               <div className="space-y-4">
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                   <div>
-                    <Label className="text-muted-foreground">API Key</Label>
+                    <Label className="text-muted-foreground">AccessKey</Label>
                     <p className={`font-medium ${rentalsunitedCredentials?.api_key ? "text-green-600" : ""}`}>
                       {rentalsunitedCredentials?.api_key ? "Configured" : "Not set"}
                     </p>
                   </div>
                   <div>
-                    <Label className="text-muted-foreground">API Secret</Label>
+                    <Label className="text-muted-foreground">SecretKey</Label>
                     <p className={`font-medium ${(rentalsunitedCredentials as any)?.api_secret ? "text-green-600" : ""}`}>
                       {(rentalsunitedCredentials as any)?.api_secret ? "Configured" : "Not set"}
                     </p>
