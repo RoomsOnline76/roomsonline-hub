@@ -26,6 +26,24 @@ interface PropertyLite {
   rentalsunited_property_id: string | null;
 }
 
+interface RuUserEndpoint {
+  action: string;
+  ru_method: string;
+  implemented: boolean;
+  gated: boolean;
+  status: string;
+}
+
+interface UserMgmtState {
+  enabled: boolean;
+  note: string;
+  updated_at?: string | null;
+  guest_communication?: string;
+  endpoints?: RuUserEndpoint[];
+  users?: { id?: string; email?: string; name?: string }[];
+  probe?: unknown;
+}
+
 interface CertStep {
   step: number;
   name: string;
