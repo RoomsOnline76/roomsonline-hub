@@ -149,9 +149,28 @@ export function BrandReadabilityPanel({ palette, onApply, entityLabel = "propert
             </p>
           </CardHeader>
           <CardContent className="space-y-3">
-            {fixes.map((fix) => (
-              <FixRow key={fix.id} fix={fix} checked={selected.includes(fix.id)} onToggle={() => toggle(fix.id)} />
-            ))}
+            {(["booking", "rolos"] as const).map((scope) => {
+              const group = fixes.filter((f) => f.scope === scope);
+              if (group.length === 0) return null;
+              return (
+                <div key={scope} className="space-y-2">
+                  <div className="text-[10px] font-semibold uppercase tracking-wide text-foreground/70">
+                    {scope === "booking"
+                      ? "Guest booking pages"
+                      : "ROLOS interface (admin & PMS)"}
+                  </div>
+                  {group.map((fix) => (
+                    <FixRow
+                      key={fix.id}
+                      fix={fix}
+                      checked={selected.includes(fix.id)}
+                      onToggle={() => toggle(fix.id)}
+                    />
+                  ))}
+                </div>
+              );
+            })}
+
             <div className="flex flex-wrap gap-2 pt-1">
               <Button size="sm" onClick={accept} disabled={selected.length === 0}>
                 <Check className="h-4 w-4 mr-1" /> Accept proposed changes ({selected.length})
