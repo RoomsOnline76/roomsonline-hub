@@ -135,6 +135,9 @@ export function RuCertificationConsole({ properties }: { properties: PropertyLit
 
   const [cadence, setCadence] = useState<CadenceRule[]>([]);
   const [cadenceLoading, setCadenceLoading] = useState(false);
+  const [jobs, setJobs] = useState<CronJob[]>([]);
+  const [expectedJobs, setExpectedJobs] = useState<ExpectedJob[]>([]);
+  const [runningJob, setRunningJob] = useState<string | null>(null);
 
   const [readiness, setReadiness] = useState<ReadinessRow[]>([]);
   const [readinessLoading, setReadinessLoading] = useState(false);
