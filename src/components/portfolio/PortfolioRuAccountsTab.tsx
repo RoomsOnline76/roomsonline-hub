@@ -38,6 +38,7 @@ interface PropRow {
   owner_email: string | null;
   city: string | null;
   ru_push_enabled: boolean | null;
+  ru_archived?: boolean | null;
 }
 
 /**
@@ -83,7 +84,7 @@ export function PortfolioRuAccountsTab() {
     queryFn: async () => {
       const { data } = await supabase
         .from("properties")
-        .select("id, name, owner_email, city, ru_push_enabled")
+        .select("id, name, owner_email, city, ru_push_enabled, ru_archived")
         .eq("is_active", true)
         .order("name");
       return (data || []) as PropRow[];
