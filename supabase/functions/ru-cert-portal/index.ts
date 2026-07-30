@@ -55,6 +55,90 @@ function preview(value: unknown, max = 4000): string | null {
   return s.length > max ? `${s.slice(0, max)}\n… [truncated ${s.length - max} chars]` : s;
 }
 
+/**
+ * RU requires at least one LocationId when creating a sub-user.
+ * Resolve it from: cached pms_mappings geo metadata → live coordinate lookup →
+ * ru_locations city/country name match, across the owner's properties.
+ */
+async function resolveOwnerLocationIds(
+  admin: ReturnType<typeof createClient>,
+  propertyId: string | null,
+  portfolioId: string | null,
+): Promise<number[]> {
+  const ids = new Set<number>();
+
+  let propertyIds: string[] = [];
+  if (portfolioId) {
+    const { data: members } = await admin
+      .from("property_portfolio_members")
+      .select("property_id")
+      .eq("portfolio_id", portfolioId);
+    propertyIds = ((members ?? []) as Array<{ property_id: string }>).map((m) => m.property_id);
+    if (propertyId && !propertyIds.includes(propertyId)) propertyIds.push(propertyId);
+  } else if (propertyId) {
+    propertyIds = [propertyId];
+  }
+  if (propertyIds.length === 0) return [];
+
+  const { data: props } = await admin
+    .from("properties")
+    .select("id, city, country, latitude, longitude")
+    .in("id", propertyIds);
+
+  const properties = (props ?? []) as Array<{
+    id: string; city: string | null; country: string | null; latitude: number | null; longitude: number | null;
+  }>;
+  if (properties.length === 0) return [];
+
+  // 1. Cached geo mapping
+  const { data: mappings } = await admin
+    .from("pms_mappings")
+    .select("metadata, property_id")
+    .in("property_id", properties.map((p) => p.id))
+    .eq("system_type", "rentals_united")
+    .eq("mapping_type", "field_mappings")
+    .eq("external_id", "__property__");
+  for (const m of (mappings ?? []) as Array<{ metadata: Record<string, unknown> | null }>) {
+    const id = Number((m.metadata as Record<string, unknown> | null)?.ru_location_id);
+    if (Number.isFinite(id) && id > 1) ids.add(id);
+  }
+  if (ids.size > 0) return [...ids];
+
+  // 2. Live coordinate lookup via the RU API
+  for (const p of properties) {
+    if (p.latitude == null || p.longitude == null) continue;
+    const { data } = await admin.functions.invoke("rentalsunited-api", {
+      body: { action: "get_location_by_coordinates", metadata: { latitude: p.latitude, longitude: p.longitude } },
+    });
+
+    const id = Number(data?.location_id);
+    if (Number.isFinite(id) && id > 1) {
+      ids.add(id);
+      break;
+    }
+  }
+  if (ids.size > 0) return [...ids];
+
+  // 3. ru_locations cache by city name
+  for (const p of properties) {
+    if (!p.city) continue;
+    const { data: loc } = await admin
+      .from("ru_locations")
+      .select("id")
+      .ilike("name", p.city)
+      .limit(1)
+      .maybeSingle();
+    const id = Number((loc as { id?: number } | null)?.id);
+    if (Number.isFinite(id) && id > 1) {
+      ids.add(id);
+      break;
+    }
+  }
+  return [...ids];
+}
+
+
+
 // ── RU method catalogue ───────────────────────────────────────
 const RU_METHOD_BY_ACTION: Record<string, string> = {
   health_check: "Pull_ListProp_RQ (health)",
@@ -638,14 +722,39 @@ Deno.serve(async (req) => {
       const parts = String(ownerName).trim().split(/\s+/);
       const firstName = parts[0] || "Property";
       const lastName = parts.slice(1).join(" ") || "Owner";
-      const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%";
-      const bytes = new Uint8Array(16);
-      crypto.getRandomValues(bytes);
-      let password = "";
-      for (const b of bytes) password += chars[b % chars.length];
+
+      // RU password policy: 12+ chars incl. upper, lower, digit and special
+      const pick = (set: string, n: number) => {
+        const bytes = new Uint8Array(n);
+        crypto.getRandomValues(bytes);
+        return Array.from(bytes).map((b) => set[b % set.length]).join("");
+      };
+      const password = (
+        pick("ABCDEFGHJKLMNPQRSTUVWXYZ", 4) +
+        pick("abcdefghijkmnpqrstuvwxyz", 5) +
+        pick("23456789", 3) +
+        pick("!@#$%*?", 2)
+      );
+
+      // RU requires at least one LocationId on the sub-user.
+      const locationIds = await resolveOwnerLocationIds(admin, propertyId, portfolioId);
+      if (locationIds.length === 0) {
+        return json({
+          success: false,
+          error: {
+            code: "NO_RU_LOCATION",
+            message:
+              "No Rentals United LocationId could be resolved for this owner. Set the property's city/country coordinates (or push the property once) so a location can be matched, then retry.",
+          },
+        }, 422);
+      }
 
       const { data: created, error: createErr } = await admin.functions.invoke("rentalsunited-api", {
-        body: { action: "create_user", user: { first_name: firstName, last_name: lastName, email: ownerEmail, password } },
+        body: {
+          action: "create_user",
+          user: { first_name: firstName, last_name: lastName, email: ownerEmail, password },
+          location_ids: locationIds,
+        },
       });
       if (createErr || !created?.success) {
         return json({
@@ -654,6 +763,7 @@ Deno.serve(async (req) => {
           preview: preview(created, 2000),
         }, 502);
       }
+
 
       const userAccountId: string | null = created.user_account_id ?? null;
       let ruOwnerId: string | null = null;
