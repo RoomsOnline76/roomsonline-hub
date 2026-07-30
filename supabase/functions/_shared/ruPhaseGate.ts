@@ -313,7 +313,7 @@ export async function evaluatePhases(
   }
 
   const current = phases.find(p => p.status !== "passed") ?? phases[phases.length - 1];
-  const ownerIdNum = account?.ru_owner_id ? parseInt(account.ru_owner_id, 10) : null;
+  const ownerIdNum = !emailMismatch && account?.ru_owner_id ? parseInt(account.ru_owner_id, 10) : null;
 
   return {
     property_id: property.id,
