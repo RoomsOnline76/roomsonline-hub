@@ -59,6 +59,7 @@ export function PropertyPayoutTable({ payouts, loading }: PropertyPayoutTablePro
                   <p className="font-medium text-sm">{p.property_name}</p>
                   <p className="text-xs text-muted-foreground">
                     {p.booking_count} booking{p.booking_count !== 1 ? 's' : ''} · {p.billing_strategy}
+                    {p.billing_scope === 'portfolio' ? ' · portfolio billing' : ''}
                   </p>
                 </div>
               </TableCell>
@@ -66,9 +67,12 @@ export function PropertyPayoutTable({ payouts, loading }: PropertyPayoutTablePro
               <TableCell className="text-right">
                 <div>
                   <span className="font-medium">{formatCurrency(p.commission_amount)}</span>
-                  <span className="text-xs text-muted-foreground ml-1">({p.commission_rate}%)</span>
+                  <span className="text-xs text-muted-foreground ml-1">
+                    ({p.commission_rate.toFixed(1)}% eff.)
+                  </span>
                 </div>
               </TableCell>
+
               <TableCell className="text-right text-muted-foreground">
                 {p.fees > 0 ? formatCurrency(p.fees) : '—'}
               </TableCell>

@@ -1,48 +1,45 @@
-## What I verified in the database
+## Goal
 
-Live counts of active, non-deleted properties by status:
+Commission on the Payments page must be what the billing config actually says — resolved per booking, per its origin — instead of one flat property rate applied to total gross.
 
-```text
-inactive             51
-draft_pre_contract    9
-contract_signed       5
-contract_sent         3
-activation_ready      2
-live                  1
-```
+## Current behaviour (verified)
 
-There are currently **zero** properties in `review_pending`, `onboarding_active`, `review_failed` or `rejected` — the four statuses the page counts in three of its four cards. So:
+- `usePropertyPayouts` reads only `property_billing_configs.commission_rate` and multiplies it by the property's whole gross. It ignores `portfolio_billing_configs` entirely (Jongensfontein's rates live there), ignores the billing strategy (widget flat, rolos_pms, volume tiered, enterprise), and ignores where the booking came from.
+- The billing engine (`calculate-billing`) already resolves a two-way commission type: `listing` (10% default) vs `pms` (2% default), from `bookings.integration_type` / `booking_channel` / `source_url`, and prefers an active `property_commercial_terms` row for that type. That resolution is the source of truth and is not used by the payout page.
+- `bookings.calculated_commission` / `commission_rate_applied` / `commission_type` exist but are null on all current rows (the engine only writes them when it is invoked for a booking).
+- Portfolio config resolution already exists in `useBillingConfig` (member → `portfolio_billing_configs`, else property row).
 
-- The list is technically "correct" for its query, but only 2 rows can ever appear today (the 2 `activation_ready`).
-- Pending Review / Needs Attention / In Onboarding show 0 and look frozen, while 17 properties genuinely mid-onboarding (draft, contract sent, contract signed) are invisible.
-- Counters are computed from the *filtered* list, so a status filter zeroes out the other cards — reinforcing the "static/wrong" impression.
-- Refresh does call the refetch, but there is no spinner, no toast, and no invalidation of the per-property quality-gate caches — so nothing visibly changes.
+## What will change
 
-## Changes
+### 1. Shared commission resolver (`src/lib/commissionResolver.ts`, new)
 
-**1. Widen the queue to the real pipeline**
-Include `draft_pre_contract`, `contract_sent`, `contract_signed` alongside the existing five statuses so onboarding properties actually appear. Add an "Inactive/Archived" option in the status dropdown (not loaded by default) for lookups.
+One module used by the payout page and reusable elsewhere:
 
-**2. Make the counters status-truth, not filter-truth**
-Compute the four summary counts from the unfiltered result set, and make each card a clickable filter toggle (highlighted when active). Regroup:
+- `resolveCommissionType(booking)` — mirrors the edge function: `pms` when `integration_type`/`booking_channel` is direct/widget/embed/api/rolos/wordpress or `source_url` looks like a widget/embed/WordPress host; otherwise `listing`.
+- OTA rule: reservations that synced in from an external channel (Booking.com, Expedia, Airbnb, Lekkeslaap, Vrbo, Google — i.e. `booking_channel`/`integration_type` matching a channel-manager source, with no ROL payment transaction) get **0% commission**. Bookings placed on `book.sleepinafrica…` are `listing` and get the listing rate.
+- Rate cascade per booking: `bookings.calculated_commission` (when present) → active `property_commercial_terms` row matching the commission type and check-in date → billing config rate for that type → global default → hardcoded 10% listing / 2% PMS.
 
-- Pending Review — `review_pending`
-- Ready to Activate — `activation_ready`
-- Needs Attention — `review_failed`, `rejected`
-- In Onboarding — `draft_pre_contract`, `contract_sent`, `contract_signed`, `onboarding_active`
+### 2. Two rates in the billing config
 
-Add a small "of N total in queue" line under each number so a legitimate zero reads as zero rather than broken.
+Add `listing_commission_rate` and `pms_commission_rate` to `property_billing_configs`, `portfolio_billing_configs` and `billing_global_defaults` (nullable; existing `commission_rate` stays as the shared fallback so nothing breaks). Resolution order stays: portfolio config → property config → global default → hardcoded.
 
-**3. Keep it live**
-Add `refetchOnWindowFocus` and a 60s `refetchInterval` to the queue query, plus a "Updated Xs ago" timestamp next to the Refresh button.
+### 3. Payout page fix (`usePropertyPayouts`)
 
-**4. Make Refresh actually do something**
-On click: invalidate the queue query *and* the quality-gate/onboarding-score caches (which currently hold a 30s cached score per property), spin the icon while `isFetching`, and show a toast with the refreshed row count.
+- Fetch each booking's origin fields alongside the transaction, resolve commission **per booking**, and sum.
+- Resolve billing config portfolio-first: load `property_portfolio_members` for the properties in the result set and prefer the matching `portfolio_billing_configs` row, falling back to `property_billing_configs`.
+- Honour the strategy for the rate choice (widget flat commission, rolos_pms, volume-tiered, enterprise 0%) rather than assuming `commission_rate`.
+- Show a blended effective rate (commission ÷ gross) in the summary row, and per-booking commission + type in the drill-down detail table.
 
-**5. Sidebar badge consistency**
-Update the Review Queue count in `useAdminActionCounts` to use the same status set so the badge matches what the page shows.
+### 4. Billing UI
 
-### Technical notes
+Surface the two rates (Listing / marketplace vs PMS · white-label · direct · widget) in the Billing Config Builder for both property and portfolio scope, with the inherited/blank state showing the fallback that will apply. Include them in the Estimated Client Cost calculator.
 
-- Files: `src/pages/AdminReviewQueue.tsx`, `src/hooks/useAdminActionCounts.ts`, and the quality-gate query key in `src/components/property/QualityGateIndicator.tsx` (exported key so refresh can invalidate it).
-- No database or schema changes; query and presentation only.
+### 5. Edge function alignment
+
+Update `calculate-billing` to read the new per-type rates and to fall back to the portfolio config when the property has no own row, so live billing and the payouts view produce identical numbers.
+
+## Technical notes
+
+- One migration adds three nullable numeric columns per table; no data backfill needed (nulls inherit today's behaviour).
+- No change to how transactions are collected or settled — this only affects how commission is computed and displayed.
+- Verification: compare the Payments summary against a manual per-booking calculation for Fonteinhutte and Dassiesingel (portfolio-scoped, 10% listing / 2% PMS) before and after.

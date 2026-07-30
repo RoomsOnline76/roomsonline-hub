@@ -339,7 +339,9 @@ export type Database = {
           enterprise_custom_fee: number | null
           id: string
           is_preset: boolean
+          listing_commission_rate: number | null
           notes: string | null
+          pms_commission_rate: number | null
           portfolio_aggregator_billing_mode: string | null
           portfolio_aggregator_monthly_default: number | null
           portfolio_aggregator_setup_default: number | null
@@ -375,7 +377,9 @@ export type Database = {
           enterprise_custom_fee?: number | null
           id?: string
           is_preset?: boolean
+          listing_commission_rate?: number | null
           notes?: string | null
+          pms_commission_rate?: number | null
           portfolio_aggregator_billing_mode?: string | null
           portfolio_aggregator_monthly_default?: number | null
           portfolio_aggregator_setup_default?: number | null
@@ -411,7 +415,9 @@ export type Database = {
           enterprise_custom_fee?: number | null
           id?: string
           is_preset?: boolean
+          listing_commission_rate?: number | null
           notes?: string | null
+          pms_commission_rate?: number | null
           portfolio_aggregator_billing_mode?: string | null
           portfolio_aggregator_monthly_default?: number | null
           portfolio_aggregator_setup_default?: number | null
@@ -3636,7 +3642,9 @@ export type Database = {
           id: string
           last_invoice_id: string | null
           linked_contract_id: string | null
+          listing_commission_rate: number | null
           payment_facilitator_enabled: boolean | null
+          pms_commission_rate: number | null
           portfolio_id: string
           pricelabs_allowed: boolean
           pricelabs_monthly_fee: number | null
@@ -3680,7 +3688,9 @@ export type Database = {
           id?: string
           last_invoice_id?: string | null
           linked_contract_id?: string | null
+          listing_commission_rate?: number | null
           payment_facilitator_enabled?: boolean | null
+          pms_commission_rate?: number | null
           portfolio_id: string
           pricelabs_allowed?: boolean
           pricelabs_monthly_fee?: number | null
@@ -3724,7 +3734,9 @@ export type Database = {
           id?: string
           last_invoice_id?: string | null
           linked_contract_id?: string | null
+          listing_commission_rate?: number | null
           payment_facilitator_enabled?: boolean | null
+          pms_commission_rate?: number | null
           portfolio_id?: string
           pricelabs_allowed?: boolean
           pricelabs_monthly_fee?: number | null
@@ -4772,8 +4784,10 @@ export type Database = {
           id: string
           last_invoice_id: string | null
           linked_contract_id: string | null
+          listing_commission_rate: number | null
           owner_id: string | null
           payment_facilitator_enabled: boolean | null
+          pms_commission_rate: number | null
           pricelabs_allowed: boolean
           pricelabs_monthly_fee: number | null
           pricelabs_setup_fee: number | null
@@ -4818,8 +4832,10 @@ export type Database = {
           id?: string
           last_invoice_id?: string | null
           linked_contract_id?: string | null
+          listing_commission_rate?: number | null
           owner_id?: string | null
           payment_facilitator_enabled?: boolean | null
+          pms_commission_rate?: number | null
           pricelabs_allowed?: boolean
           pricelabs_monthly_fee?: number | null
           pricelabs_setup_fee?: number | null
@@ -4864,8 +4880,10 @@ export type Database = {
           id?: string
           last_invoice_id?: string | null
           linked_contract_id?: string | null
+          listing_commission_rate?: number | null
           owner_id?: string | null
           payment_facilitator_enabled?: boolean | null
+          pms_commission_rate?: number | null
           pricelabs_allowed?: boolean
           pricelabs_monthly_fee?: number | null
           pricelabs_setup_fee?: number | null

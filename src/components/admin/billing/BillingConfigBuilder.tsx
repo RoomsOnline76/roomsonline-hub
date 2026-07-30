@@ -17,6 +17,9 @@ export interface BillingConfigValue {
   // OTA listing commission (flat %) — bookings made through ROL's own OTA
   commission_enabled: boolean;
   commission_rate: string;
+  /** Commission on the property's own surfaces (white-label, direct, widget, embed, API). */
+  pms_commission_rate: string;
+
   // Widget / WBE tiered commission (uses global widget tiers)
   widget_tiers_enabled: boolean;
   // Widget / WBE flat commission — mutually exclusive with tiered widget
@@ -57,6 +60,8 @@ export function emptyBuilderValue(): BillingConfigValue {
   return {
     commission_enabled: false,
     commission_rate: "",
+    pms_commission_rate: "",
+
     widget_tiers_enabled: false,
     widget_flat_enabled: false,
     widget_flat_rate: "",
@@ -156,24 +161,53 @@ export function BillingConfigBuilder({ value, onChange, scope, placeholders = {}
 
   return (
     <div className="space-y-3">
-      {/* ── Commission ─────────────────────────────────────────────── */}
+      {/* ── Commission (two rates by booking origin) ───────────────── */}
       <ToggleRow
-        title="OTA listing commission"
-        description="Flat % ROL earns on bookings made through ROL's own OTA (e.g. book.sleepinafrica.roomsonline.co.za). Does not apply to widget/WBE, WordPress or channel-sourced bookings — those use their own commission/fee models below."
+        title="Booking commission"
+        description="Two rates, applied per booking depending on where it came from. Reservations synced in from third-party channels (Booking.com, Expedia, Airbnb…) carry no ROL commission."
         enabled={value.commission_enabled}
         onToggle={(v) => set("commission_enabled", v)}
       >
-        <div className="grid grid-cols-[1fr_auto] items-center gap-2">
-          <Input
-            type="number" step="0.5" min="0" max="100"
-            value={value.commission_rate}
-            onChange={(e) => set("commission_rate", e.target.value)}
-            placeholder={String(placeholders.commission_rate ?? "10")}
-            className="h-8 text-xs"
-          />
-          <span className="text-xs text-muted-foreground">%</span>
+        <div className="space-y-2">
+          <div className="grid grid-cols-[1fr_auto] items-center gap-2">
+            <div>
+              <p className="text-[11px] font-medium">Marketplace / listing</p>
+              <p className="text-[10px] text-muted-foreground">
+                Bookings on ROL's own OTA (book.sleepinafrica.roomsonline.co.za), journeys and itineraries.
+              </p>
+            </div>
+            <div className="flex items-center gap-1">
+              <Input
+                type="number" step="0.5" min="0" max="100"
+                value={value.commission_rate}
+                onChange={(e) => set("commission_rate", e.target.value)}
+                placeholder={String(placeholders.commission_rate ?? "10")}
+                className="h-8 w-20 text-xs"
+              />
+              <span className="text-xs text-muted-foreground">%</span>
+            </div>
+          </div>
+          <div className="grid grid-cols-[1fr_auto] items-center gap-2 border-t pt-2">
+            <div>
+              <p className="text-[11px] font-medium">PMS · white-label · direct · widget</p>
+              <p className="text-[10px] text-muted-foreground">
+                Bookings on the property's own surfaces (white-label site, embed, WordPress, API). Blank = 2%.
+              </p>
+            </div>
+            <div className="flex items-center gap-1">
+              <Input
+                type="number" step="0.5" min="0" max="100"
+                value={value.pms_commission_rate}
+                onChange={(e) => set("pms_commission_rate", e.target.value)}
+                placeholder={String(placeholders.pms_commission_rate ?? "2")}
+                className="h-8 w-20 text-xs"
+              />
+              <span className="text-xs text-muted-foreground">%</span>
+            </div>
+          </div>
         </div>
       </ToggleRow>
+
 
       {/* ── Widget flat commission ─────────────────────────────────── */}
       <ToggleRow
@@ -565,7 +599,9 @@ export function BillingConfigBuilder({ value, onChange, scope, placeholders = {}
 /** One-line human summary of the enabled toggles in a builder value. */
 export function summarizeBuilderValue(v: BillingConfigValue): string {
   const parts: string[] = [];
-  if (v.commission_enabled && v.commission_rate) parts.push(`${v.commission_rate}% commission`);
+  if (v.commission_enabled && v.commission_rate) parts.push(`${v.commission_rate}% listing commission`);
+  if (v.commission_enabled && v.pms_commission_rate) parts.push(`${v.pms_commission_rate}% PMS/direct commission`);
+
   if (v.widget_flat_enabled && v.widget_flat_rate) parts.push(`${v.widget_flat_rate}% widget flat commission`);
   if (v.widget_tiers_enabled) parts.push("widget tiered commission");
 

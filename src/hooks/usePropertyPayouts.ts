@@ -1,11 +1,18 @@
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  CommissionType,
+  resolveBookingCommission,
+  CommissionConfigLike,
+  CommissionGlobalsLike,
+} from "@/lib/commissionResolver";
 
 export interface PropertyPayout {
   property_id: string;
   property_name: string;
   owner_email: string | null;
   gross_amount: number;
+  /** Blended effective rate across the property's bookings (commission ÷ gross). */
   commission_rate: number;
   commission_amount: number;
   fees: number;
@@ -14,6 +21,7 @@ export interface PropertyPayout {
   has_banking: boolean;
   banking_verified: boolean;
   billing_strategy: string;
+  billing_scope: "property" | "portfolio";
   white_label_fee: number;
   subscription_fee: number;
   pf_enabled: boolean;
@@ -27,6 +35,10 @@ export interface PayoutBookingDetail {
   total_price: number;
   status: string;
   payment_status: string | null;
+  gross_paid: number;
+  commission_amount: number;
+  commission_rate: number;
+  commission_type: CommissionType;
 }
 
 // payment_transactions.status is written as 'paid' by the gateway handlers;
@@ -34,6 +46,70 @@ export interface PayoutBookingDetail {
 const SETTLED_TX_STATUSES = ['paid', 'completed', 'succeeded', 'success'];
 // Cancelled/refunded stays are never paid out to the property.
 const EXCLUDED_BOOKING_STATUSES = ['cancelled', 'canceled', 'refunded', 'no_show'];
+
+const BOOKING_ORIGIN_FIELDS =
+  'id, property_id, guest_name, check_in_date, check_out_date, total_price, status, payment_status, integration_type, booking_channel, source_url, calculated_commission, commission_rate_applied, commission_type';
+
+interface ResolvedBillingScope {
+  config: (CommissionConfigLike & Record<string, any>) | null;
+  scope: "property" | "portfolio";
+}
+
+/**
+ * Load billing configs for a set of properties, portfolio-first:
+ * a member property is billed off its portfolio config, otherwise its own row.
+ */
+async function loadBillingScopes(propertyIds: string[]): Promise<Record<string, ResolvedBillingScope>> {
+  const out: Record<string, ResolvedBillingScope> = {};
+  if (propertyIds.length === 0) return out;
+
+  const [{ data: members }, { data: propertyConfigs }] = await Promise.all([
+    supabase.from('property_portfolio_members').select('property_id, portfolio_id').in('property_id', propertyIds),
+    supabase.from('property_billing_configs').select('*').in('property_id', propertyIds),
+  ]);
+
+  const propertyConfigMap: Record<string, any> = {};
+  (propertyConfigs || []).forEach((c: any) => { propertyConfigMap[c.property_id] = c; });
+
+  const portfolioByProperty: Record<string, string> = {};
+  (members || []).forEach((m: any) => { portfolioByProperty[m.property_id] = m.portfolio_id; });
+
+  const portfolioIds = Array.from(new Set(Object.values(portfolioByProperty)));
+  const portfolioConfigMap: Record<string, any> = {};
+  if (portfolioIds.length > 0) {
+    const { data: pfConfigs } = await supabase
+      .from('portfolio_billing_configs' as any)
+      .select('*')
+      .in('portfolio_id', portfolioIds);
+    (pfConfigs || []).forEach((c: any) => { portfolioConfigMap[c.portfolio_id] = c; });
+  }
+
+  propertyIds.forEach((pid) => {
+    const pfId = portfolioByProperty[pid];
+    const pfConfig = pfId ? portfolioConfigMap[pfId] : null;
+    if (pfConfig) out[pid] = { config: pfConfig, scope: "portfolio" };
+    else out[pid] = { config: propertyConfigMap[pid] || null, scope: "property" };
+  });
+
+  return out;
+}
+
+/** Active commercial term rate per property + commission type. */
+async function loadCommercialTerms(propertyIds: string[]): Promise<Record<string, number>> {
+  const out: Record<string, number> = {};
+  if (propertyIds.length === 0) return out;
+  const { data } = await supabase
+    .from('property_commercial_terms')
+    .select('property_id, commission_type, revenue_share_percent, effective_from, contract_status')
+    .in('property_id', propertyIds)
+    .eq('contract_status', 'active')
+    .order('effective_from', { ascending: false });
+  (data || []).forEach((t: any) => {
+    const key = `${t.property_id}:${t.commission_type || 'listing'}`;
+    if (out[key] == null && t.revenue_share_percent != null) out[key] = Number(t.revenue_share_percent);
+  });
+  return out;
+}
 
 export function usePropertyPayouts(periodMonth?: string) {
   const [payouts, setPayouts] = useState<PropertyPayout[]>([]);
@@ -51,14 +127,7 @@ export function usePropertyPayouts(periodMonth?: string) {
           status,
           created_at,
           bookings!inner(
-            id,
-            property_id,
-            guest_name,
-            check_in_date,
-            check_out_date,
-            total_price,
-            status,
-            payment_status,
+            ${BOOKING_ORIGIN_FIELDS},
             properties!bookings_property_id_fkey!inner(id, name, owner_email)
           )
         `)
@@ -77,53 +146,71 @@ export function usePropertyPayouts(periodMonth?: string) {
 
       if (txError) throw txError;
 
-
-      // Get billing configs for all properties
-      const { data: billingConfigs } = await supabase
-        .from('property_billing_configs')
-        .select('property_id, commission_rate, billing_strategy, white_label_allowed, white_label_monthly_fee, subscription_fee_monthly, payment_facilitator_enabled, transaction_fee_percentage');
-
-      // Get bank details
-      const { data: bankDetails } = await supabase
-        .from('property_bank_details')
-        .select('property_id, is_verified');
-
-      const billingMap: Record<string, any> = {};
-      (billingConfigs || []).forEach((c: any) => { billingMap[c.property_id] = c; });
-
-      const bankMap: Record<string, { exists: boolean; verified: boolean }> = {};
-      (bankDetails || []).forEach((b: any) => { bankMap[b.property_id] = { exists: true, verified: b.is_verified }; });
-
-      // Group by property (count distinct bookings, not transactions)
-      const propertyMap: Record<string, {
-        property_name: string;
-        owner_email: string | null;
-        gross: number;
-        bookingIds: Set<string>;
-      }> = {};
-
+      // Group gross per booking first — commission is resolved per booking origin.
+      const bookingGross: Record<string, { booking: any; gross: number }> = {};
       (transactions || []).forEach((tx: any) => {
         const booking = tx.bookings;
         if (!booking?.properties) return;
         if (EXCLUDED_BOOKING_STATUSES.includes(String(booking.status || '').toLowerCase())) return;
-        const pid = booking.properties.id;
+        if (!bookingGross[booking.id]) bookingGross[booking.id] = { booking, gross: 0 };
+        bookingGross[booking.id].gross += Number(tx.amount) || 0;
+      });
+
+      const propertyIds = Array.from(
+        new Set(Object.values(bookingGross).map((b) => b.booking.properties.id as string)),
+      );
+
+      const [scopes, terms, bankRes, globalsRes] = await Promise.all([
+        loadBillingScopes(propertyIds),
+        loadCommercialTerms(propertyIds),
+        supabase.from('property_bank_details').select('property_id, is_verified').in('property_id', propertyIds),
+        supabase.from('billing_global_defaults').select('*'),
+      ]);
+
+      const bankMap: Record<string, { exists: boolean; verified: boolean }> = {};
+      (bankRes.data || []).forEach((b: any) => { bankMap[b.property_id] = { exists: true, verified: b.is_verified }; });
+
+      const globalsByStrategy: Record<string, CommissionGlobalsLike & Record<string, any>> = {};
+      (globalsRes.data || []).forEach((g: any) => { globalsByStrategy[g.strategy] = g; });
+
+      const propertyMap: Record<string, {
+        property_name: string;
+        owner_email: string | null;
+        gross: number;
+        commission: number;
+        bookingIds: Set<string>;
+      }> = {};
+
+      Object.values(bookingGross).forEach(({ booking, gross }) => {
+        const pid = booking.properties.id as string;
+        const resolved = scopes[pid];
+        const config = resolved?.config || null;
+        const globals = globalsByStrategy[String(config?.billing_strategy || 'default')] || null;
+
         if (!propertyMap[pid]) {
           propertyMap[pid] = {
             property_name: booking.properties.name,
             owner_email: booking.properties.owner_email,
             gross: 0,
+            commission: 0,
             bookingIds: new Set<string>(),
           };
         }
-        propertyMap[pid].gross += Number(tx.amount) || 0;
+
+        const type = booking.commission_type || undefined;
+        const termKey = `${pid}:${type === 'pms' ? 'pms' : 'listing'}`;
+        const commission = resolveBookingCommission(booking, gross, config, globals, terms[termKey] ?? null);
+
+        propertyMap[pid].gross += gross;
+        propertyMap[pid].commission += commission.amount;
         propertyMap[pid].bookingIds.add(booking.id);
       });
 
-
       const result: PropertyPayout[] = Object.entries(propertyMap).map(([pid, p]) => {
-        const billing = billingMap[pid];
-        const commRate = billing?.commission_rate || 0;
-        const commAmount = p.gross * (commRate / 100);
+        const resolved = scopes[pid];
+        const billing: any = resolved?.config || null;
+        const commAmount = p.commission;
+        const effectiveRate = p.gross > 0 ? (commAmount / p.gross) * 100 : 0;
         const wlFee = billing?.white_label_allowed ? (billing.white_label_monthly_fee || 0) : 0;
         const subFee = billing?.subscription_fee_monthly || 0;
         const pfEnabled = billing?.payment_facilitator_enabled || false;
@@ -135,7 +222,7 @@ export function usePropertyPayouts(periodMonth?: string) {
           property_name: p.property_name,
           owner_email: p.owner_email,
           gross_amount: p.gross,
-          commission_rate: commRate,
+          commission_rate: effectiveRate,
           commission_amount: commAmount,
           fees: totalFees,
           net_amount: p.gross - commAmount - totalFees,
@@ -143,6 +230,7 @@ export function usePropertyPayouts(periodMonth?: string) {
           has_banking: !!bankMap[pid]?.exists,
           banking_verified: !!bankMap[pid]?.verified,
           billing_strategy: billing?.billing_strategy || 'default',
+          billing_scope: resolved?.scope || 'property',
           white_label_fee: wlFee,
           subscription_fee: subFee,
           pf_enabled: pfEnabled,
@@ -170,21 +258,47 @@ export function usePropertyPayouts(periodMonth?: string) {
   const fetchBookingDetails = async (propertyId: string): Promise<PayoutBookingDetail[]> => {
     const { data } = await supabase
       .from('payment_transactions')
-      .select(`
-        bookings!inner(
-          id, property_id, guest_name, check_in_date, check_out_date, total_price, status, payment_status
-        )
-      `)
+      .select(`amount, bookings!inner(${BOOKING_ORIGIN_FIELDS})`)
       .in('status', SETTLED_TX_STATUSES)
       .eq('bookings.property_id', propertyId)
       .order('created_at', { ascending: false });
 
-    return (data || [])
-      .map((tx: any) => tx.bookings)
-      .filter((b: any) => b?.id && !EXCLUDED_BOOKING_STATUSES.includes(String(b.status || '').toLowerCase()))
-      .filter((b: any, i: number, arr: any[]) => arr.findIndex((x: any) => x.id === b.id) === i);
-  };
+    const grouped: Record<string, { booking: any; gross: number }> = {};
+    (data || []).forEach((tx: any) => {
+      const b = tx.bookings;
+      if (!b?.id) return;
+      if (EXCLUDED_BOOKING_STATUSES.includes(String(b.status || '').toLowerCase())) return;
+      if (!grouped[b.id]) grouped[b.id] = { booking: b, gross: 0 };
+      grouped[b.id].gross += Number(tx.amount) || 0;
+    });
 
+    const [scopes, terms, globalsRes] = await Promise.all([
+      loadBillingScopes([propertyId]),
+      loadCommercialTerms([propertyId]),
+      supabase.from('billing_global_defaults').select('*'),
+    ]);
+    const config = scopes[propertyId]?.config || null;
+    const globals =
+      (globalsRes.data || []).find((g: any) => g.strategy === (config?.billing_strategy || 'default')) || null;
+
+    return Object.values(grouped).map(({ booking, gross }) => {
+      const termKey = `${propertyId}:${booking.commission_type === 'pms' ? 'pms' : 'listing'}`;
+      const commission = resolveBookingCommission(booking, gross, config, globals as any, terms[termKey] ?? null);
+      return {
+        id: booking.id,
+        guest_name: booking.guest_name,
+        check_in_date: booking.check_in_date,
+        check_out_date: booking.check_out_date,
+        total_price: booking.total_price,
+        status: booking.status,
+        payment_status: booking.payment_status,
+        gross_paid: gross,
+        commission_amount: commission.amount,
+        commission_rate: commission.rate,
+        commission_type: commission.type,
+      };
+    });
+  };
 
   return { payouts, loading, stats, refresh: loadPayouts, fetchBookingDetails };
 }

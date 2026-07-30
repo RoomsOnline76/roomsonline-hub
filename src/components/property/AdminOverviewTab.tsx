@@ -293,7 +293,7 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
               ? ` · widget flat commission ${c.widget_flat_commission_rate}% (variable, not included)`
               : strategy === "widget"
               ? " · commission tiered by monthly volume (variable, not included)"
-              : c.commission_rate != null && ` · commission ${c.commission_rate}% (variable, not included)`}
+              : c.commission_rate != null && ` · commission ${(c as any).listing_commission_rate ?? c.commission_rate}% marketplace / ${(c as any).pms_commission_rate ?? 2}% direct (variable, not included)`}
             {Number(c.transaction_fee_percentage ?? 0) > 0 &&
               ` · facilitator surcharge ${c.transaction_fee_percentage}% per booking (variable, not included)`}
           </p>
@@ -369,12 +369,28 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
               hint="Configured in Admin → Billing Defaults → Widget tiers."
             />
           ) : ["default", "rolos_pms", "volume_tiered"].includes(strategy) && (
-            <Row
-              label="Commission (booking %)"
-              value={config?.commission_rate != null ? `${config.commission_rate}%` : <Empty />}
-              hint="ROL's share of the booking value."
-            />
+            <>
+              <Row
+                label="Commission — marketplace"
+                value={
+                  (config as any)?.listing_commission_rate ?? config?.commission_rate != null
+                    ? `${(config as any)?.listing_commission_rate ?? config?.commission_rate}%`
+                    : <Empty />
+                }
+                hint="Applied to bookings that come through ROL's own OTA, journeys and itineraries."
+              />
+              <Row
+                label="Commission — PMS / direct / white-label"
+                value={
+                  (config as any)?.pms_commission_rate != null
+                    ? `${(config as any).pms_commission_rate}%`
+                    : <span className="text-xs text-muted-foreground">2% (default)</span>
+                }
+                hint="Applied to bookings on the property's own surfaces (white-label site, embed, WordPress, API). Channel-sourced reservations carry no ROL commission."
+              />
+            </>
           )}
+
           <Row
             label="Subscription (monthly)"
             value={config?.subscription_fee_monthly != null ? `R ${config.subscription_fee_monthly}` : <Empty />}
