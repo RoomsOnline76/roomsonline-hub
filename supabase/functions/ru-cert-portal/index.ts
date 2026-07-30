@@ -956,8 +956,33 @@ Deno.serve(async (req) => {
         : await admin.from("ru_owner_accounts").insert(row).select().maybeSingle();
       if (saveErr) return json({ success: false, error: { code: "SAVE_FAILED", message: saveErr.message } }, 500);
 
+      // Step 2 of Phase 1: fill company details on RU — without this the sub-user is incomplete.
+      const companyResult = await submitCompanyDetails(saved as any);
+      if (!companyResult.sent) {
+        return json({
+          success: false,
+          error: {
+            code: "RU_COMPANY_DETAILS_FAILED",
+            message: `Sub-user ${adopted ? "adopted" : "created"} (OwnerID ${ruOwnerId ?? "?"}) but company details could not be submitted to Rentals United: ${companyResult.error}`,
+          },
+          account: saved,
+        }, 502);
+      }
+      const { data: finalAccount } = await admin
+        .from("ru_owner_accounts")
+        .select("*")
+        .eq("id", (saved as any)?.id)
+        .maybeSingle();
 
-      return json({ success: true, created: !adopted, adopted, account: saved, scope: portfolioId ? "portfolio" : "property" });
+      return json({
+        success: true,
+        created: !adopted,
+        adopted,
+        company_details_sent: true,
+        account: finalAccount ?? saved,
+        scope: portfolioId ? "portfolio" : "property",
+      });
+
     }
 
     // ── order_mcq: Phase 4.3 Minimum Content Quality check ──
