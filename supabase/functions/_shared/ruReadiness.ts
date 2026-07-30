@@ -115,8 +115,13 @@ export function evaluateUnitChecks(
     "No property type selected", "Property → General → Property type");
   add("can_sleep_max_ok", "Content", "Max guests ≥ 1", !!v.can_sleep_max_ok,
     "CanSleepMax must be at least 1", "Rooms → Unit → Max guests");
-  add("has_description", "Content", "Description (≥ 100 characters)", v.has_description !== false,
-    "Description is missing or too short (needs at least 100 characters)", "Property → Description");
+  add("has_description", "Content", "Description present", v.has_description !== false,
+    "Description is missing", "Property → Description");
+  // RU specifies no minimum description length — richer copy simply converts better.
+  add("description_meets_recommended", "Content", "Description ≥ 100 characters (recommended)",
+    v.description_meets_recommended !== false,
+    `Description is only ${v.description_length ?? 0} characters — 100+ is recommended for channel quality`,
+    "Property → Description", false);
   // Space / floor are advisory: RU accepts an estimate, but we report when the
   // value being sent is our default rather than real property data.
   add("has_space", "Content", "Property size (Space)", !!v.has_space && v.space_is_default !== true,
@@ -126,6 +131,11 @@ export function evaluateUnitChecks(
   add("meets_minimum_amenities", "Content", `Amenities (≥ ${RU_MIN_AMENITIES})`, !!v.meets_minimum_amenities,
     `Only ${v.amenities_count ?? 0} amenities mapped — Rentals United requires ${RU_MIN_AMENITIES}`,
     "Property → Amenities");
+  // Padded amenities keep the push valid but are assumed data — warn so owners fix them.
+  add("amenities_not_padded", "Content", "Amenities are real (not padded defaults)",
+    v.amenities_padded !== true,
+    `${v.amenities_padded_count ?? 0} amenity(ies) were auto-filled to reach RU's minimum of ${RU_MIN_AMENITIES} — confirm or replace them`,
+    "Property → Amenities", false);
 
   // ── Rooms & beds ──
   add("has_rooms", "Rooms & beds", "Composition rooms defined", (v.rooms_count ?? 0) > 0,

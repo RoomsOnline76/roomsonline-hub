@@ -228,12 +228,17 @@ function buildValidation(payload: Record<string, any>): Record<string, unknown> 
     images_meet_size: images.length > 0 && sized === images.length,
     meets_minimum_images: images.length >= RU_MIN_IMAGES,
     amenities_count: amenities.length,
+    amenities_mapped_count: amenities.filter((a: any) => a?.padded !== true).length,
+    amenities_padded_count: amenities.filter((a: any) => a?.padded === true).length,
+    amenities_padded: amenities.some((a: any) => a?.padded === true),
     meets_minimum_amenities: amenities.length >= RU_MIN_AMENITIES,
     rooms_count: rooms.length,
     rooms_with_amenities: roomsWithAmenities,
     rooms_have_amenities: rooms.length > 0 && roomsWithAmenities === rooms.length,
     total_beds: totalBeds,
+    // RU White-Label minimum: beds must cover >= 50% of CanSleepMax.
     beds_cover_half: totalBeds >= Math.ceil(Math.max(1, maxGuests) * RU_BED_COVERAGE),
+    // Advisory only (not an RU requirement): full 1-bed-per-guest coverage.
     beds_meet_max_guests: totalBeds >= Math.max(1, maxGuests),
     max_guests: maxGuests,
     has_coordinates: payload.latitude !== 0 && payload.longitude !== 0,
@@ -248,7 +253,10 @@ function buildValidation(payload: Record<string, any>): Record<string, unknown> 
     has_name: !!(payload.name && String(payload.name).trim().length >= 3),
     has_object_type_id: ((payload.object_type_id ?? payload.property_type_id) || 0) > 0,
     can_sleep_max_ok: maxGuests >= 1,
-    has_description: ((payload.descriptions?.[0]?.text || '').trim().length) >= 100,
+    // RU has no hard description length: presence is mandatory, 100+ chars is advisory.
+    description_length: (payload.descriptions?.[0]?.text || '').trim().length,
+    has_description: ((payload.descriptions?.[0]?.text || '').trim().length) > 0,
+    description_meets_recommended: ((payload.descriptions?.[0]?.text || '').trim().length) >= 100,
     has_main_image: images.some((i) => i.is_main),
     has_street: !!(payload.street && String(payload.street).trim().length > 2),
   };
