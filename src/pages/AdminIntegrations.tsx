@@ -23,7 +23,6 @@ import { WidgetSetupWizard } from "@/components/integrations/WidgetSetupWizard";
 import { PropertyPaymentProviderSelect } from "@/components/integrations/PropertyPaymentProviderSelect";
 import { PayFastEnvironmentToggle } from "@/components/integrations/PayFastEnvironmentToggle";
 import { PortfolioWidgetTab } from "@/components/integrations/PortfolioWidgetTab";
-import { HyperGuestPortalAdminCard } from "@/components/integrations/HyperGuestPortalAdminCard";
 
 interface Property {
   id: string;
