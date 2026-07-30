@@ -136,6 +136,39 @@ const num = (v: unknown): number | null => {
   return Number.isFinite(n) ? n : null;
 };
 
+/**
+ * Pick the effective global defaults for a billing strategy.
+ *
+ * Rates are data-driven: the strategy's own row wins field-by-field, then a
+ * generic `default` row, then any row that actually defines the field. Only if
+ * nothing is configured anywhere do the constants above apply.
+ */
+export function pickGlobals(
+  rows: (CommissionGlobalsLike & { strategy?: string | null })[] | null | undefined,
+  strategy?: string | null,
+): CommissionGlobalsLike | null {
+  const list = rows || [];
+  if (list.length === 0) return null;
+  const want = norm(strategy) || "default";
+  const ordered = [
+    ...list.filter((r) => norm(r.strategy) === want),
+    ...list.filter((r) => norm(r.strategy) === "default" && norm(r.strategy) !== want),
+    ...list,
+  ];
+  const fields: (keyof CommissionGlobalsLike)[] = [
+    "default_commission_rate",
+    "listing_commission_rate",
+    "pms_commission_rate",
+    "widget_flat_commission_rate",
+  ];
+  const out: CommissionGlobalsLike = {};
+  fields.forEach((f) => {
+    const hit = ordered.find((r) => num(r[f]) != null);
+    if (hit) out[f] = num(hit[f]) as number;
+  });
+  return out;
+}
+
 export interface ResolvedRate {
   rate: number;
   type: CommissionType;

@@ -5,6 +5,7 @@ import {
   resolveBookingCommission,
   CommissionConfigLike,
   CommissionGlobalsLike,
+  pickGlobals,
 } from "@/lib/commissionResolver";
 
 /** Where the money figure came from: a settled gateway transaction, or the booking record itself. */
@@ -219,8 +220,7 @@ export function usePropertyPayouts(period?: PayoutPeriod | string) {
       const bankMap: Record<string, { exists: boolean; verified: boolean }> = {};
       (bankRes.data || []).forEach((b: any) => { bankMap[b.property_id] = { exists: true, verified: b.is_verified }; });
 
-      const globalsByStrategy: Record<string, CommissionGlobalsLike & Record<string, any>> = {};
-      (globalsRes.data || []).forEach((g: any) => { globalsByStrategy[g.strategy] = g; });
+      const globalRows = (globalsRes.data || []) as any[];
 
       const propertyMap: Record<string, {
         property_name: string;
@@ -236,7 +236,7 @@ export function usePropertyPayouts(period?: PayoutPeriod | string) {
         const pid = booking.properties.id as string;
         const resolved = scopes[pid];
         const config = resolved?.config || null;
-        const globals = globalsByStrategy[String(config?.billing_strategy || 'default')] || null;
+        const globals = pickGlobals(globalRows, config?.billing_strategy);
 
         if (!propertyMap[pid]) {
           propertyMap[pid] = {
@@ -359,8 +359,7 @@ export function usePropertyPayouts(period?: PayoutPeriod | string) {
       supabase.from('billing_global_defaults').select('*'),
     ]);
     const config = scopes[propertyId]?.config || null;
-    const globals =
-      (globalsRes.data || []).find((g: any) => g.strategy === (config?.billing_strategy || 'default')) || null;
+    const globals = pickGlobals((globalsRes.data || []) as any[], config?.billing_strategy);
 
     return Object.values(grouped).map(({ booking, gross, source }) => {
       const termKey = `${propertyId}:${booking.commission_type === 'pms' ? 'pms' : 'listing'}`;

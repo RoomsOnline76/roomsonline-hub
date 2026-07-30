@@ -70,11 +70,29 @@ serve(async (req) => {
 
 
     // Fetch global defaults for the strategy (3-tier resolution)
-    const { data: globalDefaults } = await supabase
+    const { data: allGlobalRows } = await supabase
       .from("billing_global_defaults")
-      .select("*")
-      .eq("strategy", strategy)
-      .single();
+      .select("*");
+
+    // Merge globals field-by-field: the strategy's own row wins, then a generic
+    // `default` row, then any row that defines the field. Nothing is hard-wired.
+    const globalDefaults: Record<string, any> = (() => {
+      const rows: any[] = allGlobalRows || [];
+      if (!rows.length) return {};
+      const want = String(strategy || "default").toLowerCase();
+      const ordered = [
+        ...rows.filter((r) => String(r.strategy || "").toLowerCase() === want),
+        ...rows.filter((r) => String(r.strategy || "").toLowerCase() === "default"),
+        ...rows,
+      ];
+      const merged: Record<string, any> = {};
+      for (const row of ordered) {
+        for (const [k, v] of Object.entries(row || {})) {
+          if (merged[k] == null && v != null) merged[k] = v;
+        }
+      }
+      return merged;
+    })();
 
     // Resolve helper: property override → global default → hardcoded fallback
     const resolve = (
@@ -391,6 +409,8 @@ async function calcDefault(
     };
   }
 
+  // Last-resort fallback only — every layer above (commercial term, property or
+  // portfolio billing config, global defaults) overrides these.
   const hardcodedDefault = commissionType === 'pms' ? 2 : 10;
 
   // Check commercial terms first
@@ -407,10 +427,10 @@ async function calcDefault(
 
   // Per-origin rate: dedicated column → legacy shared column → global default → hardcoded.
   const configRate = commissionType === 'pms'
-    ? config?.pms_commission_rate
+    ? (config?.pms_commission_rate ?? config?.widget_flat_commission_rate)
     : (config?.listing_commission_rate ?? config?.commission_rate);
   const globalRate = commissionType === 'pms'
-    ? (globals?.pms_commission_rate ?? null)
+    ? (globals?.pms_commission_rate ?? globals?.widget_flat_commission_rate ?? null)
     : (globals?.listing_commission_rate ?? globals?.default_commission_rate);
 
   const rate = terms?.[0]?.revenue_share_percent
