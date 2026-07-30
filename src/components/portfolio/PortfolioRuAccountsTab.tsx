@@ -8,6 +8,15 @@ import { Input } from "@/components/ui/input";
 import { Link as RouterLink } from "react-router-dom";
 import { toast } from "sonner";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import {
   Building2,
   ChevronDown,
   ChevronRight,
@@ -19,6 +28,7 @@ import {
   KeyRound,
   Loader2,
   Mail,
+  RotateCcw,
   ShieldCheck,
   User2,
 } from "lucide-react";
@@ -85,6 +95,43 @@ export function PortfolioRuAccountsTab() {
       setRevealing(null);
     }
   }, []);
+
+  const [resetFor, setResetFor] = useState<{ id: string; email: string } | null>(null);
+  const [resetPassword, setResetPassword] = useState("");
+  const [resetEmail, setResetEmail] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const openReset = useCallback((accountId: string, email: string) => {
+    setResetFor({ id: accountId, email });
+    setResetEmail(email);
+    setResetPassword("");
+  }, []);
+
+  const saveResetPassword = useCallback(async () => {
+    if (!resetFor) return;
+    setSaving(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
+        body: {
+          action: "save_login_password",
+          account_id: resetFor.id,
+          password: resetPassword,
+          login_email: resetEmail,
+        },
+      });
+      if (error || !data?.success) {
+        toast.error(data?.error?.message || error?.message || "Could not save the password");
+        return;
+      }
+      toast.success("RU portal password stored (encrypted)");
+      setResetFor(null);
+      setResetPassword("");
+    } finally {
+      setSaving(false);
+    }
+  }, [resetEmail, resetFor, resetPassword]);
+
+
 
 
   const { data: accounts = [], isLoading } = useQuery({
@@ -267,7 +314,37 @@ export function PortfolioRuAccountsTab() {
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-1.5 flex-wrap">
+                    <div
+                      className="flex items-center gap-1.5 flex-wrap"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs"
+                        disabled={revealing === acc.id}
+                        onClick={() =>
+                          revealed[acc.id] ? hideCredentials(acc.id) : revealCredentials(acc.id)
+                        }
+                      >
+                        {revealing === acc.id ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : revealed[acc.id] ? (
+                          <EyeOff className="h-3 w-3" />
+                        ) : (
+                          <Eye className="h-3 w-3" />
+                        )}
+                        <span className="ml-1.5">{revealed[acc.id] ? "Hide" : "Reveal password"}</span>
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs"
+                        onClick={() => openReset(acc.id, acc.ru_login_email || acc.owner_email)}
+                      >
+                        <RotateCcw className="h-3 w-3" />
+                        <span className="ml-1.5">Reset password</span>
+                      </Button>
                       {acc.ru_user_id && (
                         <Badge variant="secondary" className="font-mono text-[10px]">
                           UID {acc.ru_user_id}
@@ -294,7 +371,8 @@ export function PortfolioRuAccountsTab() {
                     </div>
                   </div>
                 </CardHeader>
-                {open && (
+                {(open || revealed[acc.id]) && (
+
                   <CardContent className="pt-0 pb-4 space-y-3">
                     {acc.ru_login_url && (
                       <a
@@ -413,6 +491,50 @@ export function PortfolioRuAccountsTab() {
           })}
         </div>
       )}
+
+      <Dialog open={!!resetFor} onOpenChange={(o) => !o && setResetFor(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Reset stored RU password</DialogTitle>
+            <DialogDescription>
+              Rentals United has no password-change API. Reset the sub-user password inside the RU
+              portal, then store the new value here so automation and future logins keep working.
+              It is encrypted at rest and every change is audit-logged.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs">RU login email</Label>
+              <Input
+                value={resetEmail}
+                onChange={(e) => setResetEmail(e.target.value)}
+                className="text-sm"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">New password</Label>
+              <Input
+                type="text"
+                value={resetPassword}
+                onChange={(e) => setResetPassword(e.target.value)}
+                placeholder="Minimum 8 characters"
+                className="text-sm font-mono"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              size="sm"
+              disabled={resetPassword.trim().length < 8 || saving}
+              onClick={saveResetPassword}
+            >
+              {saving && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
+              Save password
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
+
