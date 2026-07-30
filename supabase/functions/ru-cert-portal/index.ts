@@ -141,7 +141,7 @@ async function resolveOwnerLocationIds(
     for (const name of [p.city, p.country]) {
       if (!name) continue;
       const { data } = await admin.functions.invoke("rentalsunited-api", {
-        body: { action: "get_location_by_name", metadata: { name } },
+        body: { action: "get_location_by_name", location_name: name },
       });
       const id = Number(data?.location_id ?? data?.location?.id);
       if (Number.isFinite(id) && id > 1) {
