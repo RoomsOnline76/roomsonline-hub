@@ -1,11 +1,11 @@
 import { useState, useEffect } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, Link as RouterLink } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
-import { Link2, Code2, LayoutTemplate, Globe, Puzzle, Terminal, BarChart3, Sparkles, Blocks, Building2, ChevronDown } from "lucide-react";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Button } from "@/components/ui/button";
+import { Link2, Code2, LayoutTemplate, Globe, Puzzle, Terminal, BarChart3, Sparkles, Blocks, Building2, ChevronRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -23,7 +23,6 @@ import { WidgetSetupWizard } from "@/components/integrations/WidgetSetupWizard";
 import { PropertyPaymentProviderSelect } from "@/components/integrations/PropertyPaymentProviderSelect";
 import { PayFastEnvironmentToggle } from "@/components/integrations/PayFastEnvironmentToggle";
 import { PortfolioWidgetTab } from "@/components/integrations/PortfolioWidgetTab";
-import { HyperGuestPortalAdminCard } from "@/components/integrations/HyperGuestPortalAdminCard";
 
 interface Property {
   id: string;
@@ -139,25 +138,28 @@ export default function AdminIntegrations() {
           </Card>
         ) : selectedProperty && currentProperty ? (
           <div className="space-y-6">
-            {/* HyperGuest Certification Portal (admin-only, global) — collapsed by default */}
+            {/* Rentals United Certification (admin-only) — includes the Discounts suite */}
             {isInternalUser && (
-              <Collapsible>
-                <Card>
-                  <CollapsibleTrigger className="w-full flex items-center justify-between px-6 py-4 text-left hover:bg-muted/40 transition-colors [&[data-state=open]>svg]:rotate-180">
-                    <div>
-                      <div className="text-sm font-semibold">HyperGuest Certification Portal</div>
-                      <div className="text-xs text-muted-foreground">Admin-only certification tooling — click to expand</div>
+              <Card>
+                <CardContent className="py-4 flex items-center justify-between gap-3 flex-wrap">
+                  <div>
+                    <div className="text-sm font-semibold">Rentals United — Certification Console</div>
+                    <div className="text-xs text-muted-foreground">
+                      Endpoint suites (read-only, mandatory, discounts, full), refresh compliance, discount rules and
+                      white-label readiness.
                     </div>
-                    <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform" />
-                  </CollapsibleTrigger>
-                  <CollapsibleContent>
-                    <div className="border-t px-6 py-4">
-                      <HyperGuestPortalAdminCard />
-                    </div>
-                  </CollapsibleContent>
-                </Card>
-              </Collapsible>
+                  </div>
+                  <Button asChild size="sm" variant="outline" className="gap-1.5">
+                    <RouterLink to="/admin/integrations/rentals-united">
+                      Open console <ChevronRight className="h-4 w-4" />
+                    </RouterLink>
+                  </Button>
+                </CardContent>
+              </Card>
             )}
+
+            {/* HyperGuest Certification Portal — hidden while HyperGuest is parked */}
+
 
             {/* PayFast Environment Toggle */}
             <PayFastEnvironmentToggle />
