@@ -267,7 +267,37 @@ export function PortfolioRuAccountsTab() {
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-1.5 flex-wrap">
+                    <div
+                      className="flex items-center gap-1.5 flex-wrap"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs"
+                        disabled={revealing === acc.id}
+                        onClick={() =>
+                          revealed[acc.id] ? hideCredentials(acc.id) : revealCredentials(acc.id)
+                        }
+                      >
+                        {revealing === acc.id ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : revealed[acc.id] ? (
+                          <EyeOff className="h-3 w-3" />
+                        ) : (
+                          <Eye className="h-3 w-3" />
+                        )}
+                        <span className="ml-1.5">{revealed[acc.id] ? "Hide" : "Reveal password"}</span>
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs"
+                        onClick={() => openReset(acc.id, acc.ru_login_email || acc.owner_email)}
+                      >
+                        <RotateCcw className="h-3 w-3" />
+                        <span className="ml-1.5">Reset password</span>
+                      </Button>
                       {acc.ru_user_id && (
                         <Badge variant="secondary" className="font-mono text-[10px]">
                           UID {acc.ru_user_id}
@@ -294,7 +324,8 @@ export function PortfolioRuAccountsTab() {
                     </div>
                   </div>
                 </CardHeader>
-                {open && (
+                {(open || revealed[acc.id]) && (
+
                   <CardContent className="pt-0 pb-4 space-y-3">
                     {acc.ru_login_url && (
                       <a
