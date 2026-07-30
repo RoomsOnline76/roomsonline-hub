@@ -133,13 +133,14 @@ export default function AdminRentalsUnited() {
     () =>
       properties.filter(
         (p) =>
-          p.external_system === "rolos" ||
+          isRolosPms(p.external_system) ||
           !!p.ru_push_enabled ||
           !!p.rentalsunited_property_id ||
           stickyIds.has(p.id)
       ),
     [properties, stickyIds]
   );
+
 
   /** Any active property not already on the board can be added manually via [+]. */
   const addableProperties = useMemo(() => {
