@@ -690,14 +690,101 @@ export function RuCertificationConsole({ properties }: { properties: PropertyLit
         {/* Users */}
         <TabsContent value="users">
           <Card>
-            <CardHeader><CardTitle className="text-base">RU user management</CardTitle></CardHeader>
-            <CardContent className="space-y-3">
-              <Alert>
-                <AlertTitle>Parked — awaiting Rentals United confirmation</AlertTitle>
-                <AlertDescription className="text-xs">
-                  {userMgmt?.note ?? "Sub-user creation stays disabled until RU confirms the PMS profile. Guest Communication API is out of scope for this phase."}
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-base">RU user management</CardTitle>
+                <CardDescription>
+                  Push_CreateUser_RQ, Push_FillCompanyDetails_RQ and Pull_ListMyUsers_RQ are implemented but stay parked
+                  behind one switch until Rentals United confirms the ROLOS PMS profile.
+                </CardDescription>
+              </div>
+              <Button variant="outline" size="sm" onClick={loadUserMgmt} disabled={userMgmtLoading} className="gap-1.5">
+                <RefreshCw className={`h-4 w-4 ${userMgmtLoading ? "animate-spin" : ""}`} />Refresh
+              </Button>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {userMgmtLoading && !userMgmt && <Skeleton className="h-32 w-full" />}
+
+              <Alert variant={userMgmt?.enabled ? "default" : undefined}>
+                <AlertTitle className="flex items-center gap-2">
+                  {userMgmt?.enabled ? "Enabled — sub-user creation is live" : "Pending RU PMS profile — parked"}
+                  <Badge variant={userMgmt?.enabled ? "default" : "secondary"}>
+                    {userMgmt?.enabled ? "Enabled" : "Disabled"}
+                  </Badge>
+                </AlertTitle>
+                <AlertDescription className="text-xs space-y-2">
+                  <p>{userMgmt?.note ?? "Sub-user creation stays disabled until RU confirms the PMS profile."}</p>
+                  <p className="text-muted-foreground">
+                    {userMgmt?.guest_communication ?? "Out of scope — Guest Communication API is not implemented."}
+                  </p>
+                  <div className="flex items-center gap-2 pt-1">
+                    <Switch
+                      checked={!!userMgmt?.enabled}
+                      disabled={savingFlag || userMgmtLoading}
+                      onCheckedChange={toggleUserMgmt}
+                    />
+                    <Label className="text-xs">Enable RU sub-user management</Label>
+                    {userMgmt?.updated_at && (
+                      <span className="text-[11px] text-muted-foreground ml-auto">
+                        Updated {format(new Date(userMgmt.updated_at), "MMM d HH:mm")}
+                      </span>
+                    )}
+                  </div>
                 </AlertDescription>
               </Alert>
+
+              {userMgmt?.endpoints && userMgmt.endpoints.length > 0 && (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Action</TableHead>
+                      <TableHead>RU method</TableHead>
+                      <TableHead>State</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {userMgmt.endpoints.map((e) => (
+                      <TableRow key={e.action}>
+                        <TableCell className="text-sm">{e.action}</TableCell>
+                        <TableCell className="text-xs font-mono text-muted-foreground">{e.ru_method}</TableCell>
+                        <TableCell>
+                          <Badge variant={e.status === "enabled" || e.status === "reachable" ? "default" : "secondary"}>
+                            {e.status}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+
+              {userMgmt?.enabled && (
+                <div className="rounded-lg border p-3 space-y-3">
+                  <p className="text-sm font-medium">Create RU sub-user</p>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <div className="space-y-1">
+                      <Label className="text-xs">First name</Label>
+                      <Input value={userDraft.first_name} onChange={(e) => setUserDraft((d) => ({ ...d, first_name: e.target.value }))} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Last name</Label>
+                      <Input value={userDraft.last_name} onChange={(e) => setUserDraft((d) => ({ ...d, last_name: e.target.value }))} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Email</Label>
+                      <Input type="email" value={userDraft.email} onChange={(e) => setUserDraft((d) => ({ ...d, email: e.target.value }))} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Password</Label>
+                      <Input type="password" value={userDraft.password} onChange={(e) => setUserDraft((d) => ({ ...d, password: e.target.value }))} />
+                    </div>
+                  </div>
+                  <Button size="sm" onClick={createRuUser} disabled={creatingUser} className="gap-1.5">
+                    <Plus className="h-4 w-4" />{creatingUser ? "Creating…" : "Create sub-user"}
+                  </Button>
+                </div>
+              )}
+
               {userMgmt?.probe && (
                 <pre className="text-xs bg-muted rounded p-3 overflow-auto max-h-64 whitespace-pre-wrap">
                   {typeof userMgmt.probe === "string" ? userMgmt.probe : JSON.stringify(userMgmt.probe, null, 2)}
