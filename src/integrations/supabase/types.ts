@@ -4346,6 +4346,8 @@ export type Database = {
           rentalsunited_building_id: string | null
           rentalsunited_property_id: string | null
           review_sentiment: Json | null
+          ru_archived: boolean
+          ru_archived_at: string | null
           ru_push_enabled: boolean
           short_description: string | null
           show_on_website: boolean | null
@@ -4441,6 +4443,8 @@ export type Database = {
           rentalsunited_building_id?: string | null
           rentalsunited_property_id?: string | null
           review_sentiment?: Json | null
+          ru_archived?: boolean
+          ru_archived_at?: string | null
           ru_push_enabled?: boolean
           short_description?: string | null
           show_on_website?: boolean | null
@@ -4536,6 +4540,8 @@ export type Database = {
           rentalsunited_building_id?: string | null
           rentalsunited_property_id?: string | null
           review_sentiment?: Json | null
+          ru_archived?: boolean
+          ru_archived_at?: string | null
           ru_push_enabled?: boolean
           short_description?: string | null
           show_on_website?: boolean | null
