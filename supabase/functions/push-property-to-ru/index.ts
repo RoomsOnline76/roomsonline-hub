@@ -1,4 +1,13 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import {
+  mandatoryGaps,
+  RU_MIN_AMENITIES,
+  RU_MIN_IMAGES,
+  RU_MIN_IMAGE_HEIGHT,
+  RU_MIN_IMAGE_WIDTH,
+  RU_BED_COVERAGE,
+} from '../_shared/ruReadiness.ts';
+
 
 /**
  * Push Property to Rentals United — Multi-Unit Building Support
