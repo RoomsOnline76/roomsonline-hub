@@ -1,3 +1,4 @@
+import React from "react";
 import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -1181,7 +1182,7 @@ export default function AdminPortfolios() {
                           </TableCell>
                         </TableRow>
                       )}
-                    </>
+                    </React.Fragment>
                   );
                 })}
               </TableBody>
