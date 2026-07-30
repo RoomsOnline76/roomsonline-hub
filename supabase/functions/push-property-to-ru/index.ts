@@ -1373,14 +1373,14 @@ async function pushDiscounts(
   for (const { ruId, roomTypeId } of ruPropertyIds) {
     if (ruId <= 0) continue;
 
-    const applicableSpecials = specials.filter((s: SpecialRow) => {
+    const applicableSpecials = (specials ?? []).filter((s: SpecialRow) => {
       if (!s.applicable_room_ids || s.applicable_room_ids.length === 0) return true;
       if (!roomTypeId) return true;
       return s.applicable_room_ids.includes(roomTypeId);
     });
 
-    const longStayDiscounts: LongStayTier[] = [];
-    const lastMinuteDiscounts: LastMinuteTier[] = [];
+    const longStayDiscounts: LongStayTier[] = [...ruLongStay];
+    const lastMinuteDiscounts: LastMinuteTier[] = [...ruLastMinute];
 
     for (const special of applicableSpecials as SpecialRow[]) {
       const dateFrom = special.valid_from || todayStr;
