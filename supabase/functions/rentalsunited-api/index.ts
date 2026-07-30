@@ -264,7 +264,8 @@ function compactXml(xml: string): string {
 function sanitizeXmlForLogs(xml: string): string {
   return xml
     .replace(/<AccessKey>.*?<\/AccessKey>/gi, '<AccessKey>[REDACTED]</AccessKey>')
-    .replace(/<SecretKey>.*?<\/SecretKey>/gi, '<SecretKey>[REDACTED]</SecretKey>');
+    .replace(/<SecretKey>.*?<\/SecretKey>/gi, '<SecretKey>[REDACTED]</SecretKey>')
+    .replace(/<Password>.*?<\/Password>/gi, '<Password>[REDACTED]</Password>');
 }
 
 function previewXml(xml: string, limit = 1200): string {
@@ -1023,14 +1024,26 @@ function buildFillCompanyDetailsXml(
   creds: RUCredentials,
   company: RUCompanyPayload,
   auth?: { username?: string | null; password?: string | null },
+  /**
+   * Envelope shape for sub-user credentials. Rentals United documents
+   * Push_FillCompanyDetails_RQ with <UserName>/<Password> (the child account
+   * login), so that is the default; 'access_secret' is only a fallback retry.
+   */
+  authStyle: 'access_secret' | 'username_password' = 'username_password',
+
 ): string {
   const optNode = (tag: string, val?: string | number) =>
     val !== undefined && val !== null && String(val).trim() !== '' ? `<${tag}>${escapeXml(String(val))}</${tag}>` : '';
   const authXml = auth?.username && auth?.password
-    ? `<Authentication>
+    ? (authStyle === 'username_password'
+      ? `<Authentication>
     <UserName>${escapeXml(auth.username)}</UserName>
     <Password>${escapeXml(auth.password)}</Password>
   </Authentication>`
+      : `<Authentication>
+    <AccessKey>${escapeXml(auth.username)}</AccessKey>
+    <SecretKey>${escapeXml(auth.password)}</SecretKey>
+  </Authentication>`)
     : buildAuthXml(creds);
   const locations = (company.location_ids ?? []).map((id) => `      <Location Id="${Number(id)}" />`).join('\n');
   return `<?xml version="1.0" encoding="utf-8"?>
@@ -1738,14 +1751,57 @@ Deno.serve(async (req) => {
           },
         }, 422);
       }
-      const xml = buildFillCompanyDetailsXml(creds, body.company as RUCompanyPayload, {
+      const subAuth = {
         username: body.auth_username ?? null,
         password: body.auth_password ?? null,
-      });
-      const response = await callRentalsUnited(creds, xml);
-      console.log(`[rentalsunited-api] FillCompanyDetails response: ${response.substring(0, 500)}`);
-      const { ok, status } = handleRUStatus(response);
-      if (!ok) return ruErrorResponse(status, buildDiagnostics(compactXml(xml).replace(/<Password>[\s\S]*?<\/Password>/g, '<Password>***</Password>'), status, 'fill_company_details', response));
+      };
+      const maskXml = (x: string) =>
+        compactXml(x)
+          .replace(/<Password>[\s\S]*?<\/Password>/g, '<Password>***</Password>')
+          .replace(/<SecretKey>[\s\S]*?<\/SecretKey>/g, '<SecretKey>***</SecretKey>');
+      // RU documents this call with the child account's <UserName>/<Password>;
+      // retry with the AccessKey/SecretKey shape only if that is rejected.
+      const styles: Array<'access_secret' | 'username_password'> =
+        subAuth.username && subAuth.password ? ['username_password', 'access_secret'] : ['access_secret'];
+      let xml = '';
+      let response = '';
+      let ok = false;
+      let status: { id: string; message: string } = { id: '', message: '' };
+      for (const style of styles) {
+        xml = buildFillCompanyDetailsXml(creds, body.company as RUCompanyPayload, subAuth, style);
+        response = await callRentalsUnited(creds, xml);
+        console.log(`[rentalsunited-api] FillCompanyDetails (auth=${style}) response: ${response.substring(0, 500)}`);
+        const res = handleRUStatus(response);
+        ok = res.ok;
+        status = res.status;
+        if (ok) {
+          console.log(`[rentalsunited-api] FillCompanyDetails succeeded with auth envelope: ${style}`);
+          break;
+        }
+        const authFailure = /credential|password|authenticat|login|access denied|not authorized|unauthor/i.test(
+          status.message || '',
+        );
+        if (!authFailure) break;
+        console.warn(`[rentalsunited-api] Auth envelope ${style} rejected by RU — trying next variant`);
+      }
+      if (!ok) {
+        const authFailure = /credential|password|authenticat|login|access denied|not authorized|unauthor/i.test(
+          status.message || '',
+        );
+        const diagnostics = buildDiagnostics(maskXml(xml), status, 'fill_company_details', response);
+        if (authFailure) {
+          return jsonResponse({
+            success: false,
+            error: {
+              code: 'RU_SUBUSER_AUTH_FAILED',
+              message: `Rentals United rejected the sub-user login for "${subAuth.username ?? 'unknown user'}" (${status.message || 'invalid credentials'}). The password Rentals United holds for this child account differs from the one stored here. Passwords cannot be changed via the API: either reset it in the Rentals United portal for that child account and save it under Portfolios → RU accounts, or create the child account again with a unique per-portfolio email address so the generated password is the one we hold.`,
+              ru_status_id: status.id,
+            },
+            diagnostics,
+          }, 200);
+        }
+        return ruErrorResponse(status, diagnostics);
+      }
       return jsonResponse({ success: true, message: 'Company details filled successfully', raw_xml: response });
     }
 

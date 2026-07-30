@@ -1,50 +1,27 @@
-## Goal
+## What I found
 
-Make the admin billing "Channel Manager" switch the single source of truth for channel-manager entitlement: turning it off locks the ROL'OS Channels page, archives the portfolio's properties (on the page /admin/portfolio/ in Rentals United), and flags them as Archived; turning it back on reverses all of that and resumes per-unit billing. The actual property in admin/property is not archived. Only the RU unit is archived in the RU UI and by API to RU, to stop us being billed.
+Confirmed by reading the code and the account row:
 
-## What exists today (verified)
+- The sub-user account `rooms@roomsonline.co.za` / OwnerID `741761` exists locally, **does hold an encrypted password**, and its company-details status is `failed` (never confirmed by Rentals United).
+- Master-account calls (create user, list users, push property — all of which work today) send credentials as:
+  `<Authentication><AccessKey>…</AccessKey><SecretKey>…</SecretKey></Authentication>`
+- But `Push_FillCompanyDetails_RQ` is the **only** call that switches node names when authenticating as the sub-user:
+  `<Authentication><UserName>…</UserName><Password>…</Password></Authentication>`
 
-- `property_billing_configs` / `portfolio_billing_configs` both carry `channel_manager_enabled` and `channel_manager_per_unit_fee`; the property Billing tab currently writes `channel_manager_enabled = pms_enabled` (no dedicated switch).
-- &nbsp;
-- `rentalsunited-api` already implements `set_property_status` with `is_active` / `is_archived` (Push_PutPropertyStatus).
-- `/rolos/channels` renders `PMSChannels.tsx` (cards, mappings, RU readiness + onboarding pipeline).
-- The Portfolios → Rentals United tab (`PortfolioRuAccountsTab.tsx`) lists sub-accounts and their properties with a "Push on/off" badge.
+So the sub-user login is being sent in a different envelope shape from the one Rentals United accepts everywhere else in this integration. That is the most likely cause of the "incorrect password" rejection — the password value may be fine, the wrapper isn't. (Unconfirmed until we replay it, so step 1 verifies rather than assumes.)
+
+Secondary possibility: the stored password no longer matches the portal password (the account was created with a generated password, then changed). You supplied `SLPafrica247*` in chat — I will not put that in code; it gets saved through the existing encrypted-storage action.
 
 ## Plan
 
-### 1. Dedicated Channel Manager billing switch
-
-- Split the channel-manager fee out of the combined "PMS subscription" toggle in `BillingConfigBuilder.tsx`: add a `channel_manager_enabled` switch with the per-unit fee under it (property and preset scope).
-- Persist it explicitly from `BillingConfigTab.tsx` and the portfolio/global billing screens instead of mirroring `pms_enabled`.
-
-### 2. Confirmation + warning copy
-
-- When an admin flips the switch **off**, show a confirm dialog: disabling stops channel-manager billing, marks all properties in the sub account on the protfolio page in RU tab as archived,  and sends an archive call to Rentals United (listings go offline on all channels).
-- When flipped **on**: confirm that properties will be reactivated in Rentals United and per-unit billing resumes from the next cycle. The cards in portfolio/RU tab are restored to PushOn/off State
-- A persistent inline warning under the switch states the same in both states.
-
-### 3. Entitlement fan-out (edge function)
-
-New `channel-manager-entitlement` edge function, invoked after the billing config saves:
-
-- Resolves the scope (portfolio → all member properties, else the single property).
-- **Disable:** set `property lfags in portfolio/RU tab.is_archived = true`, `ru_push_enabled = false`, mark RU channel connections inactive, and for every property with a `rentalsunited_property_id` call `rentalsunited-api` `set_property_status` with `is_active:false, is_archived:true`. Log each call to the RU sync/error log.
-- **Enable:** reverse (unarchive, restore push flag, `is_active:true, is_archived:false`).
-- Returns a per-property result so the UI can toast successes/failures.
-- `push-property-to-ru` gains a hard gate: refuse any push while channel-manager billing is off.
-
-### 4. ROL'OS Channels page lock
-
-- New `useChannelManagerEntitlement(propertyId)` hook reading the effective (portfolio-aware) `channel_manager_enabled`.
-- When off, `PMSChannels.tsx` renders the page greyed out and non-interactive (overlay + disabled actions) with: "Channel Manager is not active on your plan — please speak to your account manager." Sidebar entry gets a muted/lock indicator.
-
-### 5. Archived indicators
-
-- Portfolio → Rentals United tab: each account card shows an "Archived" badge when its properties are archived, and each property row shows "Archived" instead of "Push on/off".
-- `THIS IS NOT TO HAPPEN: THE PROPERTY IS NOT ARCHIVE IN TOTAL> ONLY THE PORTFOLIO?RU TAB?Property crd is marked as acrived. We are only archiving in RU anddisabling the porperty in RU, not everywhere. "/admin/properties`: archived rows show an "Archived" badge with a tooltip naming the cause (channel-manager billing disabled)."
+1. **Re-save the password securely.** Use the existing admin "Reset password" control (`save_login_password` in `ru-cert-portal`) to store the current portal password encrypted for OwnerID 741761, so the retry uses the real value. Audit-logged as today.
+2. **Send sub-user credentials in the accepted envelope.** In `rentalsunited-api`, change `buildFillCompanyDetailsXml` so sub-user auth uses the same `AccessKey`/`SecretKey` node names as every other working call, with the sub-user login email and password as values.
+3. **Add a one-shot fallback.** If Rentals United rejects that with an auth/credential error, retry once with the legacy `UserName`/`Password` shape, and log which variant succeeded — so whichever RU actually wants, Phase 1 completes and we learn the correct format from the log.
+4. **Distinguish auth failures from validation failures.** In `ru-cert-portal`'s retry loop, classify RU auth rejections separately so the UI says "Rentals United rejected the sub-user login" (with a link to reset the password) instead of the generic "non-2xx" / "company details failed" message.
+5. **Verify end-to-end.** Re-run Phase 1 → "Complete company details" for the Jongensfontein portfolio account and confirm `company_details_sent = true` and `company_filled_at` is set, with passwords masked in all logs.
 
 ## Technical notes
 
-- &nbsp;
-- RU calls are best-effort and idempotent — failures are recorded and surfaced, and the local archive state still applies so billing and the UI stay consistent.
-- No schema change is expected (`is_archived`, `ru_push_enabled` and the billing columns all exist); if an archive-reason column proves necessary it will be added as a small migration during implementation.
+- Files: `supabase/functions/rentalsunited-api/index.ts` (`buildFillCompanyDetailsXml`, `fill_company_details` handler), `supabase/functions/ru-cert-portal/index.ts` (`submitCompanyDetails` retry/classification).
+- No schema changes; password stays in `ru_owner_accounts.ru_login_password_enc` via `encrypt_sensitive_text`.
+- Existing `<Password>***</Password>` log masking is extended to cover `SecretKey` for sub-user auth.
