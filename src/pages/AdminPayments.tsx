@@ -57,6 +57,10 @@ interface CommissionPayout {
   banking_verified: boolean;
 }
 
+// PayFast checkout sessions don't stay open forever — a pending row older than
+// this is an abandoned attempt, not money in flight.
+const PENDING_SESSION_MS = 2 * 60 * 60 * 1000;
+
 export default function AdminPayments() {
   const [transactions, setTransactions] = useState<PaymentTransaction[]>([]);
   const [showExpired, setShowExpired] = useState(false);
@@ -131,17 +135,25 @@ export default function AdminPayments() {
         property_name: t.bookings?.properties?.name,
       })));
 
-      const { data: all } = await supabase.from('payment_transactions').select('amount, status');
+      // Totals must mirror what the page treats as live money: cancelled bookings
+      // (test data, refunds, abandoned) and expired checkout sessions are excluded.
+      const { data: all } = await supabase
+        .from('payment_transactions')
+        .select('amount, status, created_at, bookings!inner(status)');
       if (all) {
         // Gateways write 'paid'; some providers write 'completed'/'succeeded'.
         const isSettled = (s: string | null) => ['paid', 'completed', 'succeeded', 'success'].includes(String(s || '').toLowerCase());
+        const live = (all as any[]).filter(t => !['cancelled', 'canceled'].includes(String(t.bookings?.status || '').toLowerCase()));
+        const isLivePending = (t: any) =>
+          t.status === 'pending' && Date.now() - new Date(t.created_at).getTime() <= PENDING_SESSION_MS;
         setTxStats({
-          totalRevenue: all.filter(t => isSettled(t.status)).reduce((s, t) => s + (Number(t.amount) || 0), 0),
-          pendingAmount: all.filter(t => t.status === 'pending').reduce((s, t) => s + (Number(t.amount) || 0), 0),
-          failedCount: all.filter(t => ['failed', 'cancelled'].includes(String(t.status || '').toLowerCase())).length,
-          successCount: all.filter(t => isSettled(t.status)).length,
+          totalRevenue: live.filter(t => isSettled(t.status)).reduce((s, t) => s + (Number(t.amount) || 0), 0),
+          pendingAmount: live.filter(isLivePending).reduce((s, t) => s + (Number(t.amount) || 0), 0),
+          failedCount: live.filter(t => ['failed', 'cancelled'].includes(String(t.status || '').toLowerCase())).length,
+          successCount: live.filter(t => isSettled(t.status)).length,
         });
       }
+
 
     } catch (error) {
       console.error('Error loading payments:', error);
@@ -206,10 +218,6 @@ export default function AdminPayments() {
       setMarkingPaid(null);
     }
   };
-
-  // PayFast checkout sessions don't stay open forever — a pending row older than
-  // this is an abandoned attempt, not money in flight.
-  const PENDING_SESSION_MS = 2 * 60 * 60 * 1000;
 
   const getStatusBadge = (status: string, createdAt?: string) => {
     switch (status) {
