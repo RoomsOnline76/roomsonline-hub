@@ -138,6 +138,12 @@ export default function AdminRentalsUnited() {
     [properties, stickyIds]
   );
 
+  /** Only RU-enabled properties take part in onboarding / certification testing. */
+  const enabledProperties = useMemo(
+    () => properties.filter((p) => !!p.ru_push_enabled),
+    [properties]
+  );
+
   const togglePush = async (id: string, next: boolean) => {
     const { error } = await supabase
       .from("properties")
@@ -190,9 +196,15 @@ export default function AdminRentalsUnited() {
                   <SelectValue placeholder="Select a property to onboard" />
                 </SelectTrigger>
                 <SelectContent>
-                  {properties.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                  ))}
+                  {enabledProperties.length === 0 ? (
+                    <div className="px-2 py-3 text-sm text-muted-foreground">
+                      No properties are enabled for Rentals United yet.
+                    </div>
+                  ) : (
+                    enabledProperties.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
             </CardContent>
@@ -201,7 +213,7 @@ export default function AdminRentalsUnited() {
             <RuOnboardingPipeline propertyId={onboardingPropertyId} />
           ) : (
             <p className="text-sm text-muted-foreground">
-              Pick a property to walk the four-phase Rentals United onboarding.
+              Pick an RU-enabled property to walk the four-phase Rentals United onboarding.
             </p>
           )}
         </TabsContent>

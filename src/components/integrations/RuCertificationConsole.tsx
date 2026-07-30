@@ -211,7 +211,8 @@ export function RuCertificationConsole({ properties }: { properties: PropertyLit
   const [creatingUser, setCreatingUser] = useState(false);
 
   const candidateProperties = useMemo(
-    () => properties.filter((p) => p.ru_push_enabled || p.rentalsunited_property_id),
+    // Certification testing is limited to properties explicitly enabled for RU push.
+    () => properties.filter((p) => p.ru_push_enabled === true),
     [properties],
   );
 

@@ -456,8 +456,7 @@ Deno.serve(async (req) => {
         .order("name");
 
       const candidates = (props ?? []).filter(
-        (p: { ru_push_enabled: boolean | null; rentalsunited_property_id: string | null }) =>
-          p.ru_push_enabled === true || !!p.rentalsunited_property_id,
+        (p: { ru_push_enabled: boolean | null }) => p.ru_push_enabled === true,
       );
 
       const results: unknown[] = [];
