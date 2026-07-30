@@ -16,6 +16,8 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RuCertificationConsole } from "@/components/integrations/RuCertificationConsole";
+import { RuErrorHandlingTab } from "@/components/integrations/RuErrorHandlingTab";
+
 
 interface SyncRun {
   id: string;
@@ -170,12 +172,21 @@ export default function AdminRentalsUnited() {
       <Tabs defaultValue="sync" className="space-y-6">
         <TabsList>
           <TabsTrigger value="sync">Sync observability</TabsTrigger>
+          <TabsTrigger value="errors">Error handling</TabsTrigger>
           <TabsTrigger value="cert">Certification &amp; compliance</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="errors">
+          <RuErrorHandlingTab
+            runs={runs}
+            propertyNameById={new Map(properties.map((p) => [p.id, p.name]))}
+          />
+        </TabsContent>
 
         <TabsContent value="cert">
           <RuCertificationConsole properties={properties} />
         </TabsContent>
+
 
         <TabsContent value="sync" className="space-y-6">
         {/* KPI Cards */}
