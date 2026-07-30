@@ -197,7 +197,8 @@ export function RuOnboardingPipeline({ propertyId, readOnly = false, standalone 
     const spinner = busy === phase.key;
 
     if (phase.key === "p1_subuser" && phase.status !== "passed") {
-      const hasSubUser = Boolean(phase.detail?.ru_owner_id);
+      // A stale identity (owner email changed) must fall back to "Create sub-user".
+      const hasSubUser = Boolean(phase.detail?.ru_owner_id) && phase.detail?.email_mismatch !== true;
       if (hasSubUser) {
         return (
           <Button size="sm" disabled={disabled} onClick={() => submitCompanyDetails()}>

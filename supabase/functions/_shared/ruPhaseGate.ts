@@ -156,6 +156,31 @@ export async function evaluatePhases(
   );
   const subUserLive = await userManagementEnabled(admin);
 
+  // Resolve the email the sub-user *should* be registered under, so a changed
+  // owner email invalidates the existing RU identity instead of silently keeping it.
+  let expectedEmail: string | null = property.owner_email ?? null;
+  if (portfolio_id) {
+    const { data: pf } = await admin
+      .from("property_portfolios")
+      .select("owner_id")
+      .eq("id", portfolio_id)
+      .maybeSingle();
+    if (pf?.owner_id) {
+      const { data: prof } = await admin
+        .from("profiles")
+        .select("email")
+        .eq("id", pf.owner_id)
+        .maybeSingle();
+      if (prof?.email) expectedEmail = prof.email;
+    }
+  }
+  const storedEmail = (account?.ru_login_email ?? account?.owner_email ?? "").trim().toLowerCase();
+  const emailMismatch =
+    Boolean(account?.ru_owner_id) &&
+    Boolean(storedEmail) &&
+    Boolean(expectedEmail) &&
+    storedEmail !== expectedEmail!.trim().toLowerCase();
+
   // ── Phase 1 ──
   const p1Blockers: string[] = [];
   if (!subUserLive) {
@@ -169,10 +194,15 @@ export async function evaluatePhases(
         ? "No Rentals United sub-user exists for this portfolio. Create it first (Push_CreateUser_RQ)."
         : "No Rentals United sub-user exists for this property owner. Create it first (Push_CreateUser_RQ).",
     );
+  } else if (emailMismatch) {
+    p1Blockers.push(
+      `The owner email changed to ${expectedEmail} — the existing Rentals United sub-user (${storedEmail}) is stale. Re-run "Create sub-user" to register the new email.`,
+    );
   }
-  if (account && !account.company_filled_at && account.company_details_sent !== true) {
+  if (!emailMismatch && account && !account.company_filled_at && account.company_details_sent !== true) {
     p1Blockers.push("Company details have not been submitted to Rentals United (Push_FillCompanyDetails_RQ) \u2014 run \"Complete company details\".");
   }
+
 
   // ── Phase 2 ──
   const p2Blockers: string[] = [];
@@ -229,16 +259,22 @@ export async function evaluatePhases(
       detail: {
         scope,
         portfolio_id,
-        ru_owner_id: account?.ru_owner_id ?? null,
-        ru_user_id: account?.ru_user_id ?? null,
-        company_filled_at: account?.company_filled_at ?? null,
-        company_details_status: account?.company_details_status ?? null,
+        // A stale identity (owner email changed) is reported as no sub-user so the
+        // UI falls back to the "Create sub-user" step instead of "Complete company details".
+        ru_owner_id: emailMismatch ? null : account?.ru_owner_id ?? null,
+        ru_user_id: emailMismatch ? null : account?.ru_user_id ?? null,
+        stale_ru_owner_id: emailMismatch ? account?.ru_owner_id ?? null : null,
+        email_mismatch: emailMismatch,
+        expected_owner_email: expectedEmail,
+        company_filled_at: emailMismatch ? null : account?.company_filled_at ?? null,
+        company_details_status: emailMismatch ? null : account?.company_details_status ?? null,
         // True when RU company details can only be completed with an operator-supplied
         // sub-user password (adopted accounts) — surfaced so the UI can prompt for it.
         company_details_manual_required:
-          Boolean(account) && !account?.company_filled_at && !account?.ru_login_password_enc,
+          !emailMismatch && Boolean(account) && !account?.company_filled_at && !account?.ru_login_password_enc,
         user_management_enabled: subUserLive,
       },
+
     },
     {
       key: "p2_readiness",
@@ -277,7 +313,7 @@ export async function evaluatePhases(
   }
 
   const current = phases.find(p => p.status !== "passed") ?? phases[phases.length - 1];
-  const ownerIdNum = account?.ru_owner_id ? parseInt(account.ru_owner_id, 10) : null;
+  const ownerIdNum = !emailMismatch && account?.ru_owner_id ? parseInt(account.ru_owner_id, 10) : null;
 
   return {
     property_id: property.id,
