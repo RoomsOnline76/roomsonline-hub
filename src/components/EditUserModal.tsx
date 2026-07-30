@@ -7,6 +7,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { z } from "zod";
 import { Loader2 } from "lucide-react";
+import { extractFunctionError } from "@/lib/functionError";
+
 
 const profileSchema = z.object({
   full_name: z.string().trim().min(1, "Name is required").max(100),
@@ -66,26 +68,29 @@ export function EditUserModal({ open, onOpenChange, user, onUserUpdated }: EditU
     setErrors({});
 
     try {
-      const { error } = await supabase
-        .from("profiles")
-        .update({
+      const { data, error } = await supabase.functions.invoke("admin-update-user-profile", {
+        body: {
+          user_id: user.id,
           full_name: formData.full_name.trim(),
-          email: formData.email.trim(),
+          email: formData.email.trim().toLowerCase(),
           phone: formData.phone.trim() || null,
-        })
-        .eq("id", user.id);
+        },
+      });
 
-      if (error) throw error;
+      const failure = (data as { error?: string } | null)?.error;
+      if (error || failure) throw new Error(failure || error?.message || "Update failed");
 
       toast.success("User profile updated");
       onOpenChange(false);
       onUserUpdated();
+
     } catch (error: any) {
       console.error("Failed to update profile:", error);
-      toast.error(error.message || "Failed to update profile");
+      toast.error(await extractFunctionError(error, "Failed to update profile"));
     } finally {
       setLoading(false);
     }
+
   };
 
   if (!user) return null;
