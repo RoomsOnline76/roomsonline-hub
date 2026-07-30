@@ -160,6 +160,37 @@ export function RuOnboardingPipeline({ propertyId, readOnly = false, standalone 
     const spinner = busy === phase.key;
 
     if (phase.key === "p1_subuser" && phase.status !== "passed") {
+      const hasSubUser = Boolean(phase.detail?.ru_owner_id);
+      const manualPassword = Boolean(phase.detail?.company_details_manual_required);
+      if (hasSubUser) {
+        return (
+          <Button
+            size="sm"
+            disabled={disabled}
+            onClick={() => {
+              let pwd: string | null = null;
+              if (manualPassword) {
+                pwd = window.prompt(
+                  "Rentals United applies company details to whichever account signs in, so the sub-user password is required. Paste the RU sub-user password (it will be stored encrypted):",
+                );
+                if (!pwd) return;
+              }
+              runAction(
+                "p1_subuser",
+                {
+                  action: "ensure_company_details",
+                  property_id: propertyId,
+                  ...(pwd ? { ru_login_password: pwd } : {}),
+                },
+                "Company details submitted to Rentals United",
+              );
+            }}
+          >
+            {spinner ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BadgeCheck className="mr-2 h-4 w-4" />}
+            Complete company details
+          </Button>
+        );
+      }
       return (
         <Button
           size="sm"
@@ -168,7 +199,7 @@ export function RuOnboardingPipeline({ propertyId, readOnly = false, standalone 
             runAction(
               "p1_subuser",
               { action: "ensure_owner_account", property_id: propertyId },
-              "Rentals United sub-user is in place",
+              "Rentals United sub-user created and company details filled",
             )
           }
         >
@@ -177,6 +208,7 @@ export function RuOnboardingPipeline({ propertyId, readOnly = false, standalone 
         </Button>
       );
     }
+
 
     if (phase.key === "p3_push" && phases[1]?.status === "passed") {
       return (
