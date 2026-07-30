@@ -237,8 +237,8 @@ export function RuOnboardingPipeline({ propertyId, readOnly = false, standalone 
                   <p className="mt-1 text-sm text-muted-foreground">{PHASE_HINT[phase.key]}</p>
                   {phase.blockers.length > 0 && (
                     <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-destructive">
-                      {phase.blockers.map((b) => (
-                        <li key={b}>{b}</li>
+                      {phase.blockers.map((b, i) => (
+                        <li key={`${phase.key}-${i}`}>{b}</li>
                       ))}
                     </ul>
                   )}
