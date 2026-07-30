@@ -1920,6 +1920,12 @@ Deno.serve(async (req) => {
           && u.validation.has_payment_methods
           && u.validation.has_cancellation_policies
           && u.validation.beds_meet_max_guests
+          && u.validation.has_name
+          && u.validation.has_object_type_id
+          && u.validation.can_sleep_max_ok
+          && u.validation.has_description
+          && u.validation.has_main_image
+          && u.validation.has_street
         );
 
         return new Response(
@@ -1945,6 +1951,12 @@ Deno.serve(async (req) => {
               has_payment_methods: units.every(u => u.validation.has_payment_methods),
               has_cancellation_policies: units.every(u => u.validation.has_cancellation_policies),
               beds_meet_max_guests: units.every(u => u.validation.beds_meet_max_guests),
+              has_name: units.every(u => u.validation.has_name),
+              has_object_type_id: units.every(u => u.validation.has_object_type_id),
+              can_sleep_max_ok: units.every(u => u.validation.can_sleep_max_ok),
+              has_description: units.every(u => u.validation.has_description),
+              has_main_image: units.every(u => u.validation.has_main_image),
+              has_street: units.every(u => u.validation.has_street),
             },
           }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
