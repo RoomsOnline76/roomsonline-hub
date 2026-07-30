@@ -1086,7 +1086,7 @@ export default function AdminPortfolios() {
                   const expanded = expandedId === p.id;
                   const memberProps = getMemberProperties(p.id);
                   return (
-                    <>
+                    <React.Fragment key={p.id}>
                       <TableRow
                         key={p.id}
                         className="cursor-pointer"
