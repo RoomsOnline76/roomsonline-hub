@@ -69,7 +69,40 @@ export default function AdminPayments() {
     totalRevenue: 0, pendingAmount: 0, failedCount: 0, successCount: 0,
   });
 
-  const { payouts, loading: payoutsLoading, stats: payoutStats } = usePropertyPayouts();
+  const [payoutPeriod, setPayoutPeriod] = useState<string>('this_month');
+
+  const payoutRange = useMemo(() => {
+    const now = new Date();
+    const startOfMonth = (offset: number) =>
+      new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + offset, 1));
+    switch (payoutPeriod) {
+      case 'this_month':
+        return { from: startOfMonth(0).toISOString(), to: startOfMonth(1).toISOString() };
+      case 'last_month':
+        return { from: startOfMonth(-1).toISOString(), to: startOfMonth(0).toISOString() };
+      case 'last_90':
+        return { from: new Date(now.getTime() - 90 * 86400000).toISOString(), to: undefined };
+      default:
+        return { from: undefined, to: undefined };
+    }
+  }, [payoutPeriod]);
+
+  const payoutRangeLabel = useMemo(() => {
+    if (payoutPeriod === 'all') return 'All time, by payment date';
+    const fromD = payoutRange.from ? new Date(payoutRange.from) : null;
+    const toD = payoutRange.to ? new Date(new Date(payoutRange.to).getTime() - 86400000) : new Date();
+    if (!fromD) return 'By payment date';
+    return `${format(fromD, 'd MMM yyyy')} – ${format(toD, 'd MMM yyyy')}, by payment date`;
+  }, [payoutPeriod, payoutRange]);
+
+  const {
+    payouts,
+    loading: payoutsLoading,
+    stats: payoutStats,
+    lastUpdated: payoutsUpdatedAt,
+    refresh: refreshPayouts,
+  } = usePropertyPayouts(payoutRange);
+
 
   useEffect(() => {
     loadPayments();
