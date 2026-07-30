@@ -974,23 +974,96 @@ function buildListUsersXml(creds: RUCredentials): string {
 </Pull_ListMyUsers_RQ>`;
 }
 
-function buildFillCompanyDetailsXml(creds: RUCredentials, userId: number, company: { name: string; address?: string; city?: string; country?: string; phone?: string; email?: string; vat_number?: string }): string {
-  const optNode = (tag: string, val?: string) => val ? `<${tag}>${escapeXml(val)}</${tag}>` : '';
+/**
+ * Push_FillCompanyDetails_RQ — the RU schema has NO UserAccountId: the details are
+ * applied to whichever account authenticates. To fill a sub-user's profile we must
+ * therefore authenticate as that sub-user (UserName/Password), not with the master
+ * AccessKey/SecretKey. `auth` carries those child credentials when supplied.
+ */
+interface RUCompanyPayload {
+  // ContactInfo (all mandatory on RU)
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone: string;
+  city: string;
+  country_id: number;
+  address: string;
+  zip_code: string;
+  birth_date?: string;
+  language_id?: number;
+  // CompanyInfo
+  name: string;
+  website?: string;
+  company_city?: string;
+  company_address?: string;
+  company_country_id?: number;
+  post_code?: string;
+  company_phone?: string;
+  vat_number?: string;
+  merchant_name?: string;
+  location_ids?: number[];
+}
+
+const RU_COMPANY_REQUIRED: (keyof RUCompanyPayload)[] = [
+  'first_name', 'last_name', 'email', 'phone', 'city', 'country_id', 'address', 'zip_code', 'name',
+];
+
+function missingCompanyFields(company: Partial<RUCompanyPayload>): string[] {
+  const missing = RU_COMPANY_REQUIRED.filter((k) => {
+    const v = (company as Record<string, unknown>)[k as string];
+    return v === undefined || v === null || String(v).trim() === '' || (k === 'country_id' && !Number(v));
+  }).map(String);
+  if (!Array.isArray(company.location_ids) || company.location_ids.length === 0) missing.push('location_ids');
+  return missing;
+}
+
+function buildFillCompanyDetailsXml(
+  creds: RUCredentials,
+  company: RUCompanyPayload,
+  auth?: { username?: string | null; password?: string | null },
+): string {
+  const optNode = (tag: string, val?: string | number) =>
+    val !== undefined && val !== null && String(val).trim() !== '' ? `<${tag}>${escapeXml(String(val))}</${tag}>` : '';
+  const authXml = auth?.username && auth?.password
+    ? `<Authentication>
+    <UserName>${escapeXml(auth.username)}</UserName>
+    <Password>${escapeXml(auth.password)}</Password>
+  </Authentication>`
+    : buildAuthXml(creds);
+  const locations = (company.location_ids ?? []).map((id) => `      <Location Id="${Number(id)}" />`).join('\n');
   return `<?xml version="1.0" encoding="utf-8"?>
 <Push_FillCompanyDetails_RQ>
-  ${buildAuthXml(creds)}
-  <UserAccountId>${userId}</UserAccountId>
-  <CompanyDetails>
+  ${authXml}
+  <ContactInfo>
+    <FirstName>${escapeXml(company.first_name)}</FirstName>
+    <LastName>${escapeXml(company.last_name)}</LastName>
+    <Email>${escapeXml(company.email)}</Email>
+    <Phone>${escapeXml(company.phone)}</Phone>
+    <City>${escapeXml(company.city)}</City>
+    <CountryId>${Number(company.country_id)}</CountryId>
+    <Address>${escapeXml(company.address)}</Address>
+    <ZipCode>${escapeXml(company.zip_code)}</ZipCode>
+    <BirthDate>${escapeXml(company.birth_date || '1990-01-01')}</BirthDate>
+    <LanguageId>${Number(company.language_id ?? 1)}</LanguageId>
+  </ContactInfo>
+  <CompanyInfo>
     <CompanyName>${escapeXml(company.name)}</CompanyName>
-    ${optNode('Address', company.address)}
-    ${optNode('City', company.city)}
-    ${optNode('Country', company.country)}
-    ${optNode('Phone', company.phone)}
-    ${optNode('Email', company.email)}
+    <WebsiteAddress>${escapeXml(company.website || 'https://sleepinafrica.roomsonline.co.za')}</WebsiteAddress>
+    <CompanyCity>${escapeXml(company.company_city || company.city)}</CompanyCity>
+    ${optNode('Address', company.company_address || company.address)}
+    ${optNode('CountryId', company.company_country_id ?? company.country_id)}
+    ${optNode('PostCode', company.post_code || company.zip_code)}
+    ${optNode('PhoneNumber', company.company_phone || company.phone)}
     ${optNode('VATNumber', company.vat_number)}
-  </CompanyDetails>
+    <MerchantName>${escapeXml(company.merchant_name || company.name)}</MerchantName>
+    <Locations>
+${locations}
+    </Locations>
+  </CompanyInfo>
 </Push_FillCompanyDetails_RQ>`;
 }
+
 
 function extractUserAccountId(xml: string): string | null {
   const match = xml.match(/<UserAccountId>(\d+)<\/UserAccountId>/);
@@ -1652,16 +1725,29 @@ Deno.serve(async (req) => {
 
     // ── fill_company_details ──
     if (action === 'fill_company_details') {
-      if (!body.ru_property_id) return errorResponse('MISSING_PARAM', 'ru_property_id (UserAccountId) is required');
       if (!body.company) return errorResponse('MISSING_PARAM', 'company payload is required');
-      if (!body.company.name) return errorResponse('VALIDATION', 'company.name is required');
-      const xml = buildFillCompanyDetailsXml(creds, body.ru_property_id, body.company);
+      const missing = missingCompanyFields(body.company);
+      if (missing.length > 0) {
+        return jsonResponse({
+          success: false,
+          error: {
+            code: 'COMPANY_DETAILS_INCOMPLETE',
+            message: `Rentals United requires these company/contact fields: ${missing.join(', ')}`,
+            missing,
+          },
+        }, 422);
+      }
+      const xml = buildFillCompanyDetailsXml(creds, body.company as RUCompanyPayload, {
+        username: body.auth_username ?? null,
+        password: body.auth_password ?? null,
+      });
       const response = await callRentalsUnited(creds, xml);
       console.log(`[rentalsunited-api] FillCompanyDetails response: ${response.substring(0, 500)}`);
       const { ok, status } = handleRUStatus(response);
-      if (!ok) return ruErrorResponse(status);
+      if (!ok) return ruErrorResponse(status, buildDiagnostics(compactXml(xml).replace(/<Password>[\s\S]*?<\/Password>/g, '<Password>***</Password>'), status, 'fill_company_details', response));
       return jsonResponse({ success: true, message: 'Company details filled successfully', raw_xml: response });
     }
+
 
     // ── order_mcq: CM_LNM_OrderMinimumContentQualityCheck_RQ (Phase 4.3) ──
     if (action === 'order_mcq') {

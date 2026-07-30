@@ -631,7 +631,13 @@ Deno.serve(async (req) => {
       }
       const payload = action === "create_user"
         ? { action: "create_user", user: body.user }
-        : { action: "fill_company_details", ru_property_id: body.ru_property_id, company: body.company };
+        : {
+            action: "fill_company_details",
+            company: body.company,
+            auth_username: body.auth_username ?? null,
+            auth_password: body.auth_password ?? null,
+          };
+
       const { data, error } = await admin.functions.invoke("rentalsunited-api", { body: payload });
       if (error) return json({ success: false, error: { code: "RU_CALL_FAILED", message: error.message } }, 502);
 
@@ -731,19 +737,60 @@ Deno.serve(async (req) => {
         return json({ success: false, error: { code: "NO_OWNER_EMAIL", message: "No owner email on the portfolio or property — set one before creating the RU sub-user." } }, 422);
       }
 
+      const contactNameParts = String(ownerName).trim().split(/\s+/);
+      const contactFirstName = contactNameParts[0] || "Property";
+      const contactLastName = contactNameParts.slice(1).join(" ") || "Owner";
+
+      // Resolve an RU LocationId for a free-text name (used for CountryId).
+      const locationIdByName = async (name: string): Promise<number | null> => {
+        if (!name) return null;
+        const { data } = await admin.functions.invoke("rentalsunited-api", {
+          body: { action: "get_location_by_name", location_name: name },
+        });
+        const id = Number((data as any)?.location_id ?? (data as any)?.locations?.[0]?.id);
+        return Number.isFinite(id) && id > 1 ? id : null;
+      };
+
       // Phase 1 is only complete once company details have been filled on RU.
-      const submitCompanyDetails = async (account: Record<string, any> | null) => {
+      // NOTE: Push_FillCompanyDetails_RQ has no UserAccountId — RU applies the details to
+      // whichever account authenticates, so we must log in AS the sub-user. That is only
+      // possible when we still hold the password we generated at creation time; adopted
+      // accounts (created outside this flow) are flagged for manual completion instead.
+      const submitCompanyDetails = async (
+        account: Record<string, any> | null,
+        plainPassword?: string | null,
+      ) => {
         if (!account?.id) return { sent: false, error: "No local RU account row" };
         if (account.company_details_sent) return { sent: true, skipped: true as const };
-        const userAccountId = account.ru_user_id ?? account.ru_owner_id;
-        if (!userAccountId) return { sent: false, error: "No RU UserAccountId on the account" };
+
+        let password: string | null = plainPassword ?? null;
+        if (!password && account.ru_login_password_enc) {
+          const { data: decrypted } = await admin.rpc("decrypt_sensitive_text", {
+            encrypted_data: account.ru_login_password_enc,
+          });
+          password = (decrypted as string | null) ?? null;
+        }
+        if (!password) {
+          await admin
+            .from("ru_owner_accounts")
+            .update({ company_details_status: "manual_required" })
+            .eq("id", account.id);
+          return {
+            sent: false,
+            deferred: true as const,
+            error:
+              "The sub-user login password is not held locally (the account was adopted rather than created here), so RU company details must be completed once in the RU UI (User Profile → Company Profile), or the sub-user recreated with a fresh email.",
+          };
+        }
 
         // Resolve company info from the portfolio (preferred) or the property.
         let companyName = ownerName || "";
         let address: string | undefined;
         let city: string | undefined;
         let country: string | undefined;
+        let zip: string | undefined;
         let phone: string | undefined;
+        let website: string | undefined;
 
         let sourcePropertyId: string | null = propertyId ?? null;
         if (portfolioId) {
@@ -766,37 +813,75 @@ Deno.serve(async (req) => {
         if (sourcePropertyId) {
           const { data: pr } = await admin
             .from("properties")
-            .select("name, address, city, country")
+            .select("name, address, city, country, postal_code")
             .eq("id", sourcePropertyId)
             .maybeSingle();
-          companyName = companyName || pr?.name || "";
-          address = pr?.address ?? undefined;
-          city = pr?.city ?? undefined;
-          country = pr?.country ?? undefined;
+          companyName = companyName || (pr as any)?.name || "";
+          address = (pr as any)?.address ?? undefined;
+          city = (pr as any)?.city ?? undefined;
+          country = (pr as any)?.country ?? undefined;
+          zip = (pr as any)?.postal_code ?? undefined;
+
           const { data: contact } = await admin
             .from("property_contact_details")
             .select("phone")
             .eq("property_id", sourcePropertyId)
             .limit(1)
             .maybeSingle();
-          phone = (contact as any)?.phone ?? undefined;
+          phone = (contact as any)?.phone ?? phone;
         }
         if (!companyName) return { sent: false, error: "No company/portfolio name to submit" };
 
-        const company = { name: companyName, address, city, country, phone, email: ownerEmail! };
+        const countryId = await locationIdByName(country || "South Africa");
+        if (!countryId) {
+          return { sent: false, error: `Could not resolve a Rentals United CountryId for "${country || "South Africa"}"` };
+        }
+
+        const company = {
+          first_name: contactFirstName,
+          last_name: contactLastName,
+          email: ownerEmail!,
+          phone: phone || "+27000000000",
+          city: city || "Cape Town",
+          country_id: countryId,
+          address: address || "Address on file",
+          zip_code: zip || "0000",
+          language_id: 1,
+          name: companyName,
+          website: website || "https://sleepinafrica.roomsonline.co.za",
+          company_city: city || undefined,
+          company_address: address || undefined,
+          post_code: zip || undefined,
+          company_phone: phone || undefined,
+          merchant_name: companyName,
+          location_ids: locationIds,
+        };
+
         const { data: filled, error: fillErr } = await admin.functions.invoke("rentalsunited-api", {
-          body: { action: "fill_company_details", ru_property_id: Number(userAccountId), company },
+          body: {
+            action: "fill_company_details",
+            company,
+            auth_username: account.ru_login_email ?? ownerEmail,
+            auth_password: password,
+          },
         });
         if (fillErr || !filled?.success) {
+          await admin
+            .from("ru_owner_accounts")
+            .update({ company_details_status: "failed" })
+            .eq("id", account.id);
           return {
             sent: false,
-            error: String(fillErr?.message ?? filled?.error?.message ?? "Rentals United rejected the company details"),
+            error: String(
+              (filled as any)?.error?.message ?? fillErr?.message ?? "Rentals United rejected the company details",
+            ),
           };
         }
         await admin
           .from("ru_owner_accounts")
           .update({
             company_details_sent: true,
+            company_details_status: "sent",
             company_filled_at: new Date().toISOString(),
             company_payload: company,
           })
@@ -804,10 +889,23 @@ Deno.serve(async (req) => {
         return { sent: true };
       };
 
+      // RU requires at least one LocationId on the sub-user (and on company details).
+      const locationIds = await resolveOwnerLocationIds(admin, propertyId, portfolioId);
+      if (locationIds.length === 0) {
+        return json({
+          success: false,
+          error: {
+            code: "NO_RU_LOCATION",
+            message:
+              "No Rentals United LocationId could be resolved for this owner. Set the property's city/country coordinates (or push the property once) so a location can be matched, then retry.",
+          },
+        }, 422);
+      }
+
       const existing = await findOwnerAccount(admin, propertyId ?? "", ownerEmail, portfolioId);
       if (existing.account?.ru_owner_id) {
         const companyResult = await submitCompanyDetails(existing.account as any);
-        if (!companyResult.sent) {
+        if (!companyResult.sent && !(companyResult as any).deferred) {
           return json({
             success: false,
             error: {
@@ -825,7 +923,8 @@ Deno.serve(async (req) => {
         return json({
           success: true,
           created: false,
-          company_details_sent: true,
+          company_details_sent: companyResult.sent,
+          company_details_warning: companyResult.sent ? null : companyResult.error,
           account: refreshed ?? existing.account,
           scope: existing.scope,
         });
@@ -850,18 +949,6 @@ Deno.serve(async (req) => {
         pick("!@#$%*?", 2)
       );
 
-      // RU requires at least one LocationId on the sub-user.
-      const locationIds = await resolveOwnerLocationIds(admin, propertyId, portfolioId);
-      if (locationIds.length === 0) {
-        return json({
-          success: false,
-          error: {
-            code: "NO_RU_LOCATION",
-            message:
-              "No Rentals United LocationId could be resolved for this owner. Set the property's city/country coordinates (or push the property once) so a location can be matched, then retry.",
-          },
-        }, 422);
-      }
 
       type RuUser = { user_account_id?: string; email?: string; owner_id?: string };
       const listRuUsers = async (): Promise<RuUser[]> => {
@@ -944,6 +1031,12 @@ Deno.serve(async (req) => {
         property_id: portfolioId ? null : propertyId,
         scope: portfolioId ? "portfolio" : "property",
       };
+      // Keep the sub-user password (encrypted) — Push_FillCompanyDetails_RQ authenticates
+      // as the sub-user, so without it the company profile can never be filled via API.
+      if (!adopted) {
+        const { data: enc } = await admin.rpc("encrypt_sensitive_text", { plaintext: password });
+        if (enc) row.ru_login_password_enc = enc;
+      }
       // The unique indexes on this table are PARTIAL, so PostgREST's ON CONFLICT
       // cannot target them. Resolve the existing row manually, then update/insert.
       const existingQuery = admin.from("ru_owner_accounts").select("id").limit(1);
@@ -957,8 +1050,8 @@ Deno.serve(async (req) => {
       if (saveErr) return json({ success: false, error: { code: "SAVE_FAILED", message: saveErr.message } }, 500);
 
       // Step 2 of Phase 1: fill company details on RU — without this the sub-user is incomplete.
-      const companyResult = await submitCompanyDetails(saved as any);
-      if (!companyResult.sent) {
+      const companyResult = await submitCompanyDetails(saved as any, adopted ? null : password);
+      if (!companyResult.sent && !(companyResult as any).deferred) {
         return json({
           success: false,
           error: {
@@ -978,10 +1071,12 @@ Deno.serve(async (req) => {
         success: true,
         created: !adopted,
         adopted,
-        company_details_sent: true,
+        company_details_sent: companyResult.sent,
+        company_details_warning: companyResult.sent ? null : companyResult.error,
         account: finalAccount ?? saved,
         scope: portfolioId ? "portfolio" : "property",
       });
+
 
     }
 

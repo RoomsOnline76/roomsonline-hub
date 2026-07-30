@@ -10558,6 +10558,7 @@ export type Database = {
       ru_owner_accounts: {
         Row: {
           company_details_sent: boolean
+          company_details_status: string
           company_filled_at: string | null
           company_payload: Json | null
           created_at: string
@@ -10566,6 +10567,7 @@ export type Database = {
           portfolio_id: string | null
           property_id: string | null
           ru_login_email: string | null
+          ru_login_password_enc: string | null
           ru_login_url: string | null
           ru_owner_id: string | null
           ru_user_id: string | null
@@ -10574,6 +10576,7 @@ export type Database = {
         }
         Insert: {
           company_details_sent?: boolean
+          company_details_status?: string
           company_filled_at?: string | null
           company_payload?: Json | null
           created_at?: string
@@ -10582,6 +10585,7 @@ export type Database = {
           portfolio_id?: string | null
           property_id?: string | null
           ru_login_email?: string | null
+          ru_login_password_enc?: string | null
           ru_login_url?: string | null
           ru_owner_id?: string | null
           ru_user_id?: string | null
@@ -10590,6 +10594,7 @@ export type Database = {
         }
         Update: {
           company_details_sent?: boolean
+          company_details_status?: string
           company_filled_at?: string | null
           company_payload?: Json | null
           created_at?: string
@@ -10598,6 +10603,7 @@ export type Database = {
           portfolio_id?: string | null
           property_id?: string | null
           ru_login_email?: string | null
+          ru_login_password_enc?: string | null
           ru_login_url?: string | null
           ru_owner_id?: string | null
           ru_user_id?: string | null
