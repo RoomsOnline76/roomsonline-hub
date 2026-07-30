@@ -185,6 +185,8 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
     if (!selectedPreset) return {};
     return {
       commission_rate: selectedPreset.default_commission_rate ?? undefined,
+      pms_commission_rate: (selectedPreset as any).pms_commission_rate ?? undefined,
+
       subscription_fee: selectedPreset.default_subscription_fee ?? undefined,
       channel_per_unit: selectedPreset.channel_manager_per_unit_fee ?? undefined,
       transaction_fee: selectedPreset.default_transaction_fee ?? undefined,
