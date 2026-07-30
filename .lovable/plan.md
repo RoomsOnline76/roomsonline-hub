@@ -1,53 +1,39 @@
-## What's wrong
+## What I verified in the code first
 
-The previous readability/auto-correct work only covered the public property and booking pages. The ROLOS PMS interface uses a **separate, mode-blind branding path**, so dark mode breaks.
+- **Phase 1 (sub-user) is out of order today.** `push-property-to-ru` has a `resolveRuOwnerAccount()` helper and a `ru_owner_accounts` table, but line 1974 hard-codes `const ruOwnerId = 738925` ("master account, sub-accounts disabled"), so every property is pushed under the master OwnerID and the helper never runs. `Push_FillCompanyDetails_RQ` is never called during onboarding — it exists only as a manual button in the cert portal, behind the `user_management` flag in `ru_platform_settings`.
+- **Phase 2 exists and works.** `wl_readiness` / `property_readiness` in `ru-cert-portal` score against the shared `_shared/ruReadiness.ts`.
+- **Phase 3 order is correct.** Push property → store `rentalsunited_property_id` → `pushARI()` (availability + prices) → `pushDiscounts()`, with a `mandatoryGaps()` hard gate before the live push in both the single-unit and multi-unit paths. Building creation precedes unit links in the multi-unit branch.
+- **Phase 4 partial.** Read-back and cadence/cron compliance exist. `CM_LNM_OrderMinimumContentQualityCheck_RQ` is not implemented anywhere in the repo.
 
-Confirmed in the code and data:
+So: order is right for Phases 2–3, wrong/missing for Phase 1, and incomplete for Phase 4.
 
-- `src/contexts/PMSBrandContext.tsx` → `applyPmsBrand()` writes brand colours as **inline styles on `document.documentElement`**. Inline styles beat the `.dark` class rules in `index.css`, so the dark theme is effectively cancelled for every branded token.
-- It maps the owner's colours straight onto core tokens with no contrast check:
-  - `brand_font_color` → `--foreground`, `--card-foreground`, `--popover-foreground`
-  - `brand_secondary_color` → `--secondary` **and** `--muted` / `--muted-foreground`
-  - `brand_accent_color` → `--accent`, `--sidebar-accent`
-- Jongensfontein's stored palette (verified in the database) is light-mode-only:
-  - Fonteinhutte: font `#1a1a2e`, secondary `#F5A623`
-  - Dassiesingel: font `#00377F`, secondary `#DDAA00`
-  - SEESIG: font `#1B7FAD`, secondary `#F5A623`
+## What to build
 
-  So in dark mode `--foreground` becomes near-black text on a near-black background (exactly the unreadable screen in the screenshot), and `--muted` becomes a bright amber slab.
-- `applyPmsBrand` never re-runs when the theme is toggled — it only reacts to the `?property=` id.
-- The readability panel / auto-correct engine (`brandAutoCorrect.ts`) is wired into the property and portfolio branding editors for the *booking* surfaces; nothing evaluates or corrects the **PMS UI** surfaces (sidebar, dashboard grid, headers, cards).
+### 1. Portfolio sub-user (Phase 1)
+- Extend `ru_owner_accounts` to key on `portfolio_id` (nullable) alongside the existing owner email, plus columns for company-details completion (`company_filled_at`, `company_payload`). Standalone properties get their own record keyed on the property.
+- New `ru-cert-portal` actions: `ensure_owner_account` (resolve portfolio → existing record → else `Push_CreateUser_RQ` → `Pull_ListMyUsers_RQ` to capture OwnerID → persist) and `fill_company_details` extended to write back completion state.
+- Rewrite the OwnerID block in `push-property-to-ru` to call the resolver (portfolio first, then property owner, then master as an explicit admin-chosen fallback) instead of the hard-coded constant.
 
-## The fix
+### 2. Hard gate every phase
+A single shared gate module (`_shared/ruPhaseGate.ts`) returning phase status for a property:
+- **P1** blocked unless a sub-user OwnerID exists *and* company details are filled.
+- **P2** blocked unless `external_system = roomsonline` and `ruReadiness` mandatory score is 100%.
+- **P3** ARI/discount pushes blocked unless `rentalsunited_property_id` is stored; building step first for multi-unit.
+- **P4** MCQ order blocked unless read-back (`Pull_GetProperty_RQ` + availability + prices) succeeded within the last 24h.
 
-**1. Make PMS brand application theme-aware**
+`push-property-to-ru` calls the gate before any RU write and returns `PHASE_BLOCKED` with the failing phase and remedies. Existing `force_push` remains an admin-only escape hatch and is logged to `ru_sync_runs`.
 
-Rewrite `applyPmsBrand` into a mode-aware token builder used by `PMSBrandContext`:
+### 3. MCQ (Phase 4.3)
+- Add `order_mcq` to `rentalsunited-api` building `CM_LNM_OrderMinimumContentQualityCheck_RQ` (auth block + PropertyID), plus a `mcq_status` read-back if RU exposes one.
+- Store results on a new `ru_mcq_orders` table (property_id, ru_property_id, ordered_at, status_id, response_preview) with admin RLS + grants.
+- Expose "Order MCQ" in the certification console, gated on P4.
 
-- Read the active mode from `next-themes` (`useTheme().resolvedTheme`) and re-apply whenever it changes.
-- Keep **brand identity tokens** always on (`--primary`, `--ring`, `--chart-1`, `--sidebar-primary`, logo, fonts) — the property still feels like its own software in both modes.
-- Never overwrite **structural surface tokens** (`--background`, `--card`, `--popover`, `--foreground`, `--muted`, `--border`) with raw owner colours. In dark mode these stay on the theme's dark values; the brand colour is only used as an accent on top.
-- Run every derived token through the existing contrast helpers in `brandOverride.ts` (`contrastRatio`, `enforceContrast`, `mixHex`, `surfaceForegroundPair`) against the *actual* mode surface:
-  - Primary that is too dark for the dark surface gets lightened (hue preserved) until it clears 4.5:1; too light for the light surface gets darkened.
-  - `--primary-foreground` / `--accent-foreground` / `--sidebar-accent-foreground` are computed from the corrected colour, not the raw one.
-  - `brand_font_color` is applied only when it clears contrast in the current mode; otherwise the theme's own foreground is kept.
-- Add a shared `buildPmsBrandVars(palette, mode)` helper so the logic is testable and reused by the preview in PMS Branding.
+### 4. Onboarding UI — the ordered flow
+- New `RuOnboardingPipeline.tsx`: a 4-phase stepper (sub-user → readiness → push → verify) showing per-step state, blockers, and the action button for the current step only. Later steps render disabled with the reason.
+- Mount it as a new "Onboarding" tab in `AdminRentalsUnited.tsx` and reuse it (property-scoped, read-only for owners) inside `PropertyFormIntegrationsTab.tsx` and ROLOS → Channels, replacing the bare "Push to RU" button with the pipeline.
+- Trigger point: whenever a property is set to ROLOS as PMS with the Channel Manager toggle on, the pipeline is what the admin/owner walks.
 
-**2. Extend the readability review to the ROLOS UI**
-
-- Add PMS surfaces (sidebar, dashboard grid rows, stat cards, table headers) to the surface list evaluated by `brandAutoCorrect.ts`, scored in **both** light and dark.
-- Show the existing `BrandReadabilityPanel` with an explicit "ROLOS interface" section alongside the booking-page section in both the property branding editor and the portfolio branding editor, so the same accept-the-fix flow covers the admin UI.
-
-**3. Portfolio parity**
-
-- Resolve the portfolio palette (Jongensfontein.com) the same way as the property palette in the PMS context, so portfolio-mode dashboard views get identical mode-aware treatment and don't fall back to a property's light-only colours.
-
-**4. Verify**
-
-- Load `/pms?property=<Fonteinhutte>` and the Jongensfontein portfolio view in both light and dark, capture screenshots, and confirm: readable text everywhere, brand primary still visible on buttons/active nav, calendar rate rows legible, sidebar active state correct.
-
-## Technical notes
-
-- Files touched: `src/contexts/PMSBrandContext.tsx` (main rewrite), `src/lib/brandOverride.ts` (mode-aware helper), `src/lib/brandAutoCorrect.ts` (PMS surfaces), `src/components/branding/BrandReadabilityPanel.tsx`, `src/pages/pms/PMSBranding.tsx`, `src/pages/PropertyForm.tsx` and `src/pages/admin/AdminPortfolios.tsx` (panel labelling only).
-- No database or edge function changes; stored palettes stay as they are and are corrected at render time, with the auto-correct panel offering to persist better values.
-- Public booking/embed branding behaviour is left unchanged apart from the shared helper refactor.
+### Technical notes
+- Files touched: `supabase/functions/push-property-to-ru/index.ts`, `rentalsunited-api/index.ts`, `ru-cert-portal/index.ts`, new `_shared/ruPhaseGate.ts`, `src/pages/AdminRentalsUnited.tsx`, `src/components/integrations/RuCertificationConsole.tsx`, `src/components/property/PropertyFormIntegrationsTab.tsx`, `src/components/pms/channels/RuReadinessScorecard.tsx`, new `src/components/integrations/RuOnboardingPipeline.tsx`.
+- Migrations: alter `ru_owner_accounts`, create `ru_mcq_orders` (with GRANTs + admin/dev/fearless_leader RLS).
+- No change to cadence crons or the RLNM handler; adapter-locked regions in the RU adapter are left untouched.
