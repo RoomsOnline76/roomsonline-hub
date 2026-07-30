@@ -174,6 +174,11 @@ export function RuCertificationConsole({ properties }: { properties: PropertyLit
   const [readiness, setReadiness] = useState<ReadinessRow[]>([]);
   const [readinessLoading, setReadinessLoading] = useState(false);
 
+  const [milestones, setMilestones] = useState<CertMilestone[]>([]);
+  const [milestoneSummary, setMilestoneSummary] = useState<MilestoneSummary | null>(null);
+  const [milestonesLoading, setMilestonesLoading] = useState(false);
+
+
   const [discounts, setDiscounts] = useState<DiscountRow[]>([]);
   const [discountsLoading, setDiscountsLoading] = useState(false);
   const [draft, setDraft] = useState({ discount_type: "long_stay", threshold: "7", discount_percent: "10", date_from: "", date_to: "" });
