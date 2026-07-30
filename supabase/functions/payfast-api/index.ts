@@ -1274,26 +1274,17 @@ Deno.serve(async (req) => {
         return await respondWithRedirectCheckout("onsite_preflight_error");
       }
 
-      
-      // Create payment transaction record
-      const { error: txError } = await supabase
-        .from("payment_transactions")
-        .insert({
-          booking_id,
-          amount: booking.total_price,
-          currency: "ZAR",
-          status: "pending",
-          payment_provider: "payfast",
-          m_payment_id: transRef,
-          merchant_id: merchantId,
-          credential_source: credentialSource,
-          gateway_response: { trans_ref: transRef, uuid, onsite: true },
 
-        });
-      
-      if (txError) {
-        console.error("[PayFast] Failed to create transaction record:", txError);
-      }
+      // Create/refresh the booking's single pending payment record
+      await recordPendingTransaction(supabase, {
+        booking_id,
+        amount: booking.total_price,
+        m_payment_id: transRef,
+        merchant_id: merchantId,
+        credential_source: credentialSource,
+        gateway_response: { trans_ref: transRef, uuid, onsite: true },
+      });
+
       
       // Update booking with payment reference
       await supabase
