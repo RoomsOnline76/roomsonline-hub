@@ -17,9 +17,9 @@ interface CertStepLite {
 interface RunSuiteResult {
   run?: {
     id: string;
-    steps_total?: number;
-    steps_passed?: number;
-    steps_failed?: number;
+    total?: number;
+    passed?: number;
+    failed?: number;
     status?: string;
     steps?: CertStepLite[];
   };
@@ -67,9 +67,9 @@ export function RuCertificationCheckButton({
       if (error) throw error;
       const run = (data as RunSuiteResult)?.run ?? null;
       setResult(run);
-      const passed = run?.steps_passed ?? 0;
-      const total = run?.steps_total ?? 0;
-      const failed = run?.steps_failed ?? 0;
+      const passed = run?.passed ?? 0;
+      const total = run?.total ?? 0;
+      const failed = run?.failed ?? 0;
       if (failed > 0) {
         const firstFailure = run?.steps?.find((s) => s.status === "failed");
         toast.error(`Certification check: ${passed}/${total} passed`, {
@@ -87,7 +87,7 @@ export function RuCertificationCheckButton({
     setRunning(false);
   };
 
-  const failed = (result?.steps_failed ?? 0) > 0;
+  const failed = (result?.failed ?? 0) > 0;
 
   return (
     <div className="flex items-center gap-2 flex-wrap">
@@ -105,7 +105,7 @@ export function RuCertificationCheckButton({
           }
         >
           {failed ? <AlertCircle className="h-3 w-3 mr-1" /> : <CheckCircle2 className="h-3 w-3 mr-1" />}
-          {result.steps_passed ?? 0}/{result.steps_total ?? 0} passed
+          {result.passed ?? 0}/{result.total ?? 0} passed
         </Badge>
       )}
       {result && (
