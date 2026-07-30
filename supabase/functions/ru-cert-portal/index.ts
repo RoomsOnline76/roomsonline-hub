@@ -11,6 +11,8 @@
 //   wl_readiness     → per-property White-Label minimum inventory report
 //   user_management  → status of RU sub-user management (parked)
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { summarizeReadiness, type RuCheck, type RuUnitInput } from "../_shared/ruReadiness.ts";
+
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
