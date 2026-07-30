@@ -395,6 +395,9 @@ export function RuCertificationConsole({ properties }: { properties: PropertyLit
       <Tabs defaultValue="runs" className="space-y-4">
         <TabsList className="flex-wrap h-auto">
           <TabsTrigger value="runs" className="gap-1.5"><ShieldCheck className="h-3.5 w-3.5" />Runs</TabsTrigger>
+          <TabsTrigger value="milestones" className="gap-1.5" onClick={loadMilestones}>
+            <CheckCircle2 className="h-3.5 w-3.5" />Milestones
+          </TabsTrigger>
           <TabsTrigger value="cadence" className="gap-1.5" onClick={loadCadence}><Clock className="h-3.5 w-3.5" />Refresh compliance</TabsTrigger>
           <TabsTrigger value="discounts" className="gap-1.5"><Percent className="h-3.5 w-3.5" />Discounts</TabsTrigger>
           <TabsTrigger value="readiness" className="gap-1.5"><CheckCircle2 className="h-3.5 w-3.5" />WL readiness</TabsTrigger>
@@ -402,6 +405,90 @@ export function RuCertificationConsole({ properties }: { properties: PropertyLit
             <Users className="h-3.5 w-3.5" />User management
           </TabsTrigger>
         </TabsList>
+
+        {/* Milestones — core functional certification matrix */}
+        <TabsContent value="milestones">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-base">Certification milestone matrix</CardTitle>
+                <CardDescription>
+                  Latest observed result per Rentals United method across the last 25 runs. Status 5 means a
+                  partial success — check the notifications on the run before signing off.
+                </CardDescription>
+              </div>
+              <div className="flex items-center gap-2">
+                {milestoneSummary && (
+                  <Badge variant={milestoneSummary.mandatory_passed === milestoneSummary.mandatory_total ? "default" : "destructive"}>
+                    {milestoneSummary.mandatory_passed}/{milestoneSummary.mandatory_total} mandatory
+                  </Badge>
+                )}
+                <Button variant="ghost" size="sm" onClick={loadMilestones}>
+                  <RefreshCw className={`h-4 w-4 ${milestonesLoading ? "animate-spin" : ""}`} />
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Milestone</TableHead>
+                    <TableHead>RU method</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Last run</TableHead>
+                    <TableHead />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {milestones.map((m) => (
+                    <TableRow key={m.key}>
+                      <TableCell className="text-sm">
+                        {m.label}
+                        {!m.mandatory && <Badge variant="outline" className="ml-2 text-[10px]">optional</Badge>}
+                        {m.note && <span className="block text-xs text-muted-foreground">{m.note}</span>}
+                      </TableCell>
+                      <TableCell className="font-mono text-xs">{m.ru_method}</TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={
+                            m.status === "passed" && !m.partial_success
+                              ? "default"
+                              : m.partial_success
+                                ? "secondary"
+                                : m.status === "never_run"
+                                  ? "outline"
+                                  : "destructive"
+                          }
+                        >
+                          {m.partial_success ? "Partial (status 5)" : m.status === "never_run" ? "Never run" : m.status}
+                        </Badge>
+                        {m.detail && <span className="block text-xs text-muted-foreground mt-1">{m.detail}</span>}
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        {m.last_run_at ? format(new Date(m.last_run_at), "MMM d HH:mm") : "—"}
+                      </TableCell>
+                      <TableCell>
+                        {m.run_id && (
+                          <Button variant="ghost" size="sm" onClick={() => downloadEvidence(m.run_id!)}>
+                            Evidence
+                          </Button>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {milestones.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center text-muted-foreground py-6">
+                        {milestonesLoading ? "Loading milestones…" : "No milestone data yet — run a suite."}
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
 
         {/* Runs */}
         <TabsContent value="runs">
