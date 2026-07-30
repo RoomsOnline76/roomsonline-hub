@@ -1279,15 +1279,30 @@ async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRo
         }
       }
 
-      // Fallback: RU requires pricing for 365 days with price > 0
+      // RU requires real pricing for 365 days. Never push a dummy price — a price of 1
+      // passes RU's schema but fails channel content-quality checks (LekkeSlaap, Booking.com).
       if (priceEntries.length === 0) {
-        priceEntries.push({ date_from: todayStr, date_to: oneYearStr, price: 1 });
-        console.log(`[pushARI] WARNING: No valid prices found — pushing fallback price of 1 for ${todayStr} to ${oneYearStr}`);
+        result.prices_error = 'RU_NO_REAL_RATES: no configured rates found for the next 365 days — configure seasons and rates in ROLOS before pushing (dummy prices are never sent)';
+        console.error(`[pushARI] Aborting price push for RU property ${ruPropertyId}: ${result.prices_error}`);
+        try {
+          await supabase.from('sync_logs').insert({
+            property_id: property.id,
+            external_system: 'rentals_united',
+            sync_type: 'prices',
+            status: 'error',
+            message: result.prices_error,
+            request_data: { ru_property_id: ruPropertyId, unit_id: unit?.id ?? null, window: { from: todayStr, to: oneYearStr } },
+          });
+        } catch (logErr) {
+          console.warn('[pushARI] Failed to persist no-rates log:', logErr);
+        }
+        return result;
       }
 
       const { data: priceResult, error: priceErr } = await supabase.functions.invoke('rentalsunited-api', {
         body: { action: 'push_prices', ru_property_id: ruPropertyId, prices: priceEntries },
       });
+
       if (priceErr || !priceResult?.success) {
         result.prices_error = priceErr?.message || priceResult?.error?.message || 'Unknown error';
       } else {
