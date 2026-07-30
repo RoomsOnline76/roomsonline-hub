@@ -2045,6 +2045,8 @@ Deno.serve(async (req) => {
               meets_minimum_amenities: everyFlag('meets_minimum_amenities'),
               has_zip_code: everyFlag('has_zip_code'),
               has_space: everyFlag('has_space'),
+              space_is_default: units.some(u => (u.validation as any).space_is_default === true),
+              floor_is_default: units.some(u => (u.validation as any).floor_is_default === true),
               has_detailed_location_id: everyFlag('has_detailed_location_id'),
               has_payment_methods: everyFlag('has_payment_methods'),
               has_cancellation_policies: everyFlag('has_cancellation_policies'),
