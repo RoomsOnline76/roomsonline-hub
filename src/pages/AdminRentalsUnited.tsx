@@ -60,6 +60,8 @@ export default function AdminRentalsUnited() {
   const [propertyFilter, setPropertyFilter] = useState<string>("all");
   const [selected, setSelected] = useState<SyncRun | null>(null);
   const [triggering, setTriggering] = useState<string | null>(null);
+  // Properties toggled in this session stay on the board even when switched off.
+  const [stickyIds, setStickyIds] = useState<Set<string>>(new Set());
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -114,6 +116,24 @@ export default function AdminRentalsUnited() {
     return { total, ok, fail, avgMs, enabledCount };
   }, [filtered, properties]);
 
+  /**
+   * Properties that belong on the RU board regardless of their current toggle:
+   * ROLOS-managed, already mapped in RU, currently enabled, or toggled during this session.
+   * Disabling a property must never remove it from the list — it stays so it can be
+   * re-enabled later when ramping up from one test property to many.
+   */
+  const ruProperties = useMemo(
+    () =>
+      properties.filter(
+        (p) =>
+          p.external_system === "rolos" ||
+          !!p.ru_push_enabled ||
+          !!p.rentalsunited_property_id ||
+          stickyIds.has(p.id)
+      ),
+    [properties, stickyIds]
+  );
+
   const togglePush = async (id: string, next: boolean) => {
     const { error } = await supabase
       .from("properties")
@@ -123,8 +143,9 @@ export default function AdminRentalsUnited() {
       toast.error(error.message);
       return;
     }
+    setStickyIds((prev) => new Set(prev).add(id));
     setProperties((prev) => prev.map((p) => (p.id === id ? { ...p, ru_push_enabled: next } : p)));
-    toast.success(next ? "RU push enabled" : "RU push disabled");
+    toast.success(next ? "RU push enabled" : "RU push disabled — property stays listed");
   };
 
   const runCron = async (fn: string, label: string) => {
