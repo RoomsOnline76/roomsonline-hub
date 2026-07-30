@@ -807,7 +807,7 @@ Deno.serve(async (req) => {
         if (sourcePropertyId) {
           const { data: pr } = await admin
             .from("properties")
-            .select("name, address, city, country, postal_code, zip_code, website, phone")
+            .select("name, address, city, country, postal_code")
             .eq("id", sourcePropertyId)
             .maybeSingle();
           companyName = companyName || (pr as any)?.name || "";
