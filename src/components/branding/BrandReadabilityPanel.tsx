@@ -123,6 +123,14 @@ export function BrandReadabilityPanel({ palette, onApply, entityLabel = "propert
   const onDark = surfaceForegroundPair(darkBg, bodyBrand);
   const borderTint = dark ? "#ffffff33" : mutedBrand + "40";
 
+  // ROLOS shell surfaces are owned by the app theme — they never take brand colours.
+  const rolosPage = dark ? ROLOS_DARK_PAGE : ROLOS_LIGHT_PAGE;
+  const rolosCard = dark ? ROLOS_DARK_CARD : "#FFFFFF";
+  const rolosSidebar = dark ? "#151922" : "#FAFAF8";
+  const rolosText = dark ? "#F2F4F8" : "#12151C";
+  const rolosMuted = dark ? "#9AA3B2" : "#667085";
+
+
   const toggle = (id: string) =>
     setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
 
