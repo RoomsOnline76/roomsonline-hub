@@ -44,9 +44,11 @@ function presetToBuilder(row: BillingDefault): BillingConfigValue {
   v.widget_tiers_enabled = row.strategy === "widget" && (row as any).widget_flat_commission_rate == null;
   v.widget_flat_enabled = (row as any).widget_flat_commission_rate != null;
   v.widget_flat_rate = (row as any).widget_flat_commission_rate != null ? String((row as any).widget_flat_commission_rate) : "";
-  v.pms_enabled = (row.default_subscription_fee ?? 0) > 0 || (row.channel_manager_per_unit_fee ?? 0) > 0;
+  v.pms_enabled = (row.default_subscription_fee ?? 0) > 0;
   v.subscription_fee = row.default_subscription_fee != null ? String(row.default_subscription_fee) : "";
+  v.channel_manager_enabled = (row.channel_manager_per_unit_fee ?? 0) > 0;
   v.channel_per_unit = row.channel_manager_per_unit_fee != null ? String(row.channel_manager_per_unit_fee) : "";
+
   v.enterprise_custom_fee = (row as any).enterprise_custom_fee != null ? String((row as any).enterprise_custom_fee) : "";
   v.volume_tiers_enabled = tiers.length > 0 && row.strategy !== "widget";
   v.tier_pricing_json = tiers.length ? tiers : null;
