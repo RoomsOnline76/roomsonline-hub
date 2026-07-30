@@ -108,6 +108,9 @@ interface CheckSpec {
   min: number;
   reason: string;
   mode: BrandMode;
+  /** Defaults to the guest-facing booking pages. */
+  scope?: BrandScope;
+
   /** When true, propose a plain white/near-black foreground rather than a nudge */
   preferPlain?: boolean;
   /** When true, the *background* is corrected instead of the text colour. */
