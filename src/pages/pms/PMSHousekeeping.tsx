@@ -486,6 +486,82 @@ export default function PMSHousekeeping() {
           </Card>
         )}
 
+        {/* Action cards — click through to the due items */}
+        <div className="grid grid-cols-2 xl:grid-cols-5 gap-3">
+          {[
+            {
+              key: "total" as const,
+              label: "Jobs outstanding",
+              value: totalActions,
+              hint: "All actions & reviews",
+              icon: LayoutGrid,
+              tone: "text-foreground",
+              onClick: () => setQueue(totalActions > 0 ? "clean" : null),
+            },
+            {
+              key: "clean" as const,
+              label: "Rooms to clean",
+              value: dirtyRoomsAll.length,
+              hint: "Marked dirty",
+              icon: Sparkles,
+              tone: "text-warning",
+              onClick: () => setQueue("clean"),
+            },
+            {
+              key: "tasks" as const,
+              label: "Cleaning tasks",
+              value: openTasksAll.length,
+              hint: "Assigned & open",
+              icon: CheckCircle,
+              tone: "text-info",
+              onClick: () => setQueue("tasks"),
+            },
+            {
+              key: "maintenance" as const,
+              label: "Open dockets",
+              value: openDocketsAll.length,
+              hint: "Maintenance to fix",
+              icon: Wrench,
+              tone: "text-destructive",
+              onClick: () => setQueue("maintenance"),
+            },
+            {
+              key: "ready" as const,
+              label: "To review",
+              value: awaitingReadyAll.length,
+              hint: "Confirm room ready",
+              icon: ShieldCheck,
+              tone: "text-success",
+              onClick: () => setQueue("ready"),
+            },
+          ].map((card) => (
+            <Card
+              key={card.key}
+              role="button"
+              tabIndex={0}
+              onClick={card.onClick}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); card.onClick(); } }}
+              className={cn(
+                "cursor-pointer transition-shadow hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                card.value > 0 && card.key !== "total" && "border-l-4",
+                card.value > 0 && card.key === "clean" && "border-l-amber-500",
+                card.value > 0 && card.key === "tasks" && "border-l-blue-500",
+                card.value > 0 && card.key === "maintenance" && "border-l-destructive",
+                card.value > 0 && card.key === "ready" && "border-l-emerald-500"
+              )}
+            >
+              <CardContent className="py-3 space-y-1">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs text-muted-foreground truncate">{card.label}</span>
+                  <card.icon className={cn("h-4 w-4 shrink-0", card.tone)} />
+                </div>
+                <p className={cn("text-2xl font-bold leading-none", card.value > 0 ? card.tone : "text-muted-foreground")}>{card.value}</p>
+                <p className="text-[11px] text-muted-foreground">{card.hint}</p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
         {/* Per-property boards */}
         {propertySections.map((section) => {
           const dirtyRooms = section.rooms.filter(r => r.status === "dirty");
