@@ -125,9 +125,9 @@ function toFiniteNumber(value: unknown): number | null {
 
 // ── Mapping Functions ────────────────────────────────────────
 
-function mapAmenities(amenitiesData: Record<string, unknown> | null): { id: number; count: number }[] {
+function mapAmenities(amenitiesData: Record<string, unknown> | null): { id: number; count: number; padded?: boolean }[] {
   if (!amenitiesData) return [];
-  const mapped: { id: number; count: number }[] = [];
+  const mapped: { id: number; count: number; padded?: boolean }[] = [];
   const seen = new Set<number>();
   const amenityList = Array.isArray(amenitiesData)
     ? amenitiesData
@@ -144,10 +144,12 @@ function mapAmenities(amenitiesData: Record<string, unknown> | null): { id: numb
       }
     }
   }
+  // Padding to RU's 10-amenity minimum keeps the push valid, but padded entries are
+  // flagged so the readiness scorecard can warn about low-quality (assumed) data.
   const padIds = [2, 6, 11, 12, 14, 39, 42, 44, 45, 60, 61, 62];
   for (const id of padIds) {
     if (mapped.length >= 10) break;
-    if (!seen.has(id)) { seen.add(id); mapped.push({ id, count: 1 }); }
+    if (!seen.has(id)) { seen.add(id); mapped.push({ id, count: 1, padded: true }); }
   }
   return mapped;
 }
