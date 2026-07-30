@@ -336,7 +336,7 @@ export default function AdminPayments() {
                         <TableCell className="text-muted-foreground">{t.property_name || 'Unknown'}</TableCell>
                         <TableCell className="capitalize">{t.payment_method || '-'}</TableCell>
                         <TableCell className="font-medium">{t.currency} {t.amount.toLocaleString()}</TableCell>
-                        <TableCell>{getStatusBadge(t.status)}</TableCell>
+                        <TableCell>{getStatusBadge(t.status, t.created_at)}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
