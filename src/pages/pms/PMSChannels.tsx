@@ -1,4 +1,8 @@
 import { useState } from "react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Lock } from "lucide-react";
+import { useBillingConfig } from "@/hooks/useBillingConfig";
+
 
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 import { usePmsStaffRole } from "@/hooks/usePmsStaffRole";
@@ -44,6 +48,13 @@ export default function PMSChannels() {
 
   const [connectDialog, setConnectDialog] = useState<string | null>(null);
 
+  // Billing entitlement — when admin switches Channel Manager billing off, the
+  // module is locked and every listing is archived at Rentals United.
+  const { config: billingConfig, isLoading: billingLoading } = useBillingConfig(propertyId ?? undefined);
+  const channelManagerLocked =
+    !billingLoading && billingConfig != null && billingConfig.channel_manager_enabled === false;
+
+
   const connectionMap = new Map(connections.map((c: any) => [c.channel_name, c]));
 
   // Count mappings per connection for display on cards
@@ -76,7 +87,31 @@ export default function PMSChannels() {
     is_active: m.is_active,
   }));
 
+  if (channelManagerLocked) {
+    return (
+      <div className="max-w-2xl mx-auto py-10">
+        <Card className="border-dashed">
+          <CardContent className="p-8 text-center space-y-3">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+              <Lock className="h-6 w-6 text-muted-foreground" />
+            </div>
+            <h1 className="text-lg font-semibold text-foreground">Channel Manager unavailable</h1>
+            <p className="text-sm text-muted-foreground">
+              The Channel Manager module is not part of your current subscription, so your listings are
+              archived with our distribution partners and no rates or availability are being sent out.
+            </p>
+            <p className="text-sm text-muted-foreground">
+              Please speak to your account manager to activate Channel Manager distribution — listings are
+              re-activated automatically once it is enabled.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
+
     <>
       <div className="space-y-6">
         {/* Header */}

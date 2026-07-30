@@ -27,6 +27,18 @@ import { PriceLabsAdminPushCard } from "./PriceLabsAdminPushCard";
 import { SubscriptionStatusPanel } from "./SubscriptionStatusPanel";
 import { SubscriptionInvoiceDownloadCenter } from "./SubscriptionInvoiceDownloadCenter";
 import { ByoSetupChecklist } from "@/components/integrations/ByoSetupChecklist";
+import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+
 
 interface BillingConfigTabProps {
   propertyId: string;
@@ -44,9 +56,11 @@ function presetToBuilder(row: BillingDefault): BillingConfigValue {
   v.widget_tiers_enabled = row.strategy === "widget" && (row as any).widget_flat_commission_rate == null;
   v.widget_flat_enabled = (row as any).widget_flat_commission_rate != null;
   v.widget_flat_rate = (row as any).widget_flat_commission_rate != null ? String((row as any).widget_flat_commission_rate) : "";
-  v.pms_enabled = (row.default_subscription_fee ?? 0) > 0 || (row.channel_manager_per_unit_fee ?? 0) > 0;
+  v.pms_enabled = (row.default_subscription_fee ?? 0) > 0;
   v.subscription_fee = row.default_subscription_fee != null ? String(row.default_subscription_fee) : "";
+  v.channel_manager_enabled = (row.channel_manager_per_unit_fee ?? 0) > 0;
   v.channel_per_unit = row.channel_manager_per_unit_fee != null ? String(row.channel_manager_per_unit_fee) : "";
+
   v.enterprise_custom_fee = (row as any).enterprise_custom_fee != null ? String((row as any).enterprise_custom_fee) : "";
   v.volume_tiers_enabled = tiers.length > 0 && row.strategy !== "widget";
   v.tier_pricing_json = tiers.length ? tiers : null;
@@ -80,9 +94,11 @@ function configToBuilder(config: BillingConfig | null): BillingConfigValue {
   v.widget_tiers_enabled = isWidget && (config as any).widget_flat_commission_rate == null;
   v.widget_flat_enabled = (config as any).widget_flat_commission_rate != null;
   v.widget_flat_rate = (config as any).widget_flat_commission_rate != null ? String((config as any).widget_flat_commission_rate) : "";
-  v.pms_enabled = (config.subscription_fee_monthly ?? 0) > 0 || (config.channel_manager_per_unit_fee ?? 0) > 0 || !!config.channel_manager_enabled;
+  v.pms_enabled = (config.subscription_fee_monthly ?? 0) > 0 || (config as any).pms_enabled === true;
   v.subscription_fee = config.subscription_fee_monthly != null ? String(config.subscription_fee_monthly) : "";
+  v.channel_manager_enabled = !!config.channel_manager_enabled;
   v.channel_per_unit = config.channel_manager_per_unit_fee != null ? String(config.channel_manager_per_unit_fee) : "";
+
   v.enterprise_custom_fee = (config as any).enterprise_custom_fee != null ? String((config as any).enterprise_custom_fee) : "";
   v.volume_tiers_enabled = tiers.length > 0 && !isWidget;
   v.tier_pricing_json = tiers.length ? tiers : null;
@@ -221,8 +237,9 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
 
       widget_flat_commission_rate: v.widget_flat_enabled ? toNum(v.widget_flat_rate) : null,
       subscription_fee_monthly: v.pms_enabled ? toNum(v.subscription_fee) : null,
-      channel_manager_enabled: v.pms_enabled,
-      channel_manager_per_unit_fee: v.pms_enabled ? toNum(v.channel_per_unit) : null,
+      channel_manager_enabled: v.channel_manager_enabled,
+      channel_manager_per_unit_fee: v.channel_manager_enabled ? toNum(v.channel_per_unit) : null,
+
       enterprise_custom_fee: v.pms_enabled ? toNum(v.enterprise_custom_fee) : null,
       transaction_fee_percentage: v.facilitator_surcharge_enabled ? toNum(v.transaction_fee) : null,
       // Facilitator surcharge is mutually exclusive with the BYO gateway toggle
@@ -262,9 +279,59 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
     }
   };
 
-  const handleSave = () => {
-    persistBuilder(strategy, builder, billingStartDate, billingEnabled);
+  // ── Channel Manager entitlement fan-out ───────────────────────────────
+  const savedChannelManager = !!config?.channel_manager_enabled;
+  const [cmDialogOpen, setCmDialogOpen] = useState(false);
+  const [cmSyncing, setCmSyncing] = useState(false);
+
+  const runEntitlementFanOut = async (enabled: boolean) => {
+    setCmSyncing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("channel-manager-entitlement", {
+        body: {
+          scope: isPortfolioScope ? "portfolio" : "property",
+          entity_id: isPortfolioScope ? scope.portfolioId : propertyId,
+          enabled,
+        },
+      });
+      if (error) throw error;
+      const res = data as { affected?: number; failed?: number } | null;
+      const failed = res?.failed ?? 0;
+      if (failed > 0) {
+        toast.error(
+          `${failed} of ${res?.affected ?? 0} propert${(res?.affected ?? 0) === 1 ? "y" : "ies"} could not be ${enabled ? "re-activated" : "archived"} at Rentals United.`
+        );
+      } else {
+        toast.success(
+          enabled
+            ? `Channel Manager enabled — ${res?.affected ?? 0} listing(s) re-activated at Rentals United.`
+            : `Channel Manager disabled — ${res?.affected ?? 0} listing(s) archived at Rentals United.`
+        );
+      }
+    } catch (e) {
+      toast.error(
+        e instanceof Error ? e.message : "Rentals United status update failed — retry from the RU console."
+      );
+    } finally {
+      setCmSyncing(false);
+    }
   };
+
+  const commitSave = async () => {
+    persistBuilder(strategy, builder, billingStartDate, billingEnabled);
+    if (builder.channel_manager_enabled !== savedChannelManager) {
+      await runEntitlementFanOut(builder.channel_manager_enabled);
+    }
+  };
+
+  const handleSave = () => {
+    if (builder.channel_manager_enabled !== savedChannelManager) {
+      setCmDialogOpen(true);
+      return;
+    }
+    void commitSave();
+  };
+
 
   if (isLoading) {
     return (
@@ -430,7 +497,7 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
           )}
 
 
-          <Button onClick={handleSave} disabled={upsert.isPending} className="w-full">
+          <Button onClick={handleSave} disabled={upsert.isPending || cmSyncing} className="w-full">
             {upsert.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
             {isPortfolioScope ? "Save Portfolio Billing Config" : "Save Billing Config"}
           </Button>
@@ -456,6 +523,53 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
           </CollapsibleContent>
         </Card>
       </Collapsible>
+
+      {/* Channel Manager entitlement confirmation */}
+      <AlertDialog open={cmDialogOpen} onOpenChange={setCmDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {builder.channel_manager_enabled
+                ? "Re-enable Channel Manager billing?"
+                : "Disable Channel Manager billing?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2 text-xs">
+              {builder.channel_manager_enabled ? (
+                <>
+                  <p>
+                    All {isPortfolioScope ? `${scope.siblingPropertyIds.length} portfolio ` : ""}
+                    propert{isPortfolioScope && scope.siblingPropertyIds.length !== 1 ? "ies" : "y"} will be{" "}
+                    <strong>re-activated at Rentals United</strong> and the ROL'OS Channel Manager screen unlocks.
+                  </p>
+                  <p>Per-unit channel billing resumes for every synced unit.</p>
+                </>
+              ) : (
+                <>
+                  <p>
+                    All {isPortfolioScope ? `${scope.siblingPropertyIds.length} portfolio ` : ""}
+                    propert{isPortfolioScope && scope.siblingPropertyIds.length !== 1 ? "ies" : "y"} will be{" "}
+                    <strong>archived at Rentals United</strong>, ARI pushes stop, and the ROL'OS Channel Manager
+                    screen is locked for the owner.
+                  </p>
+                  <p>Per-unit channel billing stops from the next invoice run.</p>
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setCmDialogOpen(false);
+                void commitSave();
+              }}
+            >
+              {builder.channel_manager_enabled ? "Enable & re-activate" : "Disable & archive"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
+
   );
 }

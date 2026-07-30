@@ -1949,7 +1949,7 @@ Deno.serve(async (req) => {
 
     const { data: property, error: propErr } = await supabase
       .from('properties')
-      .select('id, name, description, property_type, address, city, country, postal_code, latitude, longitude, max_guests, bedrooms, bathrooms, amenities, images, rentalsunited_property_id, rentalsunited_building_id, owner_email, external_system')
+      .select('id, name, description, property_type, address, city, country, postal_code, latitude, longitude, max_guests, bedrooms, bathrooms, amenities, images, rentalsunited_property_id, rentalsunited_building_id, owner_email, external_system, ru_archived')
       .eq('id', property_id)
       .single();
 
@@ -1959,6 +1959,24 @@ Deno.serve(async (req) => {
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    // Channel Manager billing entitlement gate — archived listings must never
+    // receive further pushes until billing is re-enabled by admin.
+    if (!dry_run && (property as { ru_archived?: boolean }).ru_archived) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: {
+            code: 'CHANNEL_MANAGER_DISABLED',
+            message:
+              'Channel Manager billing is disabled for this property, so its Rentals United listing is archived. Re-enable the Channel Manager in Billing to resume syncing.',
+          },
+        }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+
 
     const { data: roomTypes } = await supabase
       .from('hostfully_room_types')

@@ -25,10 +25,13 @@ export interface BillingConfigValue {
   // Widget / WBE flat commission — mutually exclusive with tiered widget
   widget_flat_enabled: boolean;
   widget_flat_rate: string;
-  // PMS subscription (monthly base + per-unit channel manager fee)
+  // PMS subscription (monthly base)
   pms_enabled: boolean;
   subscription_fee: string;
+  /** Channel Manager entitlement (Rentals United sync). Independent of the PMS subscription. */
+  channel_manager_enabled: boolean;
   channel_per_unit: string;
+
   /** Enterprise custom monthly fee (used when property/portfolio > 3 properties). */
   enterprise_custom_fee: string;
   // Per-unit volume tier (uses `tier_pricing_json`)
@@ -67,7 +70,9 @@ export function emptyBuilderValue(): BillingConfigValue {
     widget_flat_rate: "",
     pms_enabled: false,
     subscription_fee: "",
+    channel_manager_enabled: false,
     channel_per_unit: "",
+
     enterprise_custom_fee: "",
     volume_tiers_enabled: false,
     tier_pricing_json: null,
@@ -375,20 +380,29 @@ export function BillingConfigBuilder({ value, onChange, scope, placeholders = {}
           );
         })()}
 
-        <div className="grid grid-cols-2 gap-2 mt-2">
-          <div>
-            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Monthly base override (ZAR)</Label>
-            <Input
-              type="number" step="50" min="0"
-              value={value.subscription_fee}
-              onChange={(e) => set("subscription_fee", e.target.value)}
-              placeholder="Auto from tier"
-              className="h-8 text-xs"
-            />
-            <p className="text-[10px] text-muted-foreground mt-0.5">
-              Leave blank to auto-resolve from the tier above. Fill only to force a custom fixed fee.
-            </p>
-          </div>
+        <div className="mt-2">
+          <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Monthly base override (ZAR)</Label>
+          <Input
+            type="number" step="50" min="0"
+            value={value.subscription_fee}
+            onChange={(e) => set("subscription_fee", e.target.value)}
+            placeholder="Auto from tier"
+            className="h-8 text-xs"
+          />
+          <p className="text-[10px] text-muted-foreground mt-0.5">
+            Leave blank to auto-resolve from the tier above. Fill only to force a custom fixed fee.
+          </p>
+        </div>
+      </ToggleRow>
+
+      {/* ── Channel Manager entitlement ─────────────────────────────── */}
+      <ToggleRow
+        title="Channel Manager (Rentals United)"
+        description="Billed per synced unit per month. This switch is also the entitlement gate: when OFF, the ROL'OS Channel Manager screen is locked and every property in the portfolio is archived at Rentals United."
+        enabled={value.channel_manager_enabled}
+        onToggle={(v) => set("channel_manager_enabled", v)}
+      >
+        <div className="space-y-2">
           <div>
             <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Channel mgr / unit / mo</Label>
             <Input
@@ -399,8 +413,18 @@ export function BillingConfigBuilder({ value, onChange, scope, placeholders = {}
               className="h-8 text-xs"
             />
           </div>
+          <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-2 text-[11px] text-amber-900 dark:text-amber-200 flex items-start gap-1.5">
+            <Info className="h-3 w-3 mt-0.5 shrink-0" />
+            <span>
+              Turning this <strong>off</strong> archives all listings for this property/portfolio at Rentals United and stops
+              per-unit channel billing. Turning it back <strong>on</strong> re-activates the listings at Rentals United and
+              resumes billing for synced units.
+            </span>
+          </div>
         </div>
       </ToggleRow>
+
+
 
 
 
@@ -606,10 +630,12 @@ export function summarizeBuilderValue(v: BillingConfigValue): string {
   if (v.widget_tiers_enabled) parts.push("widget tiered commission");
 
   if (v.pms_enabled) {
-    const sub = v.subscription_fee ? `R${v.subscription_fee}/mo` : "PMS subscription";
-    const cm = v.channel_per_unit ? ` + R${v.channel_per_unit}/unit` : "";
-    parts.push(sub + cm);
+    parts.push(v.subscription_fee ? `R${v.subscription_fee}/mo` : "PMS subscription");
   }
+  if (v.channel_manager_enabled) {
+    parts.push(v.channel_per_unit ? `R${v.channel_per_unit}/unit channel mgr` : "channel manager");
+  }
+
   if (v.volume_tiers_enabled) parts.push("per-unit volume tiers");
   if (v.facilitator_surcharge_enabled && v.transaction_fee) parts.push(`${v.transaction_fee}% ROL surcharge`);
   if (v.byo_gateway_enabled && v.byo_gateway_fee) parts.push(`R${v.byo_gateway_fee}/mo BYO gateway`);
