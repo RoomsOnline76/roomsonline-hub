@@ -497,7 +497,7 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
           )}
 
 
-          <Button onClick={handleSave} disabled={upsert.isPending} className="w-full">
+          <Button onClick={handleSave} disabled={upsert.isPending || cmSyncing} className="w-full">
             {upsert.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
             {isPortfolioScope ? "Save Portfolio Billing Config" : "Save Billing Config"}
           </Button>
