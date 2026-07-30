@@ -61,8 +61,14 @@ export function PropertyPayoutTable({ payouts, loading }: PropertyPayoutTablePro
                     {p.booking_count} booking{p.booking_count !== 1 ? 's' : ''} · {p.billing_strategy}
                     {p.billing_scope === 'portfolio' ? ' · portfolio billing' : ''}
                   </p>
+                  {p.booking_recorded_count > 0 && (
+                    <Badge variant="secondary" className="mt-1 text-[10px]">
+                      {p.booking_recorded_count} booking-recorded (no gateway record)
+                    </Badge>
+                  )}
                 </div>
               </TableCell>
+
               <TableCell className="text-right font-medium">{formatCurrency(p.gross_amount)}</TableCell>
               <TableCell className="text-right">
                 <div>
