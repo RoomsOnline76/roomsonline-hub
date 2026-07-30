@@ -2274,44 +2274,39 @@ Deno.serve(async (req) => {
     ruPayload.owner_id = ruOwnerId;
     const existingRuId = property.rentalsunited_property_id ? parseInt(property.rentalsunited_property_id, 10) : 0;
 
+    const singleValidation = buildValidation(ruPayload as unknown as Record<string, any>);
+
     if (dry_run) {
       return new Response(
         JSON.stringify({
           success: true, dry_run: true, multi_unit: false, property_id,
           ru_property_id: existingRuId || null,
-          validation: {
-            images_count: ruPayload.images.length,
-            amenities_count: ruPayload.amenities.length,
-            rooms_count: ruPayload.rooms.length,
-            has_coordinates: ruPayload.latitude !== 0 && ruPayload.longitude !== 0,
-            meets_minimum_images: ruPayload.images.length >= 10,
-            meets_minimum_amenities: ruPayload.amenities.length >= 10,
-            has_zip_code: !!(ruPayload.zip_code && ruPayload.zip_code !== '0000'),
-            has_space: (ruPayload.space || 0) > 0,
-            has_floor: typeof ruPayload.floor === 'number',
-            has_detailed_location_id: (ruPayload.detailed_location_id || 0) > 1,
-            has_payment_methods: (ruPayload.payment_methods || []).length >= 1,
-            has_cancellation_policies: (ruPayload.cancellation_policies || []).length >= 1,
-            max_guests: ruPayload.can_sleep_max,
-            // Phase 4 — WL minimum inventory additions
-            has_name: !!(ruPayload.name && String(ruPayload.name).trim().length >= 3),
-            has_object_type_id: (((ruPayload as any).object_type_id ?? (ruPayload as any).property_type_id) || 0) > 0,
-            can_sleep_max_ok: (ruPayload.can_sleep_max || 0) >= 1,
-            has_description: (((ruPayload as any).descriptions?.[0]?.text || '').trim().length) >= 100,
-            has_main_image: (ruPayload.images || []).some((i: any) => i.is_main),
-            has_street: !!((ruPayload as any).street && String((ruPayload as any).street).trim().length > 2),
-          },
+          gaps: mandatoryGaps([{ name: property.name, validation: singleValidation as any }]),
+          validation: singleValidation,
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    if (existingRuId === 0 && ruPayload.images.length < 10) {
-      return new Response(
-        JSON.stringify({ success: false, error: { code: 'VALIDATION_FAILED', message: `Property needs at least 10 images (has ${ruPayload.images.length}).` } }),
-        { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    // ── Readiness gate: no live push while mandatory WL requirements fail ──
+    if (!forcePush) {
+      const gaps = mandatoryGaps([{ name: property.name, validation: singleValidation as any }]);
+      if (gaps.length > 0) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: {
+              code: 'NOT_READY',
+              message: `Property is not ready for Rentals United: ${gaps.length} requirement(s) outstanding.`,
+            },
+            gaps,
+            validation: singleValidation,
+          }),
+          { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
     }
+
 
     const { data: pushResult, error: pushErr } = await supabase.functions.invoke('rentalsunited-api', {
       body: { action: 'push_property', ru_property_id: existingRuId, property: ruPayload },
