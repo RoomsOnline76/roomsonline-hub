@@ -1422,11 +1422,28 @@ async function pushDiscounts(
     if (!lsValidation.ok) result.discount_errors.push(...lsValidation.errors.map(e => `RU ${ruId}: ${e}`));
     if (!lmValidation.ok) result.discount_errors.push(...lmValidation.errors.map(e => `RU ${ruId}: ${e}`));
 
+    // Wire-format mapping — rentalsunited-api validates RUDiscountEntry
+    // ({ date_from, date_to, nights_from, nights_to, discount_percentage }).
+    const lsWire = longStayDiscounts.map(d => ({
+      date_from: d.date_from,
+      date_to: d.date_to,
+      nights_from: d.nights_from,
+      nights_to: d.nights_to,
+      discount_percentage: d.percentage,
+    }));
+    const lmWire = lastMinuteDiscounts.map(d => ({
+      date_from: d.date_from,
+      date_to: d.date_to,
+      nights_from: d.days_to_arrival_from,
+      nights_to: d.days_to_arrival_to,
+      discount_percentage: d.percentage,
+    }));
+
     // 8.1 — Push long stay
     if (longStayDiscounts.length > 0 && lsValidation.ok) {
       try {
         const { data: lsResult, error: lsErr } = await supabase.functions.invoke('rentalsunited-api', {
-          body: { action: 'push_long_stay_discounts', ru_property_id: ruId, discounts: longStayDiscounts },
+          body: { action: 'push_long_stay_discounts', ru_property_id: ruId, discounts: lsWire },
         });
         if (lsErr || !lsResult?.success) {
           result.discount_errors.push(`Long stay (RU ${ruId}): ${lsErr?.message || lsResult?.error?.message || 'Unknown error'}`);
@@ -1443,7 +1460,7 @@ async function pushDiscounts(
     if (lastMinuteDiscounts.length > 0 && lmValidation.ok) {
       try {
         const { data: lmResult, error: lmErr } = await supabase.functions.invoke('rentalsunited-api', {
-          body: { action: 'push_last_minute_discounts', ru_property_id: ruId, discounts: lastMinuteDiscounts },
+          body: { action: 'push_last_minute_discounts', ru_property_id: ruId, discounts: lmWire },
         });
         if (lmErr || !lmResult?.success) {
           result.discount_errors.push(`Last minute (RU ${ruId}): ${lmErr?.message || lmResult?.error?.message || 'Unknown error'}`);
