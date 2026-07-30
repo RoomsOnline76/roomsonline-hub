@@ -1,37 +1,50 @@
-## What I checked
+## Goal
 
-You're right — there is no way to set a floor for a room type in the ROLOS property setup.
+Make the admin billing "Channel Manager" switch the single source of truth for channel-manager entitlement: turning it off locks the ROL'OS Channels page, archives the portfolio's properties (on the page /admin/portfolio/ in Rentals United), and flags them as Archived; turning it back on reverses all of that and resumes per-unit billing. The actual property in admin/property is not archived. Only the RU unit is archived in the RU UI and by API to RU, to stop us being billed.
 
-- The room editor (`RoomManagerTab`) has **Size (m²)**, Baths, Max guests, beds — but **no Floor** field.
-- The only `floor` field that exists today is on *physical rooms* (`rolos_rooms`, Rooms page in ROLOS) — that's housekeeping/room-numbering data, and it is never read by the channel push.
-- The Rentals United push hardcodes `floor: 0, floor_is_default: true` for both the building payload and every unit payload.
-- The RU readiness scorer therefore always reports the advisory warning "Floor number is not set — sending the default (ground floor)" and points to a field that does not exist: "Rooms → Unit → Floor".
+## What exists today (verified)
+
+- `property_billing_configs` / `portfolio_billing_configs` both carry `channel_manager_enabled` and `channel_manager_per_unit_fee`; the property Billing tab currently writes `channel_manager_enabled = pms_enabled` (no dedicated switch).
+- &nbsp;
+- `rentalsunited-api` already implements `set_property_status` with `is_active` / `is_archived` (Push_PutPropertyStatus).
+- `/rolos/channels` renders `PMSChannels.tsx` (cards, mappings, RU readiness + onboarding pipeline).
+- The Portfolios → Rentals United tab (`PortfolioRuAccountsTab.tsx`) lists sub-accounts and their properties with a "Push on/off" badge.
 
 ## Plan
 
-**1. Add Floor to the room type editor**
-- New numeric input "Floor" next to "Size (m²)" in the room/unit grid, stored as `amenities.room_types[].floor` (same pattern as `roomSize`).
-- Allow negative values (basement/lower ground) and empty = not set; helper text: "Ground floor = 0. Used by channel managers (Rentals United)."
-- Include `floor` in the room-type save mapping in `PropertyForm.tsx` and in the default new-room-type object, plus the PMS-sync field lists so it isn't wiped on sync.
-- Register the field in the internal field map / PMS field mappings so it appears in field registry tooling alongside Room Size.
+### 1. Dedicated Channel Manager billing switch
 
-**2. Optional property-level default**
-- Where a property has one building/many units, add a fallback: if a room type has no floor, use the physical room's floor from `rolos_rooms` when a matching unit exists; otherwise fall back to 0 as today.
+- Split the channel-manager fee out of the combined "PMS subscription" toggle in `BillingConfigBuilder.tsx`: add a `channel_manager_enabled` switch with the per-unit fee under it (property and preset scope).
+- Persist it explicitly from `BillingConfigTab.tsx` and the portfolio/global billing screens instead of mirroring `pms_enabled`.
 
-**3. Wire it into the Rentals United push**
-- Unit payload: `floor = unit.floor ?? matchedRoomFloor ?? 0`, `floor_is_default = floor was not explicitly set`.
-- Building payload: use the primary room type's floor with the same fallback rule.
+### 2. Confirmation + warning copy
 
-**4. Readiness scorer**
-- No rule change needed (floor stays advisory), but the warning now clears once a floor is entered, and the "where to fix" hint stays accurate: Rooms → Unit → Floor.
+- When an admin flips the switch **off**, show a confirm dialog: disabling stops channel-manager billing, marks all properties in the sub account on the protfolio page in RU tab as archived,  and sends an archive call to Rentals United (listings go offline on all channels).
+- When flipped **on**: confirm that properties will be reactivated in Rentals United and per-unit billing resumes from the next cycle. The cards in portfolio/RU tab are restored to PushOn/off State
+- A persistent inline warning under the switch states the same in both states.
+
+### 3. Entitlement fan-out (edge function)
+
+New `channel-manager-entitlement` edge function, invoked after the billing config saves:
+
+- Resolves the scope (portfolio → all member properties, else the single property).
+- **Disable:** set `property lfags in portfolio/RU tab.is_archived = true`, `ru_push_enabled = false`, mark RU channel connections inactive, and for every property with a `rentalsunited_property_id` call `rentalsunited-api` `set_property_status` with `is_active:false, is_archived:true`. Log each call to the RU sync/error log.
+- **Enable:** reverse (unarchive, restore push flag, `is_active:true, is_archived:false`).
+- Returns a per-property result so the UI can toast successes/failures.
+- `push-property-to-ru` gains a hard gate: refuse any push while channel-manager billing is off.
+
+### 4. ROL'OS Channels page lock
+
+- New `useChannelManagerEntitlement(propertyId)` hook reading the effective (portfolio-aware) `channel_manager_enabled`.
+- When off, `PMSChannels.tsx` renders the page greyed out and non-interactive (overlay + disabled actions) with: "Channel Manager is not active on your plan — please speak to your account manager." Sidebar entry gets a muted/lock indicator.
+
+### 5. Archived indicators
+
+- Portfolio → Rentals United tab: each account card shows an "Archived" badge when its properties are archived, and each property row shows "Archived" instead of "Push on/off".
+- `THIS IS NOT TO HAPPEN: THE PROPERTY IS NOT ARCHIVE IN TOTAL> ONLY THE PORTFOLIO?RU TAB?Property crd is marked as acrived. We are only archiving in RU anddisabling the porperty in RU, not everywhere. "/admin/properties`: archived rows show an "Archived" badge with a tooltip naming the cause (channel-manager billing disabled)."
 
 ## Technical notes
 
-Files affected:
-- `src/components/property/RoomManagerTab.tsx` — new Floor input
-- `src/pages/PropertyForm.tsx` — default room type, load mapping (~line 2293/2349), save mapping (~line 3148)
-- `src/hooks/usePMSSync.tsx` — preserve `floor` in the sync-protected field lists
-- `src/config/internalFieldMap.ts`, `src/config/pmsFieldMappings.ts` — field registry entries
-- `supabase/functions/push-property-to-ru/index.ts` — replace the two hardcoded `floor: 0, floor_is_default: true` sites (unit ~line 601, building ~line 761) with resolved values
-
-No database migration is required — room types live in the `properties.amenities` JSONB blob.
+- &nbsp;
+- RU calls are best-effort and idempotent — failures are recorded and surfaced, and the local archive state still applies so billing and the UI stay consistent.
+- No schema change is expected (`is_archived`, `ru_push_enabled` and the billing columns all exist); if an archive-reason column proves necessary it will be added as a small migration during implementation.
