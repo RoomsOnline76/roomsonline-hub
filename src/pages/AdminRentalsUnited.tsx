@@ -44,6 +44,13 @@ interface PropertyLite {
 
 const ACTIONS = ["PutProperty", "PutAvbUnits", "PutPrices", "ListReservations", "PutHandlerUrl", "RLNM"] as const;
 
+const normalizeRuSyncError = (message: string | null): string | null => {
+  if (!message) return null;
+  return message.toLowerCase().includes("incorrect login or password")
+    ? "AccessKey / SecretKey authentication failed"
+    : message;
+};
+
 export default function AdminRentalsUnited() {
   const [runs, setRuns] = useState<SyncRun[]>([]);
   const [properties, setProperties] = useState<PropertyLite[]>([]);
@@ -311,7 +318,7 @@ export default function AdminRentalsUnited() {
                         </TableCell>
                         <TableCell className="text-xs">{r.http_status ?? "—"}</TableCell>
                         <TableCell className="text-xs">{r.elapsed_ms ?? 0} ms</TableCell>
-                        <TableCell className="text-xs text-muted-foreground truncate max-w-[240px]">{r.error_message ?? "—"}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground truncate max-w-[240px]">{normalizeRuSyncError(r.error_message) ?? "—"}</TableCell>
                       </TableRow>
                     );
                   })}
@@ -346,7 +353,10 @@ export default function AdminRentalsUnited() {
                   <div className="text-xs font-semibold text-red-800 mb-1">
                     {selected.error_code ?? "Error"}
                   </div>
-                  <div className="text-xs text-red-700 whitespace-pre-wrap">{selected.error_message}</div>
+                  <div className="text-xs text-red-700 whitespace-pre-wrap">{normalizeRuSyncError(selected.error_message)}</div>
+                  {normalizeRuSyncError(selected.error_message) !== selected.error_message && (
+                    <div className="mt-2 text-xs text-red-700/80 whitespace-pre-wrap">RU raw message: {selected.error_message}</div>
+                  )}
                 </div>
               )}
               <div>

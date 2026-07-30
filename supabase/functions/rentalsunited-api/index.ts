@@ -36,6 +36,7 @@ interface RUCredentials {
   api_key: string;
   api_secret: string;
   endpoint: string;
+  source: 'runtime_secrets' | 'database';
 }
 
 interface RUAmenity {
@@ -292,14 +293,28 @@ async function callRentalsUnited(creds: RUCredentials, xmlBody: string): Promise
 // ── Credential Loader ────────────────────────────────────────
 
 async function loadCredentials(): Promise<RUCredentials | null> {
-  const envApiKey = Deno.env.get('RENTALS_UNITED_API_KEY');
-  const envApiSecret = Deno.env.get('RENTALS_UNITED_API_SECRET');
+  const normalizeCredential = (value: string | null | undefined): string => (value ?? '').trim();
+  const looksLikePlaceholder = (value: string): boolean => {
+    const normalized = value.toLowerCase().trim();
+    return !normalized
+      || normalized === 'configured'
+      || normalized.includes('placeholder')
+      || normalized.includes('••')
+      || normalized.includes('xxxx')
+      || normalized.includes('enter accesskey')
+      || normalized.includes('enter secretkey');
+  };
+
+  const envApiKey = normalizeCredential(Deno.env.get('RENTALS_UNITED_API_KEY'));
+  const envApiSecret = normalizeCredential(Deno.env.get('RENTALS_UNITED_API_SECRET'));
 
   if (envApiKey && envApiSecret) {
+    if (looksLikePlaceholder(envApiKey) || looksLikePlaceholder(envApiSecret)) return null;
     return {
       api_key: envApiKey,
       api_secret: envApiSecret,
-      endpoint: Deno.env.get('RENTALS_UNITED_ENDPOINT') || 'https://rm.rentalsunited.com/api/Handler.ashx',
+      endpoint: normalizeCredential(Deno.env.get('RENTALS_UNITED_ENDPOINT')) || 'https://rm.rentalsunited.com/api/Handler.ashx',
+      source: 'runtime_secrets',
     };
   }
 
@@ -317,10 +332,15 @@ async function loadCredentials(): Promise<RUCredentials | null> {
 
     if (error || !data) return null;
 
+    const apiKey = normalizeCredential(data.api_key);
+    const apiSecret = normalizeCredential(data.api_secret);
+    if (looksLikePlaceholder(apiKey) || looksLikePlaceholder(apiSecret)) return null;
+
     return {
-      api_key: data.api_key || '',
-      api_secret: data.api_secret || '',
-      endpoint: data.base_url || 'https://rm.rentalsunited.com/api/Handler.ashx',
+      api_key: apiKey,
+      api_secret: apiSecret,
+      endpoint: normalizeCredential(data.base_url) || 'https://rm.rentalsunited.com/api/Handler.ashx',
+      source: 'database',
     };
   } catch {
     return null;
@@ -1055,7 +1075,11 @@ Deno.serve(async (req) => {
       }
 
       try {
-        const xml = buildListPropertiesXml(creds);
+        const today = new Date().toISOString().split('T')[0];
+        const yesterdayDate = new Date();
+        yesterdayDate.setUTCDate(yesterdayDate.getUTCDate() - 1);
+        const yesterday = yesterdayDate.toISOString().split('T')[0];
+        const xml = buildListReservationsXml(creds, yesterday, today);
         const response = await callRentalsUnited(creds, xml);
         const { ok, status } = handleRUStatus(response);
 
@@ -1063,7 +1087,7 @@ Deno.serve(async (req) => {
           healthy: ok,
           status: ok ? 'ok' : 'error',
           message: ok
-            ? 'Rentals United API connected successfully'
+            ? 'Rentals United XML API AccessKey / SecretKey accepted successfully'
             : `Rentals United API error: ${status.message}`,
           ru_status_id: status.id,
           ru_status_message: status.message,
@@ -1086,7 +1110,7 @@ Deno.serve(async (req) => {
             list_users: true,
             fill_company_details: true,
           },
-          metadata: { ...metadata, checked_at: new Date().toISOString() },
+          metadata: { ...metadata, checked_at: new Date().toISOString(), credential_source: creds.source, probe: 'Pull_ListReservations_RQ' },
         });
       } catch (err) {
         return jsonResponse({
