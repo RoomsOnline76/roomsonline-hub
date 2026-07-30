@@ -196,6 +196,31 @@ export function RuCertificationConsole({ properties }: { properties: PropertyLit
 
   useEffect(() => { loadRuns(); }, [loadRuns]);
 
+  const loadMilestones = useCallback(async () => {
+    setMilestonesLoading(true);
+    const res = await callPortal<{ milestones: CertMilestone[]; summary: MilestoneSummary }>("milestones");
+    if (res) {
+      setMilestones(res.milestones ?? []);
+      setMilestoneSummary(res.summary ?? null);
+    }
+    setMilestonesLoading(false);
+  }, []);
+
+  const downloadEvidence = useCallback(async (runId: string) => {
+    const res = await callPortal<{ evidence: Record<string, unknown> }>("evidence", { run_id: runId });
+    if (!res?.evidence) return;
+    const blob = new Blob([JSON.stringify(res.evidence, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `ru-certification-evidence-${runId}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("Evidence bundle downloaded");
+  }, []);
+
+
+
   const loadCadence = useCallback(async () => {
     setCadenceLoading(true);
     const res = await callPortal<{ rules: CadenceRule[]; jobs: CronJob[]; expected_jobs: ExpectedJob[] }>("compliance");
