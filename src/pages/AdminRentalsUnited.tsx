@@ -14,6 +14,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { RuCertificationConsole } from "@/components/integrations/RuCertificationConsole";
 
 interface SyncRun {
   id: string;
