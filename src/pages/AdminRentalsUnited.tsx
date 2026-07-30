@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { format, subDays } from "date-fns";
-import { RefreshCw, CheckCircle2, XCircle, Filter } from "lucide-react";
+import { RefreshCw, CheckCircle2, XCircle, Filter, Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -15,6 +15,8 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { RuCertificationConsole } from "@/components/integrations/RuCertificationConsole";
 import { RuErrorHandlingTab } from "@/components/integrations/RuErrorHandlingTab";
 import { RuOnboardingPipeline } from "@/components/integrations/RuOnboardingPipeline";
@@ -66,6 +68,7 @@ export default function AdminRentalsUnited() {
   const [triggering, setTriggering] = useState<string | null>(null);
   // Properties toggled in this session stay on the board even when switched off.
   const [stickyIds, setStickyIds] = useState<Set<string>>(new Set());
+  const [addOpen, setAddOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -137,6 +140,14 @@ export default function AdminRentalsUnited() {
       ),
     [properties, stickyIds]
   );
+
+  /** Any active property not already on the board can be added manually via [+]. */
+  const addableProperties = useMemo(() => {
+    const listed = new Set(ruProperties.map((p) => p.id));
+    return properties.filter((p) => !listed.has(p.id));
+  }, [properties, ruProperties]);
+
+
 
   /** Only RU-enabled properties take part in onboarding / certification testing. */
   const enabledProperties = useMemo(
@@ -305,10 +316,43 @@ export default function AdminRentalsUnited() {
                 Switching a property off pauses its RU sync but keeps it here — re-enable it any time to ramp up.
               </p>
             </div>
-            <Badge variant="outline" className="text-xs shrink-0">
-              {ruProperties.filter((p) => p.ru_push_enabled).length}/{ruProperties.length} enabled
-            </Badge>
+            <div className="flex items-center gap-2 shrink-0">
+              <Badge variant="outline" className="text-xs">
+                {ruProperties.filter((p) => p.ru_push_enabled).length}/{ruProperties.length} enabled
+              </Badge>
+              <Popover open={addOpen} onOpenChange={setAddOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="icon" aria-label="Add property to RU board">
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-72 p-0" align="end">
+                  <Command>
+                    <CommandInput placeholder="Search properties…" />
+                    <CommandList>
+                      <CommandEmpty>No other properties available.</CommandEmpty>
+                      <CommandGroup heading="Add to RU board">
+                        {addableProperties.map((p) => (
+                          <CommandItem
+                            key={p.id}
+                            value={p.name}
+                            onSelect={() => {
+                              setStickyIds((prev) => new Set(prev).add(p.id));
+                              setAddOpen(false);
+                              toast.success(`${p.name} added — enable RU push when ready`);
+                            }}
+                          >
+                            {p.name}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            </div>
           </CardHeader>
+
           <CardContent>
             <Table>
               <TableHeader>
