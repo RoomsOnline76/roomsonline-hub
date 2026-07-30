@@ -46,6 +46,11 @@ interface WlValidationFlags {
   has_payment_methods?: boolean;
   has_cancellation_policies?: boolean;
   beds_meet_max_guests?: boolean;
+  beds_cover_half?: boolean;
+  description_length?: number;
+  description_meets_recommended?: boolean;
+  amenities_padded?: boolean;
+  amenities_padded_count?: number;
   total_beds?: number;
   has_name?: boolean;
   has_object_type_id?: boolean;
@@ -328,11 +333,19 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
         validation.has_space === false && "Property size (Space, m²) missing",
         validation.has_floor === false && "Floor number missing",
         validation.has_detailed_location_id === false && "DetailedLocationID not resolved",
-        validation.has_description === false && "Description shorter than 100 characters",
+        validation.has_description === false && "Description missing",
+        validation.has_description !== false &&
+          validation.description_meets_recommended === false &&
+          `Description is short (${validation.description_length ?? 0} chars) — 100+ recommended (not an RU requirement)`,
         validation.has_payment_methods === false && "No payment method configured",
         validation.has_cancellation_policies === false && "No cancellation policy configured",
-        validation.beds_meet_max_guests === false &&
-          `Beds (${validation.total_beds ?? 0}) do not cover max guests (${validation.max_guests ?? 0})`,
+        validation.beds_cover_half === false &&
+          `Beds (${validation.total_beds ?? 0}) cover less than 50% of max guests (${validation.max_guests ?? 0}) — RU minimum`,
+        validation.beds_cover_half !== false &&
+          validation.beds_meet_max_guests === false &&
+          `Beds (${validation.total_beds ?? 0}) do not cover every guest (${validation.max_guests ?? 0}) — recommended, not required`,
+        validation.amenities_padded === true &&
+          `${validation.amenities_padded_count ?? 0} amenity(ies) auto-filled to reach RU's minimum of 10 — confirm or replace`,
       ].filter(Boolean) as string[])
     : [];
 

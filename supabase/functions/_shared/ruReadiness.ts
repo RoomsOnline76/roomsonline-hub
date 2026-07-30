@@ -57,6 +57,11 @@ export interface RuUnitValidation {
   has_object_type_id?: boolean;
   can_sleep_max_ok?: boolean;
   has_description?: boolean;
+  description_length?: number;
+  description_meets_recommended?: boolean;
+  amenities_mapped_count?: number;
+  amenities_padded_count?: number;
+  amenities_padded?: boolean;
   has_main_image?: boolean;
   has_street?: boolean;
   rooms_have_amenities?: boolean;
@@ -115,8 +120,13 @@ export function evaluateUnitChecks(
     "No property type selected", "Property → General → Property type");
   add("can_sleep_max_ok", "Content", "Max guests ≥ 1", !!v.can_sleep_max_ok,
     "CanSleepMax must be at least 1", "Rooms → Unit → Max guests");
-  add("has_description", "Content", "Description (≥ 100 characters)", v.has_description !== false,
-    "Description is missing or too short (needs at least 100 characters)", "Property → Description");
+  add("has_description", "Content", "Description present", v.has_description !== false,
+    "Description is missing", "Property → Description");
+  // RU specifies no minimum description length — richer copy simply converts better.
+  add("description_meets_recommended", "Content", "Description ≥ 100 characters (recommended)",
+    v.description_meets_recommended !== false,
+    `Description is only ${v.description_length ?? 0} characters — 100+ is recommended for channel quality`,
+    "Property → Description", false);
   // Space / floor are advisory: RU accepts an estimate, but we report when the
   // value being sent is our default rather than real property data.
   add("has_space", "Content", "Property size (Space)", !!v.has_space && v.space_is_default !== true,
@@ -126,6 +136,11 @@ export function evaluateUnitChecks(
   add("meets_minimum_amenities", "Content", `Amenities (≥ ${RU_MIN_AMENITIES})`, !!v.meets_minimum_amenities,
     `Only ${v.amenities_count ?? 0} amenities mapped — Rentals United requires ${RU_MIN_AMENITIES}`,
     "Property → Amenities");
+  // Padded amenities keep the push valid but are assumed data — warn so owners fix them.
+  add("amenities_not_padded", "Content", "Amenities are real (not padded defaults)",
+    v.amenities_padded !== true,
+    `${v.amenities_padded_count ?? 0} amenity(ies) were auto-filled to reach RU's minimum of ${RU_MIN_AMENITIES} — confirm or replace them`,
+    "Property → Amenities", false);
 
   // ── Rooms & beds ──
   add("has_rooms", "Rooms & beds", "Composition rooms defined", (v.rooms_count ?? 0) > 0,
@@ -133,10 +148,16 @@ export function evaluateUnitChecks(
   add("rooms_have_amenities", "Rooms & beds", "Every room has beds / amenities", v.rooms_have_amenities !== false,
     `${(v.rooms_count ?? 0) - (v.rooms_with_amenities ?? 0)} room block(s) have no bed or amenity entry`,
     "Rooms → Unit → Bed configuration");
-  add("beds_cover_half", "Rooms & beds", "Beds cover ≥ 50% of max guests",
+  // RU White-Label minimum: beds must cover >= 50% of CanSleepMax. This is the only
+  // mandatory bed rule; 1-bed-per-guest is a quality warning, never a blocker.
+  add("beds_cover_half", "Rooms & beds", `Beds cover ≥ ${Math.round(RU_BED_COVERAGE * 100)}% of max guests`,
     v.beds_cover_half !== false,
-    `Beds (${v.total_beds ?? 0}) cover less than half of max guests (${v.max_guests ?? 0})`,
+    `Beds (${v.total_beds ?? 0}) cover less than half of max guests (${v.max_guests ?? 0}) — Rentals United requires ${Math.round(RU_BED_COVERAGE * 100)}%`,
     "Rooms → Unit → Bed configuration");
+  add("beds_meet_max_guests", "Rooms & beds", "Beds cover 100% of max guests (recommended)",
+    v.beds_meet_max_guests !== false,
+    `Beds (${v.total_beds ?? 0}) do not cover every guest (${v.max_guests ?? 0}) — not required by Rentals United, but improves channel quality`,
+    "Rooms → Unit → Bed configuration", false);
 
   // ── Photos ──
   add("meets_minimum_images", "Photos", `Photos (≥ ${RU_MIN_IMAGES})`, !!v.meets_minimum_images,

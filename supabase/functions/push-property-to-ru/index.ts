@@ -125,9 +125,9 @@ function toFiniteNumber(value: unknown): number | null {
 
 // ── Mapping Functions ────────────────────────────────────────
 
-function mapAmenities(amenitiesData: Record<string, unknown> | null): { id: number; count: number }[] {
+function mapAmenities(amenitiesData: Record<string, unknown> | null): { id: number; count: number; padded?: boolean }[] {
   if (!amenitiesData) return [];
-  const mapped: { id: number; count: number }[] = [];
+  const mapped: { id: number; count: number; padded?: boolean }[] = [];
   const seen = new Set<number>();
   const amenityList = Array.isArray(amenitiesData)
     ? amenitiesData
@@ -144,10 +144,12 @@ function mapAmenities(amenitiesData: Record<string, unknown> | null): { id: numb
       }
     }
   }
+  // Padding to RU's 10-amenity minimum keeps the push valid, but padded entries are
+  // flagged so the readiness scorecard can warn about low-quality (assumed) data.
   const padIds = [2, 6, 11, 12, 14, 39, 42, 44, 45, 60, 61, 62];
   for (const id of padIds) {
     if (mapped.length >= 10) break;
-    if (!seen.has(id)) { seen.add(id); mapped.push({ id, count: 1 }); }
+    if (!seen.has(id)) { seen.add(id); mapped.push({ id, count: 1, padded: true }); }
   }
   return mapped;
 }
@@ -226,12 +228,17 @@ function buildValidation(payload: Record<string, any>): Record<string, unknown> 
     images_meet_size: images.length > 0 && sized === images.length,
     meets_minimum_images: images.length >= RU_MIN_IMAGES,
     amenities_count: amenities.length,
+    amenities_mapped_count: amenities.filter((a: any) => a?.padded !== true).length,
+    amenities_padded_count: amenities.filter((a: any) => a?.padded === true).length,
+    amenities_padded: amenities.some((a: any) => a?.padded === true),
     meets_minimum_amenities: amenities.length >= RU_MIN_AMENITIES,
     rooms_count: rooms.length,
     rooms_with_amenities: roomsWithAmenities,
     rooms_have_amenities: rooms.length > 0 && roomsWithAmenities === rooms.length,
     total_beds: totalBeds,
+    // RU White-Label minimum: beds must cover >= 50% of CanSleepMax.
     beds_cover_half: totalBeds >= Math.ceil(Math.max(1, maxGuests) * RU_BED_COVERAGE),
+    // Advisory only (not an RU requirement): full 1-bed-per-guest coverage.
     beds_meet_max_guests: totalBeds >= Math.max(1, maxGuests),
     max_guests: maxGuests,
     has_coordinates: payload.latitude !== 0 && payload.longitude !== 0,
@@ -246,7 +253,10 @@ function buildValidation(payload: Record<string, any>): Record<string, unknown> 
     has_name: !!(payload.name && String(payload.name).trim().length >= 3),
     has_object_type_id: ((payload.object_type_id ?? payload.property_type_id) || 0) > 0,
     can_sleep_max_ok: maxGuests >= 1,
-    has_description: ((payload.descriptions?.[0]?.text || '').trim().length) >= 100,
+    // RU has no hard description length: presence is mandatory, 100+ chars is advisory.
+    description_length: (payload.descriptions?.[0]?.text || '').trim().length,
+    has_description: ((payload.descriptions?.[0]?.text || '').trim().length) > 0,
+    description_meets_recommended: ((payload.descriptions?.[0]?.text || '').trim().length) >= 100,
     has_main_image: images.some((i) => i.is_main),
     has_street: !!(payload.street && String(payload.street).trim().length > 2),
   };
@@ -2171,6 +2181,8 @@ Deno.serve(async (req) => {
               all_ready: allReady,
               images_count: units.reduce((s, u) => s + Number((u.validation as any).images_count || 0), 0),
               amenities_count: Number((units[0]?.validation as any)?.amenities_count || 0),
+              amenities_padded: units.some(u => (u.validation as any).amenities_padded === true),
+              amenities_padded_count: units.reduce((s, u) => s + Number((u.validation as any).amenities_padded_count || 0), 0),
               rooms_count: units.length,
               has_coordinates: everyFlag('has_coordinates'),
               meets_minimum_images: everyFlag('meets_minimum_images'),
@@ -2190,6 +2202,8 @@ Deno.serve(async (req) => {
               has_object_type_id: everyFlag('has_object_type_id'),
               can_sleep_max_ok: everyFlag('can_sleep_max_ok'),
               has_description: everyFlag('has_description'),
+              description_meets_recommended: everyFlag('description_meets_recommended'),
+              description_length: Math.min(...units.map(u => Number((u.validation as any).description_length || 0))),
               has_main_image: everyFlag('has_main_image'),
               has_street: everyFlag('has_street'),
             },
