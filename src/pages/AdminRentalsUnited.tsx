@@ -141,6 +141,14 @@ export default function AdminRentalsUnited() {
     [properties, stickyIds]
   );
 
+  /** Any active property not already on the board can be added manually via [+]. */
+  const addableProperties = useMemo(() => {
+    const listed = new Set(ruProperties.map((p) => p.id));
+    return properties.filter((p) => !listed.has(p.id));
+  }, [properties, ruProperties]);
+
+
+
   /** Only RU-enabled properties take part in onboarding / certification testing. */
   const enabledProperties = useMemo(
     () => properties.filter((p) => !!p.ru_push_enabled),
