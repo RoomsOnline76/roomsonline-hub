@@ -814,9 +814,8 @@ Deno.serve(async (req) => {
           address = (pr as any)?.address ?? undefined;
           city = (pr as any)?.city ?? undefined;
           country = (pr as any)?.country ?? undefined;
-          zip = (pr as any)?.postal_code ?? (pr as any)?.zip_code ?? undefined;
-          website = (pr as any)?.website ?? undefined;
-          phone = (pr as any)?.phone ?? undefined;
+          zip = (pr as any)?.postal_code ?? undefined;
+
           const { data: contact } = await admin
             .from("property_contact_details")
             .select("phone")
