@@ -11,7 +11,7 @@ import { useCurrency } from "@/contexts/CurrencyContext";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { captureBookingOrigin } from "@/lib/bookingOrigin";
+import { captureBookingOrigin, captureCommissionOrigin } from "@/lib/bookingOrigin";
 import { PaymentGatewayRouter } from "./PaymentGatewayRouter";
 import { PaymentMethodSelector } from "./PaymentMethodSelector";
 import { useActivePaymentGateways } from "@/hooks/useActivePaymentGateway";
@@ -132,10 +132,10 @@ export function InlineCheckoutPanel({
         total_price: totalPrice,
         status: "pending",
         payment_status: "pending",
-        booking_channel: "rol-website",
-        special_requests: specialRequests || null,
+                special_requests: specialRequests || null,
         user_id: user?.id || null,
         ...origin,
+        ...captureCommissionOrigin(),
         rooms: firstStay.rooms.map(r => ({
           roomTypeId: r.room_type_id,
           roomTypeName: r.room_type_name,

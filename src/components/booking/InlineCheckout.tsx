@@ -11,7 +11,7 @@ import { useCurrency } from "@/contexts/CurrencyContext";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { captureBookingOrigin } from "@/lib/bookingOrigin";
+import { captureBookingOrigin, captureCommissionOrigin } from "@/lib/bookingOrigin";
 import { PayFastOnsiteModal } from "./PayFastOnsiteModal";
 import {
   Accordion,
@@ -118,9 +118,9 @@ export function InlineCheckout({
         total_price: totalPrice,
         status: 'pending',
         payment_status: 'pending',
-        booking_channel: 'rol-website',
-        special_requests: specialRequests || null,
+                special_requests: specialRequests || null,
         ...origin,
+        ...captureCommissionOrigin(),
       };
 
       let booking;
