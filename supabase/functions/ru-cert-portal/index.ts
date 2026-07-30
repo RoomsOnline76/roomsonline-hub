@@ -134,8 +134,26 @@ async function resolveOwnerLocationIds(
       break;
     }
   }
+  if (ids.size > 0) return [...ids];
+
+  // 4. Live RU lookup by city / country name (cache is often empty on fresh accounts)
+  for (const p of properties) {
+    for (const name of [p.city, p.country]) {
+      if (!name) continue;
+      const { data } = await admin.functions.invoke("rentalsunited-api", {
+        body: { action: "get_location_by_name", metadata: { name } },
+      });
+      const id = Number(data?.location_id ?? data?.location?.id);
+      if (Number.isFinite(id) && id > 1) {
+        ids.add(id);
+        break;
+      }
+    }
+    if (ids.size > 0) break;
+  }
   return [...ids];
 }
+
 
 
 
