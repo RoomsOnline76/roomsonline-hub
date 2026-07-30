@@ -945,18 +945,27 @@ function extractBuildings(xml: string): { id: string; name: string }[] {
 
 // ── User Management XML Builders ─────────────────────────────
 
-function buildCreateUserXml(creds: RUCredentials, user: { first_name: string; last_name: string; email: string; password: string }): string {
+function buildCreateUserXml(
+  creds: RUCredentials,
+  user: { first_name: string; last_name: string; email: string; password: string },
+  locationIds: number[],
+): string {
+  // Per RU spec: FirstName/LastName/Email/Password are DIRECT children of the root
+  // (no <User> wrapper) and <Locations> with at least one <LocationId> is mandatory.
+  const locations = locationIds.map((id) => `    <LocationId>${id}</LocationId>`).join('\n');
   return `<?xml version="1.0" encoding="utf-8"?>
 <Push_CreateUser_RQ>
   ${buildAuthXml(creds)}
-  <User>
-    <FirstName>${escapeXml(user.first_name)}</FirstName>
-    <LastName>${escapeXml(user.last_name)}</LastName>
-    <Email>${escapeXml(user.email)}</Email>
-    <Password>${escapeXml(user.password)}</Password>
-  </User>
+  <FirstName>${escapeXml(user.first_name)}</FirstName>
+  <LastName>${escapeXml(user.last_name)}</LastName>
+  <Email>${escapeXml(user.email)}</Email>
+  <Password>${escapeXml(user.password)}</Password>
+  <Locations>
+${locations}
+  </Locations>
 </Push_CreateUser_RQ>`;
 }
+
 
 function buildListUsersXml(creds: RUCredentials): string {
   return `<?xml version="1.0" encoding="utf-8"?>
