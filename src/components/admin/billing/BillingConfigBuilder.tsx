@@ -25,10 +25,13 @@ export interface BillingConfigValue {
   // Widget / WBE flat commission — mutually exclusive with tiered widget
   widget_flat_enabled: boolean;
   widget_flat_rate: string;
-  // PMS subscription (monthly base + per-unit channel manager fee)
+  // PMS subscription (monthly base)
   pms_enabled: boolean;
   subscription_fee: string;
+  /** Channel Manager entitlement (Rentals United sync). Independent of the PMS subscription. */
+  channel_manager_enabled: boolean;
   channel_per_unit: string;
+
   /** Enterprise custom monthly fee (used when property/portfolio > 3 properties). */
   enterprise_custom_fee: string;
   // Per-unit volume tier (uses `tier_pricing_json`)
