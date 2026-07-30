@@ -1601,7 +1601,10 @@ Deno.serve(async (req) => {
   try {
     const reqBody = await req.json();
     const { property_id, dry_run, subscribe_rlnm, standalone_units, only_unit_ids, action } = reqBody;
+    /** Admin override: allows a live push even when mandatory WL checks fail. */
+    const forcePush = reqBody.force === true;
     const forceLocationIdRaw = reqBody.force_location_id;
+
     const forceLocationId = Number.isFinite(Number(forceLocationIdRaw)) && Number(forceLocationIdRaw) > 1
       ? Number(forceLocationIdRaw)
       : null;
