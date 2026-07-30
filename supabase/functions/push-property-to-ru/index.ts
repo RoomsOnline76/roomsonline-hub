@@ -619,7 +619,7 @@ function buildUnitPayload(
     standard_guests: Math.ceil(maxGuests * 0.7),
     number_of_beds: beds,
     currency_id: currencyId ?? mapCurrencyToRUId(property.amenities, property.country),
-    owner_id: 738925, // Will be overridden by resolveRuOwnerAccount
+    owner_id: 0, // placeholder — always overwritten with the resolved sub-account OwnerID
     no_of_units: 1,
     floor: unitFloor,
     floor_is_default: unitFloorIsDefault,
@@ -703,7 +703,7 @@ async function resolveRuOwnerAccount(
     const errMsg = createErr?.message || createResult?.error?.message || 'Unknown error';
     console.error(`[push-property-to-ru] Failed to create RU sub-account for ${ownerEmail}: ${errMsg}`);
     // Fall back to master account owner ID
-    return { ru_owner_id: 738925, ru_user_id: null, created: false };
+    throw new Error(`RU_OWNER_UNRESOLVED: could not create a Rentals United sub-account for ${ownerEmail}: ${errMsg}`);
   }
 
   const userAccountId = createResult.user_account_id;
@@ -745,7 +745,10 @@ async function resolveRuOwnerAccount(
   if (insertErr) console.error(`[push-property-to-ru] Failed to save RU account: ${insertErr.message}`);
 
 
-  const resolvedOwnerId = ownerId ? parseInt(ownerId, 10) : 738925;
+  const resolvedOwnerId = ownerId ? parseInt(ownerId, 10) : NaN;
+  if (!Number.isFinite(resolvedOwnerId) || resolvedOwnerId <= 0) {
+    throw new Error(`RU_OWNER_UNRESOLVED: sub-account created for ${ownerEmail} but Rentals United returned no OwnerID`);
+  }
   console.log(`[push-property-to-ru] Resolved RU OwnerID: ${resolvedOwnerId} for ${ownerEmail}`);
   return { ru_owner_id: resolvedOwnerId, ru_user_id: userAccountId, created: true };
 }
@@ -793,7 +796,7 @@ function buildSinglePropertyPayload(property: PropertyRow, roomTypes: RoomTypeRo
     standard_guests: Math.ceil(maxGuests * 0.7),
     number_of_beds: numberOfBeds,
     currency_id: currencyId ?? mapCurrencyToRUId(property.amenities, property.country),
-    owner_id: 738925, no_of_units: 1, floor: buildingFloor, floor_is_default: buildingFloorIsDefault, space, space_is_default: spaceIsDefault, street,
+    owner_id: 0, no_of_units: 1, floor: buildingFloor, floor_is_default: buildingFloorIsDefault, space, space_is_default: spaceIsDefault, street,
     detailed_location_id: locationId, zip_code: zipCode,
     latitude: lat, longitude: lng,
     amenities: mapAmenities(property.amenities),
