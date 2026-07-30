@@ -630,10 +630,12 @@ export function summarizeBuilderValue(v: BillingConfigValue): string {
   if (v.widget_tiers_enabled) parts.push("widget tiered commission");
 
   if (v.pms_enabled) {
-    const sub = v.subscription_fee ? `R${v.subscription_fee}/mo` : "PMS subscription";
-    const cm = v.channel_per_unit ? ` + R${v.channel_per_unit}/unit` : "";
-    parts.push(sub + cm);
+    parts.push(v.subscription_fee ? `R${v.subscription_fee}/mo` : "PMS subscription");
   }
+  if (v.channel_manager_enabled) {
+    parts.push(v.channel_per_unit ? `R${v.channel_per_unit}/unit channel mgr` : "channel manager");
+  }
+
   if (v.volume_tiers_enabled) parts.push("per-unit volume tiers");
   if (v.facilitator_surcharge_enabled && v.transaction_fee) parts.push(`${v.transaction_fee}% ROL surcharge`);
   if (v.byo_gateway_enabled && v.byo_gateway_fee) parts.push(`R${v.byo_gateway_fee}/mo BYO gateway`);
