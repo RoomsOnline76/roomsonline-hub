@@ -4076,18 +4076,8 @@ export default function AdminKeys() {
                     <Settings className="h-4 w-4 mr-2" />
                     Field Mappings
                   </Button>
-                  <Button
-                    variant="outline"
-                    onClick={handleTestRentalsunited}
-                    disabled={testingRentalsunited || !isConfigured}
-                  >
-                    {testingRentalsunited ? (
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    ) : (
-                      <RefreshCw className="h-4 w-4 mr-2" />
-                    )}
-                    Test Connection
-                  </Button>
+                  <RuCertificationCheckButton size="default" variant="outline" />
+                  <RuConsoleLink size="default" />
                 </div>
               </div>
             )}
