@@ -4,83 +4,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Book, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ROLOS_API_GROUPS, ROLOS_API_VERSION, ROLOS_API_ACTION_COUNT } from "@/config/rolosApiActions";
 
-const API_SECTIONS = [
-  {
-    title: "Availability & Rates",
-    actions: [
-      { method: "POST", action: "fetch_availability", desc: "Get room availability for a date range" },
-      { method: "POST", action: "get_room_types", desc: "List all room types for a property" },
-      { method: "POST", action: "get_rate_types", desc: "List rate types (rack, promo, etc.)" },
-      { method: "POST", action: "set_availability", desc: "Update availability for a room type" },
-      { method: "POST", action: "set_rates", desc: "Set rates for a room/rate type combo" },
-      { method: "POST", action: "get_rate_plans", desc: "List ROL'OS rate plans" },
-      { method: "POST", action: "get_rate_seasons", desc: "List rate seasons" },
-    ],
-  },
-  {
-    title: "Reservations",
-    actions: [
-      { method: "POST", action: "get_reservations", desc: "List reservations with filters" },
-      { method: "POST", action: "create_reservation", desc: "Create a new reservation" },
-      { method: "POST", action: "modify_reservation", desc: "Modify an existing reservation" },
-      { method: "POST", action: "cancel_reservation", desc: "Cancel a reservation" },
-    ],
-  },
-  {
-    title: "Guest CRM",
-    actions: [
-      { method: "POST", action: "get_guest_profiles", desc: "List guest profiles" },
-      { method: "POST", action: "get_guest_profile", desc: "Get a single guest profile" },
-      { method: "POST", action: "create_guest_profile", desc: "Create a guest profile" },
-      { method: "POST", action: "update_guest_profile", desc: "Update guest profile" },
-    ],
-  },
-  {
-    title: "Operations",
-    actions: [
-      { method: "POST", action: "check_in", desc: "Check in a guest" },
-      { method: "POST", action: "check_out", desc: "Check out a guest" },
-      { method: "POST", action: "get_housekeeping_board", desc: "Get housekeeping task board" },
-      { method: "POST", action: "get_daily_metrics", desc: "Get daily operational metrics" },
-    ],
-  },
-  {
-    title: "Folios & Charges",
-    actions: [
-      { method: "POST", action: "get_folio", desc: "Get folio for a booking" },
-      { method: "POST", action: "add_folio_charge", desc: "Add a charge to a folio" },
-      { method: "POST", action: "process_folio_payment", desc: "Process payment on a folio" },
-      { method: "POST", action: "apply_service_charges", desc: "Apply service charges" },
-    ],
-  },
-  {
-    title: "Webhooks",
-    actions: [
-      { method: "POST", action: "subscribe_webhook", desc: "Subscribe to event webhooks" },
-      { method: "POST", action: "unsubscribe_webhook", desc: "Unsubscribe from webhooks" },
-      { method: "POST", action: "list_webhook_subscriptions", desc: "List webhook subscriptions" },
-      { method: "POST", action: "test_webhook", desc: "Send a test webhook ping" },
-    ],
-  },
-  {
-    title: "Static Content",
-    actions: [
-      { method: "POST", action: "get_cancellation_policies", desc: "Cancellation policies + linked rate plans" },
-      { method: "POST", action: "get_reservation_policies", desc: "Reservation (deposit/guarantee) policies + linked rate plans" },
-      { method: "POST", action: "get_payment_methods", desc: "Accepted payment methods (provider display name, logo_key, currencies)" },
-      { method: "POST", action: "get_property_contact_details", desc: "Public contact details (reception, reservations, landlord)" },
-    ],
-  },
-  {
-    title: "System",
-    actions: [
-      { method: "POST", action: "get_capabilities", desc: "Get adapter capabilities" },
-      { method: "POST", action: "health_check", desc: "Health check endpoint" },
-      { method: "POST", action: "get_ui_config", desc: "Get UI configuration" },
-    ],
-  },
-];
+const API_SECTIONS = ROLOS_API_GROUPS;
+
 
 export default function ApiDocsViewer() {
   return (
