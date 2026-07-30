@@ -144,6 +144,12 @@ export default function AdminRentalsUnited() {
     [properties]
   );
 
+  useEffect(() => {
+    if (onboardingPropertyId && !enabledProperties.some((p) => p.id === onboardingPropertyId)) {
+      setOnboardingPropertyId("");
+    }
+  }, [enabledProperties, onboardingPropertyId]);
+
   const togglePush = async (id: string, next: boolean) => {
     const { error } = await supabase
       .from("properties")
