@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RuCertificationConsole } from "@/components/integrations/RuCertificationConsole";
 import { RuErrorHandlingTab } from "@/components/integrations/RuErrorHandlingTab";
+import { RuOnboardingPipeline } from "@/components/integrations/RuOnboardingPipeline";
 
 
 interface SyncRun {
@@ -61,6 +62,7 @@ export default function AdminRentalsUnited() {
   const [successFilter, setSuccessFilter] = useState<string>("all");
   const [propertyFilter, setPropertyFilter] = useState<string>("all");
   const [selected, setSelected] = useState<SyncRun | null>(null);
+  const [onboardingPropertyId, setOnboardingPropertyId] = useState<string>("");
   const [triggering, setTriggering] = useState<string | null>(null);
   // Properties toggled in this session stay on the board even when switched off.
   const [stickyIds, setStickyIds] = useState<Set<string>>(new Set());
