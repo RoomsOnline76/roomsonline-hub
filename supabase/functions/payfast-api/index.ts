@@ -377,6 +377,98 @@ function validateSourceIp(ip: string | null, isSandbox: boolean): boolean {
   return isValid;
 }
 
+/**
+ * Retry-safe payment record.
+ *
+ * A guest who abandons or fails a PayFast attempt and tries again used to create a
+ * brand new pending `payment_transactions` row every time, producing a wall of
+ * duplicate "Pending" entries for one booking. Instead we reuse the booking's open
+ * pending row and roll the new reference onto it, keeping every superseded
+ * reference in `gateway_response.previous_refs` so a late ITN can still be matched.
+ */
+async function recordPendingTransaction(
+  supabase: any,
+  row: {
+    booking_id: string;
+    amount: number;
+    m_payment_id: string;
+    merchant_id: string | null;
+    credential_source: string | null;
+    gateway_response: Record<string, unknown>;
+  },
+): Promise<void> {
+  const { data: existing } = await supabase
+    .from("payment_transactions")
+    .select("id, m_payment_id, gateway_response")
+    .eq("booking_id", row.booking_id)
+    .eq("payment_provider", "payfast")
+    .eq("status", "pending")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (existing?.id) {
+    const prior = Array.isArray((existing.gateway_response as any)?.previous_refs)
+      ? ((existing.gateway_response as any).previous_refs as string[])
+      : [];
+    const previousRefs = Array.from(
+      new Set([...prior, existing.m_payment_id].filter(Boolean).filter((r: string) => r !== row.m_payment_id)),
+    );
+
+    const { error } = await supabase
+      .from("payment_transactions")
+      .update({
+        amount: row.amount,
+        currency: "ZAR",
+        status: "pending",
+        m_payment_id: row.m_payment_id,
+        merchant_id: row.merchant_id,
+        credential_source: row.credential_source,
+        gateway_response: { ...row.gateway_response, previous_refs: previousRefs, attempts: previousRefs.length + 1 },
+      })
+      .eq("id", existing.id);
+
+    if (error) console.error("[PayFast] Failed to update pending transaction:", error);
+    else console.log("[PayFast] Reused pending transaction", existing.id, "attempt", previousRefs.length + 1);
+    return;
+  }
+
+  const { error } = await supabase.from("payment_transactions").insert({
+    booking_id: row.booking_id,
+    amount: row.amount,
+    currency: "ZAR",
+    status: "pending",
+    payment_provider: "payfast",
+    m_payment_id: row.m_payment_id,
+    merchant_id: row.merchant_id,
+    credential_source: row.credential_source,
+    gateway_response: row.gateway_response,
+  });
+
+  if (error) console.error("[PayFast] Failed to create transaction record:", error);
+}
+
+/** Find a transaction by current reference, falling back to superseded retry refs. */
+async function findTransactionByRef(supabase: any, ref: string) {
+  const { data: direct } = await supabase
+    .from("payment_transactions")
+    .select("*")
+    .eq("m_payment_id", ref)
+    .maybeSingle();
+  if (direct) return direct;
+
+  const { data: legacy } = await supabase
+    .from("payment_transactions")
+    .select("*")
+    .filter("gateway_response->previous_refs", "cs", JSON.stringify([ref]))
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return legacy || null;
+}
+
+
+
 // Server-side validation with PayFast
 async function validateWithPayFast(params: Record<string, string>, isSandbox: boolean): Promise<boolean> {
   const validateUrl = isSandbox ? PAYFAST_SANDBOX_VALIDATE_URL : PAYFAST_PRODUCTION_VALIDATE_URL;
