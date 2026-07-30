@@ -111,9 +111,13 @@ export function PMSSidebar() {
     navigate(`${href}${params}`);
   };
 
+  const allPropertyIds = properties.map((p) => p.id);
+  const { counts: hkCounts } = usePmsHousekeepingCounts(allPropertyIds);
+
   const NavLink = ({ item }: { item: NavItem }) => {
     const active = isActive(item.href);
     const Icon = item.icon;
+    const badgeCount = item.module === "housekeeping" ? hkCounts.total : 0;
 
     const link = (
       <button
@@ -125,10 +129,23 @@ export function PMSSidebar() {
           !active && "text-foreground/80"
         )}
       >
-        <Icon className="h-4 w-4 shrink-0" />
+        <div className="relative shrink-0">
+          <Icon className="h-4 w-4" />
+          {collapsed && badgeCount > 0 && (
+            <span className="absolute -top-1.5 -right-1.5 h-3.5 min-w-3.5 px-0.5 rounded-full bg-destructive text-destructive-foreground text-[9px] leading-[14px] text-center font-semibold">
+              {badgeCount > 9 ? "9+" : badgeCount}
+            </span>
+          )}
+        </div>
         {!collapsed && <span className="flex-1 text-left">{item.title}</span>}
+        {!collapsed && badgeCount > 0 && (
+          <span className="ml-auto h-5 min-w-5 px-1.5 rounded-full bg-destructive text-destructive-foreground text-[10px] leading-5 text-center font-semibold">
+            {badgeCount > 99 ? "99+" : badgeCount}
+          </span>
+        )}
       </button>
     );
+
 
     if (collapsed) {
       return (
