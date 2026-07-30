@@ -1373,6 +1373,9 @@ const Dashboard = () => {
           <Card className="p-2">
             <div className="flex items-center justify-between mb-1">
               <span className="text-xs font-medium">Bookings{shouldAggregateByMonth && " (Monthly)"}</span>
+              {!bookingsLoading && chartData.length > 0 && !chartData.some(d => d.bookings > 0 || d.revenue > 0) && (
+                <span className="text-[10px] text-muted-foreground">No live bookings in this period</span>
+              )}
             </div>
             <div>
               {bookingsLoading ? (
