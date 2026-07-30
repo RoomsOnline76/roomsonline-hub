@@ -764,6 +764,7 @@ export default function PropertyForm({
       extraPersonPolicy: "",
       bedConfiguration: [] as BedEntry[],
       roomSize: 0,
+      floor: 0,
       bathrooms: 1,
       maxPeople: 2,
       maxAdults: 2,
@@ -2291,6 +2292,7 @@ export default function PropertyForm({
                 extraPersonPolicy: room.extraPersonPolicy || room.extra_person_policy || "",
                 bedConfiguration: room.bedConfiguration || room.bed_configuration || [],
                 roomSize: room.roomSize || room.room_size || 0,
+                floor: room.floor ?? null,
                 bathrooms: room.bathrooms || 1,
                 maxPeople: room.maxPeople || room.max_guests || room.max_people || 2,
                 maxAdults: room.maxAdults || room.max_adults || room.max_guests || 2,
@@ -2347,6 +2349,7 @@ export default function PropertyForm({
                         ? [{ type: 'bed', count: hr.beds }] 
                         : [])),
                 roomSize: hr.room_size || 0,
+                floor: (hr as any).floor ?? null,
                 bathrooms: hr.bathrooms || 1,
                 maxPeople: hr.max_guests || 2,
                 maxAdults: hr.max_guests || 2,

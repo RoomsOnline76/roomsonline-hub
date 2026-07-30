@@ -99,6 +99,7 @@ export function RoomManagerTab({
       extraPersonPolicy: "",
       bedConfiguration: [] as BedEntry[],
       roomSize: 0,
+      floor: 0,
       bathrooms: 1,
       maxPeople: 2,
       maxAdults: 2,
@@ -693,12 +694,20 @@ export function RoomManagerTab({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-6 gap-2 items-end">
+                <div className="grid grid-cols-7 gap-2 items-end">
                   <div className="flex items-center gap-1">
                     <Label className="text-xs whitespace-nowrap">Size (m²)</Label>
                     <Input type="number" className="h-7 text-xs w-16"
                       value={roomTypes.find((r) => r.id === selectedRoomType)?.roomSize || 0}
                       onChange={(e) => updateRoomTypeField(selectedRoomType, "roomSize", parseInt(e.target.value) || 0)}
+                    />
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Label className="text-xs whitespace-nowrap" title="Ground floor = 0. Pushed to channel managers (Rentals United).">Floor</Label>
+                    <Input type="number" className="h-7 text-xs w-14"
+                      value={(() => { const f = roomTypes.find((r) => r.id === selectedRoomType)?.floor; return f === null || f === undefined ? "" : String(f); })()}
+                      placeholder="0"
+                      onChange={(e) => updateRoomTypeField(selectedRoomType, "floor", e.target.value === "" ? null : parseInt(e.target.value))}
                     />
                   </div>
                   <div className="flex items-center gap-1">

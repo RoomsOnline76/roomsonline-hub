@@ -467,6 +467,28 @@ function hashCoords(lat: number, lng: number): string {
 
 // ── Build RU payload for a single unit ───────────────────────
 
+// Floor is authored per room type in ROLOS (amenities.room_types[].floor).
+// Match the pushed unit back to that entry by name / pms id; fall back to ground floor.
+function resolveUnitFloor(property: PropertyRow, unit: RoomTypeRow | null): { floor: number; isDefault: boolean } {
+  const list = ((property.amenities as any)?.room_types || []) as any[];
+  const norm = (v: unknown) => String(v ?? '').trim().toLowerCase();
+  let match: any = null;
+  if (Array.isArray(list) && list.length > 0) {
+    if (unit) {
+      match = list.find((rt) =>
+        (rt?.pmsRoomId && norm(rt.pmsRoomId) === norm(unit.id)) ||
+        (rt?.id && norm(rt.id) === norm(unit.id)) ||
+        (rt?.name && norm(rt.name) === norm(unit.name))
+      ) || null;
+    }
+    if (!match && list.length === 1) match = list[0];
+  }
+  const raw = match?.floor;
+  const n = typeof raw === 'number' ? raw : raw === null || raw === undefined || raw === '' ? NaN : Number(raw);
+  if (Number.isFinite(n)) return { floor: n, isDefault: false };
+  return { floor: 0, isDefault: true };
+}
+
 function buildUnitPayload(
   property: PropertyRow,
   unit: RoomTypeRow,
@@ -485,6 +507,7 @@ function buildUnitPayload(
   const maxGuests = unit.max_guests || 2;
   const space = unit.room_size || 50;
   const spaceIsDefault = !unit.room_size;
+  const { floor: unitFloor, isDefault: unitFloorIsDefault } = resolveUnitFloor(property, unit);
 
   const houseRules = (amenities as any)?.house_rules || {};
   const contact = (amenities as any)?.contact || {};
@@ -598,8 +621,8 @@ function buildUnitPayload(
     currency_id: currencyId ?? mapCurrencyToRUId(property.amenities, property.country),
     owner_id: 738925, // Will be overridden by resolveRuOwnerAccount
     no_of_units: 1,
-    floor: 0,
-    floor_is_default: true,
+    floor: unitFloor,
+    floor_is_default: unitFloorIsDefault,
     space,
     space_is_default: spaceIsDefault,
     street,
@@ -732,6 +755,7 @@ function buildSinglePropertyPayload(property: PropertyRow, roomTypes: RoomTypeRo
   if (maxGuests < 1) maxGuests = 2;
   const space = primaryRoom?.room_size || 50;
   const spaceIsDefault = !primaryRoom?.room_size;
+  const { floor: buildingFloor, isDefault: buildingFloorIsDefault } = resolveUnitFloor(property, primaryRoom);
   const houseRules = (amenities as any)?.house_rules || {};
   const contact = (amenities as any)?.contact || {};
   const banking = (amenities as any)?.banking || {};
@@ -758,7 +782,7 @@ function buildSinglePropertyPayload(property: PropertyRow, roomTypes: RoomTypeRo
     standard_guests: Math.ceil(maxGuests * 0.7),
     number_of_beds: numberOfBeds,
     currency_id: currencyId ?? mapCurrencyToRUId(property.amenities, property.country),
-    owner_id: 738925, no_of_units: 1, floor: 0, floor_is_default: true, space, space_is_default: spaceIsDefault, street,
+    owner_id: 738925, no_of_units: 1, floor: buildingFloor, floor_is_default: buildingFloorIsDefault, space, space_is_default: spaceIsDefault, street,
     detailed_location_id: locationId, zip_code: zipCode,
     latitude: lat, longitude: lng,
     amenities: mapAmenities(property.amenities),
