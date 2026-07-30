@@ -17,6 +17,9 @@ export interface BillingConfigValue {
   // OTA listing commission (flat %) — bookings made through ROL's own OTA
   commission_enabled: boolean;
   commission_rate: string;
+  /** Commission on the property's own surfaces (white-label, direct, widget, embed, API). */
+  pms_commission_rate: string;
+
   // Widget / WBE tiered commission (uses global widget tiers)
   widget_tiers_enabled: boolean;
   // Widget / WBE flat commission — mutually exclusive with tiered widget
