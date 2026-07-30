@@ -992,7 +992,14 @@ Deno.serve(async (req) => {
           lastMessage = String(
             (filled as any)?.error?.message ?? fillErr?.message ?? "Rentals United rejected the company details",
           );
-          // Validation/schema rejections will never succeed on retry.
+          // Validation/schema and credential rejections will never succeed on retry.
+          if ((filled as any)?.error?.code === "RU_SUBUSER_AUTH_FAILED") {
+            await admin
+              .from("ru_owner_accounts")
+              .update({ company_details_status: "auth_failed" })
+              .eq("id", account.id);
+            return { sent: false, authFailed: true as const, error: lastMessage };
+          }
           const permanent = /INCOMPLETE|requires these|invalid|credential|password|authenticat/i.test(lastMessage);
           if (permanent || attempt === 3) break;
           await new Promise((r) => setTimeout(r, attempt * 900));
@@ -1033,7 +1040,8 @@ Deno.serve(async (req) => {
       const existing = await findOwnerAccount(admin, propertyId ?? "", ownerEmail, portfolioId);
       if (existing.account?.ru_owner_id) {
         const companyResult = await submitCompanyDetails(existing.account as any);
-        if (!companyResult.sent && !(companyResult as any).deferred) {
+        const needsPassword = Boolean((companyResult as any).deferred || (companyResult as any).authFailed);
+        if (!companyResult.sent && !needsPassword) {
           return json({
             success: false,
             error: {
@@ -1052,7 +1060,7 @@ Deno.serve(async (req) => {
           success: true,
           created: false,
           company_details_sent: companyResult.sent,
-          company_details_manual_required: Boolean((companyResult as any).deferred),
+          company_details_manual_required: needsPassword,
           company_details_warning: companyResult.sent ? null : companyResult.error,
           account: refreshed ?? existing.account,
           scope: existing.scope,
@@ -1204,7 +1212,8 @@ Deno.serve(async (req) => {
 
       // Step 2 of Phase 1: fill company details on RU — without this the sub-user is incomplete.
       const companyResult = await submitCompanyDetails(saved as any, adopted ? null : password);
-      if (!companyResult.sent && !(companyResult as any).deferred) {
+      const needsPassword = Boolean((companyResult as any).deferred || (companyResult as any).authFailed);
+      if (!companyResult.sent && !needsPassword) {
         return json({
           success: false,
           error: {
@@ -1225,7 +1234,7 @@ Deno.serve(async (req) => {
         created: !adopted,
         adopted,
         company_details_sent: companyResult.sent,
-        company_details_manual_required: Boolean((companyResult as any).deferred),
+        company_details_manual_required: needsPassword,
         company_details_warning: companyResult.sent ? null : companyResult.error,
         account: finalAccount ?? saved,
         scope: portfolioId ? "portfolio" : "property",
