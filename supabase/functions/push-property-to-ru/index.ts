@@ -2008,9 +2008,11 @@ Deno.serve(async (req) => {
       try {
         await supabase.from('ru_sync_runs').insert({
           property_id,
-          run_type: 'force_push_override',
-          status: 'warning',
-          notes: `Phase gate bypassed at ${phaseGate.current_phase}`,
+          action: 'force_push_override',
+          success: false,
+          error_code: 'PHASE_GATE_BYPASSED',
+          error_message: `Phase gate bypassed at ${phaseGate.current_phase}`,
+          details: { phases: phaseGate.phases },
         });
       } catch (_e) { /* audit only */ }
     }
