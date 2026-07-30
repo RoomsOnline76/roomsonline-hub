@@ -111,7 +111,7 @@ export function resolveCommissionType(booking: CommissionBookingLike | null | un
   if (matches(url, LISTING_HOST_HINTS)) return "listing";
 
   // Nothing identifies a ROL marketplace surface → treat as the property's own booking.
-  return hasOrigin ? "pms" : "pms";
+  return "pms";
 }
 
 /** Billing config fields the resolver needs (property or portfolio scoped). */
