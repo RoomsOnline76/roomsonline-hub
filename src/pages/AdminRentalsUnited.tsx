@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { format, subDays } from "date-fns";
 import { RefreshCw, CheckCircle2, XCircle, Filter, Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { isRolosPms } from "@/lib/pmsIdentity";
+
 import { AppLayout } from "@/components/layout/AppLayout";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
