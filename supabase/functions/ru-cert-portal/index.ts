@@ -163,7 +163,10 @@ Deno.serve(async (req) => {
         };
       });
 
-      return json({ success: true, rules });
+      // Scheduled job inventory (pg_cron) — proves the cadence is automated, not manual
+      const { data: jobs } = await userClient.rpc("get_ru_cron_jobs");
+
+      return json({ success: true, rules, jobs: jobs ?? [], expected_jobs: EXPECTED_JOBS });
     }
 
     // ── wl_readiness ──
