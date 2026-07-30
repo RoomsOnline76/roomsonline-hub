@@ -1048,6 +1048,15 @@ export default function AdminPortfolios() {
           }
         />
 
+        <Tabs defaultValue="portfolios" className="mt-4">
+          <TabsList>
+            <TabsTrigger value="portfolios">Portfolios</TabsTrigger>
+            <TabsTrigger value="ru">Rentals United</TabsTrigger>
+          </TabsList>
+          <TabsContent value="ru" className="mt-4">
+            <PortfolioRuAccountsTab />
+          </TabsContent>
+          <TabsContent value="portfolios" className="mt-4">
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
