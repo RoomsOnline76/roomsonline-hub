@@ -263,6 +263,7 @@ export const internalFieldMap: InternalFieldMap = {
                     { id: 'amenities.room_types[].maxStay', label: 'Maximum Stay', type: 'number' },
                     { id: 'amenities.room_types[].bedConfiguration', label: 'Bed Configuration', type: 'text' },
                     { id: 'amenities.room_types[].roomSize', label: 'Room Size', type: 'text' },
+                    { id: 'amenities.room_types[].floor', label: 'Floor', type: 'number' },
                     { id: 'amenities.room_types[].bathrooms', label: 'Bathrooms', type: 'number' },
                     { id: 'amenities.room_types[].images', label: 'Room Images', type: 'array' },
                   ]

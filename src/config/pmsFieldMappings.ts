@@ -34,6 +34,7 @@ export const availableInternalFields = [
   { path: "amenities.room_types[].minGuests", label: "Min Guests" },
   { path: "amenities.room_types[].numRooms", label: "Number of Rooms" },
   { path: "amenities.room_types[].roomSize", label: "Room Size" },
+  { path: "amenities.room_types[].floor", label: "Floor" },
   { path: "amenities.room_types[].bathrooms", label: "Bathrooms" },
   { path: "amenities.room_types[].bedConfiguration", label: "Bed Configuration" },
   { path: "amenities.room_types[].minStay", label: "Minimum Stay" },
