@@ -173,15 +173,23 @@ export default function AdminPayments() {
     }
   };
 
-  const getStatusBadge = (status: string) => {
+  // PayFast checkout sessions don't stay open forever — a pending row older than
+  // this is an abandoned attempt, not money in flight.
+  const PENDING_SESSION_MS = 2 * 60 * 60 * 1000;
+
+  const getStatusBadge = (status: string, createdAt?: string) => {
     switch (status) {
       case 'paid':
       case 'succeeded':
       case 'success':
       case 'completed':
         return <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20">Paid</Badge>;
-      case 'pending':
-        return <Badge variant="secondary">Pending</Badge>;
+      case 'pending': {
+        const stale = createdAt ? Date.now() - new Date(createdAt).getTime() > PENDING_SESSION_MS : false;
+        return stale
+          ? <Badge variant="outline" className="text-muted-foreground">Expired</Badge>
+          : <Badge variant="secondary">Pending</Badge>;
+      }
 
       case 'failed':
         return <Badge variant="destructive">Failed</Badge>;
@@ -189,6 +197,7 @@ export default function AdminPayments() {
         return <Badge variant="outline">{status}</Badge>;
     }
   };
+
 
   const filteredTransactions = useMemo(() => {
     if (!searchTerm.trim()) return transactions;
