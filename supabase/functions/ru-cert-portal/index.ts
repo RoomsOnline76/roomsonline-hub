@@ -181,6 +181,18 @@ Deno.serve(async (req) => {
     }
 
     // ── wl_readiness ──
+    // ── run_job: manually satisfy an overdue cadence ──
+    if (action === "run_job") {
+      const fn: string = body.function_name ?? "";
+      if (!RUNNABLE_JOBS.has(fn)) {
+        return json({ success: false, error: { code: "BAD_JOB", message: `Unknown job: ${fn}` } }, 400);
+      }
+      const t0 = Date.now();
+      const { data, error } = await admin.functions.invoke(fn, { body: { manual: true } });
+      if (error) return json({ success: false, error: { code: "JOB_FAILED", message: error.message } }, 502);
+      return json({ success: true, function_name: fn, duration_ms: Date.now() - t0, result: data });
+    }
+
     if (action === "wl_readiness") {
       const { data: props } = await admin
         .from("properties")
