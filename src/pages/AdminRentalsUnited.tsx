@@ -305,10 +305,43 @@ export default function AdminRentalsUnited() {
                 Switching a property off pauses its RU sync but keeps it here — re-enable it any time to ramp up.
               </p>
             </div>
-            <Badge variant="outline" className="text-xs shrink-0">
-              {ruProperties.filter((p) => p.ru_push_enabled).length}/{ruProperties.length} enabled
-            </Badge>
+            <div className="flex items-center gap-2 shrink-0">
+              <Badge variant="outline" className="text-xs">
+                {ruProperties.filter((p) => p.ru_push_enabled).length}/{ruProperties.length} enabled
+              </Badge>
+              <Popover open={addOpen} onOpenChange={setAddOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="icon" aria-label="Add property to RU board">
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-72 p-0" align="end">
+                  <Command>
+                    <CommandInput placeholder="Search properties…" />
+                    <CommandList>
+                      <CommandEmpty>No other properties available.</CommandEmpty>
+                      <CommandGroup heading="Add to RU board">
+                        {addableProperties.map((p) => (
+                          <CommandItem
+                            key={p.id}
+                            value={p.name}
+                            onSelect={() => {
+                              setStickyIds((prev) => new Set(prev).add(p.id));
+                              setAddOpen(false);
+                              toast.success(`${p.name} added — enable RU push when ready`);
+                            }}
+                          >
+                            {p.name}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            </div>
           </CardHeader>
+
           <CardContent>
             <Table>
               <TableHeader>
