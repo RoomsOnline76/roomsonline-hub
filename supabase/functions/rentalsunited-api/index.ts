@@ -1075,7 +1075,11 @@ Deno.serve(async (req) => {
       }
 
       try {
-        const xml = buildListPropertiesXml(creds);
+        const today = new Date().toISOString().split('T')[0];
+        const yesterdayDate = new Date();
+        yesterdayDate.setUTCDate(yesterdayDate.getUTCDate() - 1);
+        const yesterday = yesterdayDate.toISOString().split('T')[0];
+        const xml = buildListReservationsXml(creds, yesterday, today);
         const response = await callRentalsUnited(creds, xml);
         const { ok, status } = handleRUStatus(response);
 
@@ -1083,7 +1087,7 @@ Deno.serve(async (req) => {
           healthy: ok,
           status: ok ? 'ok' : 'error',
           message: ok
-            ? 'Rentals United API connected successfully'
+            ? 'Rentals United XML API AccessKey / SecretKey accepted successfully'
             : `Rentals United API error: ${status.message}`,
           ru_status_id: status.id,
           ru_status_message: status.message,
@@ -1106,7 +1110,7 @@ Deno.serve(async (req) => {
             list_users: true,
             fill_company_details: true,
           },
-          metadata: { ...metadata, checked_at: new Date().toISOString() },
+          metadata: { ...metadata, checked_at: new Date().toISOString(), credential_source: creds.source, probe: 'Pull_ListReservations_RQ' },
         });
       } catch (err) {
         return jsonResponse({
