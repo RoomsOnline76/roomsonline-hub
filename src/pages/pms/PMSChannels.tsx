@@ -159,8 +159,23 @@ export default function PMSChannels() {
           <TabsContent value="sync-log">
             <SyncLogTable logs={syncLogs} />
           </TabsContent>
+
+          {/* Tab 4: Rentals United readiness */}
+          <TabsContent value="ru-readiness" className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Rentals United white-label distribution requires a complete listing. This scorecard checks
+              every mandatory requirement — content, rooms &amp; beds, photos, address &amp; geo, policies and
+              365-day availability &amp; pricing. Syncing stays blocked until all mandatory items pass.
+            </p>
+            {propertyId ? (
+              <RuReadinessScorecard propertyId={propertyId} />
+            ) : (
+              <p className="text-sm text-muted-foreground">Select a property to score its readiness.</p>
+            )}
+          </TabsContent>
         </Tabs>
       </div>
+
 
       {/* Connect dialog */}
       {connectDialog && (
