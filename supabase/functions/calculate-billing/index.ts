@@ -351,8 +351,15 @@ const PMS_INTEGRATION_TYPES = ['rolos', 'widget', 'embed', 'api', 'wordpress', '
 const PMS_CHANNELS = ['direct', 'widget', 'embed', 'api', 'white_label', 'whitelabel'];
 const EXTERNAL_CHANNELS = ['booking.com', 'booking_com', 'expedia', 'airbnb', 'vrbo', 'lekkeslaap', 'google', 'hyperguest', 'nightsbridge', 'channel'];
 
+const LISTING_INTEGRATION_TYPES = ['rol_marketplace', 'marketplace', 'listing'];
+const LISTING_CHANNELS = ['marketplace', 'rol_itinerary', 'journey', 'listing'];
+
 function resolveCommissionType(booking: any): 'listing' | 'pms' | 'external' {
-  if (!booking) return 'listing';
+  if (!booking) return 'pms';
+  const stored = String(booking.commission_type || '').toLowerCase();
+  if (stored === 'pms' || stored === 'external') return stored;
+  const hasOrigin = !!(booking.integration_type || booking.booking_channel || booking.source_url);
+  if (stored === 'listing' && hasOrigin) return 'listing';
   const channel = String(booking.booking_channel || '').toLowerCase();
   if (channel && EXTERNAL_CHANNELS.some((c) => channel.includes(c))) return 'external';
   if (booking.integration_type && PMS_INTEGRATION_TYPES.includes(booking.integration_type)) return 'pms';
@@ -363,7 +370,10 @@ function resolveCommissionType(booking: any): 'listing' | 'pms' | 'external' {
     booking.source_url.includes('wordpress') ||
     booking.source_url.includes('wl=1')
   )) return 'pms';
-  return 'listing';
+  if (booking.integration_type && LISTING_INTEGRATION_TYPES.includes(booking.integration_type)) return 'listing';
+  if (channel && LISTING_CHANNELS.includes(channel)) return 'listing';
+  // Nothing marks this as a ROL marketplace booking → property's own surface.
+  return 'pms';
 }
 
 async function calcDefault(
