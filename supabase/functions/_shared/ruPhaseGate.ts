@@ -111,7 +111,7 @@ async function userManagementEnabled(admin: any): Promise<boolean> {
 
 export interface EvaluateOptions {
   /** Mandatory readiness gaps from _shared/ruReadiness (empty array = ready). */
-  readinessGaps?: { unit: string; check: string }[] | null;
+  readinessGaps?: (string | { unit?: string | null; check?: string | null; detail?: string | null; label?: string | null })[] | null;
   /** Pass true when readiness could not be computed by the caller. */
   readinessUnknown?: boolean;
 }
@@ -164,7 +164,12 @@ export async function evaluatePhases(
     p2Blockers.push("Readiness could not be scored — run the readiness scorecard.");
   } else if ((opts.readinessGaps ?? []).length > 0) {
     for (const g of opts.readinessGaps!.slice(0, 12)) {
-      p2Blockers.push(`${g.unit}: ${g.check}`);
+      if (typeof g === "string") {
+        p2Blockers.push(g);
+      } else {
+        const text = g.check ?? g.detail ?? g.label ?? "Readiness check failed";
+        p2Blockers.push(g.unit ? `${g.unit}: ${text}` : text);
+      }
     }
   }
 

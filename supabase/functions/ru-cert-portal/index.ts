@@ -559,11 +559,11 @@ Deno.serve(async (req) => {
       if (!prop) return json({ success: false, error: { code: "NOT_FOUND", message: "Property not found" } }, 404);
 
       let readiness: Record<string, unknown> | null = null;
-      let gaps: { unit: string; check: string }[] = [];
+      let gaps: string[] = [];
       let readinessUnknown = false;
       try {
         readiness = await scoreProperty(prop as any, { probe_ari: body.probe_ari === true }) as any;
-        gaps = ((readiness as any)?.gaps ?? []) as { unit: string; check: string }[];
+        gaps = ((readiness as any)?.gaps ?? []) as string[];
       } catch (_e) {
         readinessUnknown = true;
       }
@@ -696,7 +696,7 @@ Deno.serve(async (req) => {
         .maybeSingle();
       if (!prop) return json({ success: false, error: { code: "NOT_FOUND", message: "Property not found" } }, 404);
 
-      let gaps: { unit: string; check: string }[] = [];
+      let gaps: string[] = [];
       try {
         const report = await scoreProperty(prop as any, { probe_ari: true }) as any;
         gaps = report?.gaps ?? [];
