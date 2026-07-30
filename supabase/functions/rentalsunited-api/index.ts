@@ -1594,7 +1594,25 @@ Deno.serve(async (req) => {
       if (!body.user) return errorResponse('MISSING_PARAM', 'user payload is required (first_name, last_name, email, password)');
       const { first_name, last_name, email, password } = body.user;
       if (!first_name || !last_name || !email || !password) return errorResponse('VALIDATION', 'user must include first_name, last_name, email, and password');
-      const xml = buildCreateUserXml(creds, { first_name, last_name, email, password });
+
+      // RU password policy: 12+ chars, lower, upper, digit, special, must not contain the email
+      const pwdOk = String(password).length >= 12
+        && /[a-z]/.test(password) && /[A-Z]/.test(password)
+        && /[0-9]/.test(password) && /[^A-Za-z0-9]/.test(password)
+        && !String(password).toLowerCase().includes(String(email).toLowerCase());
+      if (!pwdOk) {
+        return errorResponse('VALIDATION', "Password must be 12+ characters with an uppercase letter, a lowercase letter, a number and a special character, and must not contain the user's email");
+      }
+
+      const rawLocations = Array.isArray(body.location_ids)
+        ? body.location_ids
+        : (body.location_id != null ? [body.location_id] : []);
+      const locationIds = rawLocations.map((v: unknown) => Number(v)).filter((n: number) => Number.isFinite(n) && n > 1);
+      if (locationIds.length === 0) {
+        return errorResponse('VALIDATION', 'At least one valid Rentals United LocationId is required to create a sub-user (location_id or location_ids)');
+      }
+
+      const xml = buildCreateUserXml(creds, { first_name, last_name, email, password }, locationIds);
       const response = await callRentalsUnited(creds, xml);
       console.log(`[rentalsunited-api] CreateUser response: ${response.substring(0, 500)}`);
       const { ok, status } = handleRUStatus(response);
@@ -1602,6 +1620,7 @@ Deno.serve(async (req) => {
       const userAccountId = extractUserAccountId(response);
       return jsonResponse({ success: true, user_account_id: userAccountId, message: 'User created successfully', raw_xml: response });
     }
+
 
     // ── list_users ──
     if (action === 'list_users') {
