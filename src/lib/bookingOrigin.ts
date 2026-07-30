@@ -78,3 +78,93 @@ export function captureBookingOrigin(targetPropertyId?: string | null): BookingO
 
   return { origin_property_id, origin_portfolio_id, origin_type, origin_url };
 }
+
+/* ------------------------------------------------------------------ *
+ * Commission origin capture
+ * ------------------------------------------------------------------ *
+ * Records WHERE a booking was made so the correct commission rate is
+ * applied later:
+ *   listing (10%) — ROL marketplace surfaces (book.sleepinafrica…, journey)
+ *   pms      (2%) — white-label site, widget/embed, WordPress, direct
+ *   external (0%) — reservations synced from an OTA/channel
+ */
+
+export type BookingCommissionType = "listing" | "pms" | "external";
+
+export interface CommissionOriginPayload {
+  commission_type: BookingCommissionType;
+  integration_type: string;
+  booking_channel: string;
+  source_url: string | null;
+}
+
+/** Hostnames that are ROL-owned marketplace surfaces (charged listing rate). */
+const ROL_MARKETPLACE_HOSTS = [
+  "book.sleepinafrica.roomsonline.co.za",
+  "sleepinafrica.roomsonline.co.za",
+];
+
+/** Paths on a ROL host that are still marketplace surfaces. */
+const MARKETPLACE_PATH_HINTS = ["/journey", "/itinerary", "/explore", "/discover", "/properties"];
+
+/** Paths that are always property-owned surfaces even on a ROL host. */
+const PMS_PATH_HINTS = ["/embed", "/widget", "/book/", "/booking/"];
+
+const inIframe = (): boolean => {
+  try {
+    return window.self !== window.top;
+  } catch {
+    return true; // cross-origin parent → definitely embedded
+  }
+};
+
+/**
+ * Determine the commission-bearing origin of the current booking session.
+ * Safe to call in any browser context; falls back to `pms` (the conservative,
+ * property-favouring rate) when the surface cannot be identified.
+ */
+export function captureCommissionOrigin(): CommissionOriginPayload {
+  if (typeof window === "undefined") {
+    return {
+      commission_type: "pms",
+      integration_type: "rolos",
+      booking_channel: "direct",
+      source_url: null,
+    };
+  }
+
+  const host = window.location.hostname.toLowerCase();
+  const path = window.location.pathname.toLowerCase();
+  const params = new URLSearchParams(window.location.search);
+  const source_url = window.location.href;
+
+  const embedded = inIframe();
+  const whiteLabel = params.get("wl") === "1";
+  const viaWordPress = params.get("src") === "wordpress" || params.get("utm_source") === "wordpress";
+  const isRolHost = ROL_MARKETPLACE_HOSTS.includes(host);
+
+  // 1. Explicit property-owned surfaces always win.
+  if (viaWordPress) {
+    return { commission_type: "pms", integration_type: "wordpress", booking_channel: "wordpress", source_url };
+  }
+  if (embedded) {
+    return { commission_type: "pms", integration_type: "widget", booking_channel: "widget", source_url };
+  }
+  if (PMS_PATH_HINTS.some((p) => path.startsWith(p))) {
+    return { commission_type: "pms", integration_type: "embed", booking_channel: "embed", source_url };
+  }
+  if (whiteLabel) {
+    return { commission_type: "pms", integration_type: "rolos", booking_channel: "white_label", source_url };
+  }
+
+  // 2. ROL-owned marketplace surface → listing rate.
+  if (isRolHost && (path === "/" || MARKETPLACE_PATH_HINTS.some((p) => path.startsWith(p)))) {
+    return { commission_type: "listing", integration_type: "rol_marketplace", booking_channel: "marketplace", source_url };
+  }
+  if (isRolHost) {
+    return { commission_type: "listing", integration_type: "rol_marketplace", booking_channel: "marketplace", source_url };
+  }
+
+  // 3. Any other host is the property's own domain.
+  return { commission_type: "pms", integration_type: "rolos", booking_channel: "direct", source_url };
+}
