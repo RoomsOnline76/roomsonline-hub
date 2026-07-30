@@ -631,7 +631,13 @@ Deno.serve(async (req) => {
       }
       const payload = action === "create_user"
         ? { action: "create_user", user: body.user }
-        : { action: "fill_company_details", ru_property_id: body.ru_property_id, company: body.company };
+        : {
+            action: "fill_company_details",
+            company: body.company,
+            auth_username: body.auth_username ?? null,
+            auth_password: body.auth_password ?? null,
+          };
+
       const { data, error } = await admin.functions.invoke("rentalsunited-api", { body: payload });
       if (error) return json({ success: false, error: { code: "RU_CALL_FAILED", message: error.message } }, 502);
 
