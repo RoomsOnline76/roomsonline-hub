@@ -39,6 +39,7 @@ interface PropertyLite {
   slug: string | null;
   external_system: string | null;
   ru_push_enabled: boolean | null;
+  rentalsunited_property_id: string | null;
 }
 
 const ACTIONS = ["PutProperty", "PutAvbUnits", "PutPrices", "ListReservations", "PutHandlerUrl", "RLNM"] as const;
@@ -65,7 +66,7 @@ export default function AdminRentalsUnited() {
         .limit(500),
       supabase
         .from("properties")
-        .select("id, name, slug, external_system, ru_push_enabled")
+        .select("id, name, slug, external_system, ru_push_enabled, rentalsunited_property_id")
         .eq("is_active", true)
         .order("name"),
     ]);
@@ -145,7 +146,7 @@ export default function AdminRentalsUnited() {
         </TabsList>
 
         <TabsContent value="cert">
-          <RuCertificationConsole properties={properties as never} />
+          <RuCertificationConsole properties={properties} />
         </TabsContent>
 
         <TabsContent value="sync" className="space-y-6">
