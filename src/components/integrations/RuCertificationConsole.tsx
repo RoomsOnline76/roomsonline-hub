@@ -398,7 +398,7 @@ export function RuCertificationConsole({ properties }: { properties: PropertyLit
           <TabsTrigger value="cadence" className="gap-1.5" onClick={loadCadence}><Clock className="h-3.5 w-3.5" />Refresh compliance</TabsTrigger>
           <TabsTrigger value="discounts" className="gap-1.5"><Percent className="h-3.5 w-3.5" />Discounts</TabsTrigger>
           <TabsTrigger value="readiness" className="gap-1.5"><CheckCircle2 className="h-3.5 w-3.5" />WL readiness</TabsTrigger>
-          <TabsTrigger value="users" className="gap-1.5" onClick={async () => setUserMgmt(await callPortal("user_management"))}>
+          <TabsTrigger value="users" className="gap-1.5" onClick={loadUserMgmt}>
             <Users className="h-3.5 w-3.5" />User management
           </TabsTrigger>
         </TabsList>
