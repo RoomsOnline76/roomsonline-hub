@@ -71,7 +71,7 @@ export function usePmsHousekeepingCounts(propertyIds: string[], pollMs = 60_000)
         cleaningTasks,
         openDockets,
         awaitingReady,
-        total: dirty + openDockets + awaitingReady,
+        total: dirty + cleaningTasks + openDockets + awaitingReady,
       });
     } catch {
       // Counters are advisory — never break navigation on a failed count.
