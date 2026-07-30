@@ -12,6 +12,7 @@
 //   user_management  → status of RU sub-user management (parked)
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { summarizeReadiness, type RuCheck, type RuUnitInput } from "../_shared/ruReadiness.ts";
+import { evaluatePhases, findOwnerAccount, resolvePortfolioId } from "../_shared/ruPhaseGate.ts";
 
 
 const corsHeaders = {
@@ -145,7 +146,7 @@ Deno.serve(async (req) => {
     // Property-scoped users (ROLOS owners / staff) may read the readiness
     // scorecard for a property they can access — everything else is admin-only.
     if (!allowed) {
-      if (action !== "property_readiness" || !body.property_id) {
+      if (!["property_readiness", "phase_status"].includes(action) || !body.property_id) {
         return json({ success: false, error: { code: "FORBIDDEN", message: "Admin access required" } }, 403);
       }
       const { data: canAccess } = await userClient.rpc("can_access_property", {
@@ -533,6 +534,186 @@ Deno.serve(async (req) => {
       const { data, error } = await admin.functions.invoke("rentalsunited-api", { body: payload });
       if (error) return json({ success: false, error: { code: "RU_CALL_FAILED", message: error.message } }, 502);
       return json({ success: !!data?.success, result: data, preview: preview(data, 2000) });
+    }
+
+    // ── phase_status: 4-phase onboarding gate for one property ──
+    if (action === "phase_status") {
+      const propertyId: string = body.property_id ?? "";
+      if (!propertyId) return json({ success: false, error: { code: "BAD_REQUEST", message: "property_id is required" } }, 400);
+      const { data: prop } = await admin
+        .from("properties")
+        .select("id, name, owner_email, external_system, rentalsunited_property_id, rentalsunited_building_id")
+        .eq("id", propertyId)
+        .maybeSingle();
+      if (!prop) return json({ success: false, error: { code: "NOT_FOUND", message: "Property not found" } }, 404);
+
+      let readiness: Record<string, unknown> | null = null;
+      let gaps: { unit: string; check: string }[] = [];
+      let readinessUnknown = false;
+      try {
+        readiness = await scoreProperty(prop as any, { probe_ari: body.probe_ari === true }) as any;
+        gaps = ((readiness as any)?.gaps ?? []) as { unit: string; check: string }[];
+      } catch (_e) {
+        readinessUnknown = true;
+      }
+
+      const gate = await evaluatePhases(admin, prop as any, { readinessGaps: gaps, readinessUnknown });
+      const { data: mcq } = await admin
+        .from("ru_mcq_orders")
+        .select("id, ordered_at, status, ru_status_id")
+        .eq("property_id", propertyId)
+        .order("ordered_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      return json({ success: true, gate, readiness, last_mcq: mcq ?? null });
+    }
+
+    // ── ensure_owner_account: Phase 1 sub-user (portfolio-first) ──
+    if (action === "ensure_owner_account") {
+      const propertyId: string | null = body.property_id ?? null;
+      let portfolioId: string | null = body.portfolio_id ?? null;
+      if (!propertyId && !portfolioId) {
+        return json({ success: false, error: { code: "BAD_REQUEST", message: "property_id or portfolio_id is required" } }, 400);
+      }
+
+      const flag = await readUserMgmtFlag();
+      if (!flag.enabled) {
+        return json({
+          success: false,
+          error: { code: "USER_MGMT_DISABLED", message: "RU user management is parked. Enable it on the Users tab first." },
+        }, 409);
+      }
+
+      let ownerEmail: string | null = body.owner_email ?? null;
+      let ownerName: string = body.owner_name ?? "";
+
+      if (!portfolioId && propertyId) portfolioId = await resolvePortfolioId(admin, propertyId);
+      if (portfolioId) {
+        const { data: pf } = await admin
+          .from("property_portfolios")
+          .select("id, name, owner_email")
+          .eq("id", portfolioId)
+          .maybeSingle();
+        ownerEmail = ownerEmail ?? pf?.owner_email ?? null;
+        ownerName = ownerName || (pf?.name ?? "Portfolio Owner");
+      }
+      if (!ownerEmail && propertyId) {
+        const { data: pr } = await admin
+          .from("properties")
+          .select("owner_email, name")
+          .eq("id", propertyId)
+          .maybeSingle();
+        ownerEmail = pr?.owner_email ?? null;
+        ownerName = ownerName || (pr?.name ?? "Property Owner");
+      }
+      if (!ownerEmail) {
+        return json({ success: false, error: { code: "NO_OWNER_EMAIL", message: "No owner email on the portfolio or property — set one before creating the RU sub-user." } }, 422);
+      }
+
+      const existing = await findOwnerAccount(admin, propertyId ?? "", ownerEmail, portfolioId);
+      if (existing.account?.ru_owner_id) {
+        return json({ success: true, created: false, account: existing.account, scope: existing.scope });
+      }
+
+      // Create the RU sub-user
+      const parts = String(ownerName).trim().split(/\s+/);
+      const firstName = parts[0] || "Property";
+      const lastName = parts.slice(1).join(" ") || "Owner";
+      const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%";
+      const bytes = new Uint8Array(16);
+      crypto.getRandomValues(bytes);
+      let password = "";
+      for (const b of bytes) password += chars[b % chars.length];
+
+      const { data: created, error: createErr } = await admin.functions.invoke("rentalsunited-api", {
+        body: { action: "create_user", user: { first_name: firstName, last_name: lastName, email: ownerEmail, password } },
+      });
+      if (createErr || !created?.success) {
+        return json({
+          success: false,
+          error: { code: "RU_CREATE_USER_FAILED", message: createErr?.message ?? created?.error?.message ?? "Rentals United rejected the sub-user creation" },
+          preview: preview(created, 2000),
+        }, 502);
+      }
+
+      const userAccountId: string | null = created.user_account_id ?? null;
+      let ruOwnerId: string | null = null;
+      const { data: listed } = await admin.functions.invoke("rentalsunited-api", { body: { action: "list_users" } });
+      if (listed?.success && Array.isArray(listed.users)) {
+        const matched = listed.users.find((u: { user_account_id?: string; email?: string; owner_id?: string }) =>
+          u.user_account_id === userAccountId || u.email === ownerEmail);
+        ruOwnerId = matched?.owner_id ?? null;
+      }
+
+      const row: Record<string, unknown> = {
+        owner_email: ownerEmail,
+        ru_user_id: userAccountId,
+        ru_owner_id: ruOwnerId,
+        ru_login_email: ownerEmail,
+        ru_login_url: "https://new.rentalsunited.com",
+        portfolio_id: portfolioId,
+        property_id: portfolioId ? null : propertyId,
+        scope: portfolioId ? "portfolio" : "property",
+      };
+      const { data: saved, error: saveErr } = await admin
+        .from("ru_owner_accounts")
+        .upsert(row, { onConflict: portfolioId ? "portfolio_id" : "property_id" })
+        .select()
+        .maybeSingle();
+      if (saveErr) return json({ success: false, error: { code: "SAVE_FAILED", message: saveErr.message } }, 500);
+
+      return json({ success: true, created: true, account: saved, scope: portfolioId ? "portfolio" : "property" });
+    }
+
+    // ── order_mcq: Phase 4.3 Minimum Content Quality check ──
+    if (action === "order_mcq") {
+      const propertyId: string = body.property_id ?? "";
+      if (!propertyId) return json({ success: false, error: { code: "BAD_REQUEST", message: "property_id is required" } }, 400);
+      const { data: prop } = await admin
+        .from("properties")
+        .select("id, name, owner_email, external_system, rentalsunited_property_id, rentalsunited_building_id")
+        .eq("id", propertyId)
+        .maybeSingle();
+      if (!prop) return json({ success: false, error: { code: "NOT_FOUND", message: "Property not found" } }, 404);
+
+      let gaps: { unit: string; check: string }[] = [];
+      try {
+        const report = await scoreProperty(prop as any, { probe_ari: true }) as any;
+        gaps = report?.gaps ?? [];
+      } catch (_e) { /* fall through — gate reports unknown */ }
+
+      const gate = await evaluatePhases(admin, prop as any, { readinessGaps: gaps });
+      const p4 = gate.phases.find((p) => p.key === "p4_verify");
+      if (body.force !== true && p4?.status !== "passed") {
+        return json({
+          success: false,
+          error: { code: "PHASE_BLOCKED", message: "Phase 4 verification has not passed — the quality check cannot be ordered yet." },
+          gate,
+        }, 409);
+      }
+
+      const ruPropertyId = body.ru_property_id ?? prop.rentalsunited_property_id;
+      if (!ruPropertyId) {
+        return json({ success: false, error: { code: "NO_RU_PROPERTY", message: "No Rentals United PropertyID stored for this property." } }, 422);
+      }
+
+      const { data: result, error: mcqErr } = await admin.functions.invoke("rentalsunited-api", {
+        body: { action: "order_mcq", ru_property_id: ruPropertyId },
+      });
+      const ok = !mcqErr && result?.success === true;
+      await admin.from("ru_mcq_orders").insert({
+        property_id: propertyId,
+        ru_property_id: String(ruPropertyId),
+        ordered_by: user.id,
+        status: ok ? "ordered" : "failed",
+        ru_status_id: result?.ru_status_id ?? null,
+        response_preview: preview(result ?? mcqErr?.message, 3000),
+      });
+      if (!ok) {
+        return json({ success: false, error: { code: "RU_MCQ_FAILED", message: mcqErr?.message ?? result?.error?.message ?? "Rentals United rejected the quality check order" } }, 502);
+      }
+      return json({ success: true, ru_property_id: ruPropertyId, result });
     }
 
     // ── run_suite ──
