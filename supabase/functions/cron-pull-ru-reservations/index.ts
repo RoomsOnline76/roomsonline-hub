@@ -69,6 +69,7 @@ Deno.serve(async (req) => {
     if (ruErr || !ruResult?.success) {
       const msg = ruErr?.message || ruResult?.error?.message || 'Unknown error';
       console.error(`[cron-pull-ru] API call failed: ${msg}`);
+      await logCadence(false, msg);
       return new Response(JSON.stringify({ success: false, error: msg }), {
         status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
