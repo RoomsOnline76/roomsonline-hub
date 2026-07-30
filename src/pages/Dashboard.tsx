@@ -958,6 +958,14 @@ const Dashboard = () => {
       }
     };
     
+    // If there is no live (non-cancelled) activity in the range, keep the chart
+    // clean: no interpolation, no smoothing, no forecast. Synthetic trend lines
+    // over an all-zero series are misleading.
+    const hasLiveActivity = data.some(d => d.bookings > 0 || d.revenue > 0);
+    if (!hasLiveActivity) {
+      return data;
+    }
+    
     detectAndInterpolateGaps(data, 2); // Interpolate gaps of 1-2 periods
     
     // Apply forecasting - separate actual data from future projections
