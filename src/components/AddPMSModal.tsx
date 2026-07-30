@@ -34,8 +34,28 @@ export function AddPMSModal({
   const [ownerWillProvideUid, setOwnerWillProvideUid] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // Filter out internal systems and show all available PMS options
-  const availablePMSSystems = ALL_PMS_SYSTEMS.filter(s => !s.isInternal);
+  // Only true PMS systems — no channel managers, OTAs, financial or content-only systems.
+  // Primary options first (Hostfully, Benson, ROL'OS), then the rest alphabetically.
+  const PRIMARY_PMS_KEYS = ["hostfully", "benson", "roomsonline"];
+  const EXCLUDED_PMS_KEYS = ["wetu"]; // content portal, not a PMS
+  const availablePMSSystems = ALL_PMS_SYSTEMS
+    .filter(
+      (s) =>
+        !s.hidden &&
+        !EXCLUDED_PMS_KEYS.includes(s.key) &&
+        (s.category === undefined || s.category === "pms")
+    )
+    .sort((a, b) => {
+      const ai = PRIMARY_PMS_KEYS.indexOf(a.key);
+      const bi = PRIMARY_PMS_KEYS.indexOf(b.key);
+      if (ai !== -1 || bi !== -1) {
+        if (ai === -1) return 1;
+        if (bi === -1) return -1;
+        return ai - bi;
+      }
+      return a.name.localeCompare(b.name);
+    });
+
 
   const resetForm = () => {
     setSelectedPMS("");
