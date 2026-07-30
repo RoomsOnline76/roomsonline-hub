@@ -217,6 +217,39 @@ export function RuCertificationConsole({ properties }: { properties: PropertyLit
     }
   };
 
+  const loadUserMgmt = useCallback(async () => {
+    setUserMgmtLoading(true);
+    const res = await callPortal<UserMgmtState>("user_management");
+    if (res) setUserMgmt(res);
+    setUserMgmtLoading(false);
+  }, []);
+
+  const toggleUserMgmt = async (enabled: boolean) => {
+    setSavingFlag(true);
+    const res = await callPortal<{ enabled: boolean; note: string }>("set_user_management", { enabled });
+    setSavingFlag(false);
+    if (res) {
+      toast.success(enabled ? "RU user management enabled" : "RU user management parked");
+      loadUserMgmt();
+    }
+  };
+
+  const createRuUser = async () => {
+    const { first_name, last_name, email, password } = userDraft;
+    if (!first_name || !last_name || !email || password.length < 8) {
+      toast.error("First name, last name, email and an 8+ character password are required");
+      return;
+    }
+    setCreatingUser(true);
+    const res = await callPortal("create_user", { user: userDraft });
+    setCreatingUser(false);
+    if (res) {
+      toast.success("Sub-user request sent to Rentals United");
+      setUserDraft({ first_name: "", last_name: "", email: "", password: "" });
+      loadUserMgmt();
+    }
+  };
+
 
   const loadReadiness = useCallback(async () => {
     setReadinessLoading(true);
