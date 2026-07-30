@@ -66,20 +66,22 @@ export function EditUserModal({ open, onOpenChange, user, onUserUpdated }: EditU
     setErrors({});
 
     try {
-      const { error } = await supabase
-        .from("profiles")
-        .update({
+      const { data, error } = await supabase.functions.invoke("admin-update-user-profile", {
+        body: {
+          user_id: user.id,
           full_name: formData.full_name.trim(),
-          email: formData.email.trim(),
+          email: formData.email.trim().toLowerCase(),
           phone: formData.phone.trim() || null,
-        })
-        .eq("id", user.id);
+        },
+      });
 
-      if (error) throw error;
+      const failure = (data as { error?: string } | null)?.error;
+      if (error || failure) throw new Error(failure || error?.message || "Update failed");
 
       toast.success("User profile updated");
       onOpenChange(false);
       onUserUpdated();
+
     } catch (error: any) {
       console.error("Failed to update profile:", error);
       toast.error(error.message || "Failed to update profile");
