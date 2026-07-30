@@ -433,9 +433,16 @@ export function readabilityScore(palette: BrandPalette): number {
   return Math.max(10, 100 - penalty);
 }
 
-/** Score restricted to a single presentation mode. */
-export function readabilityScoreForMode(palette: BrandPalette, mode: BrandMode): number {
-  const fixes = proposeBrandFixes(palette).filter((f) => f.modes.includes(mode));
+/** Score restricted to a single presentation mode (optionally one scope). */
+export function readabilityScoreForMode(
+  palette: BrandPalette,
+  mode: BrandMode,
+  scope?: BrandScope,
+): number {
+  const fixes = proposeBrandFixes(palette).filter(
+    (f) => f.modes.includes(mode) && (!scope || f.scope === scope),
+  );
+
   if (fixes.length === 0) return 100;
   const penalty = fixes.reduce((sum, f) => sum + (f.severity === "fail" ? 22 : 12), 0);
   return Math.max(10, 100 - penalty);
