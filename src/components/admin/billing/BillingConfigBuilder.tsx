@@ -599,7 +599,9 @@ export function BillingConfigBuilder({ value, onChange, scope, placeholders = {}
 /** One-line human summary of the enabled toggles in a builder value. */
 export function summarizeBuilderValue(v: BillingConfigValue): string {
   const parts: string[] = [];
-  if (v.commission_enabled && v.commission_rate) parts.push(`${v.commission_rate}% commission`);
+  if (v.commission_enabled && v.commission_rate) parts.push(`${v.commission_rate}% listing commission`);
+  if (v.commission_enabled && v.pms_commission_rate) parts.push(`${v.pms_commission_rate}% PMS/direct commission`);
+
   if (v.widget_flat_enabled && v.widget_flat_rate) parts.push(`${v.widget_flat_rate}% widget flat commission`);
   if (v.widget_tiers_enabled) parts.push("widget tiered commission");
 
