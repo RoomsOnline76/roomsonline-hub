@@ -12,12 +12,36 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2, Pencil, Copy, ChevronDown, ChevronRight, FolderOpen, Loader2, Building2, ExternalLink, Upload, X, Star, MapPin, AlertTriangle, Sparkles, ShieldCheck } from "lucide-react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { PortfolioRuAccountsTab } from "@/components/portfolio/PortfolioRuAccountsTab";
+import {
+  Plus,
+  Trash2,
+  Pencil,
+  Copy,
+  ChevronDown,
+  ChevronRight,
+  FolderOpen,
+  Loader2,
+  Building2,
+  ExternalLink,
+  Upload,
+  X,
+  Star,
+  MapPin,
+  AlertTriangle,
+  Sparkles,
+} from "lucide-react";
 import { GooglePlaceSearchDialog } from "@/components/integrations/GooglePlaceSearchDialog";
 import { contrastRatio } from "@/lib/brandOverride";
 import { PUBLIC_DOMAIN } from "@/lib/config";
@@ -26,7 +50,6 @@ import { GoogleFontPicker } from "@/components/property/GoogleFontPicker";
 import { RevenueShareSection } from "@/components/portfolio/RevenueShareSection";
 import { PortfolioPaymentProviderCard } from "@/components/portfolio/PortfolioPaymentProviderCard";
 import { BrandReadabilityPanel } from "@/components/branding/BrandReadabilityPanel";
-
 
 interface PortfolioBranding {
   primary_color?: string;
@@ -130,9 +153,7 @@ export default function AdminPortfolios() {
   const { data: members = [] } = useQuery({
     queryKey: ["admin-portfolio-members"],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("property_portfolio_members" as any)
-        .select("*");
+      const { data } = await supabase.from("property_portfolio_members" as any).select("*");
       return (data || []) as unknown as PortfolioMember[];
     },
   });
@@ -142,7 +163,9 @@ export default function AdminPortfolios() {
     queryFn: async () => {
       const { data } = await supabase
         .from("properties")
-        .select("id, name, owner_email, city, brand_primary_color, brand_secondary_color, brand_font_color, brand_logo_url, brand_heading_font, brand_body_font, amenities, payment_provider_override")
+        .select(
+          "id, name, owner_email, city, brand_primary_color, brand_secondary_color, brand_font_color, brand_logo_url, brand_heading_font, brand_body_font, amenities, payment_provider_override",
+        )
         .eq("is_active", true)
         .order("name");
       return (data || []) as Property[];
@@ -167,20 +190,35 @@ export default function AdminPortfolios() {
         google_place_id: ids.google_place_id || existingExtIds.google_place_id || null,
         tripadvisor_id: ids.tripadvisor_id || existingExtIds.tripadvisor_id || null,
       };
-      await supabase.from("properties").update({
-        amenities: { ...existingAmenities, external_ids: newExtIds },
-      }).eq("id", pid);
+      await supabase
+        .from("properties")
+        .update({
+          amenities: { ...existingAmenities, external_ids: newExtIds },
+        })
+        .eq("id", pid);
     }
   };
   const createMutation = useMutation({
     mutationFn: async () => {
-      const autoSlug = formSlug.trim() || formName.toLowerCase().replace(/[^a-z0-9\s-]/g, "").replace(/\s+/g, "-");
+      const autoSlug =
+        formSlug.trim() ||
+        formName
+          .toLowerCase()
+          .replace(/[^a-z0-9\s-]/g, "")
+          .replace(/\s+/g, "-");
       const branding: PortfolioBranding = {
-        primary_color: brandPrimary, secondary_color: brandSecondary, font_color: brandFontColor,
-        logo_url: brandLogoUrl || undefined, heading_font: brandHeadingFont || undefined, body_font: brandBodyFont || undefined,
-        heading_text_color: brandHeadingTextColor || undefined, body_text_color: brandBodyTextColor || undefined,
-        muted_text_color: brandMutedTextColor || undefined, light_bg_color: brandLightBgColor || undefined,
-        dark_bg_color: brandDarkBgColor || undefined, hero_video_url: brandHeroVideoUrl || undefined,
+        primary_color: brandPrimary,
+        secondary_color: brandSecondary,
+        font_color: brandFontColor,
+        logo_url: brandLogoUrl || undefined,
+        heading_font: brandHeadingFont || undefined,
+        body_font: brandBodyFont || undefined,
+        heading_text_color: brandHeadingTextColor || undefined,
+        body_text_color: brandBodyTextColor || undefined,
+        muted_text_color: brandMutedTextColor || undefined,
+        light_bg_color: brandLightBgColor || undefined,
+        dark_bg_color: brandDarkBgColor || undefined,
+        hero_video_url: brandHeroVideoUrl || undefined,
         pinned_featured_ids: pinnedFeaturedIds.length > 0 ? pinnedFeaturedIds : undefined,
         allow_property_brand_override: allowPropertyBrandOverride || undefined,
       };
@@ -192,7 +230,13 @@ export default function AdminPortfolios() {
       };
       const { data: portfolio, error } = await supabase
         .from("property_portfolios" as any)
-        .insert({ name: formName, slug: autoSlug, owner_id: user?.user?.id, metadata: { branding }, ...aggPayload } as any)
+        .insert({
+          name: formName,
+          slug: autoSlug,
+          owner_id: user?.user?.id,
+          metadata: { branding },
+          ...aggPayload,
+        } as any)
         .select()
         .single();
       if (error) throw error;
@@ -215,13 +259,25 @@ export default function AdminPortfolios() {
   const updateMutation = useMutation({
     mutationFn: async () => {
       if (!editPortfolio) return;
-      const autoSlug = formSlug.trim() || formName.toLowerCase().replace(/[^a-z0-9\s-]/g, "").replace(/\s+/g, "-");
+      const autoSlug =
+        formSlug.trim() ||
+        formName
+          .toLowerCase()
+          .replace(/[^a-z0-9\s-]/g, "")
+          .replace(/\s+/g, "-");
       const branding: PortfolioBranding = {
-        primary_color: brandPrimary, secondary_color: brandSecondary, font_color: brandFontColor,
-        logo_url: brandLogoUrl || undefined, heading_font: brandHeadingFont || undefined, body_font: brandBodyFont || undefined,
-        heading_text_color: brandHeadingTextColor || undefined, body_text_color: brandBodyTextColor || undefined,
-        muted_text_color: brandMutedTextColor || undefined, light_bg_color: brandLightBgColor || undefined,
-        dark_bg_color: brandDarkBgColor || undefined, hero_video_url: brandHeroVideoUrl || undefined,
+        primary_color: brandPrimary,
+        secondary_color: brandSecondary,
+        font_color: brandFontColor,
+        logo_url: brandLogoUrl || undefined,
+        heading_font: brandHeadingFont || undefined,
+        body_font: brandBodyFont || undefined,
+        heading_text_color: brandHeadingTextColor || undefined,
+        body_text_color: brandBodyTextColor || undefined,
+        muted_text_color: brandMutedTextColor || undefined,
+        light_bg_color: brandLightBgColor || undefined,
+        dark_bg_color: brandDarkBgColor || undefined,
+        hero_video_url: brandHeroVideoUrl || undefined,
         pinned_featured_ids: pinnedFeaturedIds.length > 0 ? pinnedFeaturedIds : undefined,
         allow_property_brand_override: allowPropertyBrandOverride || undefined,
       };
@@ -237,7 +293,10 @@ export default function AdminPortfolios() {
         .eq("id", editPortfolio.id);
       if (error) throw error;
       // Sync members: delete all then re-insert
-      await supabase.from("property_portfolio_members" as any).delete().eq("portfolio_id", editPortfolio.id);
+      await supabase
+        .from("property_portfolio_members" as any)
+        .delete()
+        .eq("portfolio_id", editPortfolio.id);
       if (selectedProps.length > 0) {
         const rows = selectedProps.map((pid) => ({ portfolio_id: editPortfolio.id, property_id: pid }));
         await supabase.from("property_portfolio_members" as any).insert(rows as any);
@@ -255,7 +314,10 @@ export default function AdminPortfolios() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("property_portfolios" as any).delete().eq("id", id);
+      const { error } = await supabase
+        .from("property_portfolios" as any)
+        .delete()
+        .eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -331,7 +393,8 @@ export default function AdminPortfolios() {
     if (!firstProp) return;
     // Only inherit if field is still at default (empty or default hex)
     if (brandPrimary === "#2563eb" && firstProp.brand_primary_color) setBrandPrimary(firstProp.brand_primary_color);
-    if (brandSecondary === "#1e40af" && firstProp.brand_secondary_color) setBrandSecondary(firstProp.brand_secondary_color);
+    if (brandSecondary === "#1e40af" && firstProp.brand_secondary_color)
+      setBrandSecondary(firstProp.brand_secondary_color);
     if (brandFontColor === "#333333" && firstProp.brand_font_color) setBrandFontColor(firstProp.brand_font_color);
     if (!brandLogoUrl && firstProp.brand_logo_url) setBrandLogoUrl(firstProp.brand_logo_url);
     if (!brandHeadingFont && firstProp.brand_heading_font) setBrandHeadingFont(firstProp.brand_heading_font);
@@ -346,7 +409,10 @@ export default function AdminPortfolios() {
         // Initialize review IDs from property data
         const prop = properties.find((p) => p.id === id);
         const ext = prop?.amenities?.external_ids || {};
-        setReviewIds((r) => ({ ...r, [id]: { google_place_id: ext.google_place_id || "", tripadvisor_id: ext.tripadvisor_id || "" } }));
+        setReviewIds((r) => ({
+          ...r,
+          [id]: { google_place_id: ext.google_place_id || "", tripadvisor_id: ext.tripadvisor_id || "" },
+        }));
       }
       return next;
     });
@@ -366,7 +432,7 @@ export default function AdminPortfolios() {
     (p) =>
       p.name.toLowerCase().includes(propertySearch.toLowerCase()) ||
       (p.owner_email || "").toLowerCase().includes(propertySearch.toLowerCase()) ||
-      (p.city || "").toLowerCase().includes(propertySearch.toLowerCase())
+      (p.city || "").toLowerCase().includes(propertySearch.toLowerCase()),
   );
 
   const copySnippet = (slug: string) => {
@@ -427,14 +493,8 @@ export default function AdminPortfolios() {
       />
       <ScrollArea className="h-56 border border-border rounded-md p-2">
         {filteredProperties.map((prop) => (
-          <label
-            key={prop.id}
-            className="flex items-center gap-2 py-1.5 px-1 hover:bg-muted/50 rounded cursor-pointer"
-          >
-            <Checkbox
-              checked={selectedProps.includes(prop.id)}
-              onCheckedChange={() => toggleProp(prop.id)}
-            />
+          <label key={prop.id} className="flex items-center gap-2 py-1.5 px-1 hover:bg-muted/50 rounded cursor-pointer">
+            <Checkbox checked={selectedProps.includes(prop.id)} onCheckedChange={() => toggleProp(prop.id)} />
             <div className="flex flex-col">
               <span className="text-xs font-medium">{prop.name}</span>
               <span className="text-[10px] text-muted-foreground">
@@ -455,7 +515,12 @@ export default function AdminPortfolios() {
     <div className="space-y-4">
       <div className="space-y-1">
         <Label className="text-xs">Portfolio Name</Label>
-        <Input value={formName} onChange={(e) => setFormName(e.target.value)} placeholder="e.g. Western Cape Collection" className="text-sm" />
+        <Input
+          value={formName}
+          onChange={(e) => setFormName(e.target.value)}
+          placeholder="e.g. Western Cape Collection"
+          className="text-sm"
+        />
       </div>
       <div className="space-y-1">
         <Label className="text-xs">Slug (for embed URL)</Label>
@@ -474,10 +539,32 @@ export default function AdminPortfolios() {
         <div className="space-y-1">
           <Label className="text-[10px] text-muted-foreground">Logo</Label>
           <div className="flex gap-2 items-center">
-            <Input value={brandLogoUrl} onChange={(e) => setBrandLogoUrl(e.target.value)} placeholder="https://example.com/logo.png" className="text-sm flex-1" />
-            <input ref={logoInputRef} type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" className="hidden" onChange={handleLogoUpload} />
-            <Button type="button" variant="outline" size="sm" className="h-9 text-xs shrink-0" disabled={logoUploading} onClick={() => logoInputRef.current?.click()}>
-              {logoUploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5 mr-1" />}
+            <Input
+              value={brandLogoUrl}
+              onChange={(e) => setBrandLogoUrl(e.target.value)}
+              placeholder="https://example.com/logo.png"
+              className="text-sm flex-1"
+            />
+            <input
+              ref={logoInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/svg+xml,image/webp"
+              className="hidden"
+              onChange={handleLogoUpload}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-9 text-xs shrink-0"
+              disabled={logoUploading}
+              onClick={() => logoInputRef.current?.click()}
+            >
+              {logoUploading ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Upload className="h-3.5 w-3.5 mr-1" />
+              )}
               Upload
             </Button>
           </div>
@@ -486,73 +573,176 @@ export default function AdminPortfolios() {
           <div className="space-y-1">
             <Label className="text-[10px] text-muted-foreground">Primary</Label>
             <div className="flex gap-1.5 items-center">
-              <input type="color" value={brandPrimary} onChange={(e) => setBrandPrimary(e.target.value)} className="h-7 w-7 rounded border border-border cursor-pointer" />
-              <Input value={brandPrimary} onChange={(e) => setBrandPrimary(e.target.value)} className="text-xs font-mono h-7 flex-1" />
+              <input
+                type="color"
+                value={brandPrimary}
+                onChange={(e) => setBrandPrimary(e.target.value)}
+                className="h-7 w-7 rounded border border-border cursor-pointer"
+              />
+              <Input
+                value={brandPrimary}
+                onChange={(e) => setBrandPrimary(e.target.value)}
+                className="text-xs font-mono h-7 flex-1"
+              />
             </div>
           </div>
           <div className="space-y-1">
             <Label className="text-[10px] text-muted-foreground">Secondary</Label>
             <div className="flex gap-1.5 items-center">
-              <input type="color" value={brandSecondary} onChange={(e) => setBrandSecondary(e.target.value)} className="h-7 w-7 rounded border border-border cursor-pointer" />
-              <Input value={brandSecondary} onChange={(e) => setBrandSecondary(e.target.value)} className="text-xs font-mono h-7 flex-1" />
+              <input
+                type="color"
+                value={brandSecondary}
+                onChange={(e) => setBrandSecondary(e.target.value)}
+                className="h-7 w-7 rounded border border-border cursor-pointer"
+              />
+              <Input
+                value={brandSecondary}
+                onChange={(e) => setBrandSecondary(e.target.value)}
+                className="text-xs font-mono h-7 flex-1"
+              />
             </div>
           </div>
           <div className="space-y-1">
             <Label className="text-[10px] text-muted-foreground">Font Color</Label>
             <div className="flex gap-1.5 items-center">
-              <input type="color" value={brandFontColor} onChange={(e) => setBrandFontColor(e.target.value)} className="h-7 w-7 rounded border border-border cursor-pointer" />
-              <Input value={brandFontColor} onChange={(e) => setBrandFontColor(e.target.value)} className="text-xs font-mono h-7 flex-1" />
+              <input
+                type="color"
+                value={brandFontColor}
+                onChange={(e) => setBrandFontColor(e.target.value)}
+                className="h-7 w-7 rounded border border-border cursor-pointer"
+              />
+              <Input
+                value={brandFontColor}
+                onChange={(e) => setBrandFontColor(e.target.value)}
+                className="text-xs font-mono h-7 flex-1"
+              />
             </div>
           </div>
         </div>
-        <Label className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider pt-1">Text Colours</Label>
+        <Label className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider pt-1">
+          Text Colours
+        </Label>
         <div className="grid grid-cols-3 gap-2">
           <div className="space-y-1">
             <Label className="text-[10px] text-muted-foreground">Heading Text</Label>
             <div className="flex gap-1.5 items-center">
-              <input type="color" value={brandHeadingTextColor || "#000000"} onChange={(e) => setBrandHeadingTextColor(e.target.value)} className="h-7 w-7 rounded border border-border cursor-pointer" />
-              <Input value={brandHeadingTextColor} onChange={(e) => setBrandHeadingTextColor(e.target.value)} placeholder="#" className="text-xs font-mono h-7 flex-1" />
+              <input
+                type="color"
+                value={brandHeadingTextColor || "#000000"}
+                onChange={(e) => setBrandHeadingTextColor(e.target.value)}
+                className="h-7 w-7 rounded border border-border cursor-pointer"
+              />
+              <Input
+                value={brandHeadingTextColor}
+                onChange={(e) => setBrandHeadingTextColor(e.target.value)}
+                placeholder="#"
+                className="text-xs font-mono h-7 flex-1"
+              />
             </div>
           </div>
           <div className="space-y-1">
             <Label className="text-[10px] text-muted-foreground">Body Text</Label>
             <div className="flex gap-1.5 items-center">
-              <input type="color" value={brandBodyTextColor || "#000000"} onChange={(e) => setBrandBodyTextColor(e.target.value)} className="h-7 w-7 rounded border border-border cursor-pointer" />
-              <Input value={brandBodyTextColor} onChange={(e) => setBrandBodyTextColor(e.target.value)} placeholder="#" className="text-xs font-mono h-7 flex-1" />
+              <input
+                type="color"
+                value={brandBodyTextColor || "#000000"}
+                onChange={(e) => setBrandBodyTextColor(e.target.value)}
+                className="h-7 w-7 rounded border border-border cursor-pointer"
+              />
+              <Input
+                value={brandBodyTextColor}
+                onChange={(e) => setBrandBodyTextColor(e.target.value)}
+                placeholder="#"
+                className="text-xs font-mono h-7 flex-1"
+              />
             </div>
           </div>
           <div className="space-y-1">
             <Label className="text-[10px] text-muted-foreground">Muted / Links</Label>
             <div className="flex gap-1.5 items-center">
-              <input type="color" value={brandMutedTextColor || "#000000"} onChange={(e) => setBrandMutedTextColor(e.target.value)} className="h-7 w-7 rounded border border-border cursor-pointer" />
-              <Input value={brandMutedTextColor} onChange={(e) => setBrandMutedTextColor(e.target.value)} placeholder="#" className="text-xs font-mono h-7 flex-1" />
+              <input
+                type="color"
+                value={brandMutedTextColor || "#000000"}
+                onChange={(e) => setBrandMutedTextColor(e.target.value)}
+                className="h-7 w-7 rounded border border-border cursor-pointer"
+              />
+              <Input
+                value={brandMutedTextColor}
+                onChange={(e) => setBrandMutedTextColor(e.target.value)}
+                placeholder="#"
+                className="text-xs font-mono h-7 flex-1"
+              />
             </div>
           </div>
         </div>
-        <Label className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider pt-1">Background Colours</Label>
+        <Label className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider pt-1">
+          Background Colours
+        </Label>
         <div className="grid grid-cols-2 gap-2">
           <div className="space-y-1">
             <Label className="text-[10px] text-muted-foreground">Light BG / Cards</Label>
             <div className="flex gap-1.5 items-center">
-              <input type="color" value={brandLightBgColor || "#ffffff"} onChange={(e) => setBrandLightBgColor(e.target.value)} className="h-7 w-7 rounded border border-border cursor-pointer" />
-              <Input value={brandLightBgColor} onChange={(e) => setBrandLightBgColor(e.target.value)} placeholder="#" className="text-xs font-mono h-7 flex-1" />
+              <input
+                type="color"
+                value={brandLightBgColor || "#ffffff"}
+                onChange={(e) => setBrandLightBgColor(e.target.value)}
+                className="h-7 w-7 rounded border border-border cursor-pointer"
+              />
+              <Input
+                value={brandLightBgColor}
+                onChange={(e) => setBrandLightBgColor(e.target.value)}
+                placeholder="#"
+                className="text-xs font-mono h-7 flex-1"
+              />
             </div>
           </div>
           <div className="space-y-1">
             <Label className="text-[10px] text-muted-foreground">Dark BG Accent</Label>
             <div className="flex gap-1.5 items-center">
-              <input type="color" value={brandDarkBgColor || "#000000"} onChange={(e) => setBrandDarkBgColor(e.target.value)} className="h-7 w-7 rounded border border-border cursor-pointer" />
-              <Input value={brandDarkBgColor} onChange={(e) => setBrandDarkBgColor(e.target.value)} placeholder="#" className="text-xs font-mono h-7 flex-1" />
+              <input
+                type="color"
+                value={brandDarkBgColor || "#000000"}
+                onChange={(e) => setBrandDarkBgColor(e.target.value)}
+                className="h-7 w-7 rounded border border-border cursor-pointer"
+              />
+              <Input
+                value={brandDarkBgColor}
+                onChange={(e) => setBrandDarkBgColor(e.target.value)}
+                placeholder="#"
+                className="text-xs font-mono h-7 flex-1"
+              />
             </div>
           </div>
         </div>
         <div className="space-y-1 pt-1">
           <Label className="text-[10px] text-muted-foreground">Hero Video</Label>
           <div className="flex gap-2 items-center">
-            <Input value={brandHeroVideoUrl} onChange={(e) => setBrandHeroVideoUrl(e.target.value)} placeholder="YouTube or direct video URL" className="text-xs flex-1" />
-            <input ref={heroVideoInputRef} type="file" accept="video/*" className="hidden" onChange={handleHeroVideoUpload} />
-            <Button type="button" variant="outline" size="sm" className="h-9 text-xs shrink-0" disabled={heroVideoUploading} onClick={() => heroVideoInputRef.current?.click()}>
-              {heroVideoUploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5 mr-1" />}
+            <Input
+              value={brandHeroVideoUrl}
+              onChange={(e) => setBrandHeroVideoUrl(e.target.value)}
+              placeholder="YouTube or direct video URL"
+              className="text-xs flex-1"
+            />
+            <input
+              ref={heroVideoInputRef}
+              type="file"
+              accept="video/*"
+              className="hidden"
+              onChange={handleHeroVideoUpload}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-9 text-xs shrink-0"
+              disabled={heroVideoUploading}
+              onClick={() => heroVideoInputRef.current?.click()}
+            >
+              {heroVideoUploading ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Upload className="h-3.5 w-3.5 mr-1" />
+              )}
               Upload
             </Button>
           </div>
@@ -586,12 +776,14 @@ export default function AdminPortfolios() {
           />
         )}
 
-
         {/* Property Brand Override Toggle */}
         <div className="flex items-center justify-between gap-3 pt-2 pb-1 px-1 rounded-lg border border-border bg-muted/20 p-3">
           <div className="space-y-0.5">
             <Label className="text-xs font-medium">Allow property branding override</Label>
-            <p className="text-[10px] text-muted-foreground leading-snug">When enabled, each property's own brand colours replace the portfolio brand once selected. When off (default), portfolio branding carries through to checkout.</p>
+            <p className="text-[10px] text-muted-foreground leading-snug">
+              When enabled, each property's own brand colours replace the portfolio brand once selected. When off
+              (default), portfolio branding carries through to checkout.
+            </p>
           </div>
           <Switch checked={allowPropertyBrandOverride} onCheckedChange={setAllowPropertyBrandOverride} />
         </div>
@@ -599,8 +791,13 @@ export default function AdminPortfolios() {
         {/* Featured Pick Pinning */}
         {selectedProps.length > 0 && (
           <div className="space-y-1.5 pt-1">
-            <Label className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Featured Pick</Label>
-            <p className="text-[10px] text-muted-foreground">Pin one or more properties as "Featured Pick" on the portfolio page. If multiple are pinned, one is randomly shown. Leave empty for AI-selected.</p>
+            <Label className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">
+              Featured Pick
+            </Label>
+            <p className="text-[10px] text-muted-foreground">
+              Pin one or more properties as "Featured Pick" on the portfolio page. If multiple are pinned, one is
+              randomly shown. Leave empty for AI-selected.
+            </p>
             <div className="space-y-1 max-h-32 overflow-y-auto rounded-md border border-border p-2 bg-muted/20">
               {selectedProps.map((pid) => {
                 const prop = properties.find((p) => p.id === pid);
@@ -626,7 +823,10 @@ export default function AdminPortfolios() {
               })}
             </div>
             {pinnedFeaturedIds.length > 0 && (
-              <p className="text-[10px] text-amber-600">{pinnedFeaturedIds.length} pinned — {pinnedFeaturedIds.length > 1 ? "one will be randomly shown" : "this property will always be featured"}</p>
+              <p className="text-[10px] text-amber-600">
+                {pinnedFeaturedIds.length} pinned —{" "}
+                {pinnedFeaturedIds.length > 1 ? "one will be randomly shown" : "this property will always be featured"}
+              </p>
             )}
           </div>
         )}
@@ -646,9 +846,20 @@ export default function AdminPortfolios() {
         </div>
         {brandLogoUrl && (
           <div className="flex items-center gap-2 p-2 rounded-md bg-muted/50 border border-border">
-            <img src={brandLogoUrl} alt="Logo preview" className="h-8 object-contain" onError={(e) => (e.currentTarget.style.display = 'none')} />
+            <img
+              src={brandLogoUrl}
+              alt="Logo preview"
+              className="h-8 object-contain"
+              onError={(e) => (e.currentTarget.style.display = "none")}
+            />
             <span className="text-[10px] text-muted-foreground flex-1">Logo preview</span>
-            <Button type="button" variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => setBrandLogoUrl("")}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 shrink-0"
+              onClick={() => setBrandLogoUrl("")}
+            >
               <X className="h-3 w-3" />
             </Button>
           </div>
@@ -659,8 +870,8 @@ export default function AdminPortfolios() {
       <div className="space-y-2 border-t border-border pt-3">
         <Label className="text-xs font-semibold">Portfolio Aggregator Billing</Label>
         <p className="text-[10px] text-muted-foreground">
-          Charged at the portfolio level in addition to each member property's own billing strategy.
-          Choose <strong>Monthly</strong> for a recurring listing fee or <strong>Once-off</strong> for a one-time setup fee.
+          Charged at the portfolio level in addition to each member property's own billing strategy. Choose{" "}
+          <strong>Monthly</strong> for a recurring listing fee or <strong>Once-off</strong> for a one-time setup fee.
         </p>
         <div className="grid grid-cols-3 gap-2">
           <div className="space-y-1">
@@ -678,7 +889,9 @@ export default function AdminPortfolios() {
           <div className="space-y-1">
             <Label className="text-[10px] text-muted-foreground">Monthly (ZAR)</Label>
             <Input
-              type="number" min="0" step="50"
+              type="number"
+              min="0"
+              step="50"
               value={aggMonthly}
               onChange={(e) => setAggMonthly(e.target.value)}
               disabled={aggMode !== "monthly"}
@@ -689,7 +902,9 @@ export default function AdminPortfolios() {
           <div className="space-y-1">
             <Label className="text-[10px] text-muted-foreground">Once-off (ZAR)</Label>
             <Input
-              type="number" min="0" step="50"
+              type="number"
+              min="0"
+              step="50"
               value={aggSetup}
               onChange={(e) => setAggSetup(e.target.value)}
               disabled={aggMode !== "once_off"}
@@ -700,7 +915,8 @@ export default function AdminPortfolios() {
         </div>
         {editPortfolio?.aggregator_activated_at && aggMode === "once_off" && (
           <p className="text-[10px] text-amber-600">
-            Once-off fee already billed on {new Date(editPortfolio.aggregator_activated_at).toLocaleDateString()} — no further charges.
+            Once-off fee already billed on {new Date(editPortfolio.aggregator_activated_at).toLocaleDateString()} — no
+            further charges.
           </p>
         )}
       </div>
@@ -713,7 +929,9 @@ export default function AdminPortfolios() {
           <Label className="text-xs font-semibold flex items-center gap-1.5">
             <Star className="h-3.5 w-3.5" /> Review Platforms
           </Label>
-          <p className="text-[10px] text-muted-foreground">Set Google & TripAdvisor IDs for each property to display ratings on the portfolio.</p>
+          <p className="text-[10px] text-muted-foreground">
+            Set Google & TripAdvisor IDs for each property to display ratings on the portfolio.
+          </p>
           <div className="space-y-2 max-h-64 overflow-y-auto">
             {selectedProps.map((pid) => {
               const prop = properties.find((p) => p.id === pid);
@@ -733,7 +951,9 @@ export default function AdminPortfolios() {
                       <div className="flex gap-1">
                         <Input
                           value={ids.google_place_id}
-                          onChange={(e) => setReviewIds((r) => ({ ...r, [pid]: { ...ids, google_place_id: e.target.value } }))}
+                          onChange={(e) =>
+                            setReviewIds((r) => ({ ...r, [pid]: { ...ids, google_place_id: e.target.value } }))
+                          }
                           placeholder="e.g. ChIJ..."
                           className="text-xs font-mono h-7"
                         />
@@ -755,7 +975,9 @@ export default function AdminPortfolios() {
                       </Label>
                       <Input
                         value={ids.tripadvisor_id}
-                        onChange={(e) => setReviewIds((r) => ({ ...r, [pid]: { ...ids, tripadvisor_id: e.target.value } }))}
+                        onChange={(e) =>
+                          setReviewIds((r) => ({ ...r, [pid]: { ...ids, tripadvisor_id: e.target.value } }))
+                        }
                         placeholder="e.g. 12345678"
                         className="text-xs font-mono h-7"
                       />
@@ -770,7 +992,9 @@ export default function AdminPortfolios() {
 
       <GooglePlaceSearchDialog
         open={placeSearchFor !== null}
-        onOpenChange={(v) => { if (!v) setPlaceSearchFor(null); }}
+        onOpenChange={(v) => {
+          if (!v) setPlaceSearchFor(null);
+        }}
         initialQuery={placeSearchFor?.query ?? ""}
         onSelect={(id) => {
           if (!placeSearchFor) return;
@@ -786,203 +1010,235 @@ export default function AdminPortfolios() {
 
   return (
     <AppLayout>
-    <div className="p-6 max-w-6xl mx-auto">
-      <PageHeader
-        title="Portfolio Management"
-        subtitle="Cross-owner property groupings"
-        actions={
-          <Dialog open={createOpen} onOpenChange={(o) => { setCreateOpen(o); if (!o) resetForm(); }}>
-            <DialogTrigger asChild>
-              <Button size="sm">
-                <Plus className="h-4 w-4 mr-1" />
-                New Portfolio
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Create Portfolio</DialogTitle>
-              </DialogHeader>
-              {renderFormFields()}
-              <DialogFooter>
-                <Button onClick={() => createMutation.mutate()} disabled={!formName.trim() || createMutation.isPending} size="sm">
-                  {createMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
-                  Create
+      <div className="p-6 max-w-6xl mx-auto">
+        <PageHeader
+          title="Portfolio Management"
+          subtitle="Property groupings"
+          actions={
+            <Dialog
+              open={createOpen}
+              onOpenChange={(o) => {
+                setCreateOpen(o);
+                if (!o) resetForm();
+              }}
+            >
+              <DialogTrigger asChild>
+                <Button size="sm">
+                  <Plus className="h-4 w-4 mr-1" />
+                  New Portfolio
                 </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        }
-      />
+              </DialogTrigger>
+              <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Create Portfolio</DialogTitle>
+                </DialogHeader>
+                {renderFormFields()}
+                <DialogFooter>
+                  <Button
+                    onClick={() => createMutation.mutate()}
+                    disabled={!formName.trim() || createMutation.isPending}
+                    size="sm"
+                  >
+                    {createMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
+                    Create
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          }
+        />
 
-      <Tabs defaultValue="portfolios" className="mt-4 space-y-4">
-        <TabsList>
-          <TabsTrigger value="portfolios" className="text-xs gap-1.5">
-            <FolderOpen className="h-3.5 w-3.5" /> Portfolios
-          </TabsTrigger>
-          <TabsTrigger value="ru" className="text-xs gap-1.5">
-            <ShieldCheck className="h-3.5 w-3.5" /> Rentals United
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="ru">
-          <PortfolioRuAccountsTab />
-        </TabsContent>
-
-        <TabsContent value="portfolios">
-      {isLoading ? (
-
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-        </div>
-      ) : portfolios.length === 0 ? (
-        <div className="text-center py-16 text-muted-foreground">
-          <FolderOpen className="h-10 w-10 mx-auto mb-3 opacity-40" />
-          <p className="text-sm">No portfolios yet. Create one to group properties across owners.</p>
-        </div>
-      ) : (
-        <div className="border border-border rounded-lg overflow-hidden">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-8"></TableHead>
-                <TableHead>Name</TableHead>
-                <TableHead>Slug</TableHead>
-                <TableHead className="text-center">Properties</TableHead>
-                <TableHead>Created</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {portfolios.map((p) => {
-                const expanded = expandedId === p.id;
-                const memberProps = getMemberProperties(p.id);
-                return (
-                  <>
-                    <TableRow key={p.id} className="cursor-pointer" onClick={() => setExpandedId(expanded ? null : p.id)}>
-                      <TableCell className="w-8">
-                        {expanded ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
-                      </TableCell>
-                      <TableCell className="font-medium">{p.name}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="font-mono text-[10px]">{p.slug}</Badge>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <Badge variant="secondary">{getMemberCount(p.id)}</Badge>
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
-                        {format(new Date(p.created_at), "dd MMM yyyy")}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => window.open(`${PUBLIC_DOMAIN}/embed/portfolio/${p.slug}`, '_blank')}>
-                            <ExternalLink className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => copySnippet(p.slug)}>
-                            <Copy className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(p)}>
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => setDeleteId(p.id)}>
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                    {expanded && (
-                      <TableRow key={`${p.id}-details`}>
-                        <TableCell colSpan={6} className="bg-muted/30 p-4">
-                          {memberProps.length === 0 ? (
-                            <p className="text-xs text-muted-foreground">No properties in this portfolio</p>
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : portfolios.length === 0 ? (
+          <div className="text-center py-16 text-muted-foreground">
+            <FolderOpen className="h-10 w-10 mx-auto mb-3 opacity-40" />
+            <p className="text-sm">No portfolios yet. Create one to group properties across owners.</p>
+          </div>
+        ) : (
+          <div className="border border-border rounded-lg overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-8"></TableHead>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Slug</TableHead>
+                  <TableHead className="text-center">Properties</TableHead>
+                  <TableHead>Created</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {portfolios.map((p) => {
+                  const expanded = expandedId === p.id;
+                  const memberProps = getMemberProperties(p.id);
+                  return (
+                    <>
+                      <TableRow
+                        key={p.id}
+                        className="cursor-pointer"
+                        onClick={() => setExpandedId(expanded ? null : p.id)}
+                      >
+                        <TableCell className="w-8">
+                          {expanded ? (
+                            <ChevronDown className="h-4 w-4 text-muted-foreground" />
                           ) : (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                              {memberProps.map((prop) => (
-                                <div key={prop.id} className="flex items-center gap-2 p-2 rounded-md bg-background border border-border">
-                                  <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
-                                  <div className="min-w-0">
-                                    <p className="text-xs font-medium truncate">{prop.name}</p>
-                                    <p className="text-[10px] text-muted-foreground truncate">
-                                      {prop.owner_email || "No owner"} {prop.city ? `· ${prop.city}` : ""}
-                                    </p>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
+                            <ChevronRight className="h-4 w-4 text-muted-foreground" />
                           )}
-                          <div className="mt-4">
-                            <RevenueShareSection
-                              portfolioId={p.id}
-                              properties={memberProps.map((mp) => ({ id: mp.id, name: mp.name }))}
-                              isAdmin
-                            />
-                          </div>
-                          <div className="mt-4">
-                            <PortfolioPaymentProviderCard
-                              portfolioId={p.id}
-                              properties={memberProps.map((mp) => ({
-                                id: mp.id,
-                                name: mp.name,
-                                payment_provider_override: mp.payment_provider_override,
-                              }))}
-                            />
+                        </TableCell>
+                        <TableCell className="font-medium">{p.name}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="font-mono text-[10px]">
+                            {p.slug}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Badge variant="secondary">{getMemberCount(p.id)}</Badge>
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {format(new Date(p.created_at), "dd MMM yyyy")}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              onClick={() => window.open(`${PUBLIC_DOMAIN}/embed/portfolio/${p.slug}`, "_blank")}
+                            >
+                              <ExternalLink className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => copySnippet(p.slug)}>
+                              <Copy className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(p)}>
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-destructive"
+                              onClick={() => setDeleteId(p.id)}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
                           </div>
                         </TableCell>
                       </TableRow>
-                    )}
-                  </>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </div>
-      )}
-        </TabsContent>
-      </Tabs>
+                      {expanded && (
+                        <TableRow key={`${p.id}-details`}>
+                          <TableCell colSpan={6} className="bg-muted/30 p-4">
+                            {memberProps.length === 0 ? (
+                              <p className="text-xs text-muted-foreground">No properties in this portfolio</p>
+                            ) : (
+                              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                                {memberProps.map((prop) => (
+                                  <div
+                                    key={prop.id}
+                                    className="flex items-center gap-2 p-2 rounded-md bg-background border border-border"
+                                  >
+                                    <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
+                                    <div className="min-w-0">
+                                      <p className="text-xs font-medium truncate">{prop.name}</p>
+                                      <p className="text-[10px] text-muted-foreground truncate">
+                                        {prop.owner_email || "No owner"} {prop.city ? `· ${prop.city}` : ""}
+                                      </p>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            <div className="mt-4">
+                              <RevenueShareSection
+                                portfolioId={p.id}
+                                properties={memberProps.map((mp) => ({ id: mp.id, name: mp.name }))}
+                                isAdmin
+                              />
+                            </div>
+                            <div className="mt-4">
+                              <PortfolioPaymentProviderCard
+                                portfolioId={p.id}
+                                properties={memberProps.map((mp) => ({
+                                  id: mp.id,
+                                  name: mp.name,
+                                  payment_provider_override: mp.payment_provider_override,
+                                }))}
+                              />
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        )}
 
+        {/* Edit Dialog */}
+        <Dialog
+          open={!!editPortfolio}
+          onOpenChange={(o) => {
+            if (!o) {
+              setEditPortfolio(null);
+              resetForm();
+            }
+          }}
+        >
+          <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Edit Portfolio</DialogTitle>
+            </DialogHeader>
+            {renderFormFields()}
+            {editPortfolio && (
+              <div className="mt-4">
+                <PortfolioPaymentProviderCard
+                  portfolioId={editPortfolio.id}
+                  properties={getMemberProperties(editPortfolio.id).map((mp) => ({
+                    id: mp.id,
+                    name: mp.name,
+                    payment_provider_override: mp.payment_provider_override,
+                  }))}
+                />
+              </div>
+            )}
+            <DialogFooter>
+              <Button
+                onClick={() => updateMutation.mutate()}
+                disabled={!formName.trim() || updateMutation.isPending}
+                size="sm"
+              >
+                {updateMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
+                Save Changes
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
-
-      {/* Edit Dialog */}
-      <Dialog open={!!editPortfolio} onOpenChange={(o) => { if (!o) { setEditPortfolio(null); resetForm(); } }}>
-        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Edit Portfolio</DialogTitle>
-          </DialogHeader>
-          {renderFormFields()}
-          {editPortfolio && (
-            <div className="mt-4">
-              <PortfolioPaymentProviderCard
-                portfolioId={editPortfolio.id}
-                properties={getMemberProperties(editPortfolio.id).map((mp) => ({
-                  id: mp.id,
-                  name: mp.name,
-                  payment_provider_override: mp.payment_provider_override,
-                }))}
-              />
-            </div>
-          )}
-          <DialogFooter>
-            <Button onClick={() => updateMutation.mutate()} disabled={!formName.trim() || updateMutation.isPending} size="sm">
-              {updateMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
-              Save Changes
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Delete Confirmation */}
-      <AlertDialog open={!!deleteId} onOpenChange={(o) => { if (!o) setDeleteId(null); }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Portfolio?</AlertDialogTitle>
-            <AlertDialogDescription>This will remove the portfolio and all member associations. Properties themselves won't be affected.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => deleteId && deleteMutation.mutate(deleteId)}>Delete</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </div>
+        {/* Delete Confirmation */}
+        <AlertDialog
+          open={!!deleteId}
+          onOpenChange={(o) => {
+            if (!o) setDeleteId(null);
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Portfolio?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will remove the portfolio and all member associations. Properties themselves won't be affected.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={() => deleteId && deleteMutation.mutate(deleteId)}>Delete</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
     </AppLayout>
   );
 }
