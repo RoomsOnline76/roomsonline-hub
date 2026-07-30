@@ -11,6 +11,8 @@ import { ConnectChannelDialog } from "@/components/pms/channels/ConnectChannelDi
 import { MappingTable } from "@/components/pms/channels/MappingTable";
 import { SyncLogTable } from "@/components/pms/channels/SyncLogTable";
 import { ALL_CHANNELS } from "@/components/pms/channels/ChannelLogo";
+import { RuReadinessScorecard } from "@/components/pms/channels/RuReadinessScorecard";
+
 import {
   useChannelConnections,
   useChannelRoomMappings,
