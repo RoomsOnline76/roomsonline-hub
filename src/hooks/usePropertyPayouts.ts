@@ -360,10 +360,10 @@ export function usePropertyPayouts(period?: PayoutPeriod | string) {
       });
 
 
-      const globalRow = pickGlobals(globalRows, undefined) as any;
       const globalTxFee = Number(
         (globalRows.find((r: any) => r.default_transaction_fee != null)?.default_transaction_fee) ?? 0,
       ) || 0;
+
 
       const result: PropertyPayout[] = Object.entries(propertyMap).map(([pid, p]) => {
         const resolved = scopes[pid];
