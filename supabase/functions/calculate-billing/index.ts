@@ -92,7 +92,7 @@ serve(async (req) => {
     if (booking_id) {
       const { data } = await supabase
         .from("bookings")
-        .select("id, property_id, total_price, check_in_date, integration_type, booking_channel, source_url, payment_status")
+        .select("id, property_id, total_price, check_in_date, integration_type, booking_channel, source_url, commission_type, payment_status")
         .eq("id", booking_id)
         .single();
       booking = data;
