@@ -67,11 +67,24 @@ async function resolveOwnerLocationIds(
 ): Promise<number[]> {
   const ids = new Set<number>();
 
-  let query = admin.from("properties").select("id, city, country, latitude, longitude");
-  if (portfolioId) query = query.eq("portfolio_id", portfolioId);
-  else if (propertyId) query = query.eq("id", propertyId);
-  else return [];
-  const { data: props } = await query;
+  let propertyIds: string[] = [];
+  if (portfolioId) {
+    const { data: members } = await admin
+      .from("property_portfolio_members")
+      .select("property_id")
+      .eq("portfolio_id", portfolioId);
+    propertyIds = ((members ?? []) as Array<{ property_id: string }>).map((m) => m.property_id);
+    if (propertyId && !propertyIds.includes(propertyId)) propertyIds.push(propertyId);
+  } else if (propertyId) {
+    propertyIds = [propertyId];
+  }
+  if (propertyIds.length === 0) return [];
+
+  const { data: props } = await admin
+    .from("properties")
+    .select("id, city, country, latitude, longitude")
+    .in("id", propertyIds);
+
   const properties = (props ?? []) as Array<{
     id: string; city: string | null; country: string | null; latitude: number | null; longitude: number | null;
   }>;
