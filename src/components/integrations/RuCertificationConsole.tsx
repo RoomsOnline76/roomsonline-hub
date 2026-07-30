@@ -503,11 +503,28 @@ export function RuCertificationConsole({ properties }: { properties: PropertyLit
                     </div>
                     <div className="space-y-1.5">
                       <Label className="text-xs">Discount %</Label>
-                      <Input className="w-[120px]" type="number" min={1} max={90} value={draft.discount_percent}
+                      <Input className="w-[120px]" type="number" min={1} max={99} value={draft.discount_percent}
                         onChange={(e) => setDraft({ ...draft, discount_percent: e.target.value })} />
                     </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Valid from</Label>
+                      <Input className="w-[160px]" type="date" value={draft.date_from}
+                        onChange={(e) => setDraft({ ...draft, date_from: e.target.value })} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Valid to</Label>
+                      <Input className="w-[160px]" type="date" value={draft.date_to}
+                        onChange={(e) => setDraft({ ...draft, date_to: e.target.value })} />
+                    </div>
                     <Button onClick={addDiscount} className="gap-1.5"><Plus className="h-4 w-4" />Add rule</Button>
+                    <Button variant="outline" disabled={running || discounts.length === 0} onClick={pushDiscountsNow} className="gap-1.5">
+                      <Percent className="h-4 w-4" />Push &amp; verify now
+                    </Button>
                   </div>
+                  <p className="text-xs text-muted-foreground">
+                    Leave the dates blank to apply the rule for the next 365 days. Rules also travel with the weekly
+                    content push to Rentals United.
+                  </p>
 
                   {discountsLoading ? <Skeleton className="h-24 w-full" /> : (
                     <Table>
@@ -516,6 +533,7 @@ export function RuCertificationConsole({ properties }: { properties: PropertyLit
                           <TableHead>Type</TableHead>
                           <TableHead>Threshold</TableHead>
                           <TableHead>Discount</TableHead>
+                          <TableHead>Validity</TableHead>
                           <TableHead>Active</TableHead>
                           <TableHead />
                         </TableRow>
@@ -526,6 +544,9 @@ export function RuCertificationConsole({ properties }: { properties: PropertyLit
                             <TableCell><Badge variant="outline">{d.discount_type === "long_stay" ? "Long stay" : "Last minute"}</Badge></TableCell>
                             <TableCell>{d.threshold} {d.discount_type === "long_stay" ? "nights" : "days out"}</TableCell>
                             <TableCell>{d.discount_percent}%</TableCell>
+                            <TableCell className="text-xs text-muted-foreground">
+                              {d.date_from || d.date_to ? `${d.date_from ?? "—"} → ${d.date_to ?? "—"}` : "Next 365 days"}
+                            </TableCell>
                             <TableCell><Switch checked={d.is_active} onCheckedChange={(v) => toggleDiscount(d, v)} /></TableCell>
                             <TableCell>
                               <Button variant="ghost" size="sm" onClick={() => deleteDiscount(d)}>
@@ -535,7 +556,7 @@ export function RuCertificationConsole({ properties }: { properties: PropertyLit
                           </TableRow>
                         ))}
                         {discounts.length === 0 && (
-                          <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-6">No discount rules yet.</TableCell></TableRow>
+                          <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-6">No discount rules yet.</TableCell></TableRow>
                         )}
                       </TableBody>
                     </Table>
