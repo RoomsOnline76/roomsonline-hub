@@ -653,11 +653,17 @@ Deno.serve(async (req) => {
 
       await admin.from("audit_logs").insert({
         user_id: user.id,
-        action_type: "view",
+        user_email: user.email ?? "unknown",
+        user_role: (roles ?? []).some((r: { role: string }) => r.role === "dev") ? "dev" : "admin",
+        action_type: "other",
         table_name: "ru_owner_accounts",
         record_id: account.id,
-        description: `Revealed Rentals United sub-user password for ${account.ru_login_email ?? account.owner_email} (OwnerID ${account.ru_owner_id ?? "?"})`,
+        request_origin: "edge_function",
+        edge_function_name: "ru-cert-portal",
+        is_sensitive: true,
+        change_summary: `Revealed Rentals United sub-user password for ${account.ru_login_email ?? account.owner_email} (OwnerID ${account.ru_owner_id ?? "?"})`,
       }).then(() => {}, (e) => console.warn("[ru-cert-portal] audit log insert failed", e));
+
 
       return json({
         success: true,
