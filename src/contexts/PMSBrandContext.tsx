@@ -1,10 +1,8 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
+import { useTheme } from "next-themes";
 import { supabase } from "@/integrations/supabase/client";
-import {
-  hexToHsl,
-  autoForeground,
-} from "@/lib/brandOverride";
+import { buildPmsBrandVars, type PmsBrandPalette, type UiMode } from "@/lib/brandOverride";
 import { loadGoogleFont } from "@/lib/brandFonts";
 
 interface PMSBrandData {
@@ -44,73 +42,24 @@ export function usePMSBrand() {
 }
 
 /**
- * Build CSS vars for PMS white-label. Unlike the public booking flow,
- * the PMS ALWAYS applies brand colours when they exist – no toggle needed.
- * This makes the property feel like it has its own custom software.
+ * Apply the PMS white-label palette for the ACTIVE light/dark mode.
+ *
+ * The PMS always applies brand colours when they exist, but only to brand
+ * identity tokens — structural surfaces stay on the theme so dark mode keeps
+ * working. Every colour is contrast-corrected for the current mode.
  */
-function applyPmsBrand(primary?: string | null, secondary?: string | null, font?: string | null, accent?: string | null, headingFont?: string | null, bodyFont?: string | null): () => void {
+function applyPmsBrand(palette: PmsBrandPalette, mode: UiMode): () => void {
+  if (palette.headingFont) loadGoogleFont(palette.headingFont);
+  if (palette.bodyFont) loadGoogleFont(palette.bodyFont);
+
+  const vars = buildPmsBrandVars(palette, mode);
   const root = document.documentElement;
-  const applied: string[] = [];
+  const keys = Object.keys(vars);
+  keys.forEach((key) => root.style.setProperty(key, vars[key]));
 
-  const set = (key: string, val: string) => {
-    root.style.setProperty(key, val);
-    applied.push(key);
-  };
-
-  if (primary) {
-    const hsl = hexToHsl(primary);
-    if (hsl) {
-      set("--primary", hsl);
-      set("--primary-foreground", autoForeground(primary));
-      set("--ring", hsl);
-      set("--chart-1", hsl);
-    }
-  }
-
-  if (secondary) {
-    const hsl = hexToHsl(secondary);
-    if (hsl) {
-      set("--secondary", hsl);
-      set("--secondary-foreground", autoForeground(secondary));
-      set("--muted", hsl);
-      set("--muted-foreground", autoForeground(secondary));
-    }
-  }
-
-  if (font) {
-    const hsl = hexToHsl(font);
-    if (hsl) {
-      set("--foreground", hsl);
-      set("--card-foreground", hsl);
-      set("--popover-foreground", hsl);
-    }
-  }
-
-  // Menu/sidebar accent colour
-  if (accent) {
-    const hsl = hexToHsl(accent);
-    if (hsl) {
-      set("--accent", hsl);
-      set("--accent-foreground", autoForeground(accent));
-      set("--sidebar-accent", hsl);
-      set("--sidebar-accent-foreground", autoForeground(accent));
-    }
-  }
-
-  // Brand fonts
-  if (headingFont) {
-    loadGoogleFont(headingFont);
-    set("--font-heading", `'${headingFont}', serif`);
-  }
-  if (bodyFont) {
-    loadGoogleFont(bodyFont);
-    set("--font-body", `'${bodyFont}', sans-serif`);
-  }
-
-  return () => {
-    applied.forEach((key) => root.style.removeProperty(key));
-  };
+  return () => keys.forEach((key) => root.style.removeProperty(key));
 }
+
 
 export function PMSBrandProvider({ children }: { children: ReactNode }) {
   const [searchParams] = useSearchParams();
