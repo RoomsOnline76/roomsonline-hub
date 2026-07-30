@@ -1183,17 +1183,15 @@ Deno.serve(async (req) => {
       const respondWithRedirectCheckout = async (reason: string) => {
         console.log("[PayFast] Falling back to redirect checkout:", reason);
 
-        await supabase.from("payment_transactions").insert({
+        await recordPendingTransaction(supabase, {
           booking_id,
           amount: booking.total_price,
-          currency: "ZAR",
-          status: "pending",
-          payment_provider: "payfast",
           m_payment_id: transRef,
           merchant_id: merchantId,
           credential_source: credentialSource,
           gateway_response: { trans_ref: transRef, form_fields: formFields, onsite: false, fallback_reason: reason },
         });
+
 
         await supabase
           .from("bookings")
