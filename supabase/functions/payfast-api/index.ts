@@ -626,14 +626,11 @@ Deno.serve(async (req) => {
       
       console.log(`[PayFast] Processing ITN: m_payment_id=${mPaymentId}, status=${paymentStatus}`);
       
-      // Find the payment transaction
-      const { data: transaction, error: txError } = await supabase
-        .from("payment_transactions")
-        .select("*")
-        .eq("m_payment_id", mPaymentId)
-        .single();
+      // Find the payment transaction (matches superseded retry refs too)
+      const transaction = await findTransactionByRef(supabase, mPaymentId);
       
-      if (txError || !transaction) {
+      if (!transaction) {
+
         // Check subscription invoice branch (m_payment_id like "SUB-<invoice_id>")
         if (typeof mPaymentId === "string" && mPaymentId.startsWith("SUB-")) {
           const invoiceId = mPaymentId.slice(4);
