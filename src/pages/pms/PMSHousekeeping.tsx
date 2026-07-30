@@ -1096,6 +1096,123 @@ export default function PMSHousekeeping() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ─── Action queue drawer (from the top action cards) ─────────────── */}
+      <Dialog open={!!queue} onOpenChange={(open) => { if (!open) setQueue(null); }}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {queue === "clean" && `Rooms to clean (${dirtyRoomsAll.length})`}
+              {queue === "tasks" && `Cleaning tasks (${openTasksAll.length})`}
+              {queue === "maintenance" && `Open maintenance dockets (${openDocketsAll.length})`}
+              {queue === "ready" && `Awaiting room-ready review (${awaitingReadyAll.length})`}
+            </DialogTitle>
+            <DialogDescription>Action each item directly from here — the board refreshes automatically.</DialogDescription>
+          </DialogHeader>
+
+          <div className="flex flex-wrap gap-2 pb-2 border-b border-border">
+            {([
+              ["clean", `To clean ${dirtyRoomsAll.length}`],
+              ["tasks", `Tasks ${openTasksAll.length}`],
+              ["maintenance", `Dockets ${openDocketsAll.length}`],
+              ["ready", `Review ${awaitingReadyAll.length}`],
+            ] as const).map(([k, label]) => (
+              <Button key={k} size="sm" variant={queue === k ? "default" : "outline"} className="h-7 text-xs" onClick={() => setQueue(k)}>
+                {label}
+              </Button>
+            ))}
+          </div>
+
+          <div className="space-y-2">
+            {queue === "clean" && (dirtyRoomsAll.length === 0
+              ? <p className="text-sm text-muted-foreground">Nothing to clean — all rooms are ready.</p>
+              : dirtyRoomsAll.map(room => (
+                <div key={room.id} className="flex items-center justify-between gap-3 border border-border rounded-md p-2">
+                  <div className="min-w-0">
+                    <p className="font-medium text-sm truncate">{room.room_number}</p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {roomTypeName(room.room_type_id)}{isPortfolio ? ` · ${propertyName(room.property_id)}` : ""}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Button size="sm" variant="ghost" className="text-xs" onClick={() => { setQueue(null); openDocketForRoom(room.id); }}>
+                      <Plus className="h-3 w-3 mr-1" />Issue
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => markRoomClean(room.id)}>
+                      <CheckCircle className="h-3 w-3 mr-1" />Mark clean
+                    </Button>
+                  </div>
+                </div>
+              )))}
+
+            {queue === "tasks" && (openTasksAll.length === 0
+              ? <p className="text-sm text-muted-foreground">No open cleaning tasks.</p>
+              : openTasksAll.map(task => (
+                <div key={task.id} className="flex items-center justify-between gap-3 border border-border rounded-md p-2">
+                  <div className="min-w-0">
+                    <p className="font-medium text-sm truncate">Room {roomLabel(task.room_id)}</p>
+                    <div className="flex items-center gap-1 mt-0.5">
+                      <Badge variant="outline" className="text-xs">{task.task_type}</Badge>
+                      <Badge className={cn("text-xs", PRIORITY_BADGE[task.priority] || "")}>{task.priority}</Badge>
+                      <Badge variant="outline" className="text-xs">{task.status}</Badge>
+                    </div>
+                  </div>
+                  <Button size="sm" variant="outline" className="shrink-0" onClick={() => completeCleanTask(task.id)}>
+                    <CheckCircle className="h-3 w-3 mr-1" />Done
+                  </Button>
+                </div>
+              )))}
+
+            {queue === "maintenance" && (openDocketsAll.length === 0
+              ? <p className="text-sm text-muted-foreground">No open dockets.</p>
+              : openDocketsAll.map(req => (
+                <div key={req.id} className="border border-border rounded-md p-2 space-y-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <AlertTriangle className="h-3 w-3 text-destructive shrink-0" />
+                    <span className="text-sm font-medium capitalize">{req.issue_type || "General"}</span>
+                    {req.priority && <Badge className={cn("text-xs", PRIORITY_BADGE[req.priority] || "")}>{req.priority}</Badge>}
+                    <Badge variant="outline" className="text-xs ml-auto">{req.status}</Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Room {req.room_id ? roomLabel(req.room_id) : "—"}
+                    {isPortfolio ? ` · ${roomPropertyName(req.room_id) || (req.property_id ? propertyName(req.property_id) : "")}` : ""}
+                  </p>
+                  <p className="text-xs">{req.description}</p>
+                  <Button size="sm" variant="outline" className="w-full" onClick={() => { setQueue(null); setResolveReq(req); setResolveNotes(""); }}>
+                    <CheckCircle className="h-3 w-3 mr-1" />Mark resolved
+                  </Button>
+                </div>
+              )))}
+
+            {queue === "ready" && (awaitingReadyAll.length === 0
+              ? <p className="text-sm text-muted-foreground">Nothing awaiting review.</p>
+              : awaitingReadyAll.map(req => (
+                <div key={req.id} className="border border-border rounded-md p-2 space-y-1.5">
+                  <p className="text-sm font-medium">
+                    Room {req.room_id ? roomLabel(req.room_id) : "—"}
+                    <span className="text-xs text-muted-foreground font-normal"> — {req.issue_type || "General"}</span>
+                  </p>
+                  {req.completion_notes && <p className="text-xs text-muted-foreground">Notes: {req.completion_notes}</p>}
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id={`queue-ready-${req.id}`}
+                      checked={req.room_ready_confirmed}
+                      onCheckedChange={(checked) => toggleRoomReady(req, !!checked)}
+                    />
+                    <Label htmlFor={`queue-ready-${req.id}`} className="text-xs cursor-pointer flex items-center gap-1">
+                      <ShieldCheck className="h-3 w-3" /> Room ready after repairs
+                    </Label>
+                  </div>
+                </div>
+              )))}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setQueue(null)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
+
