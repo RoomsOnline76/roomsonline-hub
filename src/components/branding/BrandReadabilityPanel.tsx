@@ -75,6 +75,8 @@ export function BrandReadabilityPanel({ palette, onApply, entityLabel = "propert
   const score = useMemo(() => readabilityScore(palette), [palette]);
   const dayScore = useMemo(() => readabilityScoreForMode(palette, "light"), [palette]);
   const darkScore = useMemo(() => readabilityScoreForMode(palette, "dark"), [palette]);
+  const bookingScore = useMemo(() => readabilityScoreForScope(palette, "booking"), [palette]);
+  const rolosScore = useMemo(() => readabilityScoreForScope(palette, "rolos"), [palette]);
 
   const signature = useMemo(
     () => fixes.map((f) => `${f.field}:${f.proposed}`).sort().join("|"),
