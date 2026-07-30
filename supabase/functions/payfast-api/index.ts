@@ -563,11 +563,17 @@ Deno.serve(async (req) => {
       // so the signature is verified with the correct passphrase (BYO or ROL).
       const itnRef = itnData.m_payment_id;
       if (itnRef) {
-        const { data: originTx } = await supabase
-          .from("payment_transactions")
-          .select("booking_id, merchant_id, credential_source, bookings(property_id)")
-          .eq("m_payment_id", itnRef)
-          .maybeSingle();
+        const baseTx = await findTransactionByRef(supabase, itnRef);
+        let originTx: any = null;
+        if (baseTx) {
+          const { data: withBooking } = await supabase
+            .from("payment_transactions")
+            .select("booking_id, merchant_id, credential_source, bookings(property_id)")
+            .eq("id", baseTx.id)
+            .maybeSingle();
+          originTx = withBooking || baseTx;
+        }
+
 
         if (originTx) {
           const originPropertyId = (originTx as any)?.bookings?.property_id || null;
