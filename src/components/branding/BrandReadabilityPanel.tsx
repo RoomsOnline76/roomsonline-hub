@@ -392,6 +392,42 @@ export function BrandReadabilityPanel({ palette, onApply, entityLabel = "propert
               </div>
             </div>
           </Replica>
+
+          {/* 6. ROLOS shell — surfaces are theme-owned, only brand colours move */}
+          <Replica
+            title={`ROLOS interface (${dark ? "dark" : "day"} mode)`}
+            checks={[
+              { label: "Primary on ROLOS shell", fg: primary, bg: rolosPage, min: AA_LARGE },
+              { label: "Button label on primary", fg: onPrimary.fg, bg: primary, min: AA_TEXT },
+              { label: "Card text", fg: rolosText, bg: rolosCard, min: AA_TEXT },
+            ]}
+          >
+            <div className="flex overflow-hidden rounded-md border" style={{ borderColor: dark ? "#ffffff22" : "#00000015", background: rolosPage }}>
+              <div className="w-24 shrink-0 p-2 space-y-1" style={{ background: rolosSidebar }}>
+                <div
+                  className="rounded px-2 py-1 text-[9px] font-medium"
+                  style={{ background: primary, color: onPrimary.fg }}
+                >
+                  Dashboard
+                </div>
+                <div className="px-2 py-1 text-[9px]" style={{ color: rolosMuted }}>Reservations</div>
+                <div className="px-2 py-1 text-[9px]" style={{ color: rolosMuted }}>Housekeeping</div>
+              </div>
+              <div className="flex-1 p-3 space-y-2">
+                <div className="text-xs font-semibold" style={{ color: rolosText }}>Occupancy today</div>
+                <div className="rounded-md border p-2" style={{ background: rolosCard, borderColor: dark ? "#ffffff1a" : "#00000012" }}>
+                  <div className="text-[10px]" style={{ color: rolosMuted }}>Rooms occupied</div>
+                  <div className="text-sm font-semibold" style={{ color: primary }}>18 / 24</div>
+                </div>
+                <span
+                  className="inline-block rounded px-2 py-1 text-[10px] font-medium"
+                  style={{ background: primary, color: onPrimary.fg }}
+                >
+                  New booking
+                </span>
+              </div>
+            </div>
+          </Replica>
         </CardContent>
       </Card>
     </div>
