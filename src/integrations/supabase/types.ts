@@ -10269,6 +10269,140 @@ export type Database = {
           },
         ]
       }
+      ru_cert_runs: {
+        Row: {
+          created_at: string
+          failed: number
+          finished_at: string | null
+          id: string
+          passed: number
+          property_id: string | null
+          ru_property_id: string | null
+          started_at: string
+          status: string
+          steps: Json
+          suite: string
+          total: number
+          triggered_by: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          failed?: number
+          finished_at?: string | null
+          id?: string
+          passed?: number
+          property_id?: string | null
+          ru_property_id?: string | null
+          started_at?: string
+          status?: string
+          steps?: Json
+          suite?: string
+          total?: number
+          triggered_by?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          failed?: number
+          finished_at?: string | null
+          id?: string
+          passed?: number
+          property_id?: string | null
+          ru_property_id?: string | null
+          started_at?: string
+          status?: string
+          steps?: Json
+          suite?: string
+          total?: number
+          triggered_by?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ru_cert_runs_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "ru_cert_runs_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ru_cert_runs_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ru_discounts: {
+        Row: {
+          created_at: string
+          date_from: string | null
+          date_to: string | null
+          discount_percent: number
+          discount_type: string
+          id: string
+          is_active: boolean
+          property_id: string
+          threshold: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          date_from?: string | null
+          date_to?: string | null
+          discount_percent: number
+          discount_type: string
+          id?: string
+          is_active?: boolean
+          property_id: string
+          threshold: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          date_from?: string | null
+          date_to?: string | null
+          discount_percent?: number
+          discount_type?: string
+          id?: string
+          is_active?: boolean
+          property_id?: string
+          threshold?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ru_discounts_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "ru_discounts_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ru_discounts_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ru_locations: {
         Row: {
           country: string
