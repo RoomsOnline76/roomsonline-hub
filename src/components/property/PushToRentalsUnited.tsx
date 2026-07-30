@@ -46,6 +46,11 @@ interface WlValidationFlags {
   has_payment_methods?: boolean;
   has_cancellation_policies?: boolean;
   beds_meet_max_guests?: boolean;
+  beds_cover_half?: boolean;
+  description_length?: number;
+  description_meets_recommended?: boolean;
+  amenities_padded?: boolean;
+  amenities_padded_count?: number;
   total_beds?: number;
   has_name?: boolean;
   has_object_type_id?: boolean;
