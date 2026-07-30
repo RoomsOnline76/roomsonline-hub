@@ -74,7 +74,7 @@ export function PaymentAdviceDialog({ payout, open, onOpenChange }: PaymentAdvic
               <span className="font-medium">{fmt(payout.gross_amount)}</span>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Commission ({payout.commission_rate}%)</span>
+              <span className="text-muted-foreground">Commission ({payout.commission_rate.toFixed(1)}% eff.)</span>
               <span className="text-destructive">−{fmt(payout.commission_amount)}</span>
             </div>
             {payout.white_label_fee > 0 && (
