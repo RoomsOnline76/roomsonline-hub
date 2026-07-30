@@ -225,6 +225,7 @@ export function usePropertyPayouts(period?: PayoutPeriod | string) {
           amount,
           status,
           created_at,
+          credential_source,
           bookings!inner(
             ${BOOKING_ORIGIN_FIELDS},
             properties!bookings_property_id_fkey!inner(id, name, owner_email)
@@ -242,12 +243,20 @@ export function usePropertyPayouts(period?: PayoutPeriod | string) {
       if (txError) throw txError;
 
       // Group gross per booking first — commission is resolved per booking origin.
-      const bookingGross: Record<string, { booking: any; gross: number; source: PayoutSource }> = {};
+      const bookingGross: Record<string, {
+        booking: any; gross: number; source: PayoutSource; settlement: SettlementRoute;
+      }> = {};
       (transactions || []).forEach((tx: any) => {
         const booking = tx.bookings;
         if (!booking?.properties) return;
         if (EXCLUDED_BOOKING_STATUSES.includes(String(booking.status || '').toLowerCase())) return;
-        if (!bookingGross[booking.id]) bookingGross[booking.id] = { booking, gross: 0, source: 'gateway' };
+        if (!bookingGross[booking.id]) {
+          bookingGross[booking.id] = {
+            booking, gross: 0, source: 'gateway', settlement: routeFromCredentialSource(tx.credential_source),
+          };
+        }
+        // A single BYO leg means the money never reached us.
+        if (routeFromCredentialSource(tx.credential_source) === 'byo') bookingGross[booking.id].settlement = 'byo';
         bookingGross[booking.id].gross += Number(tx.amount) || 0;
       });
 
@@ -268,7 +277,7 @@ export function usePropertyPayouts(period?: PayoutPeriod | string) {
         if (EXCLUDED_BOOKING_STATUSES.includes(String(b.status || '').toLowerCase())) return;
         const gross = Number(b.total_price) || 0;
         if (gross <= 0) return;
-        bookingGross[b.id] = { booking: b, gross, source: 'booking' };
+        bookingGross[b.id] = { booking: b, gross, source: 'booking', settlement: 'rol' };
       });
 
       const propertyIds = Array.from(
@@ -276,12 +285,20 @@ export function usePropertyPayouts(period?: PayoutPeriod | string) {
       );
 
 
-      const [scopes, terms, bankRes, globalsRes] = await Promise.all([
+      const [scopes, terms, byoProperties, bankRes, globalsRes] = await Promise.all([
         loadBillingScopes(propertyIds),
         loadCommercialTerms(propertyIds),
+        loadByoProperties(propertyIds),
         supabase.from('property_bank_details').select('property_id, is_verified').in('property_id', propertyIds),
         supabase.from('billing_global_defaults').select('*'),
       ]);
+
+      // Bookings with no gateway record inherit the property's configured settlement route.
+      Object.values(bookingGross).forEach((entry) => {
+        if (entry.source === 'booking' && byoProperties.has(entry.booking.properties.id)) {
+          entry.settlement = 'byo';
+        }
+      });
 
       const bankMap: Record<string, { exists: boolean; verified: boolean }> = {};
       (bankRes.data || []).forEach((b: any) => { bankMap[b.property_id] = { exists: true, verified: b.is_verified }; });
@@ -293,12 +310,16 @@ export function usePropertyPayouts(period?: PayoutPeriod | string) {
         owner_email: string | null;
         gross: number;
         commission: number;
+        rolGross: number;
+        byoGross: number;
+        rolCommission: number;
+        byoCommission: number;
         bookingIds: Set<string>;
         bookingRecorded: number;
         typeCounts: Record<string, number>;
       }> = {};
 
-      Object.values(bookingGross).forEach(({ booking, gross, source }) => {
+      Object.values(bookingGross).forEach(({ booking, gross, source, settlement }) => {
         const pid = booking.properties.id as string;
         const resolved = scopes[pid];
         const config = resolved?.config || null;
@@ -310,6 +331,10 @@ export function usePropertyPayouts(period?: PayoutPeriod | string) {
             owner_email: booking.properties.owner_email,
             gross: 0,
             commission: 0,
+            rolGross: 0,
+            byoGross: 0,
+            rolCommission: 0,
+            byoCommission: 0,
             bookingIds: new Set<string>(),
             bookingRecorded: 0,
             typeCounts: {} as Record<string, number>,
@@ -322,10 +347,18 @@ export function usePropertyPayouts(period?: PayoutPeriod | string) {
 
         propertyMap[pid].gross += gross;
         propertyMap[pid].commission += commission.amount;
+        if (settlement === 'byo') {
+          propertyMap[pid].byoGross += gross;
+          propertyMap[pid].byoCommission += commission.amount;
+        } else {
+          propertyMap[pid].rolGross += gross;
+          propertyMap[pid].rolCommission += commission.amount;
+        }
         propertyMap[pid].bookingIds.add(booking.id);
         if (source === 'booking') propertyMap[pid].bookingRecorded += 1;
         propertyMap[pid].typeCounts[commission.type] = (propertyMap[pid].typeCounts[commission.type] || 0) + 1;
       });
+
 
       const result: PropertyPayout[] = Object.entries(propertyMap).map(([pid, p]) => {
         const resolved = scopes[pid];
