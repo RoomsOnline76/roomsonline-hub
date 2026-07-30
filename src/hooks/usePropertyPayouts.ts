@@ -164,18 +164,39 @@ export function usePropertyPayouts(period?: PayoutPeriod | string) {
       if (txError) throw txError;
 
       // Group gross per booking first — commission is resolved per booking origin.
-      const bookingGross: Record<string, { booking: any; gross: number }> = {};
+      const bookingGross: Record<string, { booking: any; gross: number; source: PayoutSource }> = {};
       (transactions || []).forEach((tx: any) => {
         const booking = tx.bookings;
         if (!booking?.properties) return;
         if (EXCLUDED_BOOKING_STATUSES.includes(String(booking.status || '').toLowerCase())) return;
-        if (!bookingGross[booking.id]) bookingGross[booking.id] = { booking, gross: 0 };
+        if (!bookingGross[booking.id]) bookingGross[booking.id] = { booking, gross: 0, source: 'gateway' };
         bookingGross[booking.id].gross += Number(tx.amount) || 0;
+      });
+
+      // Second pass: bookings flagged paid on the booking record but with no settled
+      // gateway transaction (manual capture, folio settlement, imported PMS stays).
+      let bookingQuery = supabase
+        .from('bookings')
+        .select(`${BOOKING_ORIGIN_FIELDS}, created_at, properties!bookings_property_id_fkey!inner(id, name, owner_email)`)
+        .in('payment_status', PAID_BOOKING_STATUSES)
+        .order('created_at', { ascending: false });
+      if (from) bookingQuery = bookingQuery.gte('created_at', from);
+      if (to) bookingQuery = bookingQuery.lt('created_at', to);
+
+      const { data: paidBookings } = await bookingQuery;
+      (paidBookings || []).forEach((b: any) => {
+        if (!b?.properties) return;
+        if (bookingGross[b.id]) return; // already counted from a settled transaction
+        if (EXCLUDED_BOOKING_STATUSES.includes(String(b.status || '').toLowerCase())) return;
+        const gross = Number(b.total_price) || 0;
+        if (gross <= 0) return;
+        bookingGross[b.id] = { booking: b, gross, source: 'booking' };
       });
 
       const propertyIds = Array.from(
         new Set(Object.values(bookingGross).map((b) => b.booking.properties.id as string)),
       );
+
 
       const [scopes, terms, bankRes, globalsRes] = await Promise.all([
         loadBillingScopes(propertyIds),
