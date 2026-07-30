@@ -7,6 +7,9 @@ import {
   CommissionGlobalsLike,
 } from "@/lib/commissionResolver";
 
+/** Where the money figure came from: a settled gateway transaction, or the booking record itself. */
+export type PayoutSource = "gateway" | "booking";
+
 export interface PropertyPayout {
   property_id: string;
   property_name: string;
@@ -18,6 +21,8 @@ export interface PropertyPayout {
   fees: number;
   net_amount: number;
   booking_count: number;
+  /** Of booking_count, how many were counted off the booking record (no gateway transaction). */
+  booking_recorded_count: number;
   has_banking: boolean;
   banking_verified: boolean;
   billing_strategy: string;
@@ -39,6 +44,7 @@ export interface PayoutBookingDetail {
   commission_amount: number;
   commission_rate: number;
   commission_type: CommissionType;
+  source: PayoutSource;
 }
 
 // payment_transactions.status is written as 'paid' by the gateway handlers;
@@ -46,6 +52,9 @@ export interface PayoutBookingDetail {
 const SETTLED_TX_STATUSES = ['paid', 'completed', 'succeeded', 'success'];
 // Cancelled/refunded stays are never paid out to the property.
 const EXCLUDED_BOOKING_STATUSES = ['cancelled', 'canceled', 'refunded', 'no_show'];
+// Booking-level paid markers used when no gateway transaction exists.
+const PAID_BOOKING_STATUSES = ['paid', 'settled', 'completed'];
+
 
 const BOOKING_ORIGIN_FIELDS =
   'id, property_id, guest_name, check_in_date, check_out_date, total_price, status, payment_status, integration_type, booking_channel, source_url, calculated_commission, commission_rate_applied, commission_type';
