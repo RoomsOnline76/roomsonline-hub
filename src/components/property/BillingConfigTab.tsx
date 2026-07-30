@@ -225,8 +225,9 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
 
       widget_flat_commission_rate: v.widget_flat_enabled ? toNum(v.widget_flat_rate) : null,
       subscription_fee_monthly: v.pms_enabled ? toNum(v.subscription_fee) : null,
-      channel_manager_enabled: v.pms_enabled,
-      channel_manager_per_unit_fee: v.pms_enabled ? toNum(v.channel_per_unit) : null,
+      channel_manager_enabled: v.channel_manager_enabled,
+      channel_manager_per_unit_fee: v.channel_manager_enabled ? toNum(v.channel_per_unit) : null,
+
       enterprise_custom_fee: v.pms_enabled ? toNum(v.enterprise_custom_fee) : null,
       transaction_fee_percentage: v.facilitator_surcharge_enabled ? toNum(v.transaction_fee) : null,
       // Facilitator surcharge is mutually exclusive with the BYO gateway toggle
