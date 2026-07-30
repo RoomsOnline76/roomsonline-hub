@@ -1899,6 +1899,13 @@ Deno.serve(async (req) => {
               has_cancellation_policies: (payload.cancellation_policies || []).length >= 1,
               beds_meet_max_guests: totalBeds >= (payload.can_sleep_max || 1),
               total_beds: totalBeds,
+              // Phase 4 — WL minimum inventory additions
+              has_name: !!(payload.name && String(payload.name).trim().length >= 3),
+              has_object_type_id: ((payload.object_type_id ?? payload.property_type_id) || 0) > 0,
+              can_sleep_max_ok: (payload.can_sleep_max || 0) >= 1,
+              has_description: ((payload.descriptions?.[0]?.text || '').trim().length) >= 100,
+              has_main_image: (payload.images || []).some((i: any) => i.is_main),
+              has_street: !!(payload.street && String(payload.street).trim().length > 2),
             },
           };
         });
