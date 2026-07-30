@@ -1,39 +1,31 @@
-# Rentals United — Testing Regime: Coverage + Property Readiness Gate
+## 1. PMS Control (`/dev/pms`) aligned to the Integrations page
 
-## What already exists (verified)
+Today Integrations (`/admin-keys`) hides parked systems by default behind a "Show parked" toggle (driven by `pms_tracker_status.integration_status = 'parked'`), but PMS Control lists every configured system regardless of status. 21 systems are currently parked (agoda, airbnb, beds24, booking_com, channex, cloudbeds, easyota, ebeds, expedia, google_hotels, guesty, hotelbeds, hyperguest, lekkeslaap, nightsbridge, profitroom, roomkey, roomracoon, semper, siteminder, tourplan).
 
-- `ru-cert-portal` edge function with actions: certification `run` (step-by-step milestone runner with request/response capture), `compliance` (cadence rules + pg_cron job inventory), `wl_readiness` (per-property dry-run validation + live 365-day ARI probe), `discounts`, `user_management` (parked).
-- Cadence rules already encode RU's max ages: content 168h, availability/prices 24h, reservations 1h, RLNM 24h — with four expected cron jobs (weekly content, 6-hourly ARI, 30-min reservations, daily RLNM re-subscribe).
-- `push-property-to-ru` supports `dry_run` and returns a validation object per unit (name, ObjectTypeID, CanSleepMax, images count, main image, amenities count, coordinates, street, zip, space, floor, DetailedLocationID, description, payment methods, cancellation policies, beds, rooms).
-- `rentalsunited-api` handles RU Status 5 (partial success with `<Notifs>`) and uses AccessKey/SecretKey only.
-- Console UI (`RuCertificationConsole.tsx`) has tabs: Runs, Refresh compliance, Discounts, WL readiness, Users.
+- In `src/pages/DevPMS.tsx`, filter both the PMS group and the Channel Manager group to exclude systems whose tracker status is `parked`.
+- Add the same "Show parked" switch used on Integrations so a dev can reveal them on demand (default off), with a small count of how many are hidden.
+- Exclude parked systems from the header stat counters so the totals match what is displayed.
+- Use the same section order and naming as Integrations: **ROL'OS → Property Management Systems → Channel Managers → Financial Services**.
 
-## Part A — Close the gaps in the Certification & Compliance module
+## 2. PriceLabs listed twice
 
-1. **Photo rule is incomplete.** Today only the count (≥10) is checked; the 1024×683 minimum is not. Add per-image dimension validation in `push-property-to-ru`'s dry-run payload build (use stored width/height where available, otherwise flag as "unverified dimensions") and surface `images_meeting_size` alongside `images_count`.
-2. **Beds rule is wrong.** Current check requires total beds ≥ CanSleepMax; RU requires beds to cover **at least 50%** of CanSleepMax. Relax to the 50% rule and report the actual ratio.
-3. **Room amenities not checked.** Add a check that every CompositionRoom has a valid `CompositionRoomID` **and** at least one room-level amenity/bed entry, per requirement 9–10.
-4. **Milestone matrix view.** Add a `milestones` summary derived from the last certification run, showing the 11 mandatory methods (health check, `Pull_ListOwnerProp_RQ`, `Pull_ListSpecProp_RQ`, `Pull_ListPropertyAvailabilityCalendar_RQ`, `Pull_ListPropertyPrices_RQ`, `Push_PutProperty_RQ` create + update, `Push_PutAvbUnits_RQ`, `Push_PutPrices_RQ`, `LNM_PutHandlerUrl_RQ`, `Pull_ListReservations_RQ`) plus optional `Pull_GetLeads_RQ`, each with pass/fail/never-run and last-run timestamp.
-5. **Status-code panel.** Explicitly display RU status IDs per step, calling out Status 5 partial successes with the `<Notifs>` text so they are not read as clean passes.
-6. **Evidence export.** Add a "Download certification evidence" action producing a single JSON/printable bundle of the run's request and response XML — what RU asks for on the certification call.
+`PriceLabsCard` is rendered in both the **Channel Managers** section and the **Additional Services** section of `/admin-keys`.
 
-## Part B — ROLOS property readiness scorecard with sync gating
+- Remove the PriceLabs card from Channel Managers; keep the single instance in the financial/revenue section.
+- Introduce a `financial` category in `src/lib/pmsSystemsConfig.ts` and move `pricelabs` from `channel_manager` to it, so PriceLabs stops appearing in channel-manager derived lists (PMS Control's Channel Managers group, and anywhere `CHANNEL_MANAGER_SYSTEMS` is consumed).
+- Add a `FINANCIAL_SYSTEMS` export and render that group under Financial Services on both Integrations and PMS Control, so PriceLabs appears once, in the financial group only.
+- Remove `pricelabs` from the channel list in `src/components/pms/channels/ChannelLogo.tsx` so it no longer surfaces as a bookable channel (label lookup retained for existing records).
 
-Applies to properties where ROLOS is the PMS and the Channel Manager toggle is on.
+## 3. Task Tracker badge shows "assigned to me / all"
 
-1. **Shared scorer.** Extract the readiness scoring currently inline in `ru-cert-portal.wl_readiness` into a shared module under `supabase/functions/_shared/ruReadiness.ts` so admin and ROLOS both score identically. Expose a new `property_readiness` action taking a single `property_id`.
-2. **ROLOS UI.** Add an "RU Readiness" scorecard to the ROLOS Channels page (and the Rentals United card in ROLOS Integrations):
-   - Big percentage score plus a Ready / Not ready badge.
-   - Grouped checklist: Content, Rooms & beds, Photos, Address & geo, Policies & payments, Availability 365d, Pricing 365d.
-   - Each failing item shows the deficiency in plain language and a deep link to the exact tab/field that fixes it.
-   - Refresh button re-runs the dry run.
-3. **Hard gate.** Block RU sync until the score is 100% on mandatory items:
-   - Frontend: disable "Push to Rentals United" / channel-connect actions with the reason shown.
-   - Backend: `push-property-to-ru` rejects non-dry-run pushes for properties failing mandatory checks (returns `NOT_READY` with the gap list), so the gate cannot be bypassed via API. Admins keep an explicit `force: true` override.
-4. **Admin roll-up.** The existing WL readiness tab gets a sortable score column and a "blocked from sync" flag so you can see the whole estate at a glance.
+`dev_tasks` has an `assigned_to` column; the badge currently shows a single number (open tasks with status `new`).
 
-## Technical notes
+- Extend `src/hooks/useAdminActionCounts.ts` to return, for `task-tracker`, both a mine count (open tasks where `assigned_to = auth user`) and a total open count.
+- Extend the badge model so a nav item can carry a `mine/total` pair instead of one number.
+- In `src/components/layout/AppSidebar.tsx`, render `5/24` style text for that badge (single number retained for all other items), with a tooltip such as "5 assigned to you of 24 open tasks". Collapsed sidebar keeps the compact total.
 
-- No schema change is required for scoring; it is computed from `properties`, room types, images and the live RU ARI probe. If image pixel dimensions are not stored on the image records, a follow-up migration to persist `width`/`height` at upload time would be needed for the 1024×683 check to be authoritative rather than best-effort — I will confirm during implementation and flag it if so.
-- Discounts (long-stay, last-minute) stay optional and are excluded from the mandatory gate.
-- Guest communication and RU user management remain out of scope/parked.
+### Technical notes
+
+- Parked detection reuses the existing `pms_tracker_status` fetch already performed in `DevPMS.tsx`; no new queries needed.
+- No database or edge-function changes; all work is frontend/config.
+- "Open" for the tracker badge keeps the current definition (`status = 'new'`) unless you want in-progress tasks counted too.

@@ -8,7 +8,7 @@ import googleTravelAsset from "@/assets/channels/google-travel.png.asset.json";
 
 const CHANNEL_CONFIG: Record<
   string,
-  { label: string; color: string; initials: string; parked?: boolean; logoUrl?: string }
+  { label: string; color: string; initials: string; parked?: boolean; financialOnly?: boolean; logoUrl?: string }
 > = {
   booking_com: { label: "Booking.com", color: "bg-blue-600", initials: "B", logoUrl: bookingAsset.url },
   airbnb: { label: "Airbnb", color: "bg-rose-500", initials: "A", logoUrl: airbnbAsset.url },
@@ -25,7 +25,9 @@ const CHANNEL_CONFIG: Record<
   wetu: { label: "WETU", color: "bg-lime-600", initials: "W" },
   tourplan: { label: "TourPlan", color: "bg-sky-600", initials: "TP" },
   beds24: { label: "Beds24", color: "bg-fuchsia-600", initials: "B24" },
-  pricelabs: { label: "PriceLabs", color: "bg-purple-600", initials: "PL" },
+  // PriceLabs is a revenue/financial service, not a bookable channel — label kept
+  // for legacy records but excluded from channel pickers via `financialOnly`.
+  pricelabs: { label: "PriceLabs", color: "bg-purple-600", initials: "PL", financialOnly: true },
   easyota: { label: "EasyOTA", color: "bg-emerald-600", initials: "EO" },
   ebeds: { label: "eBeds", color: "bg-amber-600", initials: "eB" },
   manual: { label: "Manual", color: "bg-muted-foreground", initials: "M" },
@@ -87,5 +89,5 @@ export function ChannelLogo({
 }
 
 export const ALL_CHANNELS = Object.entries(CHANNEL_CONFIG)
-  .filter(([k, c]) => k !== "manual" && !c.parked)
+  .filter(([k, c]) => k !== "manual" && !c.parked && !c.financialOnly)
   .map(([k]) => k);

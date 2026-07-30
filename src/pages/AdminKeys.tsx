@@ -4937,8 +4937,6 @@ export default function AdminKeys() {
             "beds24",
             "Cloud PMS and channel manager with REST API v2. API account and token-based auth pending — edge function adapter will be wired once credentials are available. Docs: https://api.beds24.com/v2/",
           )}
-          <PriceLabsCard />
-
           {renderPlaceholderPMSCard(
             "EasyOTA",
             "easyota",
@@ -4961,6 +4959,9 @@ export default function AdminKeys() {
         </CollapsibleTrigger>
         <CollapsibleContent>
         <div className="space-y-4">
+          <Accordion type="multiple" className="space-y-4">
+            <PriceLabsCard />
+          </Accordion>
           <BankExportConfigCard />
         </div>
         </CollapsibleContent>
@@ -4979,7 +4980,6 @@ export default function AdminKeys() {
             "wetu",
             "Travel content portal — property descriptions, images, rooms, and features (read-only content API)",
           )}
-          <PriceLabsCard />
           {renderResendCard()}
           {renderTripadvisorCard()}
           {additionalKeys

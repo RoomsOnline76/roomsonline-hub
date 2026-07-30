@@ -76,7 +76,7 @@ export function AppSidebar() {
   const [hasRolProperties, setHasRolProperties] = useState(false);
 
   // Live "needs action" counters for approval/admin queues.
-  const { counts: actionCounts } = useAdminActionCounts({ isAdmin, isDev, isFearlessLeader });
+  const { counts: actionCounts, details: actionDetails } = useAdminActionCounts({ isAdmin, isDev, isFearlessLeader });
 
   useEffect(() => {
     localStorage.setItem("sidebar-collapsed", JSON.stringify(collapsed));
@@ -138,6 +138,21 @@ export function AppSidebar() {
     return item.badge;
   };
 
+  /** Some badges render a pair, e.g. Task Tracker shows "mine / all open". */
+  const getBadgeLabel = (item: NavItem, badge: number): string => {
+    const detail = actionDetails[item.id];
+    if (detail && detail.total > 0) return `${detail.mine}/${detail.total}`;
+    return String(badge);
+  };
+
+  const getBadgeTitle = (item: NavItem): string | undefined => {
+    const detail = actionDetails[item.id];
+    if (detail && detail.total > 0) {
+      return `${detail.mine} assigned to you of ${detail.total} open`;
+    }
+    return undefined;
+  };
+
   /** Any pending action inside a section (used for the collapsed-section dot). */
   const sectionPending = (section: NavSection): number =>
     section.items
@@ -167,8 +182,11 @@ export function AppSidebar() {
           <>
             <span className="flex-1 text-left">{item.title}</span>
             {badge && badge > 0 && (
-              <span className="h-5 min-w-5 px-1.5 rounded-full bg-primary text-primary-foreground text-[10px] font-medium flex items-center justify-center">
-                {badge}
+              <span
+                title={getBadgeTitle(item)}
+                className="h-5 min-w-5 px-1.5 rounded-full bg-primary text-primary-foreground text-[10px] font-medium flex items-center justify-center"
+              >
+                {getBadgeLabel(item, badge)}
               </span>
             )}
           </>
@@ -184,7 +202,7 @@ export function AppSidebar() {
             {item.title}
             {badge && badge > 0 && (
               <span className="h-4 min-w-4 px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-medium flex items-center justify-center">
-                {badge}
+                {getBadgeLabel(item, badge)}
               </span>
             )}
           </TooltipContent>
