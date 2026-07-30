@@ -155,6 +155,9 @@ export default function PMSHousekeeping() {
   const [resolveNotes, setResolveNotes] = useState("");
   // Per-property toggle to expand the otherwise-collapsed "Ready" column.
   const [readyExpanded, setReadyExpanded] = useState<Record<string, boolean>>({});
+  // Action-card queue drawer: which workload the user drilled into.
+  const [queue, setQueue] = useState<null | "clean" | "tasks" | "maintenance" | "ready">(null);
+
 
 
   // ── Fetch all data ────────────────────────────────────────────────────
