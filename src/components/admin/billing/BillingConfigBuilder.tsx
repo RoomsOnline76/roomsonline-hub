@@ -70,7 +70,9 @@ export function emptyBuilderValue(): BillingConfigValue {
     widget_flat_rate: "",
     pms_enabled: false,
     subscription_fee: "",
+    channel_manager_enabled: false,
     channel_per_unit: "",
+
     enterprise_custom_fee: "",
     volume_tiers_enabled: false,
     tier_pricing_json: null,
