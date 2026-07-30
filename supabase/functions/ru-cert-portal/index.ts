@@ -688,7 +688,9 @@ Deno.serve(async (req) => {
     }
 
     // ── ensure_owner_account: Phase 1 sub-user (portfolio-first) ──
-    if (action === "ensure_owner_account") {
+    // `ensure_company_details` is the same atomic flow: it re-enters here, finds the
+    // existing sub-user and (re)submits Push_FillCompanyDetails_RQ until it sticks.
+    if (action === "ensure_owner_account" || action === "ensure_company_details") {
       const propertyId: string | null = body.property_id ?? null;
       let portfolioId: string | null = body.portfolio_id ?? null;
       if (!propertyId && !portfolioId) {
