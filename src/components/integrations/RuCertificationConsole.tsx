@@ -196,7 +196,7 @@ export function RuCertificationConsole({ properties }: { properties: PropertyLit
     setDiscountsLoading(true);
     const { data, error } = await supabase
       .from("ru_discounts")
-      .select("id, property_id, discount_type, threshold, discount_percent, is_active")
+      .select("id, property_id, discount_type, threshold, discount_percent, date_from, date_to, is_active")
       .eq("property_id", propertyId)
       .order("discount_type")
       .order("threshold");
@@ -221,6 +221,20 @@ export function RuCertificationConsole({ properties }: { properties: PropertyLit
     }
   };
 
+  const pushDiscountsNow = async () => {
+    setRunning(true);
+    const res = await callPortal<{ run: CertRun }>("run_suite", {
+      suite: "discounts",
+      property_id: propertyId === "none" ? null : propertyId,
+    });
+    setRunning(false);
+    if (res?.run) {
+      setSelectedRun(res.run);
+      toast.success(`Discount push complete — ${res.run.passed}/${res.run.total} steps passed`);
+      loadRuns();
+    }
+  };
+
   const openRun = async (run: CertRun) => {
     const res = await callPortal<{ run: CertRun }>("get_run", { run_id: run.id });
     setSelectedRun(res?.run ?? run);
@@ -228,11 +242,34 @@ export function RuCertificationConsole({ properties }: { properties: PropertyLit
 
   const addDiscount = async () => {
     if (propertyId === "none") return;
+    const threshold = Number(draft.threshold);
+    const percent = Number(draft.discount_percent);
+    if (!Number.isFinite(threshold) || threshold <= 0) {
+      toast.error("Threshold must be greater than 0");
+      return;
+    }
+    if (!Number.isFinite(percent) || percent <= 0 || percent >= 100) {
+      toast.error("Discount must be between 1 and 99%");
+      return;
+    }
+    if (draft.date_from && draft.date_to && draft.date_from > draft.date_to) {
+      toast.error("Valid-from must be on or before valid-to");
+      return;
+    }
+    const clash = discounts.some(
+      (d) => d.discount_type === draft.discount_type && d.threshold === threshold && (d.date_from ?? "") === (draft.date_from ?? ""),
+    );
+    if (clash) {
+      toast.error("A rule with that threshold and start date already exists");
+      return;
+    }
     const { error } = await supabase.from("ru_discounts").insert({
       property_id: propertyId,
       discount_type: draft.discount_type,
-      threshold: Number(draft.threshold),
-      discount_percent: Number(draft.discount_percent),
+      threshold,
+      discount_percent: percent,
+      date_from: draft.date_from || null,
+      date_to: draft.date_to || null,
       is_active: true,
     });
     if (error) toast.error(error.message);
