@@ -725,6 +725,11 @@ export default function PropertyForm({
     brand_override_enabled: false,
     brand_heading_font: "",
     brand_body_font: "",
+    brand_heading_text_color: "",
+    brand_body_text_color: "",
+    brand_muted_text_color: "",
+    brand_light_bg_color: "",
+    brand_dark_bg_color: "",
   });
 
   // ROL Spec state
