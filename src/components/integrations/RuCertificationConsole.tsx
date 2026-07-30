@@ -96,6 +96,8 @@ interface DiscountRow {
   discount_type: "long_stay" | "last_minute";
   threshold: number;
   discount_percent: number;
+  date_from: string | null;
+  date_to: string | null;
   is_active: boolean;
 }
 
