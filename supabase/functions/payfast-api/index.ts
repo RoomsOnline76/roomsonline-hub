@@ -377,6 +377,98 @@ function validateSourceIp(ip: string | null, isSandbox: boolean): boolean {
   return isValid;
 }
 
+/**
+ * Retry-safe payment record.
+ *
+ * A guest who abandons or fails a PayFast attempt and tries again used to create a
+ * brand new pending `payment_transactions` row every time, producing a wall of
+ * duplicate "Pending" entries for one booking. Instead we reuse the booking's open
+ * pending row and roll the new reference onto it, keeping every superseded
+ * reference in `gateway_response.previous_refs` so a late ITN can still be matched.
+ */
+async function recordPendingTransaction(
+  supabase: any,
+  row: {
+    booking_id: string;
+    amount: number;
+    m_payment_id: string;
+    merchant_id: string | null;
+    credential_source: string | null;
+    gateway_response: Record<string, unknown>;
+  },
+): Promise<void> {
+  const { data: existing } = await supabase
+    .from("payment_transactions")
+    .select("id, m_payment_id, gateway_response")
+    .eq("booking_id", row.booking_id)
+    .eq("payment_provider", "payfast")
+    .eq("status", "pending")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (existing?.id) {
+    const prior = Array.isArray((existing.gateway_response as any)?.previous_refs)
+      ? ((existing.gateway_response as any).previous_refs as string[])
+      : [];
+    const previousRefs = Array.from(
+      new Set([...prior, existing.m_payment_id].filter(Boolean).filter((r: string) => r !== row.m_payment_id)),
+    );
+
+    const { error } = await supabase
+      .from("payment_transactions")
+      .update({
+        amount: row.amount,
+        currency: "ZAR",
+        status: "pending",
+        m_payment_id: row.m_payment_id,
+        merchant_id: row.merchant_id,
+        credential_source: row.credential_source,
+        gateway_response: { ...row.gateway_response, previous_refs: previousRefs, attempts: previousRefs.length + 1 },
+      })
+      .eq("id", existing.id);
+
+    if (error) console.error("[PayFast] Failed to update pending transaction:", error);
+    else console.log("[PayFast] Reused pending transaction", existing.id, "attempt", previousRefs.length + 1);
+    return;
+  }
+
+  const { error } = await supabase.from("payment_transactions").insert({
+    booking_id: row.booking_id,
+    amount: row.amount,
+    currency: "ZAR",
+    status: "pending",
+    payment_provider: "payfast",
+    m_payment_id: row.m_payment_id,
+    merchant_id: row.merchant_id,
+    credential_source: row.credential_source,
+    gateway_response: row.gateway_response,
+  });
+
+  if (error) console.error("[PayFast] Failed to create transaction record:", error);
+}
+
+/** Find a transaction by current reference, falling back to superseded retry refs. */
+async function findTransactionByRef(supabase: any, ref: string) {
+  const { data: direct } = await supabase
+    .from("payment_transactions")
+    .select("*")
+    .eq("m_payment_id", ref)
+    .maybeSingle();
+  if (direct) return direct;
+
+  const { data: legacy } = await supabase
+    .from("payment_transactions")
+    .select("*")
+    .filter("gateway_response->previous_refs", "cs", JSON.stringify([ref]))
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return legacy || null;
+}
+
+
+
 // Server-side validation with PayFast
 async function validateWithPayFast(params: Record<string, string>, isSandbox: boolean): Promise<boolean> {
   const validateUrl = isSandbox ? PAYFAST_SANDBOX_VALIDATE_URL : PAYFAST_PRODUCTION_VALIDATE_URL;
@@ -471,11 +563,17 @@ Deno.serve(async (req) => {
       // so the signature is verified with the correct passphrase (BYO or ROL).
       const itnRef = itnData.m_payment_id;
       if (itnRef) {
-        const { data: originTx } = await supabase
-          .from("payment_transactions")
-          .select("booking_id, merchant_id, credential_source, bookings(property_id)")
-          .eq("m_payment_id", itnRef)
-          .maybeSingle();
+        const baseTx = await findTransactionByRef(supabase, itnRef);
+        let originTx: any = null;
+        if (baseTx) {
+          const { data: withBooking } = await supabase
+            .from("payment_transactions")
+            .select("booking_id, merchant_id, credential_source, bookings(property_id)")
+            .eq("id", baseTx.id)
+            .maybeSingle();
+          originTx = withBooking || baseTx;
+        }
+
 
         if (originTx) {
           const originPropertyId = (originTx as any)?.bookings?.property_id || null;
@@ -534,14 +632,11 @@ Deno.serve(async (req) => {
       
       console.log(`[PayFast] Processing ITN: m_payment_id=${mPaymentId}, status=${paymentStatus}`);
       
-      // Find the payment transaction
-      const { data: transaction, error: txError } = await supabase
-        .from("payment_transactions")
-        .select("*")
-        .eq("m_payment_id", mPaymentId)
-        .single();
+      // Find the payment transaction (matches superseded retry refs too)
+      const transaction = await findTransactionByRef(supabase, mPaymentId);
       
-      if (txError || !transaction) {
+      if (!transaction) {
+
         // Check subscription invoice branch (m_payment_id like "SUB-<invoice_id>")
         if (typeof mPaymentId === "string" && mPaymentId.startsWith("SUB-")) {
           const invoiceId = mPaymentId.slice(4);
@@ -894,25 +989,16 @@ Deno.serve(async (req) => {
       
       console.log("[PayFast] Payment initiated:", { transRef, amount, booking_id });
       
-      // Create payment transaction record
-      const { error: txError } = await supabase
-        .from("payment_transactions")
-        .insert({
-          booking_id,
-          amount: booking.total_price,
-          currency: "ZAR",
-          status: "pending",
-          payment_provider: "payfast",
-          m_payment_id: transRef,
-          merchant_id: merchantId,
-          credential_source: credentialSource,
-          gateway_response: { trans_ref: transRef, form_fields: formFields },
+      // Create/refresh the booking's single pending payment record
+      await recordPendingTransaction(supabase, {
+        booking_id,
+        amount: booking.total_price,
+        m_payment_id: transRef,
+        merchant_id: merchantId,
+        credential_source: credentialSource,
+        gateway_response: { trans_ref: transRef, form_fields: formFields },
+      });
 
-        });
-      
-      if (txError) {
-        console.error("[PayFast] Failed to create transaction record:", txError);
-      }
       
       // Update booking with payment reference
       await supabase
@@ -1091,17 +1177,15 @@ Deno.serve(async (req) => {
       const respondWithRedirectCheckout = async (reason: string) => {
         console.log("[PayFast] Falling back to redirect checkout:", reason);
 
-        await supabase.from("payment_transactions").insert({
+        await recordPendingTransaction(supabase, {
           booking_id,
           amount: booking.total_price,
-          currency: "ZAR",
-          status: "pending",
-          payment_provider: "payfast",
           m_payment_id: transRef,
           merchant_id: merchantId,
           credential_source: credentialSource,
           gateway_response: { trans_ref: transRef, form_fields: formFields, onsite: false, fallback_reason: reason },
         });
+
 
         await supabase
           .from("bookings")
@@ -1182,26 +1266,17 @@ Deno.serve(async (req) => {
         return await respondWithRedirectCheckout("onsite_preflight_error");
       }
 
-      
-      // Create payment transaction record
-      const { error: txError } = await supabase
-        .from("payment_transactions")
-        .insert({
-          booking_id,
-          amount: booking.total_price,
-          currency: "ZAR",
-          status: "pending",
-          payment_provider: "payfast",
-          m_payment_id: transRef,
-          merchant_id: merchantId,
-          credential_source: credentialSource,
-          gateway_response: { trans_ref: transRef, uuid, onsite: true },
 
-        });
-      
-      if (txError) {
-        console.error("[PayFast] Failed to create transaction record:", txError);
-      }
+      // Create/refresh the booking's single pending payment record
+      await recordPendingTransaction(supabase, {
+        booking_id,
+        amount: booking.total_price,
+        m_payment_id: transRef,
+        merchant_id: merchantId,
+        credential_source: credentialSource,
+        gateway_response: { trans_ref: transRef, uuid, onsite: true },
+      });
+
       
       // Update booking with payment reference
       await supabase
