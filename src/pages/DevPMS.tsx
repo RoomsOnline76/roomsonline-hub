@@ -46,6 +46,7 @@ import { toast } from "sonner";
 import { VISIBLE_PMS_SYSTEMS, PMS_CATEGORY_SYSTEMS, CHANNEL_MANAGER_SYSTEMS, FINANCIAL_SYSTEMS, PMSSystemConfig, getIntegrationStatusInfo, IntegrationStatus } from "@/lib/pmsSystemsConfig";
 import { HyperGuestDetails } from "@/components/pms";
 import { ChannelCredentialEditor } from "@/components/pms/ChannelCredentialEditor";
+import { RuCertificationCheckButton, RuConsoleLink } from "@/components/integrations/RuCertificationActions";
 
 const DISTRIBUTION_CHANNELS = ["hyperguest", "hotelbeds", "rentalsunited", "profitroom"];
 
@@ -562,6 +563,12 @@ export default function DevPMS() {
                       <ChannelCredentialEditor channelName={config.key} />
                     </CardContent>
                   )}
+                  {config.key === 'rentalsunited' && (
+                    <CardContent className="pt-0 flex flex-wrap items-center gap-2">
+                      <RuCertificationCheckButton />
+                      <RuConsoleLink />
+                    </CardContent>
+                  )}
                 </Card>
                 );
               })}
@@ -733,6 +740,12 @@ export default function DevPMS() {
                   {DISTRIBUTION_CHANNELS.includes(config.key) && config.key !== 'hyperguest' && (
                     <CardContent className="pt-0">
                       <ChannelCredentialEditor channelName={config.key} />
+                    </CardContent>
+                  )}
+                  {config.key === 'rentalsunited' && (
+                    <CardContent className="pt-0 flex flex-wrap items-center gap-2">
+                      <RuCertificationCheckButton />
+                      <RuConsoleLink />
                     </CardContent>
                   )}
                 </Card>

@@ -1,7 +1,7 @@
 // Centralized configuration for all PMS and API systems
 // This ensures consistency between API Keys page and Property Form dropdown
 
-export type DeploymentStatus = 'deployed' | 'ready' | 'in_development' | 'planned';
+export type DeploymentStatus = 'deployed' | 'in_testing' | 'ready' | 'in_development' | 'planned';
 
 // Maps pms_tracker_status.integration_status to display status
 export type IntegrationStatus = 'deployed' | 'in_testing' | 'in_development' | 'coming_soon' | 'parked';
@@ -215,10 +215,10 @@ export const ALL_PMS_SYSTEMS: PMSSystemConfig[] = [
   {
     key: 'rentalsunited',
     name: 'Rentals United',
-    description: 'Channel manager and distribution platform — XML API + GC API (sandbox, pre-certification)',
+    description: 'Channel manager and distribution platform — XML API + GC API (live credentials, certification in progress)',
     category: 'channel_manager',
     hasCustomCard: true,
-    deploymentStatus: 'in_development',
+    deploymentStatus: 'in_testing',
   },
   {
     key: 'roomkey',
@@ -322,6 +322,8 @@ export const getDeploymentStatusInfo = (status: DeploymentStatus) => {
   switch (status) {
     case 'deployed':
       return { label: 'Deployed', variant: 'default' as const, className: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' };
+    case 'in_testing':
+      return { label: 'In Testing', variant: 'outline' as const, className: 'text-sky-600 border-sky-500/30' };
     case 'ready':
       return { label: 'Ready', variant: 'secondary' as const, className: '' };
     case 'in_development':

@@ -2010,7 +2010,7 @@ export default function PropertyForm({
             city: data.city || "",
             address: data.address || "",
             suburb: amenities?.address_details?.suburb || "",
-            postal_code: amenities?.address_details?.postal_code || "",
+            postal_code: (data as any).postal_code || amenities?.address_details?.postal_code || "",
             bb_id:
               amenities?.external_ids?.nightsbridge_bb_id ||
               amenities?.external_ids?.siteminder_id ||
@@ -2899,6 +2899,7 @@ export default function PropertyForm({
         description: formData.description || null,
         address: formData.address,
         city: formData.city,
+        postal_code: formData.postal_code || null,
         country: formData.country,
         latitude: latitude,
         longitude: longitude,

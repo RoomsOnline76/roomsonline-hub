@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Loader2, CheckCircle2, AlertCircle, KeyRound } from "lucide-react";
+import { Loader2, CheckCircle2, AlertCircle, KeyRound, ShieldCheck } from "lucide-react";
 
 const CHANNEL_FIELDS: Record<string, { key: string; label: string; type?: string; placeholder?: string }[]> = {
   hyperguest: [
@@ -20,8 +20,6 @@ const CHANNEL_FIELDS: Record<string, { key: string; label: string; type?: string
     { key: "endpoint_url", label: "Endpoint URL", placeholder: "https://api.hotelbeds.com" },
   ],
   rentalsunited: [
-    { key: "api_key", label: "API Key", type: "password", placeholder: "Rentals United API key" },
-    { key: "api_secret", label: "API Secret", type: "password", placeholder: "Rentals United API secret" },
     { key: "endpoint_url", label: "Endpoint URL", placeholder: "https://rm.rentalsunited.com/api" },
   ],
   profitroom: [
@@ -94,6 +92,10 @@ export function ChannelCredentialEditor({ channelName }: ChannelCredentialEditor
     setSaving(false);
   };
 
+  // Rentals United AccessKey/SecretKey live in platform secrets — the single
+  // source of truth used by the edge functions. Never edit or mirror them here.
+  const secretsManaged = channelName === "rentalsunited";
+
   if (!loaded || fields.length === 0) return null;
 
   return (
@@ -103,7 +105,12 @@ export function ChannelCredentialEditor({ channelName }: ChannelCredentialEditor
           <KeyRound className="h-3.5 w-3.5 text-muted-foreground" />
           API Credentials
         </div>
-        {hasConfig ? (
+        {secretsManaged ? (
+          <Badge variant="outline" className="text-[10px]">
+            <ShieldCheck className="h-3 w-3 mr-1" />
+            Managed via platform secrets
+          </Badge>
+        ) : hasConfig ? (
           <Badge className="bg-success-surface text-success dark:bg-emerald-900/50 dark:text-emerald-300 text-[10px]">
             <CheckCircle2 className="h-3 w-3 mr-1" />
             Configured
@@ -116,7 +123,21 @@ export function ChannelCredentialEditor({ channelName }: ChannelCredentialEditor
         )}
       </div>
 
-      {editing ? (
+      {secretsManaged ? (
+        <div className="space-y-2">
+          <p className="text-[11px] text-muted-foreground">
+            AccessKey / SecretKey are stored as platform secrets (RENTALS_UNITED_API_KEY /
+            RENTALS_UNITED_API_SECRET) and are not editable here. Verify them with the certification
+            check below.
+          </p>
+          <div>
+            <span className="text-[10px] text-muted-foreground">Endpoint URL</span>
+            <p className="text-xs font-medium">
+              {config.endpoint_url || "https://rm.rentalsunited.com/api"}
+            </p>
+          </div>
+        </div>
+      ) : editing ? (
         <div className="space-y-2">
           {fields.map((field) => (
             <div key={field.key} className="space-y-1">

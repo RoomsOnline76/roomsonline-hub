@@ -23,6 +23,7 @@ import { WidgetSetupWizard } from "@/components/integrations/WidgetSetupWizard";
 import { PropertyPaymentProviderSelect } from "@/components/integrations/PropertyPaymentProviderSelect";
 import { PayFastEnvironmentToggle } from "@/components/integrations/PayFastEnvironmentToggle";
 import { PortfolioWidgetTab } from "@/components/integrations/PortfolioWidgetTab";
+import { RuCertificationCheckButton, RuConsoleLink } from "@/components/integrations/RuCertificationActions";
 
 interface Property {
   id: string;
@@ -149,11 +150,10 @@ export default function AdminIntegrations() {
                       white-label readiness.
                     </div>
                   </div>
-                  <Button asChild size="sm" variant="outline" className="gap-1.5">
-                    <RouterLink to="/admin/integrations/rentals-united">
-                      Open console <ChevronRight className="h-4 w-4" />
-                    </RouterLink>
-                  </Button>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <RuCertificationCheckButton propertyId={selectedProperty || null} />
+                    <RuConsoleLink />
+                  </div>
                 </CardContent>
               </Card>
             )}

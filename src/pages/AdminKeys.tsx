@@ -58,6 +58,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
+import { RuCertificationCheckButton, RuConsoleLink } from "@/components/integrations/RuCertificationActions";
 
 // Map PMS system types to icons
 const getPMSIcon = (systemType: string | null): LucideIcon => {
@@ -303,7 +304,6 @@ export default function AdminKeys() {
   const [editingRentalsunited, setEditingRentalsunited] = useState(false);
   const [savingRentalsunited, setSavingRentalsunited] = useState(false);
   const [togglingRentalsunited, setTogglingRentalsunited] = useState(false);
-  const [testingRentalsunited, setTestingRentalsunited] = useState(false);
 
   // PMS Tracker status state
   const [trackerData, setTrackerData] = useState<Record<string, PMSTrackerStatus>>({});
@@ -1585,23 +1585,6 @@ export default function AdminKeys() {
     setTogglingRentalsunited(false);
   };
 
-  const handleTestRentalsunited = async () => {
-    setTestingRentalsunited(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("rentalsunited-api", {
-        body: { action: "health_check", test_mode: true },
-      });
-      if (error) throw error;
-      toast({
-        title: data?.healthy ? "Connection Healthy" : "Connection Issue",
-        description: data?.message || "Health check completed",
-        variant: data?.healthy ? "default" : "destructive",
-      });
-    } catch (err: any) {
-      toast({ title: "Test Failed", description: err.message, variant: "destructive" });
-    }
-    setTestingRentalsunited(false);
-  };
 
 
   const handleCloudbedsEnvironmentChange = async (newEnv: "staging" | "production") => {
@@ -4076,18 +4059,8 @@ export default function AdminKeys() {
                     <Settings className="h-4 w-4 mr-2" />
                     Field Mappings
                   </Button>
-                  <Button
-                    variant="outline"
-                    onClick={handleTestRentalsunited}
-                    disabled={testingRentalsunited || !isConfigured}
-                  >
-                    {testingRentalsunited ? (
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    ) : (
-                      <RefreshCw className="h-4 w-4 mr-2" />
-                    )}
-                    Test Connection
-                  </Button>
+                  <RuCertificationCheckButton size="default" variant="outline" />
+                  <RuConsoleLink size="default" />
                 </div>
               </div>
             )}

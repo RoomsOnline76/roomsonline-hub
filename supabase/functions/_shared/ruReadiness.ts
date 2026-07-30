@@ -44,7 +44,9 @@ export interface RuUnitValidation {
   max_guests?: number;
   has_zip_code?: boolean;
   has_space?: boolean;
+  space_is_default?: boolean;
   has_floor?: boolean;
+  floor_is_default?: boolean;
   has_detailed_location_id?: boolean;
   has_payment_methods?: boolean;
   has_cancellation_policies?: boolean;
@@ -115,10 +117,12 @@ export function evaluateUnitChecks(
     "CanSleepMax must be at least 1", "Rooms → Unit → Max guests");
   add("has_description", "Content", "Description (≥ 100 characters)", v.has_description !== false,
     "Description is missing or too short (needs at least 100 characters)", "Property → Description");
-  add("has_space", "Content", "Property size (Space)", !!v.has_space,
-    "Property / unit size in m² is not set", "Rooms → Unit → Size");
-  add("has_floor", "Content", "Floor number", v.has_floor !== false,
-    "Floor number is not set", "Rooms → Unit → Floor");
+  // Space / floor are advisory: RU accepts an estimate, but we report when the
+  // value being sent is our default rather than real property data.
+  add("has_space", "Content", "Property size (Space)", !!v.has_space && v.space_is_default !== true,
+    "Size in m² is not set — sending the default estimate of 50 m²", "Rooms → Unit → Size", false);
+  add("has_floor", "Content", "Floor number", v.has_floor !== false && v.floor_is_default !== true,
+    "Floor number is not set — sending the default (ground floor)", "Rooms → Unit → Floor", false);
   add("meets_minimum_amenities", "Content", `Amenities (≥ ${RU_MIN_AMENITIES})`, !!v.meets_minimum_amenities,
     `Only ${v.amenities_count ?? 0} amenities mapped — Rentals United requires ${RU_MIN_AMENITIES}`,
     "Property → Amenities");
