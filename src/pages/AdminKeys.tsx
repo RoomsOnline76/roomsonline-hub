@@ -304,7 +304,6 @@ export default function AdminKeys() {
   const [editingRentalsunited, setEditingRentalsunited] = useState(false);
   const [savingRentalsunited, setSavingRentalsunited] = useState(false);
   const [togglingRentalsunited, setTogglingRentalsunited] = useState(false);
-  const [testingRentalsunited, setTestingRentalsunited] = useState(false);
 
   // PMS Tracker status state
   const [trackerData, setTrackerData] = useState<Record<string, PMSTrackerStatus>>({});
