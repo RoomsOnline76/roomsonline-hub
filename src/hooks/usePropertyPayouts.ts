@@ -11,6 +11,10 @@ import {
 /** Where the money figure came from: a settled gateway transaction, or the booking record itself. */
 export type PayoutSource = "gateway" | "booking";
 
+/** Who actually received the guest's money. */
+export type SettlementRoute = "rol" | "byo";
+export type SettlementMode = "payout" | "invoice" | "mixed";
+
 export interface PropertyPayout {
   property_id: string;
   property_name: string;
@@ -33,6 +37,20 @@ export interface PropertyPayout {
   white_label_fee: number;
   subscription_fee: number;
   pf_enabled: boolean;
+
+  /** Settlement split — funds ROL actually held vs funds that landed in the owner's own account. */
+  rol_gross: number;
+  byo_gross: number;
+  rol_commission: number;
+  byo_commission: number;
+  /** ROL-as-payment-provider recovery, charged on ROL-processed value only. */
+  pf_fee: number;
+  pf_fee_rate: number;
+  /** Cash we actually pay out to the owner (never negative). */
+  net_payout: number;
+  /** Cash the owner owes us (BYO commission + anything the payout could not absorb). */
+  invoiced_amount: number;
+  settlement_mode: SettlementMode;
 }
 
 export interface PayoutBookingDetail {
@@ -48,7 +66,9 @@ export interface PayoutBookingDetail {
   commission_rate: number;
   commission_type: CommissionType;
   source: PayoutSource;
+  settlement: SettlementRoute;
 }
+
 
 // payment_transactions.status is written as 'paid' by the gateway handlers;
 // older/other providers may write 'completed'/'succeeded'. Accept all of them.
