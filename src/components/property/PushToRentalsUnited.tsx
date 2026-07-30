@@ -313,6 +313,26 @@ export function PushToRentalsUnited({ propertyId }: PushToRentalsUnitedProps) {
     validation.rooms_count === 0 && { icon: BedDouble, tab: "rooms", label: "Property must have at least 1 room type" },
   ].filter(Boolean) as { icon: any; tab: string; label: string }[] : [];
 
+  // Rentals United White-Label minimum inventory gaps (warn, don't block)
+  const wlGaps = validation
+    ? ([
+        validation.has_name === false && "Property/unit name missing",
+        validation.has_object_type_id === false && "ObjectTypeID (property type) not set",
+        validation.can_sleep_max_ok === false && "CanSleepMax must be at least 1",
+        validation.has_main_image === false && "No main photo flagged on the image set",
+        validation.has_street === false && "Street address missing",
+        validation.has_zip_code === false && "ZIP / postal code missing",
+        validation.has_space === false && "Property size (Space, m²) missing",
+        validation.has_floor === false && "Floor number missing",
+        validation.has_detailed_location_id === false && "DetailedLocationID not resolved",
+        validation.has_description === false && "Description shorter than 100 characters",
+        validation.has_payment_methods === false && "No payment method configured",
+        validation.has_cancellation_policies === false && "No cancellation policy configured",
+        validation.beds_meet_max_guests === false &&
+          `Beds (${validation.total_beds ?? 0}) do not cover max guests (${validation.max_guests ?? 0})`,
+      ].filter(Boolean) as string[])
+    : [];
+
   return (
     <Card>
       <CardHeader className="py-3 px-4">
