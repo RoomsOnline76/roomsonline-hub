@@ -491,6 +491,50 @@ export function PortfolioRuAccountsTab() {
           })}
         </div>
       )}
+
+      <Dialog open={!!resetFor} onOpenChange={(o) => !o && setResetFor(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Reset stored RU password</DialogTitle>
+            <DialogDescription>
+              Rentals United has no password-change API. Reset the sub-user password inside the RU
+              portal, then store the new value here so automation and future logins keep working.
+              It is encrypted at rest and every change is audit-logged.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs">RU login email</Label>
+              <Input
+                value={resetEmail}
+                onChange={(e) => setResetEmail(e.target.value)}
+                className="text-sm"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">New password</Label>
+              <Input
+                type="text"
+                value={resetPassword}
+                onChange={(e) => setResetPassword(e.target.value)}
+                placeholder="Minimum 8 characters"
+                className="text-sm font-mono"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              size="sm"
+              disabled={resetPassword.trim().length < 8 || saving}
+              onClick={saveResetPassword}
+            >
+              {saving && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
+              Save password
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
+
