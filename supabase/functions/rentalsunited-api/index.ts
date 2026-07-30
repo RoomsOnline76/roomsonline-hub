@@ -1794,7 +1794,7 @@ Deno.serve(async (req) => {
             success: false,
             error: {
               code: 'RU_SUBUSER_AUTH_FAILED',
-              message: `Rentals United rejected the sub-user login (${status.message || 'invalid credentials'}). Reset the sub-user password in the Rentals United portal, then save it under Portfolios → RU accounts.`,
+              message: `Rentals United rejected the sub-user login for "${subAuth.username ?? 'unknown user'}" (${status.message || 'invalid credentials'}). The password Rentals United holds for this child account differs from the one stored here. Passwords cannot be changed via the API: either reset it in the Rentals United portal for that child account and save it under Portfolios → RU accounts, or create the child account again with a unique per-portfolio email address so the generated password is the one we hold.`,
               ru_status_id: status.id,
             },
             diagnostics,
