@@ -1759,10 +1759,10 @@ Deno.serve(async (req) => {
         compactXml(x)
           .replace(/<Password>[\s\S]*?<\/Password>/g, '<Password>***</Password>')
           .replace(/<SecretKey>[\s\S]*?<\/SecretKey>/g, '<SecretKey>***</SecretKey>');
-      // Try the standard AccessKey/SecretKey envelope first; if RU rejects it as an
-      // auth/credential problem, retry once with the legacy UserName/Password shape.
+      // RU documents this call with the child account's <UserName>/<Password>;
+      // retry with the AccessKey/SecretKey shape only if that is rejected.
       const styles: Array<'access_secret' | 'username_password'> =
-        subAuth.username && subAuth.password ? ['access_secret', 'username_password'] : ['access_secret'];
+        subAuth.username && subAuth.password ? ['username_password', 'access_secret'] : ['access_secret'];
       let xml = '';
       let response = '';
       let ok = false;
