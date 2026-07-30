@@ -123,6 +123,14 @@ export function RuOnboardingPipeline({ propertyId, readOnly = false, standalone 
           fnError ? await extractFunctionError(fnError, "Action failed") : data?.error?.message ?? "Action failed",
           { duration: 10000 },
         );
+      } else if (data?.company_details_manual_required) {
+        // Stored credentials could not authenticate — ask for the password in-app
+        // (never via a native browser prompt, which exposes the host URL).
+        setPasswordOpen(true);
+        toast.warning(
+          String(data.company_details_warning ?? "The stored sub-user password could not be used — enter it once to continue."),
+          { duration: 10000 },
+        );
       } else if (data?.company_details_warning) {
         // Sub-user is in place but Push_FillCompanyDetails_RQ still outstanding.
         toast.warning(String(data.company_details_warning), { duration: 12000 });
@@ -130,8 +138,23 @@ export function RuOnboardingPipeline({ propertyId, readOnly = false, standalone 
         toast.success(successMsg);
       }
       await load();
+      return data;
     },
     [load],
+  );
+
+  const submitCompanyDetails = useCallback(
+    (password?: string) =>
+      runAction(
+        "p1_subuser",
+        {
+          action: "ensure_company_details",
+          property_id: propertyId,
+          ...(password ? { ru_login_password: password } : {}),
+        },
+        "Company details submitted to Rentals United",
+      ),
+    [runAction, propertyId],
   );
 
   const pushToRu = useCallback(async () => {
