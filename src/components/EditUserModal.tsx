@@ -84,10 +84,11 @@ export function EditUserModal({ open, onOpenChange, user, onUserUpdated }: EditU
 
     } catch (error: any) {
       console.error("Failed to update profile:", error);
-      toast.error(error.message || "Failed to update profile");
+      toast.error(await extractFunctionError(error, "Failed to update profile"));
     } finally {
       setLoading(false);
     }
+
   };
 
   if (!user) return null;
