@@ -6,7 +6,7 @@ export type DeploymentStatus = 'deployed' | 'ready' | 'in_development' | 'planne
 // Maps pms_tracker_status.integration_status to display status
 export type IntegrationStatus = 'deployed' | 'in_testing' | 'in_development' | 'coming_soon' | 'parked';
 
-export type PMSCategory = 'pms' | 'channel_manager';
+export type PMSCategory = 'pms' | 'channel_manager' | 'financial';
 
 export interface PMSSystemConfig {
   key: string;
@@ -199,7 +199,7 @@ export const ALL_PMS_SYSTEMS: PMSSystemConfig[] = [
     key: 'pricelabs',
     name: 'PriceLabs',
     description: 'Dynamic pricing and revenue management — REST API (https://api.pricelabs.co)',
-    category: 'channel_manager',
+    category: 'financial',
     deploymentStatus: 'planned',
   },
   {
@@ -277,8 +277,13 @@ export const VISIBLE_PMS_SYSTEMS = ALL_PMS_SYSTEMS.filter(s => !s.hidden);
 // Get channel manager systems (visible only)
 export const CHANNEL_MANAGER_SYSTEMS = VISIBLE_PMS_SYSTEMS.filter(s => s.category === 'channel_manager');
 
-// Get PMS-only systems (visible, non-channel-manager)
-export const PMS_CATEGORY_SYSTEMS = VISIBLE_PMS_SYSTEMS.filter(s => s.category !== 'channel_manager');
+// Get financial / revenue-management systems (visible only)
+export const FINANCIAL_SYSTEMS = VISIBLE_PMS_SYSTEMS.filter(s => s.category === 'financial');
+
+// Get PMS-only systems (visible, non-channel-manager, non-financial)
+export const PMS_CATEGORY_SYSTEMS = VISIBLE_PMS_SYSTEMS.filter(
+  s => s.category !== 'channel_manager' && s.category !== 'financial'
+);
 
 // Get total count of visible systems (used for milestones)
 export const TOTAL_PMS_SYSTEMS_COUNT = VISIBLE_PMS_SYSTEMS.length;
