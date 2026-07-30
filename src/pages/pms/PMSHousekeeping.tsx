@@ -386,6 +386,37 @@ export default function PMSHousekeeping() {
   // Property name lookup for the docket combobox grouping.
   const propertyName = (pid: string) => properties.find(p => p.id === pid)?.name || "Property";
 
+  // ── Workload summary (drives the action cards + queue drawer) ─────────
+  const CLOSED_TASK_STATUSES = ["completed", "cancelled", "verified"];
+  const dirtyRoomsAll = useMemo(() => rooms.filter(r => r.status === "dirty"), [rooms]);
+  const openTasksAll = useMemo(
+    () => hkTasks.filter(t => !CLOSED_TASK_STATUSES.includes((t.status || "").toLowerCase())),
+    [hkTasks]
+  );
+  const openDocketsAll = useMemo(
+    () => maintenanceReqs.filter(m => STATUSES_OPEN.includes(m.status || "")),
+    [maintenanceReqs]
+  );
+  const awaitingReadyAll = useMemo(
+    () => maintenanceReqs.filter(m => m.status === "resolved" && !m.room_ready_confirmed),
+    [maintenanceReqs]
+  );
+  const totalActions = dirtyRoomsAll.length + openDocketsAll.length + awaitingReadyAll.length;
+
+  const markRoomClean = async (roomId: string) => {
+    const { error } = await supabase.from("rolos_rooms").update({ status: "available" }).eq("id", roomId);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Room marked clean");
+    fetchAll();
+  };
+
+  const roomPropertyName = (roomId: string | null) => {
+    const room = rooms.find(r => r.id === roomId);
+    return room ? propertyName(room.property_id) : "";
+  };
+
+
+
   // ── Render ────────────────────────────────────────────────────────────
 
   if (propertyLoading) return <p className="text-muted-foreground">Loading property…</p>;
