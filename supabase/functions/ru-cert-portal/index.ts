@@ -767,30 +767,76 @@ Deno.serve(async (req) => {
         }, 422);
       }
 
-      const { data: created, error: createErr } = await admin.functions.invoke("rentalsunited-api", {
-        body: {
-          action: "create_user",
-          user: { first_name: firstName, last_name: lastName, email: ownerEmail, password },
-          location_ids: locationIds,
-        },
-      });
-      if (createErr || !created?.success) {
-        return json({
-          success: false,
-          error: { code: "RU_CREATE_USER_FAILED", message: createErr?.message ?? created?.error?.message ?? "Rentals United rejected the sub-user creation" },
-          preview: preview(created, 2000),
-        }, 502);
-      }
+      type RuUser = { user_account_id?: string; email?: string; owner_id?: string };
+      const listRuUsers = async (): Promise<RuUser[]> => {
+        const { data: listed } = await admin.functions.invoke("rentalsunited-api", { body: { action: "list_users" } });
+        return listed?.success && Array.isArray(listed.users) ? (listed.users as RuUser[]) : [];
+      };
+      const matchByEmail = (users: RuUser[]) =>
+        users.find((u) => (u.email ?? "").trim().toLowerCase() === ownerEmail!.trim().toLowerCase()) ?? null;
 
-
-      const userAccountId: string | null = created.user_account_id ?? null;
+      let userAccountId: string | null = null;
       let ruOwnerId: string | null = null;
-      const { data: listed } = await admin.functions.invoke("rentalsunited-api", { body: { action: "list_users" } });
-      if (listed?.success && Array.isArray(listed.users)) {
-        const matched = listed.users.find((u: { user_account_id?: string; email?: string; owner_id?: string }) =>
-          u.user_account_id === userAccountId || u.email === ownerEmail);
-        ruOwnerId = matched?.owner_id ?? null;
+      let adopted = false;
+
+      // 1) If RU already has a sub-user for this email (e.g. a prior attempt that
+      //    succeeded on RU's side but failed to save locally), adopt it instead of
+      //    trying to create a duplicate.
+      const preExisting = matchByEmail(await listRuUsers());
+      if (preExisting) {
+        userAccountId = preExisting.user_account_id ?? null;
+        ruOwnerId = preExisting.owner_id ?? null;
+        adopted = true;
       }
+
+      if (!adopted) {
+        const { data: created, error: createErr } = await admin.functions.invoke("rentalsunited-api", {
+          body: {
+            action: "create_user",
+            user: { first_name: firstName, last_name: lastName, email: ownerEmail, password },
+            location_ids: locationIds,
+          },
+        });
+        const rawMsg = String(createErr?.message ?? created?.error?.message ?? created?.raw ?? "");
+        const emailTaken = /already\s*(exist|registered|taken|in use)/i.test(rawMsg) || /duplicate/i.test(rawMsg);
+
+        if (createErr || !created?.success) {
+          if (emailTaken) {
+            // RU says the email is taken — recover by adopting the existing sub-user.
+            const recovered = matchByEmail(await listRuUsers());
+            if (recovered) {
+              userAccountId = recovered.user_account_id ?? null;
+              ruOwnerId = recovered.owner_id ?? null;
+              adopted = true;
+            } else {
+              return json({
+                success: false,
+                error: {
+                  code: "RU_EMAIL_IN_USE",
+                  message:
+                    `Rentals United reports ${ownerEmail} is already registered, but it is not under our master account (it may belong to another RU account or a pending invite). Use a different owner email, or ask RU support to move/release this login.`,
+                },
+                preview: preview(created, 2000),
+              }, 409);
+            }
+          } else {
+            return json({
+              success: false,
+              error: { code: "RU_CREATE_USER_FAILED", message: rawMsg || "Rentals United rejected the sub-user creation" },
+              preview: preview(created, 2000),
+            }, 502);
+          }
+        } else {
+          userAccountId = created.user_account_id ?? null;
+        }
+      }
+
+      if (!ruOwnerId || !userAccountId) {
+        const matched = matchByEmail(await listRuUsers());
+        userAccountId = userAccountId ?? matched?.user_account_id ?? null;
+        ruOwnerId = ruOwnerId ?? matched?.owner_id ?? null;
+      }
+
 
       const row: Record<string, unknown> = {
         owner_email: ownerEmail,
@@ -815,7 +861,7 @@ Deno.serve(async (req) => {
       if (saveErr) return json({ success: false, error: { code: "SAVE_FAILED", message: saveErr.message } }, 500);
 
 
-      return json({ success: true, created: true, account: saved, scope: portfolioId ? "portfolio" : "property" });
+      return json({ success: true, created: !adopted, adopted, account: saved, scope: portfolioId ? "portfolio" : "property" });
     }
 
     // ── order_mcq: Phase 4.3 Minimum Content Quality check ──
