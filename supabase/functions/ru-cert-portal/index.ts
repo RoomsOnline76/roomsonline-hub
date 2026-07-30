@@ -638,14 +638,39 @@ Deno.serve(async (req) => {
       const parts = String(ownerName).trim().split(/\s+/);
       const firstName = parts[0] || "Property";
       const lastName = parts.slice(1).join(" ") || "Owner";
-      const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%";
-      const bytes = new Uint8Array(16);
-      crypto.getRandomValues(bytes);
-      let password = "";
-      for (const b of bytes) password += chars[b % chars.length];
+
+      // RU password policy: 12+ chars incl. upper, lower, digit and special
+      const pick = (set: string, n: number) => {
+        const bytes = new Uint8Array(n);
+        crypto.getRandomValues(bytes);
+        return Array.from(bytes).map((b) => set[b % set.length]).join("");
+      };
+      const password = (
+        pick("ABCDEFGHJKLMNPQRSTUVWXYZ", 4) +
+        pick("abcdefghijkmnpqrstuvwxyz", 5) +
+        pick("23456789", 3) +
+        pick("!@#$%*?", 2)
+      );
+
+      // RU requires at least one LocationId on the sub-user.
+      const locationIds = await resolveOwnerLocationIds(admin, propertyId, portfolioId);
+      if (locationIds.length === 0) {
+        return json({
+          success: false,
+          error: {
+            code: "NO_RU_LOCATION",
+            message:
+              "No Rentals United LocationId could be resolved for this owner. Set the property's city/country coordinates (or push the property once) so a location can be matched, then retry.",
+          },
+        }, 422);
+      }
 
       const { data: created, error: createErr } = await admin.functions.invoke("rentalsunited-api", {
-        body: { action: "create_user", user: { first_name: firstName, last_name: lastName, email: ownerEmail, password } },
+        body: {
+          action: "create_user",
+          user: { first_name: firstName, last_name: lastName, email: ownerEmail, password },
+          location_ids: locationIds,
+        },
       });
       if (createErr || !created?.success) {
         return json({
@@ -654,6 +679,7 @@ Deno.serve(async (req) => {
           preview: preview(created, 2000),
         }, 502);
       }
+
 
       const userAccountId: string | null = created.user_account_id ?? null;
       let ruOwnerId: string | null = null;
