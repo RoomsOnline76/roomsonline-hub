@@ -2240,6 +2240,13 @@ Deno.serve(async (req) => {
             has_payment_methods: (ruPayload.payment_methods || []).length >= 1,
             has_cancellation_policies: (ruPayload.cancellation_policies || []).length >= 1,
             max_guests: ruPayload.can_sleep_max,
+            // Phase 4 — WL minimum inventory additions
+            has_name: !!(ruPayload.name && String(ruPayload.name).trim().length >= 3),
+            has_object_type_id: (((ruPayload as any).object_type_id ?? (ruPayload as any).property_type_id) || 0) > 0,
+            can_sleep_max_ok: (ruPayload.can_sleep_max || 0) >= 1,
+            has_description: (((ruPayload as any).descriptions?.[0]?.text || '').trim().length) >= 100,
+            has_main_image: (ruPayload.images || []).some((i: any) => i.is_main),
+            has_street: !!((ruPayload as any).street && String((ruPayload as any).street).trim().length > 2),
           },
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
