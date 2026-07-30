@@ -16,7 +16,7 @@ export default function ApiDocsViewer() {
       <main className="flex-1 p-6 overflow-auto">
         <PageHeader
           title="ROL'OS API Documentation"
-          subtitle="v1 — REST API reference for the Native PMS Adapter"
+          subtitle={`${ROLOS_API_VERSION} — REST API reference for the Native PMS Adapter · ${ROLOS_API_ACTION_COUNT} endpoints`}
           actions={
             <a href="/public/docs/ROLOS-Developer-REST-API-v3.docx" target="_blank" rel="noreferrer">
               <Button variant="outline" className="gap-1.5">
@@ -41,7 +41,8 @@ export default function ApiDocsViewer() {
               </code>
               <p className="text-xs text-muted-foreground mt-2">
                 All requests are POST with JSON body containing <code className="bg-muted px-1 rounded">action</code> and <code className="bg-muted px-1 rounded">propertyId</code>.
-                Rate limit headers (<code className="bg-muted px-1 rounded">X-RateLimit-*</code>) are included on every response.
+                Every response carries rate limit headers (<code className="bg-muted px-1 rounded">X-RateLimit-Limit</code>, <code className="bg-muted px-1 rounded">X-RateLimit-Remaining</code>, <code className="bg-muted px-1 rounded">X-RateLimit-Reset</code>) and <code className="bg-muted px-1 rounded">X-Api-Version: {ROLOS_API_VERSION}</code>.
+                Actions disabled per property in Admin → API UI Configurator (API Gates) return <code className="bg-muted px-1 rounded">403</code>.
               </p>
               <p className="text-xs text-muted-foreground mt-2">
                 Portfolio API: <code className="bg-muted px-1 rounded">GET /functions/v1/booking-portfolio-api?portfolio=&lt;slug&gt;&amp;include_static_content=true</code> returns <code className="bg-muted px-1 rounded">cancellation_policies</code>, <code className="bg-muted px-1 rounded">reservation_policies</code>, <code className="bg-muted px-1 rounded">policy_rate_plan_links</code>, <code className="bg-muted px-1 rounded">payment_methods</code> and <code className="bg-muted px-1 rounded">contacts</code> on each property.

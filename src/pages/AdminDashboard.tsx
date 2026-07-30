@@ -62,7 +62,9 @@ export default function AdminDashboard() {
         accessRequestsResult,
         recentBookingsResult,
       ] = await Promise.all([
-        supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('payment_status', 'paid'),
+        // Paid bookings must exclude cancelled/failed reservations — a refunded
+        // or cancelled booking is not revenue.
+        supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('payment_status', 'paid').not('status', 'in', '(cancelled,failed)'),
         supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('payment_status', 'paid').eq('status', 'confirmed'),
         supabase.from('properties').select('*', { count: 'exact', head: true }),
         supabase.from('properties').select('*', { count: 'exact', head: true }).eq('is_active', true),
