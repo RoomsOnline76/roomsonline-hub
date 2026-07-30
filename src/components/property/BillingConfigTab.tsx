@@ -267,9 +267,59 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
     }
   };
 
-  const handleSave = () => {
-    persistBuilder(strategy, builder, billingStartDate, billingEnabled);
+  // ── Channel Manager entitlement fan-out ───────────────────────────────
+  const savedChannelManager = !!config?.channel_manager_enabled;
+  const [cmDialogOpen, setCmDialogOpen] = useState(false);
+  const [cmSyncing, setCmSyncing] = useState(false);
+
+  const runEntitlementFanOut = async (enabled: boolean) => {
+    setCmSyncing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("channel-manager-entitlement", {
+        body: {
+          scope: isPortfolioScope ? "portfolio" : "property",
+          entity_id: isPortfolioScope ? scope.portfolioId : propertyId,
+          enabled,
+        },
+      });
+      if (error) throw error;
+      const res = data as { affected?: number; failed?: number } | null;
+      const failed = res?.failed ?? 0;
+      if (failed > 0) {
+        toast.error(
+          `${failed} of ${res?.affected ?? 0} propert${(res?.affected ?? 0) === 1 ? "y" : "ies"} could not be ${enabled ? "re-activated" : "archived"} at Rentals United.`
+        );
+      } else {
+        toast.success(
+          enabled
+            ? `Channel Manager enabled — ${res?.affected ?? 0} listing(s) re-activated at Rentals United.`
+            : `Channel Manager disabled — ${res?.affected ?? 0} listing(s) archived at Rentals United.`
+        );
+      }
+    } catch (e) {
+      toast.error(
+        e instanceof Error ? e.message : "Rentals United status update failed — retry from the RU console."
+      );
+    } finally {
+      setCmSyncing(false);
+    }
   };
+
+  const commitSave = async () => {
+    persistBuilder(strategy, builder, billingStartDate, billingEnabled);
+    if (builder.channel_manager_enabled !== savedChannelManager) {
+      await runEntitlementFanOut(builder.channel_manager_enabled);
+    }
+  };
+
+  const handleSave = () => {
+    if (builder.channel_manager_enabled !== savedChannelManager) {
+      setCmDialogOpen(true);
+      return;
+    }
+    void commitSave();
+  };
+
 
   if (isLoading) {
     return (
