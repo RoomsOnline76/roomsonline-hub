@@ -123,6 +123,9 @@ export function RuOnboardingPipeline({ propertyId, readOnly = false, standalone 
           fnError ? await extractFunctionError(fnError, "Action failed") : data?.error?.message ?? "Action failed",
           { duration: 10000 },
         );
+      } else if (data?.company_details_warning) {
+        // Sub-user is in place but Push_FillCompanyDetails_RQ still outstanding.
+        toast.warning(String(data.company_details_warning), { duration: 12000 });
       } else {
         toast.success(successMsg);
       }
