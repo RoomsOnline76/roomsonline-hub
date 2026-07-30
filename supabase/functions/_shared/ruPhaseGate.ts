@@ -157,9 +157,12 @@ export async function evaluatePhases(
 
   // ── Phase 2 ──
   const p2Blockers: string[] = [];
-  if ((property.external_system ?? "").toLowerCase() !== "roomsonline") {
+  // `roomsonline` is the canonical DB value; `rolos` (and variants) appear in older
+  // payloads and UI copy for the same PMS, so all aliases must pass this gate.
+  if (!ROLOS_PMS_ALIASES.includes((property.external_system ?? "").trim().toLowerCase())) {
     p2Blockers.push("Property is not on ROLOS as PMS (external_system must be 'roomsonline').");
   }
+
   if (opts.readinessUnknown) {
     p2Blockers.push("Readiness could not be scored — run the readiness scorecard.");
   } else if ((opts.readinessGaps ?? []).length > 0) {
