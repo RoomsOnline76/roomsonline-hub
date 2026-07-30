@@ -870,26 +870,38 @@ Deno.serve(async (req) => {
           location_ids: locationIds,
         };
 
-        const { data: filled, error: fillErr } = await admin.functions.invoke("rentalsunited-api", {
-          body: {
-            action: "fill_company_details",
-            company,
-            auth_username: account.ru_login_email ?? ownerEmail,
-            auth_password: password,
-          },
-        });
+        // Retry transient RU/network failures — Phase 1 must not be left half-done.
+        let filled: any = null;
+        let fillErr: any = null;
+        let lastMessage = "";
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          const res = await admin.functions.invoke("rentalsunited-api", {
+            body: {
+              action: "fill_company_details",
+              company,
+              auth_username: account.ru_login_email ?? ownerEmail,
+              auth_password: password,
+            },
+          });
+          filled = res.data;
+          fillErr = res.error;
+          if (!fillErr && filled?.success) break;
+          lastMessage = String(
+            (filled as any)?.error?.message ?? fillErr?.message ?? "Rentals United rejected the company details",
+          );
+          // Validation/schema rejections will never succeed on retry.
+          const permanent = /INCOMPLETE|requires these|invalid|credential|password|authenticat/i.test(lastMessage);
+          if (permanent || attempt === 3) break;
+          await new Promise((r) => setTimeout(r, attempt * 900));
+        }
         if (fillErr || !filled?.success) {
           await admin
             .from("ru_owner_accounts")
             .update({ company_details_status: "failed" })
             .eq("id", account.id);
-          return {
-            sent: false,
-            error: String(
-              (filled as any)?.error?.message ?? fillErr?.message ?? "Rentals United rejected the company details",
-            ),
-          };
+          return { sent: false, error: lastMessage };
         }
+
         await admin
           .from("ru_owner_accounts")
           .update({
