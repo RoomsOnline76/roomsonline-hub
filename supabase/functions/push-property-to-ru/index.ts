@@ -1976,7 +1976,7 @@ Deno.serve(async (req) => {
     // Phase 1 (sub-user) and Phase 2 (readiness) must pass before any RU write.
     // OwnerID comes from the portfolio sub-account when one exists, otherwise
     // from a property-scoped sub-account, otherwise the master account.
-    let precomputedGaps: { unit: string; check: string }[] = [];
+    let precomputedGaps: string[] = [];
     try {
       if (isMultiUnit) {
         precomputedGaps = mandatoryGaps(
@@ -1986,7 +1986,7 @@ Deno.serve(async (req) => {
               buildUnitPayload(property as PropertyRow, rt, locationId, undefined, currencyId) as Record<string, any>,
             ) as any,
           })),
-        ) as any;
+        );
       }
     } catch (e) {
       console.warn('[push-property-to-ru] Readiness pre-scoring failed:', e instanceof Error ? e.message : e);
