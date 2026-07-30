@@ -19,6 +19,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import {
   Table,
   TableBody,
@@ -41,7 +43,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { toast } from "sonner";
-import { VISIBLE_PMS_SYSTEMS, PMS_CATEGORY_SYSTEMS, CHANNEL_MANAGER_SYSTEMS, PMSSystemConfig, getIntegrationStatusInfo, IntegrationStatus } from "@/lib/pmsSystemsConfig";
+import { VISIBLE_PMS_SYSTEMS, PMS_CATEGORY_SYSTEMS, CHANNEL_MANAGER_SYSTEMS, FINANCIAL_SYSTEMS, PMSSystemConfig, getIntegrationStatusInfo, IntegrationStatus } from "@/lib/pmsSystemsConfig";
 import { HyperGuestDetails } from "@/components/pms";
 import { ChannelCredentialEditor } from "@/components/pms/ChannelCredentialEditor";
 
@@ -80,6 +82,7 @@ export default function DevPMS() {
   const [toggling, setToggling] = useState<string | null>(null);
   const [syncing, setSyncing] = useState<string | null>(null);
   const [nightsBridgeLastActivity, setNightsBridgeLastActivity] = useState<string | null>(null);
+  const [showParked, setShowParked] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -276,8 +279,18 @@ export default function DevPMS() {
     cacheLastSync: cacheActivity[config.key] || null,
   }));
 
-  const pmsSystemsWithConnections = buildSystemGroup(PMS_CATEGORY_SYSTEMS);
-  const channelManagersWithConnections = buildSystemGroup(CHANNEL_MANAGER_SYSTEMS);
+  const isParked = (key: string) =>
+    trackerStatuses.find(t => t.system_type === key)?.integration_status === 'parked';
+
+  /** Parked systems are hidden by default, matching the Integrations page. */
+  const applyParkedFilter = (systems: PMSSystemConfig[]) =>
+    showParked ? systems : systems.filter(s => !isParked(s.key));
+
+  const pmsSystemsWithConnections = buildSystemGroup(applyParkedFilter(PMS_CATEGORY_SYSTEMS));
+  const channelManagersWithConnections = buildSystemGroup(applyParkedFilter(CHANNEL_MANAGER_SYSTEMS));
+  const financialWithConnections = buildSystemGroup(applyParkedFilter(FINANCIAL_SYSTEMS));
+
+  const parkedCount = VISIBLE_PMS_SYSTEMS.filter(s => isParked(s.key)).length;
   
 
   // Get the latest sync across all connections for a system
@@ -289,8 +302,8 @@ export default function DevPMS() {
     return syncs[0] || null;
   };
 
-  // Stats - filter to only visible systems
-  const visibleSystemKeys = VISIBLE_PMS_SYSTEMS.map(s => s.key);
+  // Stats - only systems currently displayed (parked excluded unless revealed)
+  const visibleSystemKeys = applyParkedFilter(VISIBLE_PMS_SYSTEMS).map(s => s.key);
   const visibleConnections = adapters.filter(a => visibleSystemKeys.includes(a.system_type));
   const totalConnections = visibleConnections.length;
   const activeConnections = visibleConnections.filter(a => a.is_active).length;
@@ -315,6 +328,13 @@ export default function DevPMS() {
         </Button>
       </div>
 
+      <div className="flex items-center gap-2 mb-6">
+        <Switch id="show-parked" checked={showParked} onCheckedChange={setShowParked} />
+        <Label htmlFor="show-parked" className="text-sm text-muted-foreground">
+          Show parked systems{parkedCount > 0 && !showParked ? ` (${parkedCount} hidden)` : ''}
+        </Label>
+      </div>
+
       {/* Stats */}
       <div className="grid gap-4 md:grid-cols-4 mb-8">
         <Card>
@@ -323,7 +343,7 @@ export default function DevPMS() {
             <Server className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{VISIBLE_PMS_SYSTEMS.length}</div>
+            <div className="text-2xl font-bold">{visibleSystemKeys.length}</div>
             <p className="text-xs text-muted-foreground">{totalConnections} connections</p>
           </CardContent>
         </Card>
@@ -356,7 +376,7 @@ export default function DevPMS() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {deployedSystems} / {VISIBLE_PMS_SYSTEMS.length}
+              {deployedSystems} / {visibleSystemKeys.length}
             </div>
             <p className="text-xs text-muted-foreground">From pms_tracker_status</p>
           </CardContent>
@@ -548,11 +568,15 @@ export default function DevPMS() {
             </div>
           </div>
 
-          {/* Channel Managers */}
-          <div>
-            <h2 className="text-lg font-semibold mb-4">Channel Managers</h2>
+          {/* Channel Managers + Financial services */}
+          {[
+            { title: 'Channel Managers', systems: channelManagersWithConnections },
+            { title: 'Financial Services', systems: financialWithConnections },
+          ].filter(g => g.systems.length > 0).map((group) => (
+          <div key={group.title}>
+            <h2 className="text-lg font-semibold mb-4">{group.title}</h2>
             <div className="space-y-6">
-              {channelManagersWithConnections.map(({ config, connections, trackerStatus, cacheLastSync }) => {
+              {group.systems.map(({ config, connections, trackerStatus, cacheLastSync }) => {
                 const integrationStatus = trackerStatus?.integration_status || 'coming_soon';
                 const statusInfo = getIntegrationStatusInfo(integrationStatus);
                 const latestCredentialSync = getLatestSync(connections);
@@ -716,6 +740,7 @@ export default function DevPMS() {
               })}
             </div>
           </div>
+          ))}
         </div>
       )}
     </AppLayout>
