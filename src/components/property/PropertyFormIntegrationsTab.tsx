@@ -4,6 +4,8 @@ import { Badge } from "@/components/ui/badge";
 import { Code2, Link2, LayoutTemplate, Globe, Puzzle, Terminal, ExternalLink, Sparkles, Blocks, Building2, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PushToRentalsUnited } from "./PushToRentalsUnited";
+import { RuReadinessScorecard, type RuReadinessReport } from "@/components/pms/channels/RuReadinessScorecard";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { DirectLinkTab } from "@/components/integrations/DirectLinkTab";
 import { WidgetTab } from "@/components/integrations/WidgetTab";
