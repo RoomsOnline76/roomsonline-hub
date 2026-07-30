@@ -156,6 +156,27 @@ async function callPortal<T = any>(action: string, payload: Record<string, unkno
   }
   return data as T;
 }
+interface CertMilestone {
+  key: string;
+  label: string;
+  ru_method: string;
+  mandatory: boolean;
+  note: string;
+  status: string;
+  partial_success: boolean;
+  ru_status_id: string | null;
+  detail: string | null;
+  last_run_at: string | null;
+  run_id: string | null;
+}
+
+interface MilestoneSummary {
+  mandatory_total: number;
+  mandatory_passed: number;
+  partial: number;
+  never_run: number;
+}
+
 
 export function RuCertificationConsole({ properties }: { properties: PropertyLite[] }) {
   const [suite, setSuite] = useState("read_only");
