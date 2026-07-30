@@ -958,6 +958,14 @@ const Dashboard = () => {
       }
     };
     
+    // If there is no live (non-cancelled) activity in the range, keep the chart
+    // clean: no interpolation, no smoothing, no forecast. Synthetic trend lines
+    // over an all-zero series are misleading.
+    const hasLiveActivity = data.some(d => d.bookings > 0 || d.revenue > 0);
+    if (!hasLiveActivity) {
+      return data;
+    }
+    
     detectAndInterpolateGaps(data, 2); // Interpolate gaps of 1-2 periods
     
     // Apply forecasting - separate actual data from future projections
@@ -1365,6 +1373,9 @@ const Dashboard = () => {
           <Card className="p-2">
             <div className="flex items-center justify-between mb-1">
               <span className="text-xs font-medium">Bookings{shouldAggregateByMonth && " (Monthly)"}</span>
+              {!bookingsLoading && chartData.length > 0 && !chartData.some(d => d.bookings > 0 || d.revenue > 0) && (
+                <span className="text-[10px] text-muted-foreground">No live bookings in this period</span>
+              )}
             </div>
             <div>
               {bookingsLoading ? (

@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Puzzle, AlertCircle, Download, RefreshCw, Rocket, CheckCircle2, XCircle, Webhook, Send, Eye, Copy, Loader2, ShieldCheck } from "lucide-react";
 import { PUBLIC_DOMAIN } from "@/lib/config";
 import { supabase } from "@/integrations/supabase/client";
+import { ROLOS_WP_PLUGIN_VERSION } from "@/config/wordpressPlugin";
 import { toast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
@@ -79,7 +80,7 @@ export function WordPressTab({ property, showPushUpdate = false }: WordPressTabP
     },
   });
 
-  const currentVersion = (integrationConfig?.config as Record<string, unknown>)?.plugin_version as string || "2.1.0";
+  const currentVersion = (integrationConfig?.config as Record<string, unknown>)?.plugin_version as string || ROLOS_WP_PLUGIN_VERSION;
   const updateUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/wordpress-plugin-update`;
 
   const wl = useWhitelabel(property.id);
