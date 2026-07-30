@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { 
   CreditCard, 
   DollarSign, 
@@ -59,6 +59,7 @@ interface CommissionPayout {
 
 export default function AdminPayments() {
   const [transactions, setTransactions] = useState<PaymentTransaction[]>([]);
+  const [showExpired, setShowExpired] = useState(false);
   const [commissionPayouts, setCommissionPayouts] = useState<CommissionPayout[]>([]);
   const [loading, setLoading] = useState(true);
   const [commissionsLoading, setCommissionsLoading] = useState(true);
@@ -232,17 +233,24 @@ export default function AdminPayments() {
   };
 
 
+  const isExpiredTx = useCallback((t: PaymentTransaction) =>
+    t.status === 'pending' && Date.now() - new Date(t.created_at).getTime() > PENDING_SESSION_MS,
+  [PENDING_SESSION_MS]);
+
+  const expiredCount = useMemo(() => transactions.filter(isExpiredTx).length, [transactions, isExpiredTx]);
+
   const filteredTransactions = useMemo(() => {
-    if (!searchTerm.trim()) return transactions;
+    const base = showExpired ? transactions : transactions.filter(t => !isExpiredTx(t));
+    if (!searchTerm.trim()) return base;
     const term = searchTerm.toLowerCase();
-    return transactions.filter(t => {
+    return base.filter(t => {
       const dateStr = format(new Date(t.created_at), 'MMM d, yyyy HH:mm').toLowerCase();
       const amountStr = `${t.currency} ${t.amount.toLocaleString()}`.toLowerCase();
       return dateStr.includes(term) || t.guest_name?.toLowerCase().includes(term) ||
         t.property_name?.toLowerCase().includes(term) || t.payment_method?.toLowerCase().includes(term) ||
         amountStr.includes(term) || t.status.toLowerCase().includes(term);
     });
-  }, [transactions, searchTerm]);
+  }, [transactions, searchTerm, showExpired, isExpiredTx]);
 
   const totalCommissionsDue = commissionPayouts
     .filter(p => p.status === 'approved')
@@ -323,6 +331,13 @@ export default function AdminPayments() {
                   </Select>
                   <Button variant="outline" size="sm" onClick={() => refreshPayouts()} disabled={payoutsLoading}>
                     {payoutsLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Refresh'}
+                  </Button>
+                  <Button
+                    variant={showExpired ? "secondary" : "outline"}
+                    size="sm"
+                    onClick={() => setShowExpired(v => !v)}
+                  >
+                    {showExpired ? "Hide expired" : `Show expired${expiredCount ? ` (${expiredCount})` : ""}`}
                   </Button>
                   <Button variant="outline" size="sm"><Download className="h-4 w-4 mr-2" />Export</Button>
                 </div>

@@ -1,26 +1,46 @@
-## What the payout summary shows today
+## Problem (verified)
 
-I checked the code and the live data:
+The 4 Fonteinhutte bookings in the database all have `integration_type`, `booking_channel` and `source_url` set to `NULL`, and `commission_type = 'listing'` — the column's database default. The checkout in `src/pages/Booking.tsx` never records where the booking came from, so every booking looks like a marketplace booking and the payout summary applies the 10% listing rate.
 
-- **Period: all time.** `usePropertyPayouts()` on Admin → Payments is called with no period argument, so it aggregates every settled payment transaction ever recorded. There is no date filter and no label saying so — which is why the period is unclear.
-- **Why recent payouts appear missing:** the summary is built *only* from rows in `payment_transactions` with status `paid/completed/succeeded/success`. Bookings that are marked paid but have no settled transaction row (e.g. booking `eb9f3b81…`, checked out, `payment_status = paid`, zero settled transactions) never appear. Recent gateway retries also sit as `pending` (8 pending rows on 2026-07-29) and are correctly excluded, but the guest-facing booking looks paid to staff.
+So the resolver logic is fine; the origin data is simply never captured.
 
-## Proposed changes
+## Fix 1 — Capture booking origin at checkout
 
-1. **Add a visible period selector + label**
-   - Add a period control to the Property Payout Summary card: `This month`, `Last month`, `Last 90 days`, `All time` (default: `This month`), plus a specific-month picker.
-   - Show the resolved range in the card subtitle ("1 – 31 July 2026, by payment date").
-   - Extend `usePropertyPayouts` to accept a `{ from, to }` range instead of only a `YYYY-MM` string, keeping the existing month behaviour.
+New shared helper `src/lib/bookingOrigin.ts` that inspects the live page (hostname, path, query params, parent frame) and returns the origin fields to store on the booking:
 
-2. **Include paid bookings that have no settled transaction row**
-   - After loading settled transactions, run a second query for bookings in the period with `payment_status IN ('paid','partially_paid')` and a non-excluded status that have no settled transaction.
-   - Attribute their gross from the booking's paid amount (transactions where present, else `total_price`), so manually captured / folio-settled stays are counted.
-   - Tag these rows in the drill-down as `Booking-recorded` vs `Gateway-settled` so admins can see the source of each amount.
+| Situation | commission_type | Rate |
+|---|---|---|
+| Host is `book.sleepinafrica.roomsonline.co.za` (or other ROL marketplace surface: journey/itinerary/marketplace pages) | `listing` | 10% |
+| White-label host, `wl=1`, embed/widget iframe, WordPress plugin, portfolio widget, property's own domain | `pms` | 2% |
+| Reservation synced from an OTA/channel | `external` | 0% |
 
-3. **Date basis clarity**
-   - Aggregate on payment date (transaction `created_at`; booking `created_at` for booking-recorded rows) and state that on the card, since "payout period" is otherwise ambiguous against check-out dates.
-   - Add a small "as at <timestamp>" line with the existing refresh action.
+Every booking write path sets `commission_type`, `integration_type`, `booking_channel` and `source_url`:
+- `src/pages/Booking.tsx` (main checkout, insert **and** the reuse-pending update)
+- `src/components/booking/InlineCheckout.tsx` and `InlineCheckoutPanel.tsx` (currently hardcode `booking_channel: 'rol-website'`)
+- `booking-widget-api` and `wordpress-plugin-api` edge functions — force `pms` for their own bookings
+- Channel-sourced reservation handlers keep `external`
+
+Server-side safety net in `payfast-api` / `calculate-billing`: if a booking arrives with no origin fields, derive the type from the referring URL rather than silently defaulting to `listing`.
+
+## Fix 2 — Make the default safe
+
+Change the `bookings.commission_type` column default from `'listing'` to `NULL`, and treat a NULL/unknown value as "derive from origin" rather than "listing". A booking is only charged the 10% listing rate when its origin positively says it came from a ROL marketplace surface.
+
+## Fix 3 — Backfill history
+
+Update all existing bookings that have no origin data to `commission_type = 'pms'` (marketplace bookings haven't started yet), with `booking_channel = 'legacy_direct'` so the backfill is auditable. Channel-sourced reservations remain `external`. Fonteinhutte's payout then shows R7,080 gross → R142 commission at 2%.
+
+## Fix 4 — Payments page
+
+- **Transactions tab:** expired rows (pending > 2h) are hidden by default; add a "Show expired" toggle above the table with a count, e.g. `Show expired (7)`.
+- **Payout summary:** the commission column shows the resolved type badge (Marketplace / PMS-direct / Channel) so the applied rate is visible at a glance.
+
+## Sales-rep commissions
+
+`calculate-rep-commissions` and `rol_revenue_ledger` read the same `commission_type`, so rep commissions follow the corrected origin automatically once the field is populated.
 
 ## Technical notes
 
-Files touched: `src/hooks/usePropertyPayouts.ts` (range params, second fetch pass, source tagging), `src/pages/AdminPayments.tsx` (period control + labels), `src/components/payments/PropertyPayoutTable.tsx` (source badge in drill-down). No schema or edge-function changes required.
+- No new tables. One migration (column default) plus one data update for the backfill.
+- `src/lib/commissionResolver.ts` gets a small change: stop treating a stored `listing` as authoritative when no origin fields back it up.
+- Edge functions to redeploy: `booking-widget-api`, `wordpress-plugin-api`, `payfast-api`, `calculate-billing`.

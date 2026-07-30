@@ -7,6 +7,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { PropertyPayout } from "@/hooks/usePropertyPayouts";
+import { COMMISSION_TYPE_LABEL } from "@/lib/commissionResolver";
 import { PaymentAdviceDialog } from "./PaymentAdviceDialog";
 
 interface PropertyPayoutTableProps {
@@ -76,6 +77,11 @@ export function PropertyPayoutTable({ payouts, loading }: PropertyPayoutTablePro
                   <span className="text-xs text-muted-foreground ml-1">
                     ({p.commission_rate.toFixed(1)}% eff.)
                   </span>
+                  <div>
+                    <Badge variant="outline" className="mt-1 text-[10px]">
+                      {COMMISSION_TYPE_LABEL[p.commission_type] ?? p.commission_type}
+                    </Badge>
+                  </div>
                 </div>
               </TableCell>
 

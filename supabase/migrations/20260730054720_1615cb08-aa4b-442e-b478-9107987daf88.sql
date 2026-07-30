@@ -1,0 +1,1 @@
+ALTER TABLE public.bookings ALTER COLUMN commission_type DROP DEFAULT;
