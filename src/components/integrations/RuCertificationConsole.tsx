@@ -144,10 +144,25 @@ export function RuCertificationConsole({ properties }: { properties: PropertyLit
 
   const loadCadence = useCallback(async () => {
     setCadenceLoading(true);
-    const res = await callPortal<{ rules: CadenceRule[] }>("compliance");
-    if (res) setCadence(res.rules ?? []);
+    const res = await callPortal<{ rules: CadenceRule[]; jobs: CronJob[]; expected_jobs: ExpectedJob[] }>("compliance");
+    if (res) {
+      setCadence(res.rules ?? []);
+      setJobs(res.jobs ?? []);
+      setExpectedJobs(res.expected_jobs ?? []);
+    }
     setCadenceLoading(false);
   }, []);
+
+  const runJob = async (fn: string) => {
+    setRunningJob(fn);
+    const res = await callPortal("run_job", { function_name: fn });
+    setRunningJob(null);
+    if (res) {
+      toast.success("Job executed");
+      loadCadence();
+    }
+  };
+
 
   const loadReadiness = useCallback(async () => {
     setReadinessLoading(true);
