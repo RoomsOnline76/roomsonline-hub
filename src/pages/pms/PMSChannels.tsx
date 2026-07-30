@@ -94,7 +94,9 @@ export default function PMSChannels() {
             <TabsTrigger value="connections">Connections</TabsTrigger>
             <TabsTrigger value="mappings">Mappings</TabsTrigger>
             <TabsTrigger value="sync-log">Sync Log</TabsTrigger>
+            <TabsTrigger value="ru-readiness">RU Readiness</TabsTrigger>
           </TabsList>
+
 
           {/* Tab 1: Connections */}
           <TabsContent value="connections">
