@@ -562,6 +562,12 @@ export default function DevPMS() {
                       <ChannelCredentialEditor channelName={config.key} />
                     </CardContent>
                   )}
+                  {config.key === 'rentalsunited' && (
+                    <CardContent className="pt-0 flex flex-wrap items-center gap-2">
+                      <RuCertificationCheckButton />
+                      <RuConsoleLink />
+                    </CardContent>
+                  )}
                 </Card>
                 );
               })}
