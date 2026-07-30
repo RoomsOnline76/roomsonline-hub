@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { format, subDays } from "date-fns";
 import { RefreshCw, CheckCircle2, XCircle, Filter, Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { isRolosPms } from "@/lib/pmsIdentity";
+
 import { AppLayout } from "@/components/layout/AppLayout";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -133,13 +135,14 @@ export default function AdminRentalsUnited() {
     () =>
       properties.filter(
         (p) =>
-          p.external_system === "rolos" ||
+          isRolosPms(p.external_system) ||
           !!p.ru_push_enabled ||
           !!p.rentalsunited_property_id ||
           stickyIds.has(p.id)
       ),
     [properties, stickyIds]
   );
+
 
   /** Any active property not already on the board can be added manually via [+]. */
   const addableProperties = useMemo(() => {

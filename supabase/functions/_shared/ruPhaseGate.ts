@@ -8,7 +8,15 @@
 // Every RU write walks this gate. A phase is only actionable once every
 // earlier phase is `passed`.
 
+/**
+ * `properties.external_system` values that mean "ROL'OS is the PMS".
+ * The DB canonical value is `roomsonline`; `rolos` variants exist in UI copy and
+ * older payloads, so every check accepts the whole alias set.
+ */
+export const ROLOS_PMS_ALIASES = ["roomsonline", "rolos", "rol_os", "rolos_pms"];
+
 export type PhaseKey = "p1_subuser" | "p2_readiness" | "p3_push" | "p4_verify";
+
 export type PhaseStatus = "passed" | "blocked" | "pending";
 
 export interface PhaseResult {
@@ -157,9 +165,12 @@ export async function evaluatePhases(
 
   // ── Phase 2 ──
   const p2Blockers: string[] = [];
-  if ((property.external_system ?? "").toLowerCase() !== "roomsonline") {
+  // `roomsonline` is the canonical DB value; `rolos` (and variants) appear in older
+  // payloads and UI copy for the same PMS, so all aliases must pass this gate.
+  if (!ROLOS_PMS_ALIASES.includes((property.external_system ?? "").trim().toLowerCase())) {
     p2Blockers.push("Property is not on ROLOS as PMS (external_system must be 'roomsonline').");
   }
+
   if (opts.readinessUnknown) {
     p2Blockers.push("Readiness could not be scored — run the readiness scorecard.");
   } else if ((opts.readinessGaps ?? []).length > 0) {
