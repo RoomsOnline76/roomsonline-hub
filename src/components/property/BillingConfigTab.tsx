@@ -75,6 +75,8 @@ function configToBuilder(config: BillingConfig | null): BillingConfigValue {
   const v = emptyBuilderValue();
   v.commission_enabled = config.commission_rate != null && !isWidget;
   v.commission_rate = config.commission_rate != null ? String(config.commission_rate) : "";
+  v.pms_commission_rate = (config as any).pms_commission_rate != null ? String((config as any).pms_commission_rate) : "";
+
   v.widget_tiers_enabled = isWidget && (config as any).widget_flat_commission_rate == null;
   v.widget_flat_enabled = (config as any).widget_flat_commission_rate != null;
   v.widget_flat_rate = (config as any).widget_flat_commission_rate != null ? String((config as any).widget_flat_commission_rate) : "";
