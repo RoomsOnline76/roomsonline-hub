@@ -1949,7 +1949,7 @@ Deno.serve(async (req) => {
 
     const { data: property, error: propErr } = await supabase
       .from('properties')
-      .select('id, name, description, property_type, address, city, country, postal_code, latitude, longitude, max_guests, bedrooms, bathrooms, amenities, images, rentalsunited_property_id, rentalsunited_building_id, owner_email, external_system')
+      .select('id, name, description, property_type, address, city, country, postal_code, latitude, longitude, max_guests, bedrooms, bathrooms, amenities, images, rentalsunited_property_id, rentalsunited_building_id, owner_email, external_system, ru_archived')
       .eq('id', property_id)
       .single();
 
