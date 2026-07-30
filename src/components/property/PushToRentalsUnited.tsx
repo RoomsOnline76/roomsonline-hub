@@ -25,6 +25,8 @@ import {
 interface PushToRentalsUnitedProps {
   propertyId: string;
   propertyName: string;
+  /** RU readiness report from the shared scorecard — blocks push when not ready. */
+  readiness?: RuReadinessReport | null;
 }
 
 interface RuOwnerAccount {
