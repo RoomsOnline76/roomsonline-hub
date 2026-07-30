@@ -998,8 +998,26 @@ function extractUserAccountId(xml: string): string | null {
 }
 
 function extractUsers(xml: string): { user_account_id: string; email: string; first_name: string; last_name: string; owner_id: string }[] {
-  const regex = /<User>[\s\S]*?<UserAccountId>(\d+)<\/UserAccountId>[\s\S]*?<FirstName>(.*?)<\/FirstName>[\s\S]*?<LastName>(.*?)<\/LastName>[\s\S]*?<Email>(.*?)<\/Email>[\s\S]*?(?:<OwnerID>(\d+)<\/OwnerID>)?[\s\S]*?<\/User>/g;
   const results: { user_account_id: string; email: string; first_name: string; last_name: string; owner_id: string }[] = [];
+  // Current RU format: <Owner OwnerID="741761"><FirstName/><SurName/><Email/>...<UserAccountId>0</UserAccountId></Owner>
+  const ownerRegex = /<Owner\b[^>]*\bOwnerID\s*=\s*"(\d+)"[^>]*>([\s\S]*?)<\/Owner>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = ownerRegex.exec(xml)) !== null) {
+    const ownerId = m[1];
+    const block = m[2];
+    const val = (tag: string) => block.match(new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`, 'i'))?.[1]?.trim() ?? '';
+    results.push({
+      user_account_id: val('UserAccountId') || '',
+      first_name: val('FirstName'),
+      last_name: val('SurName') || val('LastName'),
+      email: val('Email') || val('UserName'),
+      owner_id: ownerId,
+    });
+  }
+  if (results.length > 0) return results;
+
+  // Legacy format: <User><UserAccountId/><FirstName/><LastName/><Email/><OwnerID/></User>
+  const regex = /<User>[\s\S]*?<UserAccountId>(\d+)<\/UserAccountId>[\s\S]*?<FirstName>(.*?)<\/FirstName>[\s\S]*?<LastName>(.*?)<\/LastName>[\s\S]*?<Email>(.*?)<\/Email>[\s\S]*?(?:<OwnerID>(\d+)<\/OwnerID>)?[\s\S]*?<\/User>/g;
   let match;
   while ((match = regex.exec(xml)) !== null) {
     results.push({
