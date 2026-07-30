@@ -21,6 +21,7 @@ import {
   ExternalLink,
   User,
 } from "lucide-react";
+import type { RuReadinessReport } from "@/components/pms/channels/RuReadinessScorecard";
 
 interface PushToRentalsUnitedProps {
   propertyId: string;
