@@ -8,7 +8,15 @@
 // Every RU write walks this gate. A phase is only actionable once every
 // earlier phase is `passed`.
 
+/**
+ * `properties.external_system` values that mean "ROL'OS is the PMS".
+ * The DB canonical value is `roomsonline`; `rolos` variants exist in UI copy and
+ * older payloads, so every check accepts the whole alias set.
+ */
+export const ROLOS_PMS_ALIASES = ["roomsonline", "rolos", "rol_os", "rolos_pms"];
+
 export type PhaseKey = "p1_subuser" | "p2_readiness" | "p3_push" | "p4_verify";
+
 export type PhaseStatus = "passed" | "blocked" | "pending";
 
 export interface PhaseResult {
