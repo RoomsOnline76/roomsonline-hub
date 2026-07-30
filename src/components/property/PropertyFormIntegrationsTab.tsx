@@ -5,6 +5,7 @@ import { Code2, Link2, LayoutTemplate, Globe, Puzzle, Terminal, ExternalLink, Sp
 import { Button } from "@/components/ui/button";
 import { PushToRentalsUnited } from "./PushToRentalsUnited";
 import { RuReadinessScorecard, type RuReadinessReport } from "@/components/pms/channels/RuReadinessScorecard";
+import { RuOnboardingPipeline } from "@/components/integrations/RuOnboardingPipeline";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { DirectLinkTab } from "@/components/integrations/DirectLinkTab";
@@ -41,6 +42,9 @@ export function PropertyFormIntegrationsTab({ property }: PropertyFormIntegratio
 
   return (
     <div className="space-y-4">
+      {/* Rentals United 4-phase onboarding (sub-user → readiness → push → verify) */}
+      <RuOnboardingPipeline propertyId={property.id} readOnly={!isAdmin} />
+
       {/* Push to Rentals United */}
       <PushToRentalsUnited propertyId={property.id} propertyName={property.name} readiness={ruReport} />
 

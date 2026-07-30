@@ -10433,6 +10433,67 @@ export type Database = {
         }
         Relationships: []
       }
+      ru_mcq_orders: {
+        Row: {
+          created_at: string
+          id: string
+          ordered_at: string
+          ordered_by: string | null
+          property_id: string | null
+          response_preview: string | null
+          ru_property_id: string
+          ru_status_id: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          ordered_at?: string
+          ordered_by?: string | null
+          property_id?: string | null
+          response_preview?: string | null
+          ru_property_id: string
+          ru_status_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          ordered_at?: string
+          ordered_by?: string | null
+          property_id?: string | null
+          response_preview?: string | null
+          ru_property_id?: string
+          ru_status_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ru_mcq_orders_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "ru_mcq_orders_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ru_mcq_orders_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ru_notifications: {
         Row: {
           created_at: string | null
@@ -10491,38 +10552,82 @@ export type Database = {
       ru_owner_accounts: {
         Row: {
           company_details_sent: boolean
+          company_filled_at: string | null
+          company_payload: Json | null
           created_at: string
           id: string
           owner_email: string
+          portfolio_id: string | null
+          property_id: string | null
           ru_login_email: string | null
           ru_login_url: string | null
           ru_owner_id: string | null
           ru_user_id: string | null
+          scope: string
           updated_at: string
         }
         Insert: {
           company_details_sent?: boolean
+          company_filled_at?: string | null
+          company_payload?: Json | null
           created_at?: string
           id?: string
           owner_email: string
+          portfolio_id?: string | null
+          property_id?: string | null
           ru_login_email?: string | null
           ru_login_url?: string | null
           ru_owner_id?: string | null
           ru_user_id?: string | null
+          scope?: string
           updated_at?: string
         }
         Update: {
           company_details_sent?: boolean
+          company_filled_at?: string | null
+          company_payload?: Json | null
           created_at?: string
           id?: string
           owner_email?: string
+          portfolio_id?: string | null
+          property_id?: string | null
           ru_login_email?: string | null
           ru_login_url?: string | null
           ru_owner_id?: string | null
           ru_user_id?: string | null
+          scope?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "ru_owner_accounts_portfolio_id_fkey"
+            columns: ["portfolio_id"]
+            isOneToOne: false
+            referencedRelation: "property_portfolios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ru_owner_accounts_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "ru_owner_accounts_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ru_owner_accounts_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       ru_platform_settings: {
         Row: {

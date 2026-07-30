@@ -7,6 +7,7 @@ import {
   RU_MIN_IMAGE_WIDTH,
   RU_BED_COVERAGE,
 } from '../_shared/ruReadiness.ts';
+import { evaluatePhases, phaseBlockedResponse, RU_MASTER_OWNER_ID } from '../_shared/ruPhaseGate.ts';
 
 
 /**
@@ -1913,7 +1914,7 @@ Deno.serve(async (req) => {
 
     const { data: property, error: propErr } = await supabase
       .from('properties')
-      .select('id, name, description, property_type, address, city, country, postal_code, latitude, longitude, max_guests, bedrooms, bathrooms, amenities, images, rentalsunited_property_id, rentalsunited_building_id, owner_email')
+      .select('id, name, description, property_type, address, city, country, postal_code, latitude, longitude, max_guests, bedrooms, bathrooms, amenities, images, rentalsunited_property_id, rentalsunited_building_id, owner_email, external_system')
       .eq('id', property_id)
       .single();
 
@@ -1971,12 +1972,54 @@ Deno.serve(async (req) => {
       });
     }
 
-    // ── RU OwnerID: ALWAYS use master account ─────────────────
-    // Sub-account creation is not yet approved/active by RU. Until further
-    // notice, all properties (create + update + ARI) run under the master
-    // account so credentials match ownership and ARI pushes succeed.
-    const ruOwnerId = 738925; // master account
-    console.log(`[push-property-to-ru] Using master RU OwnerID ${ruOwnerId} (sub-accounts disabled), CurrencyID=${currencyId}, LocationID=${locationId}`);
+    // ── Phase gate + RU OwnerID resolution ────────────────────
+    // Phase 1 (sub-user) and Phase 2 (readiness) must pass before any RU write.
+    // OwnerID comes from the portfolio sub-account when one exists, otherwise
+    // from a property-scoped sub-account, otherwise the master account.
+    let precomputedGaps: string[] = [];
+    try {
+      if (isMultiUnit) {
+        precomputedGaps = mandatoryGaps(
+          activeRoomTypes.map(rt => ({
+            name: rt.name,
+            validation: buildValidation(
+              buildUnitPayload(property as PropertyRow, rt, locationId, undefined, currencyId) as Record<string, any>,
+            ) as any,
+          })),
+        );
+      }
+    } catch (e) {
+      console.warn('[push-property-to-ru] Readiness pre-scoring failed:', e instanceof Error ? e.message : e);
+    }
+
+    const phaseGate = await evaluatePhases(supabase, property as any, { readinessGaps: precomputedGaps });
+    const ruOwnerId = phaseGate.ru_owner_id ?? RU_MASTER_OWNER_ID;
+
+    if (!dry_run && !phaseGate.ready_for_push) {
+      if (!forcePush) {
+        return new Response(JSON.stringify(phaseBlockedResponse(phaseGate)), {
+          status: 422,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      console.warn(
+        `[push-property-to-ru] FORCE PUSH overriding phase gate at ${phaseGate.current_phase} for property ${property_id}`,
+      );
+      try {
+        await supabase.from('ru_sync_runs').insert({
+          property_id,
+          action: 'force_push_override',
+          success: false,
+          error_code: 'PHASE_GATE_BYPASSED',
+          error_message: `Phase gate bypassed at ${phaseGate.current_phase}`,
+          details: { phases: phaseGate.phases },
+        });
+      } catch (_e) { /* audit only */ }
+    }
+
+    console.log(
+      `[push-property-to-ru] RU OwnerID ${ruOwnerId} (scope=${phaseGate.owner_scope}, portfolio=${phaseGate.portfolio_id ?? 'none'}), CurrencyID=${currencyId}, LocationID=${locationId}`,
+    );
 
     // ── MULTI-UNIT BUILDING FLOW ─────────────────────────────
     if (isMultiUnit) {

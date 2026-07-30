@@ -1617,6 +1617,24 @@ Deno.serve(async (req) => {
       return jsonResponse({ success: true, message: 'Company details filled successfully', raw_xml: response });
     }
 
+    // ── order_mcq: CM_LNM_OrderMinimumContentQualityCheck_RQ (Phase 4.3) ──
+    if (action === 'order_mcq') {
+      const ruPropertyId = Number(body.ru_property_id);
+      if (!ruPropertyId) return errorResponse('MISSING_PARAM', 'ru_property_id is required');
+      const xml = `<?xml version="1.0" encoding="utf-8"?>\n<CM_LNM_OrderMinimumContentQualityCheck_RQ>${buildAuthXml(creds)}<PropertyID>${ruPropertyId}</PropertyID></CM_LNM_OrderMinimumContentQualityCheck_RQ>`;
+      const response = await callRentalsUnited(creds, xml);
+      console.log(`[rentalsunited-api] OrderMCQ response: ${response.substring(0, 500)}`);
+      const { ok, status } = handleRUStatus(response);
+      if (!ok) return ruErrorResponse(status, buildDiagnostics(compactXml(xml), status, 'order_mcq', response));
+      return jsonResponse({
+        success: true,
+        ru_property_id: ruPropertyId,
+        ru_status_id: status?.id ?? null,
+        message: 'Minimum Content Quality check ordered',
+        raw_xml: response,
+      });
+    }
+
     // ── get_location_by_name ──
     // Pull_GetLocationByName_RQ — find a LocationID by free-text name. Better than coords for
     // ambiguous spots (e.g. "Stilbaai" returns the actual locality LocationID).

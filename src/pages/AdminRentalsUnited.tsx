@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RuCertificationConsole } from "@/components/integrations/RuCertificationConsole";
 import { RuErrorHandlingTab } from "@/components/integrations/RuErrorHandlingTab";
+import { RuOnboardingPipeline } from "@/components/integrations/RuOnboardingPipeline";
 
 
 interface SyncRun {
@@ -61,6 +62,7 @@ export default function AdminRentalsUnited() {
   const [successFilter, setSuccessFilter] = useState<string>("all");
   const [propertyFilter, setPropertyFilter] = useState<string>("all");
   const [selected, setSelected] = useState<SyncRun | null>(null);
+  const [onboardingPropertyId, setOnboardingPropertyId] = useState<string>("");
   const [triggering, setTriggering] = useState<string | null>(null);
   // Properties toggled in this session stay on the board even when switched off.
   const [stickyIds, setStickyIds] = useState<Set<string>>(new Set());
@@ -172,9 +174,37 @@ export default function AdminRentalsUnited() {
       <Tabs defaultValue="sync" className="space-y-6">
         <TabsList>
           <TabsTrigger value="sync">Sync observability</TabsTrigger>
+          <TabsTrigger value="onboarding">Onboarding</TabsTrigger>
           <TabsTrigger value="errors">Error handling</TabsTrigger>
           <TabsTrigger value="cert">Certification &amp; compliance</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="onboarding" className="space-y-4">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Property</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Select value={onboardingPropertyId} onValueChange={setOnboardingPropertyId}>
+                <SelectTrigger className="w-full md:w-96">
+                  <SelectValue placeholder="Select a property to onboard" />
+                </SelectTrigger>
+                <SelectContent>
+                  {properties.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </CardContent>
+          </Card>
+          {onboardingPropertyId ? (
+            <RuOnboardingPipeline propertyId={onboardingPropertyId} />
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Pick a property to walk the four-phase Rentals United onboarding.
+            </p>
+          )}
+        </TabsContent>
 
         <TabsContent value="errors">
           <RuErrorHandlingTab
@@ -186,6 +216,7 @@ export default function AdminRentalsUnited() {
         <TabsContent value="cert">
           <RuCertificationConsole properties={properties} />
         </TabsContent>
+
 
 
         <TabsContent value="sync" className="space-y-6">
