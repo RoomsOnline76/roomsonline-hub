@@ -136,6 +136,17 @@ export default function AdminRentalsUnited() {
       />
 
       <div className="px-6 pb-10 space-y-6">
+      <Tabs defaultValue="sync" className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="sync">Sync observability</TabsTrigger>
+          <TabsTrigger value="cert">Certification &amp; compliance</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="cert">
+          <RuCertificationConsole properties={properties as never} />
+        </TabsContent>
+
+        <TabsContent value="sync" className="space-y-6">
         {/* KPI Cards */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <Card>
