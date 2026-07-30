@@ -96,6 +96,43 @@ export function PortfolioRuAccountsTab() {
     }
   }, []);
 
+  const [resetFor, setResetFor] = useState<{ id: string; email: string } | null>(null);
+  const [resetPassword, setResetPassword] = useState("");
+  const [resetEmail, setResetEmail] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const openReset = useCallback((accountId: string, email: string) => {
+    setResetFor({ id: accountId, email });
+    setResetEmail(email);
+    setResetPassword("");
+  }, []);
+
+  const saveResetPassword = useCallback(async () => {
+    if (!resetFor) return;
+    setSaving(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
+        body: {
+          action: "save_login_password",
+          account_id: resetFor.id,
+          password: resetPassword,
+          login_email: resetEmail,
+        },
+      });
+      if (error || !data?.success) {
+        toast.error(data?.error?.message || error?.message || "Could not save the password");
+        return;
+      }
+      toast.success("RU portal password stored (encrypted)");
+      setResetFor(null);
+      setResetPassword("");
+    } finally {
+      setSaving(false);
+    }
+  }, [resetEmail, resetFor, resetPassword]);
+
+
+
 
   const { data: accounts = [], isLoading } = useQuery({
     queryKey: ["ru-owner-accounts"],
