@@ -111,9 +111,30 @@ async function loadCommercialTerms(propertyIds: string[]): Promise<Record<string
   return out;
 }
 
-export function usePropertyPayouts(periodMonth?: string) {
+export interface PayoutPeriod {
+  /** Inclusive ISO start of the payment window. Omit for "all time". */
+  from?: string;
+  /** Exclusive ISO end of the payment window. */
+  to?: string;
+}
+
+/** Accepts a { from, to } range, or a legacy "YYYY-MM" month string. */
+function normalisePeriod(period?: PayoutPeriod | string): PayoutPeriod {
+  if (!period) return {};
+  if (typeof period === 'string') {
+    const startDate = new Date(`${period}-01T00:00:00Z`);
+    const end = new Date(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth() + 1, 1));
+    return { from: startDate.toISOString(), to: end.toISOString() };
+  }
+  return period;
+}
+
+export function usePropertyPayouts(period?: PayoutPeriod | string) {
   const [payouts, setPayouts] = useState<PropertyPayout[]>([]);
   const [loading, setLoading] = useState(true);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+
+  const { from, to } = normalisePeriod(period);
 
   const loadPayouts = async () => {
     try {
@@ -134,15 +155,11 @@ export function usePropertyPayouts(periodMonth?: string) {
         .in('status', SETTLED_TX_STATUSES)
         .order('created_at', { ascending: false });
 
-      if (periodMonth) {
-        // periodMonth is YYYY-MM — bound the transaction date to that month
-        const start = `${periodMonth}-01`;
-        const startDate = new Date(`${start}T00:00:00Z`);
-        const end = new Date(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth() + 1, 1));
-        query = query.gte('created_at', startDate.toISOString()).lt('created_at', end.toISOString());
-      }
+      if (from) query = query.gte('created_at', from);
+      if (to) query = query.lt('created_at', to);
 
       const { data: transactions, error: txError } = await query;
+
 
       if (txError) throw txError;
 
