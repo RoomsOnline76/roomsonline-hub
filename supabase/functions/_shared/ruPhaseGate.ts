@@ -38,7 +38,16 @@ export interface PhaseGateResult {
   portfolio_id: string | null;
 }
 
-export const RU_MASTER_OWNER_ID = 738925;
+/**
+ * Optional admin-only escape hatch. There is NO hardcoded master OwnerID:
+ * a missing OwnerID must be treated as a hard error by callers. An explicit
+ * override may only come from the RU_MASTER_OWNER_ID secret combined with an
+ * explicit force/admin request flag.
+ */
+export function masterOwnerIdOverride(): number | null {
+  const raw = Number(Deno.env.get("RU_MASTER_OWNER_ID") ?? "");
+  return Number.isFinite(raw) && raw > 0 ? raw : null;
+}
 
 export interface RuOwnerAccount {
   id: string;
