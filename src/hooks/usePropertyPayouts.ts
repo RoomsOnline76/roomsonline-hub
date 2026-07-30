@@ -143,6 +143,52 @@ async function loadCommercialTerms(propertyIds: string[]): Promise<Record<string
   return out;
 }
 
+/**
+ * Properties whose guest payments land in the owner's own merchant account
+ * (bring-your-own gateway), either configured on the property or inherited
+ * from its portfolio. Used when a booking has no gateway transaction row to
+ * read `credential_source` from.
+ */
+async function loadByoProperties(propertyIds: string[]): Promise<Set<string>> {
+  const byo = new Set<string>();
+  if (propertyIds.length === 0) return byo;
+
+  const [{ data: props }, { data: members }] = await Promise.all([
+    supabase.from('properties').select('id, allow_custom_payment_provider').in('id', propertyIds),
+    supabase.from('property_portfolio_members').select('property_id, portfolio_id').in('property_id', propertyIds),
+  ]);
+
+  (props || []).forEach((p: any) => { if (p.allow_custom_payment_provider) byo.add(p.id); });
+
+  const portfolioByProperty: Record<string, string> = {};
+  (members || []).forEach((m: any) => { portfolioByProperty[m.property_id] = m.portfolio_id; });
+  const portfolioIds = Array.from(new Set(Object.values(portfolioByProperty)));
+
+  if (portfolioIds.length > 0) {
+    const { data: pfConfigs } = await supabase
+      .from('portfolio_payment_configs' as any)
+      .select('portfolio_id, allow_custom_payment_provider, credentials')
+      .in('portfolio_id', portfolioIds);
+    const allowed = new Set(
+      (pfConfigs || [])
+        .filter((c: any) => c.allow_custom_payment_provider && c.credentials)
+        .map((c: any) => c.portfolio_id as string),
+    );
+    Object.entries(portfolioByProperty).forEach(([pid, pfId]) => {
+      if (allowed.has(pfId)) byo.add(pid);
+    });
+  }
+
+  return byo;
+}
+
+/** Settlement route for a gateway transaction row (older rows have no marker → ROL). */
+function routeFromCredentialSource(source: unknown): SettlementRoute {
+  return String(source ?? '').toLowerCase() === 'byo' ? 'byo' : 'rol';
+}
+
+
+
 export interface PayoutPeriod {
   /** Inclusive ISO start of the payment window. Omit for "all time". */
   from?: string;
