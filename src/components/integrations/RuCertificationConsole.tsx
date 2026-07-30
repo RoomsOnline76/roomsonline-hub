@@ -88,6 +88,18 @@ interface ReadinessRow {
   ok: boolean;
   gaps: string[];
   error?: string;
+  checks_total?: number;
+  checks_passed?: number;
+  score?: number;
+  ari?: {
+    ru_property_id: number;
+    date_from: string;
+    date_to: string;
+    open_days: number;
+    price_points: number;
+    availability_ok: boolean;
+    prices_ok: boolean;
+  } | null;
 }
 
 interface DiscountRow {
