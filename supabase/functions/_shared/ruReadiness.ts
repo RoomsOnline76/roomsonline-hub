@@ -57,6 +57,11 @@ export interface RuUnitValidation {
   has_object_type_id?: boolean;
   can_sleep_max_ok?: boolean;
   has_description?: boolean;
+  description_length?: number;
+  description_meets_recommended?: boolean;
+  amenities_mapped_count?: number;
+  amenities_padded_count?: number;
+  amenities_padded?: boolean;
   has_main_image?: boolean;
   has_street?: boolean;
   rooms_have_amenities?: boolean;
@@ -143,10 +148,16 @@ export function evaluateUnitChecks(
   add("rooms_have_amenities", "Rooms & beds", "Every room has beds / amenities", v.rooms_have_amenities !== false,
     `${(v.rooms_count ?? 0) - (v.rooms_with_amenities ?? 0)} room block(s) have no bed or amenity entry`,
     "Rooms → Unit → Bed configuration");
-  add("beds_cover_half", "Rooms & beds", "Beds cover ≥ 50% of max guests",
+  // RU White-Label minimum: beds must cover >= 50% of CanSleepMax. This is the only
+  // mandatory bed rule; 1-bed-per-guest is a quality warning, never a blocker.
+  add("beds_cover_half", "Rooms & beds", `Beds cover ≥ ${Math.round(RU_BED_COVERAGE * 100)}% of max guests`,
     v.beds_cover_half !== false,
-    `Beds (${v.total_beds ?? 0}) cover less than half of max guests (${v.max_guests ?? 0})`,
+    `Beds (${v.total_beds ?? 0}) cover less than half of max guests (${v.max_guests ?? 0}) — Rentals United requires ${Math.round(RU_BED_COVERAGE * 100)}%`,
     "Rooms → Unit → Bed configuration");
+  add("beds_meet_max_guests", "Rooms & beds", "Beds cover 100% of max guests (recommended)",
+    v.beds_meet_max_guests !== false,
+    `Beds (${v.total_beds ?? 0}) do not cover every guest (${v.max_guests ?? 0}) — not required by Rentals United, but improves channel quality`,
+    "Rooms → Unit → Bed configuration", false);
 
   // ── Photos ──
   add("meets_minimum_images", "Photos", `Photos (≥ ${RU_MIN_IMAGES})`, !!v.meets_minimum_images,
