@@ -310,8 +310,10 @@ export default function AdminRentalsUnited() {
               <Select value={propertyFilter} onValueChange={setPropertyFilter}>
                 <SelectTrigger className="w-[240px]"><SelectValue placeholder="Property" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All properties</SelectItem>
-                  {properties.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                  <SelectItem value="all">All enabled properties</SelectItem>
+                  {ruProperties
+                    .filter((p) => p.ru_push_enabled)
+                    .map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
