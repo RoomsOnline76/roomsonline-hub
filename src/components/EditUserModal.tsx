@@ -7,6 +7,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { z } from "zod";
 import { Loader2 } from "lucide-react";
+import { extractFunctionError } from "@/lib/functionError";
+
 
 const profileSchema = z.object({
   full_name: z.string().trim().min(1, "Name is required").max(100),
