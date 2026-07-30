@@ -375,6 +375,8 @@ function buildListPropertiesXml(creds: RUCredentials, ownerId: number): string {
  * Resolve the RU OwnerID to list properties for: explicit param → RU_OWNER_ID
  * secret → first owner returned by Pull_ListMyUsers_RQ.
  */
+const RU_MASTER_OWNER_ID = 738925; // RoomsOnline master RU account
+
 async function resolveOwnerId(creds: RUCredentials, explicit?: number | string | null): Promise<number | null> {
   const direct = Number(explicit ?? Deno.env.get('RU_OWNER_ID') ?? '');
   if (Number.isFinite(direct) && direct > 0) return direct;
