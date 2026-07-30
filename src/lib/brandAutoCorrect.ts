@@ -289,9 +289,64 @@ export function proposeBrandFixes(palette: BrandPalette): BrandFix[] {
     });
   }
 
+  /* ── ROLOS ADMIN UI — the PMS shell, both modes ───────────────── */
+  // The ROLOS surfaces are fixed by the app theme (they are not brandable),
+  // so only the brand colours themselves can move.
+  if (primary) {
+    ROLOS_MODES.forEach(({ mode, page, label }) => {
+      specs.push({
+        id: `rolos-primary-${mode}`,
+        field: "brand_primary_color",
+        label: "Primary colour inside ROLOS",
+        surface: `ROLOS buttons, active nav & charts (${label})`,
+        fg: primary,
+        bg: page,
+        min: AA_LARGE,
+        mode,
+        scope: "rolos",
+        reason: `Your primary colour is used for buttons, the active menu item and chart series inside the ROLOS interface — it must separate from the ${label} shell background.`,
+        alsoReadableOn: mode === "light" ? ROLOS_DARK_PAGE : ROLOS_LIGHT_PAGE,
+      });
+    });
+  }
+  if (secondary) {
+    ROLOS_MODES.forEach(({ mode, page, label }) => {
+      specs.push({
+        id: `rolos-secondary-${mode}`,
+        field: "brand_secondary_color",
+        label: "Secondary colour inside ROLOS",
+        surface: `ROLOS badges & chart series (${label})`,
+        fg: secondary,
+        bg: page,
+        min: AA_LARGE,
+        mode,
+        scope: "rolos",
+        reason: `The secondary colour tints badges and secondary chart series in the ROLOS interface and must stay distinguishable on the ${label} shell.`,
+        alsoReadableOn: mode === "light" ? ROLOS_DARK_PAGE : ROLOS_LIGHT_PAGE,
+      });
+    });
+  }
+  if (heading) {
+    specs.push({
+      id: "rolos-font-dark",
+      field: headingField,
+      label: "Brand font colour inside ROLOS (dark)",
+      surface: "ROLOS cards & tables (dark)",
+      fg: heading,
+      bg: ROLOS_DARK_CARD,
+      min: AA_TEXT,
+      mode: "dark",
+      scope: "rolos",
+      reason:
+        "This font colour cannot be used on ROLOS cards in dark mode. ROLOS now falls back to the theme text colour automatically — accepting this proposal lets your own colour be used in both modes instead.",
+      alsoReadableOn: ROLOS_LIGHT_PAGE,
+    });
+  }
+
   const fixes: BrandFix[] = [];
 
   for (const spec of specs) {
+    const scope: BrandScope = spec.scope ?? "booking";
     const before = contrastRatio(spec.fg, spec.bg);
     if (before >= spec.min) continue;
 
@@ -316,9 +371,9 @@ export function proposeBrandFixes(palette: BrandPalette): BrandFix[] {
       : contrastRatio(proposed, spec.bg);
     if (after <= before) continue;
 
-    // If the same field is proposed twice, keep the stricter (higher-ratio) proposal
-    // and merge the failing modes so the UI can report "day + dark".
-    const existing = fixes.find((f) => f.field === spec.field);
+    // If the same field is proposed twice for the same scope, keep the stricter
+    // proposal and merge the failing modes so the UI can report "day + dark".
+    const existing = fixes.find((f) => f.field === spec.field && f.scope === scope);
     if (existing) {
       if (!existing.modes.includes(spec.mode)) existing.modes.push(spec.mode);
       if (after > existing.ratioAfter) {
@@ -342,8 +397,10 @@ export function proposeBrandFixes(palette: BrandPalette): BrandFix[] {
       ratioAfter: after,
       severity: before < spec.min * 0.7 ? "fail" : "warn",
       modes: [spec.mode],
+      scope,
     });
   }
+
 
   return fixes;
 }
