@@ -78,6 +78,7 @@ interface PropertyRow {
   address: string | null;
   city: string | null;
   country: string | null;
+  postal_code: string | null;
   latitude: number | null;
   longitude: number | null;
   max_guests: number | null;
@@ -161,6 +162,18 @@ interface RuImage {
 function toDimension(value: unknown): number | null {
   const n = Number(value);
   return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+
+/**
+ * Resolve a usable postal / ZIP code: unit → property field → trailing code in
+ * the address line (e.g. "Groot Jongensfontein 6675"). '0000' means unresolved.
+ */
+function resolveZipCode(unitZip: string | null | undefined, property: { postal_code?: string | null; address?: string | null }): string {
+  const direct = (unitZip || property.postal_code || '').trim();
+  if (direct) return direct;
+  const m = String(property.address || '').match(/\b(\d{4,6})\b(?!.*\b\d{4,6}\b)/);
+  return m ? m[1] : '0000';
 }
 
 function mapImages(images: unknown[] | null): RuImage[] {
@@ -465,9 +478,10 @@ function buildUnitPayload(
   const lat = unit.latitude || property.latitude || 0;
   const lng = unit.longitude || property.longitude || 0;
   const street = unit.address_street || property.address || 'Not specified';
-  const zipCode = unit.address_postal_code || '0000';
+  const zipCode = resolveZipCode(unit.address_postal_code, property);
   const maxGuests = unit.max_guests || 2;
   const space = unit.room_size || 50;
+  const spaceIsDefault = !unit.room_size;
 
   const houseRules = (amenities as any)?.house_rules || {};
   const contact = (amenities as any)?.contact || {};
@@ -707,11 +721,12 @@ function buildSinglePropertyPayload(property: PropertyRow, roomTypes: RoomTypeRo
   const lat = primaryRoom?.latitude || property.latitude || 0;
   const lng = primaryRoom?.longitude || property.longitude || 0;
   const street = primaryRoom?.address_street || property.address || 'Not specified';
-  const zipCode = primaryRoom?.address_postal_code || '0000';
+  const zipCode = resolveZipCode(primaryRoom?.address_postal_code, property);
   let maxGuests = property.max_guests || 0;
   if (maxGuests <= 1 && roomTypes.length > 0) maxGuests = roomTypes.reduce((sum, rt) => sum + (rt.max_guests || 2), 0);
   if (maxGuests < 1) maxGuests = 2;
   const space = primaryRoom?.room_size || 50;
+  const spaceIsDefault = !primaryRoom?.room_size;
   const houseRules = (amenities as any)?.house_rules || {};
   const contact = (amenities as any)?.contact || {};
   const banking = (amenities as any)?.banking || {};
@@ -1894,7 +1909,7 @@ Deno.serve(async (req) => {
 
     const { data: property, error: propErr } = await supabase
       .from('properties')
-      .select('id, name, description, property_type, address, city, country, latitude, longitude, max_guests, bedrooms, bathrooms, amenities, images, rentalsunited_property_id, rentalsunited_building_id, owner_email')
+      .select('id, name, description, property_type, address, city, country, postal_code, latitude, longitude, max_guests, bedrooms, bathrooms, amenities, images, rentalsunited_property_id, rentalsunited_building_id, owner_email')
       .eq('id', property_id)
       .single();
 
