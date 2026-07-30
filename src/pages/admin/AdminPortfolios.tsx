@@ -23,6 +23,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import PortfolioRuAccountsTab from "@/components/portfolio/PortfolioRuAccountsTab";
 import { useToast } from "@/hooks/use-toast";
 import {
   Plus,
