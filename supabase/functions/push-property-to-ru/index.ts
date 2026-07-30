@@ -1963,6 +1963,32 @@ Deno.serve(async (req) => {
     if (isMultiUnit) {
       console.log(`[push-property-to-ru] Multi-unit mode: ${activeRoomTypes.length} units for "${property.name}"`);
 
+      // ── Readiness gate: no live push while mandatory WL requirements fail ──
+      if (!dry_run && !forcePush) {
+        const gatedUnits = activeRoomTypes.map(rt => ({
+          name: rt.name,
+          validation: buildValidation(
+            buildUnitPayload(property as PropertyRow, rt, locationId, undefined, currencyId) as Record<string, any>,
+          ) as any,
+        }));
+        const gaps = mandatoryGaps(gatedUnits);
+        if (gaps.length > 0) {
+          return new Response(
+            JSON.stringify({
+              success: false,
+              error: {
+                code: 'NOT_READY',
+                message: `Property is not ready for Rentals United: ${gaps.length} requirement(s) outstanding.`,
+              },
+              gaps,
+            }),
+            { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+
+
+
       // Dry run: validate each unit
       if (dry_run) {
         const units = activeRoomTypes.map(rt => {
