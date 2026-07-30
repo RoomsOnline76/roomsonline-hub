@@ -1026,6 +1026,12 @@ Deno.serve(async (req) => {
         property_id: portfolioId ? null : propertyId,
         scope: portfolioId ? "portfolio" : "property",
       };
+      // Keep the sub-user password (encrypted) — Push_FillCompanyDetails_RQ authenticates
+      // as the sub-user, so without it the company profile can never be filled via API.
+      if (!adopted) {
+        const { data: enc } = await admin.rpc("encrypt_sensitive_text", { plaintext: password });
+        if (enc) row.ru_login_password_enc = enc;
+      }
       // The unique indexes on this table are PARTIAL, so PostgREST's ON CONFLICT
       // cannot target them. Resolve the existing row manually, then update/insert.
       const existingQuery = admin.from("ru_owner_accounts").select("id").limit(1);
@@ -1039,8 +1045,8 @@ Deno.serve(async (req) => {
       if (saveErr) return json({ success: false, error: { code: "SAVE_FAILED", message: saveErr.message } }, 500);
 
       // Step 2 of Phase 1: fill company details on RU — without this the sub-user is incomplete.
-      const companyResult = await submitCompanyDetails(saved as any);
-      if (!companyResult.sent) {
+      const companyResult = await submitCompanyDetails(saved as any, adopted ? null : password);
+      if (!companyResult.sent && !(companyResult as any).deferred) {
         return json({
           success: false,
           error: {
@@ -1060,10 +1066,12 @@ Deno.serve(async (req) => {
         success: true,
         created: !adopted,
         adopted,
-        company_details_sent: true,
+        company_details_sent: companyResult.sent,
+        company_details_warning: companyResult.sent ? null : companyResult.error,
         account: finalAccount ?? saved,
         scope: portfolioId ? "portfolio" : "property",
       });
+
 
     }
 
