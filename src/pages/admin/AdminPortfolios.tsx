@@ -1186,6 +1186,9 @@ export default function AdminPortfolios() {
             </Table>
           </div>
         )}
+          </TabsContent>
+        </Tabs>
+
 
         {/* Edit Dialog */}
         <Dialog
