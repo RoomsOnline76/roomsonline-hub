@@ -523,6 +523,53 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
           </CollapsibleContent>
         </Card>
       </Collapsible>
+
+      {/* Channel Manager entitlement confirmation */}
+      <AlertDialog open={cmDialogOpen} onOpenChange={setCmDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {builder.channel_manager_enabled
+                ? "Re-enable Channel Manager billing?"
+                : "Disable Channel Manager billing?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2 text-xs">
+              {builder.channel_manager_enabled ? (
+                <>
+                  <p>
+                    All {isPortfolioScope ? `${scope.siblingPropertyIds.length} portfolio ` : ""}
+                    propert{isPortfolioScope && scope.siblingPropertyIds.length !== 1 ? "ies" : "y"} will be{" "}
+                    <strong>re-activated at Rentals United</strong> and the ROL'OS Channel Manager screen unlocks.
+                  </p>
+                  <p>Per-unit channel billing resumes for every synced unit.</p>
+                </>
+              ) : (
+                <>
+                  <p>
+                    All {isPortfolioScope ? `${scope.siblingPropertyIds.length} portfolio ` : ""}
+                    propert{isPortfolioScope && scope.siblingPropertyIds.length !== 1 ? "ies" : "y"} will be{" "}
+                    <strong>archived at Rentals United</strong>, ARI pushes stop, and the ROL'OS Channel Manager
+                    screen is locked for the owner.
+                  </p>
+                  <p>Per-unit channel billing stops from the next invoice run.</p>
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setCmDialogOpen(false);
+                void commitSave();
+              }}
+            >
+              {builder.channel_manager_enabled ? "Enable & re-activate" : "Disable & archive"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
+
   );
 }
