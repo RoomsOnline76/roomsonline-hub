@@ -98,6 +98,15 @@ function reconcileForBothModes(fg: string, bgA: string, bgB: string, min: number
   return best ? best.hex : null;
 }
 
+/* ── ROLOS shell surfaces (mirrors PMS_SURFACES in brandOverride.ts) ── */
+export const ROLOS_LIGHT_PAGE = "#FFFFFF";
+export const ROLOS_DARK_PAGE = "#10131A";
+export const ROLOS_DARK_CARD = "#191D26";
+const ROLOS_MODES: { mode: BrandMode; page: string; label: string }[] = [
+  { mode: "light", page: ROLOS_LIGHT_PAGE, label: "day" },
+  { mode: "dark", page: ROLOS_DARK_PAGE, label: "dark" },
+];
+
 interface CheckSpec {
   id: string;
   field: BrandField;
