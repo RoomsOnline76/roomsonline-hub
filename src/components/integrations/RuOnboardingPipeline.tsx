@@ -6,6 +6,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { extractFunctionError } from "@/lib/functionError";
 import {
   CheckCircle2,
   CircleDashed,
@@ -91,7 +92,11 @@ export function RuOnboardingPipeline({ propertyId, readOnly = false, standalone 
       body: { action: "phase_status", property_id: propertyId },
     });
     if (fnError || !data?.success) {
-      setError(fnError?.message ?? data?.error?.message ?? "Could not load the onboarding status");
+      setError(
+        fnError
+          ? await extractFunctionError(fnError, "Could not load the onboarding status")
+          : data?.error?.message ?? "Could not load the onboarding status",
+      );
       setGate(null);
     } else {
       setGate(data.gate as Gate);
@@ -113,7 +118,11 @@ export function RuOnboardingPipeline({ propertyId, readOnly = false, standalone 
       const { data, error: fnError } = await supabase.functions.invoke("ru-cert-portal", { body });
       setBusy(null);
       if (fnError || !data?.success) {
-        toast.error(fnError?.message ?? data?.error?.message ?? "Action failed");
+        // Surface the RU/edge reason instead of the generic "non-2xx" message.
+        toast.error(
+          fnError ? await extractFunctionError(fnError, "Action failed") : data?.error?.message ?? "Action failed",
+          { duration: 10000 },
+        );
       } else {
         toast.success(successMsg);
       }
@@ -133,13 +142,17 @@ export function RuOnboardingPipeline({ propertyId, readOnly = false, standalone 
       toast.error(
         blockers.length
           ? `${data?.error?.message ?? "Push blocked"} — ${blockers[0]}`
-          : fnError?.message ?? data?.error?.message ?? "Push failed",
+          : fnError
+            ? await extractFunctionError(fnError, "Push failed")
+            : data?.error?.message ?? "Push failed",
+        { duration: 10000 },
       );
     } else {
       toast.success("Property, inventory and rates pushed to Rentals United");
     }
     await load();
   }, [propertyId, load]);
+
 
   const actionFor = (phase: Phase) => {
     if (readOnly) return null;

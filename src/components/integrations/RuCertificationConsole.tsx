@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { toast } from "sonner";
+import { extractFunctionError } from "@/lib/functionError";
 
 interface PropertyLite {
   id: string;
@@ -147,7 +148,7 @@ function StatusIcon({ status }: { status: CertStep["status"] }) {
 async function callPortal<T = any>(action: string, payload: Record<string, unknown> = {}): Promise<T | null> {
   const { data, error } = await supabase.functions.invoke("ru-cert-portal", { body: { action, ...payload } });
   if (error) {
-    toast.error(error.message);
+    toast.error(await extractFunctionError(error, "Request failed"));
     return null;
   }
   if (data && data.success === false) {
@@ -156,6 +157,7 @@ async function callPortal<T = any>(action: string, payload: Record<string, unkno
   }
   return data as T;
 }
+
 interface CertMilestone {
   key: string;
   label: string;
