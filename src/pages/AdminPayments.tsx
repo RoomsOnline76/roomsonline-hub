@@ -57,6 +57,10 @@ interface CommissionPayout {
   banking_verified: boolean;
 }
 
+// PayFast checkout sessions don't stay open forever — a pending row older than
+// this is an abandoned attempt, not money in flight.
+const PENDING_SESSION_MS = 2 * 60 * 60 * 1000;
+
 export default function AdminPayments() {
   const [transactions, setTransactions] = useState<PaymentTransaction[]>([]);
   const [showExpired, setShowExpired] = useState(false);
@@ -214,10 +218,6 @@ export default function AdminPayments() {
       setMarkingPaid(null);
     }
   };
-
-  // PayFast checkout sessions don't stay open forever — a pending row older than
-  // this is an abandoned attempt, not money in flight.
-  const PENDING_SESSION_MS = 2 * 60 * 60 * 1000;
 
   const getStatusBadge = (status: string, createdAt?: string) => {
     switch (status) {
