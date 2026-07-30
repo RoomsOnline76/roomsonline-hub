@@ -934,6 +934,10 @@ export default function AdminPortfolios() {
           </Table>
         </div>
       )}
+        </TabsContent>
+      </Tabs>
+
+
 
       {/* Edit Dialog */}
       <Dialog open={!!editPortfolio} onOpenChange={(o) => { if (!o) { setEditPortfolio(null); resetForm(); } }}>
