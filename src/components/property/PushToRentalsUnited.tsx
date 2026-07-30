@@ -419,9 +419,15 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
               {dryRunning ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle className="h-3 w-3" />}
               {dryRunning ? "Checking..." : "Validate"}
             </Button>
-            <Button size="sm" className="h-7 text-xs gap-1" onClick={pushToRU} disabled={loading || dryRunning || (validation !== null && !isReady)}>
+            <Button
+              size="sm"
+              className="h-7 text-xs gap-1"
+              onClick={pushToRU}
+              disabled={loading || dryRunning || readiness?.blocked === true || (validation !== null && !isReady)}
+              title={readiness?.blocked ? "Complete the RU readiness checklist below before syncing" : undefined}
+            >
               {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
-              {loading ? "Pushing..." : isMultiUnit ? "Push Building + Units" : "Push to RU"}
+              {loading ? "Pushing..." : readiness?.blocked ? "Sync blocked" : isMultiUnit ? "Push Building + Units" : "Push to RU"}
             </Button>
           </div>
         </div>
