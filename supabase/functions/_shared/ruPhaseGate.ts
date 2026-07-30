@@ -178,14 +178,13 @@ export async function evaluatePhases(
   const p4Blockers: string[] = [];
   const { data: lastRun } = await admin
     .from("ru_sync_runs")
-    .select("status, finished_at, created_at")
+    .select("success, created_at")
     .eq("property_id", property.id)
+    .eq("success", true)
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  const lastOkAt = lastRun && lastRun.status === "success"
-    ? new Date(lastRun.finished_at ?? lastRun.created_at).getTime()
-    : 0;
+  const lastOkAt = lastRun?.created_at ? new Date(lastRun.created_at).getTime() : 0;
   const freshMs = 24 * 60 * 60 * 1000;
   if (!lastOkAt) {
     p4Blockers.push("No successful RU sync recorded yet — push and verify inventory first.");
