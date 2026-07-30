@@ -362,8 +362,30 @@ function errorResponse(code: string, message: string, status = 400): Response {
 
 // ── Pull XML Builders ────────────────────────────────────────
 
-function buildListPropertiesXml(creds: RUCredentials): string {
-  return `<Pull_ListOwnerProp_RQ>${buildAuthXml(creds)}</Pull_ListOwnerProp_RQ>`;
+function buildListPropertiesXml(creds: RUCredentials, ownerId: number): string {
+  // RU rejects Pull_ListOwnerProp_RQ without an <OwnerID> (status 94).
+  return `<?xml version="1.0" encoding="utf-8"?>
+<Pull_ListOwnerProp_RQ>
+  ${buildAuthXml(creds)}
+  <OwnerID>${ownerId}</OwnerID>
+</Pull_ListOwnerProp_RQ>`;
+}
+
+/**
+ * Resolve the RU OwnerID to list properties for: explicit param → RU_OWNER_ID
+ * secret → first owner returned by Pull_ListMyUsers_RQ.
+ */
+async function resolveOwnerId(creds: RUCredentials, explicit?: number | string | null): Promise<number | null> {
+  const direct = Number(explicit ?? Deno.env.get('RU_OWNER_ID') ?? '');
+  if (Number.isFinite(direct) && direct > 0) return direct;
+  try {
+    const usersXml = await callRentalsUnited(creds, buildListUsersXml(creds));
+    for (const u of extractUsers(usersXml)) {
+      const id = Number(u.owner_id || u.user_account_id);
+      if (Number.isFinite(id) && id > 0) return id;
+    }
+  } catch (_e) { /* fall through */ }
+  return null;
 }
 
 function buildGetPropertyXml(creds: RUCredentials, propertyId: number): string {
@@ -1129,7 +1151,11 @@ Deno.serve(async (req) => {
 
     // ── list_properties ──
     if (action === 'list_properties') {
-      const xml = buildListPropertiesXml(creds);
+      const ownerId = await resolveOwnerId(creds, body.owner_id);
+      if (!ownerId) {
+        return errorResponse('MISSING_PARAM', 'Rentals United OwnerID could not be resolved. Pass owner_id or set the RU_OWNER_ID secret.');
+      }
+      const xml = buildListPropertiesXml(creds, ownerId);
       const response = await callRentalsUnited(creds, xml);
       const { ok, status } = handleRUStatus(response);
       if (!ok) return ruErrorResponse(status);
