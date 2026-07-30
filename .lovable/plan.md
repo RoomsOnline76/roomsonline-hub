@@ -59,13 +59,12 @@ Scope
 
 Exit criteria: the console lists every RU-enabled property with a pass/fail against all WL minimums and an actionable gap list.
 
-## Phase 5 — User management (parked, scaffolded)
+## Phase 5 — User management (parked, scaffolded) — DONE
 
-Scope
-- Confirm the state of `create_user` / `list_users` / `fill_company_details` against RU's user-management docs, keep them behind an explicitly disabled flag, and show a "Pending RU PMS profile" status card on the console.
-- No sub-user creation is enabled until RU confirms the PMS profile exists. Guest Communication API is explicitly **out of scope** for this whole programme.
-
-Exit criteria: documented status + a one-switch path to enable once RU confirms.
+- `create_user` / `list_users` / `fill_company_details` confirmed implemented in `rentalsunited-api`.
+- New `ru_platform_settings` table holds the `user_management` flag (admin-read, service-write).
+- `ru-cert-portal` exposes `user_management` (status + endpoint inventory + live `Pull_ListMyUsers_RQ` probe), `set_user_management` (the single switch) and gated `create_user` / `fill_company_details` proxies returning `USER_MGMT_DISABLED` while parked.
+- Console "User management" tab shows a "Pending RU PMS profile" card, the switch, endpoint states and a sub-user form that only appears once enabled. Guest Communication API stays out of scope.
 
 ---
 
