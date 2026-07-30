@@ -1,4 +1,13 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import {
+  mandatoryGaps,
+  RU_MIN_AMENITIES,
+  RU_MIN_IMAGES,
+  RU_MIN_IMAGE_HEIGHT,
+  RU_MIN_IMAGE_WIDTH,
+  RU_BED_COVERAGE,
+} from '../_shared/ruReadiness.ts';
+
 
 /**
  * Push Property to Rentals United — Multi-Unit Building Support
@@ -141,13 +150,92 @@ function mapAmenities(amenitiesData: Record<string, unknown> | null): { id: numb
   return mapped;
 }
 
-function mapImages(images: unknown[] | null): { url: string; type_id: number; is_main: boolean }[] {
+interface RuImage {
+  url: string;
+  type_id: number;
+  is_main: boolean;
+  width?: number | null;
+  height?: number | null;
+}
+
+function toDimension(value: unknown): number | null {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+function mapImages(images: unknown[] | null): RuImage[] {
   if (!Array.isArray(images) || images.length === 0) return [];
   return images.map((img, i) => {
-    const url = typeof img === 'string' ? img : (img as Record<string, unknown>)?.url as string || '';
-    return { url, type_id: 1, is_main: i === 0 };
+    const rec = (typeof img === 'string' ? null : img) as Record<string, unknown> | null;
+    const url = typeof img === 'string' ? img : (rec?.url as string) || '';
+    return {
+      url,
+      type_id: 1,
+      is_main: i === 0,
+      width: toDimension(rec?.width),
+      height: toDimension(rec?.height),
+    };
   }).filter(img => img.url);
 }
+
+/**
+ * RU White-Label minimum inventory validation for a built payload.
+ * Shared by every dry-run branch and by the live-push readiness gate so the
+ * admin console, the ROLOS scorecard and the API all score identically.
+ */
+function buildValidation(payload: Record<string, any>): Record<string, unknown> {
+  const images: RuImage[] = (payload.images || []) as RuImage[];
+  const rooms: { room_id: number; amenities: { id: number; count: number }[] }[] = payload.rooms || [];
+  const amenities: unknown[] = payload.amenities || [];
+  const maxGuests = payload.can_sleep_max || 0;
+
+  // Photos: count + pixel size (images without stored dimensions are treated as
+  // unverified rather than failures, but are reported so they can be checked).
+  let sized = 0;
+  let unverified = 0;
+  for (const img of images) {
+    if (img.width == null || img.height == null) { unverified += 1; sized += 1; continue; }
+    if (img.width >= RU_MIN_IMAGE_WIDTH && img.height >= RU_MIN_IMAGE_HEIGHT) sized += 1;
+  }
+
+  // Beds: RU requires beds to cover at least 50% of CanSleepMax.
+  const totalBeds = rooms.reduce((sum, r) =>
+    sum + (r.amenities || []).filter((a: any) => a.id >= 97 && a.id <= 101)
+      .reduce((s: number, a: any) => s + (a.count || 1), 0), 0);
+
+  const roomsWithAmenities = rooms.filter(r => (r.room_id || 0) > 0 && (r.amenities || []).length > 0).length;
+
+  return {
+    images_count: images.length,
+    images_meeting_size: sized,
+    images_size_unverified: unverified,
+    images_meet_size: images.length > 0 && sized === images.length,
+    meets_minimum_images: images.length >= RU_MIN_IMAGES,
+    amenities_count: amenities.length,
+    meets_minimum_amenities: amenities.length >= RU_MIN_AMENITIES,
+    rooms_count: rooms.length,
+    rooms_with_amenities: roomsWithAmenities,
+    rooms_have_amenities: rooms.length > 0 && roomsWithAmenities === rooms.length,
+    total_beds: totalBeds,
+    beds_cover_half: totalBeds >= Math.ceil(Math.max(1, maxGuests) * RU_BED_COVERAGE),
+    beds_meet_max_guests: totalBeds >= Math.max(1, maxGuests),
+    max_guests: maxGuests,
+    has_coordinates: payload.latitude !== 0 && payload.longitude !== 0,
+    has_zip_code: !!(payload.zip_code && payload.zip_code !== '0000'),
+    has_space: (payload.space || 0) > 0,
+    has_floor: typeof payload.floor === 'number',
+    has_detailed_location_id: (payload.detailed_location_id || 0) > 1,
+    has_payment_methods: (payload.payment_methods || []).length >= 1,
+    has_cancellation_policies: (payload.cancellation_policies || []).length >= 1,
+    has_name: !!(payload.name && String(payload.name).trim().length >= 3),
+    has_object_type_id: ((payload.object_type_id ?? payload.property_type_id) || 0) > 0,
+    can_sleep_max_ok: maxGuests >= 1,
+    has_description: ((payload.descriptions?.[0]?.text || '').trim().length) >= 100,
+    has_main_image: images.some((i) => i.is_main),
+    has_street: !!(payload.street && String(payload.street).trim().length > 2),
+  };
+}
+
 
 function mapPaymentMethods(amenities: Record<string, unknown> | null): number[] {
   const methods: number[] = [];
@@ -1513,7 +1601,10 @@ Deno.serve(async (req) => {
   try {
     const reqBody = await req.json();
     const { property_id, dry_run, subscribe_rlnm, standalone_units, only_unit_ids, action } = reqBody;
+    /** Admin override: allows a live push even when mandatory WL checks fail. */
+    const forcePush = reqBody.force === true;
     const forceLocationIdRaw = reqBody.force_location_id;
+
     const forceLocationId = Number.isFinite(Number(forceLocationIdRaw)) && Number(forceLocationIdRaw) > 1
       ? Number(forceLocationIdRaw)
       : null;
@@ -1872,61 +1963,47 @@ Deno.serve(async (req) => {
     if (isMultiUnit) {
       console.log(`[push-property-to-ru] Multi-unit mode: ${activeRoomTypes.length} units for "${property.name}"`);
 
+      // ── Readiness gate: no live push while mandatory WL requirements fail ──
+      if (!dry_run && !forcePush) {
+        const gatedUnits = activeRoomTypes.map(rt => ({
+          name: rt.name,
+          validation: buildValidation(
+            buildUnitPayload(property as PropertyRow, rt, locationId, undefined, currencyId) as Record<string, any>,
+          ) as any,
+        }));
+        const gaps = mandatoryGaps(gatedUnits);
+        if (gaps.length > 0) {
+          return new Response(
+            JSON.stringify({
+              success: false,
+              error: {
+                code: 'NOT_READY',
+                message: `Property is not ready for Rentals United: ${gaps.length} requirement(s) outstanding.`,
+              },
+              gaps,
+            }),
+            { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+
+
+
       // Dry run: validate each unit
       if (dry_run) {
         const units = activeRoomTypes.map(rt => {
           const payload = buildUnitPayload(property as PropertyRow, rt, locationId, undefined, currencyId);
-          const totalBeds = (payload.rooms || []).reduce((sum: number, r: any) =>
-            sum + (r.amenities || []).filter((a: any) => a.id >= 97 && a.id <= 101).reduce((s: number, a: any) => s + (a.count || 1), 0), 0);
           return {
             room_type_id: rt.id,
             name: rt.name,
             ru_property_id: rt.rentalsunited_property_id || null,
-            validation: {
-              images_count: payload.images.length,
-              amenities_count: payload.amenities.length,
-              rooms_count: (payload.rooms || []).length,
-              has_coordinates: payload.latitude !== 0 && payload.longitude !== 0,
-              meets_minimum_images: payload.images.length >= 10,
-              meets_minimum_amenities: payload.amenities.length >= 10,
-              max_guests: payload.can_sleep_max,
-              // Extended RU White-Label requirements
-              has_zip_code: !!(payload.zip_code && payload.zip_code !== '0000'),
-              has_space: (payload.space || 0) > 0,
-              has_floor: typeof payload.floor === 'number',
-              has_detailed_location_id: (payload.detailed_location_id || 0) > 1,
-              has_payment_methods: (payload.payment_methods || []).length >= 1,
-              has_cancellation_policies: (payload.cancellation_policies || []).length >= 1,
-              beds_meet_max_guests: totalBeds >= (payload.can_sleep_max || 1),
-              total_beds: totalBeds,
-              // Phase 4 — WL minimum inventory additions
-              has_name: !!(payload.name && String(payload.name).trim().length >= 3),
-              has_object_type_id: ((payload.object_type_id ?? payload.property_type_id) || 0) > 0,
-              can_sleep_max_ok: (payload.can_sleep_max || 0) >= 1,
-              has_description: ((payload.descriptions?.[0]?.text || '').trim().length) >= 100,
-              has_main_image: (payload.images || []).some((i: any) => i.is_main),
-              has_street: !!(payload.street && String(payload.street).trim().length > 2),
-            },
+            validation: buildValidation(payload as Record<string, any>),
           };
         });
 
-        const allReady = units.every(u =>
-          u.validation.meets_minimum_images
-          && u.validation.meets_minimum_amenities
-          && u.validation.has_coordinates
-          && u.validation.has_zip_code
-          && u.validation.has_space
-          && u.validation.has_detailed_location_id
-          && u.validation.has_payment_methods
-          && u.validation.has_cancellation_policies
-          && u.validation.beds_meet_max_guests
-          && u.validation.has_name
-          && u.validation.has_object_type_id
-          && u.validation.can_sleep_max_ok
-          && u.validation.has_description
-          && u.validation.has_main_image
-          && u.validation.has_street
-        );
+        const gaps = mandatoryGaps(units.map(u => ({ name: u.name, validation: u.validation as any })));
+        const allReady = gaps.length === 0;
+        const everyFlag = (key: string) => units.every(u => (u.validation as any)[key] !== false);
 
         return new Response(
           JSON.stringify({
@@ -1936,32 +2013,37 @@ Deno.serve(async (req) => {
             property_id,
             building_id: property.rentalsunited_building_id || null,
             units,
+            gaps,
             validation: {
               total_units: units.length,
               all_ready: allReady,
-              images_count: units.reduce((s, u) => s + u.validation.images_count, 0),
-              amenities_count: units[0]?.validation.amenities_count || 0,
+              images_count: units.reduce((s, u) => s + Number((u.validation as any).images_count || 0), 0),
+              amenities_count: Number((units[0]?.validation as any)?.amenities_count || 0),
               rooms_count: units.length,
-              has_coordinates: units.every(u => u.validation.has_coordinates),
-              meets_minimum_images: units.every(u => u.validation.meets_minimum_images),
-              meets_minimum_amenities: units.every(u => u.validation.meets_minimum_amenities),
-              has_zip_code: units.every(u => u.validation.has_zip_code),
-              has_space: units.every(u => u.validation.has_space),
-              has_detailed_location_id: units.every(u => u.validation.has_detailed_location_id),
-              has_payment_methods: units.every(u => u.validation.has_payment_methods),
-              has_cancellation_policies: units.every(u => u.validation.has_cancellation_policies),
-              beds_meet_max_guests: units.every(u => u.validation.beds_meet_max_guests),
-              has_name: units.every(u => u.validation.has_name),
-              has_object_type_id: units.every(u => u.validation.has_object_type_id),
-              can_sleep_max_ok: units.every(u => u.validation.can_sleep_max_ok),
-              has_description: units.every(u => u.validation.has_description),
-              has_main_image: units.every(u => u.validation.has_main_image),
-              has_street: units.every(u => u.validation.has_street),
+              has_coordinates: everyFlag('has_coordinates'),
+              meets_minimum_images: everyFlag('meets_minimum_images'),
+              images_meet_size: everyFlag('images_meet_size'),
+              meets_minimum_amenities: everyFlag('meets_minimum_amenities'),
+              has_zip_code: everyFlag('has_zip_code'),
+              has_space: everyFlag('has_space'),
+              has_detailed_location_id: everyFlag('has_detailed_location_id'),
+              has_payment_methods: everyFlag('has_payment_methods'),
+              has_cancellation_policies: everyFlag('has_cancellation_policies'),
+              beds_cover_half: everyFlag('beds_cover_half'),
+              beds_meet_max_guests: everyFlag('beds_meet_max_guests'),
+              rooms_have_amenities: everyFlag('rooms_have_amenities'),
+              has_name: everyFlag('has_name'),
+              has_object_type_id: everyFlag('has_object_type_id'),
+              can_sleep_max_ok: everyFlag('can_sleep_max_ok'),
+              has_description: everyFlag('has_description'),
+              has_main_image: everyFlag('has_main_image'),
+              has_street: everyFlag('has_street'),
             },
           }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
+
 
       // ── STANDALONE UNITS FLOW (no building) ───────────────
       // Each room type is pushed as an independent RU property without a BuildingID.
@@ -2221,44 +2303,39 @@ Deno.serve(async (req) => {
     ruPayload.owner_id = ruOwnerId;
     const existingRuId = property.rentalsunited_property_id ? parseInt(property.rentalsunited_property_id, 10) : 0;
 
+    const singleValidation = buildValidation(ruPayload as unknown as Record<string, any>);
+
     if (dry_run) {
       return new Response(
         JSON.stringify({
           success: true, dry_run: true, multi_unit: false, property_id,
           ru_property_id: existingRuId || null,
-          validation: {
-            images_count: ruPayload.images.length,
-            amenities_count: ruPayload.amenities.length,
-            rooms_count: ruPayload.rooms.length,
-            has_coordinates: ruPayload.latitude !== 0 && ruPayload.longitude !== 0,
-            meets_minimum_images: ruPayload.images.length >= 10,
-            meets_minimum_amenities: ruPayload.amenities.length >= 10,
-            has_zip_code: !!(ruPayload.zip_code && ruPayload.zip_code !== '0000'),
-            has_space: (ruPayload.space || 0) > 0,
-            has_floor: typeof ruPayload.floor === 'number',
-            has_detailed_location_id: (ruPayload.detailed_location_id || 0) > 1,
-            has_payment_methods: (ruPayload.payment_methods || []).length >= 1,
-            has_cancellation_policies: (ruPayload.cancellation_policies || []).length >= 1,
-            max_guests: ruPayload.can_sleep_max,
-            // Phase 4 — WL minimum inventory additions
-            has_name: !!(ruPayload.name && String(ruPayload.name).trim().length >= 3),
-            has_object_type_id: (((ruPayload as any).object_type_id ?? (ruPayload as any).property_type_id) || 0) > 0,
-            can_sleep_max_ok: (ruPayload.can_sleep_max || 0) >= 1,
-            has_description: (((ruPayload as any).descriptions?.[0]?.text || '').trim().length) >= 100,
-            has_main_image: (ruPayload.images || []).some((i: any) => i.is_main),
-            has_street: !!((ruPayload as any).street && String((ruPayload as any).street).trim().length > 2),
-          },
+          gaps: mandatoryGaps([{ name: property.name, validation: singleValidation as any }]),
+          validation: singleValidation,
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    if (existingRuId === 0 && ruPayload.images.length < 10) {
-      return new Response(
-        JSON.stringify({ success: false, error: { code: 'VALIDATION_FAILED', message: `Property needs at least 10 images (has ${ruPayload.images.length}).` } }),
-        { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    // ── Readiness gate: no live push while mandatory WL requirements fail ──
+    if (!forcePush) {
+      const gaps = mandatoryGaps([{ name: property.name, validation: singleValidation as any }]);
+      if (gaps.length > 0) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: {
+              code: 'NOT_READY',
+              message: `Property is not ready for Rentals United: ${gaps.length} requirement(s) outstanding.`,
+            },
+            gaps,
+            validation: singleValidation,
+          }),
+          { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
     }
+
 
     const { data: pushResult, error: pushErr } = await supabase.functions.invoke('rentalsunited-api', {
       body: { action: 'push_property', ru_property_id: existingRuId, property: ruPayload },

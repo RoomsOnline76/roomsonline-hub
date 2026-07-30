@@ -11,6 +11,8 @@
 //   wl_readiness     → per-property White-Label minimum inventory report
 //   user_management  → status of RU sub-user management (parked)
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { summarizeReadiness, type RuCheck, type RuUnitInput } from "../_shared/ruReadiness.ts";
+
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -76,6 +78,24 @@ const RU_METHOD_BY_ACTION: Record<string, string> = {
   list_users: "Pull_ListMyUsers_RQ",
 };
 
+// Core functional certification milestones exercised on the RU certification call.
+const CERT_MILESTONES: { key: string; label: string; ru_method: string; mandatory: boolean; note: string }[] = [
+  { key: "auth", label: "Connectivity / auth", ru_method: "Pull_ListProp_RQ (health)", mandatory: true, note: "AccessKey + SecretKey working" },
+  { key: "list_properties", label: "List properties", ru_method: "Pull_ListProp_RQ", mandatory: true, note: "Pull_ListOwnerProp_RQ equivalent" },
+  { key: "get_property", label: "Get property content", ru_method: "Pull_GetProperty_RQ", mandatory: true, note: "Read-back verification (Pull_ListSpecProp_RQ)" },
+  { key: "get_availability", label: "Get availability (365d)", ru_method: "Pull_ListPropertyAvailabilityCalendar_RQ", mandatory: true, note: "" },
+  { key: "get_prices", label: "Get prices (365d)", ru_method: "Pull_ListPropertyPrices_RQ", mandatory: true, note: "" },
+  { key: "push_property", label: "Push property content", ru_method: "Push_PutProperty_RQ", mandatory: true, note: "Create + update" },
+  { key: "push_availability", label: "Push availability", ru_method: "Push_PutAvbUnits_RQ", mandatory: true, note: "" },
+  { key: "push_prices", label: "Push prices", ru_method: "Push_PutPrices_RQ", mandatory: true, note: "" },
+  { key: "rlnm", label: "Subscribe RLNM handler", ru_method: "LNM_PutHandlerUrl_RQ", mandatory: true, note: "Live notifications" },
+  { key: "reservations", label: "Pull reservations", ru_method: "Pull_ListReservations_RQ", mandatory: true, note: "" },
+  { key: "leads", label: "Pull leads", ru_method: "Pull_GetLeads_RQ", mandatory: false, note: "Optional" },
+  { key: "long_stay", label: "Long-stay discounts", ru_method: "Push_PutLongStayDiscounts_RQ", mandatory: false, note: "Optional but recommended" },
+  { key: "last_minute", label: "Last-minute discounts", ru_method: "Push_PutLastMinuteDiscounts_RQ", mandatory: false, note: "Optional but recommended" },
+];
+
+
 // Refresh cadences mandated by RU (hours)
 const CADENCE_RULES = [
   { key: "PutProperty", label: "Property content refresh", ru_method: "Push_PutProperty_RQ", max_age_hours: 168, actions: ["weekly_content_refresh", "PutProperty", "push_property"] },
@@ -118,10 +138,104 @@ Deno.serve(async (req) => {
 
     const { data: roles } = await admin.from("user_roles").select("role").eq("user_id", user.id);
     const allowed = (roles ?? []).some((r: { role: string }) => ["admin", "dev", "fearless_leader"].includes(r.role));
-    if (!allowed) return json({ success: false, error: { code: "FORBIDDEN", message: "Admin access required" } }, 403);
 
     const body = await req.json().catch(() => ({}));
     const action: string = body.action ?? "";
+
+    // Property-scoped users (ROLOS owners / staff) may read the readiness
+    // scorecard for a property they can access — everything else is admin-only.
+    if (!allowed) {
+      if (action !== "property_readiness" || !body.property_id) {
+        return json({ success: false, error: { code: "FORBIDDEN", message: "Admin access required" } }, 403);
+      }
+      const { data: canAccess } = await userClient.rpc("can_access_property", {
+        _property_id: body.property_id,
+        _user_id: user.id,
+      });
+      if (canAccess !== true) {
+        return json({ success: false, error: { code: "FORBIDDEN", message: "No access to this property" } }, 403);
+      }
+    }
+
+    // ── milestones: certification matrix built from the most recent runs ──
+    if (action === "milestones") {
+      const { data: runs } = await admin
+        .from("ru_cert_runs")
+        .select("id, started_at, suite, steps")
+        .order("started_at", { ascending: false })
+        .limit(25);
+
+      type StepRow = { name: string; ru_method: string; status: StepStatus; ru_status_id?: string | null; detail?: string };
+      const latestByMethod = new Map<string, { step: StepRow; run_id: string; at: string }>();
+      for (const run of (runs ?? []) as { id: string; started_at: string; steps: StepRow[] }[]) {
+        for (const step of run.steps ?? []) {
+          const key = step.ru_method;
+          if (!latestByMethod.has(key)) latestByMethod.set(key, { step, run_id: run.id, at: run.started_at });
+        }
+      }
+
+      const milestones = CERT_MILESTONES.map((m) => {
+        const hit = latestByMethod.get(m.ru_method);
+        const statusId = hit?.step.ru_status_id ?? null;
+        const partial = String(statusId ?? "") === "5";
+        return {
+          ...m,
+          status: hit ? (hit.step.status as StepStatus) : ("never_run" as const),
+          partial_success: partial,
+          ru_status_id: statusId,
+          detail: hit?.step.detail ?? null,
+          last_run_at: hit?.at ?? null,
+          run_id: hit?.run_id ?? null,
+        };
+      });
+
+      const mandatory = milestones.filter((m) => m.mandatory);
+      return json({
+        success: true,
+        milestones,
+        summary: {
+          mandatory_total: mandatory.length,
+          mandatory_passed: mandatory.filter((m) => m.status === "passed" && !m.partial_success).length,
+          partial: milestones.filter((m) => m.partial_success).length,
+          never_run: milestones.filter((m) => m.status === "never_run").length,
+        },
+      });
+    }
+
+    // ── evidence: printable / downloadable bundle for the RU certification call ──
+    if (action === "evidence") {
+      const { data: run, error } = await admin
+        .from("ru_cert_runs")
+        .select("*")
+        .eq("id", body.run_id)
+        .maybeSingle();
+      if (error) throw error;
+      if (!run) return json({ success: false, error: { code: "NOT_FOUND", message: "Run not found" } }, 404);
+
+      return json({
+        success: true,
+        evidence: {
+          generated_at: new Date().toISOString(),
+          integration: "Rentals United — XML API (AccessKey / SecretKey)",
+          run: {
+            id: run.id,
+            suite: run.suite,
+            status: run.status,
+            started_at: run.started_at,
+            finished_at: run.finished_at,
+            passed: run.passed,
+            failed: run.failed,
+            total: run.total,
+            property_id: run.property_id,
+            ru_property_id: run.ru_property_id,
+          },
+          steps: run.steps,
+          cadence_rules: CADENCE_RULES,
+          expected_jobs: EXPECTED_JOBS,
+        },
+      });
+    }
+
 
     // ── list_runs ──
     if (action === "list_runs") {
@@ -193,6 +307,146 @@ Deno.serve(async (req) => {
       return json({ success: true, function_name: fn, duration_ms: Date.now() - t0, result: data });
     }
 
+    // Shared per-property readiness scorer (dry run + live 365-day ARI probe).
+    const scoreProperty = async (p: {
+      id: string;
+      name: string;
+      rentalsunited_property_id?: string | null;
+    }, opts: { probe_ari?: boolean } = {}) => {
+      const { data, error } = await admin.functions.invoke("push-property-to-ru", {
+        body: { property_id: p.id, dry_run: true },
+      });
+      if (error) {
+        return {
+          property_id: p.id,
+          name: p.name,
+          ok: false,
+          blocked: true,
+          error: error.message,
+          gaps: ["Dry run failed — Rentals United payload could not be built"],
+          checks: [],
+          groups: [],
+          score: 0,
+          checks_total: 0,
+          checks_passed: 0,
+        };
+      }
+
+      const units: RuUnitInput[] = data?.units ?? [
+        { name: p.name, validation: data?.validation ?? {} },
+      ];
+
+      // ── Live ARI verification (365 days forward) ──
+      const extraChecks: RuCheck[] = [];
+      let ari: Record<string, unknown> | null = null;
+
+      const ruIds: number[] = (data?.units ?? [])
+        .map((u: { ru_property_id: string | null }) => Number(u.ru_property_id))
+        .filter((n: number) => Number.isFinite(n) && n > 0);
+      const singleRuId = Number(p.rentalsunited_property_id ?? data?.ru_property_id ?? 0);
+      if (ruIds.length === 0 && singleRuId > 0) ruIds.push(singleRuId);
+
+      if (opts.probe_ari === false) {
+        // ARI not probed in this context — omit the checks entirely.
+      } else if (ruIds.length > 0) {
+        const target = ruIds[0];
+        const from = isoDate(0);
+        const to = isoDate(365);
+        const [avbRes, priceRes] = await Promise.all([
+          admin.functions.invoke("rentalsunited-api", {
+            body: { action: "get_availability", ru_property_id: target, date_from: from, date_to: to },
+          }),
+          admin.functions.invoke("rentalsunited-api", {
+            body: { action: "get_prices", ru_property_id: target, date_from: from, date_to: to },
+          }),
+        ]);
+        const avbXml: string = avbRes.data?.raw_xml ?? "";
+        const priceXml: string = priceRes.data?.raw_xml ?? "";
+        const openDays = (avbXml.match(/>\s*[1-9]\d*\s*</g) ?? []).length;
+        const prices = Array.from(priceXml.matchAll(/Price="([\d.]+)"/g)).map((m) => Number(m[1]));
+        const hasAvailability = !!avbRes.data?.success && openDays > 0;
+        const allPricesPositive = prices.length > 0 && prices.every((n) => n > 0);
+
+        extraChecks.push({
+          key: "ari_availability",
+          group: "Availability 365d",
+          label: "Availability pushed for the next 365 days",
+          mandatory: true,
+          passed: hasAvailability,
+          ...(hasAvailability ? {} : { detail: `RU ${target}: no open availability day in the next 365 days` }),
+          fix_hint: "Rate Manager → Calendar / availability",
+        });
+        extraChecks.push({
+          key: "ari_prices",
+          group: "Pricing 365d",
+          label: "Daily prices pushed for the next 365 days",
+          mandatory: true,
+          passed: allPricesPositive,
+          ...(allPricesPositive ? {} : { detail: `RU ${target}: prices missing or not all above zero for the next 365 days` }),
+          fix_hint: "Rate Manager → Rates",
+        });
+
+        ari = {
+          ru_property_id: target,
+          date_from: from,
+          date_to: to,
+          open_days: openDays,
+          price_points: prices.length,
+          availability_ok: hasAvailability,
+          prices_ok: allPricesPositive,
+        };
+      } else {
+        const detail = "Not yet published to Rentals United (no RU property ID) — ARI cannot be verified";
+        extraChecks.push({
+          key: "ari_availability", group: "Availability 365d", label: "Availability pushed for the next 365 days",
+          mandatory: true, passed: false, detail, fix_hint: "Push the property to Rentals United first",
+        });
+        extraChecks.push({
+          key: "ari_prices", group: "Pricing 365d", label: "Daily prices pushed for the next 365 days",
+          mandatory: true, passed: false, detail, fix_hint: "Push the property to Rentals United first",
+        });
+      }
+
+      const summary = summarizeReadiness(units, extraChecks);
+
+      return {
+        property_id: p.id,
+        name: p.name,
+        ru_property_id: p.rentalsunited_property_id ?? null,
+        multi_unit: !!data?.multi_unit,
+        unit_count: units.length,
+        ok: summary.gaps.length === 0,
+        blocked: summary.blocked,
+        gaps: summary.gaps,
+        checks: summary.checks,
+        groups: summary.groups,
+        checks_total: summary.checks_total,
+        checks_passed: summary.checks_passed,
+        mandatory_total: summary.mandatory_total,
+        mandatory_passed: summary.mandatory_passed,
+        score: summary.score,
+        ari,
+      };
+    };
+
+    // ── property_readiness: single-property scorecard (ROLOS + admin) ──
+    if (action === "property_readiness") {
+      const propertyId: string = body.property_id ?? "";
+      if (!propertyId) {
+        return json({ success: false, error: { code: "BAD_REQUEST", message: "property_id is required" } }, 400);
+      }
+      const { data: prop } = await admin
+        .from("properties")
+        .select("id, name, rentalsunited_property_id")
+        .eq("id", propertyId)
+        .maybeSingle();
+      if (!prop) {
+        return json({ success: false, error: { code: "NOT_FOUND", message: "Property not found" } }, 404);
+      }
+      const report = await scoreProperty(prop, { probe_ari: body.probe_ari !== false });
+      return json({ success: true, property: report });
+    }
+
     if (action === "wl_readiness") {
       const { data: props } = await admin
         .from("properties")
@@ -207,109 +461,12 @@ Deno.serve(async (req) => {
 
       const results: unknown[] = [];
       for (const p of candidates) {
-        const { data, error } = await admin.functions.invoke("push-property-to-ru", {
-          body: { property_id: p.id, dry_run: true },
-        });
-        if (error) {
-          results.push({ property_id: p.id, name: p.name, ok: false, error: error.message, gaps: ["Dry run failed"] });
-          continue;
-        }
-        const units = data?.units ?? [
-          { name: p.name, ru_property_id: data?.ru_property_id ?? null, validation: data?.validation ?? {} },
-        ];
-        const gaps: string[] = [];
-        let checksTotal = 0;
-        let checksPassed = 0;
-        for (const u of units) {
-          const v = u.validation ?? {};
-          const add = (cond: boolean, msg: string) => {
-            checksTotal += 1;
-            if (cond) checksPassed += 1;
-            else gaps.push(`${u.name}: ${msg}`);
-          };
-          add(!!v.has_name, "missing property/unit name");
-          add(!!v.has_object_type_id, "missing ObjectTypeID (property type)");
-          add(!!v.can_sleep_max_ok, "CanSleepMax must be at least 1");
-          add(!!v.meets_minimum_images, `only ${v.images_count ?? 0} images (need 10 at ≥1024×683)`);
-          add(v.has_main_image !== false, "no main photo flagged");
-          add(!!v.meets_minimum_amenities, `only ${v.amenities_count ?? 0} amenities (need 10)`);
-          add(!!v.has_coordinates, "missing geo-coordinates");
-          add(v.has_street !== false, "missing street address");
-          add(!!v.has_zip_code, "missing ZIP code");
-          add(!!v.has_space, "missing property size (Space)");
-          add(v.has_floor !== false, "missing floor number");
-          add(!!v.has_detailed_location_id, "missing DetailedLocationID");
-          add(v.has_description !== false, "description too short (need ≥100 characters)");
-          add(!!v.has_payment_methods, "no payment method set");
-          add(!!v.has_cancellation_policies, "no cancellation policy set");
-          add(!!v.beds_meet_max_guests, `beds (${v.total_beds ?? 0}) < max guests (${v.max_guests ?? 0})`);
-          add((v.rooms_count ?? 0) > 0, "no composition rooms");
-        }
-
-        // ── Live ARI verification (365 days forward) ──
-        const ruIds: number[] = (data?.units ?? [])
-          .map((u: { ru_property_id: string | null }) => Number(u.ru_property_id))
-          .filter((n: number) => Number.isFinite(n) && n > 0);
-        const singleRuId = Number(p.rentalsunited_property_id ?? data?.ru_property_id ?? 0);
-        if (ruIds.length === 0 && singleRuId > 0) ruIds.push(singleRuId);
-
-        let ari: Record<string, unknown> | null = null;
-        if (ruIds.length > 0) {
-          const target = ruIds[0];
-          const from = isoDate(0);
-          const to = isoDate(365);
-          const [avbRes, priceRes] = await Promise.all([
-            admin.functions.invoke("rentalsunited-api", {
-              body: { action: "get_availability", ru_property_id: target, date_from: from, date_to: to },
-            }),
-            admin.functions.invoke("rentalsunited-api", {
-              body: { action: "get_prices", ru_property_id: target, date_from: from, date_to: to },
-            }),
-          ]);
-          const avbXml: string = avbRes.data?.raw_xml ?? "";
-          const priceXml: string = priceRes.data?.raw_xml ?? "";
-          const openDays = (avbXml.match(/>\s*[1-9]\d*\s*</g) ?? []).length;
-          const prices = Array.from(priceXml.matchAll(/Price="([\d.]+)"/g)).map((m) => Number(m[1]));
-          const hasAvailability = !!avbRes.data?.success && openDays > 0;
-          const allPricesPositive = prices.length > 0 && prices.every((n) => n > 0);
-
-          checksTotal += 2;
-          if (hasAvailability) checksPassed += 1;
-          else gaps.push(`RU ${target}: no open availability day in the next 365 days`);
-          if (allPricesPositive) checksPassed += 1;
-          else gaps.push(`RU ${target}: prices missing or not all above zero for the next 365 days`);
-
-          ari = {
-            ru_property_id: target,
-            date_from: from,
-            date_to: to,
-            open_days: openDays,
-            price_points: prices.length,
-            availability_ok: hasAvailability,
-            prices_ok: allPricesPositive,
-          };
-        } else {
-          gaps.push(`${p.name}: not yet published to RU (no RU property ID) — ARI cannot be verified`);
-          checksTotal += 2;
-        }
-
-        results.push({
-          property_id: p.id,
-          name: p.name,
-          ru_property_id: p.rentalsunited_property_id,
-          multi_unit: !!data?.multi_unit,
-          unit_count: units.length,
-          ok: gaps.length === 0,
-          gaps,
-          checks_total: checksTotal,
-          checks_passed: checksPassed,
-          score: checksTotal > 0 ? Math.round((checksPassed / checksTotal) * 100) : 0,
-          ari,
-        });
+        results.push(await scoreProperty(p));
       }
 
       return json({ success: true, properties: results });
     }
+
 
     // ── Phase 5: RU user management (parked behind a single switch) ──
     const readUserMgmtFlag = async (): Promise<{ enabled: boolean; note: string; updated_at?: string | null }> => {
