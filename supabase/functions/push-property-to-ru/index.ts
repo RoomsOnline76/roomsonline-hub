@@ -7,7 +7,7 @@ import {
   RU_MIN_IMAGE_WIDTH,
   RU_BED_COVERAGE,
 } from '../_shared/ruReadiness.ts';
-import { evaluatePhases, phaseBlockedResponse, RU_MASTER_OWNER_ID } from '../_shared/ruPhaseGate.ts';
+import { evaluatePhases, phaseBlockedResponse, masterOwnerIdOverride } from '../_shared/ruPhaseGate.ts';
 
 
 /**
@@ -619,7 +619,7 @@ function buildUnitPayload(
     standard_guests: Math.ceil(maxGuests * 0.7),
     number_of_beds: beds,
     currency_id: currencyId ?? mapCurrencyToRUId(property.amenities, property.country),
-    owner_id: 738925, // Will be overridden by resolveRuOwnerAccount
+    owner_id: 0, // placeholder — always overwritten with the resolved sub-account OwnerID
     no_of_units: 1,
     floor: unitFloor,
     floor_is_default: unitFloorIsDefault,
@@ -703,7 +703,7 @@ async function resolveRuOwnerAccount(
     const errMsg = createErr?.message || createResult?.error?.message || 'Unknown error';
     console.error(`[push-property-to-ru] Failed to create RU sub-account for ${ownerEmail}: ${errMsg}`);
     // Fall back to master account owner ID
-    return { ru_owner_id: 738925, ru_user_id: null, created: false };
+    throw new Error(`RU_OWNER_UNRESOLVED: could not create a Rentals United sub-account for ${ownerEmail}: ${errMsg}`);
   }
 
   const userAccountId = createResult.user_account_id;
@@ -745,7 +745,10 @@ async function resolveRuOwnerAccount(
   if (insertErr) console.error(`[push-property-to-ru] Failed to save RU account: ${insertErr.message}`);
 
 
-  const resolvedOwnerId = ownerId ? parseInt(ownerId, 10) : 738925;
+  const resolvedOwnerId = ownerId ? parseInt(ownerId, 10) : NaN;
+  if (!Number.isFinite(resolvedOwnerId) || resolvedOwnerId <= 0) {
+    throw new Error(`RU_OWNER_UNRESOLVED: sub-account created for ${ownerEmail} but Rentals United returned no OwnerID`);
+  }
   console.log(`[push-property-to-ru] Resolved RU OwnerID: ${resolvedOwnerId} for ${ownerEmail}`);
   return { ru_owner_id: resolvedOwnerId, ru_user_id: userAccountId, created: true };
 }
@@ -793,7 +796,7 @@ function buildSinglePropertyPayload(property: PropertyRow, roomTypes: RoomTypeRo
     standard_guests: Math.ceil(maxGuests * 0.7),
     number_of_beds: numberOfBeds,
     currency_id: currencyId ?? mapCurrencyToRUId(property.amenities, property.country),
-    owner_id: 738925, no_of_units: 1, floor: buildingFloor, floor_is_default: buildingFloorIsDefault, space, space_is_default: spaceIsDefault, street,
+    owner_id: 0, no_of_units: 1, floor: buildingFloor, floor_is_default: buildingFloorIsDefault, space, space_is_default: spaceIsDefault, street,
     detailed_location_id: locationId, zip_code: zipCode,
     latitude: lat, longitude: lng,
     amenities: mapAmenities(property.amenities),
@@ -2046,7 +2049,41 @@ Deno.serve(async (req) => {
     }
 
     const phaseGate = await evaluatePhases(supabase, property as any, { readinessGaps: precomputedGaps });
-    const ruOwnerId = phaseGate.ru_owner_id ?? RU_MASTER_OWNER_ID;
+
+    // Multi-tenant isolation: a missing OwnerID is a HARD error. The only escape hatch
+    // is an explicit force push combined with a configured RU_MASTER_OWNER_ID secret.
+    let ruOwnerId = phaseGate.ru_owner_id;
+    if (!ruOwnerId || ruOwnerId <= 0) {
+      const override = forcePush ? masterOwnerIdOverride() : null;
+      if (!override) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: {
+              code: 'RU_OWNER_UNRESOLVED',
+              message:
+                'No Rentals United OwnerID is linked to this property (or its portfolio). Complete Phase 1 (create the RU sub-user + company details) before pushing — inventory is never attributed to the RoomsOnline master account.',
+              details: { owner_scope: phaseGate.owner_scope, portfolio_id: phaseGate.portfolio_id },
+            },
+          }),
+          { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
+      ruOwnerId = override;
+      console.warn(
+        `[push-property-to-ru] ADMIN OVERRIDE: using RU_MASTER_OWNER_ID ${override} for property ${property_id}`,
+      );
+      try {
+        await supabase.from('ru_sync_runs').insert({
+          property_id,
+          action: 'master_owner_override',
+          success: false,
+          error_code: 'RU_OWNER_MASTER_OVERRIDE',
+          error_message: `Forced push attributed to master OwnerID ${override}`,
+          details: { owner_scope: phaseGate.owner_scope, portfolio_id: phaseGate.portfolio_id },
+        });
+      } catch (_e) { /* audit only */ }
+    }
 
     if (!dry_run && !phaseGate.ready_for_push) {
       if (!forcePush) {

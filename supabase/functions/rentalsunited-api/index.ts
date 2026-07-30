@@ -375,7 +375,8 @@ function buildListPropertiesXml(creds: RUCredentials, ownerId: number): string {
  * Resolve the RU OwnerID to list properties for: explicit param → RU_OWNER_ID
  * secret → first owner returned by Pull_ListMyUsers_RQ.
  */
-const RU_MASTER_OWNER_ID = 738925; // RoomsOnline master RU account
+// No hardcoded master OwnerID: an unresolved OwnerID is a hard error so inventory
+// is never silently attributed to the RoomsOnline master account.
 
 async function resolveOwnerId(creds: RUCredentials, explicit?: number | string | null): Promise<number | null> {
   const direct = Number(explicit ?? Deno.env.get('RU_OWNER_ID') ?? '');
@@ -387,7 +388,7 @@ async function resolveOwnerId(creds: RUCredentials, explicit?: number | string |
       if (Number.isFinite(id) && id > 0) return id;
     }
   } catch (_e) { /* fall through */ }
-  return RU_MASTER_OWNER_ID;
+  return null;
 }
 
 function buildGetPropertyXml(creds: RUCredentials, propertyId: number): string {
