@@ -309,6 +309,42 @@ export function RuOnboardingPipeline({ propertyId, readOnly = false, standalone 
       {!loading && phases.length === 0 && !error && (
         <p className="text-sm text-muted-foreground">No onboarding data yet.</p>
       )}
+
+      <Dialog open={passwordOpen} onOpenChange={setPasswordOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rentals United sub-user password</DialogTitle>
+            <DialogDescription>
+              We normally sign in with the password stored encrypted for this sub-user. It could not be used
+              (usually because the account was adopted rather than created here). Enter it once — it will be
+              stored encrypted and reused automatically from now on.
+            </DialogDescription>
+          </DialogHeader>
+          <Input
+            type="password"
+            autoComplete="off"
+            value={passwordValue}
+            onChange={(e) => setPasswordValue(e.target.value)}
+            placeholder="RU sub-user password"
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPasswordOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              disabled={!passwordValue || busy !== null}
+              onClick={async () => {
+                const pwd = passwordValue;
+                setPasswordOpen(false);
+                setPasswordValue("");
+                await submitCompanyDetails(pwd);
+              }}
+            >
+              Submit company details
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 
