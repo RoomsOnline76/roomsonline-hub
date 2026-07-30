@@ -36,6 +36,20 @@ Deno.serve(async (req) => {
   const supabase = createClient(supabaseUrl, supabaseKey);
 
   const summary = { total: 0, created: 0, updated: 0, cancelled: 0, skipped: 0, failed: 0, unmatched: 0, leads_found: 0, leads_logged: 0 };
+  const cronStartedAt = Date.now();
+
+  // Cadence evidence for the RU certification console (Pull_ListReservations_RQ)
+  const logCadence = async (success: boolean, errorMessage: string | null) => {
+    await supabase.from('ru_sync_runs').insert({
+      batch_id: crypto.randomUUID(),
+      action: 'pull_reservations',
+      success,
+      error_message: errorMessage,
+      elapsed_ms: Date.now() - cronStartedAt,
+      details: { ...summary, scope: 'reservation_poll' },
+    }).then(() => {}, (e) => console.warn('[cron-pull-ru] log insert failed', e));
+  };
+
 
   try {
     // Date range: last 7 days → today
