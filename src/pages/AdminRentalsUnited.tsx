@@ -236,9 +236,19 @@ export default function AdminRentalsUnited() {
           </CardContent>
         </Card>
 
-        {/* Enabled properties table */}
+        {/* RU-eligible properties — disabled ones stay listed for manual ramp-up */}
         <Card>
-          <CardHeader><CardTitle>Auto-managed properties</CardTitle></CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
+            <div>
+              <CardTitle>Auto-managed properties</CardTitle>
+              <p className="text-xs text-muted-foreground mt-1">
+                Switching a property off pauses its RU sync but keeps it here — re-enable it any time to ramp up.
+              </p>
+            </div>
+            <Badge variant="outline" className="text-xs shrink-0">
+              {ruProperties.filter((p) => p.ru_push_enabled).length}/{ruProperties.length} enabled
+            </Badge>
+          </CardHeader>
           <CardContent>
             <Table>
               <TableHeader>
@@ -249,32 +259,31 @@ export default function AdminRentalsUnited() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {properties
-                  .filter((p) => p.external_system === "rolos" || p.ru_push_enabled)
-                  .map((p) => (
-                    <TableRow key={p.id}>
-                      <TableCell className="font-medium">{p.name}</TableCell>
-                      <TableCell><Badge variant="outline">{p.external_system ?? "—"}</Badge></TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Switch
-                            checked={!!p.ru_push_enabled}
-                            onCheckedChange={(v) => togglePush(p.id, v)}
-                          />
-                          <Label className="text-xs text-muted-foreground">
-                            {p.ru_push_enabled ? "Enabled" : "Disabled"}
-                          </Label>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                {properties.filter((p) => p.external_system === "rolos" || p.ru_push_enabled).length === 0 && (
+                {ruProperties.map((p) => (
+                  <TableRow key={p.id} className={p.ru_push_enabled ? undefined : "opacity-70"}>
+                    <TableCell className="font-medium">{p.name}</TableCell>
+                    <TableCell><Badge variant="outline">{p.external_system ?? "—"}</Badge></TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          checked={!!p.ru_push_enabled}
+                          onCheckedChange={(v) => togglePush(p.id, v)}
+                        />
+                        <Label className="text-xs text-muted-foreground">
+                          {p.ru_push_enabled ? "Enabled" : "Paused"}
+                        </Label>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {ruProperties.length === 0 && (
                   <TableRow><TableCell colSpan={3} className="text-center text-muted-foreground py-6">No ROLOS PMS properties yet.</TableCell></TableRow>
                 )}
               </TableBody>
             </Table>
           </CardContent>
         </Card>
+
 
         {/* Filters */}
         <Card>
