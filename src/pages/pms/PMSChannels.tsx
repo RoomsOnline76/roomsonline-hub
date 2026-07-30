@@ -12,6 +12,7 @@ import { MappingTable } from "@/components/pms/channels/MappingTable";
 import { SyncLogTable } from "@/components/pms/channels/SyncLogTable";
 import { ALL_CHANNELS } from "@/components/pms/channels/ChannelLogo";
 import { RuReadinessScorecard } from "@/components/pms/channels/RuReadinessScorecard";
+import { RuOnboardingPipeline } from "@/components/integrations/RuOnboardingPipeline";
 
 import {
   useChannelConnections,
@@ -170,7 +171,10 @@ export default function PMSChannels() {
               365-day availability &amp; pricing. Syncing stays blocked until all mandatory items pass.
             </p>
             {propertyId ? (
-              <RuReadinessScorecard propertyId={propertyId} />
+              <>
+                <RuOnboardingPipeline propertyId={propertyId} readOnly />
+                <RuReadinessScorecard propertyId={propertyId} />
+              </>
             ) : (
               <p className="text-sm text-muted-foreground">Select a property to score its readiness.</p>
             )}
