@@ -27,6 +27,8 @@ export interface BrandPalette {
 
 export type BrandField = keyof BrandPalette;
 export type BrandMode = "light" | "dark";
+/** Which product surface the problem shows up on. */
+export type BrandScope = "booking" | "rolos";
 
 export interface BrandFix {
   id: string;
@@ -41,7 +43,10 @@ export interface BrandFix {
   severity: "fail" | "warn";
   /** Which presentation mode(s) the underlying problem shows up in. */
   modes: BrandMode[];
+  /** Guest-facing booking pages, or the ROLOS admin interface. */
+  scope: BrandScope;
 }
+
 
 export const AA_TEXT = 4.5;
 export const AA_LARGE = 3;
