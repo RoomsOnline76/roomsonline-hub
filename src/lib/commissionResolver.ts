@@ -63,6 +63,7 @@ const EXTERNAL_CHANNELS = [
 ];
 
 /** ROL-owned marketplace surfaces → listing rate. */
+const LISTING_INTEGRATION_TYPES = ["rol_marketplace", "listing", "marketplace"];
 const LISTING_CHANNELS = ["rol_itinerary", "journey", "marketplace", "sleepinafrica", "rol", "listing", "ota"];
 const LISTING_HOST_HINTS = ["sleepinafrica", "roomsonline.co.za/property", "/journey", "/itinerary"];
 
@@ -81,7 +82,12 @@ export function resolveCommissionType(booking: CommissionBookingLike | null | un
   if (!booking) return "listing";
 
   const stored = norm(booking.commission_type);
-  if (stored === "pms" || stored === "listing" || stored === "external") return stored as CommissionType;
+  // `pms` / `external` are only ever written deliberately, so they are authoritative.
+  if (stored === "pms" || stored === "external") return stored as CommissionType;
+  // A stored `listing` is only authoritative when origin data actually backs it up —
+  // the column default used to be 'listing', which mislabelled widget/white-label bookings.
+  const hasOrigin = !!(booking.integration_type || booking.booking_channel || booking.source_url);
+  if (stored === "listing" && hasOrigin) return "listing";
 
   const integration = norm(booking.integration_type);
   const channel = norm(booking.booking_channel);
@@ -100,10 +106,12 @@ export function resolveCommissionType(booking: CommissionBookingLike | null | un
     return "pms";
 
   // ROL marketplace surfaces.
+  if (integration && LISTING_INTEGRATION_TYPES.includes(integration)) return "listing";
   if (matches(channel, LISTING_CHANNELS)) return "listing";
   if (matches(url, LISTING_HOST_HINTS)) return "listing";
 
-  return "listing";
+  // Nothing identifies a ROL marketplace surface → treat as the property's own booking.
+  return hasOrigin ? "pms" : "pms";
 }
 
 /** Billing config fields the resolver needs (property or portfolio scoped). */
