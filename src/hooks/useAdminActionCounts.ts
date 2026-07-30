@@ -10,6 +10,13 @@ import { supabase } from "@/integrations/supabase/client";
  */
 export type AdminActionCounts = Record<string, number>;
 
+/**
+ * Extra detail for badges that show a pair, e.g. Task Tracker renders
+ * "assigned to me / all open" as `5/24`.
+ */
+export type AdminActionCountDetail = { mine: number; total: number };
+export type AdminActionCountDetails = Record<string, AdminActionCountDetail>;
+
 /** Routes whose queues these counters track — used to refresh on navigation away. */
 export const BADGED_ROUTES = [
   "/admin/access-requests",
@@ -76,6 +83,7 @@ interface UseAdminActionCountsOptions {
 
 export function useAdminActionCounts({ isAdmin, isDev, isFearlessLeader }: UseAdminActionCountsOptions) {
   const [counts, setCounts] = useState<AdminActionCounts>({});
+  const [details, setDetails] = useState<AdminActionCountDetails>({});
   const location = useLocation();
   const inFlight = useRef(false);
 
@@ -143,6 +151,23 @@ export function useAdminActionCounts({ isAdmin, isDev, isFearlessLeader }: UseAd
           : Promise.resolve(0),
       ]);
 
+      // Task Tracker badge shows "mine / all open".
+      let myDevTasks = 0;
+      if (canSeeDevQueues) {
+        const { data: authData } = await supabase.auth.getUser();
+        const uid = authData?.user?.id;
+        if (uid) {
+          myDevTasks = await safeCount(() =>
+            supabase
+              .from("dev_tasks")
+              .select("id", { count: "exact", head: true })
+              .eq("status", "new")
+              .eq("assigned_to", uid)
+          );
+        }
+      }
+      setDetails({ "task-tracker": { mine: myDevTasks, total: devTasks } });
+
       setCounts({
         "access-requests": accessRequests,
         "review-queue": reviewQueue,
@@ -175,5 +200,5 @@ export function useAdminActionCounts({ isAdmin, isDev, isFearlessLeader }: UseAd
     [counts]
   );
 
-  return { counts, totalPending, refresh };
+  return { counts, details, totalPending, refresh };
 }
