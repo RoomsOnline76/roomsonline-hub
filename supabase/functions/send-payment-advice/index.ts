@@ -19,7 +19,17 @@ const bodySchema = z.object({
   booking_count: z.number(),
   white_label_fee: z.number().optional().default(0),
   subscription_fee: z.number().optional().default(0),
+  // Settlement split — who actually received the guest's money.
+  rol_gross: z.number().optional(),
+  byo_gross: z.number().optional().default(0),
+  rol_commission: z.number().optional(),
+  byo_commission: z.number().optional().default(0),
+  pf_fee: z.number().optional().default(0),
+  pf_fee_rate: z.number().optional().default(0),
+  invoiced_amount: z.number().optional().default(0),
+  settlement_mode: z.enum(["payout", "invoice", "mixed"]).optional().default("payout"),
 });
+
 
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat("en-ZA", { style: "currency", currency: "ZAR" }).format(amount);
