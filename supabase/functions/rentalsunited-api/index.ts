@@ -1025,11 +1025,12 @@ function buildFillCompanyDetailsXml(
   company: RUCompanyPayload,
   auth?: { username?: string | null; password?: string | null },
   /**
-   * Envelope shape for sub-user credentials. Every other RU call in this
-   * integration authenticates with <AccessKey>/<SecretKey> (login + password),
-   * so that is the default here too; 'username_password' is the legacy fallback.
+   * Envelope shape for sub-user credentials. Rentals United documents
+   * Push_FillCompanyDetails_RQ with <UserName>/<Password> (the child account
+   * login), so that is the default; 'access_secret' is only a fallback retry.
    */
-  authStyle: 'access_secret' | 'username_password' = 'access_secret',
+  authStyle: 'access_secret' | 'username_password' = 'username_password',
+
 ): string {
   const optNode = (tag: string, val?: string | number) =>
     val !== undefined && val !== null && String(val).trim() !== '' ? `<${tag}>${escapeXml(String(val))}</${tag}>` : '';
