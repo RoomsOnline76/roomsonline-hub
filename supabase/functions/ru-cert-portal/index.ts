@@ -1038,7 +1038,32 @@ Deno.serve(async (req) => {
       }
 
       const existing = await findOwnerAccount(admin, propertyId ?? "", ownerEmail, portfolioId);
-      if (existing.account?.ru_owner_id) {
+      // If the owner email has since changed, the stored sub-user belongs to the OLD
+      // login and must not be reused: Phase 1 has to create a fresh RU sub-user for the
+      // new email. `ensure_company_details` still targets the stored account.
+      const storedEmail = String(
+        (existing.account as any)?.ru_login_email ?? (existing.account as any)?.owner_email ?? "",
+      ).trim().toLowerCase();
+      const emailChanged =
+        Boolean(existing.account?.ru_owner_id) &&
+        Boolean(storedEmail) &&
+        storedEmail !== ownerEmail.trim().toLowerCase();
+      if (emailChanged && action === "ensure_owner_account") {
+        // Wipe the stale RU identity + password so the row is rebuilt below.
+        await admin
+          .from("ru_owner_accounts")
+          .update({
+            ru_owner_id: null,
+            ru_user_id: null,
+            ru_login_password_enc: null,
+            company_details_sent: false,
+            company_filled_at: null,
+            company_details_status: null,
+          })
+          .eq("id", (existing.account as any).id);
+      }
+      if (existing.account?.ru_owner_id && !emailChanged) {
+
         const companyResult = await submitCompanyDetails(existing.account as any);
         const needsPassword = Boolean((companyResult as any).deferred || (companyResult as any).authFailed);
         if (!companyResult.sent && !needsPassword) {
