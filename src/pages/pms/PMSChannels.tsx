@@ -48,6 +48,13 @@ export default function PMSChannels() {
 
   const [connectDialog, setConnectDialog] = useState<string | null>(null);
 
+  // Billing entitlement — when admin switches Channel Manager billing off, the
+  // module is locked and every listing is archived at Rentals United.
+  const { config: billingConfig, isLoading: billingLoading } = useBillingConfig(propertyId ?? undefined);
+  const channelManagerLocked =
+    !billingLoading && billingConfig != null && billingConfig.channel_manager_enabled === false;
+
+
   const connectionMap = new Map(connections.map((c: any) => [c.channel_name, c]));
 
   // Count mappings per connection for display on cards
