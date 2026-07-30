@@ -360,6 +360,11 @@ export function usePropertyPayouts(period?: PayoutPeriod | string) {
       });
 
 
+      const globalRow = pickGlobals(globalRows, undefined) as any;
+      const globalTxFee = Number(
+        (globalRows.find((r: any) => r.default_transaction_fee != null)?.default_transaction_fee) ?? 0,
+      ) || 0;
+
       const result: PropertyPayout[] = Object.entries(propertyMap).map(([pid, p]) => {
         const resolved = scopes[pid];
         const billing: any = resolved?.config || null;
@@ -368,8 +373,22 @@ export function usePropertyPayouts(period?: PayoutPeriod | string) {
         const wlFee = billing?.white_label_allowed ? (billing.white_label_monthly_fee || 0) : 0;
         const subFee = billing?.subscription_fee_monthly || 0;
         const pfEnabled = billing?.payment_facilitator_enabled || false;
-        const txFee = pfEnabled ? p.gross * ((billing?.transaction_fee_percentage || 0) / 100) : 0;
-        const totalFees = wlFee + subFee + txFee;
+        // ROL-as-payment-provider recovery only applies to value we actually processed.
+        const pfRate = pfEnabled
+          ? Number(billing?.transaction_fee_percentage ?? globalTxFee) || 0
+          : 0;
+        const pfFee = p.rolGross * (pfRate / 100);
+        const monthlyFees = wlFee + subFee;
+        const totalFees = monthlyFees + pfFee;
+
+        // Cash we hold for the owner, after our commission and fees on that cash.
+        const payoutBeforeInvoice = p.rolGross - p.rolCommission - pfFee - monthlyFees;
+        const netPayout = Math.max(0, payoutBeforeInvoice);
+        // BYO commission is never in our hands — invoice it, plus any shortfall.
+        const invoiced = p.byoCommission + Math.max(0, -payoutBeforeInvoice);
+
+        const settlementMode: SettlementMode =
+          p.byoGross > 0 && p.rolGross > 0 ? 'mixed' : p.byoGross > 0 ? 'invoice' : 'payout';
 
         return {
           property_id: pid,
@@ -379,7 +398,7 @@ export function usePropertyPayouts(period?: PayoutPeriod | string) {
           commission_rate: effectiveRate,
           commission_amount: commAmount,
           fees: totalFees,
-          net_amount: p.gross - commAmount - totalFees,
+          net_amount: netPayout,
           booking_count: p.bookingIds.size,
           booking_recorded_count: p.bookingRecorded,
           commission_type: (Object.entries(p.typeCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || 'pms') as CommissionType,
@@ -390,8 +409,18 @@ export function usePropertyPayouts(period?: PayoutPeriod | string) {
           white_label_fee: wlFee,
           subscription_fee: subFee,
           pf_enabled: pfEnabled,
+          rol_gross: p.rolGross,
+          byo_gross: p.byoGross,
+          rol_commission: p.rolCommission,
+          byo_commission: p.byoCommission,
+          pf_fee: pfFee,
+          pf_fee_rate: pfRate,
+          net_payout: netPayout,
+          invoiced_amount: invoiced,
+          settlement_mode: settlementMode,
         };
       });
+
 
       result.sort((a, b) => b.gross_amount - a.gross_amount);
       setPayouts(result);
