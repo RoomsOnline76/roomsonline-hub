@@ -723,16 +723,27 @@ async function resolveRuOwnerAccount(
     console.warn(`[push-property-to-ru] Failed to list users to resolve OwnerID:`, e);
   }
 
-  // 4. Store the account details
-  const { error: insertErr } = await supabase.from('ru_owner_accounts').upsert({
+  // 4. Store the account details (unique index is partial → resolve then update/insert)
+  const accountRow = {
     owner_email: ownerEmail,
     ru_user_id: userAccountId,
     ru_owner_id: ownerId,
     ru_login_email: ruLoginEmail,
     ru_login_url: 'https://new.rentalsunited.com',
-  }, { onConflict: 'owner_email' });
+  };
+  const { data: existingAccount } = await supabase
+    .from('ru_owner_accounts')
+    .select('id')
+    .eq('owner_email', ownerEmail)
+    .is('portfolio_id', null)
+    .is('property_id', null)
+    .maybeSingle();
+  const { error: insertErr } = existingAccount?.id
+    ? await supabase.from('ru_owner_accounts').update(accountRow).eq('id', existingAccount.id)
+    : await supabase.from('ru_owner_accounts').insert(accountRow);
 
   if (insertErr) console.error(`[push-property-to-ru] Failed to save RU account: ${insertErr.message}`);
+
 
   const resolvedOwnerId = ownerId ? parseInt(ownerId, 10) : 738925;
   console.log(`[push-property-to-ru] Resolved RU OwnerID: ${resolvedOwnerId} for ${ownerEmail}`);

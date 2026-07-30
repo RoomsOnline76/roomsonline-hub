@@ -802,12 +802,18 @@ Deno.serve(async (req) => {
         property_id: portfolioId ? null : propertyId,
         scope: portfolioId ? "portfolio" : "property",
       };
-      const { data: saved, error: saveErr } = await admin
-        .from("ru_owner_accounts")
-        .upsert(row, { onConflict: portfolioId ? "portfolio_id" : "property_id" })
-        .select()
-        .maybeSingle();
+      // The unique indexes on this table are PARTIAL, so PostgREST's ON CONFLICT
+      // cannot target them. Resolve the existing row manually, then update/insert.
+      const existingQuery = admin.from("ru_owner_accounts").select("id").limit(1);
+      const { data: existingRow } = portfolioId
+        ? await existingQuery.eq("portfolio_id", portfolioId).maybeSingle()
+        : await existingQuery.eq("property_id", propertyId).maybeSingle();
+
+      const { data: saved, error: saveErr } = existingRow?.id
+        ? await admin.from("ru_owner_accounts").update(row).eq("id", existingRow.id).select().maybeSingle()
+        : await admin.from("ru_owner_accounts").insert(row).select().maybeSingle();
       if (saveErr) return json({ success: false, error: { code: "SAVE_FAILED", message: saveErr.message } }, 500);
+
 
       return json({ success: true, created: true, account: saved, scope: portfolioId ? "portfolio" : "property" });
     }
