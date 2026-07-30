@@ -279,13 +279,15 @@ export default function AdminPayments() {
     <AppLayout>
       <PageHeader title="Payments" subtitle="Property payouts, transactions, and commission management" />
 
-      <div className="grid gap-4 md:grid-cols-5 xl:gap-6 mb-8">
-        <StatCard title="Due to Properties" value={`R${payoutStats.totalDue.toLocaleString()}`} icon={Building2} description={`${payoutStats.propertiesCount} properties`} variant="warning" />
-        <StatCard title="Commission Earned" value={`R${payoutStats.totalCommission.toLocaleString()}`} icon={TrendingUp} description="Total platform commission" variant="success" />
+      <div className="grid gap-4 md:grid-cols-3 xl:grid-cols-6 xl:gap-6 mb-8">
+        <StatCard title="Due to Properties" value={`R${Math.round(payoutStats.totalDue).toLocaleString()}`} icon={Building2} description={`${payoutStats.propertiesCount} properties`} variant="warning" />
+        <StatCard title="Recoverable (BYO)" value={`R${Math.round(payoutStats.totalInvoiced).toLocaleString()}`} icon={CreditCard} description="Commission to invoice owners" variant={payoutStats.totalInvoiced > 0 ? 'warning' : 'default'} />
+        <StatCard title="Commission Earned" value={`R${Math.round(payoutStats.totalCommission).toLocaleString()}`} icon={TrendingUp} description="Total platform commission" variant="success" />
         <StatCard title="Total Collected" value={`R${txStats.totalRevenue.toLocaleString()}`} icon={DollarSign} description="Completed payments" variant="success" />
         <StatCard title="Pending" value={`R${txStats.pendingAmount.toLocaleString()}`} icon={Clock} description="Awaiting confirmation" variant="warning" />
         <StatCard title="Rep Commissions" value={`R${totalCommissionsDue.toLocaleString()}`} icon={Handshake} description="Approved, awaiting payout" variant={totalCommissionsDue > 0 ? 'warning' : 'default'} />
       </div>
+
 
       <Tabs defaultValue="payouts" className="space-y-4">
         <TabsList>
