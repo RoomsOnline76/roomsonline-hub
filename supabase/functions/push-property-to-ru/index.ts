@@ -1964,57 +1964,17 @@ Deno.serve(async (req) => {
       if (dry_run) {
         const units = activeRoomTypes.map(rt => {
           const payload = buildUnitPayload(property as PropertyRow, rt, locationId, undefined, currencyId);
-          const totalBeds = (payload.rooms || []).reduce((sum: number, r: any) =>
-            sum + (r.amenities || []).filter((a: any) => a.id >= 97 && a.id <= 101).reduce((s: number, a: any) => s + (a.count || 1), 0), 0);
           return {
             room_type_id: rt.id,
             name: rt.name,
             ru_property_id: rt.rentalsunited_property_id || null,
-            validation: {
-              images_count: payload.images.length,
-              amenities_count: payload.amenities.length,
-              rooms_count: (payload.rooms || []).length,
-              has_coordinates: payload.latitude !== 0 && payload.longitude !== 0,
-              meets_minimum_images: payload.images.length >= 10,
-              meets_minimum_amenities: payload.amenities.length >= 10,
-              max_guests: payload.can_sleep_max,
-              // Extended RU White-Label requirements
-              has_zip_code: !!(payload.zip_code && payload.zip_code !== '0000'),
-              has_space: (payload.space || 0) > 0,
-              has_floor: typeof payload.floor === 'number',
-              has_detailed_location_id: (payload.detailed_location_id || 0) > 1,
-              has_payment_methods: (payload.payment_methods || []).length >= 1,
-              has_cancellation_policies: (payload.cancellation_policies || []).length >= 1,
-              beds_meet_max_guests: totalBeds >= (payload.can_sleep_max || 1),
-              total_beds: totalBeds,
-              // Phase 4 — WL minimum inventory additions
-              has_name: !!(payload.name && String(payload.name).trim().length >= 3),
-              has_object_type_id: ((payload.object_type_id ?? payload.property_type_id) || 0) > 0,
-              can_sleep_max_ok: (payload.can_sleep_max || 0) >= 1,
-              has_description: ((payload.descriptions?.[0]?.text || '').trim().length) >= 100,
-              has_main_image: (payload.images || []).some((i: any) => i.is_main),
-              has_street: !!(payload.street && String(payload.street).trim().length > 2),
-            },
+            validation: buildValidation(payload as Record<string, any>),
           };
         });
 
-        const allReady = units.every(u =>
-          u.validation.meets_minimum_images
-          && u.validation.meets_minimum_amenities
-          && u.validation.has_coordinates
-          && u.validation.has_zip_code
-          && u.validation.has_space
-          && u.validation.has_detailed_location_id
-          && u.validation.has_payment_methods
-          && u.validation.has_cancellation_policies
-          && u.validation.beds_meet_max_guests
-          && u.validation.has_name
-          && u.validation.has_object_type_id
-          && u.validation.can_sleep_max_ok
-          && u.validation.has_description
-          && u.validation.has_main_image
-          && u.validation.has_street
-        );
+        const gaps = mandatoryGaps(units.map(u => ({ name: u.name, validation: u.validation as any })));
+        const allReady = gaps.length === 0;
+        const everyFlag = (key: string) => units.every(u => (u.validation as any)[key] !== false);
 
         return new Response(
           JSON.stringify({
@@ -2024,32 +1984,37 @@ Deno.serve(async (req) => {
             property_id,
             building_id: property.rentalsunited_building_id || null,
             units,
+            gaps,
             validation: {
               total_units: units.length,
               all_ready: allReady,
-              images_count: units.reduce((s, u) => s + u.validation.images_count, 0),
-              amenities_count: units[0]?.validation.amenities_count || 0,
+              images_count: units.reduce((s, u) => s + Number((u.validation as any).images_count || 0), 0),
+              amenities_count: Number((units[0]?.validation as any)?.amenities_count || 0),
               rooms_count: units.length,
-              has_coordinates: units.every(u => u.validation.has_coordinates),
-              meets_minimum_images: units.every(u => u.validation.meets_minimum_images),
-              meets_minimum_amenities: units.every(u => u.validation.meets_minimum_amenities),
-              has_zip_code: units.every(u => u.validation.has_zip_code),
-              has_space: units.every(u => u.validation.has_space),
-              has_detailed_location_id: units.every(u => u.validation.has_detailed_location_id),
-              has_payment_methods: units.every(u => u.validation.has_payment_methods),
-              has_cancellation_policies: units.every(u => u.validation.has_cancellation_policies),
-              beds_meet_max_guests: units.every(u => u.validation.beds_meet_max_guests),
-              has_name: units.every(u => u.validation.has_name),
-              has_object_type_id: units.every(u => u.validation.has_object_type_id),
-              can_sleep_max_ok: units.every(u => u.validation.can_sleep_max_ok),
-              has_description: units.every(u => u.validation.has_description),
-              has_main_image: units.every(u => u.validation.has_main_image),
-              has_street: units.every(u => u.validation.has_street),
+              has_coordinates: everyFlag('has_coordinates'),
+              meets_minimum_images: everyFlag('meets_minimum_images'),
+              images_meet_size: everyFlag('images_meet_size'),
+              meets_minimum_amenities: everyFlag('meets_minimum_amenities'),
+              has_zip_code: everyFlag('has_zip_code'),
+              has_space: everyFlag('has_space'),
+              has_detailed_location_id: everyFlag('has_detailed_location_id'),
+              has_payment_methods: everyFlag('has_payment_methods'),
+              has_cancellation_policies: everyFlag('has_cancellation_policies'),
+              beds_cover_half: everyFlag('beds_cover_half'),
+              beds_meet_max_guests: everyFlag('beds_meet_max_guests'),
+              rooms_have_amenities: everyFlag('rooms_have_amenities'),
+              has_name: everyFlag('has_name'),
+              has_object_type_id: everyFlag('has_object_type_id'),
+              can_sleep_max_ok: everyFlag('can_sleep_max_ok'),
+              has_description: everyFlag('has_description'),
+              has_main_image: everyFlag('has_main_image'),
+              has_street: everyFlag('has_street'),
             },
           }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
+
 
       // ── STANDALONE UNITS FLOW (no building) ───────────────
       // Each room type is pushed as an independent RU property without a BuildingID.
