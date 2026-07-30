@@ -23,6 +23,8 @@ export interface PropertyPayout {
   booking_count: number;
   /** Of booking_count, how many were counted off the booking record (no gateway transaction). */
   booking_recorded_count: number;
+  /** Dominant commission origin across the property's bookings in the period. */
+  commission_type: CommissionType;
   has_banking: boolean;
   banking_verified: boolean;
   billing_strategy: string;
@@ -243,6 +245,7 @@ export function usePropertyPayouts(period?: PayoutPeriod | string) {
             commission: 0,
             bookingIds: new Set<string>(),
             bookingRecorded: 0,
+            typeCounts: {} as Record<string, number>,
           };
         }
 
@@ -254,6 +257,7 @@ export function usePropertyPayouts(period?: PayoutPeriod | string) {
         propertyMap[pid].commission += commission.amount;
         propertyMap[pid].bookingIds.add(booking.id);
         if (source === 'booking') propertyMap[pid].bookingRecorded += 1;
+        propertyMap[pid].typeCounts[commission.type] = (propertyMap[pid].typeCounts[commission.type] || 0) + 1;
       });
 
       const result: PropertyPayout[] = Object.entries(propertyMap).map(([pid, p]) => {
@@ -278,6 +282,7 @@ export function usePropertyPayouts(period?: PayoutPeriod | string) {
           net_amount: p.gross - commAmount - totalFees,
           booking_count: p.bookingIds.size,
           booking_recorded_count: p.bookingRecorded,
+          commission_type: (Object.entries(p.typeCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || 'pms') as CommissionType,
           has_banking: !!bankMap[pid]?.exists,
           banking_verified: !!bankMap[pid]?.verified,
           billing_strategy: billing?.billing_strategy || 'default',
