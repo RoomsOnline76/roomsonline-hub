@@ -259,16 +259,22 @@ export async function evaluatePhases(
       detail: {
         scope,
         portfolio_id,
-        ru_owner_id: account?.ru_owner_id ?? null,
-        ru_user_id: account?.ru_user_id ?? null,
-        company_filled_at: account?.company_filled_at ?? null,
-        company_details_status: account?.company_details_status ?? null,
+        // A stale identity (owner email changed) is reported as no sub-user so the
+        // UI falls back to the "Create sub-user" step instead of "Complete company details".
+        ru_owner_id: emailMismatch ? null : account?.ru_owner_id ?? null,
+        ru_user_id: emailMismatch ? null : account?.ru_user_id ?? null,
+        stale_ru_owner_id: emailMismatch ? account?.ru_owner_id ?? null : null,
+        email_mismatch: emailMismatch,
+        expected_owner_email: expectedEmail,
+        company_filled_at: emailMismatch ? null : account?.company_filled_at ?? null,
+        company_details_status: emailMismatch ? null : account?.company_details_status ?? null,
         // True when RU company details can only be completed with an operator-supplied
         // sub-user password (adopted accounts) — surfaced so the UI can prompt for it.
         company_details_manual_required:
-          Boolean(account) && !account?.company_filled_at && !account?.ru_login_password_enc,
+          !emailMismatch && Boolean(account) && !account?.company_filled_at && !account?.ru_login_password_enc,
         user_management_enabled: subUserLive,
       },
+
     },
     {
       key: "p2_readiness",
