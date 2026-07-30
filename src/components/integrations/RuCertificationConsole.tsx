@@ -63,6 +63,21 @@ interface CadenceRule {
   next_due_at: string | null;
   state: "green" | "amber" | "red";
 }
+interface CronJob {
+  jobname: string;
+  schedule: string;
+  active: boolean;
+  last_run_at: string | null;
+  last_status: string | null;
+}
+
+interface ExpectedJob {
+  jobname: string;
+  schedule: string;
+  fn: string;
+  label: string;
+}
+
 
 interface ReadinessRow {
   property_id: string;
@@ -120,6 +135,9 @@ export function RuCertificationConsole({ properties }: { properties: PropertyLit
 
   const [cadence, setCadence] = useState<CadenceRule[]>([]);
   const [cadenceLoading, setCadenceLoading] = useState(false);
+  const [jobs, setJobs] = useState<CronJob[]>([]);
+  const [expectedJobs, setExpectedJobs] = useState<ExpectedJob[]>([]);
+  const [runningJob, setRunningJob] = useState<string | null>(null);
 
   const [readiness, setReadiness] = useState<ReadinessRow[]>([]);
   const [readinessLoading, setReadinessLoading] = useState(false);
@@ -144,10 +162,25 @@ export function RuCertificationConsole({ properties }: { properties: PropertyLit
 
   const loadCadence = useCallback(async () => {
     setCadenceLoading(true);
-    const res = await callPortal<{ rules: CadenceRule[] }>("compliance");
-    if (res) setCadence(res.rules ?? []);
+    const res = await callPortal<{ rules: CadenceRule[]; jobs: CronJob[]; expected_jobs: ExpectedJob[] }>("compliance");
+    if (res) {
+      setCadence(res.rules ?? []);
+      setJobs(res.jobs ?? []);
+      setExpectedJobs(res.expected_jobs ?? []);
+    }
     setCadenceLoading(false);
   }, []);
+
+  const runJob = async (fn: string) => {
+    setRunningJob(fn);
+    const res = await callPortal("run_job", { function_name: fn });
+    setRunningJob(null);
+    if (res) {
+      toast.success("Job executed");
+      loadCadence();
+    }
+  };
+
 
   const loadReadiness = useCallback(async () => {
     setReadinessLoading(true);
@@ -338,6 +371,61 @@ export function RuCertificationConsole({ properties }: { properties: PropertyLit
                   </div>
                 ))}
               </div>
+            </CardContent>
+          </Card>
+
+          <Card className="mt-4">
+            <CardHeader>
+              <CardTitle className="text-base">Scheduled jobs</CardTitle>
+              <CardDescription>
+                Automation backing the cadence above. A missing job means the refresh only happens when triggered manually.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Job</TableHead>
+                    <TableHead>Schedule</TableHead>
+                    <TableHead>Last run</TableHead>
+                    <TableHead>State</TableHead>
+                    <TableHead />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {expectedJobs.map((e) => {
+                    const live = jobs.find((j) => j.jobname === e.jobname);
+                    return (
+                      <TableRow key={e.jobname}>
+                        <TableCell>
+                          <div className="text-sm font-medium">{e.label}</div>
+                          <div className="text-xs font-mono text-muted-foreground">{e.jobname}</div>
+                        </TableCell>
+                        <TableCell className="text-xs font-mono">{live?.schedule ?? e.schedule}</TableCell>
+                        <TableCell className="text-xs">
+                          {live?.last_run_at ? `${format(new Date(live.last_run_at), "MMM d HH:mm")} · ${live.last_status}` : "—"}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={live?.active ? "default" : "destructive"}>
+                            {live ? (live.active ? "Scheduled" : "Paused") : "Not scheduled"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Button variant="outline" size="sm" disabled={runningJob === e.fn} onClick={() => runJob(e.fn)} className="gap-1.5">
+                            {runningJob === e.fn
+                              ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                              : <PlayCircle className="h-3.5 w-3.5" />}
+                            Run now
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                  {expectedJobs.length === 0 && (
+                    <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-6">Refresh to load job status.</TableCell></TableRow>
+                  )}
+                </TableBody>
+              </Table>
             </CardContent>
           </Card>
         </TabsContent>

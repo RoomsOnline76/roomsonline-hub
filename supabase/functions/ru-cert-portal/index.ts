@@ -85,6 +85,17 @@ const CADENCE_RULES = [
   { key: "PutHandlerUrl", label: "RLNM handler subscription", ru_method: "LNM_PutHandlerUrl_RQ", max_age_hours: 24, actions: ["weekly_content_refresh", "PutHandlerUrl", "RLNM"] },
 ];
 
+// pg_cron jobs that must exist for RU cadence compliance
+const EXPECTED_JOBS = [
+  { jobname: "ru-content-weekly", schedule: "0 2 * * 1", fn: "cron-push-all-properties-to-ru", label: "Weekly property content push" },
+  { jobname: "ru-ari-refresh", schedule: "0 */6 * * *", fn: "cron-refresh-ru-ari", label: "ARI refresh (every 6h)" },
+  { jobname: "ru-reservations-poll", schedule: "*/30 * * * *", fn: "cron-pull-ru-reservations", label: "Reservation poll (every 30 min)" },
+  { jobname: "ru-rlnm-daily", schedule: "0 1 * * *", fn: "cron-ru-rlnm-refresh", label: "RLNM handler re-subscribe (daily)" },
+];
+
+const RUNNABLE_JOBS = new Set(EXPECTED_JOBS.map((j) => j.fn));
+
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -163,10 +174,25 @@ Deno.serve(async (req) => {
         };
       });
 
-      return json({ success: true, rules });
+      // Scheduled job inventory (pg_cron) — proves the cadence is automated, not manual
+      const { data: jobs } = await userClient.rpc("get_ru_cron_jobs");
+
+      return json({ success: true, rules, jobs: jobs ?? [], expected_jobs: EXPECTED_JOBS });
     }
 
     // ── wl_readiness ──
+    // ── run_job: manually satisfy an overdue cadence ──
+    if (action === "run_job") {
+      const fn: string = body.function_name ?? "";
+      if (!RUNNABLE_JOBS.has(fn)) {
+        return json({ success: false, error: { code: "BAD_JOB", message: `Unknown job: ${fn}` } }, 400);
+      }
+      const t0 = Date.now();
+      const { data, error } = await admin.functions.invoke(fn, { body: { manual: true } });
+      if (error) return json({ success: false, error: { code: "JOB_FAILED", message: error.message } }, 502);
+      return json({ success: true, function_name: fn, duration_ms: Date.now() - t0, result: data });
+    }
+
     if (action === "wl_readiness") {
       const { data: props } = await admin
         .from("properties")

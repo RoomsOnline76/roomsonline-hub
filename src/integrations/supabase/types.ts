@@ -12025,6 +12025,16 @@ export type Database = {
           latest_fetched_at: string
         }[]
       }
+      get_ru_cron_jobs: {
+        Args: never
+        Returns: {
+          active: boolean
+          jobname: string
+          last_run_at: string
+          last_status: string
+          schedule: string
+        }[]
+      }
       get_subscription_invoice_by_token: {
         Args: { _token: string }
         Returns: {

@@ -36,6 +36,20 @@ Deno.serve(async (req) => {
   const supabase = createClient(supabaseUrl, supabaseKey);
 
   const summary = { total: 0, created: 0, updated: 0, cancelled: 0, skipped: 0, failed: 0, unmatched: 0, leads_found: 0, leads_logged: 0 };
+  const cronStartedAt = Date.now();
+
+  // Cadence evidence for the RU certification console (Pull_ListReservations_RQ)
+  const logCadence = async (success: boolean, errorMessage: string | null) => {
+    await supabase.from('ru_sync_runs').insert({
+      batch_id: crypto.randomUUID(),
+      action: 'pull_reservations',
+      success,
+      error_message: errorMessage,
+      elapsed_ms: Date.now() - cronStartedAt,
+      details: { ...summary, scope: 'reservation_poll' },
+    }).then(() => {}, (e) => console.warn('[cron-pull-ru] log insert failed', e));
+  };
+
 
   try {
     // Date range: last 7 days → today
@@ -55,6 +69,7 @@ Deno.serve(async (req) => {
     if (ruErr || !ruResult?.success) {
       const msg = ruErr?.message || ruResult?.error?.message || 'Unknown error';
       console.error(`[cron-pull-ru] API call failed: ${msg}`);
+      await logCadence(false, msg);
       return new Response(JSON.stringify({ success: false, error: msg }), {
         status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -64,6 +79,7 @@ Deno.serve(async (req) => {
     const rawXml: string = ruResult.raw_xml || '';
     if (!rawXml || rawXml.length < 50) {
       console.log('[cron-pull-ru] No reservations XML returned');
+      await logCadence(true, null);
       return new Response(JSON.stringify({ success: true, summary }), {
         status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -317,12 +333,14 @@ Deno.serve(async (req) => {
     }
 
     console.log(`[cron-pull-ru] Done. Summary:`, JSON.stringify(summary));
+    await logCadence(true, null);
     return new Response(JSON.stringify({ success: true, summary }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error) {
     console.error('[cron-pull-ru] Fatal error:', error);
+    await logCadence(false, String(error));
     return new Response(JSON.stringify({ success: false, error: String(error), summary }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
