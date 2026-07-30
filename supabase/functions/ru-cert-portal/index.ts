@@ -731,10 +731,106 @@ Deno.serve(async (req) => {
         return json({ success: false, error: { code: "NO_OWNER_EMAIL", message: "No owner email on the portfolio or property — set one before creating the RU sub-user." } }, 422);
       }
 
+      // Phase 1 is only complete once company details have been filled on RU.
+      const submitCompanyDetails = async (account: Record<string, any> | null) => {
+        if (!account?.id) return { sent: false, error: "No local RU account row" };
+        if (account.company_details_sent) return { sent: true, skipped: true as const };
+        const userAccountId = account.ru_user_id ?? account.ru_owner_id;
+        if (!userAccountId) return { sent: false, error: "No RU UserAccountId on the account" };
+
+        // Resolve company info from the portfolio (preferred) or the property.
+        let companyName = ownerName || "";
+        let address: string | undefined;
+        let city: string | undefined;
+        let country: string | undefined;
+        let phone: string | undefined;
+
+        let sourcePropertyId: string | null = propertyId ?? null;
+        if (portfolioId) {
+          const { data: pf } = await admin
+            .from("property_portfolios")
+            .select("name")
+            .eq("id", portfolioId)
+            .maybeSingle();
+          companyName = pf?.name || companyName;
+          if (!sourcePropertyId) {
+            const { data: member } = await admin
+              .from("property_portfolio_members")
+              .select("property_id")
+              .eq("portfolio_id", portfolioId)
+              .limit(1)
+              .maybeSingle();
+            sourcePropertyId = member?.property_id ?? null;
+          }
+        }
+        if (sourcePropertyId) {
+          const { data: pr } = await admin
+            .from("properties")
+            .select("name, address, city, country")
+            .eq("id", sourcePropertyId)
+            .maybeSingle();
+          companyName = companyName || pr?.name || "";
+          address = pr?.address ?? undefined;
+          city = pr?.city ?? undefined;
+          country = pr?.country ?? undefined;
+          const { data: contact } = await admin
+            .from("property_contact_details")
+            .select("phone")
+            .eq("property_id", sourcePropertyId)
+            .limit(1)
+            .maybeSingle();
+          phone = (contact as any)?.phone ?? undefined;
+        }
+        if (!companyName) return { sent: false, error: "No company/portfolio name to submit" };
+
+        const company = { name: companyName, address, city, country, phone, email: ownerEmail! };
+        const { data: filled, error: fillErr } = await admin.functions.invoke("rentalsunited-api", {
+          body: { action: "fill_company_details", ru_property_id: Number(userAccountId), company },
+        });
+        if (fillErr || !filled?.success) {
+          return {
+            sent: false,
+            error: String(fillErr?.message ?? filled?.error?.message ?? "Rentals United rejected the company details"),
+          };
+        }
+        await admin
+          .from("ru_owner_accounts")
+          .update({
+            company_details_sent: true,
+            company_filled_at: new Date().toISOString(),
+            company_payload: company,
+          })
+          .eq("id", account.id);
+        return { sent: true };
+      };
+
       const existing = await findOwnerAccount(admin, propertyId ?? "", ownerEmail, portfolioId);
       if (existing.account?.ru_owner_id) {
-        return json({ success: true, created: false, account: existing.account, scope: existing.scope });
+        const companyResult = await submitCompanyDetails(existing.account as any);
+        if (!companyResult.sent) {
+          return json({
+            success: false,
+            error: {
+              code: "RU_COMPANY_DETAILS_FAILED",
+              message: `Sub-user exists (OwnerID ${existing.account.ru_owner_id}) but company details could not be submitted to Rentals United: ${companyResult.error}`,
+            },
+            account: existing.account,
+          }, 502);
+        }
+        const { data: refreshed } = await admin
+          .from("ru_owner_accounts")
+          .select("*")
+          .eq("id", (existing.account as any).id)
+          .maybeSingle();
+        return json({
+          success: true,
+          created: false,
+          company_details_sent: true,
+          account: refreshed ?? existing.account,
+          scope: existing.scope,
+        });
       }
+
 
       // Create the RU sub-user
       const parts = String(ownerName).trim().split(/\s+/);
