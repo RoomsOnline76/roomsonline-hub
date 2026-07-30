@@ -109,7 +109,7 @@ interface UnitPushResult {
   diagnostics?: Diagnostics;
 }
 
-export function PushToRentalsUnited({ propertyId }: PushToRentalsUnitedProps) {
+export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnitedProps) {
   const [loading, setLoading] = useState(false);
   const [dryRunning, setDryRunning] = useState(false);
   const [validation, setValidation] = useState<ValidationResult | null>(null);
