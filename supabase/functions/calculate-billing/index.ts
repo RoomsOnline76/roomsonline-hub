@@ -480,7 +480,12 @@ async function calcRolosPms(
     };
   }
 
-  const rate = resolve(config?.commission_rate, globals?.default_commission_rate, 2);
+  const rate = resolve(
+    config?.pms_commission_rate ?? config?.commission_rate,
+    globals?.pms_commission_rate ?? globals?.default_commission_rate,
+    2,
+  );
+
   return {
     amount: amount * (rate / 100),
     type: 'commission',
