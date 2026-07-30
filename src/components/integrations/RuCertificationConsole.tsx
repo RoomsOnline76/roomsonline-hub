@@ -146,7 +146,7 @@ export function RuCertificationConsole({ properties }: { properties: PropertyLit
 
   const [discounts, setDiscounts] = useState<DiscountRow[]>([]);
   const [discountsLoading, setDiscountsLoading] = useState(false);
-  const [draft, setDraft] = useState({ discount_type: "long_stay", threshold: "7", discount_percent: "10" });
+  const [draft, setDraft] = useState({ discount_type: "long_stay", threshold: "7", discount_percent: "10", date_from: "", date_to: "" });
 
   const [userMgmt, setUserMgmt] = useState<{ enabled: boolean; note: string; probe?: any } | null>(null);
 
