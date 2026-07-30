@@ -297,18 +297,42 @@ export default function AdminPayments() {
         <TabsContent value="payouts">
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <CardTitle className="flex items-center gap-2"><Building2 className="h-5 w-5" />Property Payout Summary</CardTitle>
-                  <CardDescription>Net amounts due to each property after commission and fees</CardDescription>
+                  <CardDescription>
+                    Net amounts due to each property after commission and fees · {payoutRangeLabel}
+                    {payoutsUpdatedAt && (
+                      <span className="block text-xs mt-0.5">
+                        As at {format(payoutsUpdatedAt, 'd MMM yyyy HH:mm')}
+                      </span>
+                    )}
+                  </CardDescription>
                 </div>
-                <Button variant="outline" size="sm"><Download className="h-4 w-4 mr-2" />Export</Button>
+                <div className="flex items-center gap-2">
+                  <Select value={payoutPeriod} onValueChange={setPayoutPeriod}>
+                    <SelectTrigger className="w-[150px] h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="this_month">This month</SelectItem>
+                      <SelectItem value="last_month">Last month</SelectItem>
+                      <SelectItem value="last_90">Last 90 days</SelectItem>
+                      <SelectItem value="all">All time</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button variant="outline" size="sm" onClick={() => refreshPayouts()} disabled={payoutsLoading}>
+                    {payoutsLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Refresh'}
+                  </Button>
+                  <Button variant="outline" size="sm"><Download className="h-4 w-4 mr-2" />Export</Button>
+                </div>
               </div>
             </CardHeader>
             <CardContent>
               <PropertyPayoutTable payouts={payouts} loading={payoutsLoading} />
             </CardContent>
           </Card>
+
         </TabsContent>
 
         {/* Transactions tab */}
