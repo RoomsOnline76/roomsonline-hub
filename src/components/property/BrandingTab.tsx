@@ -20,6 +20,11 @@ export interface BrandingData {
   brand_override_enabled: boolean;
   brand_heading_font: string;
   brand_body_font: string;
+  brand_heading_text_color?: string;
+  brand_body_text_color?: string;
+  brand_muted_text_color?: string;
+  brand_light_bg_color?: string;
+  brand_dark_bg_color?: string;
 }
 
 interface BrandingTabProps {
