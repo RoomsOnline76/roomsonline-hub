@@ -7,6 +7,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { PropertyPayout } from "@/hooks/usePropertyPayouts";
+import { COMMISSION_TYPE_LABEL } from "@/lib/commissionResolver";
 import { PaymentAdviceDialog } from "./PaymentAdviceDialog";
 
 interface PropertyPayoutTableProps {
