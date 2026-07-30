@@ -293,7 +293,7 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
               ? ` · widget flat commission ${c.widget_flat_commission_rate}% (variable, not included)`
               : strategy === "widget"
               ? " · commission tiered by monthly volume (variable, not included)"
-              : c.commission_rate != null && ` · commission ${c.commission_rate}% (variable, not included)`}
+              : c.commission_rate != null && ` · commission ${(c as any).listing_commission_rate ?? c.commission_rate}% marketplace / ${(c as any).pms_commission_rate ?? 2}% direct (variable, not included)`}
             {Number(c.transaction_fee_percentage ?? 0) > 0 &&
               ` · facilitator surcharge ${c.transaction_fee_percentage}% per booking (variable, not included)`}
           </p>
