@@ -56,6 +56,36 @@ interface PropRow {
 export function PortfolioRuAccountsTab() {
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [revealing, setRevealing] = useState<string | null>(null);
+  const [revealed, setRevealed] = useState<Record<string, { login_email: string; password: string }>>({});
+
+  const hideCredentials = useCallback((accountId: string) => {
+    setRevealed((prev) => {
+      const next = { ...prev };
+      delete next[accountId];
+      return next;
+    });
+  }, []);
+
+  const revealCredentials = useCallback(async (accountId: string) => {
+    setRevealing(accountId);
+    try {
+      const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
+        body: { action: "reveal_login_password", account_id: accountId },
+      });
+      if (error || !data?.success) {
+        toast.error(data?.error?.message || error?.message || "Could not reveal the password");
+        return;
+      }
+      setRevealed((prev) => ({
+        ...prev,
+        [accountId]: { login_email: data.login_email, password: data.password },
+      }));
+    } finally {
+      setRevealing(null);
+    }
+  }, []);
+
 
   const { data: accounts = [], isLoading } = useQuery({
     queryKey: ["ru-owner-accounts"],
