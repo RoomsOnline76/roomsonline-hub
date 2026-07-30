@@ -8,6 +8,11 @@ export interface BillingConfig {
   owner_id: string | null;
   billing_strategy: string;
   commission_rate: number | null;
+  /** Commission on ROL marketplace bookings (falls back to commission_rate). */
+  listing_commission_rate?: number | null;
+  /** Commission on the property's own surfaces (white-label, direct, widget, embed, API). */
+  pms_commission_rate?: number | null;
+
   widget_flat_commission_rate?: number | null;
   subscription_fee_monthly: number | null;
   transaction_fee_percentage: number | null;
