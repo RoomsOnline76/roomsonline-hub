@@ -673,6 +673,54 @@ Deno.serve(async (req) => {
       });
     }
 
+    // ── save_login_password: admin sets/resets the retained RU portal password ──
+    // RU exposes no password-change API, so the admin resets it inside the RU portal
+    // and stores the new value here (encrypted) so future automation can authenticate.
+    if (action === "save_login_password") {
+      const accountId: string = body.account_id ?? "";
+      const newPassword: string = typeof body.password === "string" ? body.password : "";
+      const newEmail: string | null =
+        typeof body.login_email === "string" && body.login_email.trim() ? body.login_email.trim() : null;
+      if (!accountId) return json({ success: false, error: { code: "BAD_REQUEST", message: "account_id is required" } }, 400);
+      if (newPassword.length < 8) {
+        return json({ success: false, error: { code: "BAD_REQUEST", message: "Password must be at least 8 characters" } }, 400);
+      }
+
+      const { data: account } = await admin
+        .from("ru_owner_accounts")
+        .select("id, owner_email, ru_login_email, ru_owner_id")
+        .eq("id", accountId)
+        .maybeSingle();
+      if (!account) return json({ success: false, error: { code: "NOT_FOUND", message: "RU owner account not found" } }, 404);
+
+      const { data: enc, error: encErr } = await admin.rpc("encrypt_sensitive_text", { plaintext: newPassword });
+      if (encErr || !enc) {
+        return json({ success: false, error: { code: "ENCRYPT_FAILED", message: encErr?.message || "Could not encrypt the password" } }, 500);
+      }
+
+      const update: Record<string, unknown> = { ru_login_password_enc: enc };
+      if (newEmail) update.ru_login_email = newEmail;
+      const { error: upErr } = await admin.from("ru_owner_accounts").update(update).eq("id", accountId);
+      if (upErr) return json({ success: false, error: { code: "SAVE_FAILED", message: upErr.message } }, 500);
+
+      await admin.from("audit_logs").insert({
+        user_id: user.id,
+        user_email: user.email ?? "unknown",
+        user_role: (roles ?? []).some((r: { role: string }) => r.role === "dev") ? "dev" : "admin",
+        action_type: "other",
+        table_name: "ru_owner_accounts",
+        record_id: account.id,
+        request_origin: "edge_function",
+        edge_function_name: "ru-cert-portal",
+        is_sensitive: true,
+        change_summary: `Reset stored Rentals United sub-user password for ${newEmail ?? account.ru_login_email ?? account.owner_email} (OwnerID ${account.ru_owner_id ?? "?"})`,
+      }).then(() => {}, (e) => console.warn("[ru-cert-portal] audit log insert failed", e));
+
+      return json({ success: true, login_email: newEmail ?? account.ru_login_email ?? account.owner_email });
+    }
+
+
+
 
 
     // ── create_user / fill_company_details: only run when the switch is on ──
