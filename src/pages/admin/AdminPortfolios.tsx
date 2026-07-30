@@ -812,7 +812,23 @@ export default function AdminPortfolios() {
         }
       />
 
+      <Tabs defaultValue="portfolios" className="mt-4 space-y-4">
+        <TabsList>
+          <TabsTrigger value="portfolios" className="text-xs gap-1.5">
+            <FolderOpen className="h-3.5 w-3.5" /> Portfolios
+          </TabsTrigger>
+          <TabsTrigger value="ru" className="text-xs gap-1.5">
+            <ShieldCheck className="h-3.5 w-3.5" /> Rentals United
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="ru">
+          <PortfolioRuAccountsTab />
+        </TabsContent>
+
+        <TabsContent value="portfolios">
       {isLoading ? (
+
         <div className="flex items-center justify-center py-12">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
