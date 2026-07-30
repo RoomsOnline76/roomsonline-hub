@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { 
   CreditCard, 
   DollarSign, 
@@ -59,6 +59,7 @@ interface CommissionPayout {
 
 export default function AdminPayments() {
   const [transactions, setTransactions] = useState<PaymentTransaction[]>([]);
+  const [showExpired, setShowExpired] = useState(false);
   const [commissionPayouts, setCommissionPayouts] = useState<CommissionPayout[]>([]);
   const [loading, setLoading] = useState(true);
   const [commissionsLoading, setCommissionsLoading] = useState(true);
@@ -330,6 +331,13 @@ export default function AdminPayments() {
                   </Select>
                   <Button variant="outline" size="sm" onClick={() => refreshPayouts()} disabled={payoutsLoading}>
                     {payoutsLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Refresh'}
+                  </Button>
+                  <Button
+                    variant={showExpired ? "secondary" : "outline"}
+                    size="sm"
+                    onClick={() => setShowExpired(v => !v)}
+                  >
+                    {showExpired ? "Hide expired" : `Show expired${expiredCount ? ` (${expiredCount})` : ""}`}
                   </Button>
                   <Button variant="outline" size="sm"><Download className="h-4 w-4 mr-2" />Export</Button>
                 </div>
