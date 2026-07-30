@@ -10,7 +10,10 @@ export interface BillingDefault {
   is_preset: boolean | null;
   sort_order: number | null;
   default_commission_rate: number | null;
+  listing_commission_rate?: number | null;
+  pms_commission_rate?: number | null;
   widget_flat_commission_rate?: number | null;
+
   default_subscription_fee: number | null;
   default_transaction_fee: number | null;
   white_label_monthly_fee: number | null;
