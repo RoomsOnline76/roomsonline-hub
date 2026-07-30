@@ -1899,6 +1899,13 @@ Deno.serve(async (req) => {
               has_cancellation_policies: (payload.cancellation_policies || []).length >= 1,
               beds_meet_max_guests: totalBeds >= (payload.can_sleep_max || 1),
               total_beds: totalBeds,
+              // Phase 4 — WL minimum inventory additions
+              has_name: !!(payload.name && String(payload.name).trim().length >= 3),
+              has_object_type_id: ((payload.object_type_id ?? payload.property_type_id) || 0) > 0,
+              can_sleep_max_ok: (payload.can_sleep_max || 0) >= 1,
+              has_description: ((payload.descriptions?.[0]?.text || '').trim().length) >= 100,
+              has_main_image: (payload.images || []).some((i: any) => i.is_main),
+              has_street: !!(payload.street && String(payload.street).trim().length > 2),
             },
           };
         });
@@ -1913,6 +1920,12 @@ Deno.serve(async (req) => {
           && u.validation.has_payment_methods
           && u.validation.has_cancellation_policies
           && u.validation.beds_meet_max_guests
+          && u.validation.has_name
+          && u.validation.has_object_type_id
+          && u.validation.can_sleep_max_ok
+          && u.validation.has_description
+          && u.validation.has_main_image
+          && u.validation.has_street
         );
 
         return new Response(
@@ -1938,6 +1951,12 @@ Deno.serve(async (req) => {
               has_payment_methods: units.every(u => u.validation.has_payment_methods),
               has_cancellation_policies: units.every(u => u.validation.has_cancellation_policies),
               beds_meet_max_guests: units.every(u => u.validation.beds_meet_max_guests),
+              has_name: units.every(u => u.validation.has_name),
+              has_object_type_id: units.every(u => u.validation.has_object_type_id),
+              can_sleep_max_ok: units.every(u => u.validation.can_sleep_max_ok),
+              has_description: units.every(u => u.validation.has_description),
+              has_main_image: units.every(u => u.validation.has_main_image),
+              has_street: units.every(u => u.validation.has_street),
             },
           }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -2221,6 +2240,13 @@ Deno.serve(async (req) => {
             has_payment_methods: (ruPayload.payment_methods || []).length >= 1,
             has_cancellation_policies: (ruPayload.cancellation_policies || []).length >= 1,
             max_guests: ruPayload.can_sleep_max,
+            // Phase 4 — WL minimum inventory additions
+            has_name: !!(ruPayload.name && String(ruPayload.name).trim().length >= 3),
+            has_object_type_id: (((ruPayload as any).object_type_id ?? (ruPayload as any).property_type_id) || 0) > 0,
+            can_sleep_max_ok: (ruPayload.can_sleep_max || 0) >= 1,
+            has_description: (((ruPayload as any).descriptions?.[0]?.text || '').trim().length) >= 100,
+            has_main_image: (ruPayload.images || []).some((i: any) => i.is_main),
+            has_street: !!((ruPayload as any).street && String((ruPayload as any).street).trim().length > 2),
           },
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

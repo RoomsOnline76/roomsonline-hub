@@ -88,6 +88,18 @@ interface ReadinessRow {
   ok: boolean;
   gaps: string[];
   error?: string;
+  checks_total?: number;
+  checks_passed?: number;
+  score?: number;
+  ari?: {
+    ru_property_id: number;
+    date_from: string;
+    date_to: string;
+    open_days: number;
+    price_points: number;
+    availability_ok: boolean;
+    prices_ok: boolean;
+  } | null;
 }
 
 interface DiscountRow {
@@ -574,8 +586,9 @@ export function RuCertificationConsole({ properties }: { properties: PropertyLit
               <div>
                 <CardTitle className="text-base">White-Label minimum inventory readiness</CardTitle>
                 <CardDescription>
-                  ≥10 images (1024×683+), ≥10 amenities, geo-coordinates, ZIP, size, location ID, payment method,
-                  cancellation policy and beds covering max guests.
+                  Name, ObjectTypeID, CanSleepMax, street/ZIP/geo, DetailedLocationID, size &amp; floor, description,
+                  ≥10 images (1024×683+) with a main photo, ≥10 amenities, composition rooms, beds covering max guests,
+                  payment method, cancellation policy, plus live 365-day availability and pricing above zero.
                 </CardDescription>
               </div>
               <Button variant="outline" size="sm" onClick={loadReadiness} disabled={readinessLoading} className="gap-1.5">
@@ -589,12 +602,24 @@ export function RuCertificationConsole({ properties }: { properties: PropertyLit
               )}
               {readiness.map((r) => (
                 <div key={r.property_id} className="rounded-lg border p-3">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-3">
                     <div>
                       <span className="font-medium text-sm">{r.name}</span>
                       {r.unit_count ? <span className="text-xs text-muted-foreground ml-2">{r.unit_count} unit(s)</span> : null}
+                      {r.ari && (
+                        <span className="text-xs text-muted-foreground ml-2">
+                          · {r.ari.open_days} open day(s) · {r.ari.price_points} price point(s)
+                        </span>
+                      )}
                     </div>
-                    <Badge variant={r.ok ? "default" : "destructive"}>{r.ok ? "Ready" : `${r.gaps.length} gap(s)`}</Badge>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {typeof r.score === "number" && (
+                        <Badge variant="outline">
+                          {r.score}% ({r.checks_passed ?? 0}/{r.checks_total ?? 0})
+                        </Badge>
+                      )}
+                      <Badge variant={r.ok ? "default" : "destructive"}>{r.ok ? "Ready" : `${r.gaps.length} gap(s)`}</Badge>
+                    </div>
                   </div>
                   {!r.ok && (
                     <ul className="mt-2 space-y-0.5 text-xs text-muted-foreground list-disc list-inside">

@@ -218,21 +218,81 @@ Deno.serve(async (req) => {
           { name: p.name, ru_property_id: data?.ru_property_id ?? null, validation: data?.validation ?? {} },
         ];
         const gaps: string[] = [];
+        let checksTotal = 0;
+        let checksPassed = 0;
         for (const u of units) {
           const v = u.validation ?? {};
-          const add = (cond: boolean, msg: string) => { if (!cond) gaps.push(`${u.name}: ${msg}`); };
+          const add = (cond: boolean, msg: string) => {
+            checksTotal += 1;
+            if (cond) checksPassed += 1;
+            else gaps.push(`${u.name}: ${msg}`);
+          };
+          add(!!v.has_name, "missing property/unit name");
+          add(!!v.has_object_type_id, "missing ObjectTypeID (property type)");
+          add(!!v.can_sleep_max_ok, "CanSleepMax must be at least 1");
           add(!!v.meets_minimum_images, `only ${v.images_count ?? 0} images (need 10 at ≥1024×683)`);
+          add(v.has_main_image !== false, "no main photo flagged");
           add(!!v.meets_minimum_amenities, `only ${v.amenities_count ?? 0} amenities (need 10)`);
           add(!!v.has_coordinates, "missing geo-coordinates");
+          add(v.has_street !== false, "missing street address");
           add(!!v.has_zip_code, "missing ZIP code");
           add(!!v.has_space, "missing property size (Space)");
           add(v.has_floor !== false, "missing floor number");
           add(!!v.has_detailed_location_id, "missing DetailedLocationID");
+          add(v.has_description !== false, "description too short (need ≥100 characters)");
           add(!!v.has_payment_methods, "no payment method set");
           add(!!v.has_cancellation_policies, "no cancellation policy set");
           add(!!v.beds_meet_max_guests, `beds (${v.total_beds ?? 0}) < max guests (${v.max_guests ?? 0})`);
           add((v.rooms_count ?? 0) > 0, "no composition rooms");
         }
+
+        // ── Live ARI verification (365 days forward) ──
+        const ruIds: number[] = (data?.units ?? [])
+          .map((u: { ru_property_id: string | null }) => Number(u.ru_property_id))
+          .filter((n: number) => Number.isFinite(n) && n > 0);
+        const singleRuId = Number(p.rentalsunited_property_id ?? data?.ru_property_id ?? 0);
+        if (ruIds.length === 0 && singleRuId > 0) ruIds.push(singleRuId);
+
+        let ari: Record<string, unknown> | null = null;
+        if (ruIds.length > 0) {
+          const target = ruIds[0];
+          const from = isoDate(0);
+          const to = isoDate(365);
+          const [avbRes, priceRes] = await Promise.all([
+            admin.functions.invoke("rentalsunited-api", {
+              body: { action: "get_availability", ru_property_id: target, date_from: from, date_to: to },
+            }),
+            admin.functions.invoke("rentalsunited-api", {
+              body: { action: "get_prices", ru_property_id: target, date_from: from, date_to: to },
+            }),
+          ]);
+          const avbXml: string = avbRes.data?.raw_xml ?? "";
+          const priceXml: string = priceRes.data?.raw_xml ?? "";
+          const openDays = (avbXml.match(/>\s*[1-9]\d*\s*</g) ?? []).length;
+          const prices = Array.from(priceXml.matchAll(/Price="([\d.]+)"/g)).map((m) => Number(m[1]));
+          const hasAvailability = !!avbRes.data?.success && openDays > 0;
+          const allPricesPositive = prices.length > 0 && prices.every((n) => n > 0);
+
+          checksTotal += 2;
+          if (hasAvailability) checksPassed += 1;
+          else gaps.push(`RU ${target}: no open availability day in the next 365 days`);
+          if (allPricesPositive) checksPassed += 1;
+          else gaps.push(`RU ${target}: prices missing or not all above zero for the next 365 days`);
+
+          ari = {
+            ru_property_id: target,
+            date_from: from,
+            date_to: to,
+            open_days: openDays,
+            price_points: prices.length,
+            availability_ok: hasAvailability,
+            prices_ok: allPricesPositive,
+          };
+        } else {
+          gaps.push(`${p.name}: not yet published to RU (no RU property ID) — ARI cannot be verified`);
+          checksTotal += 2;
+        }
+
         results.push({
           property_id: p.id,
           name: p.name,
@@ -241,6 +301,10 @@ Deno.serve(async (req) => {
           unit_count: units.length,
           ok: gaps.length === 0,
           gaps,
+          checks_total: checksTotal,
+          checks_passed: checksPassed,
+          score: checksTotal > 0 ? Math.round((checksPassed / checksTotal) * 100) : 0,
+          ari,
         });
       }
 

@@ -35,6 +35,23 @@ interface RuOwnerAccount {
   company_details_sent: boolean;
 }
 
+interface WlValidationFlags {
+  has_zip_code?: boolean;
+  has_space?: boolean;
+  has_floor?: boolean;
+  has_detailed_location_id?: boolean;
+  has_payment_methods?: boolean;
+  has_cancellation_policies?: boolean;
+  beds_meet_max_guests?: boolean;
+  total_beds?: number;
+  has_name?: boolean;
+  has_object_type_id?: boolean;
+  can_sleep_max_ok?: boolean;
+  has_description?: boolean;
+  has_main_image?: boolean;
+  has_street?: boolean;
+}
+
 interface UnitValidation {
   room_type_id: string;
   name: string;
@@ -47,16 +64,17 @@ interface UnitValidation {
     meets_minimum_images: boolean;
     meets_minimum_amenities: boolean;
     max_guests?: number;
-  };
+  } & WlValidationFlags;
 }
 
-interface ValidationResult {
+interface ValidationResult extends WlValidationFlags {
   images_count: number;
   amenities_count: number;
   rooms_count: number;
   has_coordinates: boolean;
   meets_minimum_images: boolean;
   meets_minimum_amenities: boolean;
+  max_guests?: number;
   total_units?: number;
   all_ready?: boolean;
 }
@@ -295,6 +313,26 @@ export function PushToRentalsUnited({ propertyId }: PushToRentalsUnitedProps) {
     validation.rooms_count === 0 && { icon: BedDouble, tab: "rooms", label: "Property must have at least 1 room type" },
   ].filter(Boolean) as { icon: any; tab: string; label: string }[] : [];
 
+  // Rentals United White-Label minimum inventory gaps (warn, don't block)
+  const wlGaps = validation
+    ? ([
+        validation.has_name === false && "Property/unit name missing",
+        validation.has_object_type_id === false && "ObjectTypeID (property type) not set",
+        validation.can_sleep_max_ok === false && "CanSleepMax must be at least 1",
+        validation.has_main_image === false && "No main photo flagged on the image set",
+        validation.has_street === false && "Street address missing",
+        validation.has_zip_code === false && "ZIP / postal code missing",
+        validation.has_space === false && "Property size (Space, m²) missing",
+        validation.has_floor === false && "Floor number missing",
+        validation.has_detailed_location_id === false && "DetailedLocationID not resolved",
+        validation.has_description === false && "Description shorter than 100 characters",
+        validation.has_payment_methods === false && "No payment method configured",
+        validation.has_cancellation_policies === false && "No cancellation policy configured",
+        validation.beds_meet_max_guests === false &&
+          `Beds (${validation.total_beds ?? 0}) do not cover max guests (${validation.max_guests ?? 0})`,
+      ].filter(Boolean) as string[])
+    : [];
+
   return (
     <Card>
       <CardHeader className="py-3 px-4">
@@ -407,6 +445,23 @@ export function PushToRentalsUnited({ propertyId }: PushToRentalsUnitedProps) {
                 {isMultiUnit
                   ? `${validation.total_units} units · All have ≥10 images & amenities · Coordinates set`
                   : `${validation.images_count} images · ${validation.amenities_count} amenities · ${validation.rooms_count} rooms · Coordinates set`}
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {wlGaps.length > 0 && (
+            <Alert>
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle className="text-xs font-medium">
+                White-Label minimum inventory — {wlGaps.length} gap{wlGaps.length === 1 ? "" : "s"}
+              </AlertTitle>
+              <AlertDescription className="text-xs">
+                <p className="mb-1 text-muted-foreground">
+                  Rentals United can reject or hide White-Label inventory that is missing these fields.
+                </p>
+                <ul className="list-disc list-inside space-y-0.5">
+                  {wlGaps.map((g, i) => <li key={i}>{g}</li>)}
+                </ul>
               </AlertDescription>
             </Alert>
           )}
