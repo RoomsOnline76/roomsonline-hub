@@ -349,6 +349,15 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
                 Auto-managed (ROLOS PMS)
               </Badge>
             )}
+            {readiness && (
+              <Badge
+                variant={readiness.blocked ? "destructive" : "secondary"}
+                className="text-[10px] h-5 gap-1"
+              >
+                {readiness.blocked ? <AlertTriangle className="h-3 w-3" /> : <CheckCircle className="h-3 w-3" />}
+                Readiness {readiness.score}%{readiness.blocked ? " — sync blocked" : " — ready"}
+              </Badge>
+            )}
             {isMultiUnit && (
               editingBuildingId ? (
                 <div className="flex items-center gap-1">
