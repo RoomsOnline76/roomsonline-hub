@@ -139,6 +139,85 @@ Deno.serve(async (req) => {
       }
     }
 
+    // ── milestones: certification matrix built from the most recent runs ──
+    if (action === "milestones") {
+      const { data: runs } = await admin
+        .from("ru_cert_runs")
+        .select("id, started_at, suite, steps")
+        .order("started_at", { ascending: false })
+        .limit(25);
+
+      type StepRow = { name: string; ru_method: string; status: StepStatus; ru_status_id?: string | null; detail?: string };
+      const latestByMethod = new Map<string, { step: StepRow; run_id: string; at: string }>();
+      for (const run of (runs ?? []) as { id: string; started_at: string; steps: StepRow[] }[]) {
+        for (const step of run.steps ?? []) {
+          const key = step.ru_method;
+          if (!latestByMethod.has(key)) latestByMethod.set(key, { step, run_id: run.id, at: run.started_at });
+        }
+      }
+
+      const milestones = CERT_MILESTONES.map((m) => {
+        const hit = latestByMethod.get(m.ru_method);
+        const statusId = hit?.step.ru_status_id ?? null;
+        const partial = String(statusId ?? "") === "5";
+        return {
+          ...m,
+          status: hit ? (hit.step.status as StepStatus) : ("never_run" as const),
+          partial_success: partial,
+          ru_status_id: statusId,
+          detail: hit?.step.detail ?? null,
+          last_run_at: hit?.at ?? null,
+          run_id: hit?.run_id ?? null,
+        };
+      });
+
+      const mandatory = milestones.filter((m) => m.mandatory);
+      return json({
+        success: true,
+        milestones,
+        summary: {
+          mandatory_total: mandatory.length,
+          mandatory_passed: mandatory.filter((m) => m.status === "passed" && !m.partial_success).length,
+          partial: milestones.filter((m) => m.partial_success).length,
+          never_run: milestones.filter((m) => m.status === "never_run").length,
+        },
+      });
+    }
+
+    // ── evidence: printable / downloadable bundle for the RU certification call ──
+    if (action === "evidence") {
+      const { data: run, error } = await admin
+        .from("ru_cert_runs")
+        .select("*")
+        .eq("id", body.run_id)
+        .maybeSingle();
+      if (error) throw error;
+      if (!run) return json({ success: false, error: { code: "NOT_FOUND", message: "Run not found" } }, 404);
+
+      return json({
+        success: true,
+        evidence: {
+          generated_at: new Date().toISOString(),
+          integration: "Rentals United — XML API (AccessKey / SecretKey)",
+          run: {
+            id: run.id,
+            suite: run.suite,
+            status: run.status,
+            started_at: run.started_at,
+            finished_at: run.finished_at,
+            passed: run.passed,
+            failed: run.failed,
+            total: run.total,
+            property_id: run.property_id,
+            ru_property_id: run.ru_property_id,
+          },
+          steps: run.steps,
+          cadence_rules: CADENCE_RULES,
+          expected_jobs: EXPECTED_JOBS,
+        },
+      });
+    }
+
 
     // ── list_runs ──
     if (action === "list_runs") {
