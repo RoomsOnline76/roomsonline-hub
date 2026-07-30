@@ -1109,10 +1109,12 @@ Deno.serve(async (req) => {
         created: !adopted,
         adopted,
         company_details_sent: companyResult.sent,
+        company_details_manual_required: Boolean((companyResult as any).deferred),
         company_details_warning: companyResult.sent ? null : companyResult.error,
         account: finalAccount ?? saved,
         scope: portfolioId ? "portfolio" : "property",
       });
+
 
 
     }
