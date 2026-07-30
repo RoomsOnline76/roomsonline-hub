@@ -1725,16 +1725,29 @@ Deno.serve(async (req) => {
 
     // ── fill_company_details ──
     if (action === 'fill_company_details') {
-      if (!body.ru_property_id) return errorResponse('MISSING_PARAM', 'ru_property_id (UserAccountId) is required');
       if (!body.company) return errorResponse('MISSING_PARAM', 'company payload is required');
-      if (!body.company.name) return errorResponse('VALIDATION', 'company.name is required');
-      const xml = buildFillCompanyDetailsXml(creds, body.ru_property_id, body.company);
+      const missing = missingCompanyFields(body.company);
+      if (missing.length > 0) {
+        return jsonResponse({
+          success: false,
+          error: {
+            code: 'COMPANY_DETAILS_INCOMPLETE',
+            message: `Rentals United requires these company/contact fields: ${missing.join(', ')}`,
+            missing,
+          },
+        }, 422);
+      }
+      const xml = buildFillCompanyDetailsXml(creds, body.company as RUCompanyPayload, {
+        username: body.auth_username ?? null,
+        password: body.auth_password ?? null,
+      });
       const response = await callRentalsUnited(creds, xml);
       console.log(`[rentalsunited-api] FillCompanyDetails response: ${response.substring(0, 500)}`);
       const { ok, status } = handleRUStatus(response);
-      if (!ok) return ruErrorResponse(status);
+      if (!ok) return ruErrorResponse(status, buildDiagnostics(compactXml(xml).replace(/<Password>[\s\S]*?<\/Password>/g, '<Password>***</Password>'), status, 'fill_company_details', response));
       return jsonResponse({ success: true, message: 'Company details filled successfully', raw_xml: response });
     }
+
 
     // ── order_mcq: CM_LNM_OrderMinimumContentQualityCheck_RQ (Phase 4.3) ──
     if (action === 'order_mcq') {
