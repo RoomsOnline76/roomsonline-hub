@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
 import { RefreshCw, Rocket } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { ROLOS_WP_PLUGIN_VERSION } from "@/config/wordpressPlugin";
 
 export function WordPressPushUpdateButton() {
   const queryClient = useQueryClient();
@@ -26,7 +27,7 @@ export function WordPressPushUpdateButton() {
   const currentVersion = configs?.reduce((max, c) => {
     const v = (c.config as Record<string, unknown>)?.plugin_version as string;
     return v && v > max ? v : max;
-  }, "3.0.0") || "3.0.0";
+  }, ROLOS_WP_PLUGIN_VERSION) || ROLOS_WP_PLUGIN_VERSION;
 
   const handlePushUpdate = async () => {
     setPushing(true);
