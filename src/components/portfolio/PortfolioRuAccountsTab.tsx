@@ -270,6 +270,64 @@ export function PortfolioRuAccountsTab() {
                         {acc.ru_login_url} <ExternalLink className="h-3 w-3" />
                       </a>
                     )}
+                    <div className="rounded-md border border-border bg-muted/20 p-3 space-y-2">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <p className="text-xs font-medium flex items-center gap-1.5">
+                          <KeyRound className="h-3.5 w-3.5 text-muted-foreground" />
+                          RU portal credentials
+                        </p>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs"
+                          disabled={revealing === acc.id}
+                          onClick={() =>
+                            revealed[acc.id] ? hideCredentials(acc.id) : revealCredentials(acc.id)
+                          }
+                        >
+                          {revealing === acc.id ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : revealed[acc.id] ? (
+                            <EyeOff className="h-3 w-3" />
+                          ) : (
+                            <Eye className="h-3 w-3" />
+                          )}
+                          <span className="ml-1.5">{revealed[acc.id] ? "Hide" : "Reveal password"}</span>
+                        </Button>
+                      </div>
+                      {revealed[acc.id] ? (
+                        <div className="space-y-1 text-xs">
+                          <p className="font-mono break-all">
+                            {revealed[acc.id].login_email}
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <code className="font-mono px-2 py-1 rounded bg-background border border-border break-all">
+                              {revealed[acc.id].password}
+                            </code>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-6 px-2 text-[10px]"
+                              onClick={() => {
+                                navigator.clipboard.writeText(revealed[acc.id].password);
+                                toast.success("Password copied");
+                              }}
+                            >
+                              <Copy className="h-3 w-3" />
+                            </Button>
+                          </div>
+                          <p className="text-[10px] text-muted-foreground">
+                            Stored encrypted at rest — every reveal is audit-logged.
+                          </p>
+                        </div>
+                      ) : (
+                        <p className="text-[10px] text-muted-foreground">
+                          The generated sub-user password is kept encrypted so you can sign in to the
+                          Rentals United portal later. Admin only.
+                        </p>
+                      )}
+                    </div>
+
                     {linked.length === 0 ? (
                       <p className="text-xs text-muted-foreground">
                         No properties are currently linked to this sub-account.
