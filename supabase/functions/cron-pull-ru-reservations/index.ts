@@ -79,6 +79,7 @@ Deno.serve(async (req) => {
     const rawXml: string = ruResult.raw_xml || '';
     if (!rawXml || rawXml.length < 50) {
       console.log('[cron-pull-ru] No reservations XML returned');
+      await logCadence(true, null);
       return new Response(JSON.stringify({ success: true, summary }), {
         status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
