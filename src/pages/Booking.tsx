@@ -1920,9 +1920,13 @@ const Booking = () => {
         }
       }
 
+      // Where did this booking come from? Drives the commission rate applied later.
+      const commissionOrigin = captureCommissionOrigin();
+
       const bookingData = {
         property_id: property!.id,
         user_id: user?.id || null, // Null for anonymous/guest bookings
+        ...commissionOrigin,
         check_in_date: checkIn,
         check_out_date: checkOut,
         guest_name: guestName,
