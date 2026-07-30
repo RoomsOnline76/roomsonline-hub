@@ -91,6 +91,26 @@ h1, h2, h3, h4, h5, h6, .font-heading {
     
     --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 
+    /* Semantic status surfaces (theme-aware, replaces raw emerald/amber/blue utilities) */
+    --success: 158 64% 26%;
+    --success-foreground: 0 0% 100%;
+    --success-surface: 152 55% 94%;
+    --success-border: 152 40% 76%;
+
+    --warning: 32 80% 30%;
+    --warning-foreground: 0 0% 100%;
+    --warning-surface: 45 90% 93%;
+    --warning-border: 42 70% 75%;
+
+    --info: 208 78% 32%;
+    --info-foreground: 0 0% 100%;
+    --info-surface: 205 85% 95%;
+    --info-border: 205 60% 78%;
+
+    --danger-surface: 0 80% 96%;
+    --danger-border: 0 60% 84%;
+
+
     /* Sidebar - Refined */
     --sidebar-background: 40 6% 98%;
     --sidebar-foreground: 220 20% 12%;
