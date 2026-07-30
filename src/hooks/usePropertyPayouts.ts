@@ -229,6 +229,7 @@ export function usePropertyPayouts(period?: PayoutPeriod | string) {
         commission: number;
         bookingIds: Set<string>;
         bookingRecorded: number;
+        typeCounts: Record<string, number>;
       }> = {};
 
       Object.values(bookingGross).forEach(({ booking, gross, source }) => {
