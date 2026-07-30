@@ -120,10 +120,25 @@ Deno.serve(async (req) => {
 
     const { data: roles } = await admin.from("user_roles").select("role").eq("user_id", user.id);
     const allowed = (roles ?? []).some((r: { role: string }) => ["admin", "dev", "fearless_leader"].includes(r.role));
-    if (!allowed) return json({ success: false, error: { code: "FORBIDDEN", message: "Admin access required" } }, 403);
 
     const body = await req.json().catch(() => ({}));
     const action: string = body.action ?? "";
+
+    // Property-scoped users (ROLOS owners / staff) may read the readiness
+    // scorecard for a property they can access — everything else is admin-only.
+    if (!allowed) {
+      if (action !== "property_readiness" || !body.property_id) {
+        return json({ success: false, error: { code: "FORBIDDEN", message: "Admin access required" } }, 403);
+      }
+      const { data: canAccess } = await userClient.rpc("can_access_property", {
+        _property_id: body.property_id,
+        _user_id: user.id,
+      });
+      if (canAccess !== true) {
+        return json({ success: false, error: { code: "FORBIDDEN", message: "No access to this property" } }, 403);
+      }
+    }
+
 
     // ── list_runs ──
     if (action === "list_runs") {
