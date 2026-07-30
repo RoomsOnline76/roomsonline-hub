@@ -158,7 +158,12 @@ export function PropertyPayoutTable({ payouts, loading }: PropertyPayoutTablePro
                   onClick={() => setSelectedPayout(p)}
                 >
                   <Send className="h-3 w-3 mr-1" />
-                  Send Advice
+                  {p.settlement_mode === 'invoice'
+                    ? 'Send Invoice'
+                    : p.settlement_mode === 'mixed'
+                      ? 'Send Statement'
+                      : 'Send Advice'}
+
                 </Button>
               </TableCell>
             </TableRow>
