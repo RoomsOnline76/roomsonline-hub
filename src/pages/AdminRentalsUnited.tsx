@@ -16,6 +16,8 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RuCertificationConsole } from "@/components/integrations/RuCertificationConsole";
+import { RuErrorHandlingTab } from "@/components/integrations/RuErrorHandlingTab";
+
 
 interface SyncRun {
   id: string;
