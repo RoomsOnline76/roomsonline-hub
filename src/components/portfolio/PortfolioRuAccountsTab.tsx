@@ -287,16 +287,26 @@ export function PortfolioRuAccountsTab() {
                                 {p.owner_email || "No owner"} {p.city ? `· ${p.city}` : ""}
                               </p>
                             </div>
-                            <Badge
-                              variant="outline"
-                              className={
-                                p.ru_push_enabled
-                                  ? "text-success border-success/40 text-[9px]"
-                                  : "text-muted-foreground text-[9px]"
-                              }
-                            >
-                              {p.ru_push_enabled ? "Push on" : "Off"}
-                            </Badge>
+                            {p.ru_archived ? (
+                              <Badge
+                                variant="outline"
+                                className="text-[9px] text-amber-700 border-amber-500/50 dark:text-amber-300"
+                              >
+                                Archived
+                              </Badge>
+                            ) : (
+                              <Badge
+                                variant="outline"
+                                className={
+                                  p.ru_push_enabled
+                                    ? "text-success border-success/40 text-[9px]"
+                                    : "text-muted-foreground text-[9px]"
+                                }
+                              >
+                                {p.ru_push_enabled ? "Push on" : "Off"}
+                              </Badge>
+                            )}
+
                           </div>
                         ))}
                       </div>
