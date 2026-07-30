@@ -436,16 +436,18 @@ export function usePropertyPayouts(period?: PayoutPeriod | string) {
 
 
   const stats = useMemo(() => ({
-    totalDue: payouts.reduce((s, p) => s + p.net_amount, 0),
+    totalDue: payouts.reduce((s, p) => s + p.net_payout, 0),
     totalCommission: payouts.reduce((s, p) => s + p.commission_amount, 0),
     totalGross: payouts.reduce((s, p) => s + p.gross_amount, 0),
+    totalInvoiced: payouts.reduce((s, p) => s + p.invoiced_amount, 0),
+    totalPfFees: payouts.reduce((s, p) => s + p.pf_fee, 0),
     propertiesCount: payouts.length,
   }), [payouts]);
 
   const fetchBookingDetails = async (propertyId: string): Promise<PayoutBookingDetail[]> => {
     let txQuery = supabase
       .from('payment_transactions')
-      .select(`amount, created_at, bookings!inner(${BOOKING_ORIGIN_FIELDS})`)
+      .select(`amount, created_at, credential_source, bookings!inner(${BOOKING_ORIGIN_FIELDS})`)
       .in('status', SETTLED_TX_STATUSES)
       .eq('bookings.property_id', propertyId)
       .order('created_at', { ascending: false });
@@ -454,12 +456,17 @@ export function usePropertyPayouts(period?: PayoutPeriod | string) {
 
     const { data } = await txQuery;
 
-    const grouped: Record<string, { booking: any; gross: number; source: PayoutSource }> = {};
+    const grouped: Record<string, {
+      booking: any; gross: number; source: PayoutSource; settlement: SettlementRoute;
+    }> = {};
     (data || []).forEach((tx: any) => {
       const b = tx.bookings;
       if (!b?.id) return;
       if (EXCLUDED_BOOKING_STATUSES.includes(String(b.status || '').toLowerCase())) return;
-      if (!grouped[b.id]) grouped[b.id] = { booking: b, gross: 0, source: 'gateway' };
+      if (!grouped[b.id]) {
+        grouped[b.id] = { booking: b, gross: 0, source: 'gateway', settlement: routeFromCredentialSource(tx.credential_source) };
+      }
+      if (routeFromCredentialSource(tx.credential_source) === 'byo') grouped[b.id].settlement = 'byo';
       grouped[b.id].gross += Number(tx.amount) || 0;
     });
 
@@ -478,18 +485,20 @@ export function usePropertyPayouts(period?: PayoutPeriod | string) {
       if (EXCLUDED_BOOKING_STATUSES.includes(String(b.status || '').toLowerCase())) return;
       const gross = Number(b.total_price) || 0;
       if (gross <= 0) return;
-      grouped[b.id] = { booking: b, gross, source: 'booking' };
+      grouped[b.id] = { booking: b, gross, source: 'booking', settlement: 'rol' };
     });
 
-    const [scopes, terms, globalsRes] = await Promise.all([
+    const [scopes, terms, byoProperties, globalsRes] = await Promise.all([
       loadBillingScopes([propertyId]),
       loadCommercialTerms([propertyId]),
+      loadByoProperties([propertyId]),
       supabase.from('billing_global_defaults').select('*'),
     ]);
     const config = scopes[propertyId]?.config || null;
     const globals = pickGlobals((globalsRes.data || []) as any[], config?.billing_strategy);
+    const propertyIsByo = byoProperties.has(propertyId);
 
-    return Object.values(grouped).map(({ booking, gross, source }) => {
+    return Object.values(grouped).map(({ booking, gross, source, settlement }) => {
       const termKey = `${propertyId}:${booking.commission_type === 'pms' ? 'pms' : 'listing'}`;
       const commission = resolveBookingCommission(booking, gross, config, globals as any, terms[termKey] ?? null);
       return {
@@ -505,9 +514,11 @@ export function usePropertyPayouts(period?: PayoutPeriod | string) {
         commission_rate: commission.rate,
         commission_type: commission.type,
         source,
+        settlement: source === 'booking' && propertyIsByo ? 'byo' : settlement,
       };
     });
   };
+
 
   return { payouts, loading, stats, lastUpdated, refresh: loadPayouts, fetchBookingDetails };
 }
