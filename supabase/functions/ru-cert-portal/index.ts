@@ -884,11 +884,23 @@ Deno.serve(async (req) => {
         return { sent: true };
       };
 
+      // RU requires at least one LocationId on the sub-user (and on company details).
+      const locationIds = await resolveOwnerLocationIds(admin, propertyId, portfolioId);
+      if (locationIds.length === 0) {
+        return json({
+          success: false,
+          error: {
+            code: "NO_RU_LOCATION",
+            message:
+              "No Rentals United LocationId could be resolved for this owner. Set the property's city/country coordinates (or push the property once) so a location can be matched, then retry.",
+          },
+        }, 422);
+      }
 
       const existing = await findOwnerAccount(admin, propertyId ?? "", ownerEmail, portfolioId);
       if (existing.account?.ru_owner_id) {
         const companyResult = await submitCompanyDetails(existing.account as any);
-        if (!companyResult.sent) {
+        if (!companyResult.sent && !(companyResult as any).deferred) {
           return json({
             success: false,
             error: {
@@ -906,7 +918,8 @@ Deno.serve(async (req) => {
         return json({
           success: true,
           created: false,
-          company_details_sent: true,
+          company_details_sent: companyResult.sent,
+          company_details_warning: companyResult.sent ? null : companyResult.error,
           account: refreshed ?? existing.account,
           scope: existing.scope,
         });
@@ -931,18 +944,6 @@ Deno.serve(async (req) => {
         pick("!@#$%*?", 2)
       );
 
-      // RU requires at least one LocationId on the sub-user.
-      const locationIds = await resolveOwnerLocationIds(admin, propertyId, portfolioId);
-      if (locationIds.length === 0) {
-        return json({
-          success: false,
-          error: {
-            code: "NO_RU_LOCATION",
-            message:
-              "No Rentals United LocationId could be resolved for this owner. Set the property's city/country coordinates (or push the property once) so a location can be matched, then retry.",
-          },
-        }, 422);
-      }
 
       type RuUser = { user_account_id?: string; email?: string; owner_id?: string };
       const listRuUsers = async (): Promise<RuUser[]> => {
