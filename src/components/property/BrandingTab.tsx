@@ -401,6 +401,11 @@ export function BrandingTab({ data, onChange, propertyId, onDirty, canToggleBran
             brand_primary_color: data.brand_primary_color,
             brand_secondary_color: data.brand_secondary_color,
             brand_font_color: data.brand_font_color,
+            brand_heading_text_color: data.brand_heading_text_color,
+            brand_body_text_color: data.brand_body_text_color,
+            brand_muted_text_color: data.brand_muted_text_color,
+            brand_light_bg_color: data.brand_light_bg_color,
+            brand_dark_bg_color: data.brand_dark_bg_color,
           }}
           onApply={(patch) => {
             onChange({ ...data, ...patch } as BrandingData);
