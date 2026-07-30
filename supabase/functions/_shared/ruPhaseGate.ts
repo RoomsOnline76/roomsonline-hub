@@ -156,6 +156,31 @@ export async function evaluatePhases(
   );
   const subUserLive = await userManagementEnabled(admin);
 
+  // Resolve the email the sub-user *should* be registered under, so a changed
+  // owner email invalidates the existing RU identity instead of silently keeping it.
+  let expectedEmail: string | null = property.owner_email ?? null;
+  if (portfolio_id) {
+    const { data: pf } = await admin
+      .from("property_portfolios")
+      .select("owner_id")
+      .eq("id", portfolio_id)
+      .maybeSingle();
+    if (pf?.owner_id) {
+      const { data: prof } = await admin
+        .from("profiles")
+        .select("email")
+        .eq("id", pf.owner_id)
+        .maybeSingle();
+      if (prof?.email) expectedEmail = prof.email;
+    }
+  }
+  const storedEmail = (account?.ru_login_email ?? account?.owner_email ?? "").trim().toLowerCase();
+  const emailMismatch =
+    Boolean(account?.ru_owner_id) &&
+    Boolean(storedEmail) &&
+    Boolean(expectedEmail) &&
+    storedEmail !== expectedEmail!.trim().toLowerCase();
+
   // ── Phase 1 ──
   const p1Blockers: string[] = [];
   if (!subUserLive) {
@@ -169,10 +194,15 @@ export async function evaluatePhases(
         ? "No Rentals United sub-user exists for this portfolio. Create it first (Push_CreateUser_RQ)."
         : "No Rentals United sub-user exists for this property owner. Create it first (Push_CreateUser_RQ).",
     );
+  } else if (emailMismatch) {
+    p1Blockers.push(
+      `The owner email changed to ${expectedEmail} — the existing Rentals United sub-user (${storedEmail}) is stale. Re-run "Create sub-user" to register the new email.`,
+    );
   }
-  if (account && !account.company_filled_at && account.company_details_sent !== true) {
+  if (!emailMismatch && account && !account.company_filled_at && account.company_details_sent !== true) {
     p1Blockers.push("Company details have not been submitted to Rentals United (Push_FillCompanyDetails_RQ) \u2014 run \"Complete company details\".");
   }
+
 
   // ── Phase 2 ──
   const p2Blockers: string[] = [];
