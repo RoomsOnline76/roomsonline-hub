@@ -21,10 +21,13 @@ import {
   ExternalLink,
   User,
 } from "lucide-react";
+import type { RuReadinessReport } from "@/components/pms/channels/RuReadinessScorecard";
 
 interface PushToRentalsUnitedProps {
   propertyId: string;
   propertyName: string;
+  /** RU readiness report from the shared scorecard — blocks push when not ready. */
+  readiness?: RuReadinessReport | null;
 }
 
 interface RuOwnerAccount {
@@ -106,7 +109,7 @@ interface UnitPushResult {
   diagnostics?: Diagnostics;
 }
 
-export function PushToRentalsUnited({ propertyId }: PushToRentalsUnitedProps) {
+export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnitedProps) {
   const [loading, setLoading] = useState(false);
   const [dryRunning, setDryRunning] = useState(false);
   const [validation, setValidation] = useState<ValidationResult | null>(null);
@@ -346,6 +349,15 @@ export function PushToRentalsUnited({ propertyId }: PushToRentalsUnitedProps) {
                 Auto-managed (ROLOS PMS)
               </Badge>
             )}
+            {readiness && (
+              <Badge
+                variant={readiness.blocked ? "destructive" : "secondary"}
+                className="text-[10px] h-5 gap-1"
+              >
+                {readiness.blocked ? <AlertTriangle className="h-3 w-3" /> : <CheckCircle className="h-3 w-3" />}
+                Readiness {readiness.score}%{readiness.blocked ? " — sync blocked" : " — ready"}
+              </Badge>
+            )}
             {isMultiUnit && (
               editingBuildingId ? (
                 <div className="flex items-center gap-1">
@@ -407,9 +419,15 @@ export function PushToRentalsUnited({ propertyId }: PushToRentalsUnitedProps) {
               {dryRunning ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle className="h-3 w-3" />}
               {dryRunning ? "Checking..." : "Validate"}
             </Button>
-            <Button size="sm" className="h-7 text-xs gap-1" onClick={pushToRU} disabled={loading || dryRunning || (validation !== null && !isReady)}>
+            <Button
+              size="sm"
+              className="h-7 text-xs gap-1"
+              onClick={pushToRU}
+              disabled={loading || dryRunning || readiness?.blocked === true || (validation !== null && !isReady)}
+              title={readiness?.blocked ? "Complete the RU readiness checklist below before syncing" : undefined}
+            >
               {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
-              {loading ? "Pushing..." : isMultiUnit ? "Push Building + Units" : "Push to RU"}
+              {loading ? "Pushing..." : readiness?.blocked ? "Sync blocked" : isMultiUnit ? "Push Building + Units" : "Push to RU"}
             </Button>
           </div>
         </div>
