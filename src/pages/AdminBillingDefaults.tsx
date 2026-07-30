@@ -78,6 +78,9 @@ function presetToBuilder(row: BillingDefault): BillingConfigValue {
 function builderToPatch(v: BillingConfigValue): Partial<BillingDefault> {
   return {
     default_commission_rate: v.commission_enabled ? toNum(v.commission_rate) : null,
+    listing_commission_rate: v.commission_enabled ? toNum(v.commission_rate) : null,
+    pms_commission_rate: v.commission_enabled ? toNum(v.pms_commission_rate) : null,
+
     widget_flat_commission_rate: v.widget_flat_enabled ? toNum(v.widget_flat_rate) : null,
     default_subscription_fee: v.pms_enabled ? toNum(v.subscription_fee) : null,
     channel_manager_per_unit_fee: v.pms_enabled ? toNum(v.channel_per_unit) : null,
