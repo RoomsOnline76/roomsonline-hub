@@ -2948,6 +2948,11 @@ export default function PropertyForm({
         brand_override_enabled: brandingData.brand_override_enabled,
         brand_heading_font: brandingData.brand_heading_font || null,
         brand_body_font: brandingData.brand_body_font || null,
+        brand_heading_text_color: brandingData.brand_heading_text_color || null,
+        brand_body_text_color: brandingData.brand_body_text_color || null,
+        brand_muted_text_color: brandingData.brand_muted_text_color || null,
+        brand_light_bg_color: brandingData.brand_light_bg_color || null,
+        brand_dark_bg_color: brandingData.brand_dark_bg_color || null,
         amenities: {
           offerings: {
             accommodation: isAccommodation,
