@@ -533,6 +533,17 @@ Deno.serve(async (req) => {
         : { action: "fill_company_details", ru_property_id: body.ru_property_id, company: body.company };
       const { data, error } = await admin.functions.invoke("rentalsunited-api", { body: payload });
       if (error) return json({ success: false, error: { code: "RU_CALL_FAILED", message: error.message } }, 502);
+
+      if (action === "fill_company_details" && data?.success) {
+        const match = admin.from("ru_owner_accounts").update({
+          company_details_sent: true,
+          company_filled_at: new Date().toISOString(),
+          company_payload: body.company ?? null,
+        });
+        if (body.account_id) await match.eq("id", body.account_id);
+        else await match.eq("ru_user_id", String(body.ru_property_id));
+      }
+
       return json({ success: !!data?.success, result: data, preview: preview(data, 2000) });
     }
 
@@ -592,10 +603,18 @@ Deno.serve(async (req) => {
       if (portfolioId) {
         const { data: pf } = await admin
           .from("property_portfolios")
-          .select("id, name, owner_email")
+          .select("id, name, owner_id")
           .eq("id", portfolioId)
           .maybeSingle();
-        ownerEmail = ownerEmail ?? pf?.owner_email ?? null;
+        if (!ownerEmail && pf?.owner_id) {
+          const { data: prof } = await admin
+            .from("profiles")
+            .select("email, full_name")
+            .eq("id", pf.owner_id)
+            .maybeSingle();
+          ownerEmail = prof?.email ?? null;
+          ownerName = ownerName || (prof?.full_name ?? pf?.name ?? "Portfolio Owner");
+        }
         ownerName = ownerName || (pf?.name ?? "Portfolio Owner");
       }
       if (!ownerEmail && propertyId) {
