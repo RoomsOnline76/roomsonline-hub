@@ -333,12 +333,14 @@ Deno.serve(async (req) => {
     }
 
     console.log(`[cron-pull-ru] Done. Summary:`, JSON.stringify(summary));
+    await logCadence(true, null);
     return new Response(JSON.stringify({ success: true, summary }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error) {
     console.error('[cron-pull-ru] Fatal error:', error);
+    await logCadence(false, String(error));
     return new Response(JSON.stringify({ success: false, error: String(error), summary }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
