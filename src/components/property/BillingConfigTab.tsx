@@ -82,9 +82,11 @@ function configToBuilder(config: BillingConfig | null): BillingConfigValue {
   v.widget_tiers_enabled = isWidget && (config as any).widget_flat_commission_rate == null;
   v.widget_flat_enabled = (config as any).widget_flat_commission_rate != null;
   v.widget_flat_rate = (config as any).widget_flat_commission_rate != null ? String((config as any).widget_flat_commission_rate) : "";
-  v.pms_enabled = (config.subscription_fee_monthly ?? 0) > 0 || (config.channel_manager_per_unit_fee ?? 0) > 0 || !!config.channel_manager_enabled;
+  v.pms_enabled = (config.subscription_fee_monthly ?? 0) > 0 || (config as any).pms_enabled === true;
   v.subscription_fee = config.subscription_fee_monthly != null ? String(config.subscription_fee_monthly) : "";
+  v.channel_manager_enabled = !!config.channel_manager_enabled;
   v.channel_per_unit = config.channel_manager_per_unit_fee != null ? String(config.channel_manager_per_unit_fee) : "";
+
   v.enterprise_custom_fee = (config as any).enterprise_custom_fee != null ? String((config as any).enterprise_custom_fee) : "";
   v.volume_tiers_enabled = tiers.length > 0 && !isWidget;
   v.tier_pricing_json = tiers.length ? tiers : null;
