@@ -387,7 +387,7 @@ async function resolveOwnerId(creds: RUCredentials, explicit?: number | string |
       if (Number.isFinite(id) && id > 0) return id;
     }
   } catch (_e) { /* fall through */ }
-  return null;
+  return RU_MASTER_OWNER_ID;
 }
 
 function buildGetPropertyXml(creds: RUCredentials, propertyId: number): string {
