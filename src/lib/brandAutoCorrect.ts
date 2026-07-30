@@ -447,3 +447,11 @@ export function readabilityScoreForMode(
   const penalty = fixes.reduce((sum, f) => sum + (f.severity === "fail" ? 22 : 12), 0);
   return Math.max(10, 100 - penalty);
 }
+
+/** Score restricted to one product surface (booking pages vs ROLOS UI). */
+export function readabilityScoreForScope(palette: BrandPalette, scope: BrandScope): number {
+  const fixes = proposeBrandFixes(palette).filter((f) => f.scope === scope);
+  if (fixes.length === 0) return 100;
+  const penalty = fixes.reduce((sum, f) => sum + (f.severity === "fail" ? 22 : 12), 0);
+  return Math.max(10, 100 - penalty);
+}
