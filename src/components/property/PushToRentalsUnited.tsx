@@ -35,6 +35,23 @@ interface RuOwnerAccount {
   company_details_sent: boolean;
 }
 
+interface WlValidationFlags {
+  has_zip_code?: boolean;
+  has_space?: boolean;
+  has_floor?: boolean;
+  has_detailed_location_id?: boolean;
+  has_payment_methods?: boolean;
+  has_cancellation_policies?: boolean;
+  beds_meet_max_guests?: boolean;
+  total_beds?: number;
+  has_name?: boolean;
+  has_object_type_id?: boolean;
+  can_sleep_max_ok?: boolean;
+  has_description?: boolean;
+  has_main_image?: boolean;
+  has_street?: boolean;
+}
+
 interface UnitValidation {
   room_type_id: string;
   name: string;
@@ -47,16 +64,17 @@ interface UnitValidation {
     meets_minimum_images: boolean;
     meets_minimum_amenities: boolean;
     max_guests?: number;
-  };
+  } & WlValidationFlags;
 }
 
-interface ValidationResult {
+interface ValidationResult extends WlValidationFlags {
   images_count: number;
   amenities_count: number;
   rooms_count: number;
   has_coordinates: boolean;
   meets_minimum_images: boolean;
   meets_minimum_amenities: boolean;
+  max_guests?: number;
   total_units?: number;
   all_ready?: boolean;
 }
