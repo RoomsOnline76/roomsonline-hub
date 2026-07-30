@@ -6,17 +6,23 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Link as RouterLink } from "react-router-dom";
+import { toast } from "sonner";
 import {
   Building2,
   ChevronDown,
   ChevronRight,
+  Copy,
   ExternalLink,
+  Eye,
+  EyeOff,
   FolderOpen,
+  KeyRound,
   Loader2,
   Mail,
   ShieldCheck,
   User2,
 } from "lucide-react";
+
 
 interface RuAccount {
   id: string;
