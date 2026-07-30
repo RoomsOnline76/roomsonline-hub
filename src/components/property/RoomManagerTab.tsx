@@ -703,13 +703,42 @@ export function RoomManagerTab({
                     />
                   </div>
                   <div className="flex items-center gap-1">
-                    <Label className="text-xs whitespace-nowrap" title="Ground floor = 0. Pushed to channel managers (Rentals United).">Floor</Label>
-                    <Input type="number" className="h-7 text-xs w-14"
-                      value={(() => { const f = roomTypes.find((r) => r.id === selectedRoomType)?.floor; return f === null || f === undefined ? "" : String(f); })()}
-                      placeholder="0"
-                      onChange={(e) => updateRoomTypeField(selectedRoomType, "floor", e.target.value === "" ? null : parseInt(e.target.value))}
-                    />
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Label className="text-xs whitespace-nowrap cursor-help underline decoration-dotted">Floor</Label>
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs text-xs">
+                          Which level the unit is on. 0 = Ground floor (street level). 1 = 1st floor (the second level in a double-storey house).
+                          2 = 2nd floor (the top level of a three-storey unit), and so on. Pushed to channel managers (Rentals United).
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                    <Select
+                      value={(() => { const f = roomTypes.find((r) => r.id === selectedRoomType)?.floor; return f === null || f === undefined ? "none" : String(f); })()}
+                      onValueChange={(v) => updateRoomTypeField(selectedRoomType, "floor", v === "none" ? null : parseInt(v))}
+                    >
+                      <SelectTrigger className="h-7 text-xs w-40">
+                        <SelectValue placeholder="Select floor" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-72">
+                        <SelectItem value="none">Not specified</SelectItem>
+                        <SelectItem value="-1">-1 — Basement / lower level</SelectItem>
+                        <SelectItem value="0">0 — Ground floor (street level)</SelectItem>
+                        <SelectItem value="1">1 — 1st floor (2nd level up)</SelectItem>
+                        <SelectItem value="2">2 — 2nd floor (3rd level up)</SelectItem>
+                        <SelectItem value="3">3 — 3rd floor (4th level up)</SelectItem>
+                        <SelectItem value="4">4 — 4th floor</SelectItem>
+                        <SelectItem value="5">5 — 5th floor</SelectItem>
+                        <SelectItem value="6">6 — 6th floor</SelectItem>
+                        <SelectItem value="7">7 — 7th floor</SelectItem>
+                        <SelectItem value="8">8 — 8th floor</SelectItem>
+                        <SelectItem value="9">9 — 9th floor</SelectItem>
+                        <SelectItem value="10">10 — 10th floor or higher</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
+
                   <div className="flex items-center gap-1">
                     <Label className="text-xs whitespace-nowrap">Baths</Label>
                     <Input type="number" className="h-7 text-xs w-14"
