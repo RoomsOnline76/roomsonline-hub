@@ -1124,11 +1124,24 @@ Deno.serve(async (req) => {
         scope: portfolioId ? "portfolio" : "property",
       };
       // Keep the sub-user password (encrypted) — Push_FillCompanyDetails_RQ authenticates
-      // as the sub-user, so without it the company profile can never be filled via API.
+      // as the sub-user, and admins must be able to log into the RU portal later.
+      // Retention is mandatory: if encryption fails we must not silently lose the only
+      // copy of a password RU has already accepted.
       if (!adopted) {
-        const { data: enc } = await admin.rpc("encrypt_sensitive_text", { plaintext: password });
-        if (enc) row.ru_login_password_enc = enc;
+        const { data: enc, error: encErr } = await admin.rpc("encrypt_sensitive_text", { plaintext: password });
+        if (encErr || !enc) {
+          return json({
+            success: false,
+            error: {
+              code: "PASSWORD_RETENTION_FAILED",
+              message:
+                `The Rentals United sub-user was created (OwnerID ${ruOwnerId ?? "?"}) but its password could not be stored securely: ${encErr?.message ?? "encryption returned no value"}. Reset the password in the Rentals United portal and save it via Complete company details.`,
+            },
+          }, 500);
+        }
+        row.ru_login_password_enc = enc;
       }
+
       // The unique indexes on this table are PARTIAL, so PostgREST's ON CONFLICT
       // cannot target them. Resolve the existing row manually, then update/insert.
       const existingQuery = admin.from("ru_owner_accounts").select("id").limit(1);
