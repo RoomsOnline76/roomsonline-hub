@@ -95,8 +95,9 @@ async function resolveOwnerLocationIds(
   for (const p of properties) {
     if (p.latitude == null || p.longitude == null) continue;
     const { data } = await admin.functions.invoke("rentalsunited-api", {
-      body: { action: "get_location_by_coordinates", latitude: p.latitude, longitude: p.longitude },
+      body: { action: "get_location_by_coordinates", metadata: { latitude: p.latitude, longitude: p.longitude } },
     });
+
     const id = Number(data?.location_id);
     if (Number.isFinite(id) && id > 1) {
       ids.add(id);
