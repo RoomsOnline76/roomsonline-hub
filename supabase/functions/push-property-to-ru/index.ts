@@ -150,13 +150,92 @@ function mapAmenities(amenitiesData: Record<string, unknown> | null): { id: numb
   return mapped;
 }
 
-function mapImages(images: unknown[] | null): { url: string; type_id: number; is_main: boolean }[] {
+interface RuImage {
+  url: string;
+  type_id: number;
+  is_main: boolean;
+  width?: number | null;
+  height?: number | null;
+}
+
+function toDimension(value: unknown): number | null {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+function mapImages(images: unknown[] | null): RuImage[] {
   if (!Array.isArray(images) || images.length === 0) return [];
   return images.map((img, i) => {
-    const url = typeof img === 'string' ? img : (img as Record<string, unknown>)?.url as string || '';
-    return { url, type_id: 1, is_main: i === 0 };
+    const rec = (typeof img === 'string' ? null : img) as Record<string, unknown> | null;
+    const url = typeof img === 'string' ? img : (rec?.url as string) || '';
+    return {
+      url,
+      type_id: 1,
+      is_main: i === 0,
+      width: toDimension(rec?.width),
+      height: toDimension(rec?.height),
+    };
   }).filter(img => img.url);
 }
+
+/**
+ * RU White-Label minimum inventory validation for a built payload.
+ * Shared by every dry-run branch and by the live-push readiness gate so the
+ * admin console, the ROLOS scorecard and the API all score identically.
+ */
+function buildValidation(payload: Record<string, any>): Record<string, unknown> {
+  const images: RuImage[] = (payload.images || []) as RuImage[];
+  const rooms: { room_id: number; amenities: { id: number; count: number }[] }[] = payload.rooms || [];
+  const amenities: unknown[] = payload.amenities || [];
+  const maxGuests = payload.can_sleep_max || 0;
+
+  // Photos: count + pixel size (images without stored dimensions are treated as
+  // unverified rather than failures, but are reported so they can be checked).
+  let sized = 0;
+  let unverified = 0;
+  for (const img of images) {
+    if (img.width == null || img.height == null) { unverified += 1; sized += 1; continue; }
+    if (img.width >= RU_MIN_IMAGE_WIDTH && img.height >= RU_MIN_IMAGE_HEIGHT) sized += 1;
+  }
+
+  // Beds: RU requires beds to cover at least 50% of CanSleepMax.
+  const totalBeds = rooms.reduce((sum, r) =>
+    sum + (r.amenities || []).filter((a: any) => a.id >= 97 && a.id <= 101)
+      .reduce((s: number, a: any) => s + (a.count || 1), 0), 0);
+
+  const roomsWithAmenities = rooms.filter(r => (r.room_id || 0) > 0 && (r.amenities || []).length > 0).length;
+
+  return {
+    images_count: images.length,
+    images_meeting_size: sized,
+    images_size_unverified: unverified,
+    images_meet_size: images.length > 0 && sized === images.length,
+    meets_minimum_images: images.length >= RU_MIN_IMAGES,
+    amenities_count: amenities.length,
+    meets_minimum_amenities: amenities.length >= RU_MIN_AMENITIES,
+    rooms_count: rooms.length,
+    rooms_with_amenities: roomsWithAmenities,
+    rooms_have_amenities: rooms.length > 0 && roomsWithAmenities === rooms.length,
+    total_beds: totalBeds,
+    beds_cover_half: totalBeds >= Math.ceil(Math.max(1, maxGuests) * RU_BED_COVERAGE),
+    beds_meet_max_guests: totalBeds >= Math.max(1, maxGuests),
+    max_guests: maxGuests,
+    has_coordinates: payload.latitude !== 0 && payload.longitude !== 0,
+    has_zip_code: !!(payload.zip_code && payload.zip_code !== '0000'),
+    has_space: (payload.space || 0) > 0,
+    has_floor: typeof payload.floor === 'number',
+    has_detailed_location_id: (payload.detailed_location_id || 0) > 1,
+    has_payment_methods: (payload.payment_methods || []).length >= 1,
+    has_cancellation_policies: (payload.cancellation_policies || []).length >= 1,
+    has_name: !!(payload.name && String(payload.name).trim().length >= 3),
+    has_object_type_id: ((payload.object_type_id ?? payload.property_type_id) || 0) > 0,
+    can_sleep_max_ok: maxGuests >= 1,
+    has_description: ((payload.descriptions?.[0]?.text || '').trim().length) >= 100,
+    has_main_image: images.some((i) => i.is_main),
+    has_street: !!(payload.street && String(payload.street).trim().length > 2),
+  };
+}
+
 
 function mapPaymentMethods(amenities: Record<string, unknown> | null): number[] {
   const methods: number[] = [];
