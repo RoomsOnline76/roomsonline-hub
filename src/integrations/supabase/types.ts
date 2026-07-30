@@ -4338,6 +4338,7 @@ export type Database = {
           pms_managed_fields: string[] | null
           pms_readiness: string | null
           pms_sync_status: string | null
+          postal_code: string | null
           price_per_night: number
           pricelabs_config: Json
           property_type: string
@@ -4432,6 +4433,7 @@ export type Database = {
           pms_managed_fields?: string[] | null
           pms_readiness?: string | null
           pms_sync_status?: string | null
+          postal_code?: string | null
           price_per_night: number
           pricelabs_config?: Json
           property_type: string
@@ -4526,6 +4528,7 @@ export type Database = {
           pms_managed_fields?: string[] | null
           pms_readiness?: string | null
           pms_sync_status?: string | null
+          postal_code?: string | null
           price_per_night?: number
           pricelabs_config?: Json
           property_type?: string
