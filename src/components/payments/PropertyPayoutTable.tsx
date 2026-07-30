@@ -44,10 +44,12 @@ export function PropertyPayoutTable({ payouts, loading }: PropertyPayoutTablePro
         <TableHeader>
           <TableRow>
             <TableHead>Property</TableHead>
+            <TableHead>Settled by</TableHead>
             <TableHead className="text-right">Gross Collected</TableHead>
             <TableHead className="text-right">Commission</TableHead>
             <TableHead className="text-right">Fees</TableHead>
             <TableHead className="text-right">Net Payout</TableHead>
+            <TableHead className="text-right">Invoiced to owner</TableHead>
             <TableHead>Banking</TableHead>
             <TableHead className="text-right">Actions</TableHead>
           </TableRow>
@@ -70,6 +72,30 @@ export function PropertyPayoutTable({ payouts, loading }: PropertyPayoutTablePro
                 </div>
               </TableCell>
 
+              <TableCell>
+                <Badge
+                  variant="outline"
+                  className={`text-[10px] ${
+                    p.settlement_mode === 'invoice'
+                      ? 'border-amber-300 text-amber-700'
+                      : p.settlement_mode === 'mixed'
+                        ? 'border-sky-300 text-sky-700'
+                        : 'border-emerald-300 text-emerald-700'
+                  }`}
+                >
+                  {p.settlement_mode === 'invoice'
+                    ? 'Owner (BYO)'
+                    : p.settlement_mode === 'mixed'
+                      ? 'Mixed'
+                      : 'ROL gateway'}
+                </Badge>
+                {p.settlement_mode !== 'payout' && (
+                  <p className="text-[10px] text-muted-foreground mt-1">
+                    BYO value {formatCurrency(p.byo_gross)}
+                  </p>
+                )}
+              </TableCell>
+
               <TableCell className="text-right font-medium">{formatCurrency(p.gross_amount)}</TableCell>
               <TableCell className="text-right">
                 <div>
@@ -86,11 +112,28 @@ export function PropertyPayoutTable({ payouts, loading }: PropertyPayoutTablePro
               </TableCell>
 
               <TableCell className="text-right text-muted-foreground">
-                {p.fees > 0 ? formatCurrency(p.fees) : '—'}
+                {p.fees > 0 ? (
+                  <div>
+                    <span>{formatCurrency(p.fees)}</span>
+                    {p.pf_fee > 0 && (
+                      <p className="text-[10px]">
+                        incl. {formatCurrency(p.pf_fee)} gateway ({p.pf_fee_rate}%)
+                      </p>
+                    )}
+                  </div>
+                ) : '—'}
               </TableCell>
               <TableCell className="text-right">
-                <span className="font-semibold text-emerald-600">{formatCurrency(p.net_amount)}</span>
+                <span className={p.net_payout > 0 ? 'font-semibold text-emerald-600' : 'text-muted-foreground'}>
+                  {p.net_payout > 0 ? formatCurrency(p.net_payout) : '—'}
+                </span>
               </TableCell>
+              <TableCell className="text-right">
+                <span className={p.invoiced_amount > 0 ? 'font-semibold text-amber-600' : 'text-muted-foreground'}>
+                  {p.invoiced_amount > 0 ? formatCurrency(p.invoiced_amount) : '—'}
+                </span>
+              </TableCell>
+
               <TableCell>
                 {p.has_banking ? (
                   p.banking_verified ? (
