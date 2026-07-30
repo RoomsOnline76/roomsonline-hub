@@ -449,6 +449,23 @@ export function PushToRentalsUnited({ propertyId }: PushToRentalsUnitedProps) {
             </Alert>
           )}
 
+          {wlGaps.length > 0 && (
+            <Alert>
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle className="text-xs font-medium">
+                White-Label minimum inventory — {wlGaps.length} gap{wlGaps.length === 1 ? "" : "s"}
+              </AlertTitle>
+              <AlertDescription className="text-xs">
+                <p className="mb-1 text-muted-foreground">
+                  Rentals United can reject or hide White-Label inventory that is missing these fields.
+                </p>
+                <ul className="list-disc list-inside space-y-0.5">
+                  {wlGaps.map((g, i) => <li key={i}>{g}</li>)}
+                </ul>
+              </AlertDescription>
+            </Alert>
+          )}
+
           {buildingDiagnostics?.request_preview && (
             <Alert>
               <Building2 className="h-4 w-4" />
