@@ -15,7 +15,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2, Pencil, Copy, ChevronDown, ChevronRight, FolderOpen, Loader2, Building2, ExternalLink, Upload, X, Star, MapPin, AlertTriangle, Sparkles } from "lucide-react";
+import { Plus, Trash2, Pencil, Copy, ChevronDown, ChevronRight, FolderOpen, Loader2, Building2, ExternalLink, Upload, X, Star, MapPin, AlertTriangle, Sparkles, ShieldCheck } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { PortfolioRuAccountsTab } from "@/components/portfolio/PortfolioRuAccountsTab";
 import { GooglePlaceSearchDialog } from "@/components/integrations/GooglePlaceSearchDialog";
 import { contrastRatio } from "@/lib/brandOverride";
 import { PUBLIC_DOMAIN } from "@/lib/config";
@@ -812,7 +814,23 @@ export default function AdminPortfolios() {
         }
       />
 
+      <Tabs defaultValue="portfolios" className="mt-4 space-y-4">
+        <TabsList>
+          <TabsTrigger value="portfolios" className="text-xs gap-1.5">
+            <FolderOpen className="h-3.5 w-3.5" /> Portfolios
+          </TabsTrigger>
+          <TabsTrigger value="ru" className="text-xs gap-1.5">
+            <ShieldCheck className="h-3.5 w-3.5" /> Rentals United
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="ru">
+          <PortfolioRuAccountsTab />
+        </TabsContent>
+
+        <TabsContent value="portfolios">
       {isLoading ? (
+
         <div className="flex items-center justify-center py-12">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
@@ -918,6 +936,10 @@ export default function AdminPortfolios() {
           </Table>
         </div>
       )}
+        </TabsContent>
+      </Tabs>
+
+
 
       {/* Edit Dialog */}
       <Dialog open={!!editPortfolio} onOpenChange={(o) => { if (!o) { setEditPortfolio(null); resetForm(); } }}>
