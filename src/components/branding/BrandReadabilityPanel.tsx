@@ -243,6 +243,8 @@ export function BrandReadabilityPanel({ palette, onApply, entityLabel = "propert
             </div>
             <Badge variant="outline" className="text-[10px]">Day {dayScore}/100</Badge>
             <Badge variant="outline" className="text-[10px]">Dark {darkScore}/100</Badge>
+            <Badge variant="outline" className="text-[10px]">Booking {bookingScore}/100</Badge>
+            <Badge variant="outline" className="text-[10px]">ROLOS UI {rolosScore}/100</Badge>
           </div>
           <p className="text-xs text-muted-foreground">
             These are exact replicas of the surfaces guests see. Every text pair is checked against the
