@@ -14,6 +14,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { RuCertificationConsole } from "@/components/integrations/RuCertificationConsole";
 
 interface SyncRun {
   id: string;
@@ -37,6 +39,7 @@ interface PropertyLite {
   slug: string | null;
   external_system: string | null;
   ru_push_enabled: boolean | null;
+  rentalsunited_property_id: string | null;
 }
 
 const ACTIONS = ["PutProperty", "PutAvbUnits", "PutPrices", "ListReservations", "PutHandlerUrl", "RLNM"] as const;
@@ -63,7 +66,7 @@ export default function AdminRentalsUnited() {
         .limit(500),
       supabase
         .from("properties")
-        .select("id, name, slug, external_system, ru_push_enabled")
+        .select("id, name, slug, external_system, ru_push_enabled, rentalsunited_property_id")
         .eq("is_active", true)
         .order("name"),
     ]);
@@ -136,6 +139,17 @@ export default function AdminRentalsUnited() {
       />
 
       <div className="px-6 pb-10 space-y-6">
+      <Tabs defaultValue="sync" className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="sync">Sync observability</TabsTrigger>
+          <TabsTrigger value="cert">Certification &amp; compliance</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="cert">
+          <RuCertificationConsole properties={properties} />
+        </TabsContent>
+
+        <TabsContent value="sync" className="space-y-6">
         {/* KPI Cards */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <Card>
@@ -309,7 +323,10 @@ export default function AdminRentalsUnited() {
             )}
           </CardContent>
         </Card>
+        </TabsContent>
+      </Tabs>
       </div>
+
 
       <Sheet open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>
         <SheetContent className="w-full sm:max-w-2xl overflow-y-auto">
