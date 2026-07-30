@@ -309,20 +309,42 @@ export function usePropertyPayouts(period?: PayoutPeriod | string) {
   }), [payouts]);
 
   const fetchBookingDetails = async (propertyId: string): Promise<PayoutBookingDetail[]> => {
-    const { data } = await supabase
+    let txQuery = supabase
       .from('payment_transactions')
-      .select(`amount, bookings!inner(${BOOKING_ORIGIN_FIELDS})`)
+      .select(`amount, created_at, bookings!inner(${BOOKING_ORIGIN_FIELDS})`)
       .in('status', SETTLED_TX_STATUSES)
       .eq('bookings.property_id', propertyId)
       .order('created_at', { ascending: false });
+    if (from) txQuery = txQuery.gte('created_at', from);
+    if (to) txQuery = txQuery.lt('created_at', to);
 
-    const grouped: Record<string, { booking: any; gross: number }> = {};
+    const { data } = await txQuery;
+
+    const grouped: Record<string, { booking: any; gross: number; source: PayoutSource }> = {};
     (data || []).forEach((tx: any) => {
       const b = tx.bookings;
       if (!b?.id) return;
       if (EXCLUDED_BOOKING_STATUSES.includes(String(b.status || '').toLowerCase())) return;
-      if (!grouped[b.id]) grouped[b.id] = { booking: b, gross: 0 };
+      if (!grouped[b.id]) grouped[b.id] = { booking: b, gross: 0, source: 'gateway' };
       grouped[b.id].gross += Number(tx.amount) || 0;
+    });
+
+    let paidQuery = supabase
+      .from('bookings')
+      .select(`${BOOKING_ORIGIN_FIELDS}, created_at`)
+      .eq('property_id', propertyId)
+      .in('payment_status', PAID_BOOKING_STATUSES)
+      .order('created_at', { ascending: false });
+    if (from) paidQuery = paidQuery.gte('created_at', from);
+    if (to) paidQuery = paidQuery.lt('created_at', to);
+
+    const { data: paidBookings } = await paidQuery;
+    (paidBookings || []).forEach((b: any) => {
+      if (!b?.id || grouped[b.id]) return;
+      if (EXCLUDED_BOOKING_STATUSES.includes(String(b.status || '').toLowerCase())) return;
+      const gross = Number(b.total_price) || 0;
+      if (gross <= 0) return;
+      grouped[b.id] = { booking: b, gross, source: 'booking' };
     });
 
     const [scopes, terms, globalsRes] = await Promise.all([
@@ -334,7 +356,7 @@ export function usePropertyPayouts(period?: PayoutPeriod | string) {
     const globals =
       (globalsRes.data || []).find((g: any) => g.strategy === (config?.billing_strategy || 'default')) || null;
 
-    return Object.values(grouped).map(({ booking, gross }) => {
+    return Object.values(grouped).map(({ booking, gross, source }) => {
       const termKey = `${propertyId}:${booking.commission_type === 'pms' ? 'pms' : 'listing'}`;
       const commission = resolveBookingCommission(booking, gross, config, globals as any, terms[termKey] ?? null);
       return {
@@ -349,9 +371,11 @@ export function usePropertyPayouts(period?: PayoutPeriod | string) {
         commission_amount: commission.amount,
         commission_rate: commission.rate,
         commission_type: commission.type,
+        source,
       };
     });
   };
 
-  return { payouts, loading, stats, refresh: loadPayouts, fetchBookingDetails };
+  return { payouts, loading, stats, lastUpdated, refresh: loadPayouts, fetchBookingDetails };
 }
+
