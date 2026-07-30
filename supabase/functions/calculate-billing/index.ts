@@ -41,14 +41,33 @@ serve(async (req) => {
       );
     }
 
-    // Fetch billing config for this property
-    const { data: config } = await supabase
-      .from("property_billing_configs")
-      .select("*")
+    // Fetch billing config — portfolio-level config wins when the property belongs to one.
+    let config: any = null;
+    const { data: membership } = await supabase
+      .from("property_portfolio_members")
+      .select("portfolio_id")
       .eq("property_id", property_id)
-      .single();
+      .limit(1)
+      .maybeSingle();
+    if (membership?.portfolio_id) {
+      const { data: portfolioConfig } = await supabase
+        .from("portfolio_billing_configs")
+        .select("*")
+        .eq("portfolio_id", membership.portfolio_id)
+        .maybeSingle();
+      if (portfolioConfig) config = portfolioConfig;
+    }
+    if (!config) {
+      const { data: propertyConfig } = await supabase
+        .from("property_billing_configs")
+        .select("*")
+        .eq("property_id", property_id)
+        .maybeSingle();
+      config = propertyConfig;
+    }
 
     const strategy = config?.billing_strategy || 'default';
+
 
     // Fetch global defaults for the strategy (3-tier resolution)
     const { data: globalDefaults } = await supabase
