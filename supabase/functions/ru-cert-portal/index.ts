@@ -983,21 +983,36 @@ Deno.serve(async (req) => {
         let fillErr: any = null;
         let lastMessage = "";
         const maxAttempts = passwordIsOurs ? 4 : 3;
+        // RU can provision a child account whose API login is the numeric
+        // UserAccountId/OwnerID even though the portal login shown to admins is
+        // the email address. Try every RU-issued identity with the same retained
+        // password before treating that password as stale.
+        const authUsernames = Array.from(new Set([
+          account.ru_login_email,
+          ownerEmail,
+          account.ru_user_id,
+          account.ru_owner_id,
+        ].map((value) => String(value ?? "").trim()).filter(Boolean)));
         for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-          const res = await admin.functions.invoke("rentalsunited-api", {
-            body: {
-              action: "fill_company_details",
-              company,
-              auth_username: account.ru_login_email ?? ownerEmail,
-              auth_password: password,
-            },
-          });
-          filled = res.data;
-          fillErr = res.error;
+          for (const authUsername of authUsernames) {
+            const res = await admin.functions.invoke("rentalsunited-api", {
+              body: {
+                action: "fill_company_details",
+                company,
+                auth_username: authUsername,
+                auth_password: password,
+              },
+            });
+            filled = res.data;
+            fillErr = res.error;
+            if (!fillErr && filled?.success) break;
+            lastMessage = String(
+              (filled as any)?.error?.message ?? fillErr?.message ?? "Rentals United rejected the company details",
+            );
+            const authRejected = (filled as any)?.error?.code === "RU_SUBUSER_AUTH_FAILED";
+            if (!authRejected) break;
+          }
           if (!fillErr && filled?.success) break;
-          lastMessage = String(
-            (filled as any)?.error?.message ?? fillErr?.message ?? "Rentals United rejected the company details",
-          );
           // Validation/schema and credential rejections will never succeed on retry.
           if ((filled as any)?.error?.code === "RU_SUBUSER_AUTH_FAILED") {
             if (passwordIsOurs) {
@@ -1015,7 +1030,7 @@ Deno.serve(async (req) => {
               return {
                 sent: false,
                 error:
-                  `Rentals United rejected our stored sub-user login for ${account.ru_login_email ?? ownerEmail} after ${maxAttempts} attempts (${lastMessage}). The password we hold is the one RU accepted at creation — if this persists, reset it in the Rentals United portal and save the new value under Portfolios → RU accounts.`,
+                  `Rentals United rejected every issued login identity for ${account.ru_login_email ?? ownerEmail} after ${maxAttempts} attempts (${lastMessage}). The password we hold is the one RU accepted at creation — if this persists, reset it in the Rentals United portal and save the new value under Portfolios → RU accounts.`,
               };
             }
             await admin
@@ -1062,6 +1077,14 @@ Deno.serve(async (req) => {
         }, 422);
       }
 
+      type RuUser = { user_account_id?: string; email?: string; owner_id?: string };
+      const listRuUsers = async (): Promise<RuUser[]> => {
+        const { data: listed } = await admin.functions.invoke("rentalsunited-api", { body: { action: "list_users" } });
+        return listed?.success && Array.isArray(listed.users) ? (listed.users as RuUser[]) : [];
+      };
+      const matchByEmail = (users: RuUser[]) =>
+        users.find((u) => (u.email ?? "").trim().toLowerCase() === ownerEmail!.trim().toLowerCase()) ?? null;
+
       const existing = await findOwnerAccount(admin, propertyId ?? "", ownerEmail, portfolioId);
       // If the owner email has since changed, the stored sub-user belongs to the OLD
       // login and must not be reused: Phase 1 has to create a fresh RU sub-user for the
@@ -1073,7 +1096,22 @@ Deno.serve(async (req) => {
         Boolean(existing.account?.ru_owner_id) &&
         Boolean(storedEmail) &&
         storedEmail !== ownerEmail.trim().toLowerCase();
-      if (emailChanged && action === "ensure_owner_account") {
+      // A child account can be deleted/recreated in RU with the same email. Compare
+      // RU's current identity before trusting the locally retained password.
+      const currentRuUser = existing.account?.ru_owner_id
+        ? matchByEmail(await listRuUsers())
+        : null;
+      const currentOwnerId = String(currentRuUser?.owner_id ?? "").trim();
+      const currentUserId = String(currentRuUser?.user_account_id ?? "").trim();
+      const storedOwnerId = String(existing.account?.ru_owner_id ?? "").trim();
+      const storedUserId = String((existing.account as any)?.ru_user_id ?? "").trim();
+      const ruIdentityChanged = Boolean(existing.account?.ru_owner_id) && (
+        !currentRuUser ||
+        (Boolean(currentOwnerId) && currentOwnerId !== storedOwnerId) ||
+        (Boolean(currentUserId) && Boolean(storedUserId) && currentUserId !== storedUserId)
+      );
+      const staleIdentity = emailChanged || ruIdentityChanged;
+      if (staleIdentity && action === "ensure_owner_account") {
         // Wipe the stale RU identity + password so the row is rebuilt below.
         await admin
           .from("ru_owner_accounts")
@@ -1087,7 +1125,7 @@ Deno.serve(async (req) => {
           })
           .eq("id", (existing.account as any).id);
       }
-      if (existing.account?.ru_owner_id && !emailChanged) {
+      if (existing.account?.ru_owner_id && !staleIdentity) {
 
         const companyResult = await submitCompanyDetails(existing.account as any);
         const needsPassword = Boolean((companyResult as any).deferred || (companyResult as any).authFailed);
@@ -1147,14 +1185,6 @@ Deno.serve(async (req) => {
         pick("!@#$%*?", 2)
       );
 
-
-      type RuUser = { user_account_id?: string; email?: string; owner_id?: string };
-      const listRuUsers = async (): Promise<RuUser[]> => {
-        const { data: listed } = await admin.functions.invoke("rentalsunited-api", { body: { action: "list_users" } });
-        return listed?.success && Array.isArray(listed.users) ? (listed.users as RuUser[]) : [];
-      };
-      const matchByEmail = (users: RuUser[]) =>
-        users.find((u) => (u.email ?? "").trim().toLowerCase() === ownerEmail!.trim().toLowerCase()) ?? null;
 
       let userAccountId: string | null = null;
       let ruOwnerId: string | null = null;
@@ -1228,6 +1258,9 @@ Deno.serve(async (req) => {
         portfolio_id: portfolioId,
         property_id: portfolioId ? null : propertyId,
         scope: portfolioId ? "portfolio" : "property",
+        company_details_sent: false,
+        company_filled_at: null,
+        company_details_status: null,
       };
       // Keep the sub-user password (encrypted) — Push_FillCompanyDetails_RQ authenticates
       // as the sub-user, and admins must be able to log into the RU portal later.
@@ -1246,6 +1279,10 @@ Deno.serve(async (req) => {
           }, 500);
         }
         row.ru_login_password_enc = enc;
+      } else {
+        // Never carry a password from a previous RU identity into an account we
+        // have just adopted. It may belong to a deleted/recreated child account.
+        row.ru_login_password_enc = null;
       }
 
       // The unique indexes on this table are PARTIAL, so PostgREST's ON CONFLICT
