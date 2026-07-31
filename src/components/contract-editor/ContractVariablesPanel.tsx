@@ -51,6 +51,71 @@ const VARIABLE_SOURCES = [
   { value: "manual", label: "Manual Input" },
 ];
 
+/** Variables filled automatically from billing config / billing defaults / sales-rep tiers. */
+const AUTO_VARIABLE_GROUPS: { label: string; keys: string[] }[] = [
+  {
+    label: "Commission",
+    keys: [
+      "billing_strategy_label",
+      "commission_rate",
+      "commission_percentage",
+      "listing_commission_rate",
+      "listing_commission_clause",
+      "pms_commission_rate",
+      "pms_commission_clause",
+      "widget_flat_commission_rate",
+      "widget_flat_commission_clause",
+    ],
+  },
+  {
+    label: "Subscription & tiers",
+    keys: [
+      "subscription_fee_monthly",
+      "subscription_clause",
+      "tier_monthly_fee",
+      "tier_room_count",
+      "tier_clause",
+      "volume_tier_clause",
+      "enterprise_fee",
+      "enterprise_fee_clause",
+    ],
+  },
+  {
+    label: "Add-ons",
+    keys: [
+      "white_label_monthly_fee",
+      "white_label_setup_fee",
+      "white_label_billing_mode",
+      "white_label_clause",
+      "branding_addon_monthly_fee",
+      "branding_addon_setup_fee",
+      "branding_addon_clause",
+      "pricelabs_monthly_fee",
+      "pricelabs_setup_fee",
+      "pricelabs_clause",
+      "channel_manager_per_unit_fee",
+      "channel_manager_clause",
+    ],
+  },
+  {
+    label: "Payments",
+    keys: ["payment_facilitator_fee", "payment_facilitator_clause", "byo_gateway_fee", "byo_gateway_clause"],
+  },
+  {
+    label: "Sales rep / referral",
+    keys: [
+      "rep_name",
+      "rep_email",
+      "rep_code",
+      "commission_tier_label",
+      "first_year_rate",
+      "residual_rate",
+      "residual_duration",
+      "clawback_period",
+    ],
+  },
+];
+
 export function ContractVariablesPanel({
   schema,
   content,
