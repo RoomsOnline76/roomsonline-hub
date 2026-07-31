@@ -43,6 +43,7 @@ interface RuAccount {
   ru_login_email: string | null;
   ru_login_url: string | null;
   company_details_sent: boolean;
+  company_details_status?: string | null;
   scope: string;
   portfolio_id: string | null;
   property_id: string | null;
@@ -179,13 +180,14 @@ export function PortfolioRuAccountsTab() {
         toast.error(data?.error?.message || error?.message || "Could not save the password");
         return;
       }
-      toast.success("RU portal password stored (encrypted)");
+      toast.success("RU credentials verified and stored securely");
       setResetFor(null);
       setResetPassword("");
+      await queryClient.invalidateQueries({ queryKey: ["ru-owner-accounts"] });
     } finally {
       setSaving(false);
     }
-  }, [resetEmail, resetFor, resetPassword]);
+  }, [queryClient, resetEmail, resetFor, resetPassword]);
 
 
 
@@ -434,6 +436,24 @@ export function PortfolioRuAccountsTab() {
                       >
                         {acc.company_details_sent ? "Company details sent" : "Company details pending"}
                       </Badge>
+                      {!acc.company_details_sent && (
+                        <Badge
+                          variant="outline"
+                          className={
+                            acc.company_details_status === "credentials_verified"
+                              ? "text-success border-success/40 text-[10px]"
+                              : acc.company_details_status === "auth_failed" || acc.company_details_status === "failed"
+                                ? "text-destructive border-destructive/40 text-[10px]"
+                                : "text-muted-foreground text-[10px]"
+                          }
+                        >
+                          {acc.company_details_status === "credentials_verified"
+                            ? "Credentials verified"
+                            : acc.company_details_status === "auth_failed" || acc.company_details_status === "failed"
+                              ? "Credentials rejected"
+                              : "Credentials stored"}
+                        </Badge>
+                      )}
                       <Badge variant="secondary" className="text-[10px]">
                         {linked.length} {linked.length === 1 ? "property" : "properties"}
                       </Badge>
@@ -564,11 +584,11 @@ export function PortfolioRuAccountsTab() {
       <Dialog open={!!resetFor} onOpenChange={(o) => !o && setResetFor(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Reset stored RU password</DialogTitle>
+            <DialogTitle>Verify and store RU password</DialogTitle>
             <DialogDescription>
               Rentals United has no password-change API. Reset the sub-user password inside the RU
-              portal, then store the new value here so automation and future logins keep working.
-              It is encrypted at rest and every change is audit-logged.
+              portal, then verify the new value here. It is saved encrypted only after Rentals
+              United accepts the login; rejected values never replace the previous password.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
@@ -598,7 +618,7 @@ export function PortfolioRuAccountsTab() {
               onClick={saveResetPassword}
             >
               {saving && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
-              Save password
+              Verify &amp; save
             </Button>
           </DialogFooter>
         </DialogContent>

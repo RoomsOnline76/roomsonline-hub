@@ -678,7 +678,7 @@ Deno.serve(async (req) => {
     // and stores the new value here (encrypted) so future automation can authenticate.
     if (action === "save_login_password") {
       const accountId: string = body.account_id ?? "";
-      const newPassword: string = typeof body.password === "string" ? body.password : "";
+      const newPassword: string = typeof body.password === "string" ? body.password.trim() : "";
       const newEmail: string | null =
         typeof body.login_email === "string" && body.login_email.trim() ? body.login_email.trim() : null;
       if (!accountId) return json({ success: false, error: { code: "BAD_REQUEST", message: "account_id is required" } }, 400);
@@ -688,18 +688,61 @@ Deno.serve(async (req) => {
 
       const { data: account } = await admin
         .from("ru_owner_accounts")
-        .select("id, owner_email, ru_login_email, ru_owner_id")
+        .select("id, owner_email, ru_login_email, ru_owner_id, company_details_sent")
         .eq("id", accountId)
         .maybeSingle();
       if (!account) return json({ success: false, error: { code: "NOT_FOUND", message: "RU owner account not found" } }, 404);
+
+      const canonicalEmail = newEmail ?? account.ru_login_email ?? account.owner_email;
+      const ownerId = String(account.ru_owner_id ?? "").trim();
+      if (!canonicalEmail || !ownerId) {
+        return json({
+          success: false,
+          error: { code: "RU_IDENTITY_INCOMPLETE", message: "Bind this record to an RU OwnerID and login email before saving a password." },
+        }, 422);
+      }
+
+      const { data: verified, error: verifyError } = await admin.functions.invoke("rentalsunited-api", {
+        body: {
+          action: "verify_subuser_credentials",
+          owner_id: ownerId,
+          auth_username: canonicalEmail,
+          auth_password: newPassword,
+        },
+      });
+      if (verifyError || !verified?.success || verified?.verified !== true) {
+        await admin.from("audit_logs").insert({
+          user_id: user.id,
+          user_email: user.email ?? "unknown",
+          user_role: (roles ?? []).some((r: { role: string }) => r.role === "dev") ? "dev" : "admin",
+          action_type: "other",
+          table_name: "ru_owner_accounts",
+          record_id: account.id,
+          request_origin: "edge_function",
+          edge_function_name: "ru-cert-portal",
+          is_sensitive: true,
+          change_summary: `Rejected unverified Rentals United password update for ${canonicalEmail} (OwnerID ${ownerId})`,
+        }).then(() => {}, (e) => console.warn("[ru-cert-portal] audit log insert failed", e));
+        return json({
+          success: false,
+          verified: false,
+          error: {
+            code: "RU_PASSWORD_NOT_VERIFIED",
+            message: verified?.error?.message ?? verifyError?.message ?? "Rentals United rejected these credentials. The previous stored password was kept.",
+          },
+        }, 422);
+      }
 
       const { data: enc, error: encErr } = await admin.rpc("encrypt_sensitive_text", { plaintext: newPassword });
       if (encErr || !enc) {
         return json({ success: false, error: { code: "ENCRYPT_FAILED", message: encErr?.message || "Could not encrypt the password" } }, 500);
       }
 
-      const update: Record<string, unknown> = { ru_login_password_enc: enc };
-      if (newEmail) update.ru_login_email = newEmail;
+      const update: Record<string, unknown> = {
+        ru_login_password_enc: enc,
+        ru_login_email: canonicalEmail,
+      };
+      if (!account.company_details_sent) update.company_details_status = "credentials_verified";
       const { error: upErr } = await admin.from("ru_owner_accounts").update(update).eq("id", accountId);
       if (upErr) return json({ success: false, error: { code: "SAVE_FAILED", message: upErr.message } }, 500);
 
@@ -713,10 +756,10 @@ Deno.serve(async (req) => {
         request_origin: "edge_function",
         edge_function_name: "ru-cert-portal",
         is_sensitive: true,
-        change_summary: `Reset stored Rentals United sub-user password for ${newEmail ?? account.ru_login_email ?? account.owner_email} (OwnerID ${account.ru_owner_id ?? "?"})`,
+        change_summary: `Verified and reset stored Rentals United sub-user password for ${canonicalEmail} (OwnerID ${ownerId})`,
       }).then(() => {}, (e) => console.warn("[ru-cert-portal] audit log insert failed", e));
 
-      return json({ success: true, login_email: newEmail ?? account.ru_login_email ?? account.owner_email });
+      return json({ success: true, verified: true, login_email: canonicalEmail });
     }
 
     // ── list_ru_candidates: every sub-user RU currently holds under our master account,
@@ -1058,10 +1101,10 @@ Deno.serve(async (req) => {
         // UserAccountId/OwnerID even though the portal login shown to admins is
         // the email address. Try every RU-issued identity with the same retained
         // password before treating that password as stale.
+        // The password-save flow verifies and persists the canonical child login.
+        // Use that identity first and do not mix in portfolio-owner email aliases.
         const authUsernames = Array.from(new Set([
           account.ru_login_email,
-          ownerEmail,
-          account.ru_user_id,
           account.ru_owner_id,
         ].map((value) => String(value ?? "").trim()).filter(Boolean)));
         for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -1101,7 +1144,7 @@ Deno.serve(async (req) => {
               return {
                 sent: false,
                 error:
-                  `Rentals United rejected every issued login identity for ${account.ru_login_email ?? ownerEmail} after ${maxAttempts} attempts (${lastMessage}). The password we hold is the one RU accepted at creation — if this persists, reset it in the Rentals United portal and save the new value under Portfolios → RU accounts.`,
+                  `Rentals United rejected the stored login for ${account.ru_login_email ?? ownerEmail} after ${maxAttempts} attempts (${lastMessage}). Re-verify the current RU portal password under Portfolios → RU accounts; rejected values are not saved.`,
               };
             }
             await admin
