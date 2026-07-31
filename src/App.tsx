@@ -40,6 +40,8 @@ const EmbedProperty = lazy(() => import("./pages/EmbedProperty"));
 const EmbedPortfolio = lazy(() => import("./pages/EmbedPortfolio"));
 const StaffLogin = lazy(() => import("./pages/StaffLogin"));
 const ContractSign = lazy(() => import("./pages/ContractSign"));
+const RepContractSign = lazy(() => import("./pages/RepContractSign"));
+
 const PropertyOnboarding = lazy(() => import("./pages/PropertyOnboarding"));
 const GuestPortal = lazy(() => import("./pages/GuestPortal"));
 const SubscriptionPay = lazy(() => import("./pages/SubscriptionPay"));
