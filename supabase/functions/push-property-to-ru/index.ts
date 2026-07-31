@@ -2407,8 +2407,9 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        // Extract and save RU property ID for this unit
-        let unitRuId = existingUnitRuId > 0 ? String(existingUnitRuId) : null;
+        // Extract and save RU property ID for this unit. A stale ID was cleared above,
+        // so never fall back to it — the retry create returns the real new ID.
+        let unitRuId = existingUnitRuId > 0 && !staleIdError ? String(existingUnitRuId) : null;
         if (pushResult.raw_xml) {
           const extracted = extractRUPropertyId(pushResult.raw_xml);
           if (extracted) unitRuId = extracted;
