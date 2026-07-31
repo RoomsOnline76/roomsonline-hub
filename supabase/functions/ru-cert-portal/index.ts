@@ -874,17 +874,22 @@ Deno.serve(async (req) => {
         // Password sources, in order: this call, an admin-supplied password
         // (adopted accounts), or the encrypted copy stored at creation time.
         let password: string | null = plainPassword ?? (body.ru_login_password as string | undefined) ?? null;
+        // True when the password came from us (freshly generated or our encrypted copy):
+        // in that case we must never ask the operator for a password we already hold.
+        let passwordIsOurs = Boolean(plainPassword);
         if (!password && account.ru_login_password_enc) {
           const { data: decrypted } = await admin.rpc("decrypt_sensitive_text", {
             encrypted_data: account.ru_login_password_enc,
           });
           password = (decrypted as string | null) ?? null;
+          passwordIsOurs = Boolean(password);
         }
         if (password && !account.ru_login_password_enc) {
           // Persist it so later retries/backfills never need the operator again.
           const { data: enc } = await admin.rpc("encrypt_sensitive_text", { plaintext: password });
           if (enc) await admin.from("ru_owner_accounts").update({ ru_login_password_enc: enc }).eq("id", account.id);
         }
+
         if (!password) {
           await admin
             .from("ru_owner_accounts")
