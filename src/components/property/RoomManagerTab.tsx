@@ -21,7 +21,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { validateImageDimensions, getValidationErrorMessage } from "@/lib/imageValidation";
 import { getRoomUrl } from "@/lib/config";
-import { parseBedConfiguration, BED_TYPES, BedEntry } from "@/lib/bedConfig";
+import { parseBedConfiguration, BED_TYPES, BedEntry, calculateBedCapacity, sleepsPerBed } from "@/lib/bedConfig";
 import { cn } from "@/lib/utils";
 import { isFieldPopulatedByPMS, getPMSDisplayName } from "@/lib/pmsFieldConfig";
 import { TagInput } from "@/components/TagInput";
