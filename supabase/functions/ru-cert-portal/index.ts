@@ -1181,7 +1181,8 @@ Deno.serve(async (req) => {
               // Authenticate AS the sub-user so RU writes the details onto the owner's
               // own profile (RU applies them to whichever account authenticates).
               auth_username: (account.ru_login_email as string | null) || ownerEmail || null,
-              auth_password: password,
+              auth_password: password || null,
+
             },
           });
           filled = res.data;
