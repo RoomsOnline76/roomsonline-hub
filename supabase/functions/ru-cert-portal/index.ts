@@ -884,6 +884,7 @@ Deno.serve(async (req) => {
         : {
             action: "fill_company_details",
             company: body.company,
+            owner_id: body.owner_id ?? null,
             auth_username: body.auth_username ?? null,
             auth_password: body.auth_password ?? null,
           };
