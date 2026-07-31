@@ -711,7 +711,7 @@ Deno.serve(async (req) => {
       await admin.from("audit_logs").insert({
         user_id: user.id,
         user_email: user.email ?? "unknown",
-        user_role: (roles ?? []).some((r: { role: string }) => r.role === "dev" ? "dev" : "admin",
+        user_role: (roles ?? []).some((r: { role: string }) => r.role === "dev") ? "dev" : "admin",
         action_type: "other",
         table_name: "ru_owner_accounts",
         record_id: account.id,
