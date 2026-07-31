@@ -46,6 +46,7 @@ interface RuAccount {
   ru_login_url: string | null;
   company_details_sent: boolean;
   company_details_status?: string | null;
+  ru_login_password_enc?: unknown;
   scope: string;
   portfolio_id: string | null;
   property_id: string | null;
@@ -83,6 +84,10 @@ export function PortfolioRuAccountsTab() {
     });
   }, []);
 
+  const refreshAccounts = useCallback(async () => {
+    await queryClient.refetchQueries({ queryKey: ["ru-owner-accounts"] });
+  }, [queryClient]);
+
   const verifyCredentials = useCallback(async (accountId: string) => {
     setVerifying(accountId);
     try {
@@ -96,11 +101,11 @@ export function PortfolioRuAccountsTab() {
       } else {
         toast.success("Portal password is stored and RU API access is available");
       }
-      await queryClient.invalidateQueries({ queryKey: ["ru-owner-accounts"] });
+      await refreshAccounts();
     } finally {
       setVerifying(null);
     }
-  }, [queryClient]);
+  }, [refreshAccounts]);
 
   const revealCredentials = useCallback(async (accountId: string) => {
     setRevealing(accountId);
@@ -173,12 +178,12 @@ export function PortfolioRuAccountsTab() {
         }
         toast.success(`Bound to OwnerID ${ruOwnerId}`);
         setBindFor(null);
-        await queryClient.invalidateQueries({ queryKey: ["ru-owner-accounts"] });
+        await refreshAccounts();
       } finally {
         setBinding(null);
       }
     },
-    [bindFor, queryClient],
+    [bindFor, refreshAccounts],
   );
 
   const { data: accounts = [], isLoading } = useQuery({
@@ -230,11 +235,11 @@ export function PortfolioRuAccountsTab() {
       toast.success("RU account unbound — OwnerID cleared. Phase 1 can create a new sub-user.");
       hideCredentials(acc.id);
       setBindFor(null);
-      await queryClient.invalidateQueries({ queryKey: ["ru-owner-accounts"] });
+      await refreshAccounts();
     } finally {
       setBinding(null);
     }
-  }, [bindFor, accounts, queryClient, hideCredentials]);
+  }, [bindFor, accounts, refreshAccounts, hideCredentials]);
 
   const openReset = useCallback((accountId: string, email: string) => {
     setResetFor({ id: accountId, email });
@@ -267,11 +272,11 @@ export function PortfolioRuAccountsTab() {
       }
       setResetFor(null);
       setResetPassword("");
-      await queryClient.invalidateQueries({ queryKey: ["ru-owner-accounts"] });
+      await refreshAccounts();
     } finally {
       setSaving(false);
     }
-  }, [queryClient, resetEmail, resetFor, resetPassword]);
+  }, [refreshAccounts, resetEmail, resetFor, resetPassword]);
 
   const { data: portfolios = [] } = useQuery({
     queryKey: ["ru-portfolios-lite"],
@@ -408,6 +413,17 @@ export function PortfolioRuAccountsTab() {
         <div className="space-y-2">
           {filtered.map(({ acc, scopeLabel, scopeName, linked }) => {
             const open = expanded === acc.id;
+            const status = (acc.company_details_status ?? "").toLowerCase();
+            const showCredentialBadge =
+              !acc.company_details_sent &&
+              (status === "api_access_verified" ||
+                status === "api_access_failed" ||
+                status === "failed" ||
+                status === "password_stored" ||
+                status === "credentials_verified" ||
+                status === "credentials_failed" ||
+                Boolean(acc.ru_login_password_enc));
+
             return (
               <Card key={acc.id}>
                 <CardHeader
@@ -518,20 +534,20 @@ export function PortfolioRuAccountsTab() {
                       >
                         {acc.company_details_sent ? "Company details sent" : "Company details pending"}
                       </Badge>
-                      {!acc.company_details_sent && (
+                      {showCredentialBadge && (
                         <Badge
                           variant="outline"
                           className={
-                            acc.company_details_status === "api_access_verified"
+                            status === "api_access_verified" || status === "credentials_verified"
                               ? "text-success border-success/40 text-[10px]"
-                              : acc.company_details_status === "api_access_failed" || acc.company_details_status === "failed"
+                              : status === "api_access_failed" || status === "credentials_failed" || status === "failed"
                                 ? "text-destructive border-destructive/40 text-[10px]"
                                 : "text-muted-foreground text-[10px]"
                           }
                         >
-                          {acc.company_details_status === "api_access_verified"
+                          {status === "api_access_verified" || status === "credentials_verified"
                             ? "API access verified"
-                            : acc.company_details_status === "api_access_failed" || acc.company_details_status === "failed"
+                            : status === "api_access_failed" || status === "credentials_failed" || status === "failed"
                               ? "API access failed"
                               : "Portal password stored"}
                         </Badge>
@@ -607,8 +623,9 @@ export function PortfolioRuAccountsTab() {
                         </div>
                       ) : (
                         <p className="text-[10px] text-muted-foreground">
-                          The generated sub-user password is kept encrypted so you can sign in to the
-                          Rentals United portal later. Admin only.
+                          {acc.ru_login_password_enc
+                            ? "The generated sub-user password is kept encrypted so you can sign in to the Rentals United portal later. Admin only."
+                            : "No password stored for this row. After Phase 1 creates a sub-user, the password is retained here automatically."}
                         </p>
                       )}
                     </div>
@@ -725,7 +742,7 @@ export function PortfolioRuAccountsTab() {
                 Currently bound to OwnerID{" "}
                 <span className="font-mono font-medium">{bindFor.ownerId}</span>.
                 Unbind clears the OwnerID, stored password, and company-details flags on this
-                local row.
+                local row. The portfolio owner email stays unchanged.
               </p>
               <Button
                 size="sm"
