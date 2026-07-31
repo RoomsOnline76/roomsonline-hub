@@ -2380,9 +2380,25 @@ Deno.serve(async (req) => {
 
         console.log(`[push-property-to-ru] Step 2: Pushing unit "${unit.name}" (existing RU ID: ${existingUnitRuId}, building: ${buildingId}, object_type_id: ${objTypeId})`);
 
-        const { data: pushResult, error: pushErr } = await supabase.functions.invoke('rentalsunited-api', {
+        let { data: pushResult, error: pushErr } = await supabase.functions.invoke('rentalsunited-api', {
           body: { action: 'push_property', ru_property_id: existingUnitRuId, property: unitPayload },
         });
+
+        // Stale RU ID recovery: a stored unit ID can point at a property that no longer
+        // exists under this owner (account recreated / unit deleted in RU). RU answers
+        // "Property does not exist." — drop the stale ID and re-push as a fresh create.
+        const staleIdError = /property does not exist/i.test(
+          String(pushErr?.message || pushResult?.error?.message || ''),
+        );
+        if (existingUnitRuId > 0 && (pushErr || !pushResult?.success) && staleIdError) {
+          console.warn(`[push-property-to-ru] Stale RU ID ${existingUnitRuId} for unit "${unit.name}" — recreating`);
+          await supabase.from('hostfully_room_types').update({ rentalsunited_property_id: null }).eq('id', unit.id);
+          const retry = await supabase.functions.invoke('rentalsunited-api', {
+            body: { action: 'push_property', ru_property_id: 0, property: unitPayload },
+          });
+          pushResult = retry.data;
+          pushErr = retry.error;
+        }
 
         if (pushErr || !pushResult?.success) {
           const errMsg = pushErr?.message || pushResult?.error?.message || 'Unknown error';
