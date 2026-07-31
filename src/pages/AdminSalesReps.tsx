@@ -236,6 +236,14 @@ export default function AdminSalesReps() {
                 </div>
                 {rep.phone && <p className="text-xs text-muted-foreground">{rep.phone}</p>}
                 <p className="text-xs">Target: {rep.quarterly_target ?? "—"} properties/quarter</p>
+                {(() => {
+                  const t = resolveRepTerms(rep, repGlobals);
+                  return (
+                    <p className="text-xs text-muted-foreground">
+                      Contract terms: {t.first_year_rate}% first year · {t.residual_rate}% residual for {t.residual_months} mo
+                    </p>
+                  );
+                })()}
                 {rep.notes && <p className="text-xs text-muted-foreground italic">{rep.notes}</p>}
                 <div className="flex gap-1 pt-1">
                   <Button variant="ghost" size="sm" onClick={() => { setEditingRep(rep); setDialogOpen(true); }}>
