@@ -1136,6 +1136,12 @@ function missingCompanyFields(company: Partial<RUCompanyPayload>): string[] {
  * Sub-user ("child") authentication envelope. Push_FillCompanyDetails_RQ writes the
  * profile of whichever account authenticates, so filling a sub-user's own company
  * details requires logging in AS that sub-user.
+ *
+ * 🔒 This method is the ONE RU request whose documented Authentication members are
+ * <UserName>/<Password> (see the Fill Company Details XML example in the RU reference).
+ * Every other RU method uses <AccessKey>/<SecretKey>. Do not "normalise" this builder to
+ * AccessKey/SecretKey — RU deserialises into a typed object and drops unknown members,
+ * which authenticates with empty credentials and returns Status -4.
  */
 function buildChildAuthXml(username: string, password: string): string {
   return `<Authentication>
@@ -1143,6 +1149,8 @@ function buildChildAuthXml(username: string, password: string): string {
     <Password>${escapeXml(password)}</Password>
   </Authentication>`;
 }
+
+
 
 function buildFillCompanyDetailsXml(
   creds: RUCredentials,
