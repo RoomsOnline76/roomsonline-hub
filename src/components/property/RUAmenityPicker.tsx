@@ -35,6 +35,7 @@ export default function RUAmenityPicker({ value, onChange, disabled }: RUAmenity
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [showAll, setShowAll] = useState(false);
+  const [summaryOpen, setSummaryOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
