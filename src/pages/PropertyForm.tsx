@@ -205,6 +205,16 @@ interface PropertyFormProps {
   forceTabsOverride?: boolean;
 }
 
+/**
+ * Module-scope shell so its component identity is stable across renders.
+ * Declaring this inside PropertyForm remounted the entire form subtree on
+ * every render (sub-tabs reset, inputs lost focus mid-typing).
+ */
+const FormShell = ({ embedded, children }: { embedded: boolean; children: React.ReactNode }) =>
+  embedded ? <>{children}</> : <AppLayout>{children}</AppLayout>;
+
+
+
 export default function PropertyForm({
   embeddedPropertyId,
   embeddedInitialTab,
@@ -3596,11 +3606,8 @@ export default function PropertyForm({
     }
   };
 
-  const Shell: React.FC<{ children: React.ReactNode }> = ({ children }) =>
-    embedded ? <>{children}</> : <AppLayout>{children}</AppLayout>;
-
   return (
-    <Shell>
+    <FormShell embedded={embedded}>
       <div className={embedded ? "property-form-container w-full p-3" : "property-form-container w-full"}>
           {/* Breadcrumb + Header — hidden in embed mode */}
           {!embedded && (
@@ -8587,6 +8594,6 @@ export default function PropertyForm({
         }}
       />
 
-    </Shell>
+    </FormShell>
   );
 }

@@ -2,7 +2,7 @@
  * RoomManagerTab — Extracted from PropertyForm.tsx (Sub-phase 1A)
  * Manages room type CRUD, bed configuration, facilities, amenities, images, and agreements.
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { RoomTypeDataViewer, RateTypeItem } from "@/components/ExpandableDataViewer";
 import RUAmenityPicker from "@/components/property/RUAmenityPicker";
