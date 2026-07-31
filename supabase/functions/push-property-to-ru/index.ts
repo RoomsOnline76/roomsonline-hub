@@ -204,6 +204,11 @@ function buildValidation(payload: Record<string, any>): Record<string, unknown> 
     rooms_count: rooms.length,
     rooms_with_amenities: roomsWithAmenities,
     rooms_have_amenities: rooms.length > 0 && roomsWithAmenities === rooms.length,
+    // RU minimum: every room/unit must carry at least 10 amenities.
+    rooms_below_min_amenities: rooms.filter((r) => (r.amenities || []).length < RU_MIN_AMENITIES).length,
+    rooms_meet_min_amenities:
+      rooms.length > 0 && rooms.every((r) => (r.amenities || []).length >= RU_MIN_AMENITIES),
+
     total_beds: totalBeds,
     // RU White-Label minimum: beds must cover >= 50% of CanSleepMax.
     beds_cover_half: totalBeds >= Math.ceil(Math.max(1, maxGuests) * RU_BED_COVERAGE),
