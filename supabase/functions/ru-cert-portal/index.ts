@@ -1111,7 +1111,7 @@ Deno.serve(async (req) => {
         (Boolean(currentUserId) && Boolean(storedUserId) && currentUserId !== storedUserId)
       );
       const staleIdentity = emailChanged || ruIdentityChanged;
-      if (staleIdentity && action === "ensure_owner_account") {
+      if (staleIdentity) {
         // Wipe the stale RU identity + password so the row is rebuilt below.
         await admin
           .from("ru_owner_accounts")
