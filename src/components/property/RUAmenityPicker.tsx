@@ -8,7 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Search, Loader2, CheckCircle2, AlertTriangle, Sparkles, List } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Search, Loader2, CheckCircle2, AlertTriangle, Sparkles, List, ChevronDown } from "lucide-react";
 import {
   RU_MIN_ROOM_AMENITIES,
   RuAmenity,
@@ -34,6 +35,7 @@ export default function RUAmenityPicker({ value, onChange, disabled }: RUAmenity
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [showAll, setShowAll] = useState(false);
+  const [summaryOpen, setSummaryOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -85,6 +87,10 @@ export default function RUAmenityPicker({ value, onChange, disabled }: RUAmenity
   const groups = useMemo(() => groupRuAmenities(visible), [visible]);
   const count = selectedIds.length;
   const meetsMinimum = count >= RU_MIN_ROOM_AMENITIES;
+  const selectedSummary = useMemo(
+    () => groupRuAmenities(catalogue.filter((a) => selectedSet.has(a.id))),
+    [catalogue, selectedSet],
+  );
 
   return (
     <div className="space-y-4">
@@ -111,6 +117,74 @@ export default function RUAmenityPicker({ value, onChange, disabled }: RUAmenity
           {RU_MIN_ROOM_AMENITIES} amenities per unit before the listing can be submitted.
         </p>
       </div>
+
+      {/* Collapsed summary of everything currently selected */}
+      <Collapsible open={summaryOpen} onOpenChange={setSummaryOpen}>
+        <div className="rounded-md border">
+          <CollapsibleTrigger asChild>
+            <button
+              type="button"
+              className="flex w-full items-center justify-between gap-2 p-3 text-left"
+            >
+              <span className="text-sm font-medium">
+                Selected amenities summary ({count + legacy.length})
+              </span>
+              <ChevronDown
+                className={`h-4 w-4 text-muted-foreground transition-transform ${summaryOpen ? "rotate-180" : ""}`}
+              />
+            </button>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div className="border-t p-3 space-y-3">
+              {selectedSummary.length === 0 && legacy.length === 0 ? (
+                <p className="text-xs text-muted-foreground">Nothing selected yet.</p>
+              ) : (
+                <>
+                  {selectedSummary.map((group) => (
+                    <div key={group.category} className="space-y-1.5">
+                      <div className="flex items-center gap-2">
+                        <h5 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                          {group.category}
+                        </h5>
+                        <Badge variant="outline" className="text-[10px]">{group.items.length}</Badge>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {group.items.map((a) => (
+                          <Badge key={a.id} variant="secondary" className="text-xs gap-1">
+                            {a.name}
+                            {!disabled && (
+                              <button
+                                type="button"
+                                onClick={() => toggle(a.id, false)}
+                                className="opacity-60 hover:opacity-100"
+                                aria-label={`Remove ${a.name}`}
+                              >
+                                ×
+                              </button>
+                            )}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                  {legacy.length > 0 && (
+                    <div className="space-y-1.5">
+                      <h5 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        Legacy labels
+                      </h5>
+                      <div className="flex flex-wrap gap-1">
+                        {legacy.map((label) => (
+                          <Badge key={label} variant="outline" className="text-xs">{label}</Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </CollapsibleContent>
+        </div>
+      </Collapsible>
 
       {/* Legacy labels that don't map to the channel catalogue */}
       {legacy.length > 0 && (
