@@ -1916,10 +1916,14 @@ Deno.serve(async (req) => {
       if (!bId) return errorResponse('MISSING_PARAM', 'building_id is required');
       const childUser = typeof body.auth_username === 'string' ? body.auth_username.trim() : '';
       const childPass = typeof body.auth_password === 'string' ? body.auth_password : '';
-      if (!childUser || !childPass) return errorResponse('RU_CHILD_AUTH_REQUIRED', 'Linked RU sub-user credentials are required to read buildings');
-      const xml = buildGetBuildingXml(creds, parseInt(String(bId), 10), { username: childUser, password: childPass });
-      const response = await callRentalsUnited(creds, xml);
-      console.log(`[rentalsunited-api] get_building response: ${response.substring(0, 800)}`);
+      let xml = buildGetBuildingXml(creds, parseInt(String(bId), 10), childUser && childPass ? { username: childUser, password: childPass } : undefined);
+      let response = await callRentalsUnited(creds, xml);
+      if (!handleRUStatus(response).ok && childUser && childPass) {
+        // Sub-user login rejected on the XML API — retry with the parent envelope.
+        xml = buildGetBuildingXml(creds, parseInt(String(bId), 10));
+        response = await callRentalsUnited(creds, xml);
+      }
+
       const { ok, status } = handleRUStatus(response);
       if (!ok) return ruErrorResponse(status, buildDiagnostics(compactXml(xml), status, 'get_building', response));
       const buildingId = extractBuildingId(response);
