@@ -1,0 +1,1 @@
+ALTER TABLE public.property_portfolios ADD COLUMN IF NOT EXISTS owner_email text;

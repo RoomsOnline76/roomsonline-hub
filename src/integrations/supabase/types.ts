@@ -5608,6 +5608,7 @@ export type Database = {
           id: string
           metadata: Json | null
           name: string
+          owner_email: string | null
           owner_id: string | null
           parent_portfolio_id: string | null
           pricelabs_monthly_fee: number | null
@@ -5629,6 +5630,7 @@ export type Database = {
           id?: string
           metadata?: Json | null
           name: string
+          owner_email?: string | null
           owner_id?: string | null
           parent_portfolio_id?: string | null
           pricelabs_monthly_fee?: number | null
@@ -5650,6 +5652,7 @@ export type Database = {
           id?: string
           metadata?: Json | null
           name?: string
+          owner_email?: string | null
           owner_id?: string | null
           parent_portfolio_id?: string | null
           pricelabs_monthly_fee?: number | null
