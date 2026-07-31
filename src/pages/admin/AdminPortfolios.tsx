@@ -76,6 +76,7 @@ interface Portfolio {
   name: string;
   slug: string;
   owner_id: string | null;
+  owner_email?: string | null;
   created_at: string;
   metadata?: { branding?: PortfolioBranding } | null;
   aggregator_billing_mode?: "none" | "monthly" | "once_off" | null;
@@ -115,6 +116,7 @@ export default function AdminPortfolios() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [formName, setFormName] = useState("");
+  const [formOwnerEmail, setFormOwnerEmail] = useState("");
   const [formSlug, setFormSlug] = useState("");
   const [selectedProps, setSelectedProps] = useState<string[]>([]);
   const [propertySearch, setPropertySearch] = useState("");
@@ -235,6 +237,7 @@ export default function AdminPortfolios() {
         .from("property_portfolios" as any)
         .insert({
           name: formName,
+          owner_email: formOwnerEmail.trim() || null,
           slug: autoSlug,
           owner_id: user?.user?.id,
           metadata: { branding },
@@ -292,7 +295,7 @@ export default function AdminPortfolios() {
       };
       const { error } = await supabase
         .from("property_portfolios" as any)
-        .update({ name: formName, slug: autoSlug, metadata: { ...existingMeta, branding }, ...aggPayload } as any)
+        .update({ name: formName, owner_email: formOwnerEmail.trim() || null, slug: autoSlug, metadata: { ...existingMeta, branding }, ...aggPayload } as any)
         .eq("id", editPortfolio.id);
       if (error) throw error;
       // Sync members: delete all then re-insert
@@ -332,6 +335,7 @@ export default function AdminPortfolios() {
 
   const resetForm = () => {
     setFormName("");
+    setFormOwnerEmail("");
     setFormSlug("");
     setSelectedProps([]);
     setPropertySearch("");
@@ -357,6 +361,7 @@ export default function AdminPortfolios() {
 
   const openEdit = (p: Portfolio) => {
     setFormName(p.name);
+    setFormOwnerEmail(p.owner_email || "");
     setFormSlug(p.slug || "");
     const memberPropIds = members.filter((m) => m.portfolio_id === p.id).map((m) => m.property_id);
     setSelectedProps(memberPropIds);
@@ -430,6 +435,16 @@ export default function AdminPortfolios() {
     const memberPropIds = members.filter((m) => m.portfolio_id === pid).map((m) => m.property_id);
     return properties.filter((p) => memberPropIds.includes(p.id));
   };
+
+  // Owner emails present on the currently selected member properties — a portfolio can span
+  // several different owners, so the admin picks which one represents the portfolio.
+  const ownerEmailCandidates = Array.from(
+    new Set(
+      selectedProps
+        .map((pid) => properties.find((p) => p.id === pid)?.owner_email)
+        .filter((e): e is string => !!e && e.trim().length > 0),
+    ),
+  );
 
   const filteredProperties = properties.filter(
     (p) =>
@@ -534,6 +549,37 @@ export default function AdminPortfolios() {
           className="text-sm font-mono"
         />
         <p className="text-[10px] text-muted-foreground">Used in embed URLs: /embed/portfolio/{formSlug || "auto"}</p>
+      </div>
+
+      <div className="space-y-1">
+        <Label className="text-xs">Portfolio owner email</Label>
+        <Input
+          value={formOwnerEmail}
+          onChange={(e) => setFormOwnerEmail(e.target.value)}
+          placeholder="owner@example.com"
+          className="text-sm"
+          type="email"
+        />
+        <p className="text-[10px] text-muted-foreground">
+          Used as the portfolio contact and by the Rentals United sub-user (Phase 1). Properties in a
+          portfolio may have different owners — copy the one that should represent the portfolio.
+        </p>
+        {ownerEmailCandidates.length > 0 && (
+          <div className="flex flex-wrap gap-1 pt-1">
+            {ownerEmailCandidates.map((email) => (
+              <Button
+                key={email}
+                type="button"
+                size="sm"
+                variant={formOwnerEmail === email ? "secondary" : "outline"}
+                className="h-6 text-[10px]"
+                onClick={() => setFormOwnerEmail(email)}
+              >
+                {email}
+              </Button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Branding Section */}
