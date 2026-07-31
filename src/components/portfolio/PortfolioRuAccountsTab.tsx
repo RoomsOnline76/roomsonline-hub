@@ -401,6 +401,18 @@ export function PortfolioRuAccountsTab() {
                         <RotateCcw className="h-3 w-3" />
                         <span className="ml-1.5">Reset password</span>
                       </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs"
+                        onClick={() => openBind(acc.id, acc.ru_owner_id)}
+                      >
+                        <Link2 className="h-3 w-3" />
+                        <span className="ml-1.5">
+                          {acc.ru_owner_id ? "Rebind RU account" : "Bind RU account"}
+                        </span>
+                      </Button>
+
                       {acc.ru_user_id && (
                         <Badge variant="secondary" className="font-mono text-[10px]">
                           UID {acc.ru_user_id}
