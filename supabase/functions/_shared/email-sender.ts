@@ -109,14 +109,14 @@ export async function resolvePropertySender(
   }
 
   const isBranded =
-    !!opts.forceBranded || !!property.white_label_enabled || !!property.is_rolos_property;
+    !!opts.forceBranded || whiteLabelAllowed || !!property.is_rol_property;
 
   const slug = slugify(property.slug || property.name || "") || "noreply";
   const displayName = encodeDisplayName(property.name || "RoomsOnline");
   const from = `${displayName} <${slug}@${VERIFIED_DOMAIN}>`;
 
-  const websiteUrl = property.custom_domain
-    ? `https://${property.custom_domain}`
+  const websiteUrl = whiteLabelDomain
+    ? `https://${whiteLabelDomain}`
     : property.slug
     ? `https://book.sleepinafrica.roomsonline.co.za/p/${property.slug}`
     : undefined;
