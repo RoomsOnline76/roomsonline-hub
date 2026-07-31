@@ -1215,16 +1215,27 @@ Deno.serve(async (req) => {
       let userAccountId: string | null = null;
       let ruOwnerId: string | null = null;
       let adopted = false;
+      let adoptedEmail: string | null = null;
 
-      // 1) If RU already has a sub-user for this email (e.g. a prior attempt that
-      //    succeeded on RU's side but failed to save locally), adopt it instead of
-      //    trying to create a duplicate.
-      const preExisting = matchByEmail(await listRuUsers());
+      // 1) If RU already has a sub-user for this owner (e.g. a prior attempt that
+      //    succeeded on RU's side but failed to save locally, or a login renamed in the
+      //    RU portal), adopt it instead of trying to create a duplicate.
+      //    An explicit `ru_owner_id` in the request always wins — that is how an admin
+      //    binds a specific RU account when several match this owner.
+      const requestedOwnerId = usableRuId(body.ru_owner_id);
+      const candidateUsers = await listRuUsers();
+      const preExisting = (requestedOwnerId
+        ? candidateUsers.find((u) => usableRuId(u.owner_id) === requestedOwnerId) ?? null
+        : null)
+        ?? matchByEmail(candidateUsers)
+        ?? matchByStoredIdentity(candidateUsers, existing.account as any);
       if (preExisting) {
         userAccountId = preExisting.user_account_id ?? null;
         ruOwnerId = preExisting.owner_id ?? null;
+        adoptedEmail = String(preExisting.email ?? "").trim() || null;
         adopted = true;
       }
+
 
       if (!adopted) {
         const { data: created, error: createErr } = await admin.functions.invoke("rentalsunited-api", {
