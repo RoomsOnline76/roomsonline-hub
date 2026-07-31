@@ -2230,9 +2230,23 @@ Deno.serve(async (req) => {
 
           console.log(`[push-property-to-ru] Pushing standalone unit "${unit.name}" (existing RU ID: ${existingUnitRuId}, object_type_id: ${unitPayload.object_type_id})`);
 
-          const { data: pushResult, error: pushErr } = await supabase.functions.invoke('rentalsunited-api', {
+          let { data: pushResult, error: pushErr } = await supabase.functions.invoke('rentalsunited-api', {
             body: { action: 'push_property', ru_property_id: existingUnitRuId, property: unitPayload },
           });
+
+          // Stale RU ID recovery (see multi-unit flow): re-push as a create.
+          const staleIdError = /property does not exist/i.test(
+            String(pushErr?.message || pushResult?.error?.message || ''),
+          );
+          if (existingUnitRuId > 0 && (pushErr || !pushResult?.success) && staleIdError) {
+            console.warn(`[push-property-to-ru] Stale RU ID ${existingUnitRuId} for unit "${unit.name}" — recreating`);
+            await supabase.from('hostfully_room_types').update({ rentalsunited_property_id: null }).eq('id', unit.id);
+            const retry = await supabase.functions.invoke('rentalsunited-api', {
+              body: { action: 'push_property', ru_property_id: 0, property: unitPayload },
+            });
+            pushResult = retry.data;
+            pushErr = retry.error;
+          }
 
           if (pushErr || !pushResult?.success) {
             const errMsg = pushErr?.message || pushResult?.error?.message || 'Unknown error';
@@ -2241,7 +2255,7 @@ Deno.serve(async (req) => {
             continue;
           }
 
-          let unitRuId = existingUnitRuId > 0 ? String(existingUnitRuId) : null;
+          let unitRuId = existingUnitRuId > 0 && !staleIdError ? String(existingUnitRuId) : null;
           if (pushResult.raw_xml) {
             const extracted = extractRUPropertyId(pushResult.raw_xml);
             if (extracted) unitRuId = extracted;
@@ -2380,9 +2394,25 @@ Deno.serve(async (req) => {
 
         console.log(`[push-property-to-ru] Step 2: Pushing unit "${unit.name}" (existing RU ID: ${existingUnitRuId}, building: ${buildingId}, object_type_id: ${objTypeId})`);
 
-        const { data: pushResult, error: pushErr } = await supabase.functions.invoke('rentalsunited-api', {
+        let { data: pushResult, error: pushErr } = await supabase.functions.invoke('rentalsunited-api', {
           body: { action: 'push_property', ru_property_id: existingUnitRuId, property: unitPayload },
         });
+
+        // Stale RU ID recovery: a stored unit ID can point at a property that no longer
+        // exists under this owner (account recreated / unit deleted in RU). RU answers
+        // "Property does not exist." — drop the stale ID and re-push as a fresh create.
+        const staleIdError = /property does not exist/i.test(
+          String(pushErr?.message || pushResult?.error?.message || ''),
+        );
+        if (existingUnitRuId > 0 && (pushErr || !pushResult?.success) && staleIdError) {
+          console.warn(`[push-property-to-ru] Stale RU ID ${existingUnitRuId} for unit "${unit.name}" — recreating`);
+          await supabase.from('hostfully_room_types').update({ rentalsunited_property_id: null }).eq('id', unit.id);
+          const retry = await supabase.functions.invoke('rentalsunited-api', {
+            body: { action: 'push_property', ru_property_id: 0, property: unitPayload },
+          });
+          pushResult = retry.data;
+          pushErr = retry.error;
+        }
 
         if (pushErr || !pushResult?.success) {
           const errMsg = pushErr?.message || pushResult?.error?.message || 'Unknown error';
@@ -2391,8 +2421,9 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        // Extract and save RU property ID for this unit
-        let unitRuId = existingUnitRuId > 0 ? String(existingUnitRuId) : null;
+        // Extract and save RU property ID for this unit. A stale ID was cleared above,
+        // so never fall back to it — the retry create returns the real new ID.
+        let unitRuId = existingUnitRuId > 0 && !staleIdError ? String(existingUnitRuId) : null;
         if (pushResult.raw_xml) {
           const extracted = extractRUPropertyId(pushResult.raw_xml);
           if (extracted) unitRuId = extracted;
@@ -2440,9 +2471,19 @@ Deno.serve(async (req) => {
         .map((u: any) => ({ ruId: parseInt(u.rentalsunited_property_id, 10), roomTypeId: u.room_type_id }));
       const discountResult = await pushDiscounts(supabase, property_id, discountRuIds);
 
+      const anyUnitPushed = unitResults.some((u: any) => u.success);
       return new Response(
         JSON.stringify({
-          success: true,
+          // Do not report success when RU rejected every unit — the pipeline must not
+          // mark phase 3 complete on a building-only push.
+          success: anyUnitPushed,
+          ...(anyUnitPushed ? {} : {
+            error: {
+              code: 'RU_UNITS_REJECTED',
+              message: `Rentals United rejected all ${unitResults.length} unit(s)`,
+            },
+            blockers: unitResults.filter((u: any) => !u.success).map((u: any) => `${u.name}: ${u.error}`),
+          }),
           multi_unit: true,
           property_id,
           building_id: buildingId,
