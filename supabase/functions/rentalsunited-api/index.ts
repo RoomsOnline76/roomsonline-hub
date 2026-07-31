@@ -1136,13 +1136,21 @@ function missingCompanyFields(company: Partial<RUCompanyPayload>): string[] {
  * Sub-user ("child") authentication envelope. Push_FillCompanyDetails_RQ writes the
  * profile of whichever account authenticates, so filling a sub-user's own company
  * details requires logging in AS that sub-user.
+ *
+ * 🔒 The RU schema names the Authentication members <AccessKey>/<SecretKey> for EVERY
+ * request (see developer.rentalsunited.com → Push_FillCompanyDetails_RQ/Authentication).
+ * RU deserialises the envelope into a typed object, so <UserName>/<Password> elements are
+ * silently dropped and the request authenticates with EMPTY credentials → Status -4
+ * "Incorrect login or password" no matter how correct the sub-user password is.
+ * The child login/password go in AccessKey/SecretKey. Never rename these elements.
  */
 function buildChildAuthXml(username: string, password: string): string {
   return `<Authentication>
-    <UserName>${escapeXml(username)}</UserName>
-    <Password>${escapeXml(password)}</Password>
+    <AccessKey>${escapeXml(username)}</AccessKey>
+    <SecretKey>${escapeXml(password)}</SecretKey>
   </Authentication>`;
 }
+
 
 function buildFillCompanyDetailsXml(
   creds: RUCredentials,
