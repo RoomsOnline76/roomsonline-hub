@@ -1981,9 +1981,9 @@ Deno.serve(async (req) => {
       childPassword = typeof decrypted === 'string' ? decrypted : '';
     }
     if (isMultiUnit && !standalone_units && (!childUsername || !childPassword)) {
-      // Not fatal: the RU API layer falls back to the owner-scoped parent envelope when the
-      // sub-user login is unavailable or rejected on RU's XML surface.
-      console.warn('[push-property-to-ru] No usable RU sub-user credentials — building writes will use owner-scoped parent auth');
+      // Push_PutBuilding_RQ has no <OwnerID>: the building lands on whichever account
+      // authenticates, so a parent fallback would create it on our master account. Hard stop.
+      return new Response(JSON.stringify({ success: false, error: { code: 'RU_CHILD_AUTH_REQUIRED', message: 'The linked RU sub-user credentials are required to create or update its building inventory (RU creates buildings on the authenticating account).' } }), { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
 

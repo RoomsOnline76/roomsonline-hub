@@ -48,3 +48,17 @@ production properties. Ship-first-fix-later is not acceptable here.
 5. Re-deploy the affected edge function(s) and verify against a real property.
 
 _Last updated: 2026-07-31 (Rentals United sub-user isolation and inventory evidence gates)._
+
+
+## 🔒 Rentals United — child (sub-user) isolation
+
+`Push_FillCompanyDetails_RQ`, `Push_PutBuilding_RQ`, `Pull_ListBuildings_RQ` and `Pull_GetBuilding_RQ`
+have **no `<OwnerID>` element** in the RU schema: RU applies the write to whichever identity
+authenticates. Therefore:
+
+- These actions MUST authenticate with the child `UserName`/`Password` envelope.
+- NEVER add a parent `AccessKey`/`SecretKey` fallback — it silently writes to our **master**
+  company profile / building list, which breaks white-label isolation.
+- If the child login returns Status `-4` (Incorrect login or password), surface the error.
+  RU API Support must enable API login for child accounts (verified 2026-07-31: even a
+  freshly created sub-user with a known password is rejected on the XML surface).
