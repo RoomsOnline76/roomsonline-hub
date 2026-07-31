@@ -223,6 +223,8 @@ export default function AdminSalesReps() {
                   </Button>
                 </div>
                 <RepBankingForm repId={rep.id} />
+                <RepAgreementPanel rep={rep} />
+
               </CardContent>
             </Card>
           ))}
