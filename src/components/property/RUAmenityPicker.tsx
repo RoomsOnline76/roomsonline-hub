@@ -38,17 +38,27 @@ export default function RUAmenityPicker({ value, onChange, disabled }: RUAmenity
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const { data } = await supabase
-        .from("ru_amenities")
-        .select("id, name, category, is_recommended")
-        .eq("is_active", true)
-        .order("name");
+      // The RU dictionary is larger than PostgREST's default 1000-row window, so page it.
+      const page = 1000;
+      const all: RuAmenity[] = [];
+      for (let from = 0; from < 10000; from += page) {
+        const { data, error } = await supabase
+          .from("ru_amenities")
+          .select("id, name, category, is_recommended")
+          .eq("is_active", true)
+          .order("name")
+          .range(from, from + page - 1);
+        if (error || !data || data.length === 0) break;
+        all.push(...(data as RuAmenity[]));
+        if (data.length < page) break;
+      }
       if (cancelled) return;
-      setCatalogue((data ?? []) as RuAmenity[]);
+      setCatalogue(all);
       setLoading(false);
     })();
     return () => { cancelled = true; };
   }, []);
+
 
   const { ids: selectedIds, legacy } = useMemo(() => splitAmenityValues(value ?? []), [value]);
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
