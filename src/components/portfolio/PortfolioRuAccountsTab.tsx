@@ -32,6 +32,7 @@ import {
   Mail,
   RotateCcw,
   ShieldCheck,
+  Unlink,
   User2,
 } from "lucide-react";
 
@@ -127,6 +128,7 @@ export function PortfolioRuAccountsTab() {
 
   // Binding: RU can hold several sub-users for the same owner (and logins can be renamed
   // in the RU portal), so admins must be able to point a local row at a specific OwnerID.
+  // Unbind clears the local link entirely so Phase 1 can create a new sub-user.
   const [bindFor, setBindFor] = useState<{ id: string; ownerId: string | null } | null>(null);
   const [bindCandidates, setBindCandidates] = useState<
     { owner_id: string; email: string; user_account_id?: string }[]
@@ -179,6 +181,61 @@ export function PortfolioRuAccountsTab() {
     [bindFor, queryClient],
   );
 
+  const { data: accounts = [], isLoading } = useQuery({
+    queryKey: ["ru-owner-accounts"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("ru_owner_accounts")
+        .select("*")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data || []) as unknown as RuAccount[];
+    },
+  });
+
+  /** Clear the local RU OwnerID bind so Phase 1 can create a new sub-user. */
+  const unbindAccount = useCallback(async () => {
+    if (!bindFor) return;
+    const acc = accounts.find((a) => a.id === bindFor.id);
+    if (!acc) {
+      toast.error("Account not found");
+      return;
+    }
+    if (!acc.portfolio_id && !acc.property_id) {
+      toast.error(
+        "This account has no portfolio or property scope, so identity reset cannot target it.",
+      );
+      return;
+    }
+    setBinding("unbind");
+    try {
+      const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
+        body: {
+          action: "reset_phase1",
+          mode: "identity",
+          ...(acc.portfolio_id
+            ? { portfolio_id: acc.portfolio_id }
+            : { property_id: acc.property_id }),
+        },
+      });
+      if (error || !data?.success) {
+        toast.error(
+          data?.error?.message ||
+            (error
+              ? await extractFunctionError(error, "Could not unbind the RU account")
+              : "Could not unbind the RU account"),
+        );
+        return;
+      }
+      toast.success("RU account unbound — OwnerID cleared. Phase 1 can create a new sub-user.");
+      hideCredentials(acc.id);
+      setBindFor(null);
+      await queryClient.invalidateQueries({ queryKey: ["ru-owner-accounts"] });
+    } finally {
+      setBinding(null);
+    }
+  }, [bindFor, accounts, queryClient, hideCredentials]);
+
   const openReset = useCallback((accountId: string, email: string) => {
     setResetFor({ id: accountId, email });
     setResetEmail(email);
@@ -215,22 +272,6 @@ export function PortfolioRuAccountsTab() {
       setSaving(false);
     }
   }, [queryClient, resetEmail, resetFor, resetPassword]);
-
-
-
-
-
-  const { data: accounts = [], isLoading } = useQuery({
-    queryKey: ["ru-owner-accounts"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("ru_owner_accounts")
-        .select("*")
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return (data || []) as unknown as RuAccount[];
-    },
-  });
 
   const { data: portfolios = [] } = useQuery({
     queryKey: ["ru-portfolios-lite"],
@@ -449,7 +490,7 @@ export function PortfolioRuAccountsTab() {
                       >
                         <Link2 className="h-3 w-3" />
                         <span className="ml-1.5">
-                          {acc.ru_owner_id ? "Rebind RU account" : "Bind RU account"}
+                          {acc.ru_owner_id ? "Rebind / Unbind" : "Bind RU account"}
                         </span>
                       </Button>
 
@@ -458,9 +499,13 @@ export function PortfolioRuAccountsTab() {
                           UID {acc.ru_user_id}
                         </Badge>
                       )}
-                      {acc.ru_owner_id && (
+                      {acc.ru_owner_id ? (
                         <Badge variant="secondary" className="font-mono text-[10px]">
                           OwnerID {acc.ru_owner_id}
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                          Not bound
                         </Badge>
                       )}
                       <Badge
@@ -664,13 +709,41 @@ export function PortfolioRuAccountsTab() {
       <Dialog open={!!bindFor} onOpenChange={(o) => !o && setBindFor(null)}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Bind Rentals United sub-user</DialogTitle>
+            <DialogTitle>
+              {bindFor?.ownerId ? "Rebind or unbind RU sub-user" : "Bind Rentals United sub-user"}
+            </DialogTitle>
             <DialogDescription>
-              These are the sub-users Rentals United currently holds under our master account.
-              Pick the one this record should use — Phase 1 then reconnects to it instead of trying
-              to create a duplicate.
+              {bindFor?.ownerId
+                ? "Unbind clears the current OwnerID so Phase 1 can create a new sub-user. Or pick a different existing RU account below to rebind."
+                : "These are the sub-users Rentals United currently holds under our master account. Pick the one this record should use — Phase 1 then reconnects to it instead of trying to create a duplicate."}
             </DialogDescription>
           </DialogHeader>
+
+          {bindFor?.ownerId && (
+            <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 space-y-2">
+              <p className="text-xs">
+                Currently bound to OwnerID{" "}
+                <span className="font-mono font-medium">{bindFor.ownerId}</span>.
+                Unbind clears the OwnerID, stored password, and company-details flags on this
+                local row.
+              </p>
+              <Button
+                size="sm"
+                variant="destructive"
+                className="h-7 text-xs"
+                disabled={binding === "unbind"}
+                onClick={unbindAccount}
+              >
+                {binding === "unbind" ? (
+                  <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                ) : (
+                  <Unlink className="h-3 w-3 mr-1" />
+                )}
+                Unbind RU account
+              </Button>
+            </div>
+          )}
+
           {bindLoading ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
@@ -678,9 +751,15 @@ export function PortfolioRuAccountsTab() {
           ) : bindCandidates.length === 0 ? (
             <p className="text-xs text-muted-foreground py-4">
               Rentals United returned no sub-users under our master account.
+              {bindFor?.ownerId
+                ? " You can still Unbind above, then run Phase 1 to create a new sub-user."
+                : ""}
             </p>
           ) : (
             <div className="space-y-2">
+              <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
+                Or bind to an existing RU account
+              </p>
               {bindCandidates.map((u) => {
                 const isCurrent = bindFor?.ownerId === u.owner_id;
                 return (
@@ -713,4 +792,3 @@ export function PortfolioRuAccountsTab() {
     </div>
   );
 }
-
