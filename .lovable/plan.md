@@ -1,35 +1,31 @@
-## Confirmed diagnosis
+# RU-aligned room/unit amenities
 
-- The current database record is bound to **OwnerID 741761** with `rooms@roomsonline.co.za`, has an encrypted password, and is marked `auth_failed`.
-- **Reset password** does not reset anything in Rentals United. It first runs the same failing API verification and only saves locally if that probe succeeds.
-- Both **Verify stored** and **Verify & save** test portal credentials by sending `<UserName>/<Password>` in `Pull_ListOwnerProp_RQ`. A successful browser portal login does not prove that this XML API endpoint accepts portal credentials in that authentication envelope.
-- Phase 1 repeats the same assumption for `Push_FillCompanyDetails_RQ`, then misleadingly reports a correct portal password as incorrect.
-- The UI also collapses the function’s structured 422 response into “non-2xx,” hiding the useful RU status.
+## Current state (verified)
+- The Amenities sub-tab in `src/components/property/RoomManagerTab.tsx` offers only 4 hardcoded groups (~29 free-text labels: Bathroom, Bedroom, Food & Drink, Internet). Selections are stored as label strings on `amenities.room_types[].amenities`.
+- `supabase/functions/push-property-to-ru/index.ts` maps those labels to RU IDs through a hand-written `AMENITY_MAP` of ~50 keys — none of which match the labels shown in the UI (e.g. "Free WiFi" vs key `wifi`), so most selections do not map and the push pads amenities to reach RU's minimum of 10.
+- `rentalsunited-api` supports `Pull_ListCompositionRooms_RQ` but has **no** `Pull_ListAmenities_RQ` action, so RU's real amenity dictionary has never been fetched.
+- `RU_MIN_AMENITIES = 10` exists in `_shared/ruReadiness.ts` but is checked at property level only; rooms are only checked for "has beds/amenities".
 
-## Implementation plan
+## What to build
 
-1. **Fix verification before saving**
-   - Change the verification probe to test the RU-supported parent/child API authentication shapes explicitly, beginning with the configured master API credentials scoped to the bound OwnerID.
-   - Keep portal username/password verification separate and only label it verified if RU’s XML API genuinely accepts that envelope.
-   - Never overwrite or discard the encrypted password when an API envelope is unsupported.
+### 1. Fetch RU's amenity dictionary
+- Add a `list_amenities` action to `supabase/functions/rentalsunited-api/index.ts` issuing `Pull_ListAmenities_RQ` with master auth, plus a parser handling both attribute (`<Amenity AmenityID="6">`) and child-element response shapes.
+- New table `ru_amenities` (id int PK, name, category/static-group, is_active, synced_at) with GRANTs + RLS (read: authenticated; write: service_role only), populated by an admin-triggered `sync_amenities` action so the catalogue is cached and offline-safe.
 
-2. **Correct Phase 1 company-details authentication**
-   - Update `Push_FillCompanyDetails_RQ` to use the authentication/scoping shape proven by the verification probe.
-   - Pass the bound OwnerID explicitly where supported instead of treating the portal email as an API key.
-   - Remove misleading retries with email, numeric OwnerID, and child credentials in incompatible XML fields.
+### 2. Canonical catalogue + mapping
+- New `src/lib/ruAmenities.ts`: loads cached RU amenities, groups them into readable sections (Bathroom, Bedroom, Kitchen, Entertainment, Outdoor, Safety, Accessibility, Services, Internet, General), and exposes helpers to search/filter.
+- New shared `supabase/functions/_shared/ruAmenityMap.ts`: replaces the ad-hoc `AMENITY_MAP` with an alias table covering both the new RU-ID-based selections and every legacy label (so existing properties keep their data). Selections are stored going forward as `ru:<id>` tokens alongside a display name; legacy strings are resolved via the alias table.
 
-3. **Make reset/save behavior accurate**
-   - Rename the action in the UI to reflect that it stores a password reset in the RU portal rather than changing the RU password itself.
-   - Save the encrypted portal password independently from API capability, while recording separate states for portal credentials stored and API access verified.
-   - Preserve the existing binding and stored password during reconciliation failures.
+### 3. Rebuild the Amenities sub-tab (ROLOS Property Setup → Rooms → Amenities, and /admin/edit property → Rooms → Amenities)
+- Replace the 4 hardcoded columns with a grouped, searchable, collapsible checklist rendered from the RU catalogue (full option set, not a subset).
+- Header strip: live counter `X / 10 selected`, progress bar, "Copy amenities from another room type" and "Clear" actions; PMS-synced amenity banner preserved.
+- Amber warning under 10, green once satisfied; the count is per room type.
 
-4. **Expose the real failure**
-   - Use the existing structured function-error extractor for Verify and Save so the UI shows the RU status/code instead of “non-2xx.”
-   - Add sanitized diagnostics for the attempted auth style, bound OwnerID, RU status ID, and operation—never the password.
+### 4. Enforce the 10-amenity minimum before submission
+- Add a `rooms_meet_minimum_amenities` blocker to `_shared/ruReadiness.ts` (RU_MIN_AMENITIES per room/unit), surfaced in `PushToRentalsUnited.tsx` with a deep link to the offending room's Amenities tab.
+- `push-property-to-ru` fails with `RU_ROOM_AMENITIES_BELOW_MIN` instead of padding room-level amenities; property-level padding warning stays.
 
-5. **Deploy and verify in order**
-   - Deploy `rentalsunited-api` first, then `ru-cert-portal`.
-   - Test the non-destructive credential/API probe for the bound account.
-   - Save the portal password, re-run Phase 1 company details, and confirm `company_details_sent`, `company_details_status`, and the Phase 1 UI advance together.
-
-No locked reservation/availability adapter is involved; changes are limited to RU account onboarding/authentication and its admin UI.
+## Technical notes
+- RU credentials/owner scoping reuse the existing resolver in `rentalsunited-api`; no adapter-locked regions are touched (`.lovable/ADAPTER_LOCKS.md` does not cover the amenity path).
+- Migration includes GRANTs for `authenticated` (select) and `service_role` (all) on `ru_amenities`.
+- If the live `Pull_ListAmenities_RQ` call returns an error for our account, the catalogue falls back to a seeded snapshot committed in `ruAmenities.ts` so the UI still ships the expanded list.
