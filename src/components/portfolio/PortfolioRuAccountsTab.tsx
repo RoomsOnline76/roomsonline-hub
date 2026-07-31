@@ -143,7 +143,7 @@ export function PortfolioRuAccountsTab() {
 
   // Unbinding a portfolio's RU sub-user also clears the portfolio owner email, so the admin
   // is prompted to re-choose which member property's owner should represent the portfolio.
-  const [ownerEmailFor, setOwnerEmailFor] = useState<{ portfolioId: string; name: string } | null>(null);
+  const [ownerEmailFor, setOwnerEmailFor] = useState<{ portfolioId: string } | null>(null);
   const [ownerEmailChoice, setOwnerEmailChoice] = useState("");
   const [savingOwnerEmail, setSavingOwnerEmail] = useState(false);
 
@@ -244,10 +244,7 @@ export function PortfolioRuAccountsTab() {
           .update({ owner_email: null } as never)
           .eq("id", acc.portfolio_id);
         queryClient.invalidateQueries({ queryKey: ["ru-portfolios-lite"] });
-        setOwnerEmailFor({
-          portfolioId: acc.portfolio_id,
-          name: portfolioById.get(acc.portfolio_id)?.name || "this portfolio",
-        });
+        setOwnerEmailFor({ portfolioId: acc.portfolio_id });
         setOwnerEmailChoice("");
       }
       toast.success("RU account unbound — OwnerID cleared. Phase 1 can create a new sub-user.");
@@ -257,7 +254,7 @@ export function PortfolioRuAccountsTab() {
     } finally {
       setBinding(null);
     }
-  }, [bindFor, accounts, refreshAccounts, hideCredentials, queryClient, portfolioById]);
+  }, [bindFor, accounts, refreshAccounts, hideCredentials, queryClient]);
 
   const ownerEmailOptions = useMemo(() => {
     if (!ownerEmailFor) return [] as string[];
@@ -778,7 +775,8 @@ export function PortfolioRuAccountsTab() {
           <DialogHeader>
             <DialogTitle>Choose the portfolio owner email</DialogTitle>
             <DialogDescription>
-              The owner email for {ownerEmailFor?.name} was cleared with the unbind. Pick one of the
+              The owner email for{" "}
+              {(ownerEmailFor && portfolioById.get(ownerEmailFor.portfolioId)?.name) || "this portfolio"} was cleared with the unbind. Pick one of the
               member properties' owners (or type another) — Phase 1 uses this for the new RU sub-user.
             </DialogDescription>
           </DialogHeader>
