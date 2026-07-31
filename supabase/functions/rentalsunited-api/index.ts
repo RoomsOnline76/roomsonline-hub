@@ -888,14 +888,25 @@ function buildListAmenitiesXml(creds: RUCredentials): string {
 function extractAmenities(xml: string): { id: number; name: string; group_id: number | null }[] {
   const results: { id: number; name: string; group_id: number | null }[] = [];
   const seen = new Set<number>();
+  const decode = (s: string) =>
+    s
+      .replace(/&amp;amp;/gi, '&')
+      .replace(/&amp;/gi, '&')
+      .replace(/&lt;/gi, '<')
+      .replace(/&gt;/gi, '>')
+      .replace(/&quot;/gi, '"')
+      .replace(/&#39;|&apos;/gi, "'")
+      .replace(/\s+/g, ' ')
+      .trim();
   const push = (rawId: string, rawName: string, rawGroup?: string | null) => {
     const id = parseInt(rawId, 10);
-    const name = rawName.replace(/<[^>]+>/g, '').trim();
+    const name = decode(rawName.replace(/<[^>]+>/g, ''));
     if (!Number.isFinite(id) || id <= 0 || !name || seen.has(id)) return;
     seen.add(id);
     const group = rawGroup ? parseInt(rawGroup, 10) : NaN;
     results.push({ id, name, group_id: Number.isFinite(group) ? group : null });
   };
+
 
   // Format A/B: attribute id + text content
   const attrRegex = /<Amenity\b([^>]*)>([\s\S]*?)<\/Amenity>/gi;
