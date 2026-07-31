@@ -300,7 +300,7 @@ export function PortfolioRuAccountsTab() {
       const { data } = await supabase
         .from("property_portfolios")
         .select("id, name, slug, owner_email");
-      return (data || []) as { id: string; name: string; slug: string }[];
+      return (data || []) as { id: string; name: string; slug: string; owner_email: string | null }[];
     },
   });
 
