@@ -43,7 +43,12 @@ export interface PropertyReferral {
   clawback_until: string | null;
   converted_at: string | null;
   created_at: string;
+  first_year_rate_override: number | null;
+  residual_rate_override: number | null;
+  residual_months_override: number | null;
+  override_notes: string | null;
 }
+
 
 export function usePropertyReferrals(propertyId?: string) {
   return useQuery({
