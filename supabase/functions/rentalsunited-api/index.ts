@@ -1771,47 +1771,72 @@ Deno.serve(async (req) => {
     }
 
     // ── push_building ──
+    // RU building writes are ideally authenticated AS the sub-user so the building lands on
+    // the child profile. Some sub-user logins are not valid on the XML API surface and return
+    // "Incorrect login or password"; in that case we fall back to the parent AccessKey/SecretKey
+    // envelope (same tolerance as fill_company_details) so onboarding is not dead-ended.
     if (action === 'push_building') {
       if (!body.building_name) return errorResponse('MISSING_PARAM', 'building_name is required');
       const childUser = typeof body.auth_username === 'string' ? body.auth_username.trim() : '';
       const childPass = typeof body.auth_password === 'string' ? body.auth_password : '';
-      if (!childUser || !childPass) return errorResponse('RU_CHILD_AUTH_REQUIRED', 'Linked RU sub-user credentials are required for building writes');
       const bId = body.building_id || 0;
-      const xml = buildPushBuildingXml(creds, bId, body.building_name, body.unit_types, { username: childUser, password: childPass });
-      const compactRequestXml = compactXml(xml);
-      const response = await callRentalsUnited(creds, xml);
-      console.log(`[rentalsunited-api] Push building response: ${response.substring(0, 500)}`);
-      const { ok, status } = handleRUStatus(response);
-      if (!ok) return ruErrorResponse(status, buildDiagnostics(compactRequestXml, status, 'push_building', response));
-      const buildingId = extractBuildingId(response);
-      const unitTypeObjectIds = extractUnitTypeObjectIds(response);
-      return jsonResponse({
-        success: true,
-        building_id: buildingId ? parseInt(buildingId, 10) : null,
-        unit_type_object_ids: unitTypeObjectIds,
-        message: 'Building pushed successfully',
-        raw_xml: response,
-        diagnostics: {
-          request_preview: previewXml(sanitizeXmlForLogs(compactRequestXml), 600),
-          request_xml: sanitizeXmlForLogs(compactRequestXml),
-          response_preview: previewXml(response, 600),
-          unit_type_count: unitTypeObjectIds.length,
-        },
-      });
+      const attempts: Array<{ mode: string; childAuth: { username: string; password: string } | null }> = [];
+      if (childUser && childPass) attempts.push({ mode: 'child_user_password', childAuth: { username: childUser, password: childPass } });
+      attempts.push({ mode: 'parent_access_key', childAuth: null });
+
+      let lastXml = '';
+      let lastResponse = '';
+      let lastStatus: unknown = null;
+      for (const attempt of attempts) {
+        lastXml = buildPushBuildingXml(creds, bId, body.building_name, body.unit_types, attempt.childAuth ?? undefined);
+        lastResponse = await callRentalsUnited(creds, lastXml);
+        const { ok, status } = handleRUStatus(lastResponse);
+        lastStatus = status;
+        console.log(`[rentalsunited-api] Push building (auth=${attempt.mode}) ok=${ok} response: ${lastResponse.substring(0, 500)}`);
+        if (!ok) continue;
+        const buildingId = extractBuildingId(lastResponse);
+        const unitTypeObjectIds = extractUnitTypeObjectIds(lastResponse);
+        return jsonResponse({
+          success: true,
+          building_id: buildingId ? parseInt(buildingId, 10) : null,
+          unit_type_object_ids: unitTypeObjectIds,
+          auth_mode: attempt.mode,
+          message: 'Building pushed successfully',
+          raw_xml: lastResponse,
+          diagnostics: {
+            request_preview: previewXml(sanitizeXmlForLogs(compactXml(lastXml)), 600),
+            request_xml: sanitizeXmlForLogs(compactXml(lastXml)),
+            response_preview: previewXml(lastResponse, 600),
+            unit_type_count: unitTypeObjectIds.length,
+          },
+        });
+      }
+      return ruErrorResponse(
+        lastStatus as never,
+        buildDiagnostics(sanitizeXmlForLogs(compactXml(lastXml)), lastStatus as never, 'push_building', lastResponse),
+      );
     }
 
     // ── list_buildings ──
     if (action === 'list_buildings') {
       const childUser = typeof body.auth_username === 'string' ? body.auth_username.trim() : '';
       const childPass = typeof body.auth_password === 'string' ? body.auth_password : '';
-      if (!childUser || !childPass) return errorResponse('RU_CHILD_AUTH_REQUIRED', 'Linked RU sub-user credentials are required to list buildings');
-      const xml = buildListBuildingsXml(creds, { username: childUser, password: childPass });
-      const response = await callRentalsUnited(creds, xml);
-      const { ok, status } = handleRUStatus(response);
-      if (!ok) return ruErrorResponse(status);
-      const buildings = extractBuildings(response);
-      return jsonResponse({ success: true, buildings, count: buildings.length, raw_xml: response });
+      const attempts = childUser && childPass
+        ? [{ username: childUser, password: childPass } as { username: string; password: string } | null, null]
+        : [null];
+      let lastStatus: unknown = null;
+      for (const childAuth of attempts) {
+        const xml = buildListBuildingsXml(creds, childAuth ?? undefined);
+        const response = await callRentalsUnited(creds, xml);
+        const { ok, status } = handleRUStatus(response);
+        lastStatus = status;
+        if (!ok) continue;
+        const buildings = extractBuildings(response);
+        return jsonResponse({ success: true, buildings, count: buildings.length, raw_xml: response });
+      }
+      return ruErrorResponse(lastStatus as never);
     }
+
 
     // ── list_composition_rooms ──
     // Fetch the global RU dictionary of valid CompositionRoomIDs so we can
