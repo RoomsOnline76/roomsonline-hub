@@ -983,21 +983,36 @@ Deno.serve(async (req) => {
         let fillErr: any = null;
         let lastMessage = "";
         const maxAttempts = passwordIsOurs ? 4 : 3;
+        // RU can provision a child account whose API login is the numeric
+        // UserAccountId/OwnerID even though the portal login shown to admins is
+        // the email address. Try every RU-issued identity with the same retained
+        // password before treating that password as stale.
+        const authUsernames = Array.from(new Set([
+          account.ru_login_email,
+          ownerEmail,
+          account.ru_user_id,
+          account.ru_owner_id,
+        ].map((value) => String(value ?? "").trim()).filter(Boolean)));
         for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-          const res = await admin.functions.invoke("rentalsunited-api", {
-            body: {
-              action: "fill_company_details",
-              company,
-              auth_username: account.ru_login_email ?? ownerEmail,
-              auth_password: password,
-            },
-          });
-          filled = res.data;
-          fillErr = res.error;
+          for (const authUsername of authUsernames) {
+            const res = await admin.functions.invoke("rentalsunited-api", {
+              body: {
+                action: "fill_company_details",
+                company,
+                auth_username: authUsername,
+                auth_password: password,
+              },
+            });
+            filled = res.data;
+            fillErr = res.error;
+            if (!fillErr && filled?.success) break;
+            lastMessage = String(
+              (filled as any)?.error?.message ?? fillErr?.message ?? "Rentals United rejected the company details",
+            );
+            const authRejected = (filled as any)?.error?.code === "RU_SUBUSER_AUTH_FAILED";
+            if (!authRejected) break;
+          }
           if (!fillErr && filled?.success) break;
-          lastMessage = String(
-            (filled as any)?.error?.message ?? fillErr?.message ?? "Rentals United rejected the company details",
-          );
           // Validation/schema and credential rejections will never succeed on retry.
           if ((filled as any)?.error?.code === "RU_SUBUSER_AUTH_FAILED") {
             if (passwordIsOurs) {
@@ -1015,7 +1030,7 @@ Deno.serve(async (req) => {
               return {
                 sent: false,
                 error:
-                  `Rentals United rejected our stored sub-user login for ${account.ru_login_email ?? ownerEmail} after ${maxAttempts} attempts (${lastMessage}). The password we hold is the one RU accepted at creation — if this persists, reset it in the Rentals United portal and save the new value under Portfolios → RU accounts.`,
+                  `Rentals United rejected every issued login identity for ${account.ru_login_email ?? ownerEmail} after ${maxAttempts} attempts (${lastMessage}). The password we hold is the one RU accepted at creation — if this persists, reset it in the Rentals United portal and save the new value under Portfolios → RU accounts.`,
               };
             }
             await admin
