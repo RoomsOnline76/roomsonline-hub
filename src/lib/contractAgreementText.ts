@@ -249,8 +249,9 @@ export function generateSignedContractHTML(
   <h2>2. THE PROPERTY</h2>
   ${propertySection}
 
-  <h2>3. COMMISSION</h2>
-  <p>Roomsonline charges a commission of <strong>ten percent (10%)</strong> (VAT exclusive) of the Total Booking Value.</p>
+  <h2>3. COMMISSION AND FEES</h2>
+  ${renderFeeSection(feeTerms)}
+
 
   ${signatureBlockHtml}
   
