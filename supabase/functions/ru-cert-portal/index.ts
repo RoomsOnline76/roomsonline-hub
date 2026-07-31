@@ -1155,15 +1155,11 @@ Deno.serve(async (req) => {
         });
       }
 
-      if (action === "ensure_company_details") {
-        return json({
-          success: false,
-          error: {
-            code: "NO_RU_SUBUSER",
-            message: "No Rentals United sub-user exists yet for this owner — run Create sub-user first.",
-          },
-        }, 409);
-      }
+      // `ensure_company_details` used to hard-fail with 409 here when the stored RU
+      // identity was missing or stale. That left the operator stuck on a dead button,
+      // so instead we self-heal: fall through and (re)create the sub-user, which then
+      // submits the company details atomically.
+
 
 
 
