@@ -1194,9 +1194,9 @@ export function RoomManagerTab({
                   </div>
                 </div>
               ) : (
-                <div className="bg-warning-surface border border-warning-border rounded-md p-2 mb-4">
-                  <p className="text-sm text-warning">
-                    <strong>Manual Entry:</strong> Amenities are not available from the PMS API. Select the amenities available in this room type.
+                <div className="bg-muted border border-border rounded-md p-2 mb-4">
+                  <p className="text-sm text-muted-foreground">
+                    Amenities are managed here in ROLOS — the selection below is the source of truth pushed to Rentals United and downstream channels.
                   </p>
                 </div>
               );
