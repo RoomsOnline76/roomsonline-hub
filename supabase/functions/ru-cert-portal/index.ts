@@ -1016,7 +1016,8 @@ Deno.serve(async (req) => {
       ) => {
         if (!account?.id) return { sent: false, error: "No local RU account row" };
         // Idempotent: treat it as done only when RU actually confirmed it.
-        if (account.company_details_sent === true && account.company_filled_at) {
+        // `force: true` re-submits (e.g. the RU portal profile is still blank).
+        if (body.force !== true && account.company_details_sent === true && account.company_filled_at) {
           return { sent: true, skipped: true as const };
         }
 
