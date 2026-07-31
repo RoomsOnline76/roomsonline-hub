@@ -144,12 +144,16 @@ export function ContractManagementPanel({
             owner_key_representative: amenities?.key_representative || ownerName || 'N/A',
           };
 
-          // Enrich with billing variables for v2 PMS contracts
+          // Enrich with billing-driven variables (portfolio-aware, global defaults as base)
           const propertyIds = ownerProperties.map(p => p.id).filter(Boolean);
           if (propertyIds.length > 0) {
             try {
               const billingVars = await resolveBillingContractVariables(propertyIds);
-              Object.assign(ownerVariables, billingVars);
+              Object.assign(ownerVariables, billingVariablesToMap(billingVars));
+              // Legacy listing-agreement placeholders share the resolved listing rate
+              ownerVariables.commission_percentage = billingVars.listing_commission_rate;
+              ownerVariables.listing_commission_percentage = billingVars.listing_commission_rate;
+              ownerVariables.pms_commission_percentage = billingVars.pms_commission_rate;
               // Also map v2 template fields
               ownerVariables.property_name = amenities?.registered_business_name || ownerName || ownerProperties[0]?.name || 'N/A';
               ownerVariables.registered_business_name = amenities?.registered_business_name || 'N/A';
@@ -165,6 +169,16 @@ export function ContractManagementPanel({
               ownerVariables.signature_date = new Date().toLocaleDateString('en-ZA', { year: 'numeric', month: 'long', day: 'numeric' });
             } catch (e) {
               console.error('Failed to resolve billing variables:', e);
+            }
+          }
+
+          // Referral / sales-rep agreements: fill commission economics from the rep tier
+          if (/\{\{(first_year_rate|residual_rate|rep_code)\}\}/.test(templateVersion.content_markdown)) {
+            try {
+              const repResult = await resolveRepContractVariables({ email: ownerEmail });
+              if (repResult) Object.assign(ownerVariables, repResult.variables);
+            } catch (e) {
+              console.error('Failed to resolve rep contract variables:', e);
             }
           }
 
