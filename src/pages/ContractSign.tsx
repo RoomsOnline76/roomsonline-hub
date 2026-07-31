@@ -569,6 +569,14 @@ export default function ContractSign() {
           property_details: propertyDetails,
           contract_type: contract.contract_type || 'property',
           pending_property_data: requiresPropertyDetails ? pendingPropertyData : undefined,
+          terms_snapshot: (billingVars || repVars)
+            ? {
+                billing: billingVars ? billingVariablesToMap(billingVars) : null,
+                billing_scope: billingVars?.scope ?? null,
+                billing_sources: billingVars?.sources ?? null,
+                rep: repVars ?? null,
+              }
+            : undefined,
         },
       });
 
