@@ -1132,18 +1132,31 @@ function missingCompanyFields(company: Partial<RUCompanyPayload>): string[] {
   return missing;
 }
 
+/**
+ * Sub-user ("child") authentication envelope. Push_FillCompanyDetails_RQ writes the
+ * profile of whichever account authenticates, so filling a sub-user's own company
+ * details requires logging in AS that sub-user.
+ */
+function buildChildAuthXml(username: string, password: string): string {
+  return `<Authentication>
+    <UserName>${escapeXml(username)}</UserName>
+    <Password>${escapeXml(password)}</Password>
+  </Authentication>`;
+}
+
 function buildFillCompanyDetailsXml(
   creds: RUCredentials,
   company: RUCompanyPayload,
   ownerId: number,
+  childAuth?: { username: string; password: string } | null,
 ): string {
   const optNode = (tag: string, val?: string | number) =>
     val !== undefined && val !== null && String(val).trim() !== '' ? `<${tag}>${escapeXml(String(val))}</${tag}>` : '';
   const locations = (company.location_ids ?? []).map((id) => `      <Location Id="${Number(id)}" />`).join('\n');
   return `<?xml version="1.0" encoding="utf-8"?>
 <Push_FillCompanyDetails_RQ>
-  ${buildAuthXml(creds)}
-  <OwnerID>${ownerId}</OwnerID>
+  ${childAuth ? buildChildAuthXml(childAuth.username, childAuth.password) : buildAuthXml(creds)}
+  ${childAuth ? '' : `<OwnerID>${ownerId}</OwnerID>`}
   <ContactInfo>
     <FirstName>${escapeXml(company.first_name)}</FirstName>
     <LastName>${escapeXml(company.last_name)}</LastName>
