@@ -101,6 +101,60 @@ export function PortfolioRuAccountsTab() {
   const [resetEmail, setResetEmail] = useState("");
   const [saving, setSaving] = useState(false);
 
+  // Binding: RU can hold several sub-users for the same owner (and logins can be renamed
+  // in the RU portal), so admins must be able to point a local row at a specific OwnerID.
+  const [bindFor, setBindFor] = useState<{ id: string; ownerId: string | null } | null>(null);
+  const [bindCandidates, setBindCandidates] = useState<
+    { owner_id: string; email: string; user_account_id?: string }[]
+  >([]);
+  const [bindLoading, setBindLoading] = useState(false);
+  const [binding, setBinding] = useState<string | null>(null);
+
+  const openBind = useCallback(async (accountId: string, ownerId: string | null) => {
+    setBindFor({ id: accountId, ownerId });
+    setBindCandidates([]);
+    setBindLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
+        body: { action: "list_ru_candidates" },
+      });
+      if (error || !data?.success) {
+        toast.error(data?.error?.message || error?.message || "Could not load RU sub-users");
+        return;
+      }
+      setBindCandidates(data.users || []);
+    } finally {
+      setBindLoading(false);
+    }
+  }, []);
+
+  const bindAccount = useCallback(
+    async (ruOwnerId: string, loginEmail: string) => {
+      if (!bindFor) return;
+      setBinding(ruOwnerId);
+      try {
+        const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
+          body: {
+            action: "bind_ru_account",
+            account_id: bindFor.id,
+            ru_owner_id: ruOwnerId,
+            login_email: loginEmail,
+          },
+        });
+        if (error || !data?.success) {
+          toast.error(data?.error?.message || error?.message || "Could not bind the RU account");
+          return;
+        }
+        toast.success(`Bound to OwnerID ${ruOwnerId}`);
+        setBindFor(null);
+        await refetchAccounts();
+      } finally {
+        setBinding(null);
+      }
+    },
+    [bindFor],
+  );
+
   const openReset = useCallback((accountId: string, email: string) => {
     setResetFor({ id: accountId, email });
     setResetEmail(email);
@@ -130,6 +184,7 @@ export function PortfolioRuAccountsTab() {
       setSaving(false);
     }
   }, [resetEmail, resetFor, resetPassword]);
+
 
 
 
