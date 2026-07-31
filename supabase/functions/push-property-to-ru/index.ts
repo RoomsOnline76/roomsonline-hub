@@ -2179,7 +2179,7 @@ Deno.serve(async (req) => {
           unitResults.push({
             name: unit.name,
             room_type_id: unit.id,
-            success: true,
+            success: ruIdNum > 0 && !ariResult.availability_error && !ariResult.prices_error,
             rentalsunited_property_id: unitRuId,
             ari: ariResult,
             diagnostics: pushResult?.diagnostics,

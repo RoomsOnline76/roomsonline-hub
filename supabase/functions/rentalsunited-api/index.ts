@@ -1978,10 +1978,8 @@ Deno.serve(async (req) => {
         compactXml(x)
           .replace(/<Password>[\s\S]*?<\/Password>/g, '<Password>***</Password>')
           .replace(/<SecretKey>[\s\S]*?<\/SecretKey>/g, '<SecretKey>***</SecretKey>');
-      // RU applies the details to whichever account authenticates. Authenticate AS the
-      // sub-user when we hold its portal credentials, so the fields land on the owner's
-      // own RU profile instead of the RoomsOnline master account. Parent + <OwnerID> is
-      // only a fallback for adopted accounts with no stored password.
+      // RU applies the details to whichever account authenticates. Authenticate only AS
+      // the linked sub-user so fields can never land on the RoomsOnline master account.
       const childUser = typeof body.auth_username === 'string' ? body.auth_username.trim() : '';
       const childPass = typeof body.auth_password === 'string' ? body.auth_password : '';
       if (!childUser || !childPass) {

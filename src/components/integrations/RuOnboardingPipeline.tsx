@@ -318,6 +318,12 @@ export function RuOnboardingPipeline({ propertyId, readOnly = false, standalone 
                     {statusBadge(phase.status)}
                   </div>
                   <p className="mt-1 text-sm text-muted-foreground">{PHASE_HINT[phase.key]}</p>
+                  {(phase.key === "p3_push" || phase.key === "p4_verify") && phase.detail?.ru_owner_id != null && (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Linked RU OwnerID: <span className="font-medium text-foreground">{String(phase.detail.ru_owner_id)}</span>
+                      {phase.key === "p4_verify" && ` · Verification: ${phase.detail.verified === true ? "passed" : "pending"}`}
+                    </p>
+                  )}
                   {phase.blockers.length > 0 && (
                     <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-destructive">
                       {phase.blockers.map((b, i) => (
