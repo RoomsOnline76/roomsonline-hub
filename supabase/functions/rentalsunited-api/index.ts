@@ -2003,46 +2003,44 @@ Deno.serve(async (req) => {
         compactXml(x)
           .replace(/<Password>[\s\S]*?<\/Password>/g, '<Password>***</Password>')
           .replace(/<SecretKey>[\s\S]*?<\/SecretKey>/g, '<SecretKey>***</SecretKey>');
-      // RU applies the details to whichever identity authenticates. Preferred path is the
-      // linked sub-user login (UserName/Password). Some sub-user logins are not valid on the
-      // XML API surface (e.g. the login email collides with the master account, or RU has not
-      // enabled API access for that child yet) and return "Incorrect login or password".
-      // In that case fall back to the parent AccessKey/SecretKey envelope scoped by <OwnerID>,
-      // which RU accepts and still applies the details to the child account.
+      // 🔒 ADAPTER LOCK (RU child isolation): Push_FillCompanyDetails_RQ has NO <OwnerID> element
+      // in the RU schema — RU applies the details to whichever identity authenticates. Using the
+      // parent AccessKey/SecretKey therefore overwrites the MASTER company profile, never the
+      // child's. Child UserName/Password is the only valid path; never add a parent fallback.
       const childUser = typeof body.auth_username === 'string' ? body.auth_username.trim() : '';
       const childPass = typeof body.auth_password === 'string' ? body.auth_password : '';
-      const attempts: Array<{ mode: string; childAuth: { username: string; password: string } | null }> = [];
-      if (childUser && childPass) {
-        attempts.push({ mode: 'child_user_password', childAuth: { username: childUser, password: childPass } });
+      if (!childUser || !childPass) {
+        return jsonResponse({
+          success: false,
+          error: {
+            code: 'RU_CHILD_AUTH_REQUIRED',
+            message: 'Company details must be submitted with the RU sub-user login (username + password). Save the sub-user password in Portfolios → RU accounts and retry.',
+          },
+        }, 422);
       }
-      attempts.push({ mode: 'parent_access_key_owner_scope', childAuth: null });
-
-
-      let lastXml = '';
-      let lastResponse = '';
-      let lastStatus: unknown = null;
-      for (const attempt of attempts) {
-        lastXml = buildFillCompanyDetailsXml(creds, body.company as RUCompanyPayload, ownerId, attempt.childAuth);
-        lastResponse = await callRentalsUnited(creds, lastXml);
-        const { ok, status } = handleRUStatus(lastResponse);
-        lastStatus = status;
-        console.log(
-          `[rentalsunited-api] FillCompanyDetails (auth=${attempt.mode}, owner=${ownerId}) ok=${ok} response: ${lastResponse.substring(0, 500)}`,
-        );
-        if (ok) {
-          return jsonResponse({
-            success: true,
-            message: 'Company details filled successfully',
-            auth_mode: attempt.mode,
-            owner_id: String(ownerId),
-            raw_xml: lastResponse,
-          });
-        }
+      const xml = buildFillCompanyDetailsXml(creds, body.company as RUCompanyPayload, ownerId, {
+        username: childUser,
+        password: childPass,
+      });
+      const response = await callRentalsUnited(creds, xml);
+      const { ok, status } = handleRUStatus(response);
+      console.log(
+        `[rentalsunited-api] FillCompanyDetails (auth=child_user_password, owner=${ownerId}) ok=${ok} response: ${response.substring(0, 500)}`,
+      );
+      if (ok) {
+        return jsonResponse({
+          success: true,
+          message: 'Company details filled successfully',
+          auth_mode: 'child_user_password',
+          owner_id: String(ownerId),
+          raw_xml: response,
+        });
       }
       return ruErrorResponse(
-        lastStatus as never,
-        buildDiagnostics(maskXml(lastXml), lastStatus as never, 'fill_company_details', lastResponse),
+        status,
+        buildDiagnostics(maskXml(xml), status, 'fill_company_details', response),
       );
+
     }
 
 
