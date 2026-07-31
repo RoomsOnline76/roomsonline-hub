@@ -1210,6 +1210,10 @@ Deno.serve(async (req) => {
           if (permanent || attempt === maxAttempts) break;
           await new Promise((r) => setTimeout(r, attempt * 900));
         }
+        if (/incorrect login or password/i.test(lastMessage)) {
+          lastMessage =
+            "Rentals United rejected the sub-user login on the XML API (Status -4). Company details can only be written by authenticating AS the sub-user (Push_FillCompanyDetails_RQ has no OwnerID element), so RU API Support must enable API login for child accounts under our master account, or the sub-user password must be reset in the RU portal and saved here.";
+        }
         if (fillErr || !filled?.success) {
           await admin
             .from("ru_owner_accounts")
