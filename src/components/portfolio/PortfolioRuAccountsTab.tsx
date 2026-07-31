@@ -297,7 +297,9 @@ export function PortfolioRuAccountsTab() {
   const { data: portfolios = [] } = useQuery({
     queryKey: ["ru-portfolios-lite"],
     queryFn: async () => {
-      const { data } = await supabase.from("property_portfolios").select("id, name, slug");
+      const { data } = await supabase
+        .from("property_portfolios")
+        .select("id, name, slug, owner_email");
       return (data || []) as { id: string; name: string; slug: string }[];
     },
   });
