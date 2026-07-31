@@ -377,6 +377,58 @@ export function RuOnboardingPipeline({ propertyId, readOnly = false, standalone 
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={resetOpen} onOpenChange={setResetOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Restart Phase 1</DialogTitle>
+            <DialogDescription>
+              Choose how far back to reset the Rentals United owner onboarding for this portfolio.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 text-sm text-muted-foreground">
+            <p>
+              <strong className="text-foreground">Re-open company details</strong> keeps the existing sub-user and
+              OwnerID, and lets you re-submit the company profile to Rentals United.
+            </p>
+            <p>
+              <strong className="text-foreground">Unbind sub-user</strong> also clears the stored OwnerID and password,
+              so the flow starts again at “Create sub-user”. The account is not deleted inside Rentals United.
+            </p>
+          </div>
+          <DialogFooter className="flex-col gap-2 sm:flex-row">
+            <Button
+              variant="outline"
+              disabled={busy !== null}
+              onClick={async () => {
+                setResetOpen(false);
+                await runAction(
+                  "p1_subuser",
+                  { action: "reset_phase1", property_id: propertyId, mode: "details" },
+                  "Phase 1 company details re-opened",
+                );
+              }}
+            >
+              Re-open company details
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={busy !== null}
+              onClick={async () => {
+                setResetOpen(false);
+                await runAction(
+                  "p1_subuser",
+                  { action: "reset_phase1", property_id: propertyId, mode: "identity" },
+                  "Phase 1 reset — sub-user unbound",
+                );
+              }}
+            >
+              Unbind sub-user
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 
