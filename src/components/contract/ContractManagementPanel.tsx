@@ -19,7 +19,8 @@ import { format } from "date-fns";
 import { generateSignedContractHTML, generatePdfFromDynamicTemplate, PropertyContractDetails, SignatureData, ContractMetadata, CoveredProperty } from "@/lib/contractAgreementText";
 import { supabase } from "@/integrations/supabase/client";
 import { renderContractWithVariables } from "@/hooks/useContractTemplates";
-import { resolveBillingContractVariables } from "@/lib/contractBillingVariables";
+import { resolveBillingContractVariables, billingVariablesToMap } from "@/lib/contractBillingVariables";
+import { resolveRepContractVariables } from "@/lib/repContractVariables";
 
 interface ContractManagementPanelProps {
   propertyId: string;
