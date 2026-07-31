@@ -213,6 +213,9 @@ interface RequestBody {
   // User management payloads
   user?: { first_name: string; last_name: string; email: string; password: string };
   company?: { name: string; address?: string; city?: string; country?: string; phone?: string; email?: string; vat_number?: string };
+  owner_id?: string | number;
+  auth_username?: string;
+  auth_password?: string;
 }
 
 // ── XML Helpers ──────────────────────────────────────────────
@@ -221,6 +224,13 @@ function buildAuthXml(creds: RUCredentials): string {
   return `<Authentication>
     <AccessKey>${escapeXml(creds.api_key)}</AccessKey>
     <SecretKey>${escapeXml(creds.api_secret)}</SecretKey>
+  </Authentication>`;
+}
+
+function buildChildAuthXml(username: string, password: string): string {
+  return `<Authentication>
+    <UserName>${escapeXml(username)}</UserName>
+    <Password>${escapeXml(password)}</Password>
   </Authentication>`;
 }
 
@@ -368,6 +378,14 @@ function buildListPropertiesXml(creds: RUCredentials, ownerId: number): string {
   return `<?xml version="1.0" encoding="utf-8"?>
 <Pull_ListOwnerProp_RQ>
   ${buildAuthXml(creds)}
+  <OwnerID>${ownerId}</OwnerID>
+</Pull_ListOwnerProp_RQ>`;
+}
+
+function buildVerifyChildCredentialsXml(username: string, password: string, ownerId: number): string {
+  return `<?xml version="1.0" encoding="utf-8"?>
+<Pull_ListOwnerProp_RQ>
+  ${buildChildAuthXml(username, password)}
   <OwnerID>${ownerId}</OwnerID>
 </Pull_ListOwnerProp_RQ>`;
 }
@@ -1263,6 +1281,33 @@ Deno.serve(async (req) => {
     // All other actions require credentials
     if (!creds || !creds.api_key || !creds.api_secret) {
       return errorResponse('NOT_CONFIGURED', 'Rentals United credentials not configured');
+    }
+
+    // ── verify_subuser_credentials ──
+    // Non-destructive child-login probe. It validates the exact identity that will
+    // authenticate Push_FillCompanyDetails_RQ without changing company data.
+    if (action === 'verify_subuser_credentials') {
+      const username = String(body.auth_username ?? '').trim();
+      const password = String(body.auth_password ?? '').trim();
+      const ownerId = Number(body.owner_id);
+      if (!username || password.length < 8 || !Number.isFinite(ownerId) || ownerId <= 0) {
+        return errorResponse('MISSING_PARAM', 'auth_username, auth_password and a valid owner_id are required');
+      }
+      const xml = buildVerifyChildCredentialsXml(username, password, ownerId);
+      const response = await callRentalsUnited(creds, xml);
+      const { ok, status } = handleRUStatus(response);
+      if (!ok) {
+        return jsonResponse({
+          success: false,
+          verified: false,
+          error: {
+            code: 'RU_SUBUSER_AUTH_FAILED',
+            message: `Rentals United rejected the login for "${username}" (${status.message || 'invalid credentials'}). The new password was not saved.`,
+            ru_status_id: status.id,
+          },
+        }, 200);
+      }
+      return jsonResponse({ success: true, verified: true, auth_username: username, owner_id: String(ownerId) });
     }
 
     // ── list_properties ──
