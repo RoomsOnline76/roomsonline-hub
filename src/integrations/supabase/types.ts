@@ -10371,6 +10371,36 @@ export type Database = {
           },
         ]
       }
+      ru_amenities: {
+        Row: {
+          category: string | null
+          created_at: string
+          id: number
+          is_active: boolean
+          name: string
+          ru_group_id: number | null
+          synced_at: string
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string
+          id: number
+          is_active?: boolean
+          name: string
+          ru_group_id?: number | null
+          synced_at?: string
+        }
+        Update: {
+          category?: string | null
+          created_at?: string
+          id?: number
+          is_active?: boolean
+          name?: string
+          ru_group_id?: number | null
+          synced_at?: string
+        }
+        Relationships: []
+      }
       ru_cert_runs: {
         Row: {
           created_at: string
