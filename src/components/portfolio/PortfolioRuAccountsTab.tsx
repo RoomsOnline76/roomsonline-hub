@@ -297,8 +297,10 @@ export function PortfolioRuAccountsTab() {
   const { data: portfolios = [] } = useQuery({
     queryKey: ["ru-portfolios-lite"],
     queryFn: async () => {
-      const { data } = await supabase.from("property_portfolios").select("id, name, slug");
-      return (data || []) as { id: string; name: string; slug: string }[];
+      const { data } = await supabase
+        .from("property_portfolios")
+        .select("id, name, slug, owner_email");
+      return (data || []) as { id: string; name: string; slug: string; owner_email: string | null }[];
     },
   });
 
@@ -502,8 +504,32 @@ export function PortfolioRuAccountsTab() {
                         <p className="text-[11px] text-muted-foreground mt-1 flex items-center gap-1 truncate">
                           <Mail className="h-3 w-3" />
                           {acc.ru_login_email || acc.owner_email}
+                          <span className="text-[10px] opacity-70">· RU login</span>
                         </p>
+                        {acc.portfolio_id && (
+                          <p
+                            className="text-[11px] text-muted-foreground mt-0.5 flex items-center gap-1 truncate"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <User2 className="h-3 w-3" />
+                            {portfolioById.get(acc.portfolio_id)?.owner_email || "No portfolio owner email"}
+                            <span className="text-[10px] opacity-70">· portfolio owner</span>
+                            <button
+                              type="button"
+                              className="text-[10px] underline underline-offset-2"
+                              onClick={() => {
+                                setOwnerEmailChoice(
+                                  portfolioById.get(acc.portfolio_id!)?.owner_email || ""
+                                );
+                                setOwnerEmailFor({ portfolioId: acc.portfolio_id! });
+                              }}
+                            >
+                              change
+                            </button>
+                          </p>
+                        )}
                       </div>
+
                     </div>
                     <div
                       className="flex items-center gap-1.5 flex-wrap"
@@ -776,9 +802,10 @@ export function PortfolioRuAccountsTab() {
           <DialogHeader>
             <DialogTitle>Choose the portfolio owner email</DialogTitle>
             <DialogDescription>
-              The owner email for{" "}
-              {(ownerEmailFor && portfolioById.get(ownerEmailFor.portfolioId)?.name) || "this portfolio"} was cleared with the unbind. Pick one of the
-              member properties' owners (or type another) — Phase 1 uses this for the new RU sub-user.
+              Set the owner email for{" "}
+              {(ownerEmailFor && portfolioById.get(ownerEmailFor.portfolioId)?.name) || "this portfolio"}. Pick one of the
+              member properties' owners (or type another) — Phase 1 uses this for the RU sub-user contact details.
+
             </DialogDescription>
           </DialogHeader>
 
