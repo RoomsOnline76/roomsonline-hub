@@ -2471,9 +2471,19 @@ Deno.serve(async (req) => {
         .map((u: any) => ({ ruId: parseInt(u.rentalsunited_property_id, 10), roomTypeId: u.room_type_id }));
       const discountResult = await pushDiscounts(supabase, property_id, discountRuIds);
 
+      const anyUnitPushed = unitResults.some((u: any) => u.success);
       return new Response(
         JSON.stringify({
-          success: true,
+          // Do not report success when RU rejected every unit — the pipeline must not
+          // mark phase 3 complete on a building-only push.
+          success: anyUnitPushed,
+          ...(anyUnitPushed ? {} : {
+            error: {
+              code: 'RU_UNITS_REJECTED',
+              message: `Rentals United rejected all ${unitResults.length} unit(s)`,
+            },
+            blockers: unitResults.filter((u: any) => !u.success).map((u: any) => `${u.name}: ${u.error}`),
+          }),
           multi_unit: true,
           property_id,
           building_id: buildingId,
