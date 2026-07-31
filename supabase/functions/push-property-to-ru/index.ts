@@ -1241,7 +1241,13 @@ async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRo
             lastKnownExtraGuest = resolved.extra_guest_price;
             const periods = season.periods || [{ from: season.from, to: season.to }];
             for (const period of periods) {
-              if (period.from && period.to) priceEntries.push({ date_from: period.from, date_to: period.to, price: resolved.price, extra_guest_price: resolved.extra_guest_price });
+              if (!period.from || !period.to) continue;
+              // RU rejects ranges that start in the past ("Past dates" notif) and would
+              // fail the whole push. Clamp each season period into today..+365d.
+              const from = period.from < todayStr ? todayStr : period.from;
+              const to = period.to > oneYearStr ? oneYearStr : period.to;
+              if (to < todayStr || from > oneYearStr || from > to) continue;
+              priceEntries.push({ date_from: from, date_to: to, price: resolved.price, extra_guest_price: resolved.extra_guest_price });
             }
           }
         }
@@ -2313,6 +2319,23 @@ Deno.serve(async (req) => {
       const unitTypes = Array.from(unitTypeMap.entries()).map(([name, quantity]) => ({ name, quantity }));
       console.log(`[push-property-to-ru] Step 1: Push building "${buildingName}" (existing ID: ${buildingId}) with ${unitTypes.length} unit types`);
 
+      // Building de-duplication: when we have no stored BuildingID, adopt an existing
+      // RU building with the same (truncated) name instead of creating another one.
+      if (buildingId === 0) {
+        const { data: listed } = await supabase.functions.invoke('rentalsunited-api', {
+          body: { action: 'list_buildings' },
+        });
+        const match = (listed?.buildings ?? []).find(
+          (b: any) => String(b?.name ?? '').trim().toUpperCase() === buildingName.trim().toUpperCase(),
+        );
+        const matchedId = parseInt(String(match?.id ?? match?.building_id ?? '0'), 10);
+        if (matchedId > 0) {
+          buildingId = matchedId;
+          console.log(`[push-property-to-ru] Adopted existing RU building "${buildingName}" → ${buildingId}`);
+        }
+      }
+
+      const requestedBuildingId = buildingId;
       const { data: buildingResult, error: buildingErr } = await supabase.functions.invoke('rentalsunited-api', {
         body: { action: 'push_building', building_name: buildingName, building_id: buildingId, unit_types: unitTypes },
       });
@@ -2322,14 +2345,23 @@ Deno.serve(async (req) => {
         console.error('[push-property-to-ru] Building push failed:', errMsg);
         return new Response(
           JSON.stringify({ success: false, error: { code: 'BUILDING_FAILED', message: errMsg }, diagnostics: buildingResult?.diagnostics }),
-          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
         );
       }
 
       if (buildingResult.building_id) {
-        buildingId = buildingResult.building_id;
-        await supabase.from('properties').update({ rentalsunited_building_id: String(buildingId) }).eq('id', property_id);
-        console.log(`[push-property-to-ru] Building ID saved: ${buildingId}`);
+        const returnedBuildingId = parseInt(String(buildingResult.building_id), 10);
+        if (requestedBuildingId > 0 && returnedBuildingId > 0 && returnedBuildingId !== requestedBuildingId) {
+          // RU created a new building instead of updating ours — keep the existing one
+          // so repeated pushes never fan out into duplicate buildings.
+          console.warn(
+            `[push-property-to-ru] RU returned building ${returnedBuildingId} for update of ${requestedBuildingId} — keeping ${requestedBuildingId}`,
+          );
+        } else if (returnedBuildingId > 0) {
+          buildingId = returnedBuildingId;
+          await supabase.from('properties').update({ rentalsunited_building_id: String(buildingId) }).eq('id', property_id);
+          console.log(`[push-property-to-ru] Building ID saved: ${buildingId}`);
+        }
       }
 
       // Capture per-unit-type ObjectTypeIDs returned by RU's UnitsComposition.
