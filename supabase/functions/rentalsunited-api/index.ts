@@ -1606,7 +1606,21 @@ Deno.serve(async (req) => {
       const xml = buildPushPricesXml(creds, ru_property_id, body.prices);
       const response = await callRentalsUnited(creds, xml);
       const { ok, partial, status, notifs } = parseDiscountResponse(response);
-      if (!ok && !partial) return ruErrorResponse(status);
+      if (!ok && !partial) {
+        // Surface the per-range <Notifs> detail — the bare status message
+        // ("Warning! Look at Notifs collection.") is not actionable on its own.
+        const notifDetail = notifs.map((n) => `${n.date_from ?? '?'}→${n.date_to ?? '?'}: ${n.message}`).join(' | ');
+        return jsonResponse({
+          success: false,
+          error: {
+            code: 'RU_ERROR',
+            message: notifDetail ? `${status.message} — ${notifDetail}` : status.message,
+            ru_status_id: status.id,
+          },
+          notifs,
+          diagnostics: buildDiagnostics(compactXml(xml), status, 'push_prices', response),
+        });
+      }
       return jsonResponse({
         success: true,
         partial,
