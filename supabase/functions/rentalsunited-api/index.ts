@@ -1405,6 +1405,30 @@ Deno.serve(async (req) => {
       });
     }
 
+    // ── verify_child_login ──
+    // Real sub-user login test on RU's XML surface (child UserName/Password envelope).
+    // This is what company-details and building writes require, so it is the only
+    // meaningful "are these credentials usable" check for a white-label child account.
+    if (action === 'verify_child_login') {
+      const username = typeof body.auth_username === 'string' ? body.auth_username.trim() : '';
+      const password = typeof body.auth_password === 'string' ? body.auth_password : '';
+      if (!username || !password) {
+        return errorResponse('MISSING_PARAM', 'auth_username and auth_password are required');
+      }
+      const xml = buildListBuildingsXml(creds, { username, password });
+      const response = await callRentalsUnited(creds, xml);
+      const { ok, status } = handleRUStatus(response);
+      return jsonResponse({
+        success: true,
+        verified: ok,
+        auth_mode: 'child_user_password',
+        ru_status_id: status.id ?? null,
+        ru_status_message: status.message ?? null,
+      });
+    }
+
+
+
     // ── list_properties ──
     if (action === 'list_properties') {
       const ownerId = await resolveOwnerId(creds, body.owner_id);
