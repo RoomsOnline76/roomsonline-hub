@@ -262,8 +262,10 @@ export default function ContractSign() {
         city: p.city,
         country: p.country,
         property_type: p.property_type,
-      }))
+      })),
+      billingVars || undefined,
     );
+
   }, [contract, coveredProperties, propertyDetails, commissionText, pmsCommissionText, billingVars]);
 
   // Handle PDF download for signed contracts - uses dynamic template if available
