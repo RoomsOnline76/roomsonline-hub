@@ -1088,6 +1088,21 @@ Deno.serve(async (req) => {
         const normalized = String(value ?? "").trim();
         return normalized && normalized !== "0" ? normalized : "";
       };
+      // RU sub-user logins can be renamed inside the RU portal, so an email-only lookup
+      // reports "no user found" for an account we already know by OwnerID / stored login.
+      const matchByStoredIdentity = (users: RuUser[], account: Record<string, any> | null) => {
+        if (!account) return null;
+        const wantedOwnerId = usableRuId(account.ru_owner_id);
+        const wantedEmails = [account.ru_login_email, account.owner_email]
+          .map((v) => String(v ?? "").trim().toLowerCase())
+          .filter(Boolean);
+        return users.find((u) => {
+          const ownerId = usableRuId(u.owner_id);
+          if (wantedOwnerId && ownerId && ownerId === wantedOwnerId) return true;
+          return wantedEmails.includes((u.email ?? "").trim().toLowerCase());
+        }) ?? null;
+      };
+
 
       const existing = await findOwnerAccount(admin, propertyId ?? "", ownerEmail, portfolioId);
       // If the owner email has since changed, the stored sub-user belongs to the OLD
