@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -13,6 +13,7 @@ import { Loader2, Plus, ArrowLeft, UserPlus, Pencil, Trash2 } from "lucide-react
 import { useSalesReps, SalesRep } from "@/hooks/useSalesReps";
 import { useAuth } from "@/hooks/useAuth";
 import { RepBankingForm } from "@/components/sales-reps/RepBankingForm";
+import { fetchRepGlobals, resolveRepTerms, RepTierKey } from "@/lib/repContractVariables";
 
 const TIER_LABELS: Record<string, { label: string; color: string }> = {
   base: { label: "Base", color: "bg-muted text-muted-foreground" },
@@ -20,11 +21,8 @@ const TIER_LABELS: Record<string, { label: string; color: string }> = {
   elite: { label: "Elite", color: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400" },
 };
 
-const TIER_RATES = {
-  base: { firstYear: "20%", residual: "5%", duration: "12 mo" },
-  accelerated: { firstYear: "25%", residual: "7.5%", duration: "18 mo" },
-  elite: { firstYear: "30%", residual: "10%", duration: "24 mo" },
-};
+const TIER_KEYS: RepTierKey[] = ["base", "accelerated", "elite"];
+
 
 function RepForm({ rep, onSave, saving, onCancel }: {
   rep?: SalesRep;
@@ -117,6 +115,21 @@ export default function AdminSalesReps() {
   const { reps, isLoading, create, update, remove } = useSalesReps();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingRep, setEditingRep] = useState<SalesRep | undefined>();
+  const [repGlobals, setRepGlobals] = useState<Record<string, any> | null>(null);
+
+  useEffect(() => {
+    fetchRepGlobals()
+      .then(setRepGlobals)
+      .catch((e) => console.warn("Failed to load rep commission defaults", e));
+  }, []);
+
+  // Live tier economics, resolved from Billing Defaults (never hardcoded).
+  const tierTerms = useMemo(
+    () => TIER_KEYS.map((tier) => ({ tier, terms: resolveRepTerms({ commission_tier: tier }, repGlobals) })),
+    [repGlobals]
+  );
+
+
 
   if (authLoading) {
     return <div className="flex items-center justify-center p-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
@@ -165,23 +178,35 @@ export default function AdminSalesReps() {
         </Dialog>
       </div>
 
-      {/* Tier reference card */}
+      {/* Tier reference card — resolved live from Billing Defaults */}
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm">Commission Tiers Reference</CardTitle>
+          <p className="text-xs text-muted-foreground">
+            These are the exact figures written into Referral Partner Agreements. Edit them in Admin → Billing Defaults.
+          </p>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-3 gap-4 text-xs">
-            {Object.entries(TIER_RATES).map(([tier, rates]) => (
+            {tierTerms.map(({ tier, terms }) => (
               <div key={tier} className="space-y-1">
                 <Badge className={TIER_LABELS[tier].color}>{TIER_LABELS[tier].label}</Badge>
-                <p>First-year: <strong>{rates.firstYear}</strong></p>
-                <p>Residual: <strong>{rates.residual}</strong> for {rates.duration}</p>
+                <p>First-year: <strong>{terms.first_year_rate}%</strong></p>
+                <p>Residual: <strong>{terms.residual_rate}%</strong> for {terms.residual_months} mo</p>
+                <p className="text-muted-foreground">Clawback: {terms.clawback_days} days</p>
+                <p className="text-muted-foreground">
+                  {terms.source === "tier_criteria"
+                    ? "From tier criteria"
+                    : terms.source === "global_default"
+                    ? "From billing defaults"
+                    : "Platform fallback"}
+                </p>
               </div>
             ))}
           </div>
         </CardContent>
       </Card>
+
 
       {isLoading ? (
         <div className="flex items-center justify-center p-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
@@ -211,6 +236,14 @@ export default function AdminSalesReps() {
                 </div>
                 {rep.phone && <p className="text-xs text-muted-foreground">{rep.phone}</p>}
                 <p className="text-xs">Target: {rep.quarterly_target ?? "—"} properties/quarter</p>
+                {(() => {
+                  const t = resolveRepTerms(rep, repGlobals);
+                  return (
+                    <p className="text-xs text-muted-foreground">
+                      Contract terms: {t.first_year_rate}% first year · {t.residual_rate}% residual for {t.residual_months} mo
+                    </p>
+                  );
+                })()}
                 {rep.notes && <p className="text-xs text-muted-foreground italic">{rep.notes}</p>}
                 <div className="flex gap-1 pt-1">
                   <Button variant="ghost" size="sm" onClick={() => { setEditingRep(rep); setDialogOpen(true); }}>
