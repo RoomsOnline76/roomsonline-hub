@@ -315,9 +315,11 @@ export default function ContractSign() {
           city: p.city,
           country: p.country,
           property_type: p.property_type,
-        }))
+        })),
+        billingVars || undefined,
       );
     }
+
     
     // Open in new window for print
     const printWindow = window.open('', '_blank');
