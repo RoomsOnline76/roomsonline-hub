@@ -213,25 +213,14 @@ export default function ContractSign() {
         owner_physical_address: firstProperty ? [firstProperty.address, firstProperty.city, firstProperty.country].filter(Boolean).join(', ') : propertyDetails?.physicalAddress || 'N/A',
         owner_postal_address: propertyDetails?.postalAddress || 'N/A',
         owner_key_representative: contract.owner_name || propertyDetails?.keyRepresentative || 'N/A',
+        covered_properties_list: propertiesListHtml,
+        // Billing-config driven variables (all active fees for this property/portfolio)
+        ...(billingVars ? { ...billingVars } : {}),
+        // Commercial terms (if any) take precedence over the billing config rates
         commission_percentage: commissionText,
         listing_commission_percentage: commissionText,
         pms_commission_percentage: pmsCommissionText,
-        covered_properties_list: propertiesListHtml,
-        // v2 PMS contract billing variables
-        ...(billingVars ? {
-          billing_strategy_label: billingVars.billing_strategy_label,
-          commission_rate: billingVars.commission_rate,
-          commission_clause: billingVars.commission_clause,
-          subscription_fee_monthly: billingVars.subscription_fee_monthly,
-          subscription_clause: billingVars.subscription_clause,
-          white_label_monthly_fee: billingVars.white_label_monthly_fee,
-          white_label_clause: billingVars.white_label_clause,
-          payment_facilitator_fee: billingVars.payment_facilitator_fee,
-          payment_facilitator_clause: billingVars.payment_facilitator_clause,
-          byo_gateway_fee: billingVars.byo_gateway_fee,
-          byo_gateway_clause: billingVars.byo_gateway_clause,
-          volume_tier_clause: billingVars.volume_tier_clause,
-        } : {}),
+
         // Map v2 template property details fields
         property_name: contract.owner_name || propertyDetails?.registeredName || coveredProperties[0]?.name || 'N/A',
         registered_business_name: propertyDetails?.registeredName || 'N/A',
@@ -273,8 +262,10 @@ export default function ContractSign() {
         city: p.city,
         country: p.country,
         property_type: p.property_type,
-      }))
+      })),
+      billingVars || undefined,
     );
+
   }, [contract, coveredProperties, propertyDetails, commissionText, pmsCommissionText, billingVars]);
 
   // Handle PDF download for signed contracts - uses dynamic template if available
@@ -324,9 +315,11 @@ export default function ContractSign() {
           city: p.city,
           country: p.country,
           property_type: p.property_type,
-        }))
+        })),
+        billingVars || undefined,
       );
     }
+
     
     // Open in new window for print
     const printWindow = window.open('', '_blank');

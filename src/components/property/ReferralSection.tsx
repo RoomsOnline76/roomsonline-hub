@@ -45,6 +45,10 @@ export function ReferralSection({ propertyId }: ReferralSectionProps) {
   const [leadNotes, setLeadNotes] = useState("");
   const [referralDate, setReferralDate] = useState(new Date().toISOString().split("T")[0]);
   const [status, setStatus] = useState("pending");
+  const [firstYearOverride, setFirstYearOverride] = useState("");
+  const [residualOverride, setResidualOverride] = useState("");
+  const [monthsOverride, setMonthsOverride] = useState("");
+  const [overrideNotes, setOverrideNotes] = useState("");
 
   useEffect(() => {
     if (existing) {
@@ -53,14 +57,31 @@ export function ReferralSection({ propertyId }: ReferralSectionProps) {
       setLeadNotes(existing.lead_notes || "");
       setReferralDate(existing.referral_date);
       setStatus(existing.status);
+      setFirstYearOverride(existing.first_year_rate_override != null ? String(existing.first_year_rate_override) : "");
+      setResidualOverride(existing.residual_rate_override != null ? String(existing.residual_rate_override) : "");
+      setMonthsOverride(existing.residual_months_override != null ? String(existing.residual_months_override) : "");
+      setOverrideNotes(existing.override_notes || "");
     }
   }, [existing]);
 
   const isLoading = repsLoading || refLoading;
   const saving = createReferral.isPending || updateReferral.isPending;
 
+  const toNum = (v: string) => {
+    const t = v.trim();
+    if (!t) return null;
+    const n = Number(t);
+    return Number.isFinite(n) ? n : null;
+  };
+
   const handleSave = () => {
     if (!repId) return;
+    const overrides = {
+      first_year_rate_override: toNum(firstYearOverride),
+      residual_rate_override: toNum(residualOverride),
+      residual_months_override: toNum(monthsOverride),
+      override_notes: overrideNotes.trim() || null,
+    };
     if (existing) {
       updateReferral.mutate({
         id: existing.id,
@@ -70,7 +91,8 @@ export function ReferralSection({ propertyId }: ReferralSectionProps) {
         referral_date: referralDate,
         status: status as any,
         converted_at: status === "converted" && existing.status !== "converted" ? new Date().toISOString() : existing.converted_at,
-      });
+        ...overrides,
+      } as any);
     } else {
       createReferral.mutate({
         property_id: propertyId,
@@ -79,9 +101,11 @@ export function ReferralSection({ propertyId }: ReferralSectionProps) {
         lead_notes: leadNotes || undefined,
         referral_date: referralDate,
         status,
-      });
+        ...overrides,
+      } as any);
     }
   };
+
 
   if (isLoading) {
     return (
@@ -157,6 +181,29 @@ export function ReferralSection({ propertyId }: ReferralSectionProps) {
           <Label className="text-xs">Lead Notes</Label>
           <Textarea value={leadNotes} onChange={(e) => setLeadNotes(e.target.value)} rows={2} className="text-xs" placeholder="How was this property acquired..." />
         </div>
+
+        <div className="rounded-md border p-3 space-y-2">
+          <p className="text-xs font-medium">Negotiated rate override</p>
+          <p className="text-[11px] text-muted-foreground">
+            Leave blank to use the rep's tier rates from Billing Defaults. Values here apply to this property only.
+          </p>
+          <div className="grid grid-cols-3 gap-2">
+            <div className="space-y-1">
+              <Label className="text-[10px]">Year 1 %</Label>
+              <Input type="number" step="0.1" value={firstYearOverride} onChange={(e) => setFirstYearOverride(e.target.value)} className="h-8 text-xs" placeholder="tier" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px]">Residual %</Label>
+              <Input type="number" step="0.1" value={residualOverride} onChange={(e) => setResidualOverride(e.target.value)} className="h-8 text-xs" placeholder="tier" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px]">Residual months</Label>
+              <Input type="number" value={monthsOverride} onChange={(e) => setMonthsOverride(e.target.value)} className="h-8 text-xs" placeholder="tier" />
+            </div>
+          </div>
+          <Textarea value={overrideNotes} onChange={(e) => setOverrideNotes(e.target.value)} rows={2} className="text-xs" placeholder="Why was this rate negotiated..." />
+        </div>
+
         <Button onClick={handleSave} disabled={saving || !repId} size="sm" className="w-full">
           {saving ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Save className="h-3 w-3 mr-1" />}
           {existing ? "Update" : "Assign"} Referral
