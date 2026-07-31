@@ -590,6 +590,56 @@ export function PortfolioRuAccountsTab() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={!!bindFor} onOpenChange={(o) => !o && setBindFor(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Bind Rentals United sub-user</DialogTitle>
+            <DialogDescription>
+              These are the sub-users Rentals United currently holds under our master account.
+              Pick the one this record should use — Phase 1 then reconnects to it instead of trying
+              to create a duplicate.
+            </DialogDescription>
+          </DialogHeader>
+          {bindLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : bindCandidates.length === 0 ? (
+            <p className="text-xs text-muted-foreground py-4">
+              Rentals United returned no sub-users under our master account.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {bindCandidates.map((u) => {
+                const isCurrent = bindFor?.ownerId === u.owner_id;
+                return (
+                  <div
+                    key={u.owner_id}
+                    className="flex items-center justify-between gap-3 rounded-md border border-border p-3"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-xs font-mono">OwnerID {u.owner_id}</p>
+                      <p className="text-[11px] text-muted-foreground truncate">{u.email}</p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant={isCurrent ? "secondary" : "outline"}
+                      className="h-7 text-xs shrink-0"
+                      disabled={isCurrent || binding === u.owner_id}
+                      onClick={() => bindAccount(u.owner_id, u.email)}
+                    >
+                      {binding === u.owner_id && <Loader2 className="h-3 w-3 animate-spin mr-1" />}
+                      {isCurrent ? "Bound" : "Bind"}
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 }
