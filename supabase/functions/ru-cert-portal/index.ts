@@ -1021,9 +1021,15 @@ Deno.serve(async (req) => {
       if (portfolioId) {
         const { data: pf } = await admin
           .from("property_portfolios")
-          .select("id, name, owner_id")
+          .select("id, name, owner_id, owner_email")
           .eq("id", portfolioId)
           .maybeSingle();
+        // Explicit portfolio owner email wins over the linked profile: admins set it on the
+        // portfolio edit form (usually copied from one of the member properties' owners).
+        if (!ownerEmail && (pf as any)?.owner_email) {
+          ownerEmail = (pf as any).owner_email as string;
+          ownerName = ownerName || (pf?.name ?? "Portfolio Owner");
+        }
         if (!ownerEmail && pf?.owner_id) {
           const { data: prof } = await admin
             .from("profiles")
