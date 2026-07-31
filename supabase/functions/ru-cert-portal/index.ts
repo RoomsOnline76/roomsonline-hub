@@ -982,7 +982,8 @@ Deno.serve(async (req) => {
         let filled: any = null;
         let fillErr: any = null;
         let lastMessage = "";
-        for (let attempt = 1; attempt <= 3; attempt++) {
+        const maxAttempts = passwordIsOurs ? 4 : 3;
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
           const res = await admin.functions.invoke("rentalsunited-api", {
             body: {
               action: "fill_company_details",
@@ -999,6 +1000,24 @@ Deno.serve(async (req) => {
           );
           // Validation/schema and credential rejections will never succeed on retry.
           if ((filled as any)?.error?.code === "RU_SUBUSER_AUTH_FAILED") {
+            if (passwordIsOurs) {
+              // We hold the password RU accepted at creation time — a rejection here is
+              // usually RU's account propagation lag, so back off and retry instead of
+              // asking the operator for a password we already have.
+              if (attempt < maxAttempts) {
+                await new Promise((r) => setTimeout(r, attempt * 2000));
+                continue;
+              }
+              await admin
+                .from("ru_owner_accounts")
+                .update({ company_details_status: "failed" })
+                .eq("id", account.id);
+              return {
+                sent: false,
+                error:
+                  `Rentals United rejected our stored sub-user login for ${account.ru_login_email ?? ownerEmail} after ${maxAttempts} attempts (${lastMessage}). The password we hold is the one RU accepted at creation — if this persists, reset it in the Rentals United portal and save the new value under Portfolios → RU accounts.`,
+              };
+            }
             await admin
               .from("ru_owner_accounts")
               .update({ company_details_status: "auth_failed" })
@@ -1006,7 +1025,7 @@ Deno.serve(async (req) => {
             return { sent: false, authFailed: true as const, error: lastMessage };
           }
           const permanent = /INCOMPLETE|requires these|invalid|credential|password|authenticat/i.test(lastMessage);
-          if (permanent || attempt === 3) break;
+          if (permanent || attempt === maxAttempts) break;
           await new Promise((r) => setTimeout(r, attempt * 900));
         }
         if (fillErr || !filled?.success) {
@@ -1016,6 +1035,7 @@ Deno.serve(async (req) => {
             .eq("id", account.id);
           return { sent: false, error: lastMessage };
         }
+
 
         await admin
           .from("ru_owner_accounts")
