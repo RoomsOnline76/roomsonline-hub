@@ -1105,32 +1105,28 @@ Deno.serve(async (req) => {
 
 
       const existing = await findOwnerAccount(admin, propertyId ?? "", ownerEmail, portfolioId);
-      // If the owner email has since changed, the stored sub-user belongs to the OLD
-      // login and must not be reused: Phase 1 has to create a fresh RU sub-user for the
-      // new email. `ensure_company_details` still targets the stored account.
-      const storedEmail = String(
-        (existing.account as any)?.ru_login_email ?? (existing.account as any)?.owner_email ?? "",
-      ).trim().toLowerCase();
-      const emailChanged =
-        Boolean(existing.account?.ru_owner_id) &&
-        Boolean(storedEmail) &&
-        storedEmail !== ownerEmail.trim().toLowerCase();
-      // A child account can be deleted/recreated in RU with the same email. Compare
-      // RU's current identity before trusting the locally retained password.
-      const currentRuUser = existing.account?.ru_owner_id
-        ? matchByEmail(await listRuUsers())
+      // The RU identity is only stale when Rentals United no longer lists an owner that
+      // matches the stored OwnerID (or, when we never stored one, the stored login email).
+      // A login rename in the RU portal must NOT erase the OwnerID or the password.
+      const storedOwnerId = usableRuId(existing.account?.ru_owner_id);
+      const storedUserId = usableRuId((existing.account as any)?.ru_user_id);
+      const ruUsers = existing.account?.ru_owner_id ? await listRuUsers() : [];
+      const listOk = ruUsers.length > 0;
+      const currentRuUser = listOk
+        ? (ruUsers.find((u) => Boolean(storedOwnerId) && usableRuId(u.owner_id) === storedOwnerId)
+          ?? matchByStoredIdentity(ruUsers, existing.account as any)
+          ?? matchByEmail(ruUsers))
         : null;
       const currentOwnerId = usableRuId(currentRuUser?.owner_id);
       const currentUserId = usableRuId(currentRuUser?.user_account_id);
-      const storedOwnerId = usableRuId(existing.account?.ru_owner_id);
-      const storedUserId = usableRuId((existing.account as any)?.ru_user_id);
       // A transient list_users failure is not proof that the RU identity changed, and
       // RU sometimes returns UserAccountId=0. Neither condition may erase a password.
-      const ruIdentityChanged = Boolean(existing.account?.ru_owner_id) && Boolean(currentRuUser) && (
+      const ruIdentityChanged = Boolean(storedOwnerId) && listOk && (
+        !currentRuUser ||
         (Boolean(currentOwnerId) && currentOwnerId !== storedOwnerId) ||
         (Boolean(currentUserId) && Boolean(storedUserId) && currentUserId !== storedUserId)
       );
-      const staleIdentity = emailChanged || ruIdentityChanged;
+      const staleIdentity = ruIdentityChanged;
       if (staleIdentity) {
         // Wipe the stale RU identity + password so the row is rebuilt below.
         await admin
@@ -1144,7 +1140,21 @@ Deno.serve(async (req) => {
             company_details_status: "pending",
           })
           .eq("id", (existing.account as any).id);
+      } else if (currentRuUser) {
+        // Same RU account, possibly renamed in the portal: re-align the stored login
+        // email (and OwnerID) without touching the retained password.
+        const ruEmail = String(currentRuUser.email ?? "").trim();
+        const patch: Record<string, unknown> = {};
+        if (ruEmail && ruEmail.toLowerCase() !== String((existing.account as any)?.ru_login_email ?? "").trim().toLowerCase()) {
+          patch.ru_login_email = ruEmail;
+        }
+        if (currentOwnerId && currentOwnerId !== storedOwnerId) patch.ru_owner_id = currentOwnerId;
+        if (Object.keys(patch).length > 0) {
+          await admin.from("ru_owner_accounts").update(patch).eq("id", (existing.account as any).id);
+          Object.assign(existing.account as any, patch);
+        }
       }
+
       if (existing.account?.ru_owner_id && !staleIdentity) {
 
         const companyResult = await submitCompanyDetails(existing.account as any);
