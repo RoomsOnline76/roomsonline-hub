@@ -802,9 +802,10 @@ export function PortfolioRuAccountsTab() {
           <DialogHeader>
             <DialogTitle>Choose the portfolio owner email</DialogTitle>
             <DialogDescription>
-              The owner email for{" "}
-              {(ownerEmailFor && portfolioById.get(ownerEmailFor.portfolioId)?.name) || "this portfolio"} was cleared with the unbind. Pick one of the
-              member properties' owners (or type another) — Phase 1 uses this for the new RU sub-user.
+              Set the owner email for{" "}
+              {(ownerEmailFor && portfolioById.get(ownerEmailFor.portfolioId)?.name) || "this portfolio"}. Pick one of the
+              member properties' owners (or type another) — Phase 1 uses this for the RU sub-user contact details.
+
             </DialogDescription>
           </DialogHeader>
 
