@@ -1978,16 +1978,20 @@ Deno.serve(async (req) => {
         compactXml(x)
           .replace(/<Password>[\s\S]*?<\/Password>/g, '<Password>***</Password>')
           .replace(/<SecretKey>[\s\S]*?<\/SecretKey>/g, '<SecretKey>***</SecretKey>');
-      // RU applies the details to whichever account authenticates. Authenticate only AS
-      // the linked sub-user so fields can never land on the RoomsOnline master account.
+      // RU applies the details to whichever identity authenticates. Preferred path is the
+      // linked sub-user login (UserName/Password). Some sub-user logins are not valid on the
+      // XML API surface (e.g. the login email collides with the master account, or RU has not
+      // enabled API access for that child yet) and return "Incorrect login or password".
+      // In that case fall back to the parent AccessKey/SecretKey envelope scoped by <OwnerID>,
+      // which RU accepts and still applies the details to the child account.
       const childUser = typeof body.auth_username === 'string' ? body.auth_username.trim() : '';
       const childPass = typeof body.auth_password === 'string' ? body.auth_password : '';
-      if (!childUser || !childPass) {
-        return errorResponse('RU_CHILD_AUTH_REQUIRED', 'Linked RU sub-user username and password are required for company details');
+      const attempts: Array<{ mode: string; childAuth: { username: string; password: string } | null }> = [];
+      if (childUser && childPass) {
+        attempts.push({ mode: 'child_user_password', childAuth: { username: childUser, password: childPass } });
       }
-      const attempts: Array<{ mode: string; childAuth: { username: string; password: string } }> = [
-        { mode: 'child_user_password', childAuth: { username: childUser, password: childPass } },
-      ];
+      attempts.push({ mode: 'parent_access_key_owner_scope', childAuth: null });
+
 
       let lastXml = '';
       let lastResponse = '';

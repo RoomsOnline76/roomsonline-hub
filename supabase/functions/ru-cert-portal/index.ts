@@ -1083,18 +1083,10 @@ Deno.serve(async (req) => {
           if (enc) await admin.from("ru_owner_accounts").update({ ru_login_password_enc: enc }).eq("id", account.id);
         }
 
-        if (!password) {
-          await admin
-            .from("ru_owner_accounts")
-            .update({ company_details_status: "manual_required" })
-            .eq("id", account.id);
-          return {
-            sent: false,
-            deferred: true as const,
-            error:
-              "The sub-user login password is not held locally (the account was adopted rather than created here). Supply it once (Complete company details → paste the RU sub-user password) so Push_FillCompanyDetails_RQ can authenticate, or recreate the sub-user with a fresh email.",
-          };
-        }
+        // No password held (adopted account) is no longer fatal: rentalsunited-api falls
+        // back to the parent AccessKey/SecretKey envelope scoped by <OwnerID>, which RU
+        // still applies to the child profile. We simply push without child credentials.
+
 
 
         // Resolve company info from the portfolio (preferred) or the property.
@@ -1189,7 +1181,8 @@ Deno.serve(async (req) => {
               // Authenticate AS the sub-user so RU writes the details onto the owner's
               // own profile (RU applies them to whichever account authenticates).
               auth_username: (account.ru_login_email as string | null) || ownerEmail || null,
-              auth_password: password,
+              auth_password: password || null,
+
             },
           });
           filled = res.data;
