@@ -693,16 +693,23 @@ Deno.serve(async (req) => {
       if (!account.ru_login_password_enc || !loginEmail || !ownerId) {
         return json({ success: false, error: { code: "RU_IDENTITY_INCOMPLETE", message: "A bound OwnerID, login email and stored password are required." } }, 422);
       }
+      // The only meaningful check is a real sub-user login on RU's XML surface: company
+      // details and building writes must authenticate AS the child (no <OwnerID> exists
+      // on those methods), so parent-scoped access proves nothing here.
+      const { data: decryptedPw } = await admin.rpc("decrypt_sensitive_text", {
+        encrypted_data: account.ru_login_password_enc,
+      });
       const { data: verified, error: verifyError } = await admin.functions.invoke("rentalsunited-api", {
         body: {
-          action: "verify_owner_api_access",
-          owner_id: ownerId,
+          action: "verify_child_login",
+          auth_username: loginEmail,
+          auth_password: decryptedPw,
         },
       });
       const accepted = !verifyError && verified?.success === true && verified?.verified === true;
       if (!account.company_details_sent) {
         await admin.from("ru_owner_accounts").update({
-          company_details_status: accepted ? "api_access_verified" : "api_access_failed",
+          company_details_status: accepted ? "credentials_verified" : "credentials_failed",
         }).eq("id", account.id);
       }
       await admin.from("audit_logs").insert({
@@ -715,13 +722,13 @@ Deno.serve(async (req) => {
         request_origin: "edge_function",
         edge_function_name: "ru-cert-portal",
         is_sensitive: true,
-        change_summary: `${accepted ? "Verified" : "Rejected"} Rentals United parent API access for ${loginEmail} (OwnerID ${ownerId}); portal password remains stored`,
+        change_summary: `${accepted ? "Verified" : "Rejected"} Rentals United sub-user login for ${loginEmail} (OwnerID ${ownerId})`,
       }).then(() => {}, (e) => console.warn("[ru-cert-portal] audit log insert failed", e));
       if (!accepted) {
         return json({
           success: false,
           verified: false,
-          error: { code: "RU_OWNER_API_ACCESS_FAILED", message: verified?.error?.message ?? verifyError?.message ?? "Rentals United API access to the bound OwnerID failed." },
+          error: { code: "RU_CHILD_LOGIN_REJECTED", message: verified?.ru_status_message ?? verified?.error?.message ?? verifyError?.message ?? "Rentals United rejected this sub-user login on the API. Reset the password in the RU portal and save it here." },
         }, 422);
       }
       return json({ success: true, verified: true, password_stored: true, api_access_verified: true, login_email: loginEmail, ru_owner_id: ownerId });
@@ -783,14 +790,14 @@ Deno.serve(async (req) => {
       }).then(() => {}, (e) => console.warn("[ru-cert-portal] audit log insert failed", e));
 
       const { data: apiCheck, error: apiCheckError } = await admin.functions.invoke("rentalsunited-api", {
-        body: { action: "verify_owner_api_access", owner_id: ownerId },
+        body: { action: "verify_child_login", auth_username: canonicalEmail, auth_password: newPassword },
       });
       const apiAccessVerified = !apiCheckError && apiCheck?.success === true && apiCheck?.verified === true;
       return json({
         success: true,
         password_stored: true,
         api_access_verified: apiAccessVerified,
-        api_warning: apiAccessVerified ? null : apiCheck?.error?.message ?? apiCheckError?.message ?? "Portal password stored, but owner API access could not be verified.",
+        api_warning: apiAccessVerified ? null : apiCheck?.ru_status_message ?? apiCheck?.error?.message ?? apiCheckError?.message ?? "Password stored, but Rentals United rejected this sub-user login on the API.",
         login_email: canonicalEmail,
       });
     }
