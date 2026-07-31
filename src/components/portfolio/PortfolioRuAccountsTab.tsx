@@ -26,6 +26,7 @@ import {
   EyeOff,
   FolderOpen,
   KeyRound,
+  Link2,
   Loader2,
   Mail,
   RotateCcw,
