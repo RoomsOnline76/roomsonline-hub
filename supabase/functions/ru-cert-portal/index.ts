@@ -1326,17 +1326,23 @@ Deno.serve(async (req) => {
         const retainedPassword = (existing.account as any)?.ru_login_password_enc ?? null;
         const retainedOwnerId = usableRuId(existing.account?.ru_owner_id);
         const adoptedOwnerId = usableRuId(ruOwnerId);
-        const retainedEmail = String(
-          (existing.account as any)?.ru_login_email ?? (existing.account as any)?.owner_email ?? "",
-        ).trim().toLowerCase();
-        const sameRuIdentity = Boolean(retainedPassword) &&
-          retainedEmail === ownerEmail.trim().toLowerCase() &&
-          Boolean(retainedOwnerId) && retainedOwnerId === adoptedOwnerId;
-        // Adoption can simply mean RU already committed our previous create request.
-        // Preserve the encrypted password only when the email and RU OwnerID prove it
-        // is the same child account; never erase it merely because creation is skipped.
+        const retainedEmails = [
+          (existing.account as any)?.ru_login_email,
+          (existing.account as any)?.owner_email,
+        ].map((v) => String(v ?? "").trim().toLowerCase()).filter(Boolean);
+        const adoptedEmails = [adoptedEmail, ownerEmail]
+          .map((v) => String(v ?? "").trim().toLowerCase()).filter(Boolean);
+        // Adoption usually means RU already committed our previous create request, or the
+        // login was renamed in the RU portal. Keep the retained password when EITHER the
+        // OwnerID or the login email still matches; only a genuinely different child
+        // account may drop it.
+        const sameRuIdentity = Boolean(retainedPassword) && (
+          (Boolean(retainedOwnerId) && retainedOwnerId === adoptedOwnerId) ||
+          retainedEmails.some((e) => adoptedEmails.includes(e))
+        );
         row.ru_login_password_enc = sameRuIdentity ? retainedPassword : null;
       }
+
 
       // The unique indexes on this table are PARTIAL, so PostgREST's ON CONFLICT
       // cannot target them. Resolve the existing row manually, then update/insert.
