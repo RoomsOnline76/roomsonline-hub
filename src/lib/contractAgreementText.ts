@@ -134,9 +134,8 @@ export function generateContractHTML(
   ${coveredPropertiesSection}
 
   <h2 class="text-lg font-semibold mb-3">3. COMMISSION AND FEES</h2>
-  <p class="mb-6 text-sm leading-relaxed">
-    Roomsonline charges a commission of <strong>ten percent (10%)</strong> (VAT exclusive) of the Total Booking Value for all bookings made via the Roomsonline Software, unless otherwise agreed in writing.
-  </p>
+  ${renderFeeSection(feeTerms)}
+
 </div>
 `;
 }
