@@ -555,7 +555,7 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
   <Property>
     <ID>${propertyId}</ID>
     <Name>${escapeXml(prop.name)}</Name>
-    <OwnerID>${prop.owner_id || 1}</OwnerID>
+    <OwnerID>${prop.owner_id}</OwnerID>
     <CurrencyID>${prop.currency_id}</CurrencyID>
     <DetailedLocationID TypeID="4">${prop.detailed_location_id}</DetailedLocationID>
     <IsActive>true</IsActive>
@@ -844,22 +844,22 @@ function buildBuildingCompositionXml(unitTypes?: RUBuildingUnitType[]): string {
   return unitTypeNodes ? `<Composition><UnitsComposition>${unitTypeNodes}</UnitsComposition></Composition>` : '';
 }
 
-function buildPushBuildingXml(creds: RUCredentials, buildingId: number, buildingName: string, unitTypes?: RUBuildingUnitType[]): string {
+function buildPushBuildingXml(creds: RUCredentials, buildingId: number, buildingName: string, unitTypes?: RUBuildingUnitType[], childAuth?: { username: string; password: string }): string {
   const truncatedName = buildingName.substring(0, 20);
   const buildingIdXml = buildingId > 0 ? `<BuildingID>${buildingId}</BuildingID>` : '';
   const compositionXml = buildBuildingCompositionXml(unitTypes);
   // Element order matters: RU's XSD expects <BuildingID> (update key) before
   // <BuildingName>. With the wrong order RU ignores the ID and creates a new
   // building on every push, which duplicates inventory.
-  return `<Push_PutBuilding_RQ>${buildAuthXml(creds)}${buildingIdXml}<BuildingName>${escapeXml(truncatedName)}</BuildingName>${compositionXml}</Push_PutBuilding_RQ>`;
+  return `<Push_PutBuilding_RQ>${childAuth ? buildChildAuthXml(childAuth.username, childAuth.password) : buildAuthXml(creds)}${buildingIdXml}<BuildingName>${escapeXml(truncatedName)}</BuildingName>${compositionXml}</Push_PutBuilding_RQ>`;
 }
 
-function buildListBuildingsXml(creds: RUCredentials): string {
-  return `<Pull_ListBuildings_RQ>${buildAuthXml(creds)}</Pull_ListBuildings_RQ>`;
+function buildListBuildingsXml(creds: RUCredentials, childAuth?: { username: string; password: string }): string {
+  return `<Pull_ListBuildings_RQ>${childAuth ? buildChildAuthXml(childAuth.username, childAuth.password) : buildAuthXml(creds)}</Pull_ListBuildings_RQ>`;
 }
 
-function buildGetBuildingXml(creds: RUCredentials, buildingId: number): string {
-  return `<Pull_GetBuilding_RQ>${buildAuthXml(creds)}<BuildingID>${buildingId}</BuildingID></Pull_GetBuilding_RQ>`;
+function buildGetBuildingXml(creds: RUCredentials, buildingId: number, childAuth?: { username: string; password: string }): string {
+  return `<Pull_GetBuilding_RQ>${childAuth ? buildChildAuthXml(childAuth.username, childAuth.password) : buildAuthXml(creds)}<BuildingID>${buildingId}</BuildingID></Pull_GetBuilding_RQ>`;
 }
 
 /**
@@ -1475,6 +1475,9 @@ Deno.serve(async (req) => {
       if (ru_property_id == null || ru_property_id === undefined) return errorResponse('MISSING_PARAM', 'ru_property_id is required (use 0 for new properties)');
       if (!body.property) return errorResponse('MISSING_PARAM', 'property payload is required');
       const p = body.property;
+      if (!Number.isFinite(Number(p.owner_id)) || Number(p.owner_id) <= 0) {
+        return errorResponse('RU_OWNER_ID_REQUIRED', 'A positive linked sub-user owner_id is required; master-account fallback is prohibited');
+      }
       if (!p.name || !p.property_type_id || !p.can_sleep_max || p.floor == null || !p.space) {
         return errorResponse('VALIDATION', 'Property must include name, property_type_id, can_sleep_max, floor, and space');
       }
@@ -1770,8 +1773,11 @@ Deno.serve(async (req) => {
     // ── push_building ──
     if (action === 'push_building') {
       if (!body.building_name) return errorResponse('MISSING_PARAM', 'building_name is required');
+      const childUser = typeof body.auth_username === 'string' ? body.auth_username.trim() : '';
+      const childPass = typeof body.auth_password === 'string' ? body.auth_password : '';
+      if (!childUser || !childPass) return errorResponse('RU_CHILD_AUTH_REQUIRED', 'Linked RU sub-user credentials are required for building writes');
       const bId = body.building_id || 0;
-      const xml = buildPushBuildingXml(creds, bId, body.building_name, body.unit_types);
+      const xml = buildPushBuildingXml(creds, bId, body.building_name, body.unit_types, { username: childUser, password: childPass });
       const compactRequestXml = compactXml(xml);
       const response = await callRentalsUnited(creds, xml);
       console.log(`[rentalsunited-api] Push building response: ${response.substring(0, 500)}`);
@@ -1796,7 +1802,10 @@ Deno.serve(async (req) => {
 
     // ── list_buildings ──
     if (action === 'list_buildings') {
-      const xml = buildListBuildingsXml(creds);
+      const childUser = typeof body.auth_username === 'string' ? body.auth_username.trim() : '';
+      const childPass = typeof body.auth_password === 'string' ? body.auth_password : '';
+      if (!childUser || !childPass) return errorResponse('RU_CHILD_AUTH_REQUIRED', 'Linked RU sub-user credentials are required to list buildings');
+      const xml = buildListBuildingsXml(creds, { username: childUser, password: childPass });
       const response = await callRentalsUnited(creds, xml);
       const { ok, status } = handleRUStatus(response);
       if (!ok) return ruErrorResponse(status);
@@ -1880,7 +1889,10 @@ Deno.serve(async (req) => {
     if (action === 'get_building') {
       const bId = body.building_id;
       if (!bId) return errorResponse('MISSING_PARAM', 'building_id is required');
-      const xml = buildGetBuildingXml(creds, parseInt(String(bId), 10));
+      const childUser = typeof body.auth_username === 'string' ? body.auth_username.trim() : '';
+      const childPass = typeof body.auth_password === 'string' ? body.auth_password : '';
+      if (!childUser || !childPass) return errorResponse('RU_CHILD_AUTH_REQUIRED', 'Linked RU sub-user credentials are required to read buildings');
+      const xml = buildGetBuildingXml(creds, parseInt(String(bId), 10), { username: childUser, password: childPass });
       const response = await callRentalsUnited(creds, xml);
       console.log(`[rentalsunited-api] get_building response: ${response.substring(0, 800)}`);
       const { ok, status } = handleRUStatus(response);
@@ -1972,9 +1984,12 @@ Deno.serve(async (req) => {
       // only a fallback for adopted accounts with no stored password.
       const childUser = typeof body.auth_username === 'string' ? body.auth_username.trim() : '';
       const childPass = typeof body.auth_password === 'string' ? body.auth_password : '';
-      const attempts: Array<{ mode: string; childAuth: { username: string; password: string } | null }> = [];
-      if (childUser && childPass) attempts.push({ mode: 'child_user_password', childAuth: { username: childUser, password: childPass } });
-      attempts.push({ mode: 'parent_access_key_owner_scope', childAuth: null });
+      if (!childUser || !childPass) {
+        return errorResponse('RU_CHILD_AUTH_REQUIRED', 'Linked RU sub-user username and password are required for company details');
+      }
+      const attempts: Array<{ mode: string; childAuth: { username: string; password: string } }> = [
+        { mode: 'child_user_password', childAuth: { username: childUser, password: childPass } },
+      ];
 
       let lastXml = '';
       let lastResponse = '';
