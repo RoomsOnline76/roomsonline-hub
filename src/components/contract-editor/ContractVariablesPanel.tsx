@@ -152,6 +152,31 @@ export function ContractVariablesPanel({
 
   return (
     <div className="space-y-4">
+      {/* Auto-filled variables reference */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm">Auto-filled Variables</CardTitle>
+          <p className="text-xs text-muted-foreground">
+            These are resolved at send/sign time from the property or portfolio billing config, falling back to
+            Admin → Billing Defaults. You don't need to declare them — just use the placeholder in the contract body.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {AUTO_VARIABLE_GROUPS.map((group) => (
+            <div key={group.label} className="space-y-1">
+              <p className="text-xs font-medium">{group.label}</p>
+              <div className="flex flex-wrap gap-1">
+                {group.keys.map((key) => (
+                  <Badge key={key} variant="secondary" className="font-mono text-[10px]">
+                    {`{{${key}}}`}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
       {/* Undeclared Variables Warning */}
       {undeclaredVariables.length > 0 && (
         <Card className="border-amber-500/50 bg-amber-50 dark:bg-amber-950/20">
