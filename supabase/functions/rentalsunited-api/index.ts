@@ -1738,6 +1738,53 @@ Deno.serve(async (req) => {
       });
     }
 
+    // ── list_amenities / sync_amenities ──
+    // Pull RU's global amenity dictionary. `sync_amenities` additionally caches the
+    // result in public.ru_amenities so the ROLOS amenity picker works without a live call.
+    if (action === 'list_amenities' || action === 'sync_amenities') {
+      const xml = buildListAmenitiesXml(creds);
+      const response = await callRentalsUnited(creds, xml);
+      const { ok, status } = handleRUStatus(response);
+      if (!ok) return ruErrorResponse(status, buildDiagnostics(compactXml(xml), status, action, response));
+      const amenities = extractAmenities(response);
+
+      let synced = 0;
+      let sync_error: string | null = null;
+      if (action === 'sync_amenities' && amenities.length > 0) {
+        try {
+          const supabase = createClient(
+            Deno.env.get('SUPABASE_URL')!,
+            Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+          );
+          const now = new Date().toISOString();
+          const { error: upErr } = await supabase.from('ru_amenities').upsert(
+            amenities.map((a) => ({
+              id: a.id,
+              name: a.name,
+              ru_group_id: a.group_id,
+              is_active: true,
+              synced_at: now,
+            })),
+            { onConflict: 'id' },
+          );
+          if (upErr) sync_error = upErr.message;
+          else synced = amenities.length;
+        } catch (e) {
+          sync_error = e instanceof Error ? e.message : String(e);
+        }
+      }
+
+      return jsonResponse({
+        success: true,
+        amenities,
+        count: amenities.length,
+        synced,
+        sync_error,
+      });
+    }
+
+
+
     // ── get_building ──
     // Read-only: fetch a building's composition (UnitsComposition) so we can backfill
     // unit_type_object_ids in pms_mappings without re-pushing the building.
