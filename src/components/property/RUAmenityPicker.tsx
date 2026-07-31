@@ -87,6 +87,10 @@ export default function RUAmenityPicker({ value, onChange, disabled }: RUAmenity
   const groups = useMemo(() => groupRuAmenities(visible), [visible]);
   const count = selectedIds.length;
   const meetsMinimum = count >= RU_MIN_ROOM_AMENITIES;
+  const selectedSummary = useMemo(
+    () => groupRuAmenities(catalogue.filter((a) => selectedSet.has(a.id))),
+    [catalogue, selectedSet],
+  );
 
   return (
     <div className="space-y-4">
