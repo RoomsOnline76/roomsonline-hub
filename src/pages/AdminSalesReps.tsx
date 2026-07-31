@@ -13,8 +13,6 @@ import { Loader2, Plus, ArrowLeft, UserPlus, Pencil, Trash2 } from "lucide-react
 import { useSalesReps, SalesRep } from "@/hooks/useSalesReps";
 import { useAuth } from "@/hooks/useAuth";
 import { RepBankingForm } from "@/components/sales-reps/RepBankingForm";
-import { RepAgreementPanel } from "@/components/sales-reps/RepAgreementPanel";
-
 
 const TIER_LABELS: Record<string, { label: string; color: string }> = {
   base: { label: "Base", color: "bg-muted text-muted-foreground" },
@@ -225,8 +223,6 @@ export default function AdminSalesReps() {
                   </Button>
                 </div>
                 <RepBankingForm repId={rep.id} />
-                <RepAgreementPanel rep={rep} />
-
               </CardContent>
             </Card>
           ))}

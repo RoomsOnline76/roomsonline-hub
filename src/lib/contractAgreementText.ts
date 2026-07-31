@@ -38,49 +38,12 @@ export interface CoveredProperty {
   property_type?: string;
 }
 
-/**
- * Fee terms resolved from the property/portfolio billing config
- * (see `resolveBillingContractVariables`). When omitted the generic
- * "as per the agreed fee schedule" wording is used — never a hardcoded rate.
- */
-export interface ContractFeeTerms {
-  listing_commission_clause?: string;
-  pms_commission_clause?: string;
-  fee_schedule_table?: string;
-}
-
-const NA_MARKER = '<!-- N/A -->';
-const clean = (v?: string) => (!v || v.trim() === NA_MARKER ? '' : v);
-
-function renderFeeSection(feeTerms?: ContractFeeTerms): string {
-  const listing = clean(feeTerms?.listing_commission_clause);
-  const pms = clean(feeTerms?.pms_commission_clause);
-  const table = clean(feeTerms?.fee_schedule_table);
-
-  if (!listing && !pms && !table) {
-    return `<p class="mb-6 text-sm leading-relaxed">
-    Roomsonline charges commission and fees in accordance with the fee schedule agreed with the Property, as reflected in the Property's billing configuration and any written variation thereof.
-  </p>`;
-  }
-
-  return `
-  ${listing ? `<p class="mb-3 text-sm leading-relaxed">${listing}</p>` : ''}
-  ${pms ? `<p class="mb-3 text-sm leading-relaxed">${pms}</p>` : ''}
-  ${table ? `<h3 class="text-base font-semibold mb-2">Annexure A — Fee Schedule</h3>${table}` : ''}
-`;
-}
-
 // Generate contract HTML with property details
-export function generateContractHTML(
-  property?: PropertyContractDetails,
-  coveredProperties?: CoveredProperty[],
-  feeTerms?: ContractFeeTerms,
-): string {
+export function generateContractHTML(property?: PropertyContractDetails, coveredProperties?: CoveredProperty[]): string {
   const effectiveProperty: PropertyContractDetails | undefined = property || (coveredProperties?.[0] ? {
     name: coveredProperties[0].name,
     physicalAddress: [coveredProperties[0].address, coveredProperties[0].city, coveredProperties[0].country].filter(Boolean).join(', '),
   } : undefined);
-
 
   const propertySection = effectiveProperty ? `
   <table class="w-full mb-6 text-sm border-collapse">
@@ -134,8 +97,9 @@ export function generateContractHTML(
   ${coveredPropertiesSection}
 
   <h2 class="text-lg font-semibold mb-3">3. COMMISSION AND FEES</h2>
-  ${renderFeeSection(feeTerms)}
-
+  <p class="mb-6 text-sm leading-relaxed">
+    Roomsonline charges a commission of <strong>ten percent (10%)</strong> (VAT exclusive) of the Total Booking Value for all bookings made via the Roomsonline Software, unless otherwise agreed in writing.
+  </p>
 </div>
 `;
 }
@@ -178,10 +142,8 @@ export function generateSignedContractHTML(
   property?: PropertyContractDetails,
   signature?: SignatureData,
   metadata?: ContractMetadata,
-  coveredProperties?: CoveredProperty[],
-  feeTerms?: ContractFeeTerms,
+  coveredProperties?: CoveredProperty[]
 ): string {
-
   const coveredPropertiesList = coveredProperties && coveredProperties.length > 0
     ? coveredProperties.map(p => {
         const location = [p.address, p.city, p.country].filter(Boolean).join(', ');
@@ -249,9 +211,8 @@ export function generateSignedContractHTML(
   <h2>2. THE PROPERTY</h2>
   ${propertySection}
 
-  <h2>3. COMMISSION AND FEES</h2>
-  ${renderFeeSection(feeTerms)}
-
+  <h2>3. COMMISSION</h2>
+  <p>Roomsonline charges a commission of <strong>ten percent (10%)</strong> (VAT exclusive) of the Total Booking Value.</p>
 
   ${signatureBlockHtml}
   

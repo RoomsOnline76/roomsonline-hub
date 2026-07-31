@@ -1231,7 +1231,6 @@ export type Database = {
           description: string | null
           id: string
           is_active: boolean | null
-          kind: string
           name: string
           updated_at: string | null
         }
@@ -1242,7 +1241,6 @@ export type Database = {
           description?: string | null
           id?: string
           is_active?: boolean | null
-          kind?: string
           name: string
           updated_at?: string | null
         }
@@ -1253,7 +1251,6 @@ export type Database = {
           description?: string | null
           id?: string
           is_active?: boolean | null
-          kind?: string
           name?: string
           updated_at?: string | null
         }
@@ -5742,16 +5739,12 @@ export type Database = {
           clawback_until: string | null
           converted_at: string | null
           created_at: string
-          first_year_rate_override: number | null
           id: string
           lead_notes: string | null
           lead_source: Database["public"]["Enums"]["lead_source"]
-          override_notes: string | null
           property_id: string
           referral_date: string
           rep_id: string
-          residual_months_override: number | null
-          residual_rate_override: number | null
           status: Database["public"]["Enums"]["referral_status"]
           updated_at: string
         }
@@ -5759,16 +5752,12 @@ export type Database = {
           clawback_until?: string | null
           converted_at?: string | null
           created_at?: string
-          first_year_rate_override?: number | null
           id?: string
           lead_notes?: string | null
           lead_source?: Database["public"]["Enums"]["lead_source"]
-          override_notes?: string | null
           property_id: string
           referral_date?: string
           rep_id: string
-          residual_months_override?: number | null
-          residual_rate_override?: number | null
           status?: Database["public"]["Enums"]["referral_status"]
           updated_at?: string
         }
@@ -5776,16 +5765,12 @@ export type Database = {
           clawback_until?: string | null
           converted_at?: string | null
           created_at?: string
-          first_year_rate_override?: number | null
           id?: string
           lead_notes?: string | null
           lead_source?: Database["public"]["Enums"]["lead_source"]
-          override_notes?: string | null
           property_id?: string
           referral_date?: string
           rep_id?: string
-          residual_months_override?: number | null
-          residual_rate_override?: number | null
           status?: Database["public"]["Enums"]["referral_status"]
           updated_at?: string
         }
@@ -6081,7 +6066,6 @@ export type Database = {
           period_start: string
           property_id: string
           rate_applied: number
-          rate_source: string | null
           referral_id: string
           rep_id: string
           status: Database["public"]["Enums"]["commission_entry_status"]
@@ -6098,7 +6082,6 @@ export type Database = {
           period_start: string
           property_id: string
           rate_applied: number
-          rate_source?: string | null
           referral_id: string
           rep_id: string
           status?: Database["public"]["Enums"]["commission_entry_status"]
@@ -6115,7 +6098,6 @@ export type Database = {
           period_start?: string
           property_id?: string
           rate_applied?: number
-          rate_source?: string | null
           referral_id?: string
           rep_id?: string
           status?: Database["public"]["Enums"]["commission_entry_status"]
@@ -6212,81 +6194,6 @@ export type Database = {
             columns: ["rep_id"]
             isOneToOne: false
             referencedRelation: "sales_reps"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      rep_contracts: {
-        Row: {
-          created_at: string
-          created_by: string | null
-          id: string
-          notes: string | null
-          rep_id: string
-          sent_at: string | null
-          signature_data: Json | null
-          signed_at: string | null
-          signed_html: string | null
-          signed_pdf_url: string | null
-          signer_email: string | null
-          signer_name: string | null
-          signing_token: string
-          status: string
-          template_version_id: string | null
-          terms_snapshot: Json | null
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          created_by?: string | null
-          id?: string
-          notes?: string | null
-          rep_id: string
-          sent_at?: string | null
-          signature_data?: Json | null
-          signed_at?: string | null
-          signed_html?: string | null
-          signed_pdf_url?: string | null
-          signer_email?: string | null
-          signer_name?: string | null
-          signing_token?: string
-          status?: string
-          template_version_id?: string | null
-          terms_snapshot?: Json | null
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          created_by?: string | null
-          id?: string
-          notes?: string | null
-          rep_id?: string
-          sent_at?: string | null
-          signature_data?: Json | null
-          signed_at?: string | null
-          signed_html?: string | null
-          signed_pdf_url?: string | null
-          signer_email?: string | null
-          signer_name?: string | null
-          signing_token?: string
-          status?: string
-          template_version_id?: string | null
-          terms_snapshot?: Json | null
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "rep_contracts_rep_id_fkey"
-            columns: ["rep_id"]
-            isOneToOne: false
-            referencedRelation: "sales_reps"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "rep_contracts_template_version_id_fkey"
-            columns: ["template_version_id"]
-            isOneToOne: false
-            referencedRelation: "contract_template_versions"
             referencedColumns: ["id"]
           },
         ]

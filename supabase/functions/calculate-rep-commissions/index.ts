@@ -24,48 +24,29 @@ serve(async (req) => {
     const periodEndStr = periodEnd.toISOString().split("T")[0];
     const periodMonth = periodStartStr.substring(0, 7) + "-01"; // YYYY-MM-01
 
-    // Get global defaults — including the admin-maintained tier criteria.
+    // Get global defaults
     const { data: defaults } = await supabase
       .from("billing_global_defaults")
-      .select(
-        "referral_first_year_rate, referral_residual_rate, referral_residual_months, referral_clawback_days, sales_rep_tier_criteria_json",
-      )
+      .select("referral_first_year_rate, referral_residual_rate, referral_residual_months, referral_clawback_days")
       .eq("strategy", "default")
-      .maybeSingle();
+      .single();
 
     const firstYearRate = defaults?.referral_first_year_rate ?? 20;
     const residualRate = defaults?.referral_residual_rate ?? 5;
     const residualMonths = defaults?.referral_residual_months ?? 12;
     const clawbackDays = defaults?.referral_clawback_days ?? 90;
 
-    const num = (v: unknown): number | null => {
-      if (v == null || v === "") return null;
-      const n = Number(v);
-      return Number.isFinite(n) ? n : null;
+    // Tier rate overrides
+    const tierRates: Record<string, { firstYear: number; residual: number; residualMonths: number }> = {
+      base: { firstYear: firstYearRate, residual: residualRate, residualMonths },
+      accelerated: { firstYear: 25, residual: 7.5, residualMonths: 18 },
+      elite: { firstYear: 30, residual: 10, residualMonths: 24 },
     };
-
-    // Tier rates come from Admin → Billing Defaults (sales_rep_tier_criteria_json).
-    // Nothing is hardcoded beyond the baseline referral rates above.
-    const criteria = (defaults?.sales_rep_tier_criteria_json ?? null) as
-      | Record<string, { first_year_rate?: number; residual_rate?: number }>
-      | null;
-
-    const tierRates: Record<string, { firstYear: number; residual: number; residualMonths: number }> = {};
-    for (const key of ["base", "accelerated", "elite"]) {
-      const c = criteria?.[key];
-      tierRates[key] = {
-        firstYear: num(c?.first_year_rate) ?? firstYearRate,
-        residual: num(c?.residual_rate) ?? residualRate,
-        residualMonths,
-      };
-    }
 
     // Get all converted referrals with active reps
     const { data: referrals, error: refError } = await supabase
       .from("property_referrals")
-      .select(
-        "id, property_id, rep_id, referral_date, clawback_until, status, first_year_rate_override, residual_rate_override, residual_months_override",
-      )
+      .select("id, property_id, rep_id, referral_date, clawback_until, status")
       .eq("status", "converted");
 
     if (refError) throw refError;
@@ -82,7 +63,6 @@ serve(async (req) => {
       .in("id", repIds);
 
     const repMap = new Map((reps || []).map((r) => [r.id, r]));
-
 
     let processed = 0;
     const reportAgg: Record<string, { totalEntries: number; totalAmount: number }> = {};
@@ -103,26 +83,13 @@ serve(async (req) => {
         (periodStart.getMonth() - referralDate.getMonth());
 
       const tier = tierRates[rep.commission_tier] || tierRates.base;
-      // Per-property negotiated terms (from the referral) beat the tier rates.
-      const overrideFirstYear = num(referral.first_year_rate_override);
-      const overrideResidual = num(referral.residual_rate_override);
-      const overrideMonths = num(referral.residual_months_override);
-
-      const effectiveResidualMonths = overrideMonths ?? tier.residualMonths;
       const isFirstYear = monthsSinceReferral < 12;
-      const isWithinResidual = monthsSinceReferral < effectiveResidualMonths;
+      const isWithinResidual = monthsSinceReferral < tier.residualMonths;
 
       if (!isFirstYear && !isWithinResidual) continue; // Past residual window
 
       const commissionType = isFirstYear ? "first_year" : "residual";
-      const overrideRate = isFirstYear ? overrideFirstYear : overrideResidual;
-      const rate = overrideRate ?? (isFirstYear ? tier.firstYear : tier.residual);
-      const rateSource = overrideRate != null
-        ? "referral_override"
-        : criteria?.[rep.commission_tier]
-          ? "tier_criteria"
-          : "billing_defaults";
-
+      const rate = isFirstYear ? tier.firstYear : tier.residual;
 
       // Get platform revenue for this property in the period (from billing_transactions).
       // Reps do NOT earn on facilitator surcharge (pass-through payment fee) or BYO gateway add-ons.
@@ -160,11 +127,9 @@ serve(async (req) => {
         base_revenue: baseRevenue,
         commission_type: commissionType,
         rate_applied: rate,
-        rate_source: rateSource,
         amount,
         status: "pending",
       });
-
 
       if (!reportAgg[referral.rep_id]) {
         reportAgg[referral.rep_id] = { totalEntries: 0, totalAmount: 0 };

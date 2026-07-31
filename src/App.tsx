@@ -40,8 +40,6 @@ const EmbedProperty = lazy(() => import("./pages/EmbedProperty"));
 const EmbedPortfolio = lazy(() => import("./pages/EmbedPortfolio"));
 const StaffLogin = lazy(() => import("./pages/StaffLogin"));
 const ContractSign = lazy(() => import("./pages/ContractSign"));
-const RepContractSign = lazy(() => import("./pages/RepContractSign"));
-
 const PropertyOnboarding = lazy(() => import("./pages/PropertyOnboarding"));
 const GuestPortal = lazy(() => import("./pages/GuestPortal"));
 const SubscriptionPay = lazy(() => import("./pages/SubscriptionPay"));
@@ -290,8 +288,6 @@ const App = () => (
                         <Route path="/journals" element={<PublicJournals />} />
                         <Route path="/how-our-booking-engine-works" element={<PMSComparison />} />
                         <Route path="/contract/sign/:token" element={<ContractSign />} />
-                        <Route path="/rep-contract/sign/:token" element={<RepContractSign />} />
-
                         <Route path="/onboarding/:token" element={<PropertyOnboarding />} />
                         <Route path="/staff-login" element={<StaffLogin />} />
                         <Route path="/staff-login/:propertySlug" element={<StaffLogin />} />
