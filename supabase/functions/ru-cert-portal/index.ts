@@ -649,7 +649,7 @@ Deno.serve(async (req) => {
       const { data: decrypted, error: decErr } = await admin.rpc("decrypt_sensitive_text", {
         encrypted_data: account.ru_login_password_enc,
       });
-      if (decErr || !decrypted) {
+      if (decErr || !decrypted || decrypted === "[ENCRYPTED]" || decrypted === "[DECRYPTION_ERROR]") {
         return json({ success: false, error: { code: "DECRYPT_FAILED", message: decErr?.message || "Could not decrypt the stored password" } }, 500);
       }
 
@@ -699,6 +699,13 @@ Deno.serve(async (req) => {
       const { data: decryptedPw } = await admin.rpc("decrypt_sensitive_text", {
         encrypted_data: account.ru_login_password_enc,
       });
+      if (!decryptedPw || decryptedPw === "[ENCRYPTED]" || decryptedPw === "[DECRYPTION_ERROR]") {
+        return json({
+          success: false,
+          verified: false,
+          error: { code: "DECRYPT_FAILED", message: "The stored RU password could not be decrypted by the backend." },
+        }, 500);
+      }
       const { data: verified, error: verifyError } = await admin.functions.invoke("rentalsunited-api", {
         body: {
           action: "verify_child_login",
@@ -1081,7 +1088,9 @@ Deno.serve(async (req) => {
           const { data: decrypted } = await admin.rpc("decrypt_sensitive_text", {
             encrypted_data: account.ru_login_password_enc,
           });
-          password = (decrypted as string | null) ?? null;
+          password = decrypted && decrypted !== "[ENCRYPTED]" && decrypted !== "[DECRYPTION_ERROR]"
+            ? decrypted as string
+            : null;
           passwordIsOurs = Boolean(password);
         }
         if (password && !account.ru_login_password_enc) {
@@ -1212,7 +1221,7 @@ Deno.serve(async (req) => {
         }
         if (/incorrect login or password/i.test(lastMessage)) {
           lastMessage =
-            "Rentals United rejected the sub-user login on the XML API (Status -4). Company details can only be written by authenticating AS the sub-user (Push_FillCompanyDetails_RQ has no OwnerID element), so RU API Support must enable API login for child accounts under our master account, or the sub-user password must be reset in the RU portal and saved here.";
+            "Rentals United rejected the saved sub-user username/password (Status -4). Push_FillCompanyDetails_RQ requires the sub-user login and has no OwnerID selector. Confirm that the saved login email matches Pull_ListMyUsers_RQ, then save the current RU password and retry.";
         }
         if (fillErr || !filled?.success) {
           await admin
