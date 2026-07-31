@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -64,6 +64,7 @@ interface PropRow {
  * owner-email match).
  */
 export function PortfolioRuAccountsTab() {
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
   const [revealing, setRevealing] = useState<string | null>(null);
@@ -147,12 +148,12 @@ export function PortfolioRuAccountsTab() {
         }
         toast.success(`Bound to OwnerID ${ruOwnerId}`);
         setBindFor(null);
-        await refetchAccounts();
+        await queryClient.invalidateQueries({ queryKey: ["ru-owner-accounts"] });
       } finally {
         setBinding(null);
       }
     },
-    [bindFor],
+    [bindFor, queryClient],
   );
 
   const openReset = useCallback((accountId: string, email: string) => {
