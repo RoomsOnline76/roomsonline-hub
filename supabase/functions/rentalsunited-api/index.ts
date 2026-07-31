@@ -848,7 +848,10 @@ function buildPushBuildingXml(creds: RUCredentials, buildingId: number, building
   const truncatedName = buildingName.substring(0, 20);
   const buildingIdXml = buildingId > 0 ? `<BuildingID>${buildingId}</BuildingID>` : '';
   const compositionXml = buildBuildingCompositionXml(unitTypes);
-  return `<Push_PutBuilding_RQ>${buildAuthXml(creds)}<BuildingName>${escapeXml(truncatedName)}</BuildingName>${buildingIdXml}${compositionXml}</Push_PutBuilding_RQ>`;
+  // Element order matters: RU's XSD expects <BuildingID> (update key) before
+  // <BuildingName>. With the wrong order RU ignores the ID and creates a new
+  // building on every push, which duplicates inventory.
+  return `<Push_PutBuilding_RQ>${buildAuthXml(creds)}${buildingIdXml}<BuildingName>${escapeXml(truncatedName)}</BuildingName>${compositionXml}</Push_PutBuilding_RQ>`;
 }
 
 function buildListBuildingsXml(creds: RUCredentials): string {
