@@ -115,6 +115,7 @@ export default function AdminPortfolios() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [formName, setFormName] = useState("");
+  const [formOwnerEmail, setFormOwnerEmail] = useState("");
   const [formSlug, setFormSlug] = useState("");
   const [selectedProps, setSelectedProps] = useState<string[]>([]);
   const [propertySearch, setPropertySearch] = useState("");
