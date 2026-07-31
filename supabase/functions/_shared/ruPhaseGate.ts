@@ -225,26 +225,35 @@ export async function evaluatePhases(
     }
   }
 
+  const { data: lastInventoryRun } = await admin
+    .from("ru_sync_runs")
+    .select("success, created_at, details")
+    .eq("property_id", property.id)
+    .eq("action", "inventory_push")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
   // ── Phase 3 ──
   const p3Blockers: string[] = [];
   if (!property.rentalsunited_property_id && !property.rentalsunited_building_id) {
     p3Blockers.push("Property has not been pushed to Rentals United yet (no RU PropertyID/BuildingID stored).");
   }
+  if (!lastInventoryRun?.success) {
+    p3Blockers.push("A complete property, availability, and price push has not succeeded for the linked RU sub-user.");
+  } else if (Number(lastInventoryRun?.details?.ru_owner_id) !== Number(account?.ru_owner_id)) {
+    p3Blockers.push("The latest inventory push belongs to a different RU OwnerID; re-push under the linked sub-user.");
+  }
 
   // ── Phase 4 ──
   const p4Blockers: string[] = [];
-  const { data: lastRun } = await admin
-    .from("ru_sync_runs")
-    .select("success, created_at")
-    .eq("property_id", property.id)
-    .eq("success", true)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  const lastOkAt = lastRun?.created_at ? new Date(lastRun.created_at).getTime() : 0;
+  const verificationPassed = lastInventoryRun?.success === true
+    && lastInventoryRun?.details?.verified === true
+    && Number(lastInventoryRun?.details?.ru_owner_id) === Number(account?.ru_owner_id);
+  const lastOkAt = verificationPassed && lastInventoryRun?.created_at ? new Date(lastInventoryRun.created_at).getTime() : 0;
   const freshMs = 24 * 60 * 60 * 1000;
   if (!lastOkAt) {
-    p4Blockers.push("No successful RU sync recorded yet — push and verify inventory first.");
+    p4Blockers.push("No owner-scoped RU content, availability, and price verification has passed yet.");
   } else if (Date.now() - lastOkAt > freshMs) {
     p4Blockers.push("Last successful RU sync is older than 24 hours — re-verify before ordering the quality check.");
   }
@@ -293,6 +302,8 @@ export async function evaluatePhases(
       detail: {
         ru_property_id: property.rentalsunited_property_id ?? null,
         ru_building_id: property.rentalsunited_building_id ?? null,
+        ru_owner_id: account?.ru_owner_id ?? null,
+        inventory_push_at: lastInventoryRun?.created_at ?? null,
       },
     },
     {
@@ -301,7 +312,7 @@ export async function evaluatePhases(
       label: "Verification & ongoing sync",
       status: p4Blockers.length ? "blocked" : "passed",
       blockers: p4Blockers,
-      detail: { last_success_at: lastOkAt ? new Date(lastOkAt).toISOString() : null },
+      detail: { last_success_at: lastOkAt ? new Date(lastOkAt).toISOString() : null, verified: verificationPassed, ru_owner_id: account?.ru_owner_id ?? null },
     },
   ];
 

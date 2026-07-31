@@ -1,31 +1,53 @@
-# RU-aligned room/unit amenities
+## Rentals United white-label correction
 
-## Current state (verified)
-- The Amenities sub-tab in `src/components/property/RoomManagerTab.tsx` offers only 4 hardcoded groups (~29 free-text labels: Bathroom, Bedroom, Food & Drink, Internet). Selections are stored as label strings on `amenities.room_types[].amenities`.
-- `supabase/functions/push-property-to-ru/index.ts` maps those labels to RU IDs through a hand-written `AMENITY_MAP` of ~50 keys — none of which match the labels shown in the UI (e.g. "Free WiFi" vs key `wifi`), so most selections do not map and the push pads amenities to reach RU's minimum of 10.
-- `rentalsunited-api` supports `Pull_ListCompositionRooms_RQ` but has **no** `Pull_ListAmenities_RQ` action, so RU's real amenity dictionary has never been fetched.
-- `RU_MIN_AMENITIES = 10` exists in `_shared/ruReadiness.ts` but is checked at property level only; rooms are only checked for "has beds/amenities".
+### Confirmed problems
+- **Phase 3 is marked complete from stored RU IDs alone**, before a successful inventory push.
+- **Phase 4 is marked complete from any recent `ru_sync_runs.success=true` row**, not from verified property, availability, and price read-back.
+- `Push_FillCompanyDetails_RQ` first tries the linked sub-user but then **falls back to the master account**. That fallback can report success while leaving the linked sub-user’s company profile blank.
+- Property pushes use the linked OwnerID, but the low-level adapter still has a dangerous **`OwnerID || 1` master fallback**.
+- Building creation currently authenticates with the master credentials and has no OwnerID scope, so the building can be created under the master account even when its units carry the child OwnerID.
+- Existing stored property/building IDs may therefore reference master-owned objects and cannot be trusted without owner-scoped verification.
 
-## What to build
+## Implementation
 
-### 1. Fetch RU's amenity dictionary
-- Add a `list_amenities` action to `supabase/functions/rentalsunited-api/index.ts` issuing `Pull_ListAmenities_RQ` with master auth, plus a parser handling both attribute (`<Amenity AmenityID="6">`) and child-element response shapes.
-- New table `ru_amenities` (id int PK, name, category/static-group, is_active, synced_at) with GRANTs + RLS (read: authenticated; write: service_role only), populated by an admin-triggered `sync_amenities` action so the catalogue is cached and offline-safe.
+1. **Enforce strict child-account isolation**
+   - Remove the parent/master fallback from company-details submission.
+   - Require the linked sub-user username and securely stored password for `Push_FillCompanyDetails_RQ`; fail clearly if either is unavailable.
+   - Remove the `OwnerID || 1` fallback from property XML and reject every property push without a positive linked OwnerID.
+   - Remove the force/master OwnerID escape hatch for white-label property pushes so no UI, cron, or direct adapter call can silently write inventory to the master account.
 
-### 2. Canonical catalogue + mapping
-- New `src/lib/ruAmenities.ts`: loads cached RU amenities, groups them into readable sections (Bathroom, Bedroom, Kitchen, Entertainment, Outdoor, Safety, Accessibility, Services, Internet, General), and exposes helpers to search/filter.
-- New shared `supabase/functions/_shared/ruAmenityMap.ts`: replaces the ad-hoc `AMENITY_MAP` with an alias table covering both the new RU-ID-based selections and every legacy label (so existing properties keep their data). Selections are stored going forward as `ru:<id>` tokens alongside a display name; legacy strings are resolved via the alias table.
+2. **Make building creation sub-user scoped**
+   - Add linked-account authentication support to the RU building create/update/list calls, because those requests do not carry an OwnerID.
+   - Resolve credentials from the same `ru_owner_accounts` record selected by the portfolio/property phase gate.
+   - Hard-fail if the linked account cannot authenticate; never retry a building request with master credentials.
+   - Keep property content scoped with the explicit linked OwnerID and ARI scoped through the resulting child-owned PropertyIDs.
 
-### 3. Rebuild the Amenities sub-tab (ROLOS Property Setup → Rooms → Amenities, and /admin/edit property → Rooms → Amenities)
-- Replace the 4 hardcoded columns with a grouped, searchable, collapsible checklist rendered from the RU catalogue (full option set, not a subset).
-- Header strip: live counter `X / 10 selected`, progress bar, "Copy amenities from another room type" and "Clear" actions; PMS-synced amenity banner preserved.
-- Amber warning under 10, green once satisfied; the count is per room type.
+3. **Repair and verify existing RU identity mappings**
+   - Before reusing a stored PropertyID or BuildingID, verify it is visible to the linked sub-user/OwnerID.
+   - If an ID belongs to the master account or is not visible to the linked sub-user, invalidate the local mapping and recreate the object under the linked account.
+   - Do not consider a master-owned object a valid recovery candidate based only on a matching name.
 
-### 4. Enforce the 10-amenity minimum before submission
-- Add a `rooms_meet_minimum_amenities` blocker to `_shared/ruReadiness.ts` (RU_MIN_AMENITIES per room/unit), surfaced in `PushToRentalsUnited.tsx` with a deep link to the offending room's Amenities tab.
-- `push-property-to-ru` fails with `RU_ROOM_AMENITIES_BELOW_MIN` instead of padding room-level amenities; property-level padding warning stays.
+4. **Correct Phase 3 semantics**
+   - Keep Phase 3 pending until the current linked sub-user has a successful property/building push plus successful availability and price pushes for every required unit.
+   - Treat skipped ARI, missing RU IDs, partial unit failures, availability errors, or price errors as failure—not success.
+   - Record each manual push in `ru_sync_runs` with linked OwnerID, account scope, per-unit results, and explicit content/availability/pricing outcomes.
 
-## Technical notes
-- RU credentials/owner scoping reuse the existing resolver in `rentalsunited-api`; no adapter-locked regions are touched (`.lovable/ADAPTER_LOCKS.md` does not cover the amenity path).
-- Migration includes GRANTs for `authenticated` (select) and `service_role` (all) on `ru_amenities`.
-- If the live `Pull_ListAmenities_RQ` call returns an error for our account, the catalogue falls back to a seeded snapshot committed in `ruAmenities.ts` so the UI still ships the expanded list.
+5. **Correct Phase 4 semantics**
+   - Require owner-scoped read-back verification that the pushed properties exist under the linked OwnerID and that availability/prices can be read back successfully.
+   - Stop using an unrelated or inflated recent sync row as proof of Phase 4 completion.
+   - Only enable **Order quality check** after this linked-account verification succeeds.
+
+6. **Improve recovery feedback**
+   - Return explicit errors such as `RU_CHILD_AUTH_REQUIRED`, `RU_OWNER_SCOPE_MISMATCH`, and `RU_VERIFICATION_FAILED` instead of a generic successful push.
+   - Show the linked OwnerID and verification result in the onboarding pipeline, without exposing credentials.
+
+7. **Validate the full flow against the affected portfolio**
+   - Re-send company details and confirm they appear on the linked RU sub-user profile.
+   - Re-push the property and units, confirm they are listed under that sub-user rather than the master account, and verify availability/prices by read-back.
+   - Confirm P3 remains pending before the push and P4 remains pending until verification completes.
+   - Add regression coverage for missing OwnerID, child-auth failure, master-owned stale IDs, partial ARI failures, and false P3/P4 completion.
+
+## Scope and safety
+- Update `rentalsunited-api`, `ru-cert-portal`, `push-property-to-ru`, the shared RU phase gate, and the onboarding status UI.
+- Do not modify the locked `ru-reservation-handler` or booking-orchestrator regions.
+- Add the critical RU OwnerID/authentication regions to the adapter lock list after the correction to prevent future master-account fallback regressions.

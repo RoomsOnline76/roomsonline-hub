@@ -14,6 +14,8 @@ production properties. Ship-first-fix-later is not acceptable here.
 |---|---|---|
 | Hostfully | `supabase/functions/hostfully-api/index.ts` | `handleFetchAvailability`, `fetchHostfullyUnitTypeInventory`, `mapHostfullyCalendarToAvailability`, `extractHostfullyLeads`, `DEAD_STATUSES` set |
 | Rentals United | `supabase/functions/ru-reservation-handler/index.ts` | full file |
+| Rentals United | `supabase/functions/rentalsunited-api/index.ts` | `buildPushPropertyXml`, child authentication builders, `push_property`, `push_building`, `list_buildings`, `get_building`, `fill_company_details` |
+| Rentals United | `supabase/functions/push-property-to-ru/index.ts` | OwnerID resolution/phase-gate block and `inventory_push` evidence writes |
 | NightsBridge | `supabase/functions/nightsbridge-reservations-sync/index.ts` | full file |
 | Booking orchestrator | `supabase/functions/booking-orchestrator-api/index.ts` | ARI resolution + `NO_BOOKING_FROM_CACHE` enforcement |
 | Beds24 | `supabase/functions/beds24-api/index.ts` | `handleFetchAvailability`, `handleFetchRates` |
@@ -33,6 +35,9 @@ production properties. Ship-first-fix-later is not acceptable here.
 3. **Snake_case on the wire, camelCase in TS** — do not flip either side.
 4. **Never bypass live PMS verification for a booking** (`NO_BOOKING_FROM_CACHE`).
 5. **Preserve adapter contract response shape** (`{ success, data, error }`).
+6. **RU white-label writes must target the linked sub-user** — never default a
+   missing OwnerID to the master account, and never retry child-authenticated
+   company/building operations with master credentials.
 
 ## Change procedure
 
@@ -42,4 +47,4 @@ production properties. Ship-first-fix-later is not acceptable here.
 4. Update this file if the lock scope changes.
 5. Re-deploy the affected edge function(s) and verify against a real property.
 
-_Last updated: 2026-07-06 (Hostfully unit-type inventory switch)._
+_Last updated: 2026-07-31 (Rentals United sub-user isolation and inventory evidence gates)._

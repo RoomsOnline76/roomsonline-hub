@@ -7,7 +7,7 @@ import {
   RU_MIN_IMAGE_WIDTH,
   RU_BED_COVERAGE,
 } from '../_shared/ruReadiness.ts';
-import { evaluatePhases, phaseBlockedResponse, masterOwnerIdOverride } from '../_shared/ruPhaseGate.ts';
+import { evaluatePhases, phaseBlockedResponse, findOwnerAccount } from '../_shared/ruPhaseGate.ts';
 import { resolveRuAmenityIds } from '../_shared/ruAmenityMap.ts';
 
 
@@ -636,105 +636,6 @@ function buildUnitPayload(
     building_id: buildingId,
     object_type_id: undefined as number | undefined, // populated by orchestrator after push_building
   };
-}
-
-// ── RU Sub-Account Resolution ────────────────────────────────
-
-function generateSecurePassword(): string {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%';
-  let password = '';
-  const array = new Uint8Array(16);
-  crypto.getRandomValues(array);
-  for (const byte of array) password += chars[byte % chars.length];
-  return password;
-}
-
-async function resolveRuOwnerAccount(
-  supabase: any,
-  ownerEmail: string,
-  ownerName: string,
-): Promise<{ ru_owner_id: number; ru_user_id: string | null; created: boolean }> {
-  // 1. Check if an RU sub-account already exists for this owner
-  const { data: existing } = await supabase
-    .from('ru_owner_accounts')
-    .select('ru_owner_id, ru_user_id')
-    .eq('owner_email', ownerEmail)
-    .maybeSingle();
-
-  if (existing?.ru_owner_id) {
-    console.log(`[push-property-to-ru] Found existing RU owner account for ${ownerEmail}: owner_id=${existing.ru_owner_id}`);
-    return { ru_owner_id: parseInt(existing.ru_owner_id, 10), ru_user_id: existing.ru_user_id, created: false };
-  }
-
-  // 2. Create a new RU sub-account
-  const nameParts = ownerName.split(' ');
-  const firstName = nameParts[0] || 'Property';
-  const lastName = nameParts.slice(1).join(' ') || 'Owner';
-  const password = generateSecurePassword();
-  // Use the owner email directly for the RU login
-  const ruLoginEmail = ownerEmail;
-
-  console.log(`[push-property-to-ru] Creating new RU sub-account for ${ownerEmail} (${firstName} ${lastName})`);
-
-  const { data: createResult, error: createErr } = await supabase.functions.invoke('rentalsunited-api', {
-    body: {
-      action: 'create_user',
-      user: { first_name: firstName, last_name: lastName, email: ruLoginEmail, password },
-    },
-  });
-
-  if (createErr || !createResult?.success) {
-    const errMsg = createErr?.message || createResult?.error?.message || 'Unknown error';
-    console.error(`[push-property-to-ru] Failed to create RU sub-account for ${ownerEmail}: ${errMsg}`);
-    // Fall back to master account owner ID
-    throw new Error(`RU_OWNER_UNRESOLVED: could not create a Rentals United sub-account for ${ownerEmail}: ${errMsg}`);
-  }
-
-  const userAccountId = createResult.user_account_id;
-  console.log(`[push-property-to-ru] Created RU sub-account: UserAccountId=${userAccountId}`);
-
-  // 3. List users to find the OwnerID for this new account
-  let ownerId: string | null = null;
-  try {
-    const { data: listResult } = await supabase.functions.invoke('rentalsunited-api', {
-      body: { action: 'list_users' },
-    });
-    if (listResult?.success && Array.isArray(listResult.users)) {
-      const matched = listResult.users.find((u: any) => u.user_account_id === userAccountId || u.email === ruLoginEmail);
-      if (matched?.owner_id) ownerId = matched.owner_id;
-    }
-  } catch (e) {
-    console.warn(`[push-property-to-ru] Failed to list users to resolve OwnerID:`, e);
-  }
-
-  // 4. Store the account details (unique index is partial → resolve then update/insert)
-  const accountRow = {
-    owner_email: ownerEmail,
-    ru_user_id: userAccountId,
-    ru_owner_id: ownerId,
-    ru_login_email: ruLoginEmail,
-    ru_login_url: 'https://new.rentalsunited.com',
-  };
-  const { data: existingAccount } = await supabase
-    .from('ru_owner_accounts')
-    .select('id')
-    .eq('owner_email', ownerEmail)
-    .is('portfolio_id', null)
-    .is('property_id', null)
-    .maybeSingle();
-  const { error: insertErr } = existingAccount?.id
-    ? await supabase.from('ru_owner_accounts').update(accountRow).eq('id', existingAccount.id)
-    : await supabase.from('ru_owner_accounts').insert(accountRow);
-
-  if (insertErr) console.error(`[push-property-to-ru] Failed to save RU account: ${insertErr.message}`);
-
-
-  const resolvedOwnerId = ownerId ? parseInt(ownerId, 10) : NaN;
-  if (!Number.isFinite(resolvedOwnerId) || resolvedOwnerId <= 0) {
-    throw new Error(`RU_OWNER_UNRESOLVED: sub-account created for ${ownerEmail} but Rentals United returned no OwnerID`);
-  }
-  console.log(`[push-property-to-ru] Resolved RU OwnerID: ${resolvedOwnerId} for ${ownerEmail}`);
-  return { ru_owner_id: resolvedOwnerId, ru_user_id: userAccountId, created: true };
 }
 
 // Legacy single-property payload builder (kept for properties with no room types)
@@ -2055,13 +1956,10 @@ Deno.serve(async (req) => {
 
     const phaseGate = await evaluatePhases(supabase, property as any, { readinessGaps: precomputedGaps });
 
-    // Multi-tenant isolation: a missing OwnerID is a HARD error. The only escape hatch
-    // is an explicit force push combined with a configured RU_MASTER_OWNER_ID secret.
-    let ruOwnerId = phaseGate.ru_owner_id;
+    // Multi-tenant isolation: a missing OwnerID is always a HARD error.
+    const ruOwnerId = phaseGate.ru_owner_id;
     if (!ruOwnerId || ruOwnerId <= 0) {
-      const override = forcePush ? masterOwnerIdOverride() : null;
-      if (!override) {
-        return new Response(
+      return new Response(
           JSON.stringify({
             success: false,
             error: {
@@ -2073,21 +1971,17 @@ Deno.serve(async (req) => {
           }),
           { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
         );
-      }
-      ruOwnerId = override;
-      console.warn(
-        `[push-property-to-ru] ADMIN OVERRIDE: using RU_MASTER_OWNER_ID ${override} for property ${property_id}`,
-      );
-      try {
-        await supabase.from('ru_sync_runs').insert({
-          property_id,
-          action: 'master_owner_override',
-          success: false,
-          error_code: 'RU_OWNER_MASTER_OVERRIDE',
-          error_message: `Forced push attributed to master OwnerID ${override}`,
-          details: { owner_scope: phaseGate.owner_scope, portfolio_id: phaseGate.portfolio_id },
-        });
-      } catch (_e) { /* audit only */ }
+    }
+
+    const { account: ownerAccount } = await findOwnerAccount(supabase, property_id, property.owner_email, phaseGate.portfolio_id);
+    const childUsername = ownerAccount?.ru_login_email?.trim() ?? '';
+    let childPassword = '';
+    if (ownerAccount?.ru_login_password_enc) {
+      const { data: decrypted } = await supabase.rpc('decrypt_sensitive_text', { encrypted_data: ownerAccount.ru_login_password_enc });
+      childPassword = typeof decrypted === 'string' ? decrypted : '';
+    }
+    if (isMultiUnit && !standalone_units && (!childUsername || !childPassword)) {
+      return new Response(JSON.stringify({ success: false, error: { code: 'RU_CHILD_AUTH_REQUIRED', message: 'The linked RU sub-user credentials are required to create or update its building inventory.' } }), { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     if (!dry_run && !phaseGate.ready_for_push) {
@@ -2285,16 +2179,37 @@ Deno.serve(async (req) => {
           unitResults.push({
             name: unit.name,
             room_type_id: unit.id,
-            success: true,
+            success: ruIdNum > 0 && !ariResult.availability_error && !ariResult.prices_error,
             rentalsunited_property_id: unitRuId,
             ari: ariResult,
             diagnostics: pushResult?.diagnostics,
           });
         }
 
+        const inventorySuccess = unitResults.length === filteredUnits.length && unitResults.every((u: any) => u.success);
+        const inventoryVerified = inventorySuccess && unitResults.every((u: any) => {
+          const ari = u.ari ?? u;
+          return ari.availability_pushed === true
+            && ari.prices_pushed === true
+            && !ari.availability_verification?.error
+            && (ari.availability_verification?.mismatches?.length ?? 0) === 0
+            && !ari.prices_verification?.error
+            && (ari.prices_verification?.mismatches?.length ?? 0) === 0
+            && (ari.prices_verification?.missing_dates?.length ?? 0) === 0;
+        });
+        await supabase.from('ru_sync_runs').insert({
+          batch_id: crypto.randomUUID(),
+          property_id,
+          action: 'inventory_push',
+          success: inventorySuccess,
+          error_code: inventorySuccess ? null : 'RU_INVENTORY_INCOMPLETE',
+          error_message: inventorySuccess ? null : 'One or more standalone units failed content, availability, or price sync',
+          details: { ru_owner_id: ruOwnerId, owner_scope: phaseGate.owner_scope, verified: inventoryVerified, units: unitResults },
+        });
         return new Response(
           JSON.stringify({
-            success: true,
+            success: inventorySuccess,
+            ...(!inventorySuccess ? { error: { code: 'RU_INVENTORY_INCOMPLETE', message: 'One or more units failed content, availability, or price sync' } } : {}),
             multi_unit: true,
             standalone_units: true,
             property_id,
@@ -2323,7 +2238,7 @@ Deno.serve(async (req) => {
       // RU building with the same (truncated) name instead of creating another one.
       if (buildingId === 0) {
         const { data: listed } = await supabase.functions.invoke('rentalsunited-api', {
-          body: { action: 'list_buildings' },
+          body: { action: 'list_buildings', auth_username: childUsername, auth_password: childPassword },
         });
         const match = (listed?.buildings ?? []).find(
           (b: any) => String(b?.name ?? '').trim().toUpperCase() === buildingName.trim().toUpperCase(),
@@ -2337,7 +2252,7 @@ Deno.serve(async (req) => {
 
       const requestedBuildingId = buildingId;
       const { data: buildingResult, error: buildingErr } = await supabase.functions.invoke('rentalsunited-api', {
-        body: { action: 'push_building', building_name: buildingName, building_id: buildingId, unit_types: unitTypes },
+        body: { action: 'push_building', building_name: buildingName, building_id: buildingId, unit_types: unitTypes, auth_username: childUsername, auth_password: childPassword },
       });
 
       if (buildingErr || !buildingResult?.success) {
@@ -2476,7 +2391,7 @@ Deno.serve(async (req) => {
           unitResults.push({
             name: unit.name,
             room_type_id: unit.id,
-            success: true,
+            success: !ariResult.availability_error && !ariResult.prices_error,
             rentalsunited_property_id: unitRuId,
             diagnostics: pushResult?.diagnostics,
             ...ariResult,
@@ -2486,7 +2401,7 @@ Deno.serve(async (req) => {
           unitResults.push({
             name: unit.name,
             room_type_id: unit.id,
-            success: true,
+            success: false,
             rentalsunited_property_id: unitRuId,
             diagnostics: pushResult?.diagnostics,
             availability_error: 'Skipped — no valid RU property ID',
@@ -2503,16 +2418,34 @@ Deno.serve(async (req) => {
         .map((u: any) => ({ ruId: parseInt(u.rentalsunited_property_id, 10), roomTypeId: u.room_type_id }));
       const discountResult = await pushDiscounts(supabase, property_id, discountRuIds);
 
-      const anyUnitPushed = unitResults.some((u: any) => u.success);
+      const allUnitsPushed = unitResults.length === unitsToPush.length && unitResults.every((u: any) => u.success);
+      const inventoryVerified = allUnitsPushed && unitResults.every((u: any) =>
+        u.availability_pushed === true
+        && u.prices_pushed === true
+        && !u.availability_verification?.error
+        && (u.availability_verification?.mismatches?.length ?? 0) === 0
+        && !u.prices_verification?.error
+        && (u.prices_verification?.mismatches?.length ?? 0) === 0
+        && (u.prices_verification?.missing_dates?.length ?? 0) === 0
+      );
+      await supabase.from('ru_sync_runs').insert({
+        batch_id: crypto.randomUUID(),
+        property_id,
+        action: 'inventory_push',
+        success: allUnitsPushed,
+        error_code: allUnitsPushed ? null : 'RU_INVENTORY_INCOMPLETE',
+        error_message: allUnitsPushed ? null : 'One or more units failed content, availability, or price sync',
+        details: { ru_owner_id: ruOwnerId, owner_scope: phaseGate.owner_scope, verified: inventoryVerified, building_id: buildingId, units: unitResults },
+      });
       return new Response(
         JSON.stringify({
           // Do not report success when RU rejected every unit — the pipeline must not
           // mark phase 3 complete on a building-only push.
-          success: anyUnitPushed,
-          ...(anyUnitPushed ? {} : {
+          success: allUnitsPushed,
+          ...(allUnitsPushed ? {} : {
             error: {
-              code: 'RU_UNITS_REJECTED',
-              message: `Rentals United rejected all ${unitResults.length} unit(s)`,
+              code: 'RU_INVENTORY_INCOMPLETE',
+              message: `Rentals United inventory sync failed for ${unitResults.filter((u: any) => !u.success).length} of ${unitResults.length} unit(s)`,
             },
             blockers: unitResults.filter((u: any) => !u.success).map((u: any) => `${u.name}: ${u.error}`),
           }),
@@ -2597,8 +2530,28 @@ Deno.serve(async (req) => {
       pushExtras = { ...pushExtras, ...discountResult };
     }
 
+    const inventorySuccess = finalRuId > 0 && !pushExtras.availability_error && !pushExtras.prices_error;
+    const inventoryVerified = inventorySuccess
+      && pushExtras.availability_pushed === true
+      && pushExtras.prices_pushed === true
+      && !pushExtras.availability_verification?.error
+      && (pushExtras.availability_verification?.mismatches?.length ?? 0) === 0
+      && !pushExtras.prices_verification?.error
+      && (pushExtras.prices_verification?.mismatches?.length ?? 0) === 0
+      && (pushExtras.prices_verification?.missing_dates?.length ?? 0) === 0;
+    await supabase.from('ru_sync_runs').insert({
+      batch_id: crypto.randomUUID(),
+      property_id,
+      ru_property_id: ruPropertyId,
+      action: 'inventory_push',
+      success: inventorySuccess,
+      error_code: inventorySuccess ? null : 'RU_INVENTORY_INCOMPLETE',
+      error_message: inventorySuccess ? null : String(pushExtras.availability_error || pushExtras.prices_error || 'Inventory push incomplete'),
+      details: { ru_owner_id: ruOwnerId, owner_scope: phaseGate.owner_scope, verified: inventoryVerified, ari: pushExtras },
+    });
+
     return new Response(
-      JSON.stringify({ success: true, property_id, rentalsunited_property_id: ruPropertyId, message: `Property "${property.name}" pushed to Rentals United successfully`, ...pushExtras }),
+      JSON.stringify({ success: inventorySuccess, ...(!inventorySuccess ? { error: { code: 'RU_INVENTORY_INCOMPLETE', message: 'Property content was sent, but availability or prices did not complete' } } : {}), property_id, rentalsunited_property_id: ruPropertyId, message: inventorySuccess ? `Property "${property.name}" and inventory pushed to Rentals United successfully` : `Property "${property.name}" content pushed; inventory incomplete`, ...pushExtras }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
