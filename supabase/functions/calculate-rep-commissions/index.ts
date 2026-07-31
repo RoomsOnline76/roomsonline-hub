@@ -103,13 +103,26 @@ serve(async (req) => {
         (periodStart.getMonth() - referralDate.getMonth());
 
       const tier = tierRates[rep.commission_tier] || tierRates.base;
+      // Per-property negotiated terms (from the referral) beat the tier rates.
+      const overrideFirstYear = num(referral.first_year_rate_override);
+      const overrideResidual = num(referral.residual_rate_override);
+      const overrideMonths = num(referral.residual_months_override);
+
+      const effectiveResidualMonths = overrideMonths ?? tier.residualMonths;
       const isFirstYear = monthsSinceReferral < 12;
-      const isWithinResidual = monthsSinceReferral < tier.residualMonths;
+      const isWithinResidual = monthsSinceReferral < effectiveResidualMonths;
 
       if (!isFirstYear && !isWithinResidual) continue; // Past residual window
 
       const commissionType = isFirstYear ? "first_year" : "residual";
-      const rate = isFirstYear ? tier.firstYear : tier.residual;
+      const overrideRate = isFirstYear ? overrideFirstYear : overrideResidual;
+      const rate = overrideRate ?? (isFirstYear ? tier.firstYear : tier.residual);
+      const rateSource = overrideRate != null
+        ? "referral_override"
+        : criteria?.[rep.commission_tier]
+          ? "tier_criteria"
+          : "billing_defaults";
+
 
       // Get platform revenue for this property in the period (from billing_transactions).
       // Reps do NOT earn on facilitator surcharge (pass-through payment fee) or BYO gateway add-ons.
