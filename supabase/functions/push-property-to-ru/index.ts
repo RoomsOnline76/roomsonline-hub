@@ -2187,6 +2187,7 @@ Deno.serve(async (req) => {
               beds_cover_half: everyFlag('beds_cover_half'),
               beds_meet_max_guests: everyFlag('beds_meet_max_guests'),
               rooms_have_amenities: everyFlag('rooms_have_amenities'),
+              rooms_meet_min_amenities: everyFlag('rooms_meet_min_amenities'),
               has_name: everyFlag('has_name'),
               has_object_type_id: everyFlag('has_object_type_id'),
               can_sleep_max_ok: everyFlag('can_sleep_max_ok'),

@@ -37,6 +37,8 @@ export interface RuUnitValidation {
   amenities_count?: number;
   rooms_count?: number;
   rooms_with_amenities?: number;
+  rooms_below_min_amenities?: number;
+  rooms_meet_min_amenities?: boolean;
   has_coordinates?: boolean;
   meets_minimum_images?: boolean;
   images_meet_size?: boolean;
