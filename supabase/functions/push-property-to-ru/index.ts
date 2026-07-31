@@ -1241,7 +1241,13 @@ async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRo
             lastKnownExtraGuest = resolved.extra_guest_price;
             const periods = season.periods || [{ from: season.from, to: season.to }];
             for (const period of periods) {
-              if (period.from && period.to) priceEntries.push({ date_from: period.from, date_to: period.to, price: resolved.price, extra_guest_price: resolved.extra_guest_price });
+              if (!period.from || !period.to) continue;
+              // RU rejects ranges that start in the past ("Past dates" notif) and would
+              // fail the whole push. Clamp each season period into today..+365d.
+              const from = period.from < todayStr ? todayStr : period.from;
+              const to = period.to > oneYearStr ? oneYearStr : period.to;
+              if (to < todayStr || from > oneYearStr || from > to) continue;
+              priceEntries.push({ date_from: from, date_to: to, price: resolved.price, extra_guest_price: resolved.extra_guest_price });
             }
           }
         }
