@@ -199,7 +199,25 @@ export function RuOnboardingPipeline({ propertyId, readOnly = false, standalone 
     const disabled = phase.status === "pending" || busy !== null;
     const spinner = busy === phase.key;
 
+    if (phase.key === "p1_subuser" && phase.status === "passed") {
+      // Phase 1 stays re-runnable: RU overwrites the company profile on every
+      // Push_FillCompanyDetails_RQ, and a full restart re-creates the sub-user.
+      return (
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => submitCompanyDetails()}>
+            {spinner ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+            Re-send company details
+          </Button>
+          <Button size="sm" variant="ghost" disabled={busy !== null} onClick={() => setResetOpen(true)}>
+            <UserPlus className="mr-2 h-4 w-4" />
+            Restart Phase 1
+          </Button>
+        </div>
+      );
+    }
+
     if (phase.key === "p1_subuser" && phase.status !== "passed") {
+
       // A stale identity (owner email changed) must fall back to "Create sub-user".
       const hasSubUser = Boolean(phase.detail?.ru_owner_id) && phase.detail?.email_mismatch !== true;
       if (hasSubUser) {
