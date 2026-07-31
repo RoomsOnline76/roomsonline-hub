@@ -627,12 +627,22 @@ export function RoomManagerTab({
                 {/* Bed Configuration Section */}
                 <div className="flex items-start gap-2">
                   <Label className="text-xs whitespace-nowrap pt-1">Beds</Label>
-                  <div className="border rounded-md p-2 flex-1 flex flex-wrap gap-2 items-center">
+                  <div className="border rounded-md p-2 flex-1 space-y-2">
                     {(() => {
                       const currentRoom = roomTypes.find((r) => r.id === selectedRoomType);
                       const bedConfig = parseBedConfiguration(currentRoom?.bedConfiguration);
+                      const capacity = calculateBedCapacity(bedConfig);
+                      const maxSynced = isRoomFieldPmsSynced(selectedRoomType, "maxPeople");
+                      const applyBeds = (newConfig: BedEntry[]) => {
+                        updateRoomTypeField(selectedRoomType, "bedConfiguration", newConfig);
+                        const newCapacity = calculateBedCapacity(newConfig);
+                        if (!maxSynced && newCapacity > 0) {
+                          updateRoomTypeField(selectedRoomType, "maxPeople", newCapacity);
+                        }
+                      };
                       return (
                         <>
+                          <div className="flex flex-wrap gap-2 items-center">
                           {bedConfig.map((bed, index) => (
                             <div key={index} className="flex items-center gap-1 bg-muted/50 rounded px-2 py-1">
                               <Select
@@ -640,61 +650,65 @@ export function RoomManagerTab({
                                 onValueChange={(value) => {
                                   const newConfig = [...bedConfig];
                                   newConfig[index] = { ...bed, type: value };
-                                  updateRoomTypeField(selectedRoomType, "bedConfiguration", newConfig);
+                                  applyBeds(newConfig);
                                 }}
                               >
-                                <SelectTrigger className="w-[100px] h-6 text-xs border-0 bg-transparent">
+                                <SelectTrigger className="w-[110px] h-6 text-xs border-0 bg-transparent">
                                   <SelectValue placeholder="Bed type" />
                                 </SelectTrigger>
                                 <SelectContent>
                                   {BED_TYPES.map((bt) => (
-                                    <SelectItem key={bt.value} value={bt.value}>{bt.label}</SelectItem>
+                                    <SelectItem key={bt.value} value={bt.value}>
+                                      {bt.label} (sleeps {sleepsPerBed(bt.value)})
+                                    </SelectItem>
                                   ))}
                                 </SelectContent>
                               </Select>
                               <Button type="button" variant="ghost" size="icon" className="h-5 w-5"
-                                onClick={() => {
-                                  const newConfig = [...bedConfig];
-                                  newConfig[index] = { ...bed, count: Math.max(1, bed.count - 1) };
-                                  updateRoomTypeField(selectedRoomType, "bedConfiguration", newConfig);
-                                }}
+                                onClick={() => applyBeds(bedConfig.map((b, i) => i === index ? { ...b, count: Math.max(1, b.count - 1) } : b))}
                                 disabled={bed.count <= 1}
                               >
                                 <Minus className="h-3 w-3" />
                               </Button>
                               <span className="w-4 text-center text-xs font-medium">{bed.count}</span>
                               <Button type="button" variant="ghost" size="icon" className="h-5 w-5"
-                                onClick={() => {
-                                  const newConfig = [...bedConfig];
-                                  newConfig[index] = { ...bed, count: bed.count + 1 };
-                                  updateRoomTypeField(selectedRoomType, "bedConfiguration", newConfig);
-                                }}
+                                onClick={() => applyBeds(bedConfig.map((b, i) => i === index ? { ...b, count: b.count + 1 } : b))}
                               >
                                 <Plus className="h-3 w-3" />
                               </Button>
+                              <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                                {bed.count} bed{bed.count !== 1 ? "s" : ""} · sleeps {sleepsPerBed(bed.type) * bed.count}
+                              </span>
                               <Button type="button" variant="ghost" size="icon" className="h-5 w-5 text-destructive hover:text-destructive"
-                                onClick={() => {
-                                  const newConfig = bedConfig.filter((_, i) => i !== index);
-                                  updateRoomTypeField(selectedRoomType, "bedConfiguration", newConfig);
-                                }}
+                                onClick={() => applyBeds(bedConfig.filter((_, i) => i !== index))}
                               >
                                 <X className="h-3 w-3" />
                               </Button>
                             </div>
                           ))}
                           <Button type="button" variant="outline" size="sm" className="h-6 text-xs"
-                            onClick={() => {
-                              const newConfig = [...bedConfig, { type: "king", count: 1 }];
-                              updateRoomTypeField(selectedRoomType, "bedConfiguration", newConfig);
-                            }}
+                            onClick={() => applyBeds([...bedConfig, { type: "king", count: 1 }])}
                           >
                             <Plus className="h-3 w-3 mr-1" />Add
                           </Button>
+                          </div>
+                          <p className="text-[10px] text-muted-foreground">
+                            The number is how many beds of that type. Sleeping capacity from beds:{" "}
+                            <span className="font-medium text-foreground">{capacity} guest{capacity !== 1 ? "s" : ""}</span>
+                            {!maxSynced && capacity > 0 && (currentRoom?.maxPeople || 0) !== capacity && (
+                              <Button type="button" variant="link" size="sm" className="h-4 px-1 text-[10px]"
+                                onClick={() => updateRoomTypeField(selectedRoomType, "maxPeople", capacity)}
+                              >
+                                Apply to Max ({capacity})
+                              </Button>
+                            )}
+                          </p>
                         </>
                       );
                     })()}
                   </div>
                 </div>
+
 
                 <div className="grid grid-cols-7 gap-2 items-end">
                   <div className="flex items-center gap-1">
