@@ -536,6 +536,37 @@ export default function AdminPortfolios() {
         <p className="text-[10px] text-muted-foreground">Used in embed URLs: /embed/portfolio/{formSlug || "auto"}</p>
       </div>
 
+      <div className="space-y-1">
+        <Label className="text-xs">Portfolio owner email</Label>
+        <Input
+          value={formOwnerEmail}
+          onChange={(e) => setFormOwnerEmail(e.target.value)}
+          placeholder="owner@example.com"
+          className="text-sm"
+          type="email"
+        />
+        <p className="text-[10px] text-muted-foreground">
+          Used as the portfolio contact and by the Rentals United sub-user (Phase 1). Properties in a
+          portfolio may have different owners — copy the one that should represent the portfolio.
+        </p>
+        {ownerEmailCandidates.length > 0 && (
+          <div className="flex flex-wrap gap-1 pt-1">
+            {ownerEmailCandidates.map((email) => (
+              <Button
+                key={email}
+                type="button"
+                size="sm"
+                variant={formOwnerEmail === email ? "secondary" : "outline"}
+                className="h-6 text-[10px]"
+                onClick={() => setFormOwnerEmail(email)}
+              >
+                {email}
+              </Button>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* Branding Section */}
       <div className="space-y-2 border-t border-border pt-3">
         <Label className="text-xs font-semibold">Branding</Label>
