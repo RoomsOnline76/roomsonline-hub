@@ -719,6 +719,77 @@ Deno.serve(async (req) => {
       return json({ success: true, login_email: newEmail ?? account.ru_login_email ?? account.owner_email });
     }
 
+    // ── list_ru_candidates: every sub-user RU currently holds under our master account,
+    //    so an admin can bind a local row to a specific OwnerID (RU allows duplicates
+    //    per owner email, and logins can be renamed in the RU portal).
+    if (action === "list_ru_candidates") {
+      const { data: listed } = await admin.functions.invoke("rentalsunited-api", { body: { action: "list_users" } });
+      if (!listed?.success) {
+        return json({
+          success: false,
+          error: { code: "RU_LIST_FAILED", message: listed?.error?.message || "Rentals United did not return the sub-user list" },
+        }, 502);
+      }
+      return json({ success: true, users: listed.users ?? [] });
+    }
+
+    // ── bind_ru_account: point a local ru_owner_accounts row at a specific RU sub-user.
+    if (action === "bind_ru_account") {
+      const accountId: string = body.account_id ?? "";
+      const ruOwnerId = String(body.ru_owner_id ?? "").trim();
+      const loginEmail = typeof body.login_email === "string" ? body.login_email.trim() : "";
+      if (!accountId || !ruOwnerId) {
+        return json({ success: false, error: { code: "BAD_REQUEST", message: "account_id and ru_owner_id are required" } }, 400);
+      }
+
+      const { data: account } = await admin
+        .from("ru_owner_accounts")
+        .select("id, owner_email, ru_login_email, ru_owner_id")
+        .eq("id", accountId)
+        .maybeSingle();
+      if (!account) return json({ success: false, error: { code: "NOT_FOUND", message: "RU owner account not found" } }, 404);
+
+      const { data: listed } = await admin.functions.invoke("rentalsunited-api", { body: { action: "list_users" } });
+      const match = (listed?.users ?? []).find(
+        (u: { owner_id?: string }) => String(u.owner_id ?? "").trim() === ruOwnerId,
+      );
+      if (!match) {
+        return json({
+          success: false,
+          error: {
+            code: "RU_OWNER_NOT_FOUND",
+            message: `Rentals United does not list OwnerID ${ruOwnerId} under our master account.`,
+          },
+        }, 422);
+      }
+
+      const update: Record<string, unknown> = {
+        ru_owner_id: ruOwnerId,
+        ru_login_email: loginEmail || String(match.email ?? "").trim() || account.ru_login_email,
+      };
+      const userAccountId = String(match.user_account_id ?? "").trim();
+      if (userAccountId && userAccountId !== "0") update.ru_user_id = userAccountId;
+
+      const { error: upErr } = await admin.from("ru_owner_accounts").update(update).eq("id", accountId);
+      if (upErr) return json({ success: false, error: { code: "SAVE_FAILED", message: upErr.message } }, 500);
+
+      await admin.from("audit_logs").insert({
+        user_id: user.id,
+        user_email: user.email ?? "unknown",
+        user_role: (roles ?? []).some((r: { role: string }) => r.role === "dev") ? "dev" : "admin",
+        action_type: "other",
+        table_name: "ru_owner_accounts",
+        record_id: account.id,
+        request_origin: "edge_function",
+        edge_function_name: "ru-cert-portal",
+        is_sensitive: true,
+        change_summary: `Bound RU sub-account to OwnerID ${ruOwnerId} (${update.ru_login_email})`,
+      }).then(() => {}, (e) => console.warn("[ru-cert-portal] audit log insert failed", e));
+
+      return json({ success: true, ru_owner_id: ruOwnerId, login_email: update.ru_login_email });
+    }
+
+
 
 
 
@@ -1088,34 +1159,45 @@ Deno.serve(async (req) => {
         const normalized = String(value ?? "").trim();
         return normalized && normalized !== "0" ? normalized : "";
       };
+      // RU sub-user logins can be renamed inside the RU portal, so an email-only lookup
+      // reports "no user found" for an account we already know by OwnerID / stored login.
+      const matchByStoredIdentity = (users: RuUser[], account: Record<string, any> | null) => {
+        if (!account) return null;
+        const wantedOwnerId = usableRuId(account.ru_owner_id);
+        const wantedEmails = [account.ru_login_email, account.owner_email]
+          .map((v) => String(v ?? "").trim().toLowerCase())
+          .filter(Boolean);
+        return users.find((u) => {
+          const ownerId = usableRuId(u.owner_id);
+          if (wantedOwnerId && ownerId && ownerId === wantedOwnerId) return true;
+          return wantedEmails.includes((u.email ?? "").trim().toLowerCase());
+        }) ?? null;
+      };
+
 
       const existing = await findOwnerAccount(admin, propertyId ?? "", ownerEmail, portfolioId);
-      // If the owner email has since changed, the stored sub-user belongs to the OLD
-      // login and must not be reused: Phase 1 has to create a fresh RU sub-user for the
-      // new email. `ensure_company_details` still targets the stored account.
-      const storedEmail = String(
-        (existing.account as any)?.ru_login_email ?? (existing.account as any)?.owner_email ?? "",
-      ).trim().toLowerCase();
-      const emailChanged =
-        Boolean(existing.account?.ru_owner_id) &&
-        Boolean(storedEmail) &&
-        storedEmail !== ownerEmail.trim().toLowerCase();
-      // A child account can be deleted/recreated in RU with the same email. Compare
-      // RU's current identity before trusting the locally retained password.
-      const currentRuUser = existing.account?.ru_owner_id
-        ? matchByEmail(await listRuUsers())
+      // The RU identity is only stale when Rentals United no longer lists an owner that
+      // matches the stored OwnerID (or, when we never stored one, the stored login email).
+      // A login rename in the RU portal must NOT erase the OwnerID or the password.
+      const storedOwnerId = usableRuId(existing.account?.ru_owner_id);
+      const storedUserId = usableRuId((existing.account as any)?.ru_user_id);
+      const ruUsers = existing.account?.ru_owner_id ? await listRuUsers() : [];
+      const listOk = ruUsers.length > 0;
+      const currentRuUser = listOk
+        ? (ruUsers.find((u) => Boolean(storedOwnerId) && usableRuId(u.owner_id) === storedOwnerId)
+          ?? matchByStoredIdentity(ruUsers, existing.account as any)
+          ?? matchByEmail(ruUsers))
         : null;
       const currentOwnerId = usableRuId(currentRuUser?.owner_id);
       const currentUserId = usableRuId(currentRuUser?.user_account_id);
-      const storedOwnerId = usableRuId(existing.account?.ru_owner_id);
-      const storedUserId = usableRuId((existing.account as any)?.ru_user_id);
       // A transient list_users failure is not proof that the RU identity changed, and
       // RU sometimes returns UserAccountId=0. Neither condition may erase a password.
-      const ruIdentityChanged = Boolean(existing.account?.ru_owner_id) && Boolean(currentRuUser) && (
+      const ruIdentityChanged = Boolean(storedOwnerId) && listOk && (
+        !currentRuUser ||
         (Boolean(currentOwnerId) && currentOwnerId !== storedOwnerId) ||
         (Boolean(currentUserId) && Boolean(storedUserId) && currentUserId !== storedUserId)
       );
-      const staleIdentity = emailChanged || ruIdentityChanged;
+      const staleIdentity = ruIdentityChanged;
       if (staleIdentity) {
         // Wipe the stale RU identity + password so the row is rebuilt below.
         await admin
@@ -1129,7 +1211,21 @@ Deno.serve(async (req) => {
             company_details_status: "pending",
           })
           .eq("id", (existing.account as any).id);
+      } else if (currentRuUser) {
+        // Same RU account, possibly renamed in the portal: re-align the stored login
+        // email (and OwnerID) without touching the retained password.
+        const ruEmail = String(currentRuUser.email ?? "").trim();
+        const patch: Record<string, unknown> = {};
+        if (ruEmail && ruEmail.toLowerCase() !== String((existing.account as any)?.ru_login_email ?? "").trim().toLowerCase()) {
+          patch.ru_login_email = ruEmail;
+        }
+        if (currentOwnerId && currentOwnerId !== storedOwnerId) patch.ru_owner_id = currentOwnerId;
+        if (Object.keys(patch).length > 0) {
+          await admin.from("ru_owner_accounts").update(patch).eq("id", (existing.account as any).id);
+          Object.assign(existing.account as any, patch);
+        }
       }
+
       if (existing.account?.ru_owner_id && !staleIdentity) {
 
         const companyResult = await submitCompanyDetails(existing.account as any);
@@ -1190,16 +1286,27 @@ Deno.serve(async (req) => {
       let userAccountId: string | null = null;
       let ruOwnerId: string | null = null;
       let adopted = false;
+      let adoptedEmail: string | null = null;
 
-      // 1) If RU already has a sub-user for this email (e.g. a prior attempt that
-      //    succeeded on RU's side but failed to save locally), adopt it instead of
-      //    trying to create a duplicate.
-      const preExisting = matchByEmail(await listRuUsers());
+      // 1) If RU already has a sub-user for this owner (e.g. a prior attempt that
+      //    succeeded on RU's side but failed to save locally, or a login renamed in the
+      //    RU portal), adopt it instead of trying to create a duplicate.
+      //    An explicit `ru_owner_id` in the request always wins — that is how an admin
+      //    binds a specific RU account when several match this owner.
+      const requestedOwnerId = usableRuId(body.ru_owner_id);
+      const candidateUsers = await listRuUsers();
+      const preExisting = (requestedOwnerId
+        ? candidateUsers.find((u) => usableRuId(u.owner_id) === requestedOwnerId) ?? null
+        : null)
+        ?? matchByEmail(candidateUsers)
+        ?? matchByStoredIdentity(candidateUsers, existing.account as any);
       if (preExisting) {
         userAccountId = preExisting.user_account_id ?? null;
         ruOwnerId = preExisting.owner_id ?? null;
+        adoptedEmail = String(preExisting.email ?? "").trim() || null;
         adopted = true;
       }
+
 
       if (!adopted) {
         const { data: created, error: createErr } = await admin.functions.invoke("rentalsunited-api", {
@@ -1215,10 +1322,12 @@ Deno.serve(async (req) => {
         if (createErr || !created?.success) {
           if (emailTaken) {
             // RU says the email is taken — recover by adopting the existing sub-user.
-            const recovered = matchByEmail(await listRuUsers());
+            const refreshed = await listRuUsers();
+            const recovered = matchByEmail(refreshed) ?? matchByStoredIdentity(refreshed, existing.account as any);
             if (recovered) {
               userAccountId = recovered.user_account_id ?? null;
               ruOwnerId = recovered.owner_id ?? null;
+              adoptedEmail = String(recovered.email ?? "").trim() || null;
               adopted = true;
             } else {
               return json({
@@ -1244,7 +1353,8 @@ Deno.serve(async (req) => {
       }
 
       if (!ruOwnerId || !userAccountId) {
-        const matched = matchByEmail(await listRuUsers());
+        const refreshed = await listRuUsers();
+        const matched = matchByEmail(refreshed) ?? matchByStoredIdentity(refreshed, existing.account as any);
         userAccountId = userAccountId ?? matched?.user_account_id ?? null;
         ruOwnerId = ruOwnerId ?? matched?.owner_id ?? null;
       }
@@ -1254,7 +1364,10 @@ Deno.serve(async (req) => {
         owner_email: ownerEmail,
         ru_user_id: userAccountId,
         ru_owner_id: ruOwnerId,
-        ru_login_email: ownerEmail,
+        // The RU-side login is authoritative: an adopted account may have been renamed
+        // in the RU portal and that is the username Push_FillCompanyDetails_RQ needs.
+        ru_login_email: adoptedEmail || ownerEmail,
+
         ru_login_url: "https://new.rentalsunited.com",
         portfolio_id: portfolioId,
         property_id: portfolioId ? null : propertyId,
@@ -1284,17 +1397,23 @@ Deno.serve(async (req) => {
         const retainedPassword = (existing.account as any)?.ru_login_password_enc ?? null;
         const retainedOwnerId = usableRuId(existing.account?.ru_owner_id);
         const adoptedOwnerId = usableRuId(ruOwnerId);
-        const retainedEmail = String(
-          (existing.account as any)?.ru_login_email ?? (existing.account as any)?.owner_email ?? "",
-        ).trim().toLowerCase();
-        const sameRuIdentity = Boolean(retainedPassword) &&
-          retainedEmail === ownerEmail.trim().toLowerCase() &&
-          Boolean(retainedOwnerId) && retainedOwnerId === adoptedOwnerId;
-        // Adoption can simply mean RU already committed our previous create request.
-        // Preserve the encrypted password only when the email and RU OwnerID prove it
-        // is the same child account; never erase it merely because creation is skipped.
+        const retainedEmails = [
+          (existing.account as any)?.ru_login_email,
+          (existing.account as any)?.owner_email,
+        ].map((v) => String(v ?? "").trim().toLowerCase()).filter(Boolean);
+        const adoptedEmails = [adoptedEmail, ownerEmail]
+          .map((v) => String(v ?? "").trim().toLowerCase()).filter(Boolean);
+        // Adoption usually means RU already committed our previous create request, or the
+        // login was renamed in the RU portal. Keep the retained password when EITHER the
+        // OwnerID or the login email still matches; only a genuinely different child
+        // account may drop it.
+        const sameRuIdentity = Boolean(retainedPassword) && (
+          (Boolean(retainedOwnerId) && retainedOwnerId === adoptedOwnerId) ||
+          retainedEmails.some((e) => adoptedEmails.includes(e))
+        );
         row.ru_login_password_enc = sameRuIdentity ? retainedPassword : null;
       }
+
 
       // The unique indexes on this table are PARTIAL, so PostgREST's ON CONFLICT
       // cannot target them. Resolve the existing row manually, then update/insert.

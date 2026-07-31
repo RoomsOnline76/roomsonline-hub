@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -26,6 +26,7 @@ import {
   EyeOff,
   FolderOpen,
   KeyRound,
+  Link2,
   Loader2,
   Mail,
   RotateCcw,
@@ -64,6 +65,7 @@ interface PropRow {
  * owner-email match).
  */
 export function PortfolioRuAccountsTab() {
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
   const [revealing, setRevealing] = useState<string | null>(null);
@@ -101,6 +103,60 @@ export function PortfolioRuAccountsTab() {
   const [resetEmail, setResetEmail] = useState("");
   const [saving, setSaving] = useState(false);
 
+  // Binding: RU can hold several sub-users for the same owner (and logins can be renamed
+  // in the RU portal), so admins must be able to point a local row at a specific OwnerID.
+  const [bindFor, setBindFor] = useState<{ id: string; ownerId: string | null } | null>(null);
+  const [bindCandidates, setBindCandidates] = useState<
+    { owner_id: string; email: string; user_account_id?: string }[]
+  >([]);
+  const [bindLoading, setBindLoading] = useState(false);
+  const [binding, setBinding] = useState<string | null>(null);
+
+  const openBind = useCallback(async (accountId: string, ownerId: string | null) => {
+    setBindFor({ id: accountId, ownerId });
+    setBindCandidates([]);
+    setBindLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
+        body: { action: "list_ru_candidates" },
+      });
+      if (error || !data?.success) {
+        toast.error(data?.error?.message || error?.message || "Could not load RU sub-users");
+        return;
+      }
+      setBindCandidates(data.users || []);
+    } finally {
+      setBindLoading(false);
+    }
+  }, []);
+
+  const bindAccount = useCallback(
+    async (ruOwnerId: string, loginEmail: string) => {
+      if (!bindFor) return;
+      setBinding(ruOwnerId);
+      try {
+        const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
+          body: {
+            action: "bind_ru_account",
+            account_id: bindFor.id,
+            ru_owner_id: ruOwnerId,
+            login_email: loginEmail,
+          },
+        });
+        if (error || !data?.success) {
+          toast.error(data?.error?.message || error?.message || "Could not bind the RU account");
+          return;
+        }
+        toast.success(`Bound to OwnerID ${ruOwnerId}`);
+        setBindFor(null);
+        await queryClient.invalidateQueries({ queryKey: ["ru-owner-accounts"] });
+      } finally {
+        setBinding(null);
+      }
+    },
+    [bindFor, queryClient],
+  );
+
   const openReset = useCallback((accountId: string, email: string) => {
     setResetFor({ id: accountId, email });
     setResetEmail(email);
@@ -130,6 +186,7 @@ export function PortfolioRuAccountsTab() {
       setSaving(false);
     }
   }, [resetEmail, resetFor, resetPassword]);
+
 
 
 
@@ -345,6 +402,18 @@ export function PortfolioRuAccountsTab() {
                         <RotateCcw className="h-3 w-3" />
                         <span className="ml-1.5">Reset password</span>
                       </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs"
+                        onClick={() => openBind(acc.id, acc.ru_owner_id)}
+                      >
+                        <Link2 className="h-3 w-3" />
+                        <span className="ml-1.5">
+                          {acc.ru_owner_id ? "Rebind RU account" : "Bind RU account"}
+                        </span>
+                      </Button>
+
                       {acc.ru_user_id && (
                         <Badge variant="secondary" className="font-mono text-[10px]">
                           UID {acc.ru_user_id}
@@ -534,6 +603,56 @@ export function PortfolioRuAccountsTab() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={!!bindFor} onOpenChange={(o) => !o && setBindFor(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Bind Rentals United sub-user</DialogTitle>
+            <DialogDescription>
+              These are the sub-users Rentals United currently holds under our master account.
+              Pick the one this record should use — Phase 1 then reconnects to it instead of trying
+              to create a duplicate.
+            </DialogDescription>
+          </DialogHeader>
+          {bindLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : bindCandidates.length === 0 ? (
+            <p className="text-xs text-muted-foreground py-4">
+              Rentals United returned no sub-users under our master account.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {bindCandidates.map((u) => {
+                const isCurrent = bindFor?.ownerId === u.owner_id;
+                return (
+                  <div
+                    key={u.owner_id}
+                    className="flex items-center justify-between gap-3 rounded-md border border-border p-3"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-xs font-mono">OwnerID {u.owner_id}</p>
+                      <p className="text-[11px] text-muted-foreground truncate">{u.email}</p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant={isCurrent ? "secondary" : "outline"}
+                      className="h-7 text-xs shrink-0"
+                      disabled={isCurrent || binding === u.owner_id}
+                      onClick={() => bindAccount(u.owner_id, u.email)}
+                    >
+                      {binding === u.owner_id && <Loader2 className="h-3 w-3 animate-spin mr-1" />}
+                      {isCurrent ? "Bound" : "Bind"}
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 }
