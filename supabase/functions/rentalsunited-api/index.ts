@@ -1811,15 +1811,21 @@ Deno.serve(async (req) => {
           );
           const now = new Date().toISOString();
           const { error: upErr } = await supabase.from('ru_amenities').upsert(
-            amenities.map((a) => ({
-              id: a.id,
-              name: a.name,
-              ru_group_id: a.group_id,
-              is_active: true,
-              synced_at: now,
-            })),
+            amenities.map((a) => {
+              const cls = classifyAmenity(a.name, a.id);
+              return {
+                id: a.id,
+                name: a.name,
+                ru_group_id: a.group_id,
+                category: cls.category,
+                is_recommended: cls.is_recommended,
+                is_active: true,
+                synced_at: now,
+              };
+            }),
             { onConflict: 'id' },
           );
+
           if (upErr) sync_error = upErr.message;
           else synced = amenities.length;
         } catch (e) {
