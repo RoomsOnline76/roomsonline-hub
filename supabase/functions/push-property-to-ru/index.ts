@@ -8,6 +8,7 @@ import {
   RU_BED_COVERAGE,
 } from '../_shared/ruReadiness.ts';
 import { evaluatePhases, phaseBlockedResponse, masterOwnerIdOverride } from '../_shared/ruPhaseGate.ts';
+import { resolveRuAmenityIds } from '../_shared/ruAmenityMap.ts';
 
 
 /**
@@ -36,20 +37,6 @@ const PROPERTY_TYPE_MAP: Record<string, number> = {
   self_catering: 12, lodge: 11, resort: 7, farm_stay: 12, boutique_hotel: 7,
 };
 
-const AMENITY_MAP: Record<string, number> = {
-  wifi: 6, internet: 6, parking: 14, pool: 22, swimming_pool: 22,
-  air_conditioning: 11, ac: 11, heating: 12, kitchen: 39,
-  washing_machine: 42, dryer: 43, dishwasher: 40, tv: 2, television: 2,
-  cable_tv: 3, satellite_tv: 3, balcony: 31, terrace: 32, garden: 34,
-  bbq: 35, braai: 35, fireplace: 47, hot_tub: 23, jacuzzi: 23,
-  sauna: 24, gym: 55, elevator: 56, wheelchair_accessible: 57,
-  pet_friendly: 58, smoke_detector: 77, fire_extinguisher: 78,
-  first_aid_kit: 79, iron: 44, hair_dryer: 45, linens: 60, towels: 61,
-  toiletries: 62, coffee_maker: 63, microwave: 41, oven: 64,
-  refrigerator: 65, toaster: 66, safe: 67, workspace: 68, desk: 68,
-  crib: 69, high_chair: 70, books: 71, board_games: 72, security: 73,
-  cctv: 73, alarm: 74,
-};
 
 // RU bed-type amenity IDs — must be included in <Room> amenities
 const BED_AMENITY_MAP: Record<string, number> = {
