@@ -160,9 +160,11 @@ serve(async (req) => {
         base_revenue: baseRevenue,
         commission_type: commissionType,
         rate_applied: rate,
+        rate_source: rateSource,
         amount,
         status: "pending",
       });
+
 
       if (!reportAgg[referral.rep_id]) {
         reportAgg[referral.rep_id] = { totalEntries: 0, totalAmount: 0 };
