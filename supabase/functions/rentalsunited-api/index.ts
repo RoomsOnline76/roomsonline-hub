@@ -225,13 +225,6 @@ function buildAuthXml(creds: RUCredentials): string {
   </Authentication>`;
 }
 
-function buildChildAuthXml(username: string, password: string): string {
-  return `<Authentication>
-    <UserName>${escapeXml(username)}</UserName>
-    <Password>${escapeXml(password)}</Password>
-  </Authentication>`;
-}
-
 function escapeXml(str: string): string {
   return str
     .replace(/&/g, '&amp;')
