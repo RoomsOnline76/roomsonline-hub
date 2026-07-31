@@ -141,6 +141,12 @@ export function PortfolioRuAccountsTab() {
   const [bindLoading, setBindLoading] = useState(false);
   const [binding, setBinding] = useState<string | null>(null);
 
+  // Unbinding a portfolio's RU sub-user also clears the portfolio owner email, so the admin
+  // is prompted to re-choose which member property's owner should represent the portfolio.
+  const [ownerEmailFor, setOwnerEmailFor] = useState<{ portfolioId: string; name: string } | null>(null);
+  const [ownerEmailChoice, setOwnerEmailChoice] = useState("");
+  const [savingOwnerEmail, setSavingOwnerEmail] = useState(false);
+
   const openBind = useCallback(async (accountId: string, ownerId: string | null) => {
     setBindFor({ id: accountId, ownerId });
     setBindCandidates([]);
@@ -232,6 +238,18 @@ export function PortfolioRuAccountsTab() {
         );
         return;
       }
+      if (acc.portfolio_id) {
+        await supabase
+          .from("property_portfolios")
+          .update({ owner_email: null } as never)
+          .eq("id", acc.portfolio_id);
+        queryClient.invalidateQueries({ queryKey: ["ru-portfolios-lite"] });
+        setOwnerEmailFor({
+          portfolioId: acc.portfolio_id,
+          name: portfolioById.get(acc.portfolio_id)?.name || "this portfolio",
+        });
+        setOwnerEmailChoice("");
+      }
       toast.success("RU account unbound — OwnerID cleared. Phase 1 can create a new sub-user.");
       hideCredentials(acc.id);
       setBindFor(null);
@@ -239,7 +257,39 @@ export function PortfolioRuAccountsTab() {
     } finally {
       setBinding(null);
     }
-  }, [bindFor, accounts, refreshAccounts, hideCredentials]);
+  }, [bindFor, accounts, refreshAccounts, hideCredentials, queryClient, portfolioById]);
+
+  const ownerEmailOptions = useMemo(() => {
+    if (!ownerEmailFor) return [] as string[];
+    return Array.from(
+      new Set(
+        members
+          .filter((m) => m.portfolio_id === ownerEmailFor.portfolioId)
+          .map((m) => propById.get(m.property_id)?.owner_email)
+          .filter((e): e is string => !!e && e.trim().length > 0),
+      ),
+    );
+  }, [ownerEmailFor, members, propById]);
+
+  const savePortfolioOwnerEmail = useCallback(async () => {
+    if (!ownerEmailFor || !ownerEmailChoice.trim()) return;
+    setSavingOwnerEmail(true);
+    try {
+      const { error } = await supabase
+        .from("property_portfolios")
+        .update({ owner_email: ownerEmailChoice.trim() } as never)
+        .eq("id", ownerEmailFor.portfolioId);
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+      toast.success("Portfolio owner email set");
+      queryClient.invalidateQueries({ queryKey: ["ru-portfolios-lite"] });
+      setOwnerEmailFor(null);
+    } finally {
+      setSavingOwnerEmail(false);
+    }
+  }, [ownerEmailFor, ownerEmailChoice, queryClient]);
 
   const openReset = useCallback((accountId: string, email: string) => {
     setResetFor({ id: accountId, email });
@@ -718,6 +768,67 @@ export function PortfolioRuAccountsTab() {
             >
               {saving && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
                Store password
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!ownerEmailFor} onOpenChange={(o) => !o && setOwnerEmailFor(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Choose the portfolio owner email</DialogTitle>
+            <DialogDescription>
+              The owner email for {ownerEmailFor?.name} was cleared with the unbind. Pick one of the
+              member properties' owners (or type another) — Phase 1 uses this for the new RU sub-user.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-2">
+            {ownerEmailOptions.length === 0 ? (
+              <p className="text-xs text-muted-foreground">
+                No member property has an owner email yet. Set one on a property first, or type an
+                email below.
+              </p>
+            ) : (
+              <div className="space-y-1">
+                {ownerEmailOptions.map((email) => (
+                  <Button
+                    key={email}
+                    type="button"
+                    size="sm"
+                    variant={ownerEmailChoice === email ? "secondary" : "outline"}
+                    className="w-full justify-start h-8 text-xs"
+                    onClick={() => setOwnerEmailChoice(email)}
+                  >
+                    <Mail className="h-3 w-3 mr-2" />
+                    {email}
+                  </Button>
+                ))}
+              </div>
+            )}
+            <div className="space-y-1 pt-1">
+              <Label className="text-xs">Owner email</Label>
+              <Input
+                type="email"
+                value={ownerEmailChoice}
+                onChange={(e) => setOwnerEmailChoice(e.target.value)}
+                placeholder="owner@example.com"
+                className="text-sm"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="ghost" size="sm" onClick={() => setOwnerEmailFor(null)}>
+              Decide later
+            </Button>
+            <Button
+              size="sm"
+              disabled={!ownerEmailChoice.trim() || savingOwnerEmail}
+              onClick={savePortfolioOwnerEmail}
+            >
+              {savingOwnerEmail && <Loader2 className="h-3 w-3 animate-spin mr-1" />}
+              Save owner email
             </Button>
           </DialogFooter>
         </DialogContent>
