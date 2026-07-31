@@ -10377,6 +10377,7 @@ export type Database = {
           created_at: string
           id: number
           is_active: boolean
+          is_recommended: boolean
           name: string
           ru_group_id: number | null
           synced_at: string
@@ -10386,6 +10387,7 @@ export type Database = {
           created_at?: string
           id: number
           is_active?: boolean
+          is_recommended?: boolean
           name: string
           ru_group_id?: number | null
           synced_at?: string
@@ -10395,6 +10397,7 @@ export type Database = {
           created_at?: string
           id?: number
           is_active?: boolean
+          is_recommended?: boolean
           name?: string
           ru_group_id?: number | null
           synced_at?: string
