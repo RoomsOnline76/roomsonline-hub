@@ -871,6 +871,57 @@ function buildListCompositionRoomsXml(creds: RUCredentials): string {
 }
 
 /**
+ * Pull_ListAmenities_RQ — fetch RU's global amenity dictionary (AmenityID + name,
+ * optionally grouped by StaticName/AmenityTypeID). Used to populate the ROLOS
+ * room/unit amenity picker with RU's real option set instead of hand-written labels.
+ */
+function buildListAmenitiesXml(creds: RUCredentials): string {
+  return `<Pull_ListAmenities_RQ>${buildAuthXml(creds)}</Pull_ListAmenities_RQ>`;
+}
+
+/**
+ * Parse Pull_ListAmenities_RS. RU has shipped several shapes over time:
+ *  A) <Amenity AmenityID="6" AmenityTypeID="3">Internet</Amenity>
+ *  B) <Amenity ID="6">Internet</Amenity>
+ *  C) <Amenity><AmenityID>6</AmenityID><AmenityName>Internet</AmenityName></Amenity>
+ */
+function extractAmenities(xml: string): { id: number; name: string; group_id: number | null }[] {
+  const results: { id: number; name: string; group_id: number | null }[] = [];
+  const seen = new Set<number>();
+  const push = (rawId: string, rawName: string, rawGroup?: string | null) => {
+    const id = parseInt(rawId, 10);
+    const name = rawName.replace(/<[^>]+>/g, '').trim();
+    if (!Number.isFinite(id) || id <= 0 || !name || seen.has(id)) return;
+    seen.add(id);
+    const group = rawGroup ? parseInt(rawGroup, 10) : NaN;
+    results.push({ id, name, group_id: Number.isFinite(group) ? group : null });
+  };
+
+  // Format A/B: attribute id + text content
+  const attrRegex = /<Amenity\b([^>]*)>([\s\S]*?)<\/Amenity>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = attrRegex.exec(xml)) !== null) {
+    const attrs = m[1];
+    const inner = m[2];
+    const idMatch = attrs.match(/\bAmenityID\s*=\s*"(\d+)"/i) || attrs.match(/\bID\s*=\s*"(\d+)"/i);
+    const groupMatch = attrs.match(/\bAmenityTypeID\s*=\s*"(\d+)"/i) || attrs.match(/\bTypeID\s*=\s*"(\d+)"/i);
+    if (idMatch && inner.trim() && !/<Amenity(ID|Name)>/i.test(inner)) {
+      push(idMatch[1], inner, groupMatch?.[1] ?? null);
+      continue;
+    }
+    // Format C: child elements
+    const cId = inner.match(/<AmenityID>(\d+)<\/AmenityID>/i);
+    const cName = inner.match(/<AmenityName>([\s\S]*?)<\/AmenityName>/i);
+    const cGroup = inner.match(/<AmenityTypeID>(\d+)<\/AmenityTypeID>/i);
+    if (cId && cName) push(cId[1], cName[1], cGroup?.[1] ?? null);
+  }
+
+  return results;
+}
+
+
+
+/**
  * Parse the response of Pull_ListCompositionRooms_RQ.
  * RU returns: <CompositionRooms><CompositionRoom CompositionRoomID="1">Single bed</CompositionRoom>...</CompositionRooms>
  * Some accounts return child elements: <CompositionRoom><CompositionRoomID>1</CompositionRoomID><CompositionRoomName>...</CompositionRoomName></CompositionRoom>
