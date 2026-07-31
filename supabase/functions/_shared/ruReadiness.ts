@@ -83,6 +83,10 @@ export interface RuReadinessSummary {
   mandatory_passed: number;
   blocked: boolean;
   gaps: string[];
+  /** Failing mandatory checks only — the set that may block a push or a phase. */
+  blocking_gaps: string[];
+  /** Failing optional checks — quality advice that must never block. */
+  advisory_gaps: string[];
   checks: RuCheck[];
   groups: { group: RuCheckGroup; total: number; passed: number; failed: RuCheck[] }[];
 }
@@ -250,6 +254,10 @@ export function summarizeReadiness(
     mandatory_passed: mandatoryPassed,
     blocked: mandatoryPassed < mandatory.length,
     gaps,
+    blocking_gaps: checks.filter((c) => c.mandatory && !c.passed)
+      .map((c) => `${c.unit ? `${c.unit}: ` : ""}${c.detail ?? c.label}`),
+    advisory_gaps: checks.filter((c) => !c.mandatory && !c.passed)
+      .map((c) => `${c.unit ? `${c.unit}: ` : ""}${c.detail ?? c.label}`),
     checks,
     groups,
   };
