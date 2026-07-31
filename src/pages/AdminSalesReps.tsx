@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -13,6 +13,7 @@ import { Loader2, Plus, ArrowLeft, UserPlus, Pencil, Trash2 } from "lucide-react
 import { useSalesReps, SalesRep } from "@/hooks/useSalesReps";
 import { useAuth } from "@/hooks/useAuth";
 import { RepBankingForm } from "@/components/sales-reps/RepBankingForm";
+import { fetchRepGlobals, resolveRepTerms, RepTierKey } from "@/lib/repContractVariables";
 
 const TIER_LABELS: Record<string, { label: string; color: string }> = {
   base: { label: "Base", color: "bg-muted text-muted-foreground" },
@@ -20,11 +21,8 @@ const TIER_LABELS: Record<string, { label: string; color: string }> = {
   elite: { label: "Elite", color: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400" },
 };
 
-const TIER_RATES = {
-  base: { firstYear: "20%", residual: "5%", duration: "12 mo" },
-  accelerated: { firstYear: "25%", residual: "7.5%", duration: "18 mo" },
-  elite: { firstYear: "30%", residual: "10%", duration: "24 mo" },
-};
+const TIER_KEYS: RepTierKey[] = ["base", "accelerated", "elite"];
+
 
 function RepForm({ rep, onSave, saving, onCancel }: {
   rep?: SalesRep;
