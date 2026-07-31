@@ -70,6 +70,7 @@ export function PortfolioRuAccountsTab() {
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
   const [revealing, setRevealing] = useState<string | null>(null);
+  const [verifying, setVerifying] = useState<string | null>(null);
   const [revealed, setRevealed] = useState<Record<string, { login_email: string; password: string }>>({});
 
   const hideCredentials = useCallback((accountId: string) => {
@@ -79,6 +80,23 @@ export function PortfolioRuAccountsTab() {
       return next;
     });
   }, []);
+
+  const verifyCredentials = useCallback(async (accountId: string) => {
+    setVerifying(accountId);
+    try {
+      const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
+        body: { action: "verify_login_password", account_id: accountId },
+      });
+      if (error || !data?.success) {
+        toast.error(data?.error?.message || error?.message || "Rentals United rejected the stored credentials");
+      } else {
+        toast.success("Rentals United accepted the stored credentials");
+      }
+      await queryClient.invalidateQueries({ queryKey: ["ru-owner-accounts"] });
+    } finally {
+      setVerifying(null);
+    }
+  }, [queryClient]);
 
   const revealCredentials = useCallback(async (accountId: string) => {
     setRevealing(accountId);
@@ -403,6 +421,16 @@ export function PortfolioRuAccountsTab() {
                       >
                         <RotateCcw className="h-3 w-3" />
                         <span className="ml-1.5">Reset password</span>
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs"
+                        disabled={verifying === acc.id}
+                        onClick={() => verifyCredentials(acc.id)}
+                      >
+                        {verifying === acc.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <ShieldCheck className="h-3 w-3" />}
+                        <span className="ml-1.5">Verify stored</span>
                       </Button>
                       <Button
                         size="sm"

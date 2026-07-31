@@ -673,6 +673,63 @@ Deno.serve(async (req) => {
       });
     }
 
+    // ── verify_login_password: check the encrypted value without revealing or replacing it ──
+    if (action === "verify_login_password") {
+      const accountId: string = body.account_id ?? "";
+      if (!accountId) return json({ success: false, error: { code: "BAD_REQUEST", message: "account_id is required" } }, 400);
+      const { data: account } = await admin
+        .from("ru_owner_accounts")
+        .select("id, owner_email, ru_login_email, ru_owner_id, ru_login_password_enc, company_details_sent")
+        .eq("id", accountId)
+        .maybeSingle();
+      if (!account) return json({ success: false, error: { code: "NOT_FOUND", message: "RU owner account not found" } }, 404);
+      const loginEmail = account.ru_login_email ?? account.owner_email;
+      const ownerId = String(account.ru_owner_id ?? "").trim();
+      if (!account.ru_login_password_enc || !loginEmail || !ownerId) {
+        return json({ success: false, error: { code: "RU_IDENTITY_INCOMPLETE", message: "A bound OwnerID, login email and stored password are required." } }, 422);
+      }
+      const { data: password, error: decryptError } = await admin.rpc("decrypt_sensitive_text", {
+        encrypted_data: account.ru_login_password_enc,
+      });
+      if (decryptError || !password) {
+        return json({ success: false, error: { code: "DECRYPT_FAILED", message: "Could not read the encrypted RU password." } }, 500);
+      }
+      const { data: verified, error: verifyError } = await admin.functions.invoke("rentalsunited-api", {
+        body: {
+          action: "verify_subuser_credentials",
+          owner_id: ownerId,
+          auth_username: loginEmail,
+          auth_password: String(password).trim(),
+        },
+      });
+      const accepted = !verifyError && verified?.success === true && verified?.verified === true;
+      if (!account.company_details_sent) {
+        await admin.from("ru_owner_accounts").update({
+          company_details_status: accepted ? "credentials_verified" : "auth_failed",
+        }).eq("id", account.id);
+      }
+      await admin.from("audit_logs").insert({
+        user_id: user.id,
+        user_email: user.email ?? "unknown",
+        user_role: (roles ?? []).some((r: { role: string }) => r.role === "dev" ? "dev" : "admin",
+        action_type: "other",
+        table_name: "ru_owner_accounts",
+        record_id: account.id,
+        request_origin: "edge_function",
+        edge_function_name: "ru-cert-portal",
+        is_sensitive: true,
+        change_summary: `${accepted ? "Verified" : "Rejected"} stored Rentals United credentials for ${loginEmail} (OwnerID ${ownerId})`,
+      }).then(() => {}, (e) => console.warn("[ru-cert-portal] audit log insert failed", e));
+      if (!accepted) {
+        return json({
+          success: false,
+          verified: false,
+          error: { code: "RU_PASSWORD_NOT_VERIFIED", message: verified?.error?.message ?? verifyError?.message ?? "Rentals United rejected the stored credentials." },
+        }, 422);
+      }
+      return json({ success: true, verified: true, login_email: loginEmail, ru_owner_id: ownerId });
+    }
+
     // ── save_login_password: admin sets/resets the retained RU portal password ──
     // RU exposes no password-change API, so the admin resets it inside the RU portal
     // and stores the new value here (encrypted) so future automation can authenticate.
