@@ -141,8 +141,8 @@ export function PortfolioRuAccountsTab() {
   const [bindLoading, setBindLoading] = useState(false);
   const [binding, setBinding] = useState<string | null>(null);
 
-  // Unbinding a portfolio's RU sub-user also clears the portfolio owner email, so the admin
-  // is prompted to re-choose which member property's owner should represent the portfolio.
+  // Unbinding clears the complete RU identity and the portfolio owner email, then prompts the
+  // admin to choose the email that Phase 1 must use for the next RU sub-user login.
   const [ownerEmailFor, setOwnerEmailFor] = useState<{ portfolioId: string } | null>(null);
   const [ownerEmailChoice, setOwnerEmailChoice] = useState("");
   const [savingOwnerEmail, setSavingOwnerEmail] = useState(false);
@@ -247,7 +247,7 @@ export function PortfolioRuAccountsTab() {
         setOwnerEmailFor({ portfolioId: acc.portfolio_id });
         setOwnerEmailChoice("");
       }
-      toast.success("RU account unbound — OwnerID cleared. Phase 1 can create a new sub-user.");
+      toast.success("RU account unbound — login and OwnerID cleared. Choose the new RU login email.");
       hideCredentials(acc.id);
       setBindFor(null);
       await refreshAccounts();
@@ -351,8 +351,22 @@ export function PortfolioRuAccountsTab() {
         toast.error(error.message);
         return;
       }
-      toast.success("Portfolio owner email set");
+      const { error: accountError } = await supabase
+        .from("ru_owner_accounts")
+        .update({
+          owner_email: ownerEmailChoice.trim(),
+          ru_login_email: null,
+          ru_login_url: null,
+        } as never)
+        .eq("portfolio_id", ownerEmailFor.portfolioId)
+        .is("ru_owner_id", null);
+      if (accountError) {
+        toast.error(accountError.message);
+        return;
+      }
+      toast.success("New portfolio email saved for the next RU login");
       queryClient.invalidateQueries({ queryKey: ["ru-portfolios-lite"] });
+      queryClient.invalidateQueries({ queryKey: ["ru-owner-accounts"] });
       setOwnerEmailFor(null);
     } finally {
       setSavingOwnerEmail(false);
@@ -503,7 +517,7 @@ export function PortfolioRuAccountsTab() {
                         </CardTitle>
                         <p className="text-[11px] text-muted-foreground mt-1 flex items-center gap-1 truncate">
                           <Mail className="h-3 w-3" />
-                          {acc.ru_login_email || acc.owner_email}
+                          {acc.ru_login_email || (acc.ru_owner_id ? acc.owner_email : "New RU login not created")}
                           <span className="text-[10px] opacity-70">· RU login</span>
                         </p>
                         {acc.portfolio_id && (
@@ -804,7 +818,7 @@ export function PortfolioRuAccountsTab() {
             <DialogDescription>
               Set the owner email for{" "}
               {(ownerEmailFor && portfolioById.get(ownerEmailFor.portfolioId)?.name) || "this portfolio"}. Pick one of the
-              member properties' owners (or type another) — Phase 1 uses this for the RU sub-user contact details.
+               member properties' owners (or type another) — Phase 1 uses this as the new RU sub-user login and contact email.
 
             </DialogDescription>
           </DialogHeader>

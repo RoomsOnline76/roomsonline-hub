@@ -948,6 +948,8 @@ Deno.serve(async (req) => {
       if (mode === "identity") {
         patch.ru_owner_id = null;
         patch.ru_user_id = null;
+        patch.ru_login_email = null;
+        patch.ru_login_url = null;
         patch.ru_login_password_enc = null;
       }
 
