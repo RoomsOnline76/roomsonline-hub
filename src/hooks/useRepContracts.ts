@@ -69,9 +69,10 @@ export function useIssueRepContract() {
           versionId = version.id;
           const vars = repAgreementVariables(rep, terms);
           bodyHtml = Object.entries(vars).reduce(
-            (html, [key, value]) => html.replaceAll(`{{${key}}}`, value),
+            (html, [key, value]) => html.split(`{{${key}}}`).join(value),
             version.content_markdown,
           );
+
         }
       }
 
