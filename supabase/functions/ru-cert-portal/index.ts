@@ -1077,6 +1077,14 @@ Deno.serve(async (req) => {
         }, 422);
       }
 
+      type RuUser = { user_account_id?: string; email?: string; owner_id?: string };
+      const listRuUsers = async (): Promise<RuUser[]> => {
+        const { data: listed } = await admin.functions.invoke("rentalsunited-api", { body: { action: "list_users" } });
+        return listed?.success && Array.isArray(listed.users) ? (listed.users as RuUser[]) : [];
+      };
+      const matchByEmail = (users: RuUser[]) =>
+        users.find((u) => (u.email ?? "").trim().toLowerCase() === ownerEmail!.trim().toLowerCase()) ?? null;
+
       const existing = await findOwnerAccount(admin, propertyId ?? "", ownerEmail, portfolioId);
       // If the owner email has since changed, the stored sub-user belongs to the OLD
       // login and must not be reused: Phase 1 has to create a fresh RU sub-user for the
@@ -1088,7 +1096,22 @@ Deno.serve(async (req) => {
         Boolean(existing.account?.ru_owner_id) &&
         Boolean(storedEmail) &&
         storedEmail !== ownerEmail.trim().toLowerCase();
-      if (emailChanged && action === "ensure_owner_account") {
+      // A child account can be deleted/recreated in RU with the same email. Compare
+      // RU's current identity before trusting the locally retained password.
+      const currentRuUser = existing.account?.ru_owner_id
+        ? matchByEmail(await listRuUsers())
+        : null;
+      const currentOwnerId = String(currentRuUser?.owner_id ?? "").trim();
+      const currentUserId = String(currentRuUser?.user_account_id ?? "").trim();
+      const storedOwnerId = String(existing.account?.ru_owner_id ?? "").trim();
+      const storedUserId = String((existing.account as any)?.ru_user_id ?? "").trim();
+      const ruIdentityChanged = Boolean(existing.account?.ru_owner_id) && (
+        !currentRuUser ||
+        (Boolean(currentOwnerId) && currentOwnerId !== storedOwnerId) ||
+        (Boolean(currentUserId) && Boolean(storedUserId) && currentUserId !== storedUserId)
+      );
+      const staleIdentity = emailChanged || ruIdentityChanged;
+      if (staleIdentity && action === "ensure_owner_account") {
         // Wipe the stale RU identity + password so the row is rebuilt below.
         await admin
           .from("ru_owner_accounts")
@@ -1102,7 +1125,7 @@ Deno.serve(async (req) => {
           })
           .eq("id", (existing.account as any).id);
       }
-      if (existing.account?.ru_owner_id && !emailChanged) {
+      if (existing.account?.ru_owner_id && !staleIdentity) {
 
         const companyResult = await submitCompanyDetails(existing.account as any);
         const needsPassword = Boolean((companyResult as any).deferred || (companyResult as any).authFailed);
@@ -1162,14 +1185,6 @@ Deno.serve(async (req) => {
         pick("!@#$%*?", 2)
       );
 
-
-      type RuUser = { user_account_id?: string; email?: string; owner_id?: string };
-      const listRuUsers = async (): Promise<RuUser[]> => {
-        const { data: listed } = await admin.functions.invoke("rentalsunited-api", { body: { action: "list_users" } });
-        return listed?.success && Array.isArray(listed.users) ? (listed.users as RuUser[]) : [];
-      };
-      const matchByEmail = (users: RuUser[]) =>
-        users.find((u) => (u.email ?? "").trim().toLowerCase() === ownerEmail!.trim().toLowerCase()) ?? null;
 
       let userAccountId: string | null = null;
       let ruOwnerId: string | null = null;
@@ -1243,6 +1258,9 @@ Deno.serve(async (req) => {
         portfolio_id: portfolioId,
         property_id: portfolioId ? null : propertyId,
         scope: portfolioId ? "portfolio" : "property",
+        company_details_sent: false,
+        company_filled_at: null,
+        company_details_status: null,
       };
       // Keep the sub-user password (encrypted) — Push_FillCompanyDetails_RQ authenticates
       // as the sub-user, and admins must be able to log into the RU portal later.
@@ -1261,6 +1279,10 @@ Deno.serve(async (req) => {
           }, 500);
         }
         row.ru_login_password_enc = enc;
+      } else {
+        // Never carry a password from a previous RU identity into an account we
+        // have just adopted. It may belong to a deleted/recreated child account.
+        row.ru_login_password_enc = null;
       }
 
       // The unique indexes on this table are PARTIAL, so PostgREST's ON CONFLICT
