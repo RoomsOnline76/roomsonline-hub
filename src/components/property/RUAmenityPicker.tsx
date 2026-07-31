@@ -8,7 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Search, Loader2, CheckCircle2, AlertTriangle, Sparkles, List } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Search, Loader2, CheckCircle2, AlertTriangle, Sparkles, List, ChevronDown } from "lucide-react";
 import {
   RU_MIN_ROOM_AMENITIES,
   RuAmenity,
