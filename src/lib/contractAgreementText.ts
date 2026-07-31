@@ -178,8 +178,10 @@ export function generateSignedContractHTML(
   property?: PropertyContractDetails,
   signature?: SignatureData,
   metadata?: ContractMetadata,
-  coveredProperties?: CoveredProperty[]
+  coveredProperties?: CoveredProperty[],
+  feeTerms?: ContractFeeTerms,
 ): string {
+
   const coveredPropertiesList = coveredProperties && coveredProperties.length > 0
     ? coveredProperties.map(p => {
         const location = [p.address, p.city, p.country].filter(Boolean).join(', ');
