@@ -1084,6 +1084,10 @@ Deno.serve(async (req) => {
       };
       const matchByEmail = (users: RuUser[]) =>
         users.find((u) => (u.email ?? "").trim().toLowerCase() === ownerEmail!.trim().toLowerCase()) ?? null;
+      const usableRuId = (value: unknown): string => {
+        const normalized = String(value ?? "").trim();
+        return normalized && normalized !== "0" ? normalized : "";
+      };
 
       const existing = await findOwnerAccount(admin, propertyId ?? "", ownerEmail, portfolioId);
       // If the owner email has since changed, the stored sub-user belongs to the OLD
@@ -1101,12 +1105,13 @@ Deno.serve(async (req) => {
       const currentRuUser = existing.account?.ru_owner_id
         ? matchByEmail(await listRuUsers())
         : null;
-      const currentOwnerId = String(currentRuUser?.owner_id ?? "").trim();
-      const currentUserId = String(currentRuUser?.user_account_id ?? "").trim();
-      const storedOwnerId = String(existing.account?.ru_owner_id ?? "").trim();
-      const storedUserId = String((existing.account as any)?.ru_user_id ?? "").trim();
-      const ruIdentityChanged = Boolean(existing.account?.ru_owner_id) && (
-        !currentRuUser ||
+      const currentOwnerId = usableRuId(currentRuUser?.owner_id);
+      const currentUserId = usableRuId(currentRuUser?.user_account_id);
+      const storedOwnerId = usableRuId(existing.account?.ru_owner_id);
+      const storedUserId = usableRuId((existing.account as any)?.ru_user_id);
+      // A transient list_users failure is not proof that the RU identity changed, and
+      // RU sometimes returns UserAccountId=0. Neither condition may erase a password.
+      const ruIdentityChanged = Boolean(existing.account?.ru_owner_id) && Boolean(currentRuUser) && (
         (Boolean(currentOwnerId) && currentOwnerId !== storedOwnerId) ||
         (Boolean(currentUserId) && Boolean(storedUserId) && currentUserId !== storedUserId)
       );
@@ -1276,9 +1281,19 @@ Deno.serve(async (req) => {
         }
         row.ru_login_password_enc = enc;
       } else {
-        // Never carry a password from a previous RU identity into an account we
-        // have just adopted. It may belong to a deleted/recreated child account.
-        row.ru_login_password_enc = null;
+        const retainedPassword = (existing.account as any)?.ru_login_password_enc ?? null;
+        const retainedOwnerId = usableRuId(existing.account?.ru_owner_id);
+        const adoptedOwnerId = usableRuId(ruOwnerId);
+        const retainedEmail = String(
+          (existing.account as any)?.ru_login_email ?? (existing.account as any)?.owner_email ?? "",
+        ).trim().toLowerCase();
+        const sameRuIdentity = Boolean(retainedPassword) &&
+          retainedEmail === ownerEmail.trim().toLowerCase() &&
+          Boolean(retainedOwnerId) && retainedOwnerId === adoptedOwnerId;
+        // Adoption can simply mean RU already committed our previous create request.
+        // Preserve the encrypted password only when the email and RU OwnerID prove it
+        // is the same child account; never erase it merely because creation is skipped.
+        row.ru_login_password_enc = sameRuIdentity ? retainedPassword : null;
       }
 
       // The unique indexes on this table are PARTIAL, so PostgREST's ON CONFLICT
