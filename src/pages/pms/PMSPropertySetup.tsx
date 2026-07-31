@@ -178,7 +178,6 @@ export default function PMSPropertySetup() {
     }
   }, [resolvedPropertyId, stablePropertyId]);
 
-  useEffect(() => { console.log("[DBG] PMSPropertySetup MOUNT"); return () => console.log("[DBG] PMSPropertySetup UNMOUNT"); }, []);
   const propertyId = stablePropertyId ?? resolvedPropertyId;
   const property = properties.find((p) => p.id === propertyId);
 

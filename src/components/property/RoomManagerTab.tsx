@@ -86,7 +86,6 @@ export function RoomManagerTab({
   const navigate = useNavigate();
   const { toast } = useToast();
   const [isRoomImageUploading, setIsRoomImageUploading] = useState(false);
-  useEffect(() => { console.log("[DBG] RoomManagerTab MOUNT"); return () => console.log("[DBG] RoomManagerTab UNMOUNT"); }, []);
 
   // ── Room CRUD ────────────────────────────────────────────────────────────
   const addRoomType = () => {

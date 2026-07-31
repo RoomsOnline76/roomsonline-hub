@@ -227,9 +227,6 @@ export default function PropertyForm({
   const [isEditMode, setIsEditMode] = useState(false);
   const [owners, setOwners] = useState<any[]>([]);
   const [isDirty, setIsDirty] = useState(false);
-  useEffect(() => { console.log("[DBG] PropertyForm MOUNT"); return () => console.log("[DBG] PropertyForm UNMOUNT"); }, []);
-  const dbgRender = ((globalThis as any).__pfr = (((globalThis as any).__pfr ?? 0) + 1));
-  console.log("[DBG] PropertyForm render", dbgRender);
   const [propertySlug, setPropertySlug] = useState<string>("");
   const [propertyId, setPropertyId] = useState<string | null>(null); // Actual UUID for DB operations
   
@@ -1891,7 +1888,6 @@ export default function PropertyForm({
   // directly so the migrated source-of-truth section opens without an iframe.
   const requestedInitialTab = embeddedInitialTab || searchParams.get("tab") || "general";
   const [activeTab, setActiveTab] = useState(requestedInitialTab);
-  console.log("[DBG] activeTab", activeTab, "requested", requestedInitialTab);
 
   useEffect(() => {
     if (embedded && requestedInitialTab && requestedInitialTab !== activeTab) {
@@ -3600,11 +3596,8 @@ export default function PropertyForm({
     }
   };
 
-  const Shell: React.FC<{ children: React.ReactNode }> = ({ children }) =>
-    embedded ? <>{children}</> : <AppLayout>{children}</AppLayout>;
-
   return (
-    <Shell>
+    <FormShell embedded={embedded}>
       <div className={embedded ? "property-form-container w-full p-3" : "property-form-container w-full"}>
           {/* Breadcrumb + Header — hidden in embed mode */}
           {!embedded && (
@@ -8591,6 +8584,6 @@ export default function PropertyForm({
         }}
       />
 
-    </Shell>
+    </FormShell>
   );
 }
