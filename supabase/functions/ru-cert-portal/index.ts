@@ -719,6 +719,77 @@ Deno.serve(async (req) => {
       return json({ success: true, login_email: newEmail ?? account.ru_login_email ?? account.owner_email });
     }
 
+    // ── list_ru_candidates: every sub-user RU currently holds under our master account,
+    //    so an admin can bind a local row to a specific OwnerID (RU allows duplicates
+    //    per owner email, and logins can be renamed in the RU portal).
+    if (action === "list_ru_candidates") {
+      const { data: listed } = await admin.functions.invoke("rentalsunited-api", { body: { action: "list_users" } });
+      if (!listed?.success) {
+        return json({
+          success: false,
+          error: { code: "RU_LIST_FAILED", message: listed?.error?.message || "Rentals United did not return the sub-user list" },
+        }, 502);
+      }
+      return json({ success: true, users: listed.users ?? [] });
+    }
+
+    // ── bind_ru_account: point a local ru_owner_accounts row at a specific RU sub-user.
+    if (action === "bind_ru_account") {
+      const accountId: string = body.account_id ?? "";
+      const ruOwnerId = String(body.ru_owner_id ?? "").trim();
+      const loginEmail = typeof body.login_email === "string" ? body.login_email.trim() : "";
+      if (!accountId || !ruOwnerId) {
+        return json({ success: false, error: { code: "BAD_REQUEST", message: "account_id and ru_owner_id are required" } }, 400);
+      }
+
+      const { data: account } = await admin
+        .from("ru_owner_accounts")
+        .select("id, owner_email, ru_login_email, ru_owner_id")
+        .eq("id", accountId)
+        .maybeSingle();
+      if (!account) return json({ success: false, error: { code: "NOT_FOUND", message: "RU owner account not found" } }, 404);
+
+      const { data: listed } = await admin.functions.invoke("rentalsunited-api", { body: { action: "list_users" } });
+      const match = (listed?.users ?? []).find(
+        (u: { owner_id?: string }) => String(u.owner_id ?? "").trim() === ruOwnerId,
+      );
+      if (!match) {
+        return json({
+          success: false,
+          error: {
+            code: "RU_OWNER_NOT_FOUND",
+            message: `Rentals United does not list OwnerID ${ruOwnerId} under our master account.`,
+          },
+        }, 422);
+      }
+
+      const update: Record<string, unknown> = {
+        ru_owner_id: ruOwnerId,
+        ru_login_email: loginEmail || String(match.email ?? "").trim() || account.ru_login_email,
+      };
+      const userAccountId = String(match.user_account_id ?? "").trim();
+      if (userAccountId && userAccountId !== "0") update.ru_user_id = userAccountId;
+
+      const { error: upErr } = await admin.from("ru_owner_accounts").update(update).eq("id", accountId);
+      if (upErr) return json({ success: false, error: { code: "SAVE_FAILED", message: upErr.message } }, 500);
+
+      await admin.from("audit_logs").insert({
+        user_id: user.id,
+        user_email: user.email ?? "unknown",
+        user_role: (roles ?? []).some((r: { role: string }) => r.role === "dev") ? "dev" : "admin",
+        action_type: "other",
+        table_name: "ru_owner_accounts",
+        record_id: account.id,
+        request_origin: "edge_function",
+        edge_function_name: "ru-cert-portal",
+        is_sensitive: true,
+        change_summary: `Bound RU sub-account to OwnerID ${ruOwnerId} (${update.ru_login_email})`,
+      }).then(() => {}, (e) => console.warn("[ru-cert-portal] audit log insert failed", e));
+
+      return json({ success: true, ru_owner_id: ruOwnerId, login_email: update.ru_login_email });
+    }
+
+
 
 
 
