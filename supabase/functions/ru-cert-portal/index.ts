@@ -1137,7 +1137,15 @@ Deno.serve(async (req) => {
         }
         for (let attempt = 1; attempt <= maxAttempts; attempt++) {
           const res = await admin.functions.invoke("rentalsunited-api", {
-            body: { action: "fill_company_details", company, owner_id: ownerId },
+            body: {
+              action: "fill_company_details",
+              company,
+              owner_id: ownerId,
+              // Authenticate AS the sub-user so RU writes the details onto the owner's
+              // own profile (RU applies them to whichever account authenticates).
+              auth_username: (account.ru_login_email as string | null) || ownerEmail || null,
+              auth_password: password,
+            },
           });
           filled = res.data;
           fillErr = res.error;
