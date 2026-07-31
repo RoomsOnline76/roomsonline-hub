@@ -1386,7 +1386,8 @@ Deno.serve(async (req) => {
       const firstName = parts[0] || "Property";
       const lastName = parts.slice(1).join(" ") || "Owner";
 
-      // RU password policy: 12+ chars incl. upper, lower, digit and special
+      // RU password policy: 12+ chars incl. upper, lower, digit and special.
+      // RU's documented special-character set is exactly: . - _ $ * ( ) # @ ! % /
       const pick = (set: string, n: number) => {
         const bytes = new Uint8Array(n);
         crypto.getRandomValues(bytes);
@@ -1396,8 +1397,9 @@ Deno.serve(async (req) => {
         pick("ABCDEFGHJKLMNPQRSTUVWXYZ", 4) +
         pick("abcdefghijkmnpqrstuvwxyz", 5) +
         pick("23456789", 3) +
-        pick("!@#$%*?", 2)
+        pick(".-_$*()#@!%/", 2)
       );
+
 
 
       let userAccountId: string | null = null;
