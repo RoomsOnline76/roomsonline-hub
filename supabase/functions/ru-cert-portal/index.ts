@@ -1083,9 +1083,17 @@ Deno.serve(async (req) => {
           if (enc) await admin.from("ru_owner_accounts").update({ ru_login_password_enc: enc }).eq("id", account.id);
         }
 
-        // No password held (adopted account) is no longer fatal: rentalsunited-api falls
-        // back to the parent AccessKey/SecretKey envelope scoped by <OwnerID>, which RU
-        // still applies to the child profile. We simply push without child credentials.
+        // A child password is mandatory: RU's Push_FillCompanyDetails_RQ has no <OwnerID>
+        // element, so the details are written to whichever identity authenticates. Using the
+        // parent envelope would overwrite the MASTER company profile instead of the child's.
+        if (!password) {
+          return {
+            sent: false,
+            needs_password: true,
+            error:
+              "The RU sub-user password is required to write company details to the sub-user profile. Save it in Portfolios → RU accounts, then retry.",
+          };
+        }
 
 
 
