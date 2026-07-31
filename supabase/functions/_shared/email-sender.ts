@@ -56,14 +56,33 @@ export async function resolvePropertySender(
 
   let property: any = null;
   try {
-    const { data } = await supabase
+    // NOTE: only select columns that exist on public.properties.
+    const { data, error } = await supabase
       .from("properties")
-      .select("id, name, slug, white_label_enabled, custom_domain, is_rolos_property")
+      .select("id, name, slug, is_rol_property")
       .eq("id", propertyId)
       .maybeSingle();
+    if (error) console.error("[email-sender] property lookup failed:", error.message);
     property = data;
   } catch (_e) {
     property = null;
+  }
+
+  // White-label config lives on property_billing_configs.
+  let whiteLabelDomain: string | undefined;
+  let whiteLabelAllowed = false;
+  if (property) {
+    try {
+      const { data: cfg } = await supabase
+        .from("property_billing_configs")
+        .select("white_label_allowed, white_label_domain")
+        .eq("property_id", propertyId)
+        .maybeSingle();
+      whiteLabelAllowed = !!cfg?.white_label_allowed;
+      whiteLabelDomain = cfg?.white_label_domain || undefined;
+    } catch (_e) {
+      // ignore
+    }
   }
 
   if (!property) {
@@ -90,14 +109,14 @@ export async function resolvePropertySender(
   }
 
   const isBranded =
-    !!opts.forceBranded || !!property.white_label_enabled || !!property.is_rolos_property;
+    !!opts.forceBranded || whiteLabelAllowed || !!property.is_rol_property;
 
   const slug = slugify(property.slug || property.name || "") || "noreply";
   const displayName = encodeDisplayName(property.name || "RoomsOnline");
   const from = `${displayName} <${slug}@${VERIFIED_DOMAIN}>`;
 
-  const websiteUrl = property.custom_domain
-    ? `https://${property.custom_domain}`
+  const websiteUrl = whiteLabelDomain
+    ? `https://${whiteLabelDomain}`
     : property.slug
     ? `https://book.sleepinafrica.roomsonline.co.za/p/${property.slug}`
     : undefined;

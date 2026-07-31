@@ -107,8 +107,11 @@ Deno.serve(async (req) => {
               action: "set_property_status",
               property_id: p.id,
               ru_property_id: p.rentalsunited_property_id,
-              is_active: !archive,
-              is_archived: archive,
+              // The rentalsunited-api handler reads these flags from `metadata`.
+              metadata: {
+                is_active: !archive,
+                is_archived: archive,
+              },
             },
           }
         );
