@@ -227,6 +227,7 @@ export default function PropertyForm({
   const [isEditMode, setIsEditMode] = useState(false);
   const [owners, setOwners] = useState<any[]>([]);
   const [isDirty, setIsDirty] = useState(false);
+  useEffect(() => { console.log("[DBG] PropertyForm MOUNT"); return () => console.log("[DBG] PropertyForm UNMOUNT"); }, []);
   const [propertySlug, setPropertySlug] = useState<string>("");
   const [propertyId, setPropertyId] = useState<string | null>(null); // Actual UUID for DB operations
   
