@@ -214,8 +214,6 @@ interface RequestBody {
   user?: { first_name: string; last_name: string; email: string; password: string };
   company?: { name: string; address?: string; city?: string; country?: string; phone?: string; email?: string; vat_number?: string };
   owner_id?: string | number;
-  auth_username?: string;
-  auth_password?: string;
 }
 
 // ── XML Helpers ──────────────────────────────────────────────
@@ -378,14 +376,6 @@ function buildListPropertiesXml(creds: RUCredentials, ownerId: number): string {
   return `<?xml version="1.0" encoding="utf-8"?>
 <Pull_ListOwnerProp_RQ>
   ${buildAuthXml(creds)}
-  <OwnerID>${ownerId}</OwnerID>
-</Pull_ListOwnerProp_RQ>`;
-}
-
-function buildVerifyChildCredentialsXml(username: string, password: string, ownerId: number): string {
-  return `<?xml version="1.0" encoding="utf-8"?>
-<Pull_ListOwnerProp_RQ>
-  ${buildChildAuthXml(username, password)}
   <OwnerID>${ownerId}</OwnerID>
 </Pull_ListOwnerProp_RQ>`;
 }
