@@ -256,37 +256,6 @@ export function PortfolioRuAccountsTab() {
     }
   }, [bindFor, accounts, refreshAccounts, hideCredentials, queryClient]);
 
-  const ownerEmailOptions = useMemo(() => {
-    if (!ownerEmailFor) return [] as string[];
-    return Array.from(
-      new Set(
-        members
-          .filter((m) => m.portfolio_id === ownerEmailFor.portfolioId)
-          .map((m) => propById.get(m.property_id)?.owner_email)
-          .filter((e): e is string => !!e && e.trim().length > 0),
-      ),
-    );
-  }, [ownerEmailFor, members, propById]);
-
-  const savePortfolioOwnerEmail = useCallback(async () => {
-    if (!ownerEmailFor || !ownerEmailChoice.trim()) return;
-    setSavingOwnerEmail(true);
-    try {
-      const { error } = await supabase
-        .from("property_portfolios")
-        .update({ owner_email: ownerEmailChoice.trim() } as never)
-        .eq("id", ownerEmailFor.portfolioId);
-      if (error) {
-        toast.error(error.message);
-        return;
-      }
-      toast.success("Portfolio owner email set");
-      queryClient.invalidateQueries({ queryKey: ["ru-portfolios-lite"] });
-      setOwnerEmailFor(null);
-    } finally {
-      setSavingOwnerEmail(false);
-    }
-  }, [ownerEmailFor, ownerEmailChoice, queryClient]);
 
   const openReset = useCallback((accountId: string, email: string) => {
     setResetFor({ id: accountId, email });
@@ -355,6 +324,38 @@ export function PortfolioRuAccountsTab() {
 
   const propById = useMemo(() => new Map(properties.map((p) => [p.id, p])), [properties]);
   const portfolioById = useMemo(() => new Map(portfolios.map((p) => [p.id, p])), [portfolios]);
+
+  const ownerEmailOptions = useMemo(() => {
+    if (!ownerEmailFor) return [] as string[];
+    return Array.from(
+      new Set(
+        members
+          .filter((m) => m.portfolio_id === ownerEmailFor.portfolioId)
+          .map((m) => propById.get(m.property_id)?.owner_email)
+          .filter((e): e is string => !!e && e.trim().length > 0),
+      ),
+    );
+  }, [ownerEmailFor, members, propById]);
+
+  const savePortfolioOwnerEmail = useCallback(async () => {
+    if (!ownerEmailFor || !ownerEmailChoice.trim()) return;
+    setSavingOwnerEmail(true);
+    try {
+      const { error } = await supabase
+        .from("property_portfolios")
+        .update({ owner_email: ownerEmailChoice.trim() } as never)
+        .eq("id", ownerEmailFor.portfolioId);
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+      toast.success("Portfolio owner email set");
+      queryClient.invalidateQueries({ queryKey: ["ru-portfolios-lite"] });
+      setOwnerEmailFor(null);
+    } finally {
+      setSavingOwnerEmail(false);
+    }
+  }, [ownerEmailFor, ownerEmailChoice, queryClient]);
 
   const rows = useMemo(() => {
     return accounts.map((acc) => {
