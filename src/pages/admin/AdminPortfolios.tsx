@@ -76,6 +76,7 @@ interface Portfolio {
   name: string;
   slug: string;
   owner_id: string | null;
+  owner_email?: string | null;
   created_at: string;
   metadata?: { branding?: PortfolioBranding } | null;
   aggregator_billing_mode?: "none" | "monthly" | "once_off" | null;
@@ -236,6 +237,7 @@ export default function AdminPortfolios() {
         .from("property_portfolios" as any)
         .insert({
           name: formName,
+          owner_email: formOwnerEmail.trim() || null,
           slug: autoSlug,
           owner_id: user?.user?.id,
           metadata: { branding },
@@ -293,7 +295,7 @@ export default function AdminPortfolios() {
       };
       const { error } = await supabase
         .from("property_portfolios" as any)
-        .update({ name: formName, slug: autoSlug, metadata: { ...existingMeta, branding }, ...aggPayload } as any)
+        .update({ name: formName, owner_email: formOwnerEmail.trim() || null, slug: autoSlug, metadata: { ...existingMeta, branding }, ...aggPayload } as any)
         .eq("id", editPortfolio.id);
       if (error) throw error;
       // Sync members: delete all then re-insert
@@ -333,6 +335,7 @@ export default function AdminPortfolios() {
 
   const resetForm = () => {
     setFormName("");
+    setFormOwnerEmail("");
     setFormSlug("");
     setSelectedProps([]);
     setPropertySearch("");
@@ -358,6 +361,7 @@ export default function AdminPortfolios() {
 
   const openEdit = (p: Portfolio) => {
     setFormName(p.name);
+    setFormOwnerEmail(p.owner_email || "");
     setFormSlug(p.slug || "");
     const memberPropIds = members.filter((m) => m.portfolio_id === p.id).map((m) => m.property_id);
     setSelectedProps(memberPropIds);
@@ -431,6 +435,16 @@ export default function AdminPortfolios() {
     const memberPropIds = members.filter((m) => m.portfolio_id === pid).map((m) => m.property_id);
     return properties.filter((p) => memberPropIds.includes(p.id));
   };
+
+  // Owner emails present on the currently selected member properties — a portfolio can span
+  // several different owners, so the admin picks which one represents the portfolio.
+  const ownerEmailCandidates = Array.from(
+    new Set(
+      selectedProps
+        .map((pid) => properties.find((p) => p.id === pid)?.owner_email)
+        .filter((e): e is string => !!e && e.trim().length > 0),
+    ),
+  );
 
   const filteredProperties = properties.filter(
     (p) =>
