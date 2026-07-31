@@ -502,8 +502,32 @@ export function PortfolioRuAccountsTab() {
                         <p className="text-[11px] text-muted-foreground mt-1 flex items-center gap-1 truncate">
                           <Mail className="h-3 w-3" />
                           {acc.ru_login_email || acc.owner_email}
+                          <span className="text-[10px] opacity-70">· RU login</span>
                         </p>
+                        {acc.portfolio_id && (
+                          <p
+                            className="text-[11px] text-muted-foreground mt-0.5 flex items-center gap-1 truncate"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <User2 className="h-3 w-3" />
+                            {portfolioById.get(acc.portfolio_id)?.owner_email || "No portfolio owner email"}
+                            <span className="text-[10px] opacity-70">· portfolio owner</span>
+                            <button
+                              type="button"
+                              className="text-[10px] underline underline-offset-2"
+                              onClick={() => {
+                                setOwnerEmailChoice(
+                                  portfolioById.get(acc.portfolio_id!)?.owner_email || ""
+                                );
+                                setOwnerEmailFor({ portfolioId: acc.portfolio_id! });
+                              }}
+                            >
+                              change
+                            </button>
+                          </p>
+                        )}
                       </div>
+
                     </div>
                     <div
                       className="flex items-center gap-1.5 flex-wrap"
