@@ -178,23 +178,35 @@ export default function AdminSalesReps() {
         </Dialog>
       </div>
 
-      {/* Tier reference card */}
+      {/* Tier reference card — resolved live from Billing Defaults */}
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm">Commission Tiers Reference</CardTitle>
+          <p className="text-xs text-muted-foreground">
+            These are the exact figures written into Referral Partner Agreements. Edit them in Admin → Billing Defaults.
+          </p>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-3 gap-4 text-xs">
-            {Object.entries(TIER_RATES).map(([tier, rates]) => (
+            {tierTerms.map(({ tier, terms }) => (
               <div key={tier} className="space-y-1">
                 <Badge className={TIER_LABELS[tier].color}>{TIER_LABELS[tier].label}</Badge>
-                <p>First-year: <strong>{rates.firstYear}</strong></p>
-                <p>Residual: <strong>{rates.residual}</strong> for {rates.duration}</p>
+                <p>First-year: <strong>{terms.first_year_rate}%</strong></p>
+                <p>Residual: <strong>{terms.residual_rate}%</strong> for {terms.residual_months} mo</p>
+                <p className="text-muted-foreground">Clawback: {terms.clawback_days} days</p>
+                <p className="text-muted-foreground">
+                  {terms.source === "tier_criteria"
+                    ? "From tier criteria"
+                    : terms.source === "global_default"
+                    ? "From billing defaults"
+                    : "Platform fallback"}
+                </p>
               </div>
             ))}
           </div>
         </CardContent>
       </Card>
+
 
       {isLoading ? (
         <div className="flex items-center justify-center p-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
