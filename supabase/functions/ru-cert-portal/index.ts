@@ -673,7 +673,10 @@ Deno.serve(async (req) => {
       });
     }
 
-    // ── verify_login_password: check the encrypted value without revealing or replacing it ──
+    // ── verify_login_password: confirm password retention and parent API access ──
+    // RU portal credentials cannot be validated through the XML API. This action
+    // verifies that a password is retained and the configured parent API account
+    // can access the bound OwnerID, without mislabelling the portal password.
     if (action === "verify_login_password") {
       const accountId: string = body.account_id ?? "";
       if (!accountId) return json({ success: false, error: { code: "BAD_REQUEST", message: "account_id is required" } }, 400);
@@ -688,24 +691,16 @@ Deno.serve(async (req) => {
       if (!account.ru_login_password_enc || !loginEmail || !ownerId) {
         return json({ success: false, error: { code: "RU_IDENTITY_INCOMPLETE", message: "A bound OwnerID, login email and stored password are required." } }, 422);
       }
-      const { data: password, error: decryptError } = await admin.rpc("decrypt_sensitive_text", {
-        encrypted_data: account.ru_login_password_enc,
-      });
-      if (decryptError || !password) {
-        return json({ success: false, error: { code: "DECRYPT_FAILED", message: "Could not read the encrypted RU password." } }, 500);
-      }
       const { data: verified, error: verifyError } = await admin.functions.invoke("rentalsunited-api", {
         body: {
-          action: "verify_subuser_credentials",
+          action: "verify_owner_api_access",
           owner_id: ownerId,
-          auth_username: loginEmail,
-          auth_password: String(password).trim(),
         },
       });
       const accepted = !verifyError && verified?.success === true && verified?.verified === true;
       if (!account.company_details_sent) {
         await admin.from("ru_owner_accounts").update({
-          company_details_status: accepted ? "credentials_verified" : "auth_failed",
+          company_details_status: accepted ? "api_access_verified" : "api_access_failed",
         }).eq("id", account.id);
       }
       await admin.from("audit_logs").insert({
@@ -718,16 +713,16 @@ Deno.serve(async (req) => {
         request_origin: "edge_function",
         edge_function_name: "ru-cert-portal",
         is_sensitive: true,
-        change_summary: `${accepted ? "Verified" : "Rejected"} stored Rentals United credentials for ${loginEmail} (OwnerID ${ownerId})`,
+        change_summary: `${accepted ? "Verified" : "Rejected"} Rentals United parent API access for ${loginEmail} (OwnerID ${ownerId}); portal password remains stored`,
       }).then(() => {}, (e) => console.warn("[ru-cert-portal] audit log insert failed", e));
       if (!accepted) {
         return json({
           success: false,
           verified: false,
-          error: { code: "RU_PASSWORD_NOT_VERIFIED", message: verified?.error?.message ?? verifyError?.message ?? "Rentals United rejected the stored credentials." },
+          error: { code: "RU_OWNER_API_ACCESS_FAILED", message: verified?.error?.message ?? verifyError?.message ?? "Rentals United API access to the bound OwnerID failed." },
         }, 422);
       }
-      return json({ success: true, verified: true, login_email: loginEmail, ru_owner_id: ownerId });
+      return json({ success: true, verified: true, password_stored: true, api_access_verified: true, login_email: loginEmail, ru_owner_id: ownerId });
     }
 
     // ── save_login_password: admin sets/resets the retained RU portal password ──
@@ -759,37 +754,6 @@ Deno.serve(async (req) => {
         }, 422);
       }
 
-      const { data: verified, error: verifyError } = await admin.functions.invoke("rentalsunited-api", {
-        body: {
-          action: "verify_subuser_credentials",
-          owner_id: ownerId,
-          auth_username: canonicalEmail,
-          auth_password: newPassword,
-        },
-      });
-      if (verifyError || !verified?.success || verified?.verified !== true) {
-        await admin.from("audit_logs").insert({
-          user_id: user.id,
-          user_email: user.email ?? "unknown",
-          user_role: (roles ?? []).some((r: { role: string }) => r.role === "dev") ? "dev" : "admin",
-          action_type: "other",
-          table_name: "ru_owner_accounts",
-          record_id: account.id,
-          request_origin: "edge_function",
-          edge_function_name: "ru-cert-portal",
-          is_sensitive: true,
-          change_summary: `Rejected unverified Rentals United password update for ${canonicalEmail} (OwnerID ${ownerId})`,
-        }).then(() => {}, (e) => console.warn("[ru-cert-portal] audit log insert failed", e));
-        return json({
-          success: false,
-          verified: false,
-          error: {
-            code: "RU_PASSWORD_NOT_VERIFIED",
-            message: verified?.error?.message ?? verifyError?.message ?? "Rentals United rejected these credentials. The previous stored password was kept.",
-          },
-        }, 422);
-      }
-
       const { data: enc, error: encErr } = await admin.rpc("encrypt_sensitive_text", { plaintext: newPassword });
       if (encErr || !enc) {
         return json({ success: false, error: { code: "ENCRYPT_FAILED", message: encErr?.message || "Could not encrypt the password" } }, 500);
@@ -799,7 +763,7 @@ Deno.serve(async (req) => {
         ru_login_password_enc: enc,
         ru_login_email: canonicalEmail,
       };
-      if (!account.company_details_sent) update.company_details_status = "credentials_verified";
+      if (!account.company_details_sent) update.company_details_status = "password_stored";
       const { error: upErr } = await admin.from("ru_owner_accounts").update(update).eq("id", accountId);
       if (upErr) return json({ success: false, error: { code: "SAVE_FAILED", message: upErr.message } }, 500);
 
@@ -813,10 +777,20 @@ Deno.serve(async (req) => {
         request_origin: "edge_function",
         edge_function_name: "ru-cert-portal",
         is_sensitive: true,
-        change_summary: `Verified and reset stored Rentals United sub-user password for ${canonicalEmail} (OwnerID ${ownerId})`,
+        change_summary: `Stored Rentals United portal password for ${canonicalEmail} (OwnerID ${ownerId}); API access is verified separately`,
       }).then(() => {}, (e) => console.warn("[ru-cert-portal] audit log insert failed", e));
 
-      return json({ success: true, verified: true, login_email: canonicalEmail });
+      const { data: apiCheck, error: apiCheckError } = await admin.functions.invoke("rentalsunited-api", {
+        body: { action: "verify_owner_api_access", owner_id: ownerId },
+      });
+      const apiAccessVerified = !apiCheckError && apiCheck?.success === true && apiCheck?.verified === true;
+      return json({
+        success: true,
+        password_stored: true,
+        api_access_verified: apiAccessVerified,
+        api_warning: apiAccessVerified ? null : apiCheck?.error?.message ?? apiCheckError?.message ?? "Portal password stored, but owner API access could not be verified.",
+        login_email: canonicalEmail,
+      });
     }
 
     // ── list_ru_candidates: every sub-user RU currently holds under our master account,
@@ -1154,62 +1128,20 @@ Deno.serve(async (req) => {
         let fillErr: any = null;
         let lastMessage = "";
         const maxAttempts = passwordIsOurs ? 4 : 3;
-        // RU can provision a child account whose API login is the numeric
-        // UserAccountId/OwnerID even though the portal login shown to admins is
-        // the email address. Try every RU-issued identity with the same retained
-        // password before treating that password as stale.
-        // The password-save flow verifies and persists the canonical child login.
-        // Use that identity first and do not mix in portfolio-owner email aliases.
-        const authUsernames = Array.from(new Set([
-          account.ru_login_email,
-          account.ru_owner_id,
-        ].map((value) => String(value ?? "").trim()).filter(Boolean)));
+        const ownerId = Number(account.ru_owner_id);
+        if (!Number.isFinite(ownerId) || ownerId <= 0) {
+          return { sent: false, error: "No valid Rentals United OwnerID is bound to this account" };
+        }
         for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-          for (const authUsername of authUsernames) {
-            const res = await admin.functions.invoke("rentalsunited-api", {
-              body: {
-                action: "fill_company_details",
-                company,
-                auth_username: authUsername,
-                auth_password: password,
-              },
-            });
-            filled = res.data;
-            fillErr = res.error;
-            if (!fillErr && filled?.success) break;
-            lastMessage = String(
-              (filled as any)?.error?.message ?? fillErr?.message ?? "Rentals United rejected the company details",
-            );
-            const authRejected = (filled as any)?.error?.code === "RU_SUBUSER_AUTH_FAILED";
-            if (!authRejected) break;
-          }
+          const res = await admin.functions.invoke("rentalsunited-api", {
+            body: { action: "fill_company_details", company, owner_id: ownerId },
+          });
+          filled = res.data;
+          fillErr = res.error;
+          lastMessage = String(
+            (filled as any)?.error?.message ?? fillErr?.message ?? "Rentals United rejected the company details",
+          );
           if (!fillErr && filled?.success) break;
-          // Validation/schema and credential rejections will never succeed on retry.
-          if ((filled as any)?.error?.code === "RU_SUBUSER_AUTH_FAILED") {
-            if (passwordIsOurs) {
-              // We hold the password RU accepted at creation time — a rejection here is
-              // usually RU's account propagation lag, so back off and retry instead of
-              // asking the operator for a password we already have.
-              if (attempt < maxAttempts) {
-                await new Promise((r) => setTimeout(r, attempt * 2000));
-                continue;
-              }
-              await admin
-                .from("ru_owner_accounts")
-                .update({ company_details_status: "failed" })
-                .eq("id", account.id);
-              return {
-                sent: false,
-                error:
-                  `Rentals United rejected the stored login for ${account.ru_login_email ?? ownerEmail} after ${maxAttempts} attempts (${lastMessage}). Re-verify the current RU portal password under Portfolios → RU accounts; rejected values are not saved.`,
-              };
-            }
-            await admin
-              .from("ru_owner_accounts")
-              .update({ company_details_status: "auth_failed" })
-              .eq("id", account.id);
-            return { sent: false, authFailed: true as const, error: lastMessage };
-          }
           const permanent = /INCOMPLETE|requires these|invalid|credential|password|authenticat/i.test(lastMessage);
           if (permanent || attempt === maxAttempts) break;
           await new Promise((r) => setTimeout(r, attempt * 900));

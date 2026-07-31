@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Link as RouterLink } from "react-router-dom";
 import { toast } from "sonner";
+import { extractFunctionError } from "@/lib/functionError";
 import {
   Dialog,
   DialogContent,
@@ -88,9 +89,11 @@ export function PortfolioRuAccountsTab() {
         body: { action: "verify_login_password", account_id: accountId },
       });
       if (error || !data?.success) {
-        toast.error(data?.error?.message || error?.message || "Rentals United rejected the stored credentials");
+        toast.error(
+          data?.error?.message || (error ? await extractFunctionError(error, "Could not verify RU API access") : "Could not verify RU API access"),
+        );
       } else {
-        toast.success("Rentals United accepted the stored credentials");
+        toast.success("Portal password is stored and RU API access is available");
       }
       await queryClient.invalidateQueries({ queryKey: ["ru-owner-accounts"] });
     } finally {
@@ -195,10 +198,16 @@ export function PortfolioRuAccountsTab() {
         },
       });
       if (error || !data?.success) {
-        toast.error(data?.error?.message || error?.message || "Could not save the password");
+        toast.error(
+          data?.error?.message || (error ? await extractFunctionError(error, "Could not store the password") : "Could not store the password"),
+        );
         return;
       }
-      toast.success("RU credentials verified and stored securely");
+      if (data.api_access_verified) {
+        toast.success("RU portal password stored; API access verified");
+      } else {
+        toast.warning("RU portal password stored", { description: data.api_warning });
+      }
       setResetFor(null);
       setResetPassword("");
       await queryClient.invalidateQueries({ queryKey: ["ru-owner-accounts"] });
@@ -420,7 +429,7 @@ export function PortfolioRuAccountsTab() {
                         onClick={() => openReset(acc.id, acc.ru_login_email || acc.owner_email)}
                       >
                         <RotateCcw className="h-3 w-3" />
-                        <span className="ml-1.5">Reset password</span>
+                        <span className="ml-1.5">Store portal password</span>
                       </Button>
                       <Button
                         size="sm"
@@ -430,7 +439,7 @@ export function PortfolioRuAccountsTab() {
                         onClick={() => verifyCredentials(acc.id)}
                       >
                         {verifying === acc.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <ShieldCheck className="h-3 w-3" />}
-                        <span className="ml-1.5">Verify stored</span>
+                        <span className="ml-1.5">Verify API access</span>
                       </Button>
                       <Button
                         size="sm"
@@ -468,18 +477,18 @@ export function PortfolioRuAccountsTab() {
                         <Badge
                           variant="outline"
                           className={
-                            acc.company_details_status === "credentials_verified"
+                            acc.company_details_status === "api_access_verified"
                               ? "text-success border-success/40 text-[10px]"
-                              : acc.company_details_status === "auth_failed" || acc.company_details_status === "failed"
+                              : acc.company_details_status === "api_access_failed" || acc.company_details_status === "failed"
                                 ? "text-destructive border-destructive/40 text-[10px]"
                                 : "text-muted-foreground text-[10px]"
                           }
                         >
-                          {acc.company_details_status === "credentials_verified"
-                            ? "Credentials verified"
-                            : acc.company_details_status === "auth_failed" || acc.company_details_status === "failed"
-                              ? "Credentials rejected"
-                              : "Credentials stored"}
+                          {acc.company_details_status === "api_access_verified"
+                            ? "API access verified"
+                            : acc.company_details_status === "api_access_failed" || acc.company_details_status === "failed"
+                              ? "API access failed"
+                              : "Portal password stored"}
                         </Badge>
                       )}
                       <Badge variant="secondary" className="text-[10px]">
@@ -612,11 +621,11 @@ export function PortfolioRuAccountsTab() {
       <Dialog open={!!resetFor} onOpenChange={(o) => !o && setResetFor(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Verify and store RU password</DialogTitle>
+            <DialogTitle>Store RU portal password</DialogTitle>
             <DialogDescription>
-              Rentals United has no password-change API. Reset the sub-user password inside the RU
-              portal, then verify the new value here. It is saved encrypted only after Rentals
-              United accepts the login; rejected values never replace the previous password.
+              Rentals United has no password-change API. Reset the password in the RU portal first,
+              then store the same value here. It is encrypted at rest. API access to the bound
+              OwnerID is checked separately using the configured integration credentials.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
@@ -646,7 +655,7 @@ export function PortfolioRuAccountsTab() {
               onClick={saveResetPassword}
             >
               {saving && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
-              Verify &amp; save
+               Store password
             </Button>
           </DialogFooter>
         </DialogContent>

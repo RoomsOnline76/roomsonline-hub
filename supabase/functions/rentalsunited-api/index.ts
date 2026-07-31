@@ -390,6 +390,10 @@ function buildVerifyChildCredentialsXml(username: string, password: string, owne
 </Pull_ListOwnerProp_RQ>`;
 }
 
+function buildVerifyOwnerAccessXml(creds: RUCredentials, ownerId: number): string {
+  return buildListPropertiesXml(creds, ownerId);
+}
+
 /**
  * Resolve the RU OwnerID to list properties for: explicit param → RU_OWNER_ID
  * secret → first owner returned by Pull_ListMyUsers_RQ.
@@ -1041,32 +1045,15 @@ function missingCompanyFields(company: Partial<RUCompanyPayload>): string[] {
 function buildFillCompanyDetailsXml(
   creds: RUCredentials,
   company: RUCompanyPayload,
-  auth?: { username?: string | null; password?: string | null },
-  /**
-   * Envelope shape for sub-user credentials. Rentals United documents
-   * Push_FillCompanyDetails_RQ with <UserName>/<Password> (the child account
-   * login), so that is the default; 'access_secret' is only a fallback retry.
-   */
-  authStyle: 'access_secret' | 'username_password' = 'username_password',
-
+  ownerId: number,
 ): string {
   const optNode = (tag: string, val?: string | number) =>
     val !== undefined && val !== null && String(val).trim() !== '' ? `<${tag}>${escapeXml(String(val))}</${tag}>` : '';
-  const authXml = auth?.username && auth?.password
-    ? (authStyle === 'username_password'
-      ? `<Authentication>
-    <UserName>${escapeXml(auth.username)}</UserName>
-    <Password>${escapeXml(auth.password)}</Password>
-  </Authentication>`
-      : `<Authentication>
-    <AccessKey>${escapeXml(auth.username)}</AccessKey>
-    <SecretKey>${escapeXml(auth.password)}</SecretKey>
-  </Authentication>`)
-    : buildAuthXml(creds);
   const locations = (company.location_ids ?? []).map((id) => `      <Location Id="${Number(id)}" />`).join('\n');
   return `<?xml version="1.0" encoding="utf-8"?>
 <Push_FillCompanyDetails_RQ>
-  ${authXml}
+  ${buildAuthXml(creds)}
+  <OwnerID>${ownerId}</OwnerID>
   <ContactInfo>
     <FirstName>${escapeXml(company.first_name)}</FirstName>
     <LastName>${escapeXml(company.last_name)}</LastName>
@@ -1283,17 +1270,16 @@ Deno.serve(async (req) => {
       return errorResponse('NOT_CONFIGURED', 'Rentals United credentials not configured');
     }
 
-    // ── verify_subuser_credentials ──
-    // Non-destructive child-login probe. It validates the exact identity that will
-    // authenticate Push_FillCompanyDetails_RQ without changing company data.
-    if (action === 'verify_subuser_credentials') {
-      const username = String(body.auth_username ?? '').trim();
-      const password = String(body.auth_password ?? '').trim();
+    // ── verify_owner_api_access / verify_subuser_credentials (legacy alias) ──
+    // RU portal credentials and XML API credentials are distinct surfaces. Verify
+    // that the configured parent API account can reach the bound child OwnerID;
+    // never report a valid portal password as invalid based on an API-only probe.
+    if (action === 'verify_owner_api_access' || action === 'verify_subuser_credentials') {
       const ownerId = Number(body.owner_id);
-      if (!username || password.length < 8 || !Number.isFinite(ownerId) || ownerId <= 0) {
-        return errorResponse('MISSING_PARAM', 'auth_username, auth_password and a valid owner_id are required');
+      if (!Number.isFinite(ownerId) || ownerId <= 0) {
+        return errorResponse('MISSING_PARAM', 'A valid owner_id is required');
       }
-      const xml = buildVerifyChildCredentialsXml(username, password, ownerId);
+      const xml = buildVerifyOwnerAccessXml(creds, ownerId);
       const response = await callRentalsUnited(creds, xml);
       const { ok, status } = handleRUStatus(response);
       if (!ok) {
@@ -1301,13 +1287,19 @@ Deno.serve(async (req) => {
           success: false,
           verified: false,
           error: {
-            code: 'RU_SUBUSER_AUTH_FAILED',
-            message: `Rentals United rejected the login for "${username}" (${status.message || 'invalid credentials'}). The new password was not saved.`,
+            code: 'RU_OWNER_API_ACCESS_FAILED',
+            message: `Rentals United API access to OwnerID ${ownerId} failed (${status.message || 'access rejected'}).`,
             ru_status_id: status.id,
           },
         }, 200);
       }
-      return jsonResponse({ success: true, verified: true, auth_username: username, owner_id: String(ownerId) });
+      return jsonResponse({
+        success: true,
+        verified: true,
+        api_access_verified: true,
+        auth_mode: 'parent_access_key_owner_scope',
+        owner_id: String(ownerId),
+      });
     }
 
     // ── list_properties ──
@@ -1796,58 +1788,29 @@ Deno.serve(async (req) => {
           },
         }, 422);
       }
-      const subAuth = {
-        username: body.auth_username ?? null,
-        password: body.auth_password ?? null,
-      };
+      const ownerId = Number(body.owner_id);
+      if (!Number.isFinite(ownerId) || ownerId <= 0) {
+        return errorResponse('MISSING_PARAM', 'A valid owner_id is required for company details');
+      }
       const maskXml = (x: string) =>
         compactXml(x)
           .replace(/<Password>[\s\S]*?<\/Password>/g, '<Password>***</Password>')
           .replace(/<SecretKey>[\s\S]*?<\/SecretKey>/g, '<SecretKey>***</SecretKey>');
-      // RU documents this call with the child account's <UserName>/<Password>;
-      // retry with the AccessKey/SecretKey shape only if that is rejected.
-      const styles: Array<'access_secret' | 'username_password'> =
-        subAuth.username && subAuth.password ? ['username_password', 'access_secret'] : ['access_secret'];
-      let xml = '';
-      let response = '';
-      let ok = false;
-      let status: { id: string; message: string } = { id: '', message: '' };
-      for (const style of styles) {
-        xml = buildFillCompanyDetailsXml(creds, body.company as RUCompanyPayload, subAuth, style);
-        response = await callRentalsUnited(creds, xml);
-        console.log(`[rentalsunited-api] FillCompanyDetails (auth=${style}) response: ${response.substring(0, 500)}`);
-        const res = handleRUStatus(response);
-        ok = res.ok;
-        status = res.status;
-        if (ok) {
-          console.log(`[rentalsunited-api] FillCompanyDetails succeeded with auth envelope: ${style}`);
-          break;
-        }
-        const authFailure = /credential|password|authenticat|login|access denied|not authorized|unauthor/i.test(
-          status.message || '',
-        );
-        if (!authFailure) break;
-        console.warn(`[rentalsunited-api] Auth envelope ${style} rejected by RU — trying next variant`);
-      }
+      const xml = buildFillCompanyDetailsXml(creds, body.company as RUCompanyPayload, ownerId);
+      const response = await callRentalsUnited(creds, xml);
+      console.log(`[rentalsunited-api] FillCompanyDetails (auth=parent_access_key_owner_scope, owner=${ownerId}) response: ${response.substring(0, 500)}`);
+      const { ok, status } = handleRUStatus(response);
       if (!ok) {
-        const authFailure = /credential|password|authenticat|login|access denied|not authorized|unauthor/i.test(
-          status.message || '',
-        );
         const diagnostics = buildDiagnostics(maskXml(xml), status, 'fill_company_details', response);
-        if (authFailure) {
-          return jsonResponse({
-            success: false,
-            error: {
-              code: 'RU_SUBUSER_AUTH_FAILED',
-              message: `Rentals United rejected the sub-user login for "${subAuth.username ?? 'unknown user'}" (${status.message || 'invalid credentials'}). The password Rentals United holds for this child account differs from the one stored here. Passwords cannot be changed via the API: either reset it in the Rentals United portal for that child account and save it under Portfolios → RU accounts, or create the child account again with a unique per-portfolio email address so the generated password is the one we hold.`,
-              ru_status_id: status.id,
-            },
-            diagnostics,
-          }, 200);
-        }
         return ruErrorResponse(status, diagnostics);
       }
-      return jsonResponse({ success: true, message: 'Company details filled successfully', raw_xml: response });
+      return jsonResponse({
+        success: true,
+        message: 'Company details filled successfully',
+        auth_mode: 'parent_access_key_owner_scope',
+        owner_id: String(ownerId),
+        raw_xml: response,
+      });
     }
 
 
