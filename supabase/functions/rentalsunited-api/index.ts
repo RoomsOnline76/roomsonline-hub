@@ -1132,18 +1132,31 @@ function missingCompanyFields(company: Partial<RUCompanyPayload>): string[] {
   return missing;
 }
 
+/**
+ * Sub-user ("child") authentication envelope. Push_FillCompanyDetails_RQ writes the
+ * profile of whichever account authenticates, so filling a sub-user's own company
+ * details requires logging in AS that sub-user.
+ */
+function buildChildAuthXml(username: string, password: string): string {
+  return `<Authentication>
+    <UserName>${escapeXml(username)}</UserName>
+    <Password>${escapeXml(password)}</Password>
+  </Authentication>`;
+}
+
 function buildFillCompanyDetailsXml(
   creds: RUCredentials,
   company: RUCompanyPayload,
   ownerId: number,
+  childAuth?: { username: string; password: string } | null,
 ): string {
   const optNode = (tag: string, val?: string | number) =>
     val !== undefined && val !== null && String(val).trim() !== '' ? `<${tag}>${escapeXml(String(val))}</${tag}>` : '';
   const locations = (company.location_ids ?? []).map((id) => `      <Location Id="${Number(id)}" />`).join('\n');
   return `<?xml version="1.0" encoding="utf-8"?>
 <Push_FillCompanyDetails_RQ>
-  ${buildAuthXml(creds)}
-  <OwnerID>${ownerId}</OwnerID>
+  ${childAuth ? buildChildAuthXml(childAuth.username, childAuth.password) : buildAuthXml(creds)}
+  ${childAuth ? '' : `<OwnerID>${ownerId}</OwnerID>`}
   <ContactInfo>
     <FirstName>${escapeXml(company.first_name)}</FirstName>
     <LastName>${escapeXml(company.last_name)}</LastName>
@@ -1953,21 +1966,41 @@ Deno.serve(async (req) => {
         compactXml(x)
           .replace(/<Password>[\s\S]*?<\/Password>/g, '<Password>***</Password>')
           .replace(/<SecretKey>[\s\S]*?<\/SecretKey>/g, '<SecretKey>***</SecretKey>');
-      const xml = buildFillCompanyDetailsXml(creds, body.company as RUCompanyPayload, ownerId);
-      const response = await callRentalsUnited(creds, xml);
-      console.log(`[rentalsunited-api] FillCompanyDetails (auth=parent_access_key_owner_scope, owner=${ownerId}) response: ${response.substring(0, 500)}`);
-      const { ok, status } = handleRUStatus(response);
-      if (!ok) {
-        const diagnostics = buildDiagnostics(maskXml(xml), status, 'fill_company_details', response);
-        return ruErrorResponse(status, diagnostics);
+      // RU applies the details to whichever account authenticates. Authenticate AS the
+      // sub-user when we hold its portal credentials, so the fields land on the owner's
+      // own RU profile instead of the RoomsOnline master account. Parent + <OwnerID> is
+      // only a fallback for adopted accounts with no stored password.
+      const childUser = typeof body.auth_username === 'string' ? body.auth_username.trim() : '';
+      const childPass = typeof body.auth_password === 'string' ? body.auth_password : '';
+      const attempts: Array<{ mode: string; childAuth: { username: string; password: string } | null }> = [];
+      if (childUser && childPass) attempts.push({ mode: 'child_user_password', childAuth: { username: childUser, password: childPass } });
+      attempts.push({ mode: 'parent_access_key_owner_scope', childAuth: null });
+
+      let lastXml = '';
+      let lastResponse = '';
+      let lastStatus: unknown = null;
+      for (const attempt of attempts) {
+        lastXml = buildFillCompanyDetailsXml(creds, body.company as RUCompanyPayload, ownerId, attempt.childAuth);
+        lastResponse = await callRentalsUnited(creds, lastXml);
+        const { ok, status } = handleRUStatus(lastResponse);
+        lastStatus = status;
+        console.log(
+          `[rentalsunited-api] FillCompanyDetails (auth=${attempt.mode}, owner=${ownerId}) ok=${ok} response: ${lastResponse.substring(0, 500)}`,
+        );
+        if (ok) {
+          return jsonResponse({
+            success: true,
+            message: 'Company details filled successfully',
+            auth_mode: attempt.mode,
+            owner_id: String(ownerId),
+            raw_xml: lastResponse,
+          });
+        }
       }
-      return jsonResponse({
-        success: true,
-        message: 'Company details filled successfully',
-        auth_mode: 'parent_access_key_owner_scope',
-        owner_id: String(ownerId),
-        raw_xml: response,
-      });
+      return ruErrorResponse(
+        lastStatus as never,
+        buildDiagnostics(maskXml(lastXml), lastStatus as never, 'fill_company_details', lastResponse),
+      );
     }
 
 

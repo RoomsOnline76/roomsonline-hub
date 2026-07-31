@@ -884,6 +884,7 @@ Deno.serve(async (req) => {
         : {
             action: "fill_company_details",
             company: body.company,
+            owner_id: body.owner_id ?? null,
             auth_username: body.auth_username ?? null,
             auth_password: body.auth_password ?? null,
           };
@@ -1015,7 +1016,8 @@ Deno.serve(async (req) => {
       ) => {
         if (!account?.id) return { sent: false, error: "No local RU account row" };
         // Idempotent: treat it as done only when RU actually confirmed it.
-        if (account.company_details_sent === true && account.company_filled_at) {
+        // `force: true` re-submits (e.g. the RU portal profile is still blank).
+        if (body.force !== true && account.company_details_sent === true && account.company_filled_at) {
           return { sent: true, skipped: true as const };
         }
 
@@ -1137,7 +1139,15 @@ Deno.serve(async (req) => {
         }
         for (let attempt = 1; attempt <= maxAttempts; attempt++) {
           const res = await admin.functions.invoke("rentalsunited-api", {
-            body: { action: "fill_company_details", company, owner_id: ownerId },
+            body: {
+              action: "fill_company_details",
+              company,
+              owner_id: ownerId,
+              // Authenticate AS the sub-user so RU writes the details onto the owner's
+              // own profile (RU applies them to whichever account authenticates).
+              auth_username: (account.ru_login_email as string | null) || ownerEmail || null,
+              auth_password: password,
+            },
           });
           filled = res.data;
           fillErr = res.error;

@@ -161,6 +161,9 @@ export function RuOnboardingPipeline({ propertyId, readOnly = false, standalone 
         {
           action: "ensure_company_details",
           property_id: propertyId,
+          // Always re-submit: RU overwrites the profile, so a manual run is the
+          // recovery path when the RU portal profile still shows blank fields.
+          force: true,
           ...(password ? { ru_login_password: password } : {}),
         },
         "Company details submitted to Rentals United",
