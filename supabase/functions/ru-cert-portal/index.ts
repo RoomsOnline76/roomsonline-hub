@@ -518,9 +518,11 @@ Deno.serve(async (req) => {
         ru_property_id: p.rentalsunited_property_id ?? null,
         multi_unit: !!data?.multi_unit,
         unit_count: units.length,
-        ok: summary.gaps.length === 0,
+        ok: !summary.blocked,
         blocked: summary.blocked,
         gaps: summary.gaps,
+        blocking_gaps: summary.blocking_gaps,
+        advisory_gaps: summary.advisory_gaps,
         checks: summary.checks,
         groups: summary.groups,
         checks_total: summary.checks_total,
@@ -918,7 +920,8 @@ Deno.serve(async (req) => {
       let readinessUnknown = false;
       try {
         readiness = await scoreProperty(prop as any, { probe_ari: body.probe_ari === true }) as any;
-        gaps = ((readiness as any)?.gaps ?? []) as string[];
+        // Only mandatory failures may block a phase — optional quality advice must not.
+        gaps = ((readiness as any)?.blocking_gaps ?? []) as string[];
       } catch (_e) {
         readinessUnknown = true;
       }
@@ -1507,7 +1510,7 @@ Deno.serve(async (req) => {
       let gaps: string[] = [];
       try {
         const report = await scoreProperty(prop as any, { probe_ari: true }) as any;
-        gaps = report?.gaps ?? [];
+        gaps = report?.blocking_gaps ?? [];
       } catch (_e) { /* fall through — gate reports unknown */ }
 
       const gate = await evaluatePhases(admin, prop as any, { readinessGaps: gaps });
