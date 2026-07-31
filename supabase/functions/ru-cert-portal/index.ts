@@ -1121,7 +1121,7 @@ Deno.serve(async (req) => {
             ru_login_password_enc: null,
             company_details_sent: false,
             company_filled_at: null,
-            company_details_status: null,
+            company_details_status: "pending",
           })
           .eq("id", (existing.account as any).id);
       }
@@ -1256,7 +1256,7 @@ Deno.serve(async (req) => {
         scope: portfolioId ? "portfolio" : "property",
         company_details_sent: false,
         company_filled_at: null,
-        company_details_status: null,
+        company_details_status: "pending",
       };
       // Keep the sub-user password (encrypted) — Push_FillCompanyDetails_RQ authenticates
       // as the sub-user, and admins must be able to log into the RU portal later.
