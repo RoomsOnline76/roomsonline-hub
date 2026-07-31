@@ -905,6 +905,49 @@ Deno.serve(async (req) => {
       return json({ success: !!data?.success, result: data, preview: preview(data, 2000) });
     }
 
+    // ── reset_phase1: re-open Phase 1 so the onboarding flow can be run again.
+    //    mode = "details" (default) keeps the RU sub-user but clears the company-details
+    //    state so "Complete company details" can be re-submitted.
+    //    mode = "identity" additionally unbinds the local row from the RU OwnerID so the
+    //    flow falls all the way back to "Create sub-user".
+    if (action === "reset_phase1") {
+      const propertyId: string | null = body.property_id ?? null;
+      let portfolioId: string | null = body.portfolio_id ?? null;
+      const mode: string = body.mode === "identity" ? "identity" : "details";
+      if (!propertyId && !portfolioId) {
+        return json({ success: false, error: { code: "BAD_REQUEST", message: "property_id or portfolio_id is required" } }, 400);
+      }
+      if (!portfolioId && propertyId) portfolioId = await resolvePortfolioId(admin, propertyId);
+
+      let query = admin.from("ru_owner_accounts").select("id, ru_owner_id, portfolio_id, property_id");
+      query = portfolioId ? query.eq("portfolio_id", portfolioId) : query.eq("property_id", propertyId);
+      const { data: accounts } = await query;
+      if (!accounts?.length) {
+        return json({ success: false, error: { code: "NO_RU_ACCOUNT", message: "No Rentals United owner account is linked yet — nothing to reset." } }, 404);
+      }
+
+      const patch: Record<string, unknown> = {
+        company_details_sent: false,
+        company_filled_at: null,
+        company_details_status: "pending",
+      };
+      if (mode === "identity") {
+        patch.ru_owner_id = null;
+        patch.ru_user_id = null;
+        patch.ru_login_password_enc = null;
+      }
+
+      const ids = accounts.map((a: { id: string }) => a.id);
+      const { error: upErr } = await admin.from("ru_owner_accounts").update(patch).in("id", ids);
+      if (upErr) {
+        return json({ success: false, error: { code: "SAVE_FAILED", message: upErr.message } }, 500);
+      }
+
+      return json({ success: true, reset: mode, accounts: ids });
+    }
+
+
+
     // ── phase_status: 4-phase onboarding gate for one property ──
     if (action === "phase_status") {
       const propertyId: string = body.property_id ?? "";
