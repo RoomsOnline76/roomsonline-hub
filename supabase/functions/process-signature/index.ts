@@ -150,7 +150,8 @@ Deno.serve(async (req) => {
       signee_designation, 
       signature_data_url, 
       contract_type,
-      pending_property_data 
+      pending_property_data,
+      terms_snapshot
     } = await req.json();
 
     // Validate inputs
@@ -383,6 +384,17 @@ Deno.serve(async (req) => {
     if (pending_property_data) {
       updateData.pending_property_data = pending_property_data;
     }
+
+    // Freeze the billing / commission figures the signer actually saw, so later
+    // billing-config changes never retro-edit a signed agreement.
+    if (terms_snapshot && tableName === "owner_contracts") {
+      updateData.metadata = {
+        ...((contract.metadata as Record<string, unknown> | null) || {}),
+        terms_snapshot,
+        terms_snapshot_at: new Date().toISOString(),
+      };
+    }
+
 
     const { error: updateError } = await supabase
       .from(tableName)

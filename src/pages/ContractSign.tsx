@@ -17,7 +17,8 @@ import { Send, Check, AlertTriangle, Clock, Loader2, Mail, ChevronDown, ChevronU
 import rolLogo from "@/assets/rol-logo.png";
 import { generateContractHTML, generateSignedContractHTML, generatePdfFromDynamicTemplate, PropertyContractDetails, SignatureData, CoveredProperty as ContractCoveredProperty } from "@/lib/contractAgreementText";
 import { renderContractWithVariables } from "@/hooks/useContractTemplates";
-import { resolveBillingContractVariables, BillingContractVariables } from "@/lib/contractBillingVariables";
+import { resolveBillingContractVariables, billingVariablesToMap, BillingContractVariables } from "@/lib/contractBillingVariables";
+import { resolveRepContractVariables, RepContractVariables } from "@/lib/repContractVariables";
 
 interface PropertyData {
   id: string;
@@ -121,6 +122,7 @@ export default function ContractSign() {
    const [commissionText, setCommissionText] = useState('ten percent (10%)');
    const [pmsCommissionText, setPmsCommissionText] = useState('two percent (2%)');
    const [billingVars, setBillingVars] = useState<BillingContractVariables | null>(null);
+   const [repVars, setRepVars] = useState<RepContractVariables | null>(null);
   const [errorState, setErrorState] = useState<ErrorState | null>(null);
   const [agreementExpanded, setAgreementExpanded] = useState(true);
 
@@ -217,21 +219,10 @@ export default function ContractSign() {
         listing_commission_percentage: commissionText,
         pms_commission_percentage: pmsCommissionText,
         covered_properties_list: propertiesListHtml,
-        // v2 PMS contract billing variables
-        ...(billingVars ? {
-          billing_strategy_label: billingVars.billing_strategy_label,
-          commission_rate: billingVars.commission_rate,
-          commission_clause: billingVars.commission_clause,
-          subscription_fee_monthly: billingVars.subscription_fee_monthly,
-          subscription_clause: billingVars.subscription_clause,
-          white_label_monthly_fee: billingVars.white_label_monthly_fee,
-          white_label_clause: billingVars.white_label_clause,
-          payment_facilitator_fee: billingVars.payment_facilitator_fee,
-          payment_facilitator_clause: billingVars.payment_facilitator_clause,
-          byo_gateway_fee: billingVars.byo_gateway_fee,
-          byo_gateway_clause: billingVars.byo_gateway_clause,
-          volume_tier_clause: billingVars.volume_tier_clause,
-        } : {}),
+        // Billing-driven contract variables (portfolio-aware, global defaults as base)
+        ...(billingVars ? billingVariablesToMap(billingVars) : {}),
+        // Referral / sales-rep commission economics
+        ...(repVars || {}),
         // Map v2 template property details fields
         property_name: contract.owner_name || propertyDetails?.registeredName || coveredProperties[0]?.name || 'N/A',
         registered_business_name: propertyDetails?.registeredName || 'N/A',
@@ -275,7 +266,7 @@ export default function ContractSign() {
         property_type: p.property_type,
       }))
     );
-  }, [contract, coveredProperties, propertyDetails, commissionText, pmsCommissionText, billingVars]);
+  }, [contract, coveredProperties, propertyDetails, commissionText, pmsCommissionText, billingVars, repVars]);
 
   // Handle PDF download for signed contracts - uses dynamic template if available
   const handleDownloadPDF = () => {
@@ -478,50 +469,30 @@ export default function ContractSign() {
           }
         }
 
-        // Fetch commission rate from property commercial terms
+        // Resolve billing-driven commission rates (commercial term → property/portfolio
+        // billing config → global billing defaults → platform constant).
         const propertyIds = propertiesList.map((p: any) => p.id).filter(Boolean);
         if (propertyIds.length === 0 && fullProperty?.id) {
           propertyIds.push(fullProperty.id);
         }
         if (propertyIds.length > 0) {
-          const now = new Date().toISOString().split("T")[0];
-          // Fetch listing commission
-          const { data: listingTerms } = await supabase
-            .from("property_commercial_terms")
-            .select("revenue_share_percent, commission_type")
-            .in("property_id", propertyIds)
-            .eq("commission_type", "listing")
-            .lte("effective_from", now)
-            .or(`effective_to.is.null,effective_to.gte.${now}`)
-            .order("effective_from", { ascending: false })
-            .limit(1);
-          
-          if (listingTerms && listingTerms.length > 0) {
-            const rate = listingTerms[0].revenue_share_percent;
-            const words = numberToWords(rate);
-            setCommissionText(`${words} percent (${rate}%)`);
-          }
-
-          // Fetch PMS commission
-          const { data: pmsTerms } = await supabase
-            .from("property_commercial_terms")
-            .select("revenue_share_percent, commission_type")
-            .in("property_id", propertyIds)
-            .eq("commission_type", "pms")
-            .lte("effective_from", now)
-            .or(`effective_to.is.null,effective_to.gte.${now}`)
-            .order("effective_from", { ascending: false })
-            .limit(1);
-          
-          if (pmsTerms && pmsTerms.length > 0) {
-            const rate = pmsTerms[0].revenue_share_percent;
-            const words = numberToWords(rate);
-            setPmsCommissionText(`${words} percent (${rate}%)`);
+          const billingResult = await resolveBillingContractVariables(propertyIds);
+          setBillingVars(billingResult);
+          setCommissionText(billingResult.listing_commission_rate);
+          setPmsCommissionText(billingResult.pms_commission_rate);
         }
 
-        // Fetch billing config variables for v2 PMS contract template
-        const billingResult = await resolveBillingContractVariables(propertyIds);
-        setBillingVars(billingResult);
+        // Referral / sales-rep agreements: pull commission economics from the rep's tier.
+        const templateContent: string = data.template_content || "";
+        if (contractType === "referral" || /\{\{(first_year_rate|residual_rate|rep_code)\}\}/.test(templateContent)) {
+          try {
+            const repResult = await resolveRepContractVariables({
+              email: contractData.sent_to_email || contractData.owner_email,
+            });
+            if (repResult) setRepVars(repResult.variables);
+          } catch (e) {
+            console.warn("Failed to resolve rep contract variables", e);
+          }
         }
         const emailToUse = contractData.sent_to_email || contractData.owner_email;
         if (emailToUse) {
