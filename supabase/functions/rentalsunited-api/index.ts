@@ -1820,7 +1820,7 @@ Deno.serve(async (req) => {
 
     // ── list_buildings ──
     // Child-scoped only (see push_building lock note): the parent envelope would list the
-    // master account's buildings and cross-contaminate the白-label client's inventory.
+    // master account's buildings and cross-contaminate thewhite-label client's inventory.
     if (action === 'list_buildings') {
       const childUser = typeof body.auth_username === 'string' ? body.auth_username.trim() : '';
       const childPass = typeof body.auth_password === 'string' ? body.auth_password : '';
@@ -1915,13 +1915,10 @@ Deno.serve(async (req) => {
       if (!bId) return errorResponse('MISSING_PARAM', 'building_id is required');
       const childUser = typeof body.auth_username === 'string' ? body.auth_username.trim() : '';
       const childPass = typeof body.auth_password === 'string' ? body.auth_password : '';
-      let xml = buildGetBuildingXml(creds, parseInt(String(bId), 10), childUser && childPass ? { username: childUser, password: childPass } : undefined);
-      let response = await callRentalsUnited(creds, xml);
-      if (!handleRUStatus(response).ok && childUser && childPass) {
-        // Sub-user login rejected on the XML API — retry with the parent envelope.
-        xml = buildGetBuildingXml(creds, parseInt(String(bId), 10));
-        response = await callRentalsUnited(creds, xml);
-      }
+      // Child-scoped only: no parent fallback (a building only exists on the account that
+      // created it, and the parent envelope would read the master account's buildings).
+      const xml = buildGetBuildingXml(creds, parseInt(String(bId), 10), childUser && childPass ? { username: childUser, password: childPass } : undefined);
+      const response = await callRentalsUnited(creds, xml);
 
       const { ok, status } = handleRUStatus(response);
       if (!ok) return ruErrorResponse(status, buildDiagnostics(compactXml(xml), status, 'get_building', response));
