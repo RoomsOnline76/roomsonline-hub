@@ -115,6 +115,21 @@ export default function AdminSalesReps() {
   const { reps, isLoading, create, update, remove } = useSalesReps();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingRep, setEditingRep] = useState<SalesRep | undefined>();
+  const [repGlobals, setRepGlobals] = useState<Record<string, any> | null>(null);
+
+  useEffect(() => {
+    fetchRepGlobals()
+      .then(setRepGlobals)
+      .catch((e) => console.warn("Failed to load rep commission defaults", e));
+  }, []);
+
+  // Live tier economics, resolved from Billing Defaults (never hardcoded).
+  const tierTerms = useMemo(
+    () => TIER_KEYS.map((tier) => ({ tier, terms: resolveRepTerms({ commission_tier: tier }, repGlobals) })),
+    [repGlobals]
+  );
+
+
 
   if (authLoading) {
     return <div className="flex items-center justify-center p-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
