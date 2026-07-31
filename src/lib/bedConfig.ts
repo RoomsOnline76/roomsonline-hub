@@ -28,6 +28,38 @@ export const bedTypeLabels: Record<string, string> = {
 };
 
 /**
+ * How many people each bed of a given type sleeps.
+ * `count` on a BedEntry is the NUMBER OF BEDS, never the number of people.
+ */
+export const bedTypeSleeps: Record<string, number> = {
+  king: 2,
+  queen: 2,
+  double: 2,
+  twin: 1,
+  single: 1,
+  "sofa-bed": 2,
+  bunk: 2,
+  // Legacy mappings
+  "king-twin": 2,
+};
+
+export function sleepsPerBed(type: string): number {
+  return bedTypeSleeps[type] ?? 1;
+}
+
+/**
+ * Total sleeping capacity implied by a bed configuration.
+ * e.g. 3 double beds => 6 people.
+ */
+export function calculateBedCapacity(config: string | BedEntry[] | undefined): number {
+  return parseBedConfiguration(config).reduce(
+    (sum, bed) => sum + sleepsPerBed(bed.type) * (bed.count || 0),
+    0
+  );
+}
+
+
+/**
  * Parse bed configuration - handles both legacy string format and new array format
  */
 export function parseBedConfiguration(config: string | BedEntry[] | undefined): BedEntry[] {
