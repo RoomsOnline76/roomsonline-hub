@@ -1251,10 +1251,12 @@ Deno.serve(async (req) => {
         if (createErr || !created?.success) {
           if (emailTaken) {
             // RU says the email is taken — recover by adopting the existing sub-user.
-            const recovered = matchByEmail(await listRuUsers());
+            const refreshed = await listRuUsers();
+            const recovered = matchByEmail(refreshed) ?? matchByStoredIdentity(refreshed, existing.account as any);
             if (recovered) {
               userAccountId = recovered.user_account_id ?? null;
               ruOwnerId = recovered.owner_id ?? null;
+              adoptedEmail = String(recovered.email ?? "").trim() || null;
               adopted = true;
             } else {
               return json({
@@ -1280,7 +1282,8 @@ Deno.serve(async (req) => {
       }
 
       if (!ruOwnerId || !userAccountId) {
-        const matched = matchByEmail(await listRuUsers());
+        const refreshed = await listRuUsers();
+        const matched = matchByEmail(refreshed) ?? matchByStoredIdentity(refreshed, existing.account as any);
         userAccountId = userAccountId ?? matched?.user_account_id ?? null;
         ruOwnerId = ruOwnerId ?? matched?.owner_id ?? null;
       }
@@ -1290,7 +1293,10 @@ Deno.serve(async (req) => {
         owner_email: ownerEmail,
         ru_user_id: userAccountId,
         ru_owner_id: ruOwnerId,
-        ru_login_email: ownerEmail,
+        // The RU-side login is authoritative: an adopted account may have been renamed
+        // in the RU portal and that is the username Push_FillCompanyDetails_RQ needs.
+        ru_login_email: adoptedEmail || ownerEmail,
+
         ru_login_url: "https://new.rentalsunited.com",
         portfolio_id: portfolioId,
         property_id: portfolioId ? null : propertyId,
