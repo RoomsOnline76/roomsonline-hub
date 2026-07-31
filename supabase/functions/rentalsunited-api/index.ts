@@ -871,6 +871,110 @@ function buildListCompositionRoomsXml(creds: RUCredentials): string {
 }
 
 /**
+ * Pull_ListAmenities_RQ — fetch RU's global amenity dictionary (AmenityID + name,
+ * optionally grouped by StaticName/AmenityTypeID). Used to populate the ROLOS
+ * room/unit amenity picker with RU's real option set instead of hand-written labels.
+ */
+function buildListAmenitiesXml(creds: RUCredentials): string {
+  return `<Pull_ListAmenities_RQ>${buildAuthXml(creds)}</Pull_ListAmenities_RQ>`;
+}
+
+/**
+ * Parse Pull_ListAmenities_RS. RU has shipped several shapes over time:
+ *  A) <Amenity AmenityID="6" AmenityTypeID="3">Internet</Amenity>
+ *  B) <Amenity ID="6">Internet</Amenity>
+ *  C) <Amenity><AmenityID>6</AmenityID><AmenityName>Internet</AmenityName></Amenity>
+ */
+function extractAmenities(xml: string): { id: number; name: string; group_id: number | null }[] {
+  const results: { id: number; name: string; group_id: number | null }[] = [];
+  const seen = new Set<number>();
+  const decode = (s: string) =>
+    s
+      .replace(/&amp;amp;/gi, '&')
+      .replace(/&amp;/gi, '&')
+      .replace(/&lt;/gi, '<')
+      .replace(/&gt;/gi, '>')
+      .replace(/&quot;/gi, '"')
+      .replace(/&#39;|&apos;/gi, "'")
+      .replace(/\s+/g, ' ')
+      .trim();
+  const push = (rawId: string, rawName: string, rawGroup?: string | null) => {
+    const id = parseInt(rawId, 10);
+    const name = decode(rawName.replace(/<[^>]+>/g, ''));
+    if (!Number.isFinite(id) || id <= 0 || !name || seen.has(id)) return;
+    seen.add(id);
+    const group = rawGroup ? parseInt(rawGroup, 10) : NaN;
+    results.push({ id, name, group_id: Number.isFinite(group) ? group : null });
+  };
+
+
+  // Format A/B: attribute id + text content
+  const attrRegex = /<Amenity\b([^>]*)>([\s\S]*?)<\/Amenity>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = attrRegex.exec(xml)) !== null) {
+    const attrs = m[1];
+    const inner = m[2];
+    const idMatch = attrs.match(/\bAmenityID\s*=\s*"(\d+)"/i) || attrs.match(/\bID\s*=\s*"(\d+)"/i);
+    const groupMatch = attrs.match(/\bAmenityTypeID\s*=\s*"(\d+)"/i) || attrs.match(/\bTypeID\s*=\s*"(\d+)"/i);
+    if (idMatch && inner.trim() && !/<Amenity(ID|Name)>/i.test(inner)) {
+      push(idMatch[1], inner, groupMatch?.[1] ?? null);
+      continue;
+    }
+    // Format C: child elements
+    const cId = inner.match(/<AmenityID>(\d+)<\/AmenityID>/i);
+    const cName = inner.match(/<AmenityName>([\s\S]*?)<\/AmenityName>/i);
+    const cGroup = inner.match(/<AmenityTypeID>(\d+)<\/AmenityTypeID>/i);
+    if (cId && cName) push(cId[1], cName[1], cGroup?.[1] ?? null);
+  }
+
+  return results;
+}
+
+/**
+ * RU's dictionary is ~1600 entries deep and mixes clean amenity names with legacy
+ * free-text fragments. We classify each entry into a readable category and flag a
+ * curated "recommended" subset so the ROLOS picker can lead with the useful options
+ * while still exposing the full catalogue through search.
+ */
+const AMENITY_CATEGORY_RULES: { category: string; re: RegExp }[] = [
+  { category: 'Internet & Workspace', re: /(wi-?fi|internet|broadband|adsl|laptop|desk|work ?space|printer|computer|office|fax|copy service)/i },
+  { category: 'Kitchen & Dining', re: /(kitchen|kettle|oven|hob|cooker|stove|microwave|toaster|fridge|freezer|dishwasher|crockery|cutlery|cookware|coffee|tea|dining|plates|pans|utensil|breakfast bar|wine|blender|bread maker|baking|dish rack|kitchenette|espresso)/i },
+  { category: 'Bathroom', re: /(bath|shower|toilet|wc|bidet|towel|toiletr|hair ?dryer|washbasin|bathrobe|slipper|shampoo|conditioner|soap|sauna towel|vanity)/i },
+  { category: 'Bedroom & Beds', re: /(bed|mattress|linen|pillow|blanket|duvet|wardrobe|cupboard|closet|chest of drawers|night ?table|bedside|bedroom|cot|bunk|sofabed|sofa bed)/i },
+  { category: 'Laundry & Cleaning', re: /(washing machine|laundry|dryer|drier|drying|iron|ironing|vacuum|clean|maid|housekeep|dry cleaning)/i },
+  { category: 'Entertainment & Media', re: /(tv|television|dvd|cd |cd player|stereo|radio|netflix|playstation|xbox|console|games|book|library|billiard|pool table|table tennis|darts|piano|music|cinema|blu-?ray|satellite|cable)/i },
+  { category: 'Heating & Cooling', re: /(air ?conditioning|aircon|\bac\b|heating|heater|radiator|fan|fireplace|chimney|wood burner|ventilation|climate)/i },
+  { category: 'Outdoor & Garden', re: /(balcon|terrace|patio|garden|yard|bbq|braai|grill|sun ?lounger|deck|veranda|courtyard|outdoor|porch|hammock|fire pit|roof)/i },
+  { category: 'Pool, Spa & Leisure', re: /(pool|jacuzzi|hot ?tub|sauna|spa|steam|gym|fitness|tennis|golf|sport|bicycle|bike|kayak|surf|ski|beach|massage|wellness|yoga)/i },
+  { category: 'Family & Children', re: /(baby|child|kid|cot|high ?chair|creche|playground|toys|babysit|stroller|crib)/i },
+  { category: 'Safety & Security', re: /(smoke detector|carbon monoxide|fire ext|first aid|alarm|safe\b|security|cctv|surveillance|gated|lock ?box|guard|sprinkler|emergency)/i },
+  { category: 'Accessibility', re: /(wheelchair|accessib|disabled|braille|lift|elevator|step-?free|grab rail|hoist|ramp)/i },
+  { category: 'Parking & Transport', re: /(parking|garage|car ?port|shuttle|transfer|airport|car rental|charging|ev charg|bus|train|metro|taxi)/i },
+  { category: 'Services & Facilities', re: /(reception|concierge|help desk|room service|breakfast|restaurant|bar\b|shop|atm|currency|conference|meeting|business centre|luggage|check-?in|check-?out|host|welcome|chef|pet|smoking|towel change|linen change)/i },
+  { category: 'Views & Location', re: /(view|sea|ocean|lake|river|mountain|city cent|beachfront|canal|panoram|garden view|quiet area|busy area)/i },
+  { category: 'Living Areas', re: /(living|lounge|sofa|armchair|coffee table|hall|corridor|conservator|dining room|study|room$|rooms$)/i },
+];
+
+const RECOMMENDED_AMENITY_IDS = new Set<number>([
+  6, 7, 8, 9, 11, 13, 19, 21, 2, 3, 4, 5, 17, 81, 87, 89, 100, 101, 124, 125, 130, 131, 135,
+  140, 143, 152, 157, 167, 174, 180, 181, 187, 227, 235, 249, 250, 408, 444, 445, 461, 589,
+  620, 661, 667, 674, 780, 833, 838, 880, 943, 1846, 1867, 1868,
+]);
+
+function classifyAmenity(name: string, id: number): { category: string; is_recommended: boolean } {
+  for (const rule of AMENITY_CATEGORY_RULES) {
+    if (rule.re.test(name)) {
+      return { category: rule.category, is_recommended: RECOMMENDED_AMENITY_IDS.has(id) };
+    }
+  }
+  return { category: 'General', is_recommended: RECOMMENDED_AMENITY_IDS.has(id) };
+}
+
+
+
+
+
+/**
  * Parse the response of Pull_ListCompositionRooms_RQ.
  * RU returns: <CompositionRooms><CompositionRoom CompositionRoomID="1">Single bed</CompositionRoom>...</CompositionRooms>
  * Some accounts return child elements: <CompositionRoom><CompositionRoomID>1</CompositionRoomID><CompositionRoomName>...</CompositionRoomName></CompositionRoom>
@@ -1686,6 +1790,59 @@ Deno.serve(async (req) => {
         raw_xml: response,
       });
     }
+
+    // ── list_amenities / sync_amenities ──
+    // Pull RU's global amenity dictionary. `sync_amenities` additionally caches the
+    // result in public.ru_amenities so the ROLOS amenity picker works without a live call.
+    if (action === 'list_amenities' || action === 'sync_amenities') {
+      const xml = buildListAmenitiesXml(creds);
+      const response = await callRentalsUnited(creds, xml);
+      const { ok, status } = handleRUStatus(response);
+      if (!ok) return ruErrorResponse(status, buildDiagnostics(compactXml(xml), status, action, response));
+      const amenities = extractAmenities(response);
+
+      let synced = 0;
+      let sync_error: string | null = null;
+      if (action === 'sync_amenities' && amenities.length > 0) {
+        try {
+          const supabase = createClient(
+            Deno.env.get('SUPABASE_URL')!,
+            Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+          );
+          const now = new Date().toISOString();
+          const { error: upErr } = await supabase.from('ru_amenities').upsert(
+            amenities.map((a) => {
+              const cls = classifyAmenity(a.name, a.id);
+              return {
+                id: a.id,
+                name: a.name,
+                ru_group_id: a.group_id,
+                category: cls.category,
+                is_recommended: cls.is_recommended,
+                is_active: true,
+                synced_at: now,
+              };
+            }),
+            { onConflict: 'id' },
+          );
+
+          if (upErr) sync_error = upErr.message;
+          else synced = amenities.length;
+        } catch (e) {
+          sync_error = e instanceof Error ? e.message : String(e);
+        }
+      }
+
+      return jsonResponse({
+        success: true,
+        amenities,
+        count: amenities.length,
+        synced,
+        sync_error,
+      });
+    }
+
+
 
     // ── get_building ──
     // Read-only: fetch a building's composition (UnitsComposition) so we can backfill

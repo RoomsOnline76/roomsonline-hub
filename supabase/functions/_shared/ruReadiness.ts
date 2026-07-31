@@ -37,6 +37,8 @@ export interface RuUnitValidation {
   amenities_count?: number;
   rooms_count?: number;
   rooms_with_amenities?: number;
+  rooms_below_min_amenities?: number;
+  rooms_meet_min_amenities?: boolean;
   has_coordinates?: boolean;
   meets_minimum_images?: boolean;
   images_meet_size?: boolean;
@@ -148,6 +150,12 @@ export function evaluateUnitChecks(
   add("rooms_have_amenities", "Rooms & beds", "Every room has beds / amenities", v.rooms_have_amenities !== false,
     `${(v.rooms_count ?? 0) - (v.rooms_with_amenities ?? 0)} room block(s) have no bed or amenity entry`,
     "Rooms → Unit → Bed configuration");
+  // RU requires at least 10 amenities on every room/unit before it will accept a push.
+  add("rooms_meet_min_amenities", "Rooms & beds", `Every room has ≥ ${RU_MIN_AMENITIES} amenities`,
+    v.rooms_meet_min_amenities !== false,
+    `${v.rooms_below_min_amenities ?? 0} room(s) have fewer than ${RU_MIN_AMENITIES} amenities — Rentals United requires ${RU_MIN_AMENITIES} per unit`,
+    "Rooms → Amenities");
+
   // RU White-Label minimum: beds must cover >= 50% of CanSleepMax. This is the only
   // mandatory bed rule; 1-bed-per-guest is a quality warning, never a blocker.
   add("beds_cover_half", "Rooms & beds", `Beds cover ≥ ${Math.round(RU_BED_COVERAGE * 100)}% of max guests`,

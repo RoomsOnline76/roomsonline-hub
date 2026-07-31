@@ -5,6 +5,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { RoomTypeDataViewer, RateTypeItem } from "@/components/ExpandableDataViewer";
+import RUAmenityPicker from "@/components/property/RUAmenityPicker";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -1185,12 +1187,11 @@ export function RoomManagerTab({
                 </div>
               );
             })()}
-            <div className="grid grid-cols-4 gap-6">
-              <FacilityChecklistGroup title="Bathroom" items={["Bathroom amenities","Hand wash","Towels","Bathrobe","Slippers","Toiletries","Toilet paper","Shower cap"]} roomTypes={roomTypes} selectedRoomType={selectedRoomType} updateRoomTypeField={updateRoomTypeField} fieldKey="amenities" />
-              <FacilityChecklistGroup title="Bedroom" items={["Extra pillows","Extra blankets","Linen","Blackout curtains","Reading lamp","Wake up call","Socket near bed","Clothes rack"]} roomTypes={roomTypes} selectedRoomType={selectedRoomType} updateRoomTypeField={updateRoomTypeField} fieldKey="amenities" />
-              <FacilityChecklistGroup title="Food & Drink" items={["Welcome pack","Mini bar","Bottled water","Fruit basket","Snacks","Wine/champagne","Coffee house on site","Kid-friendly buffet","Kid meals","Special diet menus","Snack bar"]} roomTypes={roomTypes} selectedRoomType={selectedRoomType} updateRoomTypeField={updateRoomTypeField} fieldKey="amenities" />
-              <FacilityChecklistGroup title="Internet" items={["Free WiFi","WiFi available"]} roomTypes={roomTypes} selectedRoomType={selectedRoomType} updateRoomTypeField={updateRoomTypeField} fieldKey="amenities" />
-            </div>
+            <RUAmenityPicker
+              value={ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.amenities) as string[]}
+              onChange={(next) => updateRoomTypeField(selectedRoomType, "amenities", next)}
+            />
+
           </TabsContent>
 
           {/* Room Images Sub-tab */}

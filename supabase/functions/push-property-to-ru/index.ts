@@ -8,6 +8,7 @@ import {
   RU_BED_COVERAGE,
 } from '../_shared/ruReadiness.ts';
 import { evaluatePhases, phaseBlockedResponse, masterOwnerIdOverride } from '../_shared/ruPhaseGate.ts';
+import { resolveRuAmenityIds } from '../_shared/ruAmenityMap.ts';
 
 
 /**
@@ -36,20 +37,6 @@ const PROPERTY_TYPE_MAP: Record<string, number> = {
   self_catering: 12, lodge: 11, resort: 7, farm_stay: 12, boutique_hotel: 7,
 };
 
-const AMENITY_MAP: Record<string, number> = {
-  wifi: 6, internet: 6, parking: 14, pool: 22, swimming_pool: 22,
-  air_conditioning: 11, ac: 11, heating: 12, kitchen: 39,
-  washing_machine: 42, dryer: 43, dishwasher: 40, tv: 2, television: 2,
-  cable_tv: 3, satellite_tv: 3, balcony: 31, terrace: 32, garden: 34,
-  bbq: 35, braai: 35, fireplace: 47, hot_tub: 23, jacuzzi: 23,
-  sauna: 24, gym: 55, elevator: 56, wheelchair_accessible: 57,
-  pet_friendly: 58, smoke_detector: 77, fire_extinguisher: 78,
-  first_aid_kit: 79, iron: 44, hair_dryer: 45, linens: 60, towels: 61,
-  toiletries: 62, coffee_maker: 63, microwave: 41, oven: 64,
-  refrigerator: 65, toaster: 66, safe: 67, workspace: 68, desk: 68,
-  crib: 69, high_chair: 70, books: 71, board_games: 72, security: 73,
-  cctv: 73, alarm: 74,
-};
 
 // RU bed-type amenity IDs — must be included in <Room> amenities
 const BED_AMENITY_MAP: Record<string, number> = {
@@ -127,32 +114,14 @@ function toFiniteNumber(value: unknown): number | null {
 
 function mapAmenities(amenitiesData: Record<string, unknown> | null): { id: number; count: number; padded?: boolean }[] {
   if (!amenitiesData) return [];
-  const mapped: { id: number; count: number; padded?: boolean }[] = [];
-  const seen = new Set<number>();
-  const amenityList = Array.isArray(amenitiesData)
-    ? amenitiesData
-    : (amenitiesData.list || amenitiesData.amenities || amenitiesData.features || []);
-  if (Array.isArray(amenityList)) {
-    for (const item of amenityList) {
-      const key = typeof item === 'string'
-        ? item.toLowerCase().replace(/[\s-]+/g, '_')
-        : (item?.key || item?.name || '').toLowerCase().replace(/[\s-]+/g, '_');
-      const ruId = AMENITY_MAP[key];
-      if (ruId && !seen.has(ruId)) {
-        seen.add(ruId);
-        mapped.push({ id: ruId, count: 1 });
-      }
-    }
-  }
-  // Padding to RU's 10-amenity minimum keeps the push valid, but padded entries are
-  // flagged so the readiness scorecard can warn about low-quality (assumed) data.
-  const padIds = [2, 6, 11, 12, 14, 39, 42, 44, 45, 60, 61, 62];
-  for (const id of padIds) {
-    if (mapped.length >= 10) break;
-    if (!seen.has(id)) { seen.add(id); mapped.push({ id, count: 1, padded: true }); }
-  }
-  return mapped;
+  // Canonical resolution: `ru:<id>` tokens picked in ROLOS, plus legacy free-text
+  // labels resolved through the shared RU dictionary map. No padding — a unit that
+  // falls short of RU's 10-amenity minimum must be fixed by the owner, and the
+  // readiness scorecard reports it.
+  const { ids } = resolveRuAmenityIds(amenitiesData);
+  return ids.map((id) => ({ id, count: 1 }));
 }
+
 
 interface RuImage {
   url: string;
@@ -235,6 +204,11 @@ function buildValidation(payload: Record<string, any>): Record<string, unknown> 
     rooms_count: rooms.length,
     rooms_with_amenities: roomsWithAmenities,
     rooms_have_amenities: rooms.length > 0 && roomsWithAmenities === rooms.length,
+    // RU minimum: every room/unit must carry at least 10 amenities.
+    rooms_below_min_amenities: rooms.filter((r) => (r.amenities || []).length < RU_MIN_AMENITIES).length,
+    rooms_meet_min_amenities:
+      rooms.length > 0 && rooms.every((r) => (r.amenities || []).length >= RU_MIN_AMENITIES),
+
     total_beds: totalBeds,
     // RU White-Label minimum: beds must cover >= 50% of CanSleepMax.
     beds_cover_half: totalBeds >= Math.ceil(Math.max(1, maxGuests) * RU_BED_COVERAGE),
@@ -2213,6 +2187,7 @@ Deno.serve(async (req) => {
               beds_cover_half: everyFlag('beds_cover_half'),
               beds_meet_max_guests: everyFlag('beds_meet_max_guests'),
               rooms_have_amenities: everyFlag('rooms_have_amenities'),
+              rooms_meet_min_amenities: everyFlag('rooms_meet_min_amenities'),
               has_name: everyFlag('has_name'),
               has_object_type_id: everyFlag('has_object_type_id'),
               can_sleep_max_ok: everyFlag('can_sleep_max_ok'),
