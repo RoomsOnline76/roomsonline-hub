@@ -112,6 +112,74 @@ export default function RUAmenityPicker({ value, onChange, disabled }: RUAmenity
         </p>
       </div>
 
+      {/* Collapsed summary of everything currently selected */}
+      <Collapsible open={summaryOpen} onOpenChange={setSummaryOpen}>
+        <div className="rounded-md border">
+          <CollapsibleTrigger asChild>
+            <button
+              type="button"
+              className="flex w-full items-center justify-between gap-2 p-3 text-left"
+            >
+              <span className="text-sm font-medium">
+                Selected amenities summary ({count + legacy.length})
+              </span>
+              <ChevronDown
+                className={`h-4 w-4 text-muted-foreground transition-transform ${summaryOpen ? "rotate-180" : ""}`}
+              />
+            </button>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div className="border-t p-3 space-y-3">
+              {selectedSummary.length === 0 && legacy.length === 0 ? (
+                <p className="text-xs text-muted-foreground">Nothing selected yet.</p>
+              ) : (
+                <>
+                  {selectedSummary.map((group) => (
+                    <div key={group.category} className="space-y-1.5">
+                      <div className="flex items-center gap-2">
+                        <h5 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                          {group.category}
+                        </h5>
+                        <Badge variant="outline" className="text-[10px]">{group.items.length}</Badge>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {group.items.map((a) => (
+                          <Badge key={a.id} variant="secondary" className="text-xs gap-1">
+                            {a.name}
+                            {!disabled && (
+                              <button
+                                type="button"
+                                onClick={() => toggle(a.id, false)}
+                                className="opacity-60 hover:opacity-100"
+                                aria-label={`Remove ${a.name}`}
+                              >
+                                ×
+                              </button>
+                            )}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                  {legacy.length > 0 && (
+                    <div className="space-y-1.5">
+                      <h5 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        Legacy labels
+                      </h5>
+                      <div className="flex flex-wrap gap-1">
+                        {legacy.map((label) => (
+                          <Badge key={label} variant="outline" className="text-xs">{label}</Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </CollapsibleContent>
+        </div>
+      </Collapsible>
+
       {/* Legacy labels that don't map to the channel catalogue */}
       {legacy.length > 0 && (
         <Alert>
