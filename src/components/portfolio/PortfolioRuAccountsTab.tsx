@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import {
+  Archive,
   Building2,
   ChevronDown,
   ChevronRight,
@@ -140,6 +141,7 @@ export function PortfolioRuAccountsTab() {
   >([]);
   const [bindLoading, setBindLoading] = useState(false);
   const [binding, setBinding] = useState<string | null>(null);
+  const [closing, setClosing] = useState(false);
 
   // Unbinding clears the complete RU identity and the portfolio owner email, then prompts the
   // admin to choose the email that Phase 1 must use for the next RU sub-user login.
@@ -255,6 +257,42 @@ export function PortfolioRuAccountsTab() {
       setBinding(null);
     }
   }, [bindFor, accounts, refreshAccounts, hideCredentials, queryClient]);
+
+  /** Archive the RU sub-user via Push_ArchiveUser_RQ (child auth only) then clear local bind. */
+  const closeRuAccount = useCallback(async () => {
+    if (!bindFor?.id) return;
+    const acc = accounts.find((a) => a.id === bindFor.id);
+    if (!acc?.ru_owner_id) {
+      toast.error("No OwnerID bound — nothing to archive on Rentals United");
+      return;
+    }
+    const label = `${acc.ru_owner_id} (${acc.ru_login_email || acc.owner_email})`;
+    if (!window.confirm(
+      `Archive OwnerID ${label} on Rentals United?\n\nThis closes the sub-user via Push_ArchiveUser_RQ (child auth). Local bind will be cleared.`,
+    )) return;
+
+    setClosing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("ru-close-user", {
+        body: { account_id: bindFor.id },
+      });
+      if (error || !data?.success) {
+        toast.error(
+          data?.error?.message ||
+            (error
+              ? await extractFunctionError(error, "Could not archive the RU sub-user")
+              : "Could not archive the RU sub-user"),
+        );
+        return;
+      }
+      toast.success(data.message || `OwnerID ${acc.ru_owner_id} archived on Rentals United`);
+      hideCredentials(acc.id);
+      setBindFor(null);
+      await refreshAccounts();
+    } finally {
+      setClosing(false);
+    }
+  }, [bindFor, accounts, refreshAccounts, hideCredentials]);
 
 
   const openReset = useCallback((accountId: string, email: string) => {
@@ -594,7 +632,7 @@ export function PortfolioRuAccountsTab() {
                       >
                         <Link2 className="h-3 w-3" />
                         <span className="ml-1.5">
-                          {acc.ru_owner_id ? "Rebind / Unbind" : "Bind RU account"}
+                          {acc.ru_owner_id ? "Rebind / Unbind / Close" : "Bind RU account"}
                         </span>
                       </Button>
 
@@ -878,39 +916,67 @@ export function PortfolioRuAccountsTab() {
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>
-              {bindFor?.ownerId ? "Rebind or unbind RU sub-user" : "Bind Rentals United sub-user"}
+              {bindFor?.ownerId ? "Rebind, unbind or close RU sub-user" : "Bind Rentals United sub-user"}
             </DialogTitle>
             <DialogDescription>
               {bindFor?.ownerId
-                ? "Unbind clears the current OwnerID so Phase 1 can create a new sub-user. Or pick a different existing RU account below to rebind."
+                ? "Unbind clears the local OwnerID so Phase 1 can create a new sub-user. Close archives the sub-user on Rentals United via Push_ArchiveUser_RQ (child auth). Or pick a different existing RU account below to rebind."
                 : "These are the sub-users Rentals United currently holds under our master account. Pick the one this record should use — Phase 1 then reconnects to it instead of trying to create a duplicate."}
             </DialogDescription>
           </DialogHeader>
 
-          {bindFor?.ownerId && (
-            <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 space-y-2">
-              <p className="text-xs">
-                Currently bound to OwnerID{" "}
-                <span className="font-mono font-medium">{bindFor.ownerId}</span>.
-                Unbind clears the OwnerID, stored password, and company-details flags on this
-                local row. The portfolio owner email stays unchanged.
-              </p>
-              <Button
-                size="sm"
-                variant="destructive"
-                className="h-7 text-xs"
-                disabled={binding === "unbind"}
-                onClick={unbindAccount}
-              >
-                {binding === "unbind" ? (
-                  <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                ) : (
-                  <Unlink className="h-3 w-3 mr-1" />
-                )}
-                Unbind RU account
-              </Button>
-            </div>
-          )}
+          {bindFor?.ownerId && (() => {
+            const boundAcc = accounts.find((a) => a.id === bindFor.id);
+            const boundEmail = boundAcc?.ru_login_email || boundAcc?.owner_email || "—";
+            return (
+              <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 space-y-3">
+                <div className="space-y-1">
+                  <p className="text-xs font-medium">Currently bound</p>
+                  <p className="text-sm font-mono">
+                    OwnerID <span className="font-semibold">{bindFor.ownerId}</span>
+                  </p>
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    <Mail className="h-3 w-3" />
+                    {boundEmail}
+                  </p>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Unbind only clears the local link. Close archives the sub-user on Rentals United
+                  (Push_ArchiveUser_RQ, child auth) and then clears the local bind.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs"
+                    disabled={binding === "unbind" || closing}
+                    onClick={unbindAccount}
+                  >
+                    {binding === "unbind" ? (
+                      <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                    ) : (
+                      <Unlink className="h-3 w-3 mr-1" />
+                    )}
+                    Unbind (local only)
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    className="h-7 text-xs"
+                    disabled={closing || binding === "unbind"}
+                    onClick={closeRuAccount}
+                  >
+                    {closing ? (
+                      <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                    ) : (
+                      <Archive className="h-3 w-3 mr-1" />
+                    )}
+                    Close / Archive on RU
+                  </Button>
+                </div>
+              </div>
+            );
+          })()}
 
           {bindLoading ? (
             <div className="flex items-center justify-center py-8">
@@ -920,7 +986,7 @@ export function PortfolioRuAccountsTab() {
             <p className="text-xs text-muted-foreground py-4">
               Rentals United returned no sub-users under our master account.
               {bindFor?.ownerId
-                ? " You can still Unbind above, then run Phase 1 to create a new sub-user."
+                ? " You can still Unbind or Close above, then run Phase 1 to create a new sub-user."
                 : ""}
             </p>
           ) : (
@@ -943,7 +1009,7 @@ export function PortfolioRuAccountsTab() {
                       size="sm"
                       variant={isCurrent ? "secondary" : "outline"}
                       className="h-7 text-xs shrink-0"
-                      disabled={isCurrent || binding === u.owner_id}
+                      disabled={isCurrent || binding === u.owner_id || closing}
                       onClick={() => bindAccount(u.owner_id, u.email)}
                     >
                       {binding === u.owner_id && <Loader2 className="h-3 w-3 animate-spin mr-1" />}
