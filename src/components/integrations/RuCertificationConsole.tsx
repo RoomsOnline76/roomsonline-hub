@@ -140,27 +140,36 @@ const SUITES = [
   { value: "full", label: "Full certification run" },
 ];
 
+/** Live test sub-user used for WL user-management playground defaults */
+const TEST_SUBUSER = {
+  email: "test-owner@example.com",
+  password: "FqEqXyFyE799**",
+  owner_id: 741776,
+  first_name: "Test",
+  last_name: "Owner",
+} as const;
+
 /** User-management endpoints for the side-by-side playground */
 const USER_ENDPOINTS = [
   {
     key: "list_users",
     label: "Pull_ListMyUsers_RQ",
-    description: "List every sub-user under the master account (master AccessKey/SecretKey).",
+    description: "List every sub-user under the master account (master AccessKey/SecretKey). OwnerID is the real identifier — user_account_id is often 0.",
     route: "rentalsunited-api",
     defaultPayload: { action: "list_users" },
   },
   {
     key: "create_user",
     label: "Push_CreateUser_RQ",
-    description: "Create a white-label sub-user. Requires location_ids ≥ 1 and a 12+ char policy password.",
+    description: "Create a white-label sub-user. Requires location_ids ≥ 1 and a 12+ char policy password (upper + lower + digit + special, must not contain email).",
     route: "rentalsunited-api",
     defaultPayload: {
       action: "create_user",
       user: {
-        first_name: "Test",
-        last_name: "Owner",
-        email: "test-owner@example.com",
-        password: "FqEqXyFyE799**",
+        first_name: TEST_SUBUSER.first_name,
+        last_name: TEST_SUBUSER.last_name,
+        email: TEST_SUBUSER.email,
+        password: TEST_SUBUSER.password,
       },
       location_ids: [1611],
     },
@@ -168,17 +177,17 @@ const USER_ENDPOINTS = [
   {
     key: "fill_company_details",
     label: "Push_FillCompanyDetails_RQ",
-    description: "Fill company details. MUST authenticate as the child (auth_username + auth_password). No OwnerID selector on RU.",
+    description: "Fill company details for a sub-user. MUST authenticate as the child (auth_username + auth_password). Adapter still requires a positive owner_id for isolation logging — use OwnerID from list_users.",
     route: "rentalsunited-api",
     defaultPayload: {
       action: "fill_company_details",
-      owner_id: 0,
-      auth_username: "child@example.com",
-      auth_password: "FqEqXyFyE799**",
+      owner_id: TEST_SUBUSER.owner_id,
+      auth_username: TEST_SUBUSER.email,
+      auth_password: TEST_SUBUSER.password,
       company: {
-        first_name: "Test",
-        last_name: "Owner",
-        email: "child@example.com",
+        first_name: TEST_SUBUSER.first_name,
+        last_name: TEST_SUBUSER.last_name,
+        email: TEST_SUBUSER.email,
         phone: "+27000000000",
         city: "Cape Town",
         country_id: 196,
@@ -194,18 +203,18 @@ const USER_ENDPOINTS = [
   {
     key: "verify_child_login",
     label: "verify_child_login",
-    description: "Probe child UserName/Password against RU (Pull_ListBuildings under child auth).",
+    description: "Probe child UserName/Password against RU (Pull_ListBuildings under child auth). Must return verified:true before fill_company_details will succeed.",
     route: "rentalsunited-api",
     defaultPayload: {
       action: "verify_child_login",
-      auth_username: "child@example.com",
-      auth_password: "FqEqXyFyE799**",
+      auth_username: TEST_SUBUSER.email,
+      auth_password: TEST_SUBUSER.password,
     },
   },
   {
     key: "archive_user",
     label: "Push_ArchiveUser_RQ",
-    description: "Archive a sub-user via the isolated ru-close-user edge function (child auth). Pass a local ru_owner_accounts.id.",
+    description: "Archive a sub-user via the isolated ru-close-user edge function (child auth). Pass a local ru_owner_accounts.id — not the RU OwnerID.",
     route: "ru-close-user",
     defaultPayload: {
       account_id: "",
