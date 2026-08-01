@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import {
   RefreshCw, CheckCircle2, XCircle, MinusCircle, PlayCircle, ShieldCheck,
-  Clock, Percent, Users, ChevronRight, Plus, Trash2,
+  Clock, Percent, Users, ChevronRight, Plus, Trash2, Send,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,7 @@ import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { extractFunctionError } from "@/lib/functionError";
 
@@ -41,7 +42,7 @@ interface UserMgmtState {
   updated_at?: string | null;
   guest_communication?: string;
   endpoints?: RuUserEndpoint[];
-  users?: { id?: string; email?: string; name?: string }[];
+  users?: { id?: string; email?: string; name?: string; owner_id?: string; user_account_id?: string }[];
   probe?: unknown;
 }
 
@@ -139,6 +140,79 @@ const SUITES = [
   { value: "full", label: "Full certification run" },
 ];
 
+/** User-management endpoints for the side-by-side playground */
+const USER_ENDPOINTS = [
+  {
+    key: "list_users",
+    label: "Pull_ListMyUsers_RQ",
+    description: "List every sub-user under the master account (master AccessKey/SecretKey).",
+    route: "rentalsunited-api",
+    defaultPayload: { action: "list_users" },
+  },
+  {
+    key: "create_user",
+    label: "Push_CreateUser_RQ",
+    description: "Create a white-label sub-user. Requires location_ids ≥ 1 and a 12+ char policy password.",
+    route: "rentalsunited-api",
+    defaultPayload: {
+      action: "create_user",
+      user: {
+        first_name: "Test",
+        last_name: "Owner",
+        email: "test-owner@example.com",
+        password: "FqEqXyFyE799**",
+      },
+      location_ids: [1611],
+    },
+  },
+  {
+    key: "fill_company_details",
+    label: "Push_FillCompanyDetails_RQ",
+    description: "Fill company details. MUST authenticate as the child (auth_username + auth_password). No OwnerID selector on RU.",
+    route: "rentalsunited-api",
+    defaultPayload: {
+      action: "fill_company_details",
+      owner_id: 0,
+      auth_username: "child@example.com",
+      auth_password: "FqEqXyFyE799**",
+      company: {
+        first_name: "Test",
+        last_name: "Owner",
+        email: "child@example.com",
+        phone: "+27000000000",
+        city: "Cape Town",
+        country_id: 196,
+        address: "Address on file",
+        zip_code: "8001",
+        language_id: 1,
+        name: "Test Portfolio",
+        website: "https://sleepinafrica.roomsonline.co.za",
+        location_ids: [1611],
+      },
+    },
+  },
+  {
+    key: "verify_child_login",
+    label: "verify_child_login",
+    description: "Probe child UserName/Password against RU (Pull_ListBuildings under child auth).",
+    route: "rentalsunited-api",
+    defaultPayload: {
+      action: "verify_child_login",
+      auth_username: "child@example.com",
+      auth_password: "FqEqXyFyE799**",
+    },
+  },
+  {
+    key: "archive_user",
+    label: "Push_ArchiveUser_RQ",
+    description: "Archive a sub-user via the isolated ru-close-user edge function (child auth). Pass a local ru_owner_accounts.id.",
+    route: "ru-close-user",
+    defaultPayload: {
+      account_id: "",
+    },
+  },
+] as const;
+
 function StatusIcon({ status }: { status: CertStep["status"] }) {
   if (status === "passed") return <CheckCircle2 className="h-4 w-4 text-emerald-600" />;
   if (status === "failed") return <XCircle className="h-4 w-4 text-red-600" />;
@@ -211,6 +285,12 @@ export function RuCertificationConsole({ properties }: { properties: PropertyLit
   const [savingFlag, setSavingFlag] = useState(false);
   const [userDraft, setUserDraft] = useState({ first_name: "", last_name: "", email: "", password: "" });
   const [creatingUser, setCreatingUser] = useState(false);
+
+  // Side-by-side endpoint playground
+  const [pgEndpoint, setPgEndpoint] = useState<string>(USER_ENDPOINTS[0].key);
+  const [pgPayload, setPgPayload] = useState(JSON.stringify(USER_ENDPOINTS[0].defaultPayload, null, 2));
+  const [pgResponse, setPgResponse] = useState<string>("");
+  const [pgSending, setPgSending] = useState(false);
 
   const candidateProperties = useMemo(
     // Certification testing is limited to properties explicitly enabled for RU push.
@@ -301,6 +381,51 @@ export function RuCertificationConsole({ properties }: { properties: PropertyLit
       toast.success("Sub-user request sent to Rentals United");
       setUserDraft({ first_name: "", last_name: "", email: "", password: "" });
       loadUserMgmt();
+    }
+  };
+
+  const onSelectEndpoint = (key: string) => {
+    setPgEndpoint(key);
+    const ep = USER_ENDPOINTS.find((e) => e.key === key);
+    if (ep) {
+      setPgPayload(JSON.stringify(ep.defaultPayload, null, 2));
+      setPgResponse("");
+    }
+  };
+
+  const sendPlayground = async () => {
+    const ep = USER_ENDPOINTS.find((e) => e.key === pgEndpoint);
+    if (!ep) return;
+    let parsed: Record<string, unknown>;
+    try {
+      parsed = JSON.parse(pgPayload);
+    } catch {
+      toast.error("Payload is not valid JSON");
+      return;
+    }
+    setPgSending(true);
+    setPgResponse("");
+    try {
+      const fn = ep.route;
+      const { data, error } = await supabase.functions.invoke(fn, { body: parsed });
+      if (error) {
+        const msg = await extractFunctionError(error, "Request failed");
+        setPgResponse(JSON.stringify({ success: false, error: msg }, null, 2));
+        toast.error(msg);
+      } else {
+        setPgResponse(JSON.stringify(data, null, 2));
+        if (data?.success === false) {
+          toast.error(data?.error?.message ?? "RU returned failure");
+        } else {
+          toast.success(`${ep.label} completed`);
+        }
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Unknown error";
+      setPgResponse(JSON.stringify({ success: false, error: msg }, null, 2));
+      toast.error(msg);
+    } finally {
+      setPgSending(false);
     }
   };
 
@@ -409,6 +534,8 @@ export function RuCertificationConsole({ properties }: { properties: PropertyLit
     else { setDiscounts((prev) => prev.filter((d) => d.id !== row.id)); toast.success("Removed"); }
   };
 
+  const selectedEp = USER_ENDPOINTS.find((e) => e.key === pgEndpoint);
+
   return (
     <div className="space-y-6">
       {/* Runner */}
@@ -430,7 +557,7 @@ export function RuCertificationConsole({ properties }: { properties: PropertyLit
             </Select>
           </div>
           <div className="space-y-1.5 flex-1">
-            <Label className="text-xs">Property (required for push &amp; discount suites)</Label>
+            <Label className="text-xs">Property (required for push & discount suites)</Label>
             <Select value={propertyId} onValueChange={setPropertyId}>
               <SelectTrigger><SelectValue placeholder="Select property" /></SelectTrigger>
               <SelectContent>
@@ -681,7 +808,7 @@ export function RuCertificationConsole({ properties }: { properties: PropertyLit
         <TabsContent value="discounts">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Long-stay &amp; last-minute discounts</CardTitle>
+              <CardTitle className="text-base">Long-stay & last-minute discounts</CardTitle>
               <CardDescription>
                 Pushed with <code className="font-mono text-xs">Push_PutLongStayDiscounts_RQ</code> and{" "}
                 <code className="font-mono text-xs">Push_PutLastMinuteDiscounts_RQ</code> by the “Discounts” suite.
@@ -726,7 +853,7 @@ export function RuCertificationConsole({ properties }: { properties: PropertyLit
                     </div>
                     <Button onClick={addDiscount} className="gap-1.5"><Plus className="h-4 w-4" />Add rule</Button>
                     <Button variant="outline" disabled={running || discounts.length === 0} onClick={pushDiscountsNow} className="gap-1.5">
-                      <Percent className="h-4 w-4" />Push &amp; verify now
+                      <Percent className="h-4 w-4" />Push & verify now
                     </Button>
                   </div>
                   <p className="text-xs text-muted-foreground">
@@ -782,7 +909,7 @@ export function RuCertificationConsole({ properties }: { properties: PropertyLit
               <div>
                 <CardTitle className="text-base">White-Label minimum inventory readiness</CardTitle>
                 <CardDescription>
-                  Name, ObjectTypeID, CanSleepMax, street/ZIP/geo, DetailedLocationID, size &amp; floor, description,
+                  Name, ObjectTypeID, CanSleepMax, street/ZIP/geo, DetailedLocationID, size & floor, description,
                   ≥10 images (1024×683+) with a main photo, ≥10 amenities, composition rooms, beds covering max guests,
                   payment method, cancellation policy, plus live 365-day availability and pricing above zero.
                 </CardDescription>
@@ -835,8 +962,8 @@ export function RuCertificationConsole({ properties }: { properties: PropertyLit
               <div>
                 <CardTitle className="text-base">RU user management</CardTitle>
                 <CardDescription>
-                  Push_CreateUser_RQ, Push_FillCompanyDetails_RQ and Pull_ListMyUsers_RQ are implemented but stay parked
-                  behind one switch until Rentals United confirms the ROLOS PMS profile.
+                  Push_CreateUser_RQ, Push_FillCompanyDetails_RQ, Pull_ListMyUsers_RQ and Push_ArchiveUser_RQ.
+                  Side-by-side payload / response for live debugging.
                 </CardDescription>
               </div>
               <Button variant="outline" size="sm" onClick={loadUserMgmt} disabled={userMgmtLoading} className="gap-1.5">
@@ -899,9 +1026,50 @@ export function RuCertificationConsole({ properties }: { properties: PropertyLit
                 </Table>
               )}
 
+              {/* Side-by-side endpoint playground */}
+              <div className="rounded-lg border p-3 space-y-3">
+                <div className="flex flex-wrap items-end gap-3">
+                  <div className="space-y-1.5 flex-1 min-w-[220px]">
+                    <Label className="text-xs">Endpoint</Label>
+                    <Select value={pgEndpoint} onValueChange={onSelectEndpoint}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {USER_ENDPOINTS.map((e) => (
+                          <SelectItem key={e.key} value={e.key}>{e.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Button size="sm" onClick={sendPlayground} disabled={pgSending} className="gap-1.5">
+                    {pgSending ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                    Send
+                  </Button>
+                </div>
+                {selectedEp && (
+                  <p className="text-[11px] text-muted-foreground">{selectedEp.description}</p>
+                )}
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Request payload</Label>
+                    <Textarea
+                      value={pgPayload}
+                      onChange={(e) => setPgPayload(e.target.value)}
+                      className="font-mono text-[11px] min-h-[280px] leading-relaxed"
+                      spellCheck={false}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Response</Label>
+                    <pre className="rounded-md border bg-muted/40 p-3 text-[11px] font-mono min-h-[280px] max-h-[420px] overflow-auto whitespace-pre-wrap">
+                      {pgResponse || "— send a request to see the live response —"}
+                    </pre>
+                  </div>
+                </div>
+              </div>
+
               {userMgmt?.enabled && (
                 <div className="rounded-lg border p-3 space-y-3">
-                  <p className="text-sm font-medium">Create RU sub-user</p>
+                  <p className="text-sm font-medium">Quick create RU sub-user</p>
                   <div className="grid gap-2 sm:grid-cols-2">
                     <div className="space-y-1">
                       <Label className="text-xs">First name</Label>
@@ -926,8 +1094,22 @@ export function RuCertificationConsole({ properties }: { properties: PropertyLit
                 </div>
               )}
 
+              {userMgmt?.users && userMgmt.users.length > 0 && (
+                <div className="rounded-lg border p-3 space-y-2">
+                  <p className="text-sm font-medium">Current RU sub-users (from last probe)</p>
+                  <div className="space-y-1">
+                    {userMgmt.users.map((u, i) => (
+                      <div key={i} className="flex items-center justify-between gap-2 text-xs border rounded px-2 py-1.5">
+                        <span className="font-mono">OwnerID {u.owner_id ?? u.id ?? "?"}</span>
+                        <span className="text-muted-foreground truncate">{u.email ?? "—"}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {userMgmt?.probe && (
-                <pre className="text-xs bg-muted rounded p-3 overflow-auto max-h-64 whitespace-pre-wrap">
+                <pre className="text-xs bg-muted rounded p-3 overflow-auto max-h-40 whitespace-pre-wrap">
                   {typeof userMgmt.probe === "string" ? userMgmt.probe : JSON.stringify(userMgmt.probe, null, 2)}
                 </pre>
               )}
