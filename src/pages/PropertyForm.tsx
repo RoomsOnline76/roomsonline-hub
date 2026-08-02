@@ -6564,7 +6564,7 @@ export default function PropertyForm({
                   </Card>
 
                   {/* Bottom Row - Deposit, Same Day, Check-in, Check-out, Age Ranges */}
-                  <div className="grid grid-cols-2 gap-2 md:grid-cols-3 lg:grid-cols-4">
+                  <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-4">
                     {/* Deposit */}
                     <Card>
                       <CardHeader className="py-1.5 px-3">
@@ -6768,7 +6768,7 @@ export default function PropertyForm({
                   </div>
 
                   {/* Additional Rules Row - Age Restriction, Pets Policy, Cot & Extra Beds */}
-                  <div className="grid grid-cols-2 gap-2 md:grid-cols-3 lg:grid-cols-4">
+                  <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-4">
                     {/* Age Restriction */}
                     <Card>
                       <CardHeader className="py-1.5 px-3">
