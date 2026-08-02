@@ -475,8 +475,8 @@ export function RoomManagerTab({
 
           {/* Room Type Sub-tab */}
           <TabsContent value="room-type" className="p-3 space-y-3">
-            <div className="grid grid-cols-4 gap-2 items-end">
-              <div className="col-span-2 flex items-center gap-2">
+            <div className="grid grid-cols-2 gap-x-3 gap-y-2 lg:grid-cols-4">
+              <div className="space-y-1 lg:col-span-2">
                 <Label className="text-xs whitespace-nowrap flex items-center gap-1">
                   Name
                   {isRoomFieldPmsSynced(selectedRoomType, "name") && (
@@ -492,18 +492,20 @@ export function RoomManagerTab({
                   disabled={isRoomFieldPmsSynced(selectedRoomType, "name")}
                 />
               </div>
-              <div className="flex items-center gap-2">
+              <div className="space-y-1">
                 <Label className="text-xs whitespace-nowrap">
                   # {ACCOMMODATION_TYPES[accommodationLabel as AccommodationLabelKey]?.plural || "Units"}
                 </Label>
                 <Input
                   type="number"
-                  className="h-7 text-xs w-20"
+                  className="h-7 w-full text-xs"
                   value={roomTypes.find((r) => r.id === selectedRoomType)?.numRooms || 1}
                   onChange={(e) => updateRoomTypeField(selectedRoomType, "numRooms", parseInt(e.target.value) || 1)}
                 />
               </div>
-              <div className="flex items-center gap-1">
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Room URL</Label>
+                <div className="flex items-center gap-1">
                 <Input
                   readOnly
                   className="bg-muted/50 h-7 text-xs"
@@ -521,6 +523,7 @@ export function RoomManagerTab({
                 >
                   <Copy className="h-3 w-3" />
                 </Button>
+                </div>
               </div>
             </div>
 
@@ -564,8 +567,8 @@ export function RoomManagerTab({
             {selectedPMS !== "nightsbridge" && (
               <>
                 {selectedPMS && (
-                  <div className="grid grid-cols-2 gap-2 items-end">
-                    <div className="flex items-center gap-2">
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+                    <div className="space-y-1">
                       <Label className="text-xs whitespace-nowrap">
                         {selectedPMS.charAt(0).toUpperCase() + selectedPMS.slice(1)} Type
                       </Label>
@@ -576,7 +579,7 @@ export function RoomManagerTab({
                         placeholder={`${selectedPMS} room type`}
                       />
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="space-y-1">
                       <Label className="text-xs whitespace-nowrap">
                         {selectedPMS.charAt(0).toUpperCase() + selectedPMS.slice(1)} ID
                       </Label>
@@ -596,8 +599,8 @@ export function RoomManagerTab({
                   </div>
                 )}
 
-                <div className="flex items-start gap-2">
-                  <Label className="text-xs whitespace-nowrap pt-1.5 flex items-center gap-1">
+                <div className="space-y-1">
+                  <Label className="text-xs flex items-center gap-1">
                     Description
                     {isRoomFieldPmsSynced(selectedRoomType, "description") && (
                       <Badge variant="outline" className="text-[10px] h-4 px-1 bg-primary/10">
@@ -607,27 +610,27 @@ export function RoomManagerTab({
                   </Label>
                   <Textarea
                     rows={2}
-                    className={cn("text-xs flex-1", getRoomPmsFieldClass(selectedRoomType, "description"))}
+                    className={cn("min-h-[52px] w-full text-xs", getRoomPmsFieldClass(selectedRoomType, "description"))}
                     value={roomTypes.find((r) => r.id === selectedRoomType)?.description || ""}
                     onChange={(e) => updateRoomTypeField(selectedRoomType, "description", e.target.value)}
                     disabled={isRoomFieldPmsSynced(selectedRoomType, "description")}
                   />
                 </div>
 
-                <div className="flex items-start gap-2">
-                  <Label className="text-xs whitespace-nowrap pt-1.5">Extra Person Policy</Label>
+                <div className="space-y-1">
+                  <Label className="text-xs">Extra Person Policy</Label>
                   <Textarea
                     rows={1}
-                    className="text-xs flex-1"
+                    className="min-h-[44px] w-full text-xs"
                     value={roomTypes.find((r) => r.id === selectedRoomType)?.extraPersonPolicy || ""}
                     onChange={(e) => updateRoomTypeField(selectedRoomType, "extraPersonPolicy", e.target.value)}
                   />
                 </div>
 
                 {/* Bed Configuration Section */}
-                <div className="flex items-start gap-2">
-                  <Label className="text-xs whitespace-nowrap pt-1">Beds</Label>
-                  <div className="border rounded-md p-2 flex-1 space-y-2">
+                <div className="space-y-1">
+                  <Label className="text-xs">Beds</Label>
+                  <div className="border rounded-md p-2 space-y-2">
                     {(() => {
                       const currentRoom = roomTypes.find((r) => r.id === selectedRoomType);
                       const bedConfig = parseBedConfiguration(currentRoom?.bedConfiguration);
@@ -710,15 +713,15 @@ export function RoomManagerTab({
                 </div>
 
 
-                <div className="grid grid-cols-7 gap-2 items-end">
-                  <div className="flex items-center gap-1">
+                <div className="grid grid-cols-3 gap-x-3 gap-y-2 sm:grid-cols-4 lg:grid-cols-8">
+                  <div className="space-y-1">
                     <Label className="text-xs whitespace-nowrap">Size (m²)</Label>
-                    <Input type="number" className="h-7 text-xs w-16"
+                    <Input type="number" className="h-7 w-full text-xs"
                       value={roomTypes.find((r) => r.id === selectedRoomType)?.roomSize || 0}
                       onChange={(e) => updateRoomTypeField(selectedRoomType, "roomSize", parseInt(e.target.value) || 0)}
                     />
                   </div>
-                  <div className="flex items-center gap-1">
+                  <div className="space-y-1 lg:col-span-2">
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -734,7 +737,7 @@ export function RoomManagerTab({
                       value={(() => { const f = roomTypes.find((r) => r.id === selectedRoomType)?.floor; return f === null || f === undefined ? "none" : String(f); })()}
                       onValueChange={(v) => updateRoomTypeField(selectedRoomType, "floor", v === "none" ? null : parseInt(v))}
                     >
-                      <SelectTrigger className="h-7 text-xs w-40">
+                      <SelectTrigger className="h-7 w-full text-xs">
                         <SelectValue placeholder="Select floor" />
                       </SelectTrigger>
                       <SelectContent className="max-h-72">
@@ -755,56 +758,56 @@ export function RoomManagerTab({
                     </Select>
                   </div>
 
-                  <div className="flex items-center gap-1">
+                  <div className="space-y-1">
                     <Label className="text-xs whitespace-nowrap">Baths</Label>
-                    <Input type="number" className="h-7 text-xs w-14"
+                    <Input type="number" className="h-7 w-full text-xs"
                       value={roomTypes.find((r) => r.id === selectedRoomType)?.bathrooms || 1}
                       onChange={(e) => updateRoomTypeField(selectedRoomType, "bathrooms", parseInt(e.target.value) || 0)}
                     />
                   </div>
-                  <div className="flex items-center gap-1">
+                  <div className="space-y-1">
                     <Label className="text-xs whitespace-nowrap flex items-center gap-0.5">
                       Max
                       {isRoomFieldPmsSynced(selectedRoomType, "maxPeople") && <Cloud className="h-2.5 w-2.5 text-primary" />}
                     </Label>
                     <Input type="number"
-                      className={cn("h-7 text-xs w-14", getRoomPmsFieldClass(selectedRoomType, "maxPeople"))}
+                      className={cn("h-7 w-full text-xs", getRoomPmsFieldClass(selectedRoomType, "maxPeople"))}
                       value={roomTypes.find((r) => r.id === selectedRoomType)?.maxPeople || 2}
                       onChange={(e) => updateRoomTypeField(selectedRoomType, "maxPeople", parseInt(e.target.value) || 1)}
                       disabled={isRoomFieldPmsSynced(selectedRoomType, "maxPeople")}
                     />
                   </div>
-                  <div className="flex items-center gap-1">
+                  <div className="space-y-1">
                     <Label className="text-xs whitespace-nowrap flex items-center gap-0.5">
                       Adults
                       {isRoomFieldPmsSynced(selectedRoomType, "maxAdults") && <Cloud className="h-2.5 w-2.5 text-primary" />}
                     </Label>
                     <Input type="number"
-                      className={cn("h-7 text-xs w-14", getRoomPmsFieldClass(selectedRoomType, "maxAdults"))}
+                      className={cn("h-7 w-full text-xs", getRoomPmsFieldClass(selectedRoomType, "maxAdults"))}
                       value={roomTypes.find((r) => r.id === selectedRoomType)?.maxAdults || 2}
                       onChange={(e) => updateRoomTypeField(selectedRoomType, "maxAdults", parseInt(e.target.value) || 1)}
                       disabled={isRoomFieldPmsSynced(selectedRoomType, "maxAdults")}
                     />
                   </div>
-                  <div className="flex items-center gap-1">
+                  <div className="space-y-1">
                     <Label className="text-xs whitespace-nowrap flex items-center gap-0.5">
                       Children
                       {isRoomFieldPmsSynced(selectedRoomType, "maxChildren") && <Cloud className="h-2.5 w-2.5 text-primary" />}
                     </Label>
                     <Input type="number"
-                      className={cn("h-7 text-xs w-14", getRoomPmsFieldClass(selectedRoomType, "maxChildren"))}
+                      className={cn("h-7 w-full text-xs", getRoomPmsFieldClass(selectedRoomType, "maxChildren"))}
                       value={roomTypes.find((r) => r.id === selectedRoomType)?.maxChildren || 0}
                       onChange={(e) => updateRoomTypeField(selectedRoomType, "maxChildren", parseInt(e.target.value) || 0)}
                       disabled={isRoomFieldPmsSynced(selectedRoomType, "maxChildren")}
                     />
                   </div>
-                  <div className="flex items-center gap-1">
+                  <div className="space-y-1">
                     <Label className="text-xs whitespace-nowrap flex items-center gap-0.5">
                       Min
                       {isRoomFieldPmsSynced(selectedRoomType, "minGuests") && <Cloud className="h-2.5 w-2.5 text-primary" />}
                     </Label>
                     <Input type="number"
-                      className={cn("h-7 text-xs w-14", getRoomPmsFieldClass(selectedRoomType, "minGuests"))}
+                      className={cn("h-7 w-full text-xs", getRoomPmsFieldClass(selectedRoomType, "minGuests"))}
                       value={roomTypes.find((r) => r.id === selectedRoomType)?.minGuests || 1}
                       onChange={(e) => updateRoomTypeField(selectedRoomType, "minGuests", parseInt(e.target.value) || 1)}
                       disabled={isRoomFieldPmsSynced(selectedRoomType, "minGuests")}
@@ -927,8 +930,8 @@ export function RoomManagerTab({
                 </div>
 
                 {/* Additional PMS Fields - Inline */}
-                <div className="grid grid-cols-4 gap-2 items-end">
-                  <div className="flex items-center gap-1">
+                <div className="grid grid-cols-2 gap-x-3 gap-y-2 sm:grid-cols-4">
+                  <div className="space-y-1">
                     <Label className="text-xs whitespace-nowrap flex items-center gap-0.5">
                       Age Cat
                       {isRoomFieldPmsSynced(selectedRoomType, "minAgeCategory") && <Cloud className="h-2.5 w-2.5 text-primary" />}
@@ -949,28 +952,28 @@ export function RoomManagerTab({
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="flex items-center gap-1">
+                  <div className="space-y-1">
                     <Label className="text-xs whitespace-nowrap flex items-center gap-0.5">
                       Min Adults
                       {isRoomFieldPmsSynced(selectedRoomType, "minAdultsToOfferNonAdultRates") && <Cloud className="h-2.5 w-2.5 text-primary" />}
                     </Label>
                     <Input type="number" min="0"
-                      className={cn("h-7 text-xs w-14", getRoomPmsFieldClass(selectedRoomType, "minAdultsToOfferNonAdultRates"))}
+                      className={cn("h-7 w-full text-xs", getRoomPmsFieldClass(selectedRoomType, "minAdultsToOfferNonAdultRates"))}
                       value={roomTypes.find((r) => r.id === selectedRoomType)?.minAdultsToOfferNonAdultRates || 0}
                       onChange={(e) => updateRoomTypeField(selectedRoomType, "minAdultsToOfferNonAdultRates", parseInt(e.target.value) || 0)}
                       disabled={isRoomFieldPmsSynced(selectedRoomType, "minAdultsToOfferNonAdultRates")}
                     />
                   </div>
-                  <div className="flex items-center gap-1">
+                  <div className="space-y-1">
                     <Label className="text-xs whitespace-nowrap">Min Stay</Label>
-                    <Input type="number" className="h-7 text-xs w-14"
+                    <Input type="number" className="h-7 w-full text-xs"
                       value={roomTypes.find((r) => r.id === selectedRoomType)?.minStay || 1}
                       onChange={(e) => updateRoomTypeField(selectedRoomType, "minStay", parseInt(e.target.value) || 1)}
                     />
                   </div>
-                  <div className="flex items-center gap-1">
+                  <div className="space-y-1">
                     <Label className="text-xs whitespace-nowrap">Max Stay</Label>
-                    <Input type="number" className="h-7 text-xs w-14"
+                    <Input type="number" className="h-7 w-full text-xs"
                       value={roomTypes.find((r) => r.id === selectedRoomType)?.maxStay || 0}
                       onChange={(e) => updateRoomTypeField(selectedRoomType, "maxStay", parseInt(e.target.value) || 0)}
                     />
@@ -984,7 +987,7 @@ export function RoomManagerTab({
                 </div>
 
                 <div className="space-y-4">
-                  <h3 className="font-semibold">Rate Info</h3>
+                  <h3 className="text-sm font-semibold">Rate Info</h3>
                   {(() => {
                     const currentRoom = roomTypes.find((r) => r.id === selectedRoomType);
                     const linkedRateTypeIds = currentRoom?.linkedRateTypes || currentRoom?.availableRateTypes || [];

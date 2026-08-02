@@ -3753,7 +3753,7 @@ export default function PropertyForm({
   return (
 
     <FormShell embedded={embedded}>
-      <div className={embedded ? "property-form-container w-full p-3" : "property-form-container w-full"}>
+      <div className={embedded ? "property-form-container property-form-dense w-full p-2" : "property-form-container property-form-dense w-full"}>
         {/* Breadcrumb + Header — hidden in embed mode */}
         {!embedded && (
           <>
@@ -4582,10 +4582,11 @@ export default function PropertyForm({
                 </CardContent>
               </Card>
 
-              {/* Property, Address & Map - Side by side layout */}
-              <div className="flex gap-3 items-stretch">
-                {/* Left side - Property & Address (75%) */}
-                <div className="flex-1 flex flex-col gap-3">
+              {/* Property, Address & Map — full-width stacked (desktop density pass) */}
+              <div className="flex flex-col gap-3">
+                {/* Property & Address */}
+                <div className="flex flex-col gap-3">
+
                   {/* Property Section */}
                   <Card>
                     <CardHeader className="py-2 px-4">
@@ -4602,7 +4603,8 @@ export default function PropertyForm({
                     </CardHeader>
                     <CardContent className="py-2 px-4 space-y-3">
                       {/* Row 1 */}
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-3 md:grid-cols-4 xl:grid-cols-5">
+
                         <div className="flex flex-col gap-1">
                           <Label htmlFor="name" className="text-xs">
                             Name *
@@ -4653,35 +4655,39 @@ export default function PropertyForm({
                           </Select>
                         </div>
                         {(isAdmin || isDev || isFearlessLeader) && (
-                          <>
-                            <div className="flex items-center gap-2 pt-5">
-                              <Checkbox
-                                id="is_rol_property"
-                                checked={isRolProperty}
-                                onCheckedChange={(checked) => {
-                                  setIsRolProperty(checked as boolean);
-                                  setIsDirty(true);
-                                }}
-                              />
-                              <Label htmlFor="is_rol_property" className="text-xs cursor-pointer">
-                                ROL Property
-                              </Label>
+                          <div className="flex flex-col gap-1">
+                            <Label className="text-xs">Flags</Label>
+                            <div className="flex h-8 items-center gap-4">
+                              <div className="flex items-center gap-1.5">
+                                <Checkbox
+                                  id="is_rol_property"
+                                  checked={isRolProperty}
+                                  onCheckedChange={(checked) => {
+                                    setIsRolProperty(checked as boolean);
+                                    setIsDirty(true);
+                                  }}
+                                />
+                                <Label htmlFor="is_rol_property" className="cursor-pointer text-xs">
+                                  ROL
+                                </Label>
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                <Checkbox
+                                  id="is_test_property"
+                                  checked={isTestProperty}
+                                  onCheckedChange={(checked) => {
+                                    setIsTestProperty(checked as boolean);
+                                    setIsDirty(true);
+                                  }}
+                                />
+                                <Label htmlFor="is_test_property" className="cursor-pointer whitespace-nowrap text-xs text-orange-600">
+                                  ⚠ Test
+                                </Label>
+                              </div>
                             </div>
-                            <div className="flex items-center gap-2 pt-1">
-                              <Checkbox
-                                id="is_test_property"
-                                checked={isTestProperty}
-                                onCheckedChange={(checked) => {
-                                  setIsTestProperty(checked as boolean);
-                                  setIsDirty(true);
-                                }}
-                              />
-                              <Label htmlFor="is_test_property" className="text-xs cursor-pointer text-orange-600">
-                                ⚠ Test / Sandbox
-                              </Label>
-                            </div>
-                          </>
+                          </div>
                         )}
+
                         <div className="flex flex-col gap-1">
                           <Label htmlFor="telephone" className="text-xs">
                             Telephone
@@ -4710,7 +4716,7 @@ export default function PropertyForm({
                         </div>
                       </div>
                       {/* Row 2 */}
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-3 md:grid-cols-4 xl:grid-cols-5">
                         <div className="flex flex-col gap-1">
                           <Label htmlFor="currency" className="text-xs">
                             Currency *
@@ -5010,8 +5016,12 @@ export default function PropertyForm({
                         </div>
 
                         {/* Additional Source URLs */}
-                        <div className="space-y-1.5">
-                          <Label className="text-xs text-muted-foreground">Additional Source URLs (optional)</Label>
+                        <div className="space-y-1.5 md:col-span-2">
+                          <Label className="whitespace-nowrap text-xs text-muted-foreground">
+                            Additional source URLs (optional)
+                          </Label>
+                          <div className="grid gap-1.5 md:grid-cols-2">
+
                           <Input
                             type="url"
                             value={sourceUrl2}
@@ -5032,7 +5042,9 @@ export default function PropertyForm({
                             placeholder="https://additional-source-2.com"
                             className="h-7 text-xs"
                           />
+                          </div>
                         </div>
+
                       </div>
                     </CardContent>
                   </Card>
@@ -5256,9 +5268,10 @@ export default function PropertyForm({
                   </Card>
                 </div>
 
-                {/* Right side - Map (25%) */}
-                <div className="w-1/4 min-w-[200px] flex">
-                  <Card className="flex-1 flex flex-col p-2">
+                {/* Map — full-width strip under the location fields */}
+                <div className="flex w-full">
+                  <Card className="flex h-[240px] flex-1 flex-col p-2">
+
                     <PropertyMap
                       address={formData.address}
                       suburb={formData.suburb}
@@ -5486,7 +5499,7 @@ export default function PropertyForm({
                     <CollapsibleContent>
                       <CardContent className="py-2 px-4 space-y-3">
                         {/* Row 1: Traditional Banking */}
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-3 md:grid-cols-4 xl:grid-cols-5">
                           {formData.has_vat && (
                             <div className="flex flex-col gap-1">
                               <Label htmlFor="vat_number" className="text-xs">
@@ -5539,7 +5552,7 @@ export default function PropertyForm({
                           </div>
                         </div>
                         {/* Row 2: Account Details */}
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-3 md:grid-cols-4 xl:grid-cols-5">
                           <div className="flex flex-col gap-1">
                             <Label htmlFor="account_holder" className="text-xs">
                               Holder
@@ -5590,7 +5603,7 @@ export default function PropertyForm({
                           </div>
                         </div>
                         {/* Row 3: Bitcoin */}
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-2 border-t border-border">
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-3 md:grid-cols-4 xl:grid-cols-5 pt-2 border-t border-border">
                           <div className="flex items-center gap-2">
                             <Switch
                               id="accepts_bitcoin"
@@ -6139,9 +6152,9 @@ export default function PropertyForm({
                   </div>
                 </CardHeader>
                 <CardContent className="py-2 px-4">
-                  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                  <div className="columns-2 gap-5 md:columns-3 lg:columns-4">
                     {/* General */}
-                    <div>
+                    <div className="mb-4 break-inside-avoid">
                       <h3 className="font-semibold mb-1 text-xs text-muted-foreground">General</h3>
                       <div className="space-y-0.5">
                         {facilities.general.map((facility) => (
@@ -6161,7 +6174,7 @@ export default function PropertyForm({
                     </div>
 
                     {/* Business & Reception */}
-                    <div>
+                    <div className="mb-4 break-inside-avoid">
                       <h3 className="font-semibold mb-1 text-xs text-muted-foreground">Business & Reception</h3>
                       <div className="space-y-0.5">
                         {facilities.businessReception.map((facility) => (
@@ -6181,7 +6194,7 @@ export default function PropertyForm({
                     </div>
 
                     {/* Conference & Events */}
-                    <div>
+                    <div className="mb-4 break-inside-avoid">
                       <h3 className="font-semibold mb-1 text-xs text-muted-foreground">Conference & Events</h3>
                       <div className="space-y-0.5">
                         {facilities.conferenceEvents.map((facility) => (
@@ -6201,7 +6214,7 @@ export default function PropertyForm({
                     </div>
 
                     {/* Meals & Dining */}
-                    <div>
+                    <div className="mb-4 break-inside-avoid">
                       <h3 className="font-semibold mb-1 text-xs text-muted-foreground">Meals & Dining</h3>
                       <div className="space-y-0.5">
                         {facilities.mealsDining.map((facility) => (
@@ -6221,7 +6234,7 @@ export default function PropertyForm({
                     </div>
 
                     {/* Utility & Room Features */}
-                    <div>
+                    <div className="mb-4 break-inside-avoid">
                       <h3 className="font-semibold mb-1 text-xs text-muted-foreground">Utility & Room Features</h3>
                       <div className="space-y-0.5">
                         {facilities.utilityRoom.map((facility) => (
@@ -6241,7 +6254,7 @@ export default function PropertyForm({
                     </div>
 
                     {/* Wellness & Fitness */}
-                    <div>
+                    <div className="mb-4 break-inside-avoid">
                       <h3 className="font-semibold mb-1 text-xs text-muted-foreground">Wellness & Fitness</h3>
                       <div className="space-y-0.5">
                         {facilities.wellnessFitness.map((facility) => (
@@ -6261,7 +6274,7 @@ export default function PropertyForm({
                     </div>
 
                     {/* Activities & Experiences */}
-                    <div>
+                    <div className="mb-4 break-inside-avoid">
                       <h3 className="font-semibold mb-1 text-xs text-muted-foreground">Activities & Experiences</h3>
                       <div className="space-y-0.5">
                         {facilities.activitiesExperiences.map((facility) => (
@@ -6281,7 +6294,7 @@ export default function PropertyForm({
                     </div>
 
                     {/* Family Services */}
-                    <div>
+                    <div className="mb-4 break-inside-avoid">
                       <h3 className="font-semibold mb-1 text-xs text-muted-foreground">Family Services</h3>
                       <div className="space-y-0.5">
                         {facilities.familyServices.map((facility) => (
@@ -6301,7 +6314,7 @@ export default function PropertyForm({
                     </div>
 
                     {/* Safety & Security */}
-                    <div>
+                    <div className="mb-4 break-inside-avoid">
                       <h3 className="font-semibold mb-1 text-xs text-muted-foreground">Safety & Security</h3>
                       <div className="space-y-0.5">
                         {facilities.safetySecurity.map((facility) => (
@@ -6321,7 +6334,7 @@ export default function PropertyForm({
                     </div>
 
                     {/* Languages Spoken */}
-                    <div>
+                    <div className="mb-4 break-inside-avoid">
                       <h3 className="font-semibold mb-1 text-xs text-muted-foreground">Languages Spoken</h3>
                       <div className="space-y-0.5">
                         {facilities.languagesSpoken.map((facility) => (
@@ -6341,7 +6354,7 @@ export default function PropertyForm({
                     </div>
 
                     {/* Transport & Parking */}
-                    <div>
+                    <div className="mb-4 break-inside-avoid">
                       <h3 className="font-semibold mb-1 text-xs text-muted-foreground">Transport & Parking</h3>
                       <div className="space-y-0.5">
                         {facilities.transportParking.map((facility) => (
@@ -6551,7 +6564,7 @@ export default function PropertyForm({
                   </Card>
 
                   {/* Bottom Row - Deposit, Same Day, Check-in, Check-out, Age Ranges */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2">
+                  <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-4">
                     {/* Deposit */}
                     <Card>
                       <CardHeader className="py-1.5 px-3">
@@ -6755,7 +6768,7 @@ export default function PropertyForm({
                   </div>
 
                   {/* Additional Rules Row - Age Restriction, Pets Policy, Cot & Extra Beds */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
+                  <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-4">
                     {/* Age Restriction */}
                     <Card>
                       <CardHeader className="py-1.5 px-3">
@@ -7886,10 +7899,15 @@ export default function PropertyForm({
                       </CardContent>
                     </Card>
 
-                    <div className="flex gap-1.5">
+                    <Card className="flex flex-col">
+                      <CardHeader className="flex flex-row items-center justify-between gap-2 py-1.5 px-3">
+                        <CardTitle className="text-xs font-medium">
+                          {selectedPackage ? selectedPackage.name : "No package selected"}
+                        </CardTitle>
+                        <div className="flex gap-1.5">
                       <Button
                         size="sm"
-                        variant="destructive"
+                        variant="outline"
                         className="h-7 text-xs"
                         disabled={!selectedPackage}
                         onClick={() => {
@@ -7924,13 +7942,31 @@ export default function PropertyForm({
                       </Button>
                       <Button
                         size="sm"
-                        variant="destructive"
+                        variant="outline"
                         className="h-7 text-xs"
+                        disabled={!selectedPackage}
                         onClick={() => setIsPackageImagesOpen(true)}
                       >
                         Package Images
                       </Button>
-                    </div>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="flex-1 py-2 px-3">
+                        {selectedPackage ? (
+                          <div className="space-y-1 text-xs text-muted-foreground">
+                            <p className="whitespace-pre-line">{selectedPackage.description || "No description yet."}</p>
+                            <p>
+                              Stay {selectedPackage.minimumStay || 1}–{selectedPackage.maximumStay || 1} nights ·{" "}
+                              {selectedPackage.isPublic ? "Public" : "Private"}
+                            </p>
+                          </div>
+                        ) : (
+                          <p className="text-xs text-muted-foreground">
+                            Select a package on the left, or use + to create one.
+                          </p>
+                        )}
+                      </CardContent>
+                    </Card>
                   </div>
                 </TabsContent>
               ))}

@@ -703,3 +703,99 @@ button {
 .on-secondary-muted { color: hsl(var(--secondary-foreground-muted)); }
 .on-accent { color: hsl(var(--accent-foreground)); }
 .on-accent-muted { color: hsl(var(--accent-foreground-muted)); }
+
+/* =============================================
+   PROPERTY EDITOR DENSITY LAYER
+   Desktop-first density scale shared by
+   /admin/edit-property and ROLOS → Property Setup.
+   Scoped to .property-form-dense so the rest of the app
+   keeps its default comfortable sizing.
+   ============================================= */
+@media (min-width: 1024px) {
+  /* Controls */
+  .property-form-dense input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  .property-form-dense button[role="combobox"],
+  .property-form-dense [data-radix-select-trigger] {
+    height: 2rem;
+    min-height: 2rem;
+    padding-top: 0;
+    padding-bottom: 0;
+    font-size: 0.8125rem;
+    line-height: 1.15rem;
+  }
+
+  .property-form-dense textarea {
+    font-size: 0.8125rem;
+    line-height: 1.2rem;
+    padding-top: 0.375rem;
+    padding-bottom: 0.375rem;
+    min-height: 4.5rem;
+  }
+
+  .property-form-dense label {
+    font-size: 0.75rem;
+    line-height: 1rem;
+  }
+
+  /* Card chrome — flatten the oversized padding stack */
+  .property-form-dense [data-slot="card"],
+  .property-form-dense .card {
+    border-radius: calc(var(--radius) - 2px);
+  }
+  .property-form-dense [data-slot="card-header"] {
+    padding: 0.75rem 0.875rem 0.5rem;
+  }
+  .property-form-dense [data-slot="card-content"] {
+    padding: 0.75rem 0.875rem;
+  }
+  .property-form-dense [data-slot="card-footer"] {
+    padding: 0.5rem 0.875rem 0.75rem;
+  }
+  .property-form-dense [data-slot="card-title"] {
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+  }
+  .property-form-dense [data-slot="card-description"] {
+    font-size: 0.75rem;
+    line-height: 1.05rem;
+  }
+
+  /* Tab strips inside the editor */
+  .property-form-dense [role="tablist"] {
+    height: auto;
+  }
+  .property-form-dense [role="tab"] {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+    line-height: 1rem;
+  }
+
+  /* Tables */
+  .property-form-dense table th,
+  .property-form-dense table td {
+    padding: 0.375rem 0.5rem;
+    font-size: 0.8125rem;
+  }
+
+  /* Vertical rhythm — compress the widely spaced stacks */
+  .property-form-dense .space-y-6 > :not([hidden]) ~ :not([hidden]) { margin-top: 1rem; }
+  .property-form-dense .space-y-8 > :not([hidden]) ~ :not([hidden]) { margin-top: 1.25rem; }
+  .property-form-dense .space-y-4 > :not([hidden]) ~ :not([hidden]) { margin-top: 0.75rem; }
+  .property-form-dense .gap-6 { gap: 1rem; }
+  .property-form-dense .gap-8 { gap: 1.25rem; }
+
+  /* Oversized headings inside tab bodies */
+  .property-form-dense h1 { font-size: 1.125rem; line-height: 1.5rem; }
+  .property-form-dense h2 { font-size: 1rem; line-height: 1.375rem; }
+  .property-form-dense h3 { font-size: 0.9375rem; line-height: 1.3rem; }
+}
+
+/* Shared editor primitives (all breakpoints) */
+.pf-section + .pf-section { margin-top: 1rem; }
+.pf-section-title {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: hsl(var(--muted-foreground));
+}
