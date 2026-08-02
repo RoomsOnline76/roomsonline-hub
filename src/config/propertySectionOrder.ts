@@ -13,6 +13,31 @@
  * stay as collapsible advanced groups so the primary path stays dense and desktop-optimised.
  */
 
+import {
+  Home,
+  Building2,
+  BedDouble,
+  Image as ImageIcon,
+  FileText,
+  DollarSign,
+  Package,
+  Sparkles,
+  Mail,
+  Megaphone,
+  Phone,
+  Palette,
+  Layers,
+  ShieldCheck,
+  ListChecks,
+  CalendarRange,
+  Calendar,
+  LayoutList,
+  Wallet,
+  CreditCard,
+  Receipt,
+  type LucideIcon,
+} from "lucide-react";
+
 export type PropertySectionKey =
   | "general"           // Identity + Location + Contact + Business (dense, collapsible blocks)
   | "info-facilities"   // Facilities & amenities
@@ -165,3 +190,108 @@ export const PROPERTY_SECTION_GROUPS = [
 export function getSectionDef(key: PropertySectionKey): PropertySectionDef | undefined {
   return PROPERTY_SECTION_ORDER.find((s) => s.key === key);
 }
+
+export function getSectionLabel(key: string): string {
+  return PROPERTY_SECTION_ORDER.find((s) => s.key === key)?.label ?? "";
+}
+
+/** Icon per section — shared by Admin PropertyForm rail and ROLOS Property Setup rail */
+export const SECTION_ICON_MAP: Record<string, LucideIcon> = {
+  general: Home,
+  "info-facilities": Building2,
+  rooms: BedDouble,
+  images: ImageIcon,
+  "house-rules": FileText,
+  rates: DollarSign,
+  packages: Package,
+  specials: Sparkles,
+  addons: Package,
+  templates: Mail,
+  announcements: Megaphone,
+  contacts: Phone,
+  branding: Palette,
+  "rol-spec": Sparkles,
+  integrations: Layers,
+  admin: ShieldCheck,
+  onboarding: Sparkles,
+};
+
+export interface SectionHint {
+  key: string;
+  label: string;
+  icon: LucideIcon;
+}
+
+/** Sub-section hint chips shown under the active rail item */
+export const SECTION_HINTS: Partial<Record<PropertySectionKey, SectionHint[]>> = {
+  rooms: [
+    { key: "type", label: "Type", icon: Layers },
+    { key: "rate-types", label: "Rate Types", icon: DollarSign },
+    { key: "facilities", label: "Facilities", icon: ListChecks },
+    { key: "amenities", label: "Amenities", icon: Sparkles },
+    { key: "images", label: "Images", icon: ImageIcon },
+    { key: "agreement", label: "Agreement", icon: FileText },
+  ],
+  rates: [
+    { key: "seasons", label: "Seasons", icon: CalendarRange },
+    { key: "types", label: "Rate Types", icon: Layers },
+    { key: "calendar", label: "Calendar", icon: Calendar },
+    { key: "breakdown", label: "Breakdown", icon: LayoutList },
+    { key: "charges", label: "Charges", icon: Wallet },
+    { key: "policies", label: "Policies", icon: ShieldCheck },
+    { key: "providers", label: "Providers", icon: CreditCard },
+    { key: "overview", label: "Overview", icon: Receipt },
+  ],
+  general: [
+    { key: "identity", label: "Identity", icon: Home },
+    { key: "location", label: "Location", icon: Building2 },
+    { key: "contact", label: "Contact", icon: Phone },
+    { key: "banking", label: "Banking", icon: Wallet },
+  ],
+  images: [
+    { key: "gallery", label: "Gallery", icon: ImageIcon },
+    { key: "hero", label: "Hero", icon: Sparkles },
+  ],
+  "house-rules": [
+    { key: "checkin", label: "Check-in/out", icon: Calendar },
+    { key: "policies", label: "Policies", icon: ShieldCheck },
+    { key: "cancellation", label: "Cancellation", icon: FileText },
+  ],
+};
+
+export interface RailSection {
+  key: string;
+  label: string;
+  description: string;
+  icon: LucideIcon;
+  hints?: SectionHint[];
+}
+
+export interface RailGroup {
+  label: string;
+  sections: RailSection[];
+}
+
+/**
+ * Build the grouped rail model, restricted to the keys a screen supports.
+ * Order and grouping come from PROPERTY_SECTION_GROUPS (shared IA).
+ */
+export function buildSectionGroups(allowedKeys: Iterable<string>): RailGroup[] {
+  const allowed = new Set(allowedKeys);
+  return PROPERTY_SECTION_GROUPS.map((g) => ({
+    label: g.label,
+    sections: g.keys
+      .filter((k) => allowed.has(k))
+      .map((k) => {
+        const def = PROPERTY_SECTION_ORDER.find((s) => s.key === k)!;
+        return {
+          key: k as string,
+          label: def.label,
+          description: def.description,
+          icon: SECTION_ICON_MAP[k] || Building2,
+          hints: SECTION_HINTS[k],
+        };
+      }),
+  })).filter((g) => g.sections.length > 0);
+}
+
