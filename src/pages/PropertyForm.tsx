@@ -83,9 +83,25 @@ import { cn } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
 import { PropertyMap } from "@/components/PropertyMap";
 import { TagInput } from "@/components/TagInput";
-import { ACCOMMODATION_LABEL_OPTIONS, ACCOMMODATION_TYPES, getAccommodationLabel, type AccommodationLabelKey } from "@/lib/accommodationLabels";
-import { getPMSFieldClass, getPMSDisplayName, isFieldPopulatedByPMS, getFieldAuthority, getAuthorityLabel } from "@/lib/pmsFieldConfig";
-import { getPMSEditorialCapability, canSyncEditorial, getSyncableFields, getAuthorityLabel as getEditorialAuthorityLabel } from "@/lib/pmsEditorialConfig";
+import {
+  ACCOMMODATION_LABEL_OPTIONS,
+  ACCOMMODATION_TYPES,
+  getAccommodationLabel,
+  type AccommodationLabelKey,
+} from "@/lib/accommodationLabels";
+import {
+  getPMSFieldClass,
+  getPMSDisplayName,
+  isFieldPopulatedByPMS,
+  getFieldAuthority,
+  getAuthorityLabel,
+} from "@/lib/pmsFieldConfig";
+import {
+  getPMSEditorialCapability,
+  canSyncEditorial,
+  getSyncableFields,
+  getAuthorityLabel as getEditorialAuthorityLabel,
+} from "@/lib/pmsEditorialConfig";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import RichTextEditor from "@/components/RichTextEditor";
 import { pmsIntegrationStatus } from "@/components/ApiMilestones";
@@ -213,8 +229,6 @@ interface PropertyFormProps {
 const FormShell = ({ embedded, children }: { embedded: boolean; children: React.ReactNode }) =>
   embedded ? <>{children}</> : <AppLayout>{children}</AppLayout>;
 
-
-
 export default function PropertyForm({
   embeddedPropertyId,
   embeddedInitialTab,
@@ -239,7 +253,7 @@ export default function PropertyForm({
   const [isDirty, setIsDirty] = useState(false);
   const [propertySlug, setPropertySlug] = useState<string>("");
   const [propertyId, setPropertyId] = useState<string | null>(null); // Actual UUID for DB operations
-  
+
   // Feature flags from secure edge function
   const homeIconOpenNewTab = featureFlags?.home_icon_open_new_tab ?? true;
   const roomsonlineActive = featureFlags?.roomsonline_active ?? false;
@@ -267,7 +281,9 @@ export default function PropertyForm({
           { type: "rolos-embed-height", height: document.body.scrollHeight },
           window.location.origin,
         );
-      } catch { /* cross-origin — ignore */ }
+      } catch {
+        /* cross-origin — ignore */
+      }
     };
     post();
     const ro = new ResizeObserver(post);
@@ -364,7 +380,6 @@ export default function PropertyForm({
     setIsDirty(true);
   };
 
-
   // Website sync state
   const [websiteSyncing, setWebsiteSyncing] = useState(false);
   const [websiteSyncModalOpen, setWebsiteSyncModalOpen] = useState(false);
@@ -379,7 +394,9 @@ export default function PropertyForm({
   const [experienceEngineEnabled, setExperienceEngineEnabled] = useState(false);
 
   // Linked owners state
-  const [linkedOwners, setLinkedOwners] = useState<Array<{ id: string; user_id: string; owner_email: string; owner_name: string | null }>>([]);
+  const [linkedOwners, setLinkedOwners] = useState<
+    Array<{ id: string; user_id: string; owner_email: string; owner_name: string | null }>
+  >([]);
   const [linkedOwnerSearch, setLinkedOwnerSearch] = useState("");
 
   const [ownerHostfullyCredential, setOwnerHostfullyCredential] = useState<any>(null);
@@ -400,13 +417,14 @@ export default function PropertyForm({
     setConnectingHostfullyOAuth(true);
 
     // Auto-detect sandbox properties based on name patterns
-    const isSandboxProperty = formData.name?.includes('[SANDBOX]') || 
-                              formData.name?.toLowerCase().includes('sandbox') ||
-                              formData.name?.toLowerCase().includes('sample');
-    
+    const isSandboxProperty =
+      formData.name?.includes("[SANDBOX]") ||
+      formData.name?.toLowerCase().includes("sandbox") ||
+      formData.name?.toLowerCase().includes("sample");
+
     // Use sandbox OAuth for sandbox properties unless explicitly overridden
     const shouldUseSandbox = useSandbox ?? isSandboxProperty;
-    const environment = shouldUseSandbox ? 'sandbox' : 'production';
+    const environment = shouldUseSandbox ? "sandbox" : "production";
 
     // Build state parameter with owner, property, environment, and origin URL for redirect
     const stateData = {
@@ -420,19 +438,19 @@ export default function PropertyForm({
 
     // Hostfully OAuth authorize URL - use sandbox or production based on environment
     // Client ID comes from feature flags (edge function secret) - not VITE_ env var
-    const clientId = featureFlags?.hostfully_client_id || '';
+    const clientId = featureFlags?.hostfully_client_id || "";
     const redirectUri = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/hostfully-oauth-callback`;
-    
+
     const baseUrl = useSandbox
-      ? 'https://sandbox-api.hostfully.com/api/v3.2/auth/oauth/authorize'
-      : 'https://api.hostfully.com/api/auth/oauth/authorize';
-    
+      ? "https://sandbox-api.hostfully.com/api/v3.2/auth/oauth/authorize"
+      : "https://api.hostfully.com/api/auth/oauth/authorize";
+
     const authUrl = new URL(baseUrl);
-    authUrl.searchParams.set('clientId', clientId);
-    authUrl.searchParams.set('scope', 'FULL');
-    authUrl.searchParams.set('grantType', 'REFRESH_TOKEN');
-    authUrl.searchParams.set('redirectUri', redirectUri);
-    authUrl.searchParams.set('state', state);
+    authUrl.searchParams.set("clientId", clientId);
+    authUrl.searchParams.set("scope", "FULL");
+    authUrl.searchParams.set("grantType", "REFRESH_TOKEN");
+    authUrl.searchParams.set("redirectUri", redirectUri);
+    authUrl.searchParams.set("state", state);
 
     // Redirect to Hostfully OAuth
     window.location.href = authUrl.toString();
@@ -441,17 +459,17 @@ export default function PropertyForm({
   // Check for OAuth callback result on mount
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
-    const hostfullyConnected = urlParams.get('hostfully_connected');
-    const hostfullyError = urlParams.get('hostfully_error');
-    
-    if (hostfullyConnected === 'true') {
+    const hostfullyConnected = urlParams.get("hostfully_connected");
+    const hostfullyError = urlParams.get("hostfully_error");
+
+    if (hostfullyConnected === "true") {
       toast({
         title: "Hostfully Connected",
         description: "Your Hostfully account has been successfully connected.",
       });
       // Clean up URL
       const cleanUrl = window.location.pathname;
-      window.history.replaceState({}, '', cleanUrl);
+      window.history.replaceState({}, "", cleanUrl);
     } else if (hostfullyError) {
       toast({
         title: "Connection Failed",
@@ -460,7 +478,7 @@ export default function PropertyForm({
       });
       // Clean up URL
       const cleanUrl = window.location.pathname;
-      window.history.replaceState({}, '', cleanUrl);
+      window.history.replaceState({}, "", cleanUrl);
     }
   }, [toast]);
 
@@ -468,7 +486,7 @@ export default function PropertyForm({
   // For owners: load their own credential
   // For admin/dev: load the property owner's credential via ownerPmsCredentialId
   const isOwnerUser = user && !isAdmin && !isDev && !isFearlessLeader;
-  
+
   useEffect(() => {
     const loadOwnerHostfullyCredential = async () => {
       setLoadingOwnerCredential(true);
@@ -481,7 +499,7 @@ export default function PropertyForm({
             .eq("owner_id", user.id)
             .eq("system_type", "hostfully")
             .maybeSingle();
-          
+
           if (!error && data) {
             setOwnerHostfullyCredential(data);
           }
@@ -492,7 +510,7 @@ export default function PropertyForm({
             .select("*")
             .eq("id", ownerPmsCredentialId)
             .maybeSingle();
-          
+
           if (!error && data) {
             setOwnerHostfullyCredential(data);
           }
@@ -503,7 +521,7 @@ export default function PropertyForm({
         setLoadingOwnerCredential(false);
       }
     };
-    
+
     loadOwnerHostfullyCredential();
   }, [isOwnerUser, user?.id, isAdmin, isDev]);
 
@@ -531,7 +549,6 @@ export default function PropertyForm({
     };
     loadHostfullyRoomCount();
   }, [propertyId]);
-
 
   // Location state
   const [latitude, setLatitude] = useState<number | null>(null);
@@ -596,13 +613,12 @@ export default function PropertyForm({
         if (mapsApiKey) {
           try {
             const res = await fetch(
-              `https://maps.googleapis.com/maps/api/geocode/json?latlng=${coords.lat},${coords.lng}&key=${mapsApiKey}`
+              `https://maps.googleapis.com/maps/api/geocode/json?latlng=${coords.lat},${coords.lng}&key=${mapsApiKey}`,
             );
             const geo = await res.json();
             if (geo.status === "OK" && geo.results?.[0]) {
               const components = geo.results[0].address_components || [];
-              const get = (type: string) =>
-                components.find((c: any) => c.types.includes(type))?.long_name || "";
+              const get = (type: string) => components.find((c: any) => c.types.includes(type))?.long_name || "";
 
               const street = [get("street_number"), get("route")].filter(Boolean).join(" ");
               const city = get("locality") || get("administrative_area_level_2") || get("postal_town");
@@ -764,7 +780,7 @@ export default function PropertyForm({
   const addRoomType = () => {
     const newRoom = {
       id: Date.now().toString(),
-      name: `New ${accommodationLabel ? ACCOMMODATION_LABEL_OPTIONS.find(o => o.value === accommodationLabel)?.label || "Room" : "Room"} Type`,
+      name: `New ${accommodationLabel ? ACCOMMODATION_LABEL_OPTIONS.find((o) => o.value === accommodationLabel)?.label || "Room" : "Room"} Type`,
       url: "",
       selected: false,
       numRooms: 1,
@@ -803,7 +819,9 @@ export default function PropertyForm({
           const isLinked = linked.includes(rateTypeId);
           return {
             ...room,
-            linkedRateTypes: isLinked ? linked.filter((id: number | string) => id !== rateTypeId) : [...linked, rateTypeId],
+            linkedRateTypes: isLinked
+              ? linked.filter((id: number | string) => id !== rateTypeId)
+              : [...linked, rateTypeId],
           };
         }
         return room;
@@ -919,7 +937,10 @@ export default function PropertyForm({
         const currentRoomTypes = Array.isArray(amenities.room_types) ? amenities.room_types : [];
         const updatedRoomTypes = currentRoomTypes.map((rt: any) => {
           const sameId = String(rt?.id) === String(roomId);
-          const sameName = String(rt?.name || "").trim().toLowerCase() === normalizedRoomName;
+          const sameName =
+            String(rt?.name || "")
+              .trim()
+              .toLowerCase() === normalizedRoomName;
           return sameId || sameName ? { ...rt, is_active: newActive } : rt;
         });
 
@@ -981,11 +1002,19 @@ export default function PropertyForm({
     return "";
   };
 
-  const SUPPORTED_ROOM_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/bmp', 'image/svg+xml', 'image/avif'];
+  const SUPPORTED_ROOM_IMAGE_TYPES = [
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+    "image/gif",
+    "image/bmp",
+    "image/svg+xml",
+    "image/avif",
+  ];
 
   const handleRoomImageUpload = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
-    
+
     if (!propertyId) {
       toast({
         title: "Upload failed",
@@ -1000,7 +1029,10 @@ export default function PropertyForm({
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
-      if (SUPPORTED_ROOM_IMAGE_TYPES.includes(file.type) || (file.type.startsWith("image/") && file.type !== "image/heic" && file.type !== "image/heif")) {
+      if (
+        SUPPORTED_ROOM_IMAGE_TYPES.includes(file.type) ||
+        (file.type.startsWith("image/") && file.type !== "image/heic" && file.type !== "image/heif")
+      ) {
         supportedFiles.push(file);
       } else {
         unsupportedNames.push(file.name);
@@ -1022,7 +1054,11 @@ export default function PropertyForm({
     for (const file of supportedFiles) {
       const dims = await validateImageDimensions(file);
       if (!dims.valid) {
-        toast({ title: "Image too small", description: getValidationErrorMessage(file.name, dims.width, dims.height), variant: "destructive" });
+        toast({
+          title: "Image too small",
+          description: getValidationErrorMessage(file.name, dims.width, dims.height),
+          variant: "destructive",
+        });
       } else {
         validFiles.push(file);
       }
@@ -1115,9 +1151,10 @@ export default function PropertyForm({
     // Use room-specific linked rate types, falling back to all rate types
     const room = roomTypes.find((r) => r.id === roomId);
     const linked = room?.linkedRateTypes || [];
-    const rateTypeIds = linked.length > 0
-      ? linked.map((id: string | number) => String(id))
-      : (pmsRateTypes || []).map((rt: any) => String(rt.id));
+    const rateTypeIds =
+      linked.length > 0
+        ? linked.map((id: string | number) => String(id))
+        : (pmsRateTypes || []).map((rt: any) => String(rt.id));
 
     // Also check legacy meal-type keys and bare season keys for backward compat
     const roomMealTypes = room?.mealTypes || [];
@@ -1237,35 +1274,62 @@ export default function PropertyForm({
   });
 
   const {
-    selectedPMS, setSelectedPMS,
+    selectedPMS,
+    setSelectedPMS,
     availablePMSSystems,
-    bensonPropertyCode, setBensonPropertyCode,
-    bensonEnvironment, setBensonEnvironment,
-    cloudbedsPropertyId, setCloudbedsPropertyId,
-    littlehotelierChannelCode, setLittlehotelierChannelCode,
-    littlehotelierRegion, setLittlehotelierRegion,
-    hotelbedsHotelCode, setHotelbedsHotelCode,
-    hyperguestHotelId, setHyperguestHotelId,
-    existingHyperguestHotelId, setExistingHyperguestHotelId,
-    beds24PropertyId, setBeds24PropertyId,
-    existingBeds24PropertyId, setExistingBeds24PropertyId,
-    hostfullyPropertyUid, setHostfullyPropertyUid,
-    isSyncingPms, lastPmsSync,
-    isSyncEditorialDialogOpen, setIsSyncEditorialDialogOpen,
-    existingExternalIds, setExistingExternalIds,
-    tripadvisorId, setTripadvisorId,
-    googlePlaceId, setGooglePlaceId,
-    existingBensonPropertyCode, setExistingBensonPropertyCode,
-    existingCloudbedsPropertyId, setExistingCloudbedsPropertyId,
-    existingLittlehotelierChannelCode, setExistingLittlehotelierChannelCode,
-    existingLittlehotelierRegion, setExistingLittlehotelierRegion,
-    existingHotelbedsHotelCode, setExistingHotelbedsHotelCode,
-    existingHostfullyPropertyUid, setExistingHostfullyPropertyUid,
-    ownerPmsCredentialId, setOwnerPmsCredentialId,
-    hostfullyRoomCount, setHostfullyRoomCount,
+    bensonPropertyCode,
+    setBensonPropertyCode,
+    bensonEnvironment,
+    setBensonEnvironment,
+    cloudbedsPropertyId,
+    setCloudbedsPropertyId,
+    littlehotelierChannelCode,
+    setLittlehotelierChannelCode,
+    littlehotelierRegion,
+    setLittlehotelierRegion,
+    hotelbedsHotelCode,
+    setHotelbedsHotelCode,
+    hyperguestHotelId,
+    setHyperguestHotelId,
+    existingHyperguestHotelId,
+    setExistingHyperguestHotelId,
+    beds24PropertyId,
+    setBeds24PropertyId,
+    existingBeds24PropertyId,
+    setExistingBeds24PropertyId,
+    hostfullyPropertyUid,
+    setHostfullyPropertyUid,
+    isSyncingPms,
+    lastPmsSync,
+    isSyncEditorialDialogOpen,
+    setIsSyncEditorialDialogOpen,
+    existingExternalIds,
+    setExistingExternalIds,
+    tripadvisorId,
+    setTripadvisorId,
+    googlePlaceId,
+    setGooglePlaceId,
+    existingBensonPropertyCode,
+    setExistingBensonPropertyCode,
+    existingCloudbedsPropertyId,
+    setExistingCloudbedsPropertyId,
+    existingLittlehotelierChannelCode,
+    setExistingLittlehotelierChannelCode,
+    existingLittlehotelierRegion,
+    setExistingLittlehotelierRegion,
+    existingHotelbedsHotelCode,
+    setExistingHotelbedsHotelCode,
+    existingHostfullyPropertyUid,
+    setExistingHostfullyPropertyUid,
+    ownerPmsCredentialId,
+    setOwnerPmsCredentialId,
+    hostfullyRoomCount,
+    setHostfullyRoomCount,
     importingHostfullyRooms,
-    showHostfullyWarning, setShowHostfullyWarning,
-    previousPMS, setPreviousPMS,
+    showHostfullyWarning,
+    setShowHostfullyWarning,
+    previousPMS,
+    setPreviousPMS,
     syncingRoomId,
     fullSyncingHostfully,
     syncProgress,
@@ -1274,7 +1338,6 @@ export default function PropertyForm({
     handleFullHostfullySync,
     syncFromBenson,
   } = pmsSync;
-
 
   const openAddSeasonDialog = () => {
     setEditingSeason(null);
@@ -1906,17 +1969,25 @@ export default function PropertyForm({
   }, [activeTab, embedded, requestedInitialTab]);
 
   // Quality gate blocker awareness
-  const { data: activationReadiness } = useActivationReadiness(propertyId || '');
-  
+  const { data: activationReadiness } = useActivationReadiness(propertyId || "");
+
   const FIELD_TO_TAB: Record<string, string> = {
-    owner_email: 'general', name: 'general', property_type: 'general',
-    description: 'general', address: 'general', city: 'general', country: 'general',
-    external_id: 'general', nightsbridge_property_code: 'general', hostfully_property_code: 'general',
-    images: 'images',
-    'amenities.bank_name': 'info-facilities', 'amenities.telephone': 'general',
-    'amenities.contact_email': 'general',
-    'amenities.room_types': 'rooms',
-    'amenities.check_in_time': 'house-rules',
+    owner_email: "general",
+    name: "general",
+    property_type: "general",
+    description: "general",
+    address: "general",
+    city: "general",
+    country: "general",
+    external_id: "general",
+    nightsbridge_property_code: "general",
+    hostfully_property_code: "general",
+    images: "images",
+    "amenities.bank_name": "info-facilities",
+    "amenities.telephone": "general",
+    "amenities.contact_email": "general",
+    "amenities.room_types": "rooms",
+    "amenities.check_in_time": "house-rules",
   };
 
   const tabsWithBlockers = useMemo(() => {
@@ -1964,7 +2035,6 @@ export default function PropertyForm({
   const [postalAddress, setPostalAddress] = useState("");
   const [keyRepresentative, setKeyRepresentative] = useState("");
 
-
   // Load property data if editing (wait for owners to load first)
   useEffect(() => {
     const loadProperty = async () => {
@@ -1992,9 +2062,9 @@ export default function PropertyForm({
 
           // Check if Experience Engine is enabled
           supabase
-            .from('rolos_ui_configs')
-            .select('experience_engine_enabled')
-            .eq('property_id', data.id)
+            .from("rolos_ui_configs")
+            .select("experience_engine_enabled")
+            .eq("property_id", data.id)
             .maybeSingle()
             .then(({ data: uiCfg }) => {
               setExperienceEngineEnabled(uiCfg?.experience_engine_enabled ?? false);
@@ -2161,7 +2231,7 @@ export default function PropertyForm({
             setHostfullyPropertyUid((data as any).hostfully_property_uid);
           }
           setExistingHostfullyPropertyUid((data as any).hostfully_property_uid || null);
-          
+
           // Set owner PMS credential ID for Hostfully import
           if ((data as any).owner_pms_credential_id) {
             setOwnerPmsCredentialId((data as any).owner_pms_credential_id);
@@ -2214,28 +2284,33 @@ export default function PropertyForm({
 
           // Load images if available - handle both string[] and object[] formats
           if (data.images && Array.isArray(data.images)) {
-            console.log('[PropertyForm] Raw images from DB:', data.images.slice(0, 3));
+            console.log("[PropertyForm] Raw images from DB:", data.images.slice(0, 3));
             const imageUrls = data.images
               // For property images, filter out room-specific images (those with room_code)
               .filter((img: any) => {
-                if (typeof img === 'string') return true;
+                if (typeof img === "string") return true;
                 // Exclude room-specific images from property gallery
-                if (img && typeof img === 'object' && (img.room_code || img.roomCode)) return false;
+                if (img && typeof img === "object" && (img.room_code || img.roomCode)) return false;
                 return true;
               })
               .map((img: any) => {
-                if (typeof img === 'string') return img;
+                if (typeof img === "string") return img;
                 // Handle HotelBeds format with url property
-                if (img && typeof img === 'object' && img.url) return img.url;
+                if (img && typeof img === "object" && img.url) return img.url;
                 // Handle alternative format with imageUrl property
-                if (img && typeof img === 'object' && img.imageUrl) return img.imageUrl;
-                console.log('[PropertyForm] Unrecognized image format:', img);
+                if (img && typeof img === "object" && img.imageUrl) return img.imageUrl;
+                console.log("[PropertyForm] Unrecognized image format:", img);
                 return null;
-              }).filter((url): url is string => typeof url === 'string' && url.startsWith('http'));
-            console.log('[PropertyForm] Loaded property images:', { raw: data.images.length, extracted: imageUrls.length, sample: imageUrls.slice(0, 3) });
+              })
+              .filter((url): url is string => typeof url === "string" && url.startsWith("http"));
+            console.log("[PropertyForm] Loaded property images:", {
+              raw: data.images.length,
+              extracted: imageUrls.length,
+              sample: imageUrls.slice(0, 3),
+            });
             setUploadedImages(imageUrls);
           } else {
-            console.log('[PropertyForm] No images array found in data.images:', data.images);
+            console.log("[PropertyForm] No images array found in data.images:", data.images);
           }
 
           // Load ROL Spec fields (direct columns)
@@ -2288,7 +2363,7 @@ export default function PropertyForm({
               // Auto-link to wizard-generated rate type if no existing links
               const existingLinks = room.linkedRateTypes || room.linked_rate_type_ids || [];
               const autoLinkedRateTypeId = `wizard-rate-${roomId}`;
-              
+
               return {
                 id: roomId,
                 name: room.name || "Unnamed Room",
@@ -2311,12 +2386,19 @@ export default function PropertyForm({
                 minStay: room.minStay || room.min_stay || 1,
                 maxStay: room.maxStay || room.max_stay || 0,
                 // Map rate_unit from wizard to rateType, also handle rate_type from PMS
-                rateType: room.rateType || room.rate_type || (room.rate_unit === 'per_stay' ? 'per-stay' : room.rate_unit === 'per_night' ? 'per-unit' : 'per-unit'),
+                rateType:
+                  room.rateType ||
+                  room.rate_type ||
+                  (room.rate_unit === "per_stay"
+                    ? "per-stay"
+                    : room.rate_unit === "per_night"
+                      ? "per-unit"
+                      : "per-unit"),
                 // Map base_rate from wizard - SOURCE OF TRUTH until PMS data arrives
                 baseRate: room.baseRate || room.base_rate || null,
                 splitPercent: room.splitPercent || room.split_percent || 0,
-                images: Array.isArray(room.images) 
-                  ? room.images.map((img: any) => typeof img === 'string' ? img : img?.url).filter(Boolean)
+                images: Array.isArray(room.images)
+                  ? room.images.map((img: any) => (typeof img === "string" ? img : img?.url)).filter(Boolean)
                   : [],
                 facilities: room.facilities || [],
                 amenities: room.amenities || [],
@@ -2339,9 +2421,9 @@ export default function PropertyForm({
               .select("*")
               .eq("property_id", data.id)
               .order("name");
-            
+
             if (hfRooms && hfRooms.length > 0) {
-              const convertedRooms = hfRooms.map(hr => ({
+              const convertedRooms = hfRooms.map((hr) => ({
                 id: hr.id,
                 name: hr.name || "Unnamed Room",
                 url: "",
@@ -2351,13 +2433,14 @@ export default function PropertyForm({
                 pmsRoomId: hr.hostfully_room_id,
                 description: hr.description || "",
                 extraPersonPolicy: "",
-                bedConfiguration: Array.isArray(hr.bed_configuration) && hr.bed_configuration.length > 0
-                  ? hr.bed_configuration
-                  : (Array.isArray(hr.beds) 
-                    ? hr.beds 
-                    : (typeof hr.beds === 'number' && hr.beds > 0 
-                        ? [{ type: 'bed', count: hr.beds }] 
-                        : [])),
+                bedConfiguration:
+                  Array.isArray(hr.bed_configuration) && hr.bed_configuration.length > 0
+                    ? hr.bed_configuration
+                    : Array.isArray(hr.beds)
+                      ? hr.beds
+                      : typeof hr.beds === "number" && hr.beds > 0
+                        ? [{ type: "bed", count: hr.beds }]
+                        : [],
                 roomSize: hr.room_size || 0,
                 floor: (hr as any).floor ?? null,
                 bathrooms: hr.bathrooms || 1,
@@ -2369,18 +2452,18 @@ export default function PropertyForm({
                 maxStay: hr.max_stay || 0,
                 rateType: "per-unit",
                 splitPercent: 0,
-                images: Array.isArray(hr.images) 
-                  ? hr.images.map((img: any) => typeof img === 'string' ? img : img?.url).filter(Boolean)
+                images: Array.isArray(hr.images)
+                  ? hr.images.map((img: any) => (typeof img === "string" ? img : img?.url)).filter(Boolean)
                   : [],
                 facilities: [],
                 amenities: hr.amenities || [],
-                linkedRateTypeIds: hr.linked_rate_type_ids || ['per-unit'],
+                linkedRateTypeIds: hr.linked_rate_type_ids || ["per-unit"],
                 // New Hostfully fields
-                checkInTime: hr.check_in_time ? `${String(hr.check_in_time).padStart(2, '0')}:00` : null,
-                checkOutTime: hr.check_out_time ? `${String(hr.check_out_time).padStart(2, '0')}:00` : null,
+                checkInTime: hr.check_in_time ? `${String(hr.check_in_time).padStart(2, "0")}:00` : null,
+                checkOutTime: hr.check_out_time ? `${String(hr.check_out_time).padStart(2, "0")}:00` : null,
                 propertyType: hr.property_type,
                 dailyRate: hr.daily_rate,
-                currency: hr.currency || 'ZAR',
+                currency: hr.currency || "ZAR",
                 cleaningFee: hr.cleaning_fee,
                 securityDeposit: hr.security_deposit,
                 extraGuestFee: hr.extra_guest_fee,
@@ -2409,19 +2492,23 @@ export default function PropertyForm({
               }
             }
           }
-          
+
           // Load rate types - check both pms_rate_types and rate_types for compatibility
           const rawRateTypes = amenities?.pms_rate_types ?? amenities?.rate_types;
           // Determine if this property has a real PMS connection
-          const hasExternalSystem = !!(data as any).external_system && (data as any).external_system !== 'none' && (data as any).external_system !== 'roomsonline';
-          
+          const hasExternalSystem =
+            !!(data as any).external_system &&
+            (data as any).external_system !== "none" &&
+            (data as any).external_system !== "roomsonline";
+
           // If pms_rate_types exists as an array (even empty), respect it — don't auto-regenerate
           const hasSavedRateTypes = Array.isArray(amenities?.pms_rate_types);
-          
+
           if (rawRateTypes && Array.isArray(rawRateTypes) && rawRateTypes.length > 0) {
             const transformedRateTypes = rawRateTypes.map((rt: any, idx: number) => {
               // pricingModel is the canonical field; priceType is legacy fallback
-              const resolvedPricingModel = rt.pricingModel || rt.pricing_model || rt.priceType || rt.price_type || "UnitRate";
+              const resolvedPricingModel =
+                rt.pricingModel || rt.pricing_model || rt.priceType || rt.price_type || "UnitRate";
               return {
                 id: rt.id ?? rt.rate_type_id ?? idx + 1,
                 name: rt.name || `Rate Type ${rt.id ?? rt.rate_type_id ?? idx + 1}`,
@@ -2438,7 +2525,7 @@ export default function PropertyForm({
                 teenRate: rt.teenRate ?? rt.teen_rate ?? null,
                 childRate: rt.childRate ?? rt.child_rate ?? null,
                 infantRate: rt.infantRate ?? rt.infant_rate ?? null,
-                pms_synced: hasExternalSystem && (rt.pms_synced !== false),
+                pms_synced: hasExternalSystem && rt.pms_synced !== false,
               };
             });
             setPmsRateTypes(transformedRateTypes);
@@ -2449,7 +2536,7 @@ export default function PropertyForm({
               .select("*")
               .eq("property_id", data.id)
               .eq("system_type", "hostfully");
-            
+
             if (cachedRateTypes && cachedRateTypes.length > 0) {
               const transformedRateTypes = cachedRateTypes.map((rt: any) => ({
                 id: rt.external_rate_type_id,
@@ -2472,13 +2559,13 @@ export default function PropertyForm({
             // This ensures every room has a linkable rate type entry
             // Wizard data is source of truth until PMS overwrites it
             const generatedRateTypes = amenities.room_types.map((room: any, idx: number) => {
-              const rateUnit = room.rate_unit || room.rateUnit || 'per_night';
-              const priceType = rateUnit === 'per_stay' ? 'PerStay' : 'UnitRate';
+              const rateUnit = room.rate_unit || room.rateUnit || "per_night";
+              const priceType = rateUnit === "per_stay" ? "PerStay" : "UnitRate";
               const baseRate = room.base_rate || room.baseRate || null;
               const roomName = room.name || `Room ${idx + 1}`;
               // Generate consistent room ID - use existing ID or create stable fallback
               const roomId = room.id || `room-${idx}`;
-              
+
               return {
                 id: `wizard-rate-${roomId}`,
                 name: `${roomName} Rate`,
@@ -2487,9 +2574,7 @@ export default function PropertyForm({
                 maxStayDays: room.max_stay || room.maxStay || 0,
                 minAdvanceDays: 0,
                 maxAdvanceDays: 0,
-                description: baseRate 
-                  ? `Base rate: R${baseRate}` 
-                  : `${roomName} Rate`,
+                description: baseRate ? `Base rate: R${baseRate}` : `${roomName} Rate`,
                 baseRate,
                 pms_synced: false,
                 linkedRoomId: roomId, // Track which room this rate is for
@@ -2558,7 +2643,7 @@ export default function PropertyForm({
 
   const saveAnnouncement = () => {
     if (editingAnnouncementId) {
-      setAnnouncements(announcements.map((a) => a.id === editingAnnouncementId ? { ...a, ...announcementForm } : a));
+      setAnnouncements(announcements.map((a) => (a.id === editingAnnouncementId ? { ...a, ...announcementForm } : a)));
       toast({ title: "Announcement updated", description: "The announcement has been updated." });
     } else {
       const newAnnouncement = { id: Date.now().toString(), ...announcementForm };
@@ -2593,7 +2678,6 @@ export default function PropertyForm({
     setAnnouncements(announcements.map((a) => (a.id === id ? { ...a, enabled: !a.enabled } : a)));
     setIsDirty(true);
   };
-
 
   const handleLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
@@ -2695,7 +2779,15 @@ export default function PropertyForm({
     setIsDirty(true);
   };
 
-  const SUPPORTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/bmp', 'image/svg+xml', 'image/avif'];
+  const SUPPORTED_IMAGE_TYPES = [
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+    "image/gif",
+    "image/bmp",
+    "image/svg+xml",
+    "image/avif",
+  ];
 
   const handleImageUpload = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -2705,7 +2797,10 @@ export default function PropertyForm({
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
-      if (SUPPORTED_IMAGE_TYPES.includes(file.type) || (file.type.startsWith("image/") && file.type !== "image/heic" && file.type !== "image/heif")) {
+      if (
+        SUPPORTED_IMAGE_TYPES.includes(file.type) ||
+        (file.type.startsWith("image/") && file.type !== "image/heic" && file.type !== "image/heif")
+      ) {
         supportedFiles.push(file);
       } else {
         unsupportedNames.push(file.name);
@@ -2727,7 +2822,11 @@ export default function PropertyForm({
     for (const file of supportedFiles) {
       const dims = await validateImageDimensions(file);
       if (!dims.valid) {
-        toast({ title: "Image too small", description: getValidationErrorMessage(file.name, dims.width, dims.height), variant: "destructive" });
+        toast({
+          title: "Image too small",
+          description: getValidationErrorMessage(file.name, dims.width, dims.height),
+          variant: "destructive",
+        });
       } else {
         validFiles.push(file);
       }
@@ -2919,11 +3018,12 @@ export default function PropertyForm({
         owner_name: formData.owner_name || null,
         owner_email: formData.owner_email || null,
         external_system: selectedPMS || null,
-        external_id: selectedPMS === "hyperguest"
-          ? (hyperguestHotelId?.trim() || existingHyperguestHotelId || null)
-          : selectedPMS === "beds24"
-          ? (beds24PropertyId?.trim() || existingBeds24PropertyId || null)
-          : (formData.bb_id || formData.venue_id || null),
+        external_id:
+          selectedPMS === "hyperguest"
+            ? hyperguestHotelId?.trim() || existingHyperguestHotelId || null
+            : selectedPMS === "beds24"
+              ? beds24PropertyId?.trim() || existingBeds24PropertyId || null
+              : formData.bb_id || formData.venue_id || null,
         // Preserve existing benson_property_code if PMS changed, only update if benson is selected
         benson_property_code: selectedPMS === "benson" ? bensonPropertyCode : existingBensonPropertyCode,
         benson_environment: selectedPMS === "benson" ? "production" : null,
@@ -3022,12 +3122,12 @@ export default function PropertyForm({
             tripadvisor_id: tripadvisorId || existingExternalIds.tripadvisor_id,
             google_place_id: googlePlaceId || existingExternalIds.google_place_id,
             hyperguest_hotel_id:
-              (selectedPMS === "roomsonline" || selectedPMS === "rolos")
-                ? (hyperguestHotelId?.trim() || null)
+              selectedPMS === "roomsonline" || selectedPMS === "rolos"
+                ? hyperguestHotelId?.trim() || null
                 : (existingExternalIds.hyperguest_hotel_id ?? null),
             beds24_property_id:
-              (selectedPMS === "roomsonline" || selectedPMS === "rolos")
-                ? (beds24PropertyId?.trim() || null)
+              selectedPMS === "roomsonline" || selectedPMS === "rolos"
+                ? beds24PropertyId?.trim() || null
                 : (existingExternalIds.beds24_property_id ?? null),
           },
           property_info: {
@@ -3122,9 +3222,9 @@ export default function PropertyForm({
           // Upsert room types to hostfully_room_types with ALL fields
           for (const room of roomTypes) {
             // Find matching rate type to get baseRate — check linkedRateTypes first, then wizard-rate pattern
-            const roomId = room.id || '';
+            const roomId = room.id || "";
             let baseRate = room.base_rate || room.baseRate || null;
-            
+
             if (!baseRate) {
               // Check linkedRateTypes on the room
               const roomLinkedRateTypes = room.linkedRateTypes || [];
@@ -3136,18 +3236,18 @@ export default function PropertyForm({
                 }
               }
             }
-            
+
             if (!baseRate) {
               // Fallback: wizard-rate pattern or linkedRoomId
-              const matchingRate = pmsRateTypes.find((rt: any) => 
-                rt.linkedRoomId === roomId || rt.id === `wizard-rate-${roomId}`
+              const matchingRate = pmsRateTypes.find(
+                (rt: any) => rt.linkedRoomId === roomId || rt.id === `wizard-rate-${roomId}`,
               );
               baseRate = matchingRate?.baseRate || room.rates?.[0]?.baseRate || null;
             }
-            
+
             const roomTypeData: any = {
               property_id: savedPropertyId,
-              name: room.name || 'Unnamed Room',
+              name: room.name || "Unnamed Room",
               description: room.description || null,
               max_guests: room.maxPeople || room.maxAdults || 2,
               daily_rate: baseRate,
@@ -3182,14 +3282,9 @@ export default function PropertyForm({
                 .maybeSingle();
 
               if (existingRoom) {
-                await supabase
-                  .from("hostfully_room_types")
-                  .update(roomTypeData)
-                  .eq("id", existingRoom.id);
+                await supabase.from("hostfully_room_types").update(roomTypeData).eq("id", existingRoom.id);
               } else {
-                await supabase
-                  .from("hostfully_room_types")
-                  .insert(roomTypeData);
+                await supabase.from("hostfully_room_types").insert(roomTypeData);
               }
             }
           }
@@ -3211,10 +3306,10 @@ export default function PropertyForm({
               .eq("property_id", savedPropertyId);
 
             const hasPhysical = new Set((existingPhysical || []).map((r: any) => r.room_type_id).filter(Boolean));
-            const missingPhysical = allRolosTypes.filter(rt => !hasPhysical.has(rt.id));
+            const missingPhysical = allRolosTypes.filter((rt) => !hasPhysical.has(rt.id));
 
             if (missingPhysical.length > 0) {
-              const physicalRooms = missingPhysical.map(rt => ({
+              const physicalRooms = missingPhysical.map((rt) => ({
                 property_id: savedPropertyId,
                 room_number: rt.name,
                 room_name: rt.name,
@@ -3229,228 +3324,234 @@ export default function PropertyForm({
         } catch (syncErr) {
           console.warn("Room types sync warning:", syncErr);
         }
-        }
+      }
 
-        // Deactivate orphan hostfully_room_types ONLY for ROL'OS native properties
-        // PMS-managed properties (Hostfully, Benson, etc.) use the importer as source of truth
-        if (isRolProperty && savedPropertyId) {
-          try {
-            const currentRoomNames = roomTypes.map((r: any) => (r.name || '').toLowerCase().trim()).filter(Boolean);
-            const currentRoomIds = roomTypes.map((r: any) => r.id).filter((id: string) => id && id.length === 36);
-            const { data: allActiveDbRooms } = await supabase
-              .from("hostfully_room_types")
-              .select("id, name")
-              .eq("property_id", savedPropertyId)
-              .eq("is_active", true);
-            
-            if (allActiveDbRooms) {
-              const orphanRooms = allActiveDbRooms.filter((dbRoom: any) => 
-                !currentRoomIds.includes(dbRoom.id) && 
-                !currentRoomNames.includes((dbRoom.name || '').toLowerCase().trim())
+      // Deactivate orphan hostfully_room_types ONLY for ROL'OS native properties
+      // PMS-managed properties (Hostfully, Benson, etc.) use the importer as source of truth
+      if (isRolProperty && savedPropertyId) {
+        try {
+          const currentRoomNames = roomTypes.map((r: any) => (r.name || "").toLowerCase().trim()).filter(Boolean);
+          const currentRoomIds = roomTypes.map((r: any) => r.id).filter((id: string) => id && id.length === 36);
+          const { data: allActiveDbRooms } = await supabase
+            .from("hostfully_room_types")
+            .select("id, name")
+            .eq("property_id", savedPropertyId)
+            .eq("is_active", true);
+
+          if (allActiveDbRooms) {
+            const orphanRooms = allActiveDbRooms.filter(
+              (dbRoom: any) =>
+                !currentRoomIds.includes(dbRoom.id) &&
+                !currentRoomNames.includes((dbRoom.name || "").toLowerCase().trim()),
+            );
+            if (orphanRooms.length > 0) {
+              const orphanIds = orphanRooms.map((o: any) => o.id);
+              await supabase
+                .from("hostfully_room_types")
+                .update({ is_active: false, updated_at: new Date().toISOString() })
+                .in("id", orphanIds);
+              console.log(
+                `[Save] Deactivated ${orphanRooms.length} orphan hostfully_room_types:`,
+                orphanRooms.map((o: any) => o.name),
               );
-              if (orphanRooms.length > 0) {
-                const orphanIds = orphanRooms.map((o: any) => o.id);
-                await supabase
-                  .from("hostfully_room_types")
-                  .update({ is_active: false, updated_at: new Date().toISOString() })
-                  .in("id", orphanIds);
-                console.log(`[Save] Deactivated ${orphanRooms.length} orphan hostfully_room_types:`, orphanRooms.map((o: any) => o.name));
-              }
             }
-          } catch (orphanErr) {
-            console.warn("[Save] Orphan room cleanup warning:", orphanErr);
           }
+        } catch (orphanErr) {
+          console.warn("[Save] Orphan room cleanup warning:", orphanErr);
         }
+      }
 
-        // For ROL properties, sync pmsRateTypes to rolos_rate_plans table
-        if (isRolProperty && savedPropertyId && pmsRateTypes.length > 0) {
-          try {
-            console.log(`[ROL Sync] Syncing ${pmsRateTypes.length} rate types to rolos_rate_plans...`, pmsRateTypes.map((r: any) => r.name));
-            for (const rateType of pmsRateTypes) {
-              const rateCode = typeof rateType.id === 'string' ? rateType.id.substring(0, 20) : String(rateType.id);
-              const ratePlanData = {
-                property_id: savedPropertyId,
-                name: rateType.name || 'Unnamed Rate',
-                code: rateCode,
-                description: rateType.description || null,
-                is_active: true,
-                min_stay: rateType.minStayDays || 1,
-                requires_deposit: false,
-                base_rate: rateType.baseRate || 0,
-                pricing_model: rateType.pricingModel || rateType.priceType || 'per_room',
-                adult_1_rate: rateType.adult1Rate ?? null,
-                adult_2_rate: rateType.adult2Rate ?? null,
-                teen_rate: rateType.teenRate ?? null,
-                child_rate: rateType.childRate ?? null,
-                infant_rate: rateType.infantRate ?? null,
-              };
+      // For ROL properties, sync pmsRateTypes to rolos_rate_plans table
+      if (isRolProperty && savedPropertyId && pmsRateTypes.length > 0) {
+        try {
+          console.log(
+            `[ROL Sync] Syncing ${pmsRateTypes.length} rate types to rolos_rate_plans...`,
+            pmsRateTypes.map((r: any) => r.name),
+          );
+          for (const rateType of pmsRateTypes) {
+            const rateCode = typeof rateType.id === "string" ? rateType.id.substring(0, 20) : String(rateType.id);
+            const ratePlanData = {
+              property_id: savedPropertyId,
+              name: rateType.name || "Unnamed Rate",
+              code: rateCode,
+              description: rateType.description || null,
+              is_active: true,
+              min_stay: rateType.minStayDays || 1,
+              requires_deposit: false,
+              base_rate: rateType.baseRate || 0,
+              pricing_model: rateType.pricingModel || rateType.priceType || "per_room",
+              adult_1_rate: rateType.adult1Rate ?? null,
+              adult_2_rate: rateType.adult2Rate ?? null,
+              teen_rate: rateType.teenRate ?? null,
+              child_rate: rateType.childRate ?? null,
+              infant_rate: rateType.infantRate ?? null,
+            };
 
-              let existingPlan: { id: string } | null = null;
-              const fullId = String(rateType.id);
-              const { data: idMatch } = await supabase
+            let existingPlan: { id: string } | null = null;
+            const fullId = String(rateType.id);
+            const { data: idMatch } = await supabase
+              .from("rolos_rate_plans")
+              .select("id")
+              .eq("property_id", savedPropertyId)
+              .eq("id", fullId)
+              .maybeSingle();
+
+            if (idMatch) {
+              existingPlan = idMatch;
+            } else {
+              const { data: codeMatch } = await supabase
                 .from("rolos_rate_plans")
                 .select("id")
                 .eq("property_id", savedPropertyId)
-                .eq("id", fullId)
+                .eq("code", rateCode)
+                .limit(1)
                 .maybeSingle();
-              
-              if (idMatch) {
-                existingPlan = idMatch;
-              } else {
-                const { data: codeMatch } = await supabase
-                  .from("rolos_rate_plans")
-                  .select("id")
-                  .eq("property_id", savedPropertyId)
-                  .eq("code", rateCode)
-                  .limit(1)
-                  .maybeSingle();
-                existingPlan = codeMatch;
-              }
-
-              if (existingPlan) {
-                const { error: updateErr } = await supabase
-                  .from("rolos_rate_plans")
-                  .update(ratePlanData)
-                  .eq("id", existingPlan.id);
-                if (updateErr) console.warn("[ROL Sync] Rate plan update error:", updateErr);
-              } else {
-                const { error: insertErr } = await supabase
-                  .from("rolos_rate_plans")
-                  .insert(ratePlanData);
-                if (insertErr) console.warn("[ROL Sync] Rate plan insert error:", insertErr);
-              }
+              existingPlan = codeMatch;
             }
-            console.log(`[ROL Sync] Synced ${pmsRateTypes.length} rate types to rolos_rate_plans`);
-          } catch (rateSyncErr) {
-            console.warn("[ROL Sync] Rate plan sync error:", rateSyncErr);
-          }
-        }
 
-        // Deactivate stale rolos_rate_plans (runs even when pmsRateTypes is empty to clean up all)
-        if (isRolProperty && savedPropertyId) {
-          try {
-            const { data: allExistingPlans } = await supabase
-              .from("rolos_rate_plans")
-              .select("id, code, name")
-              .eq("property_id", savedPropertyId)
-              .eq("is_active", true);
-
-            if (allExistingPlans && allExistingPlans.length > 0) {
-              const currentRateIds = new Set(pmsRateTypes.map((rt: any) => String(rt.id)));
-              const currentRateCodes = new Set(pmsRateTypes.map((rt: any) => typeof rt.id === 'string' ? rt.id.substring(0, 20) : String(rt.id)));
-
-              const stalePlans = allExistingPlans.filter(p =>
-                !currentRateIds.has(p.id) && !currentRateCodes.has(p.code)
-              );
-
-              for (const stale of stalePlans) {
-                await supabase
-                  .from("rolos_rate_plans")
-                  .update({ is_active: false })
-                  .eq("id", stale.id);
-                console.log(`[ROL Sync] Deactivated removed rate plan: ${stale.name}`);
-              }
+            if (existingPlan) {
+              const { error: updateErr } = await supabase
+                .from("rolos_rate_plans")
+                .update(ratePlanData)
+                .eq("id", existingPlan.id);
+              if (updateErr) console.warn("[ROL Sync] Rate plan update error:", updateErr);
+            } else {
+              const { error: insertErr } = await supabase.from("rolos_rate_plans").insert(ratePlanData);
+              if (insertErr) console.warn("[ROL Sync] Rate plan insert error:", insertErr);
             }
-          } catch (cleanupErr) {
-            console.warn("[ROL Sync] Rate plan cleanup warning:", cleanupErr);
           }
+          console.log(`[ROL Sync] Synced ${pmsRateTypes.length} rate types to rolos_rate_plans`);
+        } catch (rateSyncErr) {
+          console.warn("[ROL Sync] Rate plan sync error:", rateSyncErr);
         }
+      }
 
-        // Auto-link rate plans to room types based on amenities linkedRateTypes
-        if (isRolProperty && savedPropertyId && pmsRateTypes.length > 0) {
-          try {
-            const { data: allPlans } = await supabase
-              .from("rolos_rate_plans")
-              .select("id, code, name")
-              .eq("property_id", savedPropertyId);
+      // Deactivate stale rolos_rate_plans (runs even when pmsRateTypes is empty to clean up all)
+      if (isRolProperty && savedPropertyId) {
+        try {
+          const { data: allExistingPlans } = await supabase
+            .from("rolos_rate_plans")
+            .select("id, code, name")
+            .eq("property_id", savedPropertyId)
+            .eq("is_active", true);
 
-            const { data: allRolosRoomTypes } = await supabase
-              .from("rolos_room_types")
-              .select("id, name")
-              .eq("property_id", savedPropertyId)
-              .eq("is_active", true);
+          if (allExistingPlans && allExistingPlans.length > 0) {
+            const currentRateIds = new Set(pmsRateTypes.map((rt: any) => String(rt.id)));
+            const currentRateCodes = new Set(
+              pmsRateTypes.map((rt: any) => (typeof rt.id === "string" ? rt.id.substring(0, 20) : String(rt.id))),
+            );
 
-            if (allPlans && allRolosRoomTypes) {
-              const planByCode = new Map(allPlans.map(p => [p.code, p.id]));
-              const planByName = new Map(allPlans.map(p => [p.name.toLowerCase(), p.id]));
-              const rolosRtByName = new Map(allRolosRoomTypes.map(rt => [rt.name.toLowerCase(), rt.id]));
+            const stalePlans = allExistingPlans.filter(
+              (p) => !currentRateIds.has(p.id) && !currentRateCodes.has(p.code),
+            );
 
-              const linkRows: { rate_plan_id: string; room_type_id: string }[] = [];
+            for (const stale of stalePlans) {
+              await supabase.from("rolos_rate_plans").update({ is_active: false }).eq("id", stale.id);
+              console.log(`[ROL Sync] Deactivated removed rate plan: ${stale.name}`);
+            }
+          }
+        } catch (cleanupErr) {
+          console.warn("[ROL Sync] Rate plan cleanup warning:", cleanupErr);
+        }
+      }
 
-              for (const room of roomTypes) {
-                const rolosRtId = rolosRtByName.get((room.name || '').toLowerCase());
-                if (!rolosRtId) continue;
+      // Auto-link rate plans to room types based on amenities linkedRateTypes
+      if (isRolProperty && savedPropertyId && pmsRateTypes.length > 0) {
+        try {
+          const { data: allPlans } = await supabase
+            .from("rolos_rate_plans")
+            .select("id, code, name")
+            .eq("property_id", savedPropertyId);
 
-                const linkedRates = (room as any).linkedRateTypes || (room as any).rates || [];
-                for (const lr of (Array.isArray(linkedRates) ? linkedRates : [])) {
-                  const rateId = typeof lr === 'string' ? lr : lr?.id;
-                  if (!rateId) continue;
-                  const rateCode = typeof rateId === 'string' ? rateId.substring(0, 20) : String(rateId);
-                  const planId = planByCode.get(rateCode);
+          const { data: allRolosRoomTypes } = await supabase
+            .from("rolos_room_types")
+            .select("id, name")
+            .eq("property_id", savedPropertyId)
+            .eq("is_active", true);
+
+          if (allPlans && allRolosRoomTypes) {
+            const planByCode = new Map(allPlans.map((p) => [p.code, p.id]));
+            const planByName = new Map(allPlans.map((p) => [p.name.toLowerCase(), p.id]));
+            const rolosRtByName = new Map(allRolosRoomTypes.map((rt) => [rt.name.toLowerCase(), rt.id]));
+
+            const linkRows: { rate_plan_id: string; room_type_id: string }[] = [];
+
+            for (const room of roomTypes) {
+              const rolosRtId = rolosRtByName.get((room.name || "").toLowerCase());
+              if (!rolosRtId) continue;
+
+              const linkedRates = (room as any).linkedRateTypes || (room as any).rates || [];
+              for (const lr of Array.isArray(linkedRates) ? linkedRates : []) {
+                const rateId = typeof lr === "string" ? lr : lr?.id;
+                if (!rateId) continue;
+                const rateCode = typeof rateId === "string" ? rateId.substring(0, 20) : String(rateId);
+                const planId = planByCode.get(rateCode);
+                if (planId) {
+                  linkRows.push({ rate_plan_id: planId, room_type_id: rolosRtId });
+                }
+              }
+
+              for (const rt of pmsRateTypes as any[]) {
+                if (rt.linkedRoomId === room.id || rt.id === `wizard-rate-${room.id}`) {
+                  const rtCode = typeof rt.id === "string" ? rt.id.substring(0, 20) : String(rt.id);
+                  const planId = planByCode.get(rtCode) || planByName.get((rt.name || "").toLowerCase());
                   if (planId) {
                     linkRows.push({ rate_plan_id: planId, room_type_id: rolosRtId });
-                  }
-                }
 
-                for (const rt of pmsRateTypes as any[]) {
-                  if (rt.linkedRoomId === room.id || rt.id === `wizard-rate-${room.id}`) {
-                    const rtCode = typeof rt.id === 'string' ? rt.id.substring(0, 20) : String(rt.id);
-                    const planId = planByCode.get(rtCode) || planByName.get((rt.name || '').toLowerCase());
-                    if (planId) {
-                      linkRows.push({ rate_plan_id: planId, room_type_id: rolosRtId });
-
-                      if (rt.baseRate) {
-                        await supabase
-                          .from("rolos_room_types")
-                          .update({ default_rate: rt.baseRate })
-                          .eq("id", rolosRtId)
-                          .is("default_rate", null);
-                      }
+                    if (rt.baseRate) {
+                      await supabase
+                        .from("rolos_room_types")
+                        .update({ default_rate: rt.baseRate })
+                        .eq("id", rolosRtId)
+                        .is("default_rate", null);
                     }
                   }
                 }
               }
-
-              const uniqueLinks = Array.from(
-                new Map(linkRows.map(l => [`${l.rate_plan_id}-${l.room_type_id}`, l])).values()
-              );
-              if (uniqueLinks.length > 0) {
-                const { error: linkErr } = await supabase
-                  .from("rolos_rate_plan_room_types")
-                  .upsert(uniqueLinks, { onConflict: "rate_plan_id,room_type_id" });
-                if (linkErr) console.warn("[ROL Sync] Rate-room link error:", linkErr);
-                else console.log(`[ROL Sync] Linked ${uniqueLinks.length} rate plan → room type pairs`);
-              }
             }
-          } catch (linkErr) {
-            console.warn("[ROL Sync] Rate-room linking warning:", linkErr);
+
+            const uniqueLinks = Array.from(
+              new Map(linkRows.map((l) => [`${l.rate_plan_id}-${l.room_type_id}`, l])).values(),
+            );
+            if (uniqueLinks.length > 0) {
+              const { error: linkErr } = await supabase
+                .from("rolos_rate_plan_room_types")
+                .upsert(uniqueLinks, { onConflict: "rate_plan_id,room_type_id" });
+              if (linkErr) console.warn("[ROL Sync] Rate-room link error:", linkErr);
+              else console.log(`[ROL Sync] Linked ${uniqueLinks.length} rate plan → room type pairs`);
+            }
           }
+        } catch (linkErr) {
+          console.warn("[ROL Sync] Rate-room linking warning:", linkErr);
         }
+      }
 
       // Trigger geocoding if coordinates are missing and we have address data
       if ((!latitude || !longitude) && formData.address && formData.city && formData.country) {
         // Fire and forget - don't block the save
-        supabase.functions.invoke("geocode-property", {
-          body: {
-            property_id: savedPropertyId,
-            address: formData.address,
-            city: formData.city,
-            country: formData.country,
-            suburb: formData.suburb,
-          },
-        }).then(({ data: geocodeResult, error: geocodeError }) => {
-          if (geocodeError) {
-            console.warn("Geocoding failed:", geocodeError);
-          } else if (geocodeResult?.success) {
-            // Update local state with new coordinates
-            setLatitude(geocodeResult.latitude);
-            setLongitude(geocodeResult.longitude);
-            toast({
-              title: "Location Updated",
-              description: `Map pin set to: ${geocodeResult.formatted_address}`,
-            });
-          }
-        });
+        supabase.functions
+          .invoke("geocode-property", {
+            body: {
+              property_id: savedPropertyId,
+              address: formData.address,
+              city: formData.city,
+              country: formData.country,
+              suburb: formData.suburb,
+            },
+          })
+          .then(({ data: geocodeResult, error: geocodeError }) => {
+            if (geocodeError) {
+              console.warn("Geocoding failed:", geocodeError);
+            } else if (geocodeResult?.success) {
+              // Update local state with new coordinates
+              setLatitude(geocodeResult.latitude);
+              setLongitude(geocodeResult.longitude);
+              toast({
+                title: "Location Updated",
+                description: `Map pin set to: ${geocodeResult.formatted_address}`,
+              });
+            }
+          });
       }
 
       // For new properties, navigate to the slug-based URL
@@ -3466,19 +3567,28 @@ export default function PropertyForm({
       // Auto-push to Rentals United if property has an RU ID
       if (isEditMode && savedPropertyId) {
         // Check if property has an RU ID, then fire-and-forget push
-        supabase.from("properties").select("rentalsunited_property_id").eq("id", savedPropertyId).single()
+        supabase
+          .from("properties")
+          .select("rentalsunited_property_id")
+          .eq("id", savedPropertyId)
+          .single()
           .then(({ data: ruCheck }) => {
             if (ruCheck?.rentalsunited_property_id) {
-              toast({ title: "Syncing to Rentals United...", description: "Property data is being pushed to RU in the background." });
-              supabase.functions.invoke("push-property-to-ru", {
-                body: { property_id: savedPropertyId },
-              }).then(({ data: ruResult, error: ruError }) => {
-                if (ruError || !ruResult?.success) {
-                  console.warn("[RU Sync] Push failed:", ruError?.message || ruResult?.error?.message);
-                } else {
-                  console.log("[RU Sync] Push succeeded:", ruResult.message);
-                }
+              toast({
+                title: "Syncing to Rentals United...",
+                description: "Property data is being pushed to RU in the background.",
               });
+              supabase.functions
+                .invoke("push-property-to-ru", {
+                  body: { property_id: savedPropertyId },
+                })
+                .then(({ data: ruResult, error: ruError }) => {
+                  if (ruError || !ruResult?.success) {
+                    console.warn("[RU Sync] Push failed:", ruError?.message || ruResult?.error?.message);
+                  } else {
+                    console.log("[RU Sync] Push succeeded:", ruResult.message);
+                  }
+                });
             }
           });
       }
@@ -3495,9 +3605,7 @@ export default function PropertyForm({
         console.error("Property save error:", error);
         toast({
           title: "Error",
-          description: isEditMode
-            ? `Failed to update property: ${errMsg}`
-            : `Failed to create property: ${errMsg}`,
+          description: isEditMode ? `Failed to update property: ${errMsg}` : `Failed to create property: ${errMsg}`,
           variant: "destructive",
         });
       }
@@ -3528,11 +3636,11 @@ export default function PropertyForm({
 
   // Handler for syncing editorial content from PMS
   const [isSyncingEditorial, setIsSyncingEditorial] = useState(false);
-  
+
   const handleSyncEditorial = async () => {
     setIsSyncEditorialDialogOpen(false);
     setIsSyncingEditorial(true);
-    
+
     try {
       const { data, error } = await supabase.functions.invoke("sync-editorial", {
         body: {
@@ -3550,13 +3658,13 @@ export default function PropertyForm({
       // Show sync summary
       const fieldsUpdated = data?.fields_updated || [];
       const summary = data?.sync_summary || [];
-      
+
       if (fieldsUpdated.length > 0) {
         toast({
           title: "Editorial Sync Complete",
           description: `Updated ${fieldsUpdated.length} field(s): ${fieldsUpdated.join(", ")}`,
         });
-        
+
         // Reload property data to reflect changes
         if (propertyId) {
           const { data: refreshedProperty } = await supabase
@@ -3564,7 +3672,7 @@ export default function PropertyForm({
             .select("*")
             .eq("id", propertyId)
             .single();
-            
+
           if (refreshedProperty) {
             // Update form data with refreshed values
             setFormData((prev) => ({
@@ -3575,11 +3683,11 @@ export default function PropertyForm({
               city: refreshedProperty.city || prev.city,
               country: refreshedProperty.country || prev.country,
             }));
-            
+
             // Update coordinates if available
             if (refreshedProperty.latitude) setLatitude(refreshedProperty.latitude);
             if (refreshedProperty.longitude) setLongitude(refreshedProperty.longitude);
-            
+
             // Update images if synced
             if (refreshedProperty.images && Array.isArray(refreshedProperty.images)) {
               setUploadedImages(refreshedProperty.images as string[]);
@@ -3591,7 +3699,9 @@ export default function PropertyForm({
         const skippedFields = summary.filter((s: any) => s.action.includes("skipped")).map((s: any) => s.field);
         toast({
           title: "No Changes Made",
-          description: data?.pms_notes || `All fields were already populated or not available from ${getPMSDisplayName(selectedPMS)}.`,
+          description:
+            data?.pms_notes ||
+            `All fields were already populated or not available from ${getPMSDisplayName(selectedPMS)}.`,
         });
       }
     } catch (err: any) {
@@ -3609,79 +3719,51 @@ export default function PropertyForm({
   return (
     <FormShell embedded={embedded}>
       <div className={embedded ? "property-form-container w-full p-3" : "property-form-container w-full"}>
-          {/* Breadcrumb + Header — hidden in embed mode */}
-          {!embedded && (
+        {/* Breadcrumb + Header — hidden in embed mode */}
+        {!embedded && (
           <>
-          <div className="flex items-center gap-1 text-xs mb-2 text-muted-foreground">
-            <button
-              onClick={() => navigate("/admin/property-overview")}
-              className="hover:text-foreground transition-colors flex items-center gap-1"
-            >
-              <Home className="h-3 w-3" />
-              Properties
-            </button>
-            <ChevronRight className="h-3 w-3" />
-            <span className="text-foreground font-medium">
-              {isEditMode ? formData.name || "Edit Property" : "Add New Property"}
-            </span>
-            <ChevronRight className="h-3 w-3" />
-            <span className="text-foreground">
-              {activeTab === "general" && "General"}
-              {activeTab === "info-facilities" && "Info & Facilities"}
-              {activeTab === "house-rules" && "House Rules"}
-              {activeTab === "images" && "Images"}
-              {activeTab === "rooms" && "Rooms"}
-              {activeTab === "rates" && "Rates"}
-              {activeTab === "templates" && "Templates"}
-              {activeTab === "addons" && "Addons"}
-              {activeTab === "specials" && "Specials"}
-              {activeTab === "packages" && "Packages"}
-              {activeTab === "announcements" && "Announcements"}
-            </span>
-          </div>
-
-          {/* Header with Property Name and Actions */}
-          <div className="mb-3 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <h1 className="text-xl font-bold">{isEditMode ? "Edit Property" : "Add New Property"}</h1>
-              {isEditMode && formData.name && (
-                <Badge variant="outline" className="px-2 py-1 text-xs gap-1 border-primary/50 bg-primary/5">
-                  <Building2 className="h-3 w-3 text-primary" />
-                  {formData.name}
-                </Badge>
-              )}
+            <div className="flex items-center gap-1 text-xs mb-2 text-muted-foreground">
+              <button
+                onClick={() => navigate("/admin/property-overview")}
+                className="hover:text-foreground transition-colors flex items-center gap-1"
+              >
+                <Home className="h-3 w-3" />
+                Properties
+              </button>
+              <ChevronRight className="h-3 w-3" />
+              <span className="text-foreground font-medium">
+                {isEditMode ? formData.name || "Edit Property" : "Add New Property"}
+              </span>
+              <ChevronRight className="h-3 w-3" />
+              <span className="text-foreground">
+                {activeTab === "general" && "General"}
+                {activeTab === "info-facilities" && "Info & Facilities"}
+                {activeTab === "house-rules" && "House Rules"}
+                {activeTab === "images" && "Images"}
+                {activeTab === "rooms" && "Rooms"}
+                {activeTab === "rates" && "Rates"}
+                {activeTab === "templates" && "Templates"}
+                {activeTab === "addons" && "Addons"}
+                {activeTab === "specials" && "Specials"}
+                {activeTab === "packages" && "Packages"}
+                {activeTab === "announcements" && "Announcements"}
+              </span>
             </div>
-            <div className="flex gap-2">
-              {/* Connect Hostfully OAuth button - only for Hostfully properties without active connection */}
-              {isEditMode && selectedPMS === 'hostfully' && !ownerHostfullyCredential?.api_key && (
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="h-7 text-xs gap-1 border-blue-500/50 text-blue-600 hover:bg-blue-50"
-                        onClick={() => handleConnectHostfullyOAuth()}
-                        disabled={connectingHostfullyOAuth}
-                      >
-                        <Key className={cn("h-3 w-3", connectingHostfullyOAuth && "animate-pulse")} />
-                        {connectingHostfullyOAuth ? "Connecting..." : "Connect Hostfully"}
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent className="max-w-xs">
-                      <p className="text-xs">
-                        Authorize RoomsOnline to access your Hostfully account via OAuth.
-                        This enables syncing properties, rates, and availability.
-                      </p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              )}
-              {/* Sync Editorial button - only visible when PMS supports sync and has property ID */}
-              {isEditMode && selectedPMS && canSyncEditorial(selectedPMS) && hasPMSPropertyId(selectedPMS) && (() => {
-                const pmsCapability = getPMSEditorialCapability(selectedPMS);
-                return (
+
+            {/* Header with Property Name and Actions */}
+            <div className="mb-3 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <h1 className="text-xl font-bold">{isEditMode ? "Edit Property" : "Add New Property"}</h1>
+                {isEditMode && formData.name && (
+                  <Badge variant="outline" className="px-2 py-1 text-xs gap-1 border-primary/50 bg-primary/5">
+                    <Building2 className="h-3 w-3 text-primary" />
+                    {formData.name}
+                  </Badge>
+                )}
+              </div>
+              <div className="flex gap-2">
+                {/* Connect Hostfully OAuth button - only for Hostfully properties without active connection */}
+                {isEditMode && selectedPMS === "hostfully" && !ownerHostfullyCredential?.api_key && (
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
@@ -3689,639 +3771,701 @@ export default function PropertyForm({
                           type="button"
                           variant="outline"
                           size="sm"
-                          className="h-7 text-xs gap-1"
-                          onClick={() => !isSyncingEditorial && setIsSyncEditorialDialogOpen(true)}
-                          disabled={isSyncingEditorial}
+                          className="h-7 text-xs gap-1 border-blue-500/50 text-blue-600 hover:bg-blue-50"
+                          onClick={() => handleConnectHostfullyOAuth()}
+                          disabled={connectingHostfullyOAuth}
                         >
-                          <Cloud className={cn("h-3 w-3", isSyncingEditorial && "animate-pulse")} />
-                          {isSyncingEditorial ? "Syncing..." : (pmsCapability?.syncButtonLabel || "Sync Editorial")}
+                          <Key className={cn("h-3 w-3", connectingHostfullyOAuth && "animate-pulse")} />
+                          {connectingHostfullyOAuth ? "Connecting..." : "Connect Hostfully"}
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent className="max-w-xs">
                         <p className="text-xs">
-                          {isSyncingEditorial 
-                            ? "Syncing editorial content..." 
-                            : (pmsCapability?.syncDescription || `Fetch editorial content from ${getPMSDisplayName(selectedPMS)}.`)
-                          }
+                          Authorize RoomsOnline to access your Hostfully account via OAuth. This enables syncing
+                          properties, rates, and availability.
                         </p>
-                        {pmsCapability?.notes && (
-                          <p className="text-xs text-muted-foreground mt-1">{pmsCapability.notes}</p>
-                        )}
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
-                );
-              })()}
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-7 text-xs"
-                onClick={() => handleNavigate("/admin/property-overview")}
-              >
-                Cancel
-              </Button>
-              {isDirty && (
-                <Button size="sm" className="h-7 text-xs" onClick={handleSubmit} disabled={loading}>
-                  <Save className="mr-1 h-3 w-3" />
-                  {loading ? "Saving..." : "Save"}
-                </Button>
-              )}
-            </div>
-          </div>
-          </>
-          )}
-
-
-
-
-
-          {/* Blocker Banner */}
-          {activationReadiness && !activationReadiness.passed && activationReadiness.blockers.length > 0 && (
-            <Alert className="border-destructive/50 bg-destructive/5">
-              <XCircle className="h-4 w-4 text-destructive" />
-              <AlertDescription className="flex items-center gap-2 text-xs">
-                <span className="font-medium text-destructive">
-                  {activationReadiness.blockers.length} blocker{activationReadiness.blockers.length > 1 ? 's' : ''} preventing activation
-                </span>
-                <span className="text-muted-foreground">—</span>
-                <span className="text-muted-foreground">
-                  {activationReadiness.blockers.map(b => b.name).join(' · ')}
-                </span>
-              </AlertDescription>
-            </Alert>
-          )}
-
-          {!embedded && isRolosPms(selectedPMS) && !forceTabs && propertyId && (
-            <Alert className="border-primary/40 bg-primary/5">
-              <Sparkles className="h-4 w-4 text-primary" />
-              <AlertDescription className="text-sm">
-                <span className="font-medium">Info &amp; Facilities, Rooms, Rates, Packages, Specials, Addons, House Rules, Templates &amp; Announcements are managed in ROLOS.</span>{" "}
-                <button
-                  type="button"
-                  className="underline underline-offset-2 text-primary hover:opacity-80"
-                  onClick={() => navigate(`/pms/property-setup?property=${propertyId}`)}
-                >
-                  Open Property Setup →
-                </button>
-              </AlertDescription>
-            </Alert>
-          )}
-
-
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-3">
-            <TabsList className={embedded ? "hidden" : "bg-secondary h-8"}>
-              {[
-                { value: "onboarding", icon: Sparkles, label: "Onboarding", highlight: false, highlightBlue: true, onboardingOnly: true },
-                { value: "general", icon: Home, label: "General", highlight: false },
-                { value: "rol-spec", icon: Sparkles, label: "ROL Spec", highlight: true },
-                { value: "branding", icon: Palette, label: "Branding", highlight: false },
-                { value: "info-facilities", icon: Building2, label: "Info & Facilities", highlight: false },
-                { value: "house-rules", icon: FileText, label: "House Rules", highlight: false },
-                { value: "images", icon: Image, label: "Images", highlight: false },
-                { value: "rooms", icon: Info, label: "Rooms", highlight: false },
-                { value: "rates", icon: DollarSign, label: "Rates", highlight: false },
-                { value: "templates", icon: Bell, label: "Templates", highlight: false },
-                { value: "addons", icon: Package, label: "Addons", highlight: false },
-                { value: "specials", icon: Calendar, label: "Specials", highlight: false },
-                { value: "packages", icon: Package, label: "Packages", highlight: false },
-                { value: "announcements", icon: Bell, label: "Announcements", highlight: false },
-                { value: "integrations", icon: Link, label: "Integrations", highlight: false },
-                { value: "admin", icon: ShieldCheck, label: "Admin", highlight: false, highlightAdmin: true, adminOnly: true },
-              ]
-                .filter(
-                  (tab) => {
-                    // Hide onboarding tab for new properties
-                    if (tab.value === "onboarding" && !propertyId) return false;
-                    // Admin-only tab: hidden from owners
-                    if ((tab as any).adminOnly && !(isAdmin || isDev || isFearlessLeader)) return false;
-                    // ROLOS PMS: booking-backend tabs live in /pms/property-setup (source of truth).
-                    // Bypass with ?forceTabs=1 (used by the ROLOS setup hub when it embeds these editors).
-                    if (isRolosPms(selectedPMS) && !forceTabs) {
-                      if (tab.value === "rates" || tab.value === "addons" || tab.value === "specials" || tab.value === "packages" || tab.value === "house-rules" || tab.value === "templates" || tab.value === "announcements" || tab.value === "info-facilities" || tab.value === "rooms") {
-                        return false;
-                      }
-
-
-
-                    }
-                    // NightsBridge filtering
-                    if (selectedPMS === "nightsbridge") {
-                      return tab.value === "general" || tab.value === "rol-spec" || 
-                             tab.value === "branding" || tab.value === "images" || tab.value === "rooms" || tab.value === "rates" || tab.value === "onboarding" || tab.value === "integrations" || tab.value === "admin";
-                    }
-                    return true;
-                  }
-                )
-                .map((tab) => {
-                  const isActive = activeTab === tab.value;
-                  const Icon = tab.icon;
-                  const hasBlocker = tabsWithBlockers.has(tab.value);
-
-                  if (isActive) {
-                    return (
-                      <TabsTrigger
-                        key={tab.value}
-                        value={tab.value}
-                        className={cn(
-                          "gap-1 text-xs py-1 relative",
-                          tab.highlight &&
-                            "bg-primary/10 text-primary border border-primary/30 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground",
-                          tab.highlightBlue &&
-                            "bg-blue-500/10 text-blue-600 border border-blue-500/30 data-[state=active]:bg-blue-600 data-[state=active]:text-white",
-                          hasBlocker && "ring-2 ring-destructive/60",
-                        )}
-                      >
-                        <Icon className="h-3 w-3" />
-                        {tab.label}
-                        {hasBlocker && (
-                          <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-destructive border-2 border-background" />
-                        )}
-                      </TabsTrigger>
-                    );
-                  }
-
-                  return (
-                    <Tooltip key={tab.value}>
-                      <TooltipTrigger asChild>
-                        <TabsTrigger
-                          value={tab.value}
-                          className={cn(
-                            "px-2 py-1 relative",
-                            tab.highlight && "bg-primary/10 text-primary border border-primary/30",
-                            tab.highlightBlue && "bg-blue-500/10 text-blue-600 border border-blue-500/30",
-                          )}
-                        >
-                          <Icon className="h-3 w-3" />
-                          {hasBlocker && (
-                            <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-destructive border-2 border-background" />
-                          )}
-                        </TabsTrigger>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p className="text-xs">{tab.label}{hasBlocker ? ' ⚠️' : ''}</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  );
-                })}
-            </TabsList>
-
-            {/* Onboarding Tab - Full-screen wizard */}
-            <TabsContent value="onboarding" className="mt-0">
-              {propertyId ? (
-                <div className="rounded-lg border bg-card">
-                  <PropertyOnboardingWizard
-                    propertyId={propertyId}
-                    mode="embedded"
-                    onComplete={() => setActiveTab("general")}
-                  />
-                </div>
-              ) : (
-                <Card>
-                  <CardContent className="py-8 text-center">
-                    <p className="text-muted-foreground">
-                      Save the property first to access the onboarding wizard.
-                    </p>
-                  </CardContent>
-                </Card>
-              )}
-            </TabsContent>
-
-            <TabsContent value="general">
-              <form onSubmit={handleSubmit} className="space-y-3">
-                {/* Rates Overview Section - Show comprehensive rates setup */}
-                {!selectedPMS && roomTypes.length > 0 && (
-                  <Collapsible defaultOpen={true}>
-                    <Card className="border-primary/20">
-                      <CollapsibleTrigger asChild>
-                        <CardHeader className="py-2 px-4 cursor-pointer hover:bg-muted/50 transition-colors">
-                          <CardTitle className="text-sm flex items-center justify-between">
-                            <span className="flex items-center gap-2">
-                              <DollarSign className="h-4 w-4 text-primary" />
-                              Rates Overview
-                            </span>
-                            <Badge variant="outline" className="text-xs">
-                              {roomTypes.length} rooms, {pmsRateTypes.length} rate types, {seasons.length} seasons
-                            </Badge>
-                          </CardTitle>
-                        </CardHeader>
-                      </CollapsibleTrigger>
-                      <CollapsibleContent>
-                        <CardContent className="py-4 px-4">
-                          <RatesOverviewPanel
-                            roomTypes={roomTypes}
-                            rateTypes={pmsRateTypes}
-                            seasons={seasons}
-                            seasonRates={seasonRates}
-                            currency={formData.currency || "ZAR"}
-                            hasPMS={!!selectedPMS}
-                            pmsName={selectedPMS ? getPMSDisplayName(selectedPMS) : undefined}
-                            onNavigate={(tab, roomId) => {
-                              setActiveTab(tab);
-                              if (roomId && tab === 'rooms') {
-                                // Select the specific room when navigating
-                                setTimeout(() => {
-                                  setSelectedRoomType(roomId);
-                                }, 100);
-                              }
-                            }}
-                          />
-                        </CardContent>
-                      </CollapsibleContent>
-                    </Card>
-                  </Collapsible>
                 )}
-
-                {/* Offerings Section */}
-                <Card>
-                  <CardHeader className="py-2 px-4">
-                    <CardTitle className="text-sm">
-                      {selectedPMS === "nightsbridge" ? "PMS Connection" : "Offerings"}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="py-2 px-4">
-                    {selectedPMS !== "nightsbridge" && (
-                      <>
-                        <div className="flex flex-wrap items-center gap-4">
-                          <div className="flex items-center space-x-2">
-                            <Checkbox
-                              id="accommodation"
-                              checked={isAccommodation}
-                              onCheckedChange={(checked) => {
-                                setIsAccommodation(checked as boolean);
-                                setIsDirty(true);
-                              }}
-                            />
-                            <Label htmlFor="accommodation" className="cursor-pointer text-xs">
-                              Accommodation
-                            </Label>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <Checkbox
-                              id="venues"
-                              checked={isVenues}
-                              onCheckedChange={(checked) => handleVenuesChange(checked as boolean)}
-                            />
-                            <Label htmlFor="venues" className="cursor-pointer text-xs">
-                              Venues
-                            </Label>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <Checkbox
-                              id="event"
-                              checked={isEvent}
-                              onCheckedChange={(checked) => handleEventChange(checked as boolean)}
-                            />
-                            <Label htmlFor="event" className="cursor-pointer text-xs">
-                              Event/Wedding
-                            </Label>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <Checkbox
-                              id="conference"
-                              checked={isConference}
-                              onCheckedChange={(checked) => handleConferenceChange(checked as boolean)}
-                            />
-                            <Label htmlFor="conference" className="cursor-pointer text-xs">
-                              Conference
-                            </Label>
-                          </div>
-                        </div>
-
-
-                        <Separator className="my-3" />
-                      </>
-                    )}
-
-                    {/* WETU Pin ID — always visible regardless of PMS */}
-                    <div className="flex items-center gap-2 mt-1 mb-3 flex-wrap">
-                      <Label htmlFor="wetu_id" className="text-xs whitespace-nowrap">
-                        WETU Pin ID
-                      </Label>
-                      <Input
-                        id="wetu_id"
-                        value={formData.wetu_id ?? ""}
-                        onChange={(e) => handleInputChange("wetu_id", e.target.value)}
-                        placeholder="e.g. 12345"
-                        className="h-7 text-xs max-w-[200px]"
-                      />
-                      {formData.wetu_id && propertyId && (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="h-7 gap-1 text-xs"
-                          onClick={async () => {
-                            try {
-                              const { data, error } = await supabase.functions.invoke("wetu-api", {
-                                body: {
-                                  action: "import_to_property",
-                                  property_id: propertyId,
-                                  wetu_id: String(formData.wetu_id).trim(),
-                                },
-                              });
-                              if (error) throw error;
-                              if (!data?.success) throw new Error(data?.error || "Import failed");
-
-                              // Re-hydrate local form state from DB so a subsequent
-                              // Save doesn't overwrite the freshly-imported values.
-                              const { data: fresh, error: refetchErr } = await supabase
-                                .from("properties")
-                                .select("description, short_description, images, amenities, latitude, longitude, address, city, country, external_metadata")
-                                .eq("id", propertyId)
-                                .single();
-                              if (refetchErr) {
-                                console.warn("[WETU] could not refresh form after import:", refetchErr.message);
-                              } else if (fresh) {
-                                setFormData((prev: any) => ({
-                                  ...prev,
-                                  description: fresh.description ?? prev.description,
-                                  short_description: fresh.short_description ?? prev.short_description,
-                                  images: fresh.images ?? prev.images,
-                                  amenities: fresh.amenities ?? prev.amenities,
-                                  latitude: fresh.latitude ?? prev.latitude,
-                                  longitude: fresh.longitude ?? prev.longitude,
-                                  address: fresh.address ?? prev.address,
-                                  city: fresh.city ?? prev.city,
-                                  country: fresh.country ?? prev.country,
-                                  external_metadata: fresh.external_metadata ?? prev.external_metadata,
-                                }));
-                                setIsDirty(false);
-                              }
-
-                              toast({
-                                title: "WETU content imported",
-                                description: `Updated: ${(data.updated_fields || []).join(", ") || "no new fields"}${data.image_count ? ` · ${data.image_count} images` : ""}`,
-                              });
-                            } catch (err: unknown) {
-                              toast({
-                                title: "WETU import failed",
-                                description: err instanceof Error ? err.message : "Could not import from WETU",
-                                variant: "destructive",
-                              });
-                            }
-                          }}
-                        >
-                          <Cloud className="h-3 w-3" />
-                          Import from WETU
-                        </Button>
-                      )}
-                      <span className="text-[10px] text-muted-foreground">
-                        Pulls description, images, amenities &amp; geo from WETU if availible.
-                      </span>
-                    </div>
-                    <Separator className="my-3" />
-
-                    <div className="flex flex-wrap items-center gap-3">
-                      <div className="flex items-center gap-2">
-                        <Label htmlFor="pms_system" className="text-xs whitespace-nowrap">
-                          PMS
-                        </Label>
-                        <Select
-                          value={selectedPMS || "none"}
-                          onValueChange={(value) => {
-                            const newPMS = value === "none" ? "" : value;
-                            
-                            // Show warning when switching TO hostfully from non-hostfully without owner credential
-                            if (newPMS === "hostfully" && selectedPMS !== "hostfully" && !ownerPmsCredentialId) {
-                              setPreviousPMS(selectedPMS);
-                              setShowHostfullyWarning(true);
-                              return;
-                            }
-                            
-                            setSelectedPMS(newPMS);
-                            // Auto-set isRolProperty when selecting roomsonline
-                            if (newPMS === "roomsonline") {
-                              setIsRolProperty(true);
-                            } else if (newPMS && newPMS !== "roomsonline") {
-                              setIsRolProperty(false);
-                            }
-                            setIsDirty(true);
-                          }}
-                        >
-                          <SelectTrigger id="pms_system" className="h-7 text-xs w-[140px]">
-                            <SelectValue placeholder="Select PMS" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">
-                              <span className="flex items-center gap-1 text-xs">
-                                <X className="h-3 w-3" />
-                                None
-                              </span>
-                            </SelectItem>
-                            {availablePMSSystems.map((pms) => {
-                              const IconComponent = getPMSIcon(pms.system_type);
-                              return (
-                                <SelectItem key={pms.system_type} value={pms.system_type}>
-                                  <span className="flex items-center gap-1 text-xs">
-                                    <IconComponent className="h-3 w-3" />
-                                    {pms.name.replace(" API Key", "")}
-                                  </span>
-                                </SelectItem>
-                              );
-                            })}
-                          </SelectContent>
-                        </Select>
-                        {selectedPMS && selectedPMS !== "none" && !isPMSFullyIntegrated(selectedPMS) && (
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <AlertTriangle className="h-4 w-4 text-amber-500 cursor-help" />
-                              </TooltipTrigger>
-                              <TooltipContent side="right" className="max-w-xs">
-                                <p className="text-xs">
-                                  {getPMSIntegrationLevel(selectedPMS) === "partial"
-                                    ? `${getPMSDisplayName(selectedPMS)} integration is partially implemented. Some features may not work.`
-                                    : `${getPMSDisplayName(selectedPMS)} integration has not been implemented yet.`}
-                                </p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        )}
-                      </div>
-
-                      {selectedPMS === "nightsbridge" && (
-                        <div className="flex items-center gap-2">
-                          <Label htmlFor="bb_id" className="text-xs">
-                            BBID
-                          </Label>
-                          <Input
-                            id="bb_id"
-                            value={formData.bb_id}
-                            onChange={(e) => handleInputChange("bb_id", e.target.value)}
-                            placeholder="13402"
-                            className="h-7 text-xs w-24"
-                          />
-                        </div>
-                      )}
-
-                      {selectedPMS === "semper" && (
-                        <>
-                          <div className="flex items-center gap-2">
-                            <Label htmlFor="venue_id" className="text-xs">
-                              Venue
-                            </Label>
-                            <Input
-                              id="venue_id"
-                              value={formData.venue_id}
-                              onChange={(e) => handleInputChange("venue_id", e.target.value)}
-                              placeholder="ID"
-                              className="h-7 text-xs w-20"
-                            />
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Label htmlFor="channel_id" className="text-xs">
-                              Channel
-                            </Label>
-                            <Input
-                              id="channel_id"
-                              value={formData.channel_id}
-                              onChange={(e) => handleInputChange("channel_id", e.target.value)}
-                              placeholder="ID"
-                              className="h-7 text-xs w-20"
-                            />
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Label htmlFor="account_id" className="text-xs">
-                              Account
-                            </Label>
-                            <Input
-                              id="account_id"
-                              value={formData.account_id}
-                              onChange={(e) => handleInputChange("account_id", e.target.value)}
-                              placeholder="ID"
-                              className="h-7 text-xs w-20"
-                            />
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Label htmlFor="agent_id" className="text-xs">
-                              Agent
-                            </Label>
-                            <Input
-                              id="agent_id"
-                              value={formData.agent_id}
-                              onChange={(e) => handleInputChange("agent_id", e.target.value)}
-                              placeholder="ID"
-                              className="h-7 text-xs w-20"
-                            />
-                          </div>
-                        </>
-                      )}
-
-                      {selectedPMS === "benson" && (
-                        <>
-                          <div className="flex items-center gap-2">
-                            <Label htmlFor="benson_property_code" className="text-xs whitespace-nowrap">
-                              Benson Code *
-                            </Label>
-                            <Input
-                              id="benson_property_code"
-                              value={bensonPropertyCode}
-                              onChange={(e) => {
-                                setBensonPropertyCode(e.target.value);
-                                setIsDirty(true);
-                              }}
-                              placeholder="Property code"
-                              className="h-7 text-xs w-40"
-                              required
-                            />
-                          </div>
-                          {bensonPropertyCode && (
+                {/* Sync Editorial button - only visible when PMS supports sync and has property ID */}
+                {isEditMode &&
+                  selectedPMS &&
+                  canSyncEditorial(selectedPMS) &&
+                  hasPMSPropertyId(selectedPMS) &&
+                  (() => {
+                    const pmsCapability = getPMSEditorialCapability(selectedPMS);
+                    return (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
                             <Button
                               type="button"
                               variant="outline"
                               size="sm"
                               className="h-7 text-xs gap-1"
-                              onClick={syncFromBenson}
-                              disabled={isSyncingPms}
+                              onClick={() => !isSyncingEditorial && setIsSyncEditorialDialogOpen(true)}
+                              disabled={isSyncingEditorial}
                             >
-                              <RefreshCw className={cn("h-3 w-3", isSyncingPms && "animate-spin")} />
-                              {isSyncingPms ? "Syncing..." : "Sync"}
+                              <Cloud className={cn("h-3 w-3", isSyncingEditorial && "animate-pulse")} />
+                              {isSyncingEditorial ? "Syncing..." : pmsCapability?.syncButtonLabel || "Sync Editorial"}
                             </Button>
-                          )}
-                        </>
-                      )}
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-xs">
+                            <p className="text-xs">
+                              {isSyncingEditorial
+                                ? "Syncing editorial content..."
+                                : pmsCapability?.syncDescription ||
+                                  `Fetch editorial content from ${getPMSDisplayName(selectedPMS)}.`}
+                            </p>
+                            {pmsCapability?.notes && (
+                              <p className="text-xs text-muted-foreground mt-1">{pmsCapability.notes}</p>
+                            )}
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    );
+                  })()}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => handleNavigate("/admin/property-overview")}
+                >
+                  Cancel
+                </Button>
+                {isDirty && (
+                  <Button size="sm" className="h-7 text-xs" onClick={handleSubmit} disabled={loading}>
+                    <Save className="mr-1 h-3 w-3" />
+                    {loading ? "Saving..." : "Save"}
+                  </Button>
+                )}
+              </div>
+            </div>
+          </>
+        )}
 
-                      {selectedPMS === "cloudbeds" && (
-                        <div className="flex items-center gap-2">
-                          <Label htmlFor="cloudbeds_property_id" className="text-xs whitespace-nowrap">
-                            Cloudbeds Property ID *
-                          </Label>
-                          <Input
-                            id="cloudbeds_property_id"
-                            value={cloudbedsPropertyId}
-                            onChange={(e) => {
-                              setCloudbedsPropertyId(e.target.value);
+        {/* Blocker Banner */}
+        {activationReadiness && !activationReadiness.passed && activationReadiness.blockers.length > 0 && (
+          <Alert className="border-destructive/50 bg-destructive/5">
+            <XCircle className="h-4 w-4 text-destructive" />
+            <AlertDescription className="flex items-center gap-2 text-xs">
+              <span className="font-medium text-destructive">
+                {activationReadiness.blockers.length} blocker{activationReadiness.blockers.length > 1 ? "s" : ""}{" "}
+                preventing activation
+              </span>
+              <span className="text-muted-foreground">—</span>
+              <span className="text-muted-foreground">
+                {activationReadiness.blockers.map((b) => b.name).join(" · ")}
+              </span>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {!embedded && isRolosPms(selectedPMS) && !forceTabs && propertyId && (
+          <Alert className="border-primary/40 bg-primary/5">
+            <Sparkles className="h-4 w-4 text-primary" />
+            <AlertDescription className="text-sm">
+              <span className="font-medium">
+                Info &amp; Facilities, Rooms, Rates, Packages, Specials, Addons, House Rules, Templates &amp;
+                Announcements are managed in ROLOS.
+              </span>{" "}
+              <button
+                type="button"
+                className="underline underline-offset-2 text-primary hover:opacity-80"
+                onClick={() => navigate(`/pms/property-setup?property=${propertyId}`)}
+              >
+                Open Property Setup →
+              </button>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-3">
+          <TabsList className={embedded ? "hidden" : "bg-secondary h-8"}>
+            {[
+              {
+                value: "onboarding",
+                icon: Sparkles,
+                label: "Onboarding",
+                highlight: false,
+                highlightBlue: true,
+                onboardingOnly: true,
+              },
+              { value: "general", icon: Home, label: "General", highlight: false },
+              { value: "rol-spec", icon: Sparkles, label: "ROL Spec", highlight: true },
+              { value: "branding", icon: Palette, label: "Branding", highlight: false },
+              { value: "info-facilities", icon: Building2, label: "Info & Facilities", highlight: false },
+              { value: "house-rules", icon: FileText, label: "House Rules", highlight: false },
+              { value: "images", icon: Image, label: "Images", highlight: false },
+              { value: "rooms", icon: Info, label: "Rooms", highlight: false },
+              { value: "rates", icon: DollarSign, label: "Rates", highlight: false },
+              { value: "templates", icon: Bell, label: "Templates", highlight: false },
+              { value: "addons", icon: Package, label: "Addons", highlight: false },
+              { value: "specials", icon: Calendar, label: "Specials", highlight: false },
+              { value: "packages", icon: Package, label: "Packages", highlight: false },
+              { value: "announcements", icon: Bell, label: "Announcements", highlight: false },
+              { value: "integrations", icon: Link, label: "Integrations", highlight: false },
+              {
+                value: "admin",
+                icon: ShieldCheck,
+                label: "Admin",
+                highlight: false,
+                highlightAdmin: true,
+                adminOnly: true,
+              },
+            ]
+              .filter((tab) => {
+                // Hide onboarding tab for new properties
+                if (tab.value === "onboarding" && !propertyId) return false;
+                // Admin-only tab: hidden from owners
+                if ((tab as any).adminOnly && !(isAdmin || isDev || isFearlessLeader)) return false;
+                // ROLOS PMS: booking-backend tabs live in /pms/property-setup (source of truth).
+                // Bypass with ?forceTabs=1 (used by the ROLOS setup hub when it embeds these editors).
+                if (isRolosPms(selectedPMS) && !forceTabs) {
+                  if (
+                    tab.value === "rates" ||
+                    tab.value === "addons" ||
+                    tab.value === "specials" ||
+                    tab.value === "packages" ||
+                    tab.value === "house-rules" ||
+                    tab.value === "templates" ||
+                    tab.value === "announcements" ||
+                    tab.value === "info-facilities" ||
+                    tab.value === "rooms"
+                  ) {
+                    return false;
+                  }
+                }
+                // NightsBridge filtering
+                if (selectedPMS === "nightsbridge") {
+                  return (
+                    tab.value === "general" ||
+                    tab.value === "rol-spec" ||
+                    tab.value === "branding" ||
+                    tab.value === "images" ||
+                    tab.value === "rooms" ||
+                    tab.value === "rates" ||
+                    tab.value === "onboarding" ||
+                    tab.value === "integrations" ||
+                    tab.value === "admin"
+                  );
+                }
+                return true;
+              })
+              .map((tab) => {
+                const isActive = activeTab === tab.value;
+                const Icon = tab.icon;
+                const hasBlocker = tabsWithBlockers.has(tab.value);
+
+                if (isActive) {
+                  return (
+                    <TabsTrigger
+                      key={tab.value}
+                      value={tab.value}
+                      className={cn(
+                        "gap-1 text-xs py-1 relative",
+                        tab.highlight &&
+                          "bg-primary/10 text-primary border border-primary/30 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground",
+                        tab.highlightBlue &&
+                          "bg-blue-500/10 text-blue-600 border border-blue-500/30 data-[state=active]:bg-blue-600 data-[state=active]:text-white",
+                        hasBlocker && "ring-2 ring-destructive/60",
+                      )}
+                    >
+                      <Icon className="h-3 w-3" />
+                      {tab.label}
+                      {hasBlocker && (
+                        <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-destructive border-2 border-background" />
+                      )}
+                    </TabsTrigger>
+                  );
+                }
+
+                return (
+                  <Tooltip key={tab.value}>
+                    <TooltipTrigger asChild>
+                      <TabsTrigger
+                        value={tab.value}
+                        className={cn(
+                          "px-2 py-1 relative",
+                          tab.highlight && "bg-primary/10 text-primary border border-primary/30",
+                          tab.highlightBlue && "bg-blue-500/10 text-blue-600 border border-blue-500/30",
+                        )}
+                      >
+                        <Icon className="h-3 w-3" />
+                        {hasBlocker && (
+                          <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-destructive border-2 border-background" />
+                        )}
+                      </TabsTrigger>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="text-xs">
+                        {tab.label}
+                        {hasBlocker ? " ⚠️" : ""}
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                );
+              })}
+          </TabsList>
+
+          {/* Onboarding Tab - Full-screen wizard */}
+          <TabsContent value="onboarding" className="mt-0">
+            {propertyId ? (
+              <div className="rounded-lg border bg-card">
+                <PropertyOnboardingWizard
+                  propertyId={propertyId}
+                  mode="embedded"
+                  onComplete={() => setActiveTab("general")}
+                />
+              </div>
+            ) : (
+              <Card>
+                <CardContent className="py-8 text-center">
+                  <p className="text-muted-foreground">Save the property first to access the onboarding wizard.</p>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+
+          <TabsContent value="general">
+            <form onSubmit={handleSubmit} className="space-y-3">
+              {/* Rates Overview Section - Show comprehensive rates setup */}
+              {!selectedPMS && roomTypes.length > 0 && (
+                <Collapsible defaultOpen={true}>
+                  <Card className="border-primary/20">
+                    <CollapsibleTrigger asChild>
+                      <CardHeader className="py-2 px-4 cursor-pointer hover:bg-muted/50 transition-colors">
+                        <CardTitle className="text-sm flex items-center justify-between">
+                          <span className="flex items-center gap-2">
+                            <DollarSign className="h-4 w-4 text-primary" />
+                            Rates Overview
+                          </span>
+                          <Badge variant="outline" className="text-xs">
+                            {roomTypes.length} rooms, {pmsRateTypes.length} rate types, {seasons.length} seasons
+                          </Badge>
+                        </CardTitle>
+                      </CardHeader>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <CardContent className="py-4 px-4">
+                        <RatesOverviewPanel
+                          roomTypes={roomTypes}
+                          rateTypes={pmsRateTypes}
+                          seasons={seasons}
+                          seasonRates={seasonRates}
+                          currency={formData.currency || "ZAR"}
+                          hasPMS={!!selectedPMS}
+                          pmsName={selectedPMS ? getPMSDisplayName(selectedPMS) : undefined}
+                          onNavigate={(tab, roomId) => {
+                            setActiveTab(tab);
+                            if (roomId && tab === "rooms") {
+                              // Select the specific room when navigating
+                              setTimeout(() => {
+                                setSelectedRoomType(roomId);
+                              }, 100);
+                            }
+                          }}
+                        />
+                      </CardContent>
+                    </CollapsibleContent>
+                  </Card>
+                </Collapsible>
+              )}
+
+              {/* Offerings Section */}
+              <Card>
+                <CardHeader className="py-2 px-4">
+                  <CardTitle className="text-sm">
+                    {selectedPMS === "nightsbridge" ? "PMS Connection" : "Offerings"}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="py-2 px-4">
+                  {selectedPMS !== "nightsbridge" && (
+                    <>
+                      <div className="flex flex-wrap items-center gap-4">
+                        <div className="flex items-center space-x-2">
+                          <Checkbox
+                            id="accommodation"
+                            checked={isAccommodation}
+                            onCheckedChange={(checked) => {
+                              setIsAccommodation(checked as boolean);
                               setIsDirty(true);
                             }}
-                            placeholder="Property ID"
+                          />
+                          <Label htmlFor="accommodation" className="cursor-pointer text-xs">
+                            Accommodation
+                          </Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <Checkbox
+                            id="venues"
+                            checked={isVenues}
+                            onCheckedChange={(checked) => handleVenuesChange(checked as boolean)}
+                          />
+                          <Label htmlFor="venues" className="cursor-pointer text-xs">
+                            Venues
+                          </Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <Checkbox
+                            id="event"
+                            checked={isEvent}
+                            onCheckedChange={(checked) => handleEventChange(checked as boolean)}
+                          />
+                          <Label htmlFor="event" className="cursor-pointer text-xs">
+                            Event/Wedding
+                          </Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <Checkbox
+                            id="conference"
+                            checked={isConference}
+                            onCheckedChange={(checked) => handleConferenceChange(checked as boolean)}
+                          />
+                          <Label htmlFor="conference" className="cursor-pointer text-xs">
+                            Conference
+                          </Label>
+                        </div>
+                      </div>
+
+                      <Separator className="my-3" />
+                    </>
+                  )}
+
+                  {/* WETU Pin ID — always visible regardless of PMS */}
+                  <div className="flex items-center gap-2 mt-1 mb-3 flex-wrap">
+                    <Label htmlFor="wetu_id" className="text-xs whitespace-nowrap">
+                      WETU Pin ID
+                    </Label>
+                    <Input
+                      id="wetu_id"
+                      value={formData.wetu_id ?? ""}
+                      onChange={(e) => handleInputChange("wetu_id", e.target.value)}
+                      placeholder="e.g. 12345"
+                      className="h-7 text-xs max-w-[200px]"
+                    />
+                    {formData.wetu_id && propertyId && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-7 gap-1 text-xs"
+                        onClick={async () => {
+                          try {
+                            const { data, error } = await supabase.functions.invoke("wetu-api", {
+                              body: {
+                                action: "import_to_property",
+                                property_id: propertyId,
+                                wetu_id: String(formData.wetu_id).trim(),
+                              },
+                            });
+                            if (error) throw error;
+                            if (!data?.success) throw new Error(data?.error || "Import failed");
+
+                            // Re-hydrate local form state from DB so a subsequent
+                            // Save doesn't overwrite the freshly-imported values.
+                            const { data: fresh, error: refetchErr } = await supabase
+                              .from("properties")
+                              .select(
+                                "description, short_description, images, amenities, latitude, longitude, address, city, country, external_metadata",
+                              )
+                              .eq("id", propertyId)
+                              .single();
+                            if (refetchErr) {
+                              console.warn("[WETU] could not refresh form after import:", refetchErr.message);
+                            } else if (fresh) {
+                              setFormData((prev: any) => ({
+                                ...prev,
+                                description: fresh.description ?? prev.description,
+                                short_description: fresh.short_description ?? prev.short_description,
+                                images: fresh.images ?? prev.images,
+                                amenities: fresh.amenities ?? prev.amenities,
+                                latitude: fresh.latitude ?? prev.latitude,
+                                longitude: fresh.longitude ?? prev.longitude,
+                                address: fresh.address ?? prev.address,
+                                city: fresh.city ?? prev.city,
+                                country: fresh.country ?? prev.country,
+                                external_metadata: fresh.external_metadata ?? prev.external_metadata,
+                              }));
+                              setIsDirty(false);
+                            }
+
+                            toast({
+                              title: "WETU content imported",
+                              description: `Updated: ${(data.updated_fields || []).join(", ") || "no new fields"}${data.image_count ? ` · ${data.image_count} images` : ""}`,
+                            });
+                          } catch (err: unknown) {
+                            toast({
+                              title: "WETU import failed",
+                              description: err instanceof Error ? err.message : "Could not import from WETU",
+                              variant: "destructive",
+                            });
+                          }
+                        }}
+                      >
+                        <Cloud className="h-3 w-3" />
+                        Import from WETU
+                      </Button>
+                    )}
+                    <span className="text-[10px] text-muted-foreground">
+                      Pulls description, images, amenities &amp; geo from WETU if availible.
+                    </span>
+                  </div>
+                  <Separator className="my-3" />
+
+                  <div className="flex flex-wrap items-center gap-3">
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="pms_system" className="text-xs whitespace-nowrap">
+                        PMS
+                      </Label>
+                      <Select
+                        value={selectedPMS || "none"}
+                        onValueChange={(value) => {
+                          const newPMS = value === "none" ? "" : value;
+
+                          // Show warning when switching TO hostfully from non-hostfully without owner credential
+                          if (newPMS === "hostfully" && selectedPMS !== "hostfully" && !ownerPmsCredentialId) {
+                            setPreviousPMS(selectedPMS);
+                            setShowHostfullyWarning(true);
+                            return;
+                          }
+
+                          setSelectedPMS(newPMS);
+                          // Auto-set isRolProperty when selecting roomsonline
+                          if (newPMS === "roomsonline") {
+                            setIsRolProperty(true);
+                          } else if (newPMS && newPMS !== "roomsonline") {
+                            setIsRolProperty(false);
+                          }
+                          setIsDirty(true);
+                        }}
+                      >
+                        <SelectTrigger id="pms_system" className="h-7 text-xs w-[140px]">
+                          <SelectValue placeholder="Select PMS" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">
+                            <span className="flex items-center gap-1 text-xs">
+                              <X className="h-3 w-3" />
+                              None
+                            </span>
+                          </SelectItem>
+                          {availablePMSSystems.map((pms) => {
+                            const IconComponent = getPMSIcon(pms.system_type);
+                            return (
+                              <SelectItem key={pms.system_type} value={pms.system_type}>
+                                <span className="flex items-center gap-1 text-xs">
+                                  <IconComponent className="h-3 w-3" />
+                                  {pms.name.replace(" API Key", "")}
+                                </span>
+                              </SelectItem>
+                            );
+                          })}
+                        </SelectContent>
+                      </Select>
+                      {selectedPMS && selectedPMS !== "none" && !isPMSFullyIntegrated(selectedPMS) && (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <AlertTriangle className="h-4 w-4 text-amber-500 cursor-help" />
+                            </TooltipTrigger>
+                            <TooltipContent side="right" className="max-w-xs">
+                              <p className="text-xs">
+                                {getPMSIntegrationLevel(selectedPMS) === "partial"
+                                  ? `${getPMSDisplayName(selectedPMS)} integration is partially implemented. Some features may not work.`
+                                  : `${getPMSDisplayName(selectedPMS)} integration has not been implemented yet.`}
+                              </p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      )}
+                    </div>
+
+                    {selectedPMS === "nightsbridge" && (
+                      <div className="flex items-center gap-2">
+                        <Label htmlFor="bb_id" className="text-xs">
+                          BBID
+                        </Label>
+                        <Input
+                          id="bb_id"
+                          value={formData.bb_id}
+                          onChange={(e) => handleInputChange("bb_id", e.target.value)}
+                          placeholder="13402"
+                          className="h-7 text-xs w-24"
+                        />
+                      </div>
+                    )}
+
+                    {selectedPMS === "semper" && (
+                      <>
+                        <div className="flex items-center gap-2">
+                          <Label htmlFor="venue_id" className="text-xs">
+                            Venue
+                          </Label>
+                          <Input
+                            id="venue_id"
+                            value={formData.venue_id}
+                            onChange={(e) => handleInputChange("venue_id", e.target.value)}
+                            placeholder="ID"
+                            className="h-7 text-xs w-20"
+                          />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Label htmlFor="channel_id" className="text-xs">
+                            Channel
+                          </Label>
+                          <Input
+                            id="channel_id"
+                            value={formData.channel_id}
+                            onChange={(e) => handleInputChange("channel_id", e.target.value)}
+                            placeholder="ID"
+                            className="h-7 text-xs w-20"
+                          />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Label htmlFor="account_id" className="text-xs">
+                            Account
+                          </Label>
+                          <Input
+                            id="account_id"
+                            value={formData.account_id}
+                            onChange={(e) => handleInputChange("account_id", e.target.value)}
+                            placeholder="ID"
+                            className="h-7 text-xs w-20"
+                          />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Label htmlFor="agent_id" className="text-xs">
+                            Agent
+                          </Label>
+                          <Input
+                            id="agent_id"
+                            value={formData.agent_id}
+                            onChange={(e) => handleInputChange("agent_id", e.target.value)}
+                            placeholder="ID"
+                            className="h-7 text-xs w-20"
+                          />
+                        </div>
+                      </>
+                    )}
+
+                    {selectedPMS === "benson" && (
+                      <>
+                        <div className="flex items-center gap-2">
+                          <Label htmlFor="benson_property_code" className="text-xs whitespace-nowrap">
+                            Benson Code *
+                          </Label>
+                          <Input
+                            id="benson_property_code"
+                            value={bensonPropertyCode}
+                            onChange={(e) => {
+                              setBensonPropertyCode(e.target.value);
+                              setIsDirty(true);
+                            }}
+                            placeholder="Property code"
                             className="h-7 text-xs w-40"
                             required
                           />
                         </div>
-                      )}
+                        {bensonPropertyCode && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-7 text-xs gap-1"
+                            onClick={syncFromBenson}
+                            disabled={isSyncingPms}
+                          >
+                            <RefreshCw className={cn("h-3 w-3", isSyncingPms && "animate-spin")} />
+                            {isSyncingPms ? "Syncing..." : "Sync"}
+                          </Button>
+                        )}
+                      </>
+                    )}
 
-                      {selectedPMS === "littlehotelier" && (
-                        <>
-                          <div className="flex items-center gap-2">
-                            <Label htmlFor="littlehotelier_channel_code" className="text-xs whitespace-nowrap">
-                              Channel Code *
-                            </Label>
-                            <Input
-                              id="littlehotelier_channel_code"
-                              value={littlehotelierChannelCode}
-                              onChange={(e) => {
-                                setLittlehotelierChannelCode(e.target.value);
-                                setIsDirty(true);
-                              }}
-                              placeholder="Channel code"
-                              className="h-7 text-xs w-32"
-                              required
-                            />
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Label htmlFor="littlehotelier_region" className="text-xs whitespace-nowrap">
-                              Region
-                            </Label>
-                            <Select
-                              value={littlehotelierRegion}
-                              onValueChange={(v) => {
-                                setLittlehotelierRegion(v as "apac" | "emea");
-                                setIsDirty(true);
-                              }}
-                            >
-                              <SelectTrigger className="h-7 text-xs w-24">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="apac">APAC</SelectItem>
-                                <SelectItem value="emea">EMEA</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </>
-                      )}
+                    {selectedPMS === "cloudbeds" && (
+                      <div className="flex items-center gap-2">
+                        <Label htmlFor="cloudbeds_property_id" className="text-xs whitespace-nowrap">
+                          Cloudbeds Property ID *
+                        </Label>
+                        <Input
+                          id="cloudbeds_property_id"
+                          value={cloudbedsPropertyId}
+                          onChange={(e) => {
+                            setCloudbedsPropertyId(e.target.value);
+                            setIsDirty(true);
+                          }}
+                          placeholder="Property ID"
+                          className="h-7 text-xs w-40"
+                          required
+                        />
+                      </div>
+                    )}
 
-                      {selectedPMS === "hotelbeds" && (
+                    {selectedPMS === "littlehotelier" && (
+                      <>
                         <div className="flex items-center gap-2">
-                          <Label htmlFor="hotelbeds_hotel_code" className="text-xs whitespace-nowrap">
-                            Hotel Code *
+                          <Label htmlFor="littlehotelier_channel_code" className="text-xs whitespace-nowrap">
+                            Channel Code *
                           </Label>
                           <Input
-                            id="hotelbeds_hotel_code"
-                            value={hotelbedsHotelCode}
+                            id="littlehotelier_channel_code"
+                            value={littlehotelierChannelCode}
                             onChange={(e) => {
-                              setHotelbedsHotelCode(e.target.value);
+                              setLittlehotelierChannelCode(e.target.value);
                               setIsDirty(true);
                             }}
-                            placeholder="HotelBeds hotel code"
-                            className="h-7 text-xs w-40"
+                            placeholder="Channel code"
+                            className="h-7 text-xs w-32"
                             required
                           />
                         </div>
-                      )}
+                        <div className="flex items-center gap-2">
+                          <Label htmlFor="littlehotelier_region" className="text-xs whitespace-nowrap">
+                            Region
+                          </Label>
+                          <Select
+                            value={littlehotelierRegion}
+                            onValueChange={(v) => {
+                              setLittlehotelierRegion(v as "apac" | "emea");
+                              setIsDirty(true);
+                            }}
+                          >
+                            <SelectTrigger className="h-7 text-xs w-24">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="apac">APAC</SelectItem>
+                              <SelectItem value="emea">EMEA</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </>
+                    )}
 
-                      {/* HyperGuest is currently parked — UI hidden but state and save paths preserved. */}
-                      {false && (selectedPMS === "hyperguest" || selectedPMS === "rolos" || selectedPMS === "roomsonline") && (
+                    {selectedPMS === "hotelbeds" && (
+                      <div className="flex items-center gap-2">
+                        <Label htmlFor="hotelbeds_hotel_code" className="text-xs whitespace-nowrap">
+                          Hotel Code *
+                        </Label>
+                        <Input
+                          id="hotelbeds_hotel_code"
+                          value={hotelbedsHotelCode}
+                          onChange={(e) => {
+                            setHotelbedsHotelCode(e.target.value);
+                            setIsDirty(true);
+                          }}
+                          placeholder="HotelBeds hotel code"
+                          className="h-7 text-xs w-40"
+                          required
+                        />
+                      </div>
+                    )}
+
+                    {/* HyperGuest is currently parked — UI hidden but state and save paths preserved. */}
+                    {false &&
+                      (selectedPMS === "hyperguest" || selectedPMS === "rolos" || selectedPMS === "roomsonline") && (
                         <div className="flex items-center gap-2">
                           <Label htmlFor="hyperguest_hotel_id" className="text-xs whitespace-nowrap">
                             HyperGuest Hotel ID{selectedPMS === "hyperguest" ? " *" : ""}
@@ -4354,10 +4498,12 @@ export default function PropertyForm({
                           {propertyId && hyperguestHotelId && (
                             <HyperGuestSyncReflectionButton propertyId={propertyId} />
                           )}
-                        </div>)}
+                        </div>
+                      )}
 
-                      {/* Beds24 lookup + ID hidden per request; state and save paths preserved. */}
-                      {false && (selectedPMS === "beds24" || selectedPMS === "rolos" || selectedPMS === "roomsonline") && (
+                    {/* Beds24 lookup + ID hidden per request; state and save paths preserved. */}
+                    {false &&
+                      (selectedPMS === "beds24" || selectedPMS === "rolos" || selectedPMS === "roomsonline") && (
                         <div className="flex items-center gap-2">
                           <Label htmlFor="beds24_property_id" className="text-xs whitespace-nowrap">
                             Beds24 Property ID{selectedPMS === "beds24" ? " *" : ""}
@@ -4390,20 +4536,24 @@ export default function PropertyForm({
                         </div>
                       )}
 
-                      {selectedPMS === "hostfully" && !authLoading && isOwnerUser && (
-                        <div className="w-full mt-2">
-                          <OwnerPMSConnectionCard
-                            ownerId={user?.id || ""}
-                            ownerName={profile?.full_name || profile?.email || ""}
-                            ownerEmail={profile?.email || user?.email || ""}
-                            existingCredential={ownerHostfullyCredential}
-                            onCredentialChange={handleOwnerCredentialChange}
-                          />
-                        </div>
-                      )}
+                    {selectedPMS === "hostfully" && !authLoading && isOwnerUser && (
+                      <div className="w-full mt-2">
+                        <OwnerPMSConnectionCard
+                          ownerId={user?.id || ""}
+                          ownerName={profile?.full_name || profile?.email || ""}
+                          ownerEmail={profile?.email || user?.email || ""}
+                          existingCredential={ownerHostfullyCredential}
+                          onCredentialChange={handleOwnerCredentialChange}
+                        />
+                      </div>
+                    )}
 
-                      {/* Consolidated Hostfully Sync button for admin/dev */}
-                      {selectedPMS === "hostfully" && !authLoading && propertyId && (ownerPmsCredentialId || hostfullyPropertyUid) && (isAdmin || isDev || isFearlessLeader) && (
+                    {/* Consolidated Hostfully Sync button for admin/dev */}
+                    {selectedPMS === "hostfully" &&
+                      !authLoading &&
+                      propertyId &&
+                      (ownerPmsCredentialId || hostfullyPropertyUid) &&
+                      (isAdmin || isDev || isFearlessLeader) && (
                         <div className="flex flex-col gap-1.5">
                           <div className="flex items-center gap-2">
                             <Button
@@ -4418,7 +4568,9 @@ export default function PropertyForm({
                               {fullSyncingHostfully ? "Syncing..." : "Sync Hostfully Data"}
                             </Button>
                             {hostfullyRoomCount > 0 && (
-                              <Badge variant="secondary" className="text-xs">{hostfullyRoomCount} rooms</Badge>
+                              <Badge variant="secondary" className="text-xs">
+                                {hostfullyRoomCount} rooms
+                              </Badge>
                             )}
                           </div>
                           {syncProgress && (
@@ -4426,7 +4578,9 @@ export default function PropertyForm({
                               <div className="h-1 w-20 bg-muted rounded-full overflow-hidden">
                                 <div
                                   className="h-full bg-primary transition-all duration-300"
-                                  style={{ width: `${syncProgress.total > 0 ? (syncProgress.current / syncProgress.total) * 100 : 0}%` }}
+                                  style={{
+                                    width: `${syncProgress.total > 0 ? (syncProgress.current / syncProgress.total) * 100 : 0}%`,
+                                  }}
                                 />
                               </div>
                               <span>{syncProgress.phase}</span>
@@ -4435,284 +4589,649 @@ export default function PropertyForm({
                         </div>
                       )}
 
-                      {lastPmsSync && selectedPMS === "benson" && (
-                        <span className="text-xs text-muted-foreground">Synced: {lastPmsSync.toLocaleString()}</span>
-                      )}
+                    {lastPmsSync && selectedPMS === "benson" && (
+                      <span className="text-xs text-muted-foreground">Synced: {lastPmsSync.toLocaleString()}</span>
+                    )}
 
-                      <div className="flex items-center gap-2">
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Label htmlFor="google_place_id" className="cursor-help flex items-center gap-1 text-xs">
-                                Google ID <Info className="h-3 w-3 text-muted-foreground" />
-                              </Label>
-                            </TooltipTrigger>
-                            <TooltipContent className="max-w-xs">
-                              <p className="text-xs font-medium mb-1">Google Place ID</p>
-                              <p className="text-[11px] text-muted-foreground mb-1">
-                                Used for reviews and Maps embed.
-                              </p>
-                              <ol className="text-[11px] list-decimal pl-4 space-y-0.5">
-                                <li>Open Google Maps and search your property.</li>
-                                <li>Click your property so its panel opens.</li>
-                                <li>Copy the full URL from the address bar.</li>
-                                <li>Click <strong>Paste Google URL</strong> and paste.</li>
-                              </ol>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                        <Input
-                          id="google_place_id"
-                          value={googlePlaceId}
-                          onChange={(e) => {
-                            setGooglePlaceId(e.target.value);
-                            setIsDirty(true);
-                          }}
-                          placeholder="ChIJ... or numeric"
-                          className="h-7 text-xs w-40"
-                        />
-                        <GooglePlaceIdPastePopover
-                          onExtract={(id) => {
-                            setGooglePlaceId(id);
-                            setIsDirty(true);
-                          }}
-                        />
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Label htmlFor="tripadvisor_id" className="cursor-help flex items-center gap-1 text-xs">
-                                TripAdvisor <Info className="h-3 w-3 text-muted-foreground" />
-                              </Label>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p className="text-xs">Number after "d/" in TripAdvisor URL</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                        <Input
-                          id="tripadvisor_id"
-                          value={tripadvisorId}
-                          onChange={(e) => {
-                            setTripadvisorId(e.target.value);
-                            setIsDirty(true);
-                          }}
-                          placeholder="123456"
-                          className="h-7 text-xs w-24"
-                        />
-                      </div>
+                    <div className="flex items-center gap-2">
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Label htmlFor="google_place_id" className="cursor-help flex items-center gap-1 text-xs">
+                              Google ID <Info className="h-3 w-3 text-muted-foreground" />
+                            </Label>
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-xs">
+                            <p className="text-xs font-medium mb-1">Google Place ID</p>
+                            <p className="text-[11px] text-muted-foreground mb-1">Used for reviews and Maps embed.</p>
+                            <ol className="text-[11px] list-decimal pl-4 space-y-0.5">
+                              <li>Open Google Maps and search your property.</li>
+                              <li>Click your property so its panel opens.</li>
+                              <li>Copy the full URL from the address bar.</li>
+                              <li>
+                                Click <strong>Paste Google URL</strong> and paste.
+                              </li>
+                            </ol>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                      <Input
+                        id="google_place_id"
+                        value={googlePlaceId}
+                        onChange={(e) => {
+                          setGooglePlaceId(e.target.value);
+                          setIsDirty(true);
+                        }}
+                        placeholder="ChIJ... or numeric"
+                        className="h-7 text-xs w-40"
+                      />
+                      <GooglePlaceIdPastePopover
+                        onExtract={(id) => {
+                          setGooglePlaceId(id);
+                          setIsDirty(true);
+                        }}
+                      />
                     </div>
-                  </CardContent>
-                </Card>
+                    <div className="flex items-center gap-2">
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Label htmlFor="tripadvisor_id" className="cursor-help flex items-center gap-1 text-xs">
+                              TripAdvisor <Info className="h-3 w-3 text-muted-foreground" />
+                            </Label>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p className="text-xs">Number after "d/" in TripAdvisor URL</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                      <Input
+                        id="tripadvisor_id"
+                        value={tripadvisorId}
+                        onChange={(e) => {
+                          setTripadvisorId(e.target.value);
+                          setIsDirty(true);
+                        }}
+                        placeholder="123456"
+                        className="h-7 text-xs w-24"
+                      />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
 
-                {/* Property, Address & Map - Side by side layout */}
-                <div className="flex gap-3 items-stretch">
-                  {/* Left side - Property & Address (75%) */}
-                  <div className="flex-1 flex flex-col gap-3">
-                    {/* Property Section */}
-                    <Card>
-                      <CardHeader className="py-2 px-4">
-                        <CardTitle className="text-sm flex items-center justify-between">
-                          <span>Property</span>
-                          {selectedPMS && !isRolProperty && (
-                            <div className="flex items-center gap-1 text-xs font-normal text-muted-foreground">
-                              <div className="w-3 h-3 rounded bg-primary/10 border border-primary/30" />
-                              <Cloud className="h-3 w-3" />
-                              <span>{getPMSDisplayName(selectedPMS)} synced</span>
+              {/* Property, Address & Map - Side by side layout */}
+              <div className="flex gap-3 items-stretch">
+                {/* Left side - Property & Address (75%) */}
+                <div className="flex-1 flex flex-col gap-3">
+                  {/* Property Section */}
+                  <Card>
+                    <CardHeader className="py-2 px-4">
+                      <CardTitle className="text-sm flex items-center justify-between">
+                        <span>Property</span>
+                        {selectedPMS && !isRolProperty && (
+                          <div className="flex items-center gap-1 text-xs font-normal text-muted-foreground">
+                            <div className="w-3 h-3 rounded bg-primary/10 border border-primary/30" />
+                            <Cloud className="h-3 w-3" />
+                            <span>{getPMSDisplayName(selectedPMS)} synced</span>
+                          </div>
+                        )}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="py-2 px-4 space-y-3">
+                      {/* Row 1 */}
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <div className="flex flex-col gap-1">
+                          <Label htmlFor="name" className="text-xs">
+                            Name *
+                          </Label>
+                          <Input
+                            id="name"
+                            value={formData.name}
+                            onChange={(e) => handleInputChange("name", e.target.value)}
+                            placeholder="Property name"
+                            required
+                            disabled={isFieldPopulatedByPMS("name", selectedPMS)}
+                            className={cn(
+                              "h-7 text-xs",
+                              getPMSFieldClass("name", selectedPMS),
+                              isFieldPopulatedByPMS("name", selectedPMS) && "cursor-not-allowed",
+                            )}
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <Label htmlFor="property_type" className="text-xs flex items-center">
+                            Type *
+                            <ContextualHelp table="properties" field="property_type" />
+                          </Label>
+                          <Select
+                            value={formData.property_type}
+                            onValueChange={(value) => handleInputChange("property_type", value)}
+                          >
+                            <SelectTrigger id="property_type" className="h-7 text-xs">
+                              <SelectValue placeholder="Select" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="hotel">Hotel</SelectItem>
+                              <SelectItem value="boutique_hotel">Boutique Hotel</SelectItem>
+                              <SelectItem value="guesthouse">Guest House</SelectItem>
+                              <SelectItem value="bnb">B&B</SelectItem>
+                              <SelectItem value="lodge">Lodge</SelectItem>
+                              <SelectItem value="game_lodge">Game Lodge</SelectItem>
+                              <SelectItem value="safari_lodge">Safari Lodge</SelectItem>
+                              <SelectItem value="resort">Resort</SelectItem>
+                              <SelectItem value="villa">Villa</SelectItem>
+                              <SelectItem value="apartment">Apartment</SelectItem>
+                              <SelectItem value="self_catering">Self Catering</SelectItem>
+                              <SelectItem value="chalet">Chalet</SelectItem>
+                              <SelectItem value="cottage">Cottage</SelectItem>
+                              <SelectItem value="cabin">Cabin</SelectItem>
+                              <SelectItem value="backpackers">Backpackers</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        {(isAdmin || isDev || isFearlessLeader) && (
+                          <>
+                            <div className="flex items-center gap-2 pt-5">
+                              <Checkbox
+                                id="is_rol_property"
+                                checked={isRolProperty}
+                                onCheckedChange={(checked) => {
+                                  setIsRolProperty(checked as boolean);
+                                  setIsDirty(true);
+                                }}
+                              />
+                              <Label htmlFor="is_rol_property" className="text-xs cursor-pointer">
+                                ROL Property
+                              </Label>
                             </div>
-                          )}
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="py-2 px-4 space-y-3">
-                        {/* Row 1 */}
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                            <div className="flex items-center gap-2 pt-1">
+                              <Checkbox
+                                id="is_test_property"
+                                checked={isTestProperty}
+                                onCheckedChange={(checked) => {
+                                  setIsTestProperty(checked as boolean);
+                                  setIsDirty(true);
+                                }}
+                              />
+                              <Label htmlFor="is_test_property" className="text-xs cursor-pointer text-orange-600">
+                                ⚠ Test / Sandbox
+                              </Label>
+                            </div>
+                          </>
+                        )}
+                        <div className="flex flex-col gap-1">
+                          <Label htmlFor="telephone" className="text-xs">
+                            Telephone
+                          </Label>
+                          <Input
+                            id="telephone"
+                            value={formData.telephone}
+                            onChange={(e) => handleInputChange("telephone", e.target.value)}
+                            placeholder="+27..."
+                            className="h-7 text-xs"
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <Label htmlFor="contact_email" className="text-xs">
+                            Contact Email *
+                          </Label>
+                          <Input
+                            id="contact_email"
+                            type="email"
+                            value={formData.contact_email}
+                            onChange={(e) => handleInputChange("contact_email", e.target.value)}
+                            placeholder="email@example.com"
+                            required
+                            className="h-7 text-xs"
+                          />
+                        </div>
+                      </div>
+                      {/* Row 2 */}
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <div className="flex flex-col gap-1">
+                          <Label htmlFor="currency" className="text-xs">
+                            Currency *
+                          </Label>
+                          <Select
+                            value={formData.currency}
+                            onValueChange={(value) => handleInputChange("currency", value)}
+                          >
+                            <SelectTrigger id="currency" className="h-7 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="ZAR">ZAR</SelectItem>
+                              <SelectItem value="USD">USD</SelectItem>
+                              <SelectItem value="EUR">EUR</SelectItem>
+                              <SelectItem value="GBP">GBP</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <Label htmlFor="owner_email" className="text-xs">
+                            Owner
+                          </Label>
+                          <Popover open={ownerSearchOpen} onOpenChange={setOwnerSearchOpen}>
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant="outline"
+                                role="combobox"
+                                aria-expanded={ownerSearchOpen}
+                                className="h-7 text-xs justify-between w-full font-normal"
+                              >
+                                {formData.owner_email
+                                  ? owners.find((o) => o.email === formData.owner_email)?.full_name ||
+                                    formData.owner_email
+                                  : "Select owner…"}
+                                <ChevronsUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[320px] p-0" align="start">
+                              <Command>
+                                <CommandInput placeholder="Search by name, email or phone…" className="text-xs h-8" />
+                                <CommandList>
+                                  <CommandEmpty className="py-3 text-xs text-center text-muted-foreground">
+                                    No owner found.
+                                  </CommandEmpty>
+                                  <CommandGroup>
+                                    {/* Show current owner if not in profiles list */}
+                                    {formData.owner_email && !owners.find((o) => o.email === formData.owner_email) && (
+                                      <CommandItem
+                                        value={formData.owner_email}
+                                        onSelect={() => {
+                                          setOwnerSearchOpen(false);
+                                        }}
+                                        className="text-xs"
+                                      >
+                                        <Check className={cn("mr-2 h-3 w-3", "opacity-100")} />
+                                        <div className="flex flex-col">
+                                          <span>{formData.owner_email}</span>
+                                          <span className="text-[10px] text-muted-foreground">Profile pending</span>
+                                        </div>
+                                      </CommandItem>
+                                    )}
+                                    {owners.map((owner) => (
+                                      <CommandItem
+                                        key={owner.id}
+                                        value={`${owner.full_name || ""} ${owner.email} ${owner.phone || ""}`}
+                                        onSelect={() => {
+                                          handleInputChange("owner_email", owner.email);
+                                          handleInputChange("owner_name", owner.full_name || "");
+                                          setOwnerSearchOpen(false);
+                                        }}
+                                        className="text-xs"
+                                      >
+                                        <Check
+                                          className={cn(
+                                            "mr-2 h-3 w-3",
+                                            formData.owner_email === owner.email ? "opacity-100" : "opacity-0",
+                                          )}
+                                        />
+                                        <div className="flex flex-col min-w-0">
+                                          <span className="font-medium truncate">{owner.full_name || "—"}</span>
+                                          <span className="text-[10px] text-muted-foreground truncate">
+                                            {owner.email}
+                                          </span>
+                                          {owner.phone && (
+                                            <span className="text-[10px] text-muted-foreground truncate">
+                                              {owner.phone}
+                                            </span>
+                                          )}
+                                        </div>
+                                      </CommandItem>
+                                    ))}
+                                  </CommandGroup>
+                                </CommandList>
+                              </Command>
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+                        {/* Linked Additional Owners */}
+                        {propertyId && (isAdmin || isDev || isFearlessLeader) && (
+                          <div className="flex flex-col gap-1 col-span-2">
+                            <Label className="text-xs">Additional Owners</Label>
+                            {linkedOwners.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mb-1">
+                                {linkedOwners.map((lo) => (
+                                  <Badge key={lo.id} variant="secondary" className="text-xs gap-1 pr-1">
+                                    {lo.owner_name || lo.owner_email}
+                                    <button
+                                      type="button"
+                                      className="ml-0.5 hover:text-destructive"
+                                      onClick={async () => {
+                                        const { error } = await supabase
+                                          .from("property_owners")
+                                          .delete()
+                                          .eq("id", lo.id);
+                                        if (!error) {
+                                          setLinkedOwners((prev) => prev.filter((o) => o.id !== lo.id));
+                                          toast({
+                                            title: "Owner removed",
+                                            description: `${lo.owner_email} unlinked from property`,
+                                          });
+                                        }
+                                      }}
+                                    >
+                                      <X className="h-3 w-3" />
+                                    </button>
+                                  </Badge>
+                                ))}
+                              </div>
+                            )}
+                            <div className="relative">
+                              <Input
+                                placeholder="Search owners to add..."
+                                value={linkedOwnerSearch}
+                                onChange={(e) => setLinkedOwnerSearch(e.target.value)}
+                                className="h-7 text-xs"
+                              />
+                              {linkedOwnerSearch.length >= 2 && (
+                                <div className="absolute z-50 top-full mt-1 w-full bg-popover border rounded-md shadow-lg max-h-40 overflow-y-auto">
+                                  {owners
+                                    .filter((o) => {
+                                      // Exclude primary owner and already linked
+                                      if (o.email === formData.owner_email) return false;
+                                      if (linkedOwners.some((lo) => lo.user_id === o.id)) return false;
+                                      const q = linkedOwnerSearch.toLowerCase();
+                                      return (
+                                        o.email?.toLowerCase().includes(q) || o.full_name?.toLowerCase().includes(q)
+                                      );
+                                    })
+                                    .slice(0, 8)
+                                    .map((o) => (
+                                      <button
+                                        key={o.id}
+                                        type="button"
+                                        className="w-full text-left px-3 py-1.5 text-xs hover:bg-accent flex justify-between items-center"
+                                        onClick={async () => {
+                                          const { data: inserted, error } = await supabase
+                                            .from("property_owners")
+                                            .insert({
+                                              property_id: propertyId,
+                                              user_id: o.id,
+                                              owner_email: o.email,
+                                              owner_name: o.full_name || null,
+                                              added_by: user?.id,
+                                            })
+                                            .select("id, user_id, owner_email, owner_name")
+                                            .single();
+                                          if (!error && inserted) {
+                                            setLinkedOwners((prev) => [...prev, inserted]);
+                                            setLinkedOwnerSearch("");
+                                            toast({
+                                              title: "Owner linked",
+                                              description: `${o.full_name || o.email} added as additional owner`,
+                                            });
+                                          } else if (error) {
+                                            toast({
+                                              title: "Failed to link",
+                                              description: error.message,
+                                              variant: "destructive",
+                                            });
+                                          }
+                                        }}
+                                      >
+                                        <span>{o.full_name || o.email}</span>
+                                        <span className="text-muted-foreground">{o.email}</span>
+                                      </button>
+                                    ))}
+                                  {owners.filter((o) => {
+                                    if (o.email === formData.owner_email) return false;
+                                    if (linkedOwners.some((lo) => lo.user_id === o.id)) return false;
+                                    const q = linkedOwnerSearch.toLowerCase();
+                                    return o.email?.toLowerCase().includes(q) || o.full_name?.toLowerCase().includes(q);
+                                  }).length === 0 && (
+                                    <div className="px-3 py-2 text-xs text-muted-foreground">
+                                      No matching owners found
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                        <div className="flex flex-col gap-1 col-span-2">
+                          <Label htmlFor="property_url" className="text-xs">
+                            Property Website
+                          </Label>
+                          <div className="flex gap-2">
+                            <Input
+                              id="property_url"
+                              type="url"
+                              value={formData.property_url}
+                              onChange={(e) => handleInputChange("property_url", e.target.value)}
+                              placeholder="https://www.explorersclub.co.za/"
+                              className="h-7 text-xs flex-1"
+                            />
+                            {formData.property_url?.startsWith("http") && (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={async () => {
+                                  setWebsiteSyncing(true);
+                                  try {
+                                    const existingData = {
+                                      telephone: formData.telephone,
+                                      contact_email: formData.contact_email,
+                                      address: formData.address,
+                                      suburb: formData.suburb,
+                                      city: formData.city,
+                                      country: formData.country,
+                                      postal_code: formData.postal_code,
+                                      description: formData.description,
+                                      restaurants_cafes: formData.restaurants_cafes,
+                                      public_transport: formData.public_transport,
+                                      closest_airport: formData.closest_airport,
+                                      facilities: selectedFacilities,
+                                    };
+                                    const additionalUrls = [sourceUrl2, sourceUrl3].filter(Boolean);
+                                    const result = await syncFromWebsite(
+                                      propertyId || "",
+                                      formData.property_url || "",
+                                      existingData,
+                                      tripadvisorId || undefined,
+                                      additionalUrls.length > 0 ? additionalUrls : undefined,
+                                      googlePlaceId || undefined,
+                                    );
+                                    if (result.success && result.suggestions && result.suggestions.length > 0) {
+                                      setWebsiteSyncSuggestions(result.suggestions);
+                                      setWebsiteSyncUrl(result.scrapedUrl || formData.property_url || "");
+                                      setWebsiteSyncModalOpen(true);
+                                    } else if (
+                                      result.success &&
+                                      (!result.suggestions || result.suggestions.length === 0)
+                                    ) {
+                                      toast({
+                                        title: "No suggestions found",
+                                        description: "Could not extract any new information from the website.",
+                                      });
+                                    } else {
+                                      toast({
+                                        title: "Sync failed",
+                                        description: result.error || "Failed to sync from website",
+                                        variant: "destructive",
+                                      });
+                                    }
+                                  } catch (err) {
+                                    console.error("Website sync error:", err);
+                                    toast({
+                                      title: "Sync failed",
+                                      description: "An unexpected error occurred",
+                                      variant: "destructive",
+                                    });
+                                  } finally {
+                                    setWebsiteSyncing(false);
+                                  }
+                                }}
+                                disabled={websiteSyncing}
+                                className="h-7 gap-1 text-xs"
+                              >
+                                {websiteSyncing ? (
+                                  <>
+                                    <RefreshCw className="h-3 w-3 animate-spin" />
+                                    Scanning...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Sparkles className="h-3 w-3" />
+                                    Auto-fill
+                                  </>
+                                )}
+                              </Button>
+                            )}
+                          </div>
+                          <p className="text-[10px] text-muted-foreground">
+                            Scan the website to auto-fill empty fields. Add additional URLs below for more data sources.
+                          </p>
+                        </div>
+
+                        {/* Additional Source URLs */}
+                        <div className="space-y-1.5">
+                          <Label className="text-xs text-muted-foreground">Additional Source URLs (optional)</Label>
+                          <Input
+                            type="url"
+                            value={sourceUrl2}
+                            onChange={(e) => {
+                              setSourceUrl2(e.target.value);
+                              setIsDirty(true);
+                            }}
+                            placeholder="https://additional-source-1.com"
+                            className="h-7 text-xs"
+                          />
+                          <Input
+                            type="url"
+                            value={sourceUrl3}
+                            onChange={(e) => {
+                              setSourceUrl3(e.target.value);
+                              setIsDirty(true);
+                            }}
+                            placeholder="https://additional-source-2.com"
+                            className="h-7 text-xs"
+                          />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Address Section */}
+                  <Card>
+                    <CardHeader className="py-2 px-4">
+                      <CardTitle className="text-sm flex items-center justify-between">
+                        <span>Address</span>
+                        <div className="flex items-center gap-2">
+                          <Label htmlFor="no_street_address" className="text-xs text-muted-foreground font-normal">
+                            No street address?
+                          </Label>
+                          <Switch
+                            id="no_street_address"
+                            checked={noStreetAddress}
+                            onCheckedChange={(checked) => {
+                              setNoStreetAddress(checked);
+                              setIsDirty(true);
+                            }}
+                          />
+                        </div>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="py-2 px-4">
+                      {!noStreetAddress && (
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+                          {/* Street */}
                           <div className="flex flex-col gap-1">
-                            <Label htmlFor="name" className="text-xs">
-                              Name *
+                            <Label htmlFor="address" className="text-xs">
+                              Street *
                             </Label>
                             <Input
-                              id="name"
-                              value={formData.name}
-                              onChange={(e) => handleInputChange("name", e.target.value)}
-                              placeholder="Property name"
-                              required
-                              disabled={isFieldPopulatedByPMS("name", selectedPMS)}
+                              id="address"
+                              value={formData.address}
+                              onChange={(e) => handleInputChange("address", e.target.value)}
+                              placeholder="Street address"
+                              required={!noStreetAddress}
+                              disabled={isFieldPopulatedByPMS("address", selectedPMS)}
                               className={cn(
                                 "h-7 text-xs",
-                                getPMSFieldClass("name", selectedPMS),
-                                isFieldPopulatedByPMS("name", selectedPMS) && "cursor-not-allowed",
+                                getPMSFieldClass("address", selectedPMS),
+                                isFieldPopulatedByPMS("address", selectedPMS) && "cursor-not-allowed",
                               )}
                             />
                           </div>
+                          {/* Suburb */}
                           <div className="flex flex-col gap-1">
-                            <Label htmlFor="property_type" className="text-xs flex items-center">
-                              Type *
-                              <ContextualHelp table="properties" field="property_type" />
-                            </Label>
-                            <Select
-                              value={formData.property_type}
-                              onValueChange={(value) => handleInputChange("property_type", value)}
-                            >
-                              <SelectTrigger id="property_type" className="h-7 text-xs">
-                                <SelectValue placeholder="Select" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="hotel">Hotel</SelectItem>
-                                <SelectItem value="boutique_hotel">Boutique Hotel</SelectItem>
-                                <SelectItem value="guesthouse">Guest House</SelectItem>
-                                <SelectItem value="bnb">B&B</SelectItem>
-                                <SelectItem value="lodge">Lodge</SelectItem>
-                                <SelectItem value="game_lodge">Game Lodge</SelectItem>
-                                <SelectItem value="safari_lodge">Safari Lodge</SelectItem>
-                                <SelectItem value="resort">Resort</SelectItem>
-                                <SelectItem value="villa">Villa</SelectItem>
-                                <SelectItem value="apartment">Apartment</SelectItem>
-                                <SelectItem value="self_catering">Self Catering</SelectItem>
-                                <SelectItem value="chalet">Chalet</SelectItem>
-                                <SelectItem value="cottage">Cottage</SelectItem>
-                                <SelectItem value="cabin">Cabin</SelectItem>
-                                <SelectItem value="backpackers">Backpackers</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          {(isAdmin || isDev || isFearlessLeader) && (
-                            <>
-                              <div className="flex items-center gap-2 pt-5">
-                                <Checkbox
-                                  id="is_rol_property"
-                                  checked={isRolProperty}
-                                  onCheckedChange={(checked) => {
-                                    setIsRolProperty(checked as boolean);
-                                    setIsDirty(true);
-                                  }}
-                                />
-                                <Label htmlFor="is_rol_property" className="text-xs cursor-pointer">
-                                  ROL Property
-                                </Label>
-                              </div>
-                              <div className="flex items-center gap-2 pt-1">
-                                <Checkbox
-                                  id="is_test_property"
-                                  checked={isTestProperty}
-                                  onCheckedChange={(checked) => {
-                                    setIsTestProperty(checked as boolean);
-                                    setIsDirty(true);
-                                  }}
-                                />
-                                <Label htmlFor="is_test_property" className="text-xs cursor-pointer text-orange-600">
-                                  ⚠ Test / Sandbox
-                                </Label>
-                              </div>
-                            </>
-                          )}
-                          <div className="flex flex-col gap-1">
-                            <Label htmlFor="telephone" className="text-xs">
-                              Telephone
+                            <Label htmlFor="suburb" className="text-xs">
+                              Suburb
                             </Label>
                             <Input
-                              id="telephone"
-                              value={formData.telephone}
-                              onChange={(e) => handleInputChange("telephone", e.target.value)}
-                              placeholder="+27..."
+                              id="suburb"
+                              value={formData.suburb}
+                              onChange={(e) => handleInputChange("suburb", e.target.value)}
+                              placeholder="Suburb"
                               className="h-7 text-xs"
                             />
                           </div>
+                          {/* City */}
                           <div className="flex flex-col gap-1">
-                            <Label htmlFor="contact_email" className="text-xs">
-                              Contact Email *
+                            <Label htmlFor="city" className="text-xs">
+                              City *
                             </Label>
                             <Input
-                              id="contact_email"
-                              type="email"
-                              value={formData.contact_email}
-                              onChange={(e) => handleInputChange("contact_email", e.target.value)}
-                              placeholder="email@example.com"
-                              required
-                              className="h-7 text-xs"
+                              id="city"
+                              value={formData.city}
+                              onChange={(e) => handleInputChange("city", e.target.value)}
+                              placeholder="City"
+                              required={!noStreetAddress}
+                              disabled={isFieldPopulatedByPMS("city", selectedPMS)}
+                              className={cn(
+                                "h-7 text-xs",
+                                getPMSFieldClass("city", selectedPMS),
+                                isFieldPopulatedByPMS("city", selectedPMS) && "cursor-not-allowed",
+                              )}
                             />
                           </div>
-                        </div>
-                        {/* Row 2 */}
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                          {/* Country */}
                           <div className="flex flex-col gap-1">
-                            <Label htmlFor="currency" className="text-xs">
-                              Currency *
+                            <Label htmlFor="country" className="text-xs">
+                              Country *
                             </Label>
-                            <Select
-                              value={formData.currency}
-                              onValueChange={(value) => handleInputChange("currency", value)}
-                            >
-                              <SelectTrigger id="currency" className="h-7 text-xs">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="ZAR">ZAR</SelectItem>
-                                <SelectItem value="USD">USD</SelectItem>
-                                <SelectItem value="EUR">EUR</SelectItem>
-                                <SelectItem value="GBP">GBP</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div className="flex flex-col gap-1">
-                            <Label htmlFor="owner_email" className="text-xs">
-                              Owner
-                            </Label>
-                            <Popover open={ownerSearchOpen} onOpenChange={setOwnerSearchOpen}>
+                            <Popover open={countryOpen} onOpenChange={setCountryOpen}>
                               <PopoverTrigger asChild>
                                 <Button
                                   variant="outline"
                                   role="combobox"
-                                  aria-expanded={ownerSearchOpen}
-                                  className="h-7 text-xs justify-between w-full font-normal"
+                                  aria-expanded={countryOpen}
+                                  className={cn(
+                                    "h-7 text-xs w-full justify-between font-normal",
+                                    getPMSFieldClass("country", selectedPMS),
+                                  )}
+                                  disabled={isFieldPopulatedByPMS("country", selectedPMS)}
                                 >
-                                  {formData.owner_email
-                                    ? owners.find((o) => o.email === formData.owner_email)?.full_name || formData.owner_email
-                                    : "Select owner…"}
+                                  {formData.country || "Select country..."}
                                   <ChevronsUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
                                 </Button>
                               </PopoverTrigger>
-                              <PopoverContent className="w-[320px] p-0" align="start">
+                              <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
                                 <Command>
-                                  <CommandInput placeholder="Search by name, email or phone…" className="text-xs h-8" />
+                                  <CommandInput placeholder="Search country..." />
                                   <CommandList>
-                                    <CommandEmpty className="py-3 text-xs text-center text-muted-foreground">No owner found.</CommandEmpty>
+                                    <CommandEmpty>No country found.</CommandEmpty>
                                     <CommandGroup>
-                                      {/* Show current owner if not in profiles list */}
-                                      {formData.owner_email && !owners.find((o) => o.email === formData.owner_email) && (
+                                      {COUNTRY_OPTIONS.map((c) => (
                                         <CommandItem
-                                          value={formData.owner_email}
+                                          key={c.value}
+                                          value={c.label}
                                           onSelect={() => {
-                                            setOwnerSearchOpen(false);
+                                            handleInputChange("country", c.label);
+                                            setCountryOpen(false);
                                           }}
-                                          className="text-xs"
                                         >
-                                          <Check className={cn("mr-2 h-3 w-3", "opacity-100")} />
-                                          <div className="flex flex-col">
-                                            <span>{formData.owner_email}</span>
-                                            <span className="text-[10px] text-muted-foreground">Profile pending</span>
-                                          </div>
-                                        </CommandItem>
-                                      )}
-                                      {owners.map((owner) => (
-                                        <CommandItem
-                                          key={owner.id}
-                                          value={`${owner.full_name || ""} ${owner.email} ${owner.phone || ""}`}
-                                          onSelect={() => {
-                                            handleInputChange("owner_email", owner.email);
-                                            handleInputChange("owner_name", owner.full_name || "");
-                                            setOwnerSearchOpen(false);
-                                          }}
-                                          className="text-xs"
-                                        >
-                                          <Check className={cn("mr-2 h-3 w-3", formData.owner_email === owner.email ? "opacity-100" : "opacity-0")} />
-                                          <div className="flex flex-col min-w-0">
-                                            <span className="font-medium truncate">{owner.full_name || "—"}</span>
-                                            <span className="text-[10px] text-muted-foreground truncate">{owner.email}</span>
-                                            {owner.phone && (
-                                              <span className="text-[10px] text-muted-foreground truncate">{owner.phone}</span>
+                                          <Check
+                                            className={cn(
+                                              "mr-2 h-3 w-3",
+                                              formData.country === c.label ? "opacity-100" : "opacity-0",
                                             )}
-                                          </div>
+                                          />
+                                          {c.label}
                                         </CommandItem>
                                       ))}
                                     </CommandGroup>
@@ -4721,1529 +5240,1208 @@ export default function PropertyForm({
                               </PopoverContent>
                             </Popover>
                           </div>
-                          {/* Linked Additional Owners */}
-                          {propertyId && (isAdmin || isDev || isFearlessLeader) && (
-                            <div className="flex flex-col gap-1 col-span-2">
-                              <Label className="text-xs">Additional Owners</Label>
-                              {linkedOwners.length > 0 && (
-                                <div className="flex flex-wrap gap-1 mb-1">
-                                  {linkedOwners.map((lo) => (
-                                    <Badge key={lo.id} variant="secondary" className="text-xs gap-1 pr-1">
-                                      {lo.owner_name || lo.owner_email}
-                                      <button
-                                        type="button"
-                                        className="ml-0.5 hover:text-destructive"
-                                        onClick={async () => {
-                                          const { error } = await supabase
-                                            .from("property_owners")
-                                            .delete()
-                                            .eq("id", lo.id);
-                                          if (!error) {
-                                            setLinkedOwners((prev) => prev.filter((o) => o.id !== lo.id));
-                                            toast({ title: "Owner removed", description: `${lo.owner_email} unlinked from property` });
-                                          }
-                                        }}
-                                      >
-                                        <X className="h-3 w-3" />
-                                      </button>
-                                    </Badge>
-                                  ))}
-                                </div>
-                              )}
-                              <div className="relative">
-                                <Input
-                                  placeholder="Search owners to add..."
-                                  value={linkedOwnerSearch}
-                                  onChange={(e) => setLinkedOwnerSearch(e.target.value)}
-                                  className="h-7 text-xs"
-                                />
-                                {linkedOwnerSearch.length >= 2 && (
-                                  <div className="absolute z-50 top-full mt-1 w-full bg-popover border rounded-md shadow-lg max-h-40 overflow-y-auto">
-                                    {owners
-                                      .filter((o) => {
-                                        // Exclude primary owner and already linked
-                                        if (o.email === formData.owner_email) return false;
-                                        if (linkedOwners.some((lo) => lo.user_id === o.id)) return false;
-                                        const q = linkedOwnerSearch.toLowerCase();
-                                        return (
-                                          o.email?.toLowerCase().includes(q) ||
-                                          o.full_name?.toLowerCase().includes(q)
-                                        );
-                                      })
-                                      .slice(0, 8)
-                                      .map((o) => (
-                                        <button
-                                          key={o.id}
-                                          type="button"
-                                          className="w-full text-left px-3 py-1.5 text-xs hover:bg-accent flex justify-between items-center"
-                                          onClick={async () => {
-                                            const { data: inserted, error } = await supabase
-                                              .from("property_owners")
-                                              .insert({
-                                                property_id: propertyId,
-                                                user_id: o.id,
-                                                owner_email: o.email,
-                                                owner_name: o.full_name || null,
-                                                added_by: user?.id,
-                                              })
-                                              .select("id, user_id, owner_email, owner_name")
-                                              .single();
-                                            if (!error && inserted) {
-                                              setLinkedOwners((prev) => [...prev, inserted]);
-                                              setLinkedOwnerSearch("");
-                                              toast({ title: "Owner linked", description: `${o.full_name || o.email} added as additional owner` });
-                                            } else if (error) {
-                                              toast({ title: "Failed to link", description: error.message, variant: "destructive" });
-                                            }
-                                          }}
-                                        >
-                                          <span>{o.full_name || o.email}</span>
-                                          <span className="text-muted-foreground">{o.email}</span>
-                                        </button>
-                                      ))}
-                                    {owners.filter((o) => {
-                                      if (o.email === formData.owner_email) return false;
-                                      if (linkedOwners.some((lo) => lo.user_id === o.id)) return false;
-                                      const q = linkedOwnerSearch.toLowerCase();
-                                      return o.email?.toLowerCase().includes(q) || o.full_name?.toLowerCase().includes(q);
-                                    }).length === 0 && (
-                                      <div className="px-3 py-2 text-xs text-muted-foreground">No matching owners found</div>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          )}
-                          <div className="flex flex-col gap-1 col-span-2">
-                            <Label htmlFor="property_url" className="text-xs">
-                              Property Website
+                          {/* Postal Code */}
+                          <div className="flex flex-col gap-1">
+                            <Label htmlFor="postal_code" className="text-xs">
+                              Code
                             </Label>
-                            <div className="flex gap-2">
-                              <Input
-                                id="property_url"
-                                type="url"
-                                value={formData.property_url}
-                                onChange={(e) => handleInputChange("property_url", e.target.value)}
-                                placeholder="https://www.explorersclub.co.za/"
-                                className="h-7 text-xs flex-1"
-                              />
-                              {formData.property_url?.startsWith("http") && (
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={async () => {
-                                    setWebsiteSyncing(true);
-                                    try {
-                                      const existingData = {
-                                        telephone: formData.telephone,
-                                        contact_email: formData.contact_email,
-                                        address: formData.address,
-                                        suburb: formData.suburb,
-                                        city: formData.city,
-                                        country: formData.country,
-                                        postal_code: formData.postal_code,
-                                        description: formData.description,
-                                        restaurants_cafes: formData.restaurants_cafes,
-                                        public_transport: formData.public_transport,
-                                        closest_airport: formData.closest_airport,
-                                        facilities: selectedFacilities,
-                                      };
-                                      const additionalUrls = [sourceUrl2, sourceUrl3].filter(Boolean);
-                                      const result = await syncFromWebsite(
-                                        propertyId || "",
-                                        formData.property_url || "",
-                                        existingData,
-                                        tripadvisorId || undefined,
-                                        additionalUrls.length > 0 ? additionalUrls : undefined,
-                                        googlePlaceId || undefined
-                                      );
-                                      if (result.success && result.suggestions && result.suggestions.length > 0) {
-                                        setWebsiteSyncSuggestions(result.suggestions);
-                                        setWebsiteSyncUrl(result.scrapedUrl || formData.property_url || "");
-                                        setWebsiteSyncModalOpen(true);
-                                      } else if (result.success && (!result.suggestions || result.suggestions.length === 0)) {
-                                        toast({
-                                          title: "No suggestions found",
-                                          description: "Could not extract any new information from the website.",
-                                        });
-                                      } else {
-                                        toast({
-                                          title: "Sync failed",
-                                          description: result.error || "Failed to sync from website",
-                                          variant: "destructive",
-                                        });
-                                      }
-                                    } catch (err) {
-                                      console.error("Website sync error:", err);
-                                      toast({
-                                        title: "Sync failed",
-                                        description: "An unexpected error occurred",
-                                        variant: "destructive",
-                                      });
-                                    } finally {
-                                      setWebsiteSyncing(false);
-                                    }
-                                  }}
-                                  disabled={websiteSyncing}
-                                  className="h-7 gap-1 text-xs"
-                                >
-                                  {websiteSyncing ? (
-                                    <>
-                                      <RefreshCw className="h-3 w-3 animate-spin" />
-                                      Scanning...
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Sparkles className="h-3 w-3" />
-                                      Auto-fill
-                                    </>
-                                  )}
-                                </Button>
+                            <Input
+                              id="postal_code"
+                              value={formData.postal_code}
+                              onChange={(e) => handleInputChange("postal_code", e.target.value)}
+                              placeholder="Postal code"
+                              disabled={isFieldPopulatedByPMS("postal_code", selectedPMS)}
+                              className={cn(
+                                "h-7 text-xs",
+                                getPMSFieldClass("postal_code", selectedPMS),
+                                isFieldPopulatedByPMS("postal_code", selectedPMS) && "cursor-not-allowed",
                               )}
-                            </div>
-                            <p className="text-[10px] text-muted-foreground">
-                              Scan the website to auto-fill empty fields. Add additional URLs below for more data sources.
-                            </p>
-                          </div>
-                          
-                          {/* Additional Source URLs */}
-                          <div className="space-y-1.5">
-                            <Label className="text-xs text-muted-foreground">Additional Source URLs (optional)</Label>
-                            <Input
-                              type="url"
-                              value={sourceUrl2}
-                              onChange={(e) => { setSourceUrl2(e.target.value); setIsDirty(true); }}
-                              placeholder="https://additional-source-1.com"
-                              className="h-7 text-xs"
-                            />
-                            <Input
-                              type="url"
-                              value={sourceUrl3}
-                              onChange={(e) => { setSourceUrl3(e.target.value); setIsDirty(true); }}
-                              placeholder="https://additional-source-2.com"
-                              className="h-7 text-xs"
                             />
                           </div>
                         </div>
-                      </CardContent>
-                    </Card>
+                      )}
 
-                    {/* Address Section */}
-                    <Card>
-                      <CardHeader className="py-2 px-4">
-                        <CardTitle className="text-sm flex items-center justify-between">
-                          <span>Address</span>
-                          <div className="flex items-center gap-2">
-                            <Label htmlFor="no_street_address" className="text-xs text-muted-foreground font-normal">
-                              No street address?
-                            </Label>
-                            <Switch
-                              id="no_street_address"
-                              checked={noStreetAddress}
-                              onCheckedChange={(checked) => {
-                                setNoStreetAddress(checked);
-                                setIsDirty(true);
-                              }}
-                            />
-                          </div>
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="py-2 px-4">
-                        {!noStreetAddress && (
-                          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-                            {/* Street */}
-                            <div className="flex flex-col gap-1">
-                              <Label htmlFor="address" className="text-xs">
-                                Street *
-                              </Label>
-                              <Input
-                                id="address"
-                                value={formData.address}
-                                onChange={(e) => handleInputChange("address", e.target.value)}
-                                placeholder="Street address"
-                                required={!noStreetAddress}
-                                disabled={isFieldPopulatedByPMS("address", selectedPMS)}
-                                className={cn(
-                                  "h-7 text-xs",
-                                  getPMSFieldClass("address", selectedPMS),
-                                  isFieldPopulatedByPMS("address", selectedPMS) && "cursor-not-allowed",
-                                )}
-                              />
-                            </div>
-                            {/* Suburb */}
-                            <div className="flex flex-col gap-1">
-                              <Label htmlFor="suburb" className="text-xs">
-                                Suburb
-                              </Label>
-                              <Input
-                                id="suburb"
-                                value={formData.suburb}
-                                onChange={(e) => handleInputChange("suburb", e.target.value)}
-                                placeholder="Suburb"
-                                className="h-7 text-xs"
-                              />
-                            </div>
-                            {/* City */}
-                            <div className="flex flex-col gap-1">
-                              <Label htmlFor="city" className="text-xs">
-                                City *
-                              </Label>
-                              <Input
-                                id="city"
-                                value={formData.city}
-                                onChange={(e) => handleInputChange("city", e.target.value)}
-                                placeholder="City"
-                                required={!noStreetAddress}
-                                disabled={isFieldPopulatedByPMS("city", selectedPMS)}
-                                className={cn(
-                                  "h-7 text-xs",
-                                  getPMSFieldClass("city", selectedPMS),
-                                  isFieldPopulatedByPMS("city", selectedPMS) && "cursor-not-allowed",
-                                )}
-                              />
-                            </div>
-                            {/* Country */}
-                            <div className="flex flex-col gap-1">
-                              <Label htmlFor="country" className="text-xs">
-                                Country *
-                              </Label>
-                              <Popover open={countryOpen} onOpenChange={setCountryOpen}>
-                                <PopoverTrigger asChild>
-                                  <Button
-                                    variant="outline"
-                                    role="combobox"
-                                    aria-expanded={countryOpen}
-                                    className={cn("h-7 text-xs w-full justify-between font-normal", getPMSFieldClass("country", selectedPMS))}
-                                    disabled={isFieldPopulatedByPMS("country", selectedPMS)}
-                                  >
-                                    {formData.country || "Select country..."}
-                                    <ChevronsUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
-                                  </Button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
-                                  <Command>
-                                    <CommandInput placeholder="Search country..." />
-                                    <CommandList>
-                                      <CommandEmpty>No country found.</CommandEmpty>
-                                      <CommandGroup>
-                                        {COUNTRY_OPTIONS.map((c) => (
-                                          <CommandItem
-                                            key={c.value}
-                                            value={c.label}
-                                            onSelect={() => {
-                                              handleInputChange("country", c.label);
-                                              setCountryOpen(false);
-                                            }}
-                                          >
-                                            <Check className={cn("mr-2 h-3 w-3", formData.country === c.label ? "opacity-100" : "opacity-0")} />
-                                            {c.label}
-                                          </CommandItem>
-                                        ))}
-                                      </CommandGroup>
-                                    </CommandList>
-                                  </Command>
-                                </PopoverContent>
-                              </Popover>
-                            </div>
-                            {/* Postal Code */}
-                            <div className="flex flex-col gap-1">
-                              <Label htmlFor="postal_code" className="text-xs">
-                                Code
-                              </Label>
-                              <Input
-                                id="postal_code"
-                                value={formData.postal_code}
-                                onChange={(e) => handleInputChange("postal_code", e.target.value)}
-                                placeholder="Postal code"
-                                disabled={isFieldPopulatedByPMS("postal_code", selectedPMS)}
-                                className={cn(
-                                  "h-7 text-xs",
-                                  getPMSFieldClass("postal_code", selectedPMS),
-                                  isFieldPopulatedByPMS("postal_code", selectedPMS) && "cursor-not-allowed",
-                                )}
-                              />
-                            </div>
-                          </div>
+                      {/* GPS Coordinates & Google Maps Link — always visible */}
+                      <div
+                        className={cn(
+                          "grid gap-3 mt-3",
+                          noStreetAddress ? "grid-cols-1" : "grid-cols-2 md:grid-cols-4",
                         )}
-
-                        {/* GPS Coordinates & Google Maps Link — always visible */}
-                        <div className={cn("grid gap-3 mt-3", noStreetAddress ? "grid-cols-1" : "grid-cols-2 md:grid-cols-4")}>
-                          {/* Latitude */}
-                          <div className="flex flex-col gap-1">
-                            <Label htmlFor="latitude_input" className="text-xs flex items-center gap-1">
-                              <MapPin className="h-3 w-3 text-primary" />
-                              Latitude
-                            </Label>
+                      >
+                        {/* Latitude */}
+                        <div className="flex flex-col gap-1">
+                          <Label htmlFor="latitude_input" className="text-xs flex items-center gap-1">
+                            <MapPin className="h-3 w-3 text-primary" />
+                            Latitude
+                          </Label>
+                          <Input
+                            id="latitude_input"
+                            type="number"
+                            step="any"
+                            value={latitude ?? ""}
+                            onChange={(e) => {
+                              const val = e.target.value ? parseFloat(e.target.value) : null;
+                              setLatitude(val);
+                              setIsDirty(true);
+                            }}
+                            placeholder="-34.0522"
+                            className="h-7 text-xs font-mono"
+                          />
+                        </div>
+                        {/* Longitude */}
+                        <div className="flex flex-col gap-1">
+                          <Label htmlFor="longitude_input" className="text-xs flex items-center gap-1">
+                            <MapPin className="h-3 w-3 text-primary" />
+                            Longitude
+                          </Label>
+                          <Input
+                            id="longitude_input"
+                            type="number"
+                            step="any"
+                            value={longitude ?? ""}
+                            onChange={(e) => {
+                              const val = e.target.value ? parseFloat(e.target.value) : null;
+                              setLongitude(val);
+                              setIsDirty(true);
+                            }}
+                            placeholder="18.4241"
+                            className="h-7 text-xs font-mono"
+                          />
+                        </div>
+                        {/* Google Maps Link */}
+                        <div className="flex flex-col gap-1 col-span-2">
+                          <Label htmlFor="google_maps_link" className="text-xs">
+                            Google Maps Link {noStreetAddress && "*"}
+                          </Label>
+                          <div className="flex items-center gap-2">
                             <Input
-                              id="latitude_input"
-                              type="number"
-                              step="any"
-                              value={latitude ?? ""}
-                              onChange={(e) => {
-                                const val = e.target.value ? parseFloat(e.target.value) : null;
-                                setLatitude(val);
-                                setIsDirty(true);
-                              }}
-                              placeholder="-34.0522"
-                              className="h-7 text-xs font-mono"
+                              id="google_maps_link"
+                              value={googleMapsLink}
+                              onChange={(e) => handleGoogleMapsLinkChange(e.target.value)}
+                              placeholder="Paste Google Maps link to extract GPS"
+                              className="flex-1 h-7 text-xs font-mono"
+                              required={noStreetAddress}
                             />
-                          </div>
-                          {/* Longitude */}
-                          <div className="flex flex-col gap-1">
-                            <Label htmlFor="longitude_input" className="text-xs flex items-center gap-1">
-                              <MapPin className="h-3 w-3 text-primary" />
-                              Longitude
-                            </Label>
-                            <Input
-                              id="longitude_input"
-                              type="number"
-                              step="any"
-                              value={longitude ?? ""}
-                              onChange={(e) => {
-                                const val = e.target.value ? parseFloat(e.target.value) : null;
-                                setLongitude(val);
-                                setIsDirty(true);
-                              }}
-                              placeholder="18.4241"
-                              className="h-7 text-xs font-mono"
-                            />
-                          </div>
-                          {/* Google Maps Link */}
-                          <div className="flex flex-col gap-1 col-span-2">
-                            <Label htmlFor="google_maps_link" className="text-xs">
-                              Google Maps Link {noStreetAddress && '*'}
-                            </Label>
-                            <div className="flex items-center gap-2">
-                              <Input
-                                id="google_maps_link"
-                                value={googleMapsLink}
-                                onChange={(e) => handleGoogleMapsLinkChange(e.target.value)}
-                                placeholder="Paste Google Maps link to extract GPS"
-                                className="flex-1 h-7 text-xs font-mono"
-                                required={noStreetAddress}
-                              />
-                              {googleMapsLink && latitude && longitude && (
-                                <span className="text-xs text-green-600 flex items-center gap-1">
-                                  <Check className="h-3 w-3" />
-                                </span>
-                              )}
-                            </div>
+                            {googleMapsLink && latitude && longitude && (
+                              <span className="text-xs text-green-600 flex items-center gap-1">
+                                <Check className="h-3 w-3" />
+                              </span>
+                            )}
                           </div>
                         </div>
-                      </CardContent>
-                    </Card>
-                  </div>
-
-                  {/* Right side - Map (25%) */}
-                  <div className="w-1/4 min-w-[200px] flex">
-                    <Card className="flex-1 flex flex-col p-2">
-                      <PropertyMap
-                        address={formData.address}
-                        suburb={formData.suburb}
-                        city={formData.city}
-                        country={formData.country}
-                        latitude={latitude}
-                        longitude={longitude}
-                        onLocationUpdate={(lat, lng) => {
-                          setLatitude(lat);
-                          setLongitude(lng);
-                        }}
-                      />
-                    </Card>
-                  </div>
+                      </div>
+                    </CardContent>
+                  </Card>
                 </div>
 
-                {/* Property Surroundings Section */}
+                {/* Right side - Map (25%) */}
+                <div className="w-1/4 min-w-[200px] flex">
+                  <Card className="flex-1 flex flex-col p-2">
+                    <PropertyMap
+                      address={formData.address}
+                      suburb={formData.suburb}
+                      city={formData.city}
+                      country={formData.country}
+                      latitude={latitude}
+                      longitude={longitude}
+                      onLocationUpdate={(lat, lng) => {
+                        setLatitude(lat);
+                        setLongitude(lng);
+                      }}
+                    />
+                  </Card>
+                </div>
+              </div>
+
+              {/* Property Surroundings Section */}
+              <Card>
+                <CardHeader className="py-2 px-4">
+                  <CardTitle className="text-sm">Property Surroundings</CardTitle>
+                </CardHeader>
+                <CardContent className="py-2 px-4 space-y-3">
+                  {/* Restaurants & Cafes */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="flex flex-col gap-1">
+                      <Label htmlFor="restaurants_cafes" className="text-xs text-muted-foreground">
+                        Restaurants & Cafes
+                      </Label>
+                      <Input
+                        id="restaurants_cafes"
+                        value={formData.restaurants_cafes}
+                        onChange={(e) => handleInputChange("restaurants_cafes", e.target.value)}
+                        placeholder="e.g., Local restaurants, cafes"
+                        className="h-7 text-xs"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <Label htmlFor="restaurants_cafes_distance" className="text-xs text-muted-foreground">
+                        Distance
+                      </Label>
+                      <Input
+                        id="restaurants_cafes_distance"
+                        value={formData.restaurants_cafes_distance}
+                        onChange={(e) => handleInputChange("restaurants_cafes_distance", e.target.value)}
+                        placeholder="e.g., 2 km"
+                        className="h-7 text-xs"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Public Transport */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="flex flex-col gap-1">
+                      <Label htmlFor="public_transport" className="text-xs text-muted-foreground">
+                        Public Transport
+                      </Label>
+                      <Input
+                        id="public_transport"
+                        value={formData.public_transport}
+                        onChange={(e) => handleInputChange("public_transport", e.target.value)}
+                        placeholder="e.g., Bus stop, Train station"
+                        className="h-7 text-xs"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <Label htmlFor="public_transport_distance" className="text-xs text-muted-foreground">
+                        Distance
+                      </Label>
+                      <Input
+                        id="public_transport_distance"
+                        value={formData.public_transport_distance}
+                        onChange={(e) => handleInputChange("public_transport_distance", e.target.value)}
+                        placeholder="e.g., 500 m"
+                        className="h-7 text-xs"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Closest Airport */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="flex flex-col gap-1">
+                      <Label htmlFor="closest_airport" className="text-xs text-muted-foreground">
+                        Closest Airport
+                      </Label>
+                      <Input
+                        id="closest_airport"
+                        value={formData.closest_airport}
+                        onChange={(e) => handleInputChange("closest_airport", e.target.value)}
+                        placeholder="e.g., Hoedspruit Eastgate Airport"
+                        className="h-7 text-xs"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <Label htmlFor="closest_airport_distance" className="text-xs text-muted-foreground">
+                        Distance
+                      </Label>
+                      <Input
+                        id="closest_airport_distance"
+                        value={formData.closest_airport_distance}
+                        onChange={(e) => handleInputChange("closest_airport_distance", e.target.value)}
+                        placeholder="e.g., 52 km"
+                        className="h-7 text-xs"
+                      />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Business Registration - For Contract Variables */}
+              {selectedPMS !== "nightsbridge" && (
                 <Card>
                   <CardHeader className="py-2 px-4">
-                    <CardTitle className="text-sm">Property Surroundings</CardTitle>
+                    <CardTitle className="text-sm">Business Registration</CardTitle>
                   </CardHeader>
                   <CardContent className="py-2 px-4 space-y-3">
-                    {/* Restaurants & Cafes */}
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                       <div className="flex flex-col gap-1">
-                        <Label htmlFor="restaurants_cafes" className="text-xs text-muted-foreground">
-                          Restaurants & Cafes
+                        <Label htmlFor="registered_business_name" className="text-xs">
+                          Registered Business Name
                         </Label>
                         <Input
-                          id="restaurants_cafes"
-                          value={formData.restaurants_cafes}
-                          onChange={(e) => handleInputChange("restaurants_cafes", e.target.value)}
-                          placeholder="e.g., Local restaurants, cafes"
-                          className="h-7 text-xs"
-                        />
-                      </div>
-                      <div className="flex flex-col gap-1">
-                        <Label htmlFor="restaurants_cafes_distance" className="text-xs text-muted-foreground">
-                          Distance
-                        </Label>
-                        <Input
-                          id="restaurants_cafes_distance"
-                          value={formData.restaurants_cafes_distance}
-                          onChange={(e) => handleInputChange("restaurants_cafes_distance", e.target.value)}
-                          placeholder="e.g., 2 km"
-                          className="h-7 text-xs"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Public Transport */}
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="flex flex-col gap-1">
-                        <Label htmlFor="public_transport" className="text-xs text-muted-foreground">
-                          Public Transport
-                        </Label>
-                        <Input
-                          id="public_transport"
-                          value={formData.public_transport}
-                          onChange={(e) => handleInputChange("public_transport", e.target.value)}
-                          placeholder="e.g., Bus stop, Train station"
-                          className="h-7 text-xs"
-                        />
-                      </div>
-                      <div className="flex flex-col gap-1">
-                        <Label htmlFor="public_transport_distance" className="text-xs text-muted-foreground">
-                          Distance
-                        </Label>
-                        <Input
-                          id="public_transport_distance"
-                          value={formData.public_transport_distance}
-                          onChange={(e) => handleInputChange("public_transport_distance", e.target.value)}
-                          placeholder="e.g., 500 m"
-                          className="h-7 text-xs"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Closest Airport */}
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="flex flex-col gap-1">
-                        <Label htmlFor="closest_airport" className="text-xs text-muted-foreground">
-                          Closest Airport
-                        </Label>
-                        <Input
-                          id="closest_airport"
-                          value={formData.closest_airport}
-                          onChange={(e) => handleInputChange("closest_airport", e.target.value)}
-                          placeholder="e.g., Hoedspruit Eastgate Airport"
-                          className="h-7 text-xs"
-                        />
-                      </div>
-                      <div className="flex flex-col gap-1">
-                        <Label htmlFor="closest_airport_distance" className="text-xs text-muted-foreground">
-                          Distance
-                        </Label>
-                        <Input
-                          id="closest_airport_distance"
-                          value={formData.closest_airport_distance}
-                          onChange={(e) => handleInputChange("closest_airport_distance", e.target.value)}
-                          placeholder="e.g., 52 km"
-                          className="h-7 text-xs"
-                        />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Business Registration - For Contract Variables */}
-                {selectedPMS !== "nightsbridge" && (
-                  <Card>
-                    <CardHeader className="py-2 px-4">
-                      <CardTitle className="text-sm">Business Registration</CardTitle>
-                    </CardHeader>
-                    <CardContent className="py-2 px-4 space-y-3">
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                        <div className="flex flex-col gap-1">
-                          <Label htmlFor="registered_business_name" className="text-xs">
-                            Registered Business Name
-                          </Label>
-                          <Input
-                            id="registered_business_name"
-                            value={registeredBusinessName}
-                            onChange={(e) => {
-                              setRegisteredBusinessName(e.target.value);
-                              setIsDirty(true);
-                            }}
-                            placeholder="e.g., Safari Lodge (Pty) Ltd"
-                            className="h-7 text-xs"
-                          />
-                        </div>
-                        <div className="flex flex-col gap-1">
-                          <Label htmlFor="mobile_number" className="text-xs">
-                            Mobile Number
-                          </Label>
-                          <Input
-                            id="mobile_number"
-                            value={mobileNumber}
-                            onChange={(e) => {
-                              setMobileNumber(e.target.value);
-                              setIsDirty(true);
-                            }}
-                            placeholder="e.g., +27 82 123 4567"
-                            className="h-7 text-xs"
-                          />
-                        </div>
-                        <div className="flex flex-col gap-1">
-                          <Label htmlFor="key_representative" className="text-xs">
-                            Key Representative
-                          </Label>
-                          <Input
-                            id="key_representative"
-                            value={keyRepresentative}
-                            onChange={(e) => {
-                              setKeyRepresentative(e.target.value);
-                              setIsDirty(true);
-                            }}
-                            placeholder="e.g., John Smith"
-                            className="h-7 text-xs"
-                          />
-                        </div>
-                      </div>
-                      <div className="flex flex-col gap-1">
-                        <Label htmlFor="postal_address" className="text-xs">
-                          Postal Address
-                        </Label>
-                        <Textarea
-                          id="postal_address"
-                          value={postalAddress}
+                          id="registered_business_name"
+                          value={registeredBusinessName}
                           onChange={(e) => {
-                            setPostalAddress(e.target.value);
+                            setRegisteredBusinessName(e.target.value);
                             setIsDirty(true);
                           }}
-                          placeholder="e.g., PO Box 123, Hoedspruit, 1380"
-                          className="text-xs min-h-[50px]"
+                          placeholder="e.g., Safari Lodge (Pty) Ltd"
+                          className="h-7 text-xs"
                         />
                       </div>
-                    </CardContent>
-                  </Card>
-                )}
-
-                {/* Property and Banking Details - Hidden for NightsBridge */}
-                {selectedPMS !== "nightsbridge" && (
-                  <Card>
-                    <CardHeader className="py-2 px-4">
-                      <CardTitle className="text-sm flex items-center justify-between">
-                        <span>Banking Details</span>
-                        <div className="flex items-center gap-2">
-                          <Label htmlFor="has_vat" className="text-xs text-muted-foreground font-normal">
-                            VAT Registered?
-                          </Label>
-                          <Switch
-                            id="has_vat"
-                            checked={formData.has_vat}
-                            onCheckedChange={(checked) => handleInputChange("has_vat", checked)}
-                          />
-                        </div>
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="py-2 px-4 space-y-3">
-                      {/* Row 1: Traditional Banking */}
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                        {formData.has_vat && (
-                          <div className="flex flex-col gap-1">
-                            <Label htmlFor="vat_number" className="text-xs">
-                              VAT #
-                            </Label>
-                            <Input
-                              id="vat_number"
-                              value={formData.vat_number}
-                              onChange={(e) => handleInputChange("vat_number", e.target.value)}
-                              placeholder="VAT number"
-                              className="h-7 text-xs"
-                            />
-                          </div>
-                        )}
-                        <div className="flex flex-col gap-1">
-                          <Label htmlFor="property_registration" className="text-xs">
-                            Reg #
-                          </Label>
-                          <Input
-                            id="property_registration"
-                            value={formData.property_registration}
-                            onChange={(e) => handleInputChange("property_registration", e.target.value)}
-                            placeholder="Registration"
-                            className="h-7 text-xs"
-                          />
-                        </div>
-                        <div className="flex flex-col gap-1">
-                          <Label htmlFor="bank_name" className="text-xs">
-                            Bank
-                          </Label>
-                          <Input
-                            id="bank_name"
-                            value={formData.bank_name}
-                            onChange={(e) => handleInputChange("bank_name", e.target.value)}
-                            placeholder="Bank name"
-                            className="h-7 text-xs"
-                          />
-                        </div>
-                        <div className="flex flex-col gap-1">
-                          <Label htmlFor="branch_code" className="text-xs">
-                            Branch
-                          </Label>
-                          <Input
-                            id="branch_code"
-                            value={formData.branch_code}
-                            onChange={(e) => handleInputChange("branch_code", e.target.value)}
-                            placeholder="Code"
-                            className="h-7 text-xs"
-                          />
-                        </div>
+                      <div className="flex flex-col gap-1">
+                        <Label htmlFor="mobile_number" className="text-xs">
+                          Mobile Number
+                        </Label>
+                        <Input
+                          id="mobile_number"
+                          value={mobileNumber}
+                          onChange={(e) => {
+                            setMobileNumber(e.target.value);
+                            setIsDirty(true);
+                          }}
+                          placeholder="e.g., +27 82 123 4567"
+                          className="h-7 text-xs"
+                        />
                       </div>
-                      {/* Row 2: Account Details */}
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                        <div className="flex flex-col gap-1">
-                          <Label htmlFor="account_holder" className="text-xs">
-                            Holder
-                          </Label>
-                          <Input
-                            id="account_holder"
-                            value={formData.account_holder}
-                            onChange={(e) => handleInputChange("account_holder", e.target.value)}
-                            placeholder="Name"
-                            className="h-7 text-xs"
-                          />
-                        </div>
-                        <div className="flex flex-col gap-1">
-                          <Label htmlFor="account_number" className="text-xs">
-                            Account #
-                          </Label>
-                          <Input
-                            id="account_number"
-                            value={formData.account_number}
-                            onChange={(e) => handleInputChange("account_number", e.target.value)}
-                            placeholder="Number"
-                            className="h-7 text-xs"
-                          />
-                        </div>
-                        <div className="flex flex-col gap-1">
-                          <Label htmlFor="account_type" className="text-xs">
-                            Type
-                          </Label>
-                          <Input
-                            id="account_type"
-                            value={formData.account_type}
-                            onChange={(e) => handleInputChange("account_type", e.target.value)}
-                            placeholder="Type"
-                            className="h-7 text-xs"
-                          />
-                        </div>
-                        <div className="flex flex-col gap-1">
-                          <Label htmlFor="swift_code" className="text-xs">
-                            SWIFT
-                          </Label>
-                          <Input
-                            id="swift_code"
-                            value={formData.swift_code}
-                            onChange={(e) => handleInputChange("swift_code", e.target.value)}
-                            placeholder="Code"
-                            className="h-7 text-xs"
-                          />
-                        </div>
+                      <div className="flex flex-col gap-1">
+                        <Label htmlFor="key_representative" className="text-xs">
+                          Key Representative
+                        </Label>
+                        <Input
+                          id="key_representative"
+                          value={keyRepresentative}
+                          onChange={(e) => {
+                            setKeyRepresentative(e.target.value);
+                            setIsDirty(true);
+                          }}
+                          placeholder="e.g., John Smith"
+                          className="h-7 text-xs"
+                        />
                       </div>
-                      {/* Row 3: Bitcoin */}
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-2 border-t border-border">
-                        <div className="flex items-center gap-2">
-                          <Switch
-                            id="accepts_bitcoin"
-                            checked={formData.accepts_bitcoin}
-                            onCheckedChange={(checked) => handleInputChange("accepts_bitcoin", checked)}
-                          />
-                          <Label htmlFor="accepts_bitcoin" className="text-xs">
-                            Bitcoin
-                          </Label>
-                        </div>
-                        {formData.accepts_bitcoin && (
-                          <div className="flex flex-col gap-1 col-span-3">
-                            <Label htmlFor="bitcoin_wallet_address" className="text-xs">
-                              Wallet Address
-                            </Label>
-                            <Input
-                              id="bitcoin_wallet_address"
-                              value={formData.bitcoin_wallet_address}
-                              onChange={(e) => handleInputChange("bitcoin_wallet_address", e.target.value)}
-                              placeholder="Bitcoin wallet address"
-                              className="h-7 text-xs font-mono"
-                            />
-                          </div>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-
-                {/* Contract Management - Only show for existing properties */}
-                {propertyId && (
-                  <ContractManagementPanel
-                    propertyId={propertyId}
-                    propertyName={formData.name}
-                    ownerEmail={formData.owner_email}
-                    ownerName={formData.owner_name}
-                    isRolProperty={isRolProperty}
-                  />
-                )}
-
-                <div className="flex justify-end gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-7 text-xs"
-                    onClick={() => handleNavigate("/admin/property-overview")}
-                  >
-                    Cancel
-                  </Button>
-                  {isDirty && (
-                    <Button type="submit" size="sm" className="h-7 text-xs" disabled={loading}>
-                      <Save className="mr-1 h-3 w-3" />
-                      {loading ? "Saving..." : "Save"}
-                    </Button>
-                  )}
-                </div>
-              </form>
-            </TabsContent>
-
-            {/* House Style Tab */}
-            <TabsContent value="house-style">
-              <form className="space-y-6">
-                {/* Company Logo */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>COMPANY LOGO</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div
-                      className={cn(
-                        "border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors",
-                        isLogoUploading ? "border-primary bg-primary/5" : "border-blue-300 bg-blue-50",
-                      )}
-                      onDragOver={(e) => e.preventDefault()}
-                      onDrop={handleLogoDrop}
-                      onClick={() => document.getElementById("logo-upload")?.click()}
-                    >
-                      {companyLogo ? (
-                        <div className="relative">
-                          <img src={companyLogo} alt="Company Logo" className="max-h-48 mx-auto" />
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            className="absolute top-2 right-2"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setCompanyLogo(null);
-                            }}
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      ) : (
-                        <>
-                          <Upload className="h-12 w-12 mx-auto mb-4 text-blue-500" />
-                          <p className="text-sm text-blue-700">Click or Drag and drop image to upload</p>
-                        </>
-                      )}
-                      <input
-                        id="logo-upload"
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={handleLogoUpload}
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <Label htmlFor="postal_address" className="text-xs">
+                        Postal Address
+                      </Label>
+                      <Textarea
+                        id="postal_address"
+                        value={postalAddress}
+                        onChange={(e) => {
+                          setPostalAddress(e.target.value);
+                          setIsDirty(true);
+                        }}
+                        placeholder="e.g., PO Box 123, Hoedspruit, 1380"
+                        className="text-xs min-h-[50px]"
                       />
                     </div>
                   </CardContent>
                 </Card>
+              )}
 
-                {/* Book Page Header Settings */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>BOOK PAGE HEADER SETTINGS</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="flex items-center gap-4">
-                      <Label className="whitespace-nowrap">RoomsOnline Bookings Link</Label>
-                      <Input
-                        value={roomsOnlineBookingsLink}
-                        onChange={(e) => setRoomsOnlineBookingsLink(e.target.value)}
-                        className="flex-1"
-                      />
-                      <Button size="sm" variant="ghost" className="text-destructive">
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-
-                    <div className="flex items-center gap-4">
-                      <Label className="whitespace-nowrap">Title Behaviour</Label>
-                      <div className="flex gap-2">
-                        <Button
-                          type="button"
-                          variant={titleBehaviour === "property-name" ? "destructive" : "outline"}
-                          onClick={() => setTitleBehaviour("property-name")}
-                        >
-                          Property Name
-                        </Button>
-                        <Button
-                          type="button"
-                          variant={titleBehaviour === "property-logo" ? "destructive" : "outline"}
-                          onClick={() => setTitleBehaviour("property-logo")}
-                        >
-                          Property Logo
-                        </Button>
-                        <Button
-                          type="button"
-                          variant={titleBehaviour === "no-title" ? "destructive" : "outline"}
-                          onClick={() => setTitleBehaviour("no-title")}
-                        >
-                          No Title
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Merchant Details */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>MERCHANT DETAILS</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <Label htmlFor="org-name">Organization Name</Label>
-                        <Input
-                          id="org-name"
-                          value={merchantDetails.organizationName}
-                          onChange={(e) => setMerchantDetails({ ...merchantDetails, organizationName: e.target.value })}
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="merchant-id">Merchant Id</Label>
-                        <Input
-                          id="merchant-id"
-                          value={merchantDetails.merchantId}
-                          onChange={(e) => setMerchantDetails({ ...merchantDetails, merchantId: e.target.value })}
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="merchant-key">Merchant Key</Label>
-                        <Input
-                          id="merchant-key"
-                          value={merchantDetails.merchantKey}
-                          onChange={(e) => setMerchantDetails({ ...merchantDetails, merchantKey: e.target.value })}
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="split-amount">Split Amount %</Label>
-                        <Input
-                          id="split-amount"
-                          value={merchantDetails.splitAmount}
-                          onChange={(e) => setMerchantDetails({ ...merchantDetails, splitAmount: e.target.value })}
-                        />
-                      </div>
-                    </div>
-                    <div className="bg-blue-50 border border-blue-200 rounded p-3 space-y-1">
-                      <p className="text-sm text-blue-700">
-                        • Split % will be of the total booking. The amount will be credited to RoomsOnline
-                      </p>
-                      <p className="text-sm text-blue-700">
-                        • Decimal split amount percentage will be round off to whole number
-                      </p>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* AdPay Details */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>ADPAY DETAILS</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <Label htmlFor="adpay-merchant">AdPay Merchant</Label>
-                        <Input
-                          id="adpay-merchant"
-                          value={adpayDetails.merchant}
-                          onChange={(e) => setAdpayDetails({ ...adpayDetails, merchant: e.target.value })}
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="adpay-appid">AdPay AppId</Label>
-                        <Input
-                          id="adpay-appid"
-                          value={adpayDetails.appId}
-                          onChange={(e) => setAdpayDetails({ ...adpayDetails, appId: e.target.value })}
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="adpay-storeno">AdPay StoreNo</Label>
-                        <Input
-                          id="adpay-storeno"
-                          value={adpayDetails.storeNo}
-                          onChange={(e) => setAdpayDetails({ ...adpayDetails, storeNo: e.target.value })}
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="adpay-apikey">AdPay ApiKey</Label>
-                        <Input
-                          id="adpay-apikey"
-                          value={adpayDetails.apiKey}
-                          onChange={(e) => setAdpayDetails({ ...adpayDetails, apiKey: e.target.value })}
-                        />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Motar API */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>MOTAR API</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <Label htmlFor="motar-venueid">Motar VenueId</Label>
-                        <Input
-                          id="motar-venueid"
-                          value={motarApi.venueId}
-                          onChange={(e) => setMotarApi({ ...motarApi, venueId: e.target.value })}
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="motar-xapi">Motar XAPI</Label>
-                        <Input
-                          id="motar-xapi"
-                          value={motarApi.xapi}
-                          onChange={(e) => setMotarApi({ ...motarApi, xapi: e.target.value })}
-                        />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Website Color */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>WEBSITE COLOR</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex gap-8">
-                      <div className="space-y-2">
-                        <Label>Primary</Label>
-                        <div className="flex items-center gap-2">
-                          <div
-                            className="w-12 h-12 rounded border-2 cursor-pointer"
-                            style={{ backgroundColor: websiteColors.primary }}
-                            onClick={() => document.getElementById("primary-color")?.click()}
-                          />
-                          <input
-                            id="primary-color"
-                            type="color"
-                            value={websiteColors.primary}
-                            onChange={(e) => setWebsiteColors({ ...websiteColors, primary: e.target.value })}
-                            className="sr-only"
-                          />
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Secondary</Label>
-                        <div className="flex items-center gap-2">
-                          <div
-                            className="w-12 h-12 rounded border-2 cursor-pointer"
-                            style={{ backgroundColor: websiteColors.secondary }}
-                            onClick={() => document.getElementById("secondary-color")?.click()}
-                          />
-                          <input
-                            id="secondary-color"
-                            type="color"
-                            value={websiteColors.secondary}
-                            onChange={(e) => setWebsiteColors({ ...websiteColors, secondary: e.target.value })}
-                            className="sr-only"
-                          />
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <Label>FontColor</Label>
-                        <div className="flex items-center gap-2">
-                          <div
-                            className="w-12 h-12 rounded border-2 cursor-pointer"
-                            style={{ backgroundColor: websiteColors.fontColor }}
-                            onClick={() => document.getElementById("font-color")?.click()}
-                          />
-                          <input
-                            id="font-color"
-                            type="color"
-                            value={websiteColors.fontColor}
-                            onChange={(e) => setWebsiteColors({ ...websiteColors, fontColor: e.target.value })}
-                            className="sr-only"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Action Buttons */}
-                <div className="flex justify-end gap-4">
-                  <Button type="button" variant="outline" onClick={() => handleNavigate("/admin/property-overview")}>
-                    Cancel
-                  </Button>
-                  {isDirty && (
-                    <Button type="submit" className="bg-primary">
-                      <Save className="mr-2 h-4 w-4" />
-                      Save
-                    </Button>
-                  )}
-                </div>
-              </form>
-            </TabsContent>
-
-            <TabsContent value="rol-spec">
-              <ROLSpecTab
-                data={rolSpecData}
-                onChange={setRolSpecData}
-                propertyContext={{
-                  name: formData.name,
-                  property_type: formData.property_type,
-                  property_url: formData.property_url,
-                  property_id: propertyId || undefined,
-                  star_rating: starRating,
-                  description: formData.description,
-                  country: formData.country,
-                  city: formData.city,
-                  suburb: formData.suburb,
-                  restaurants_cafes: formData.restaurants_cafes,
-                  public_transport: formData.public_transport,
-                  closest_airport: formData.closest_airport,
-                  pets_allowed: formData.pets_allowed,
-                  children_allowed: formData.children_allowed,
-                  smoking_allowed: formData.smoking_allowed,
-                  check_in_from: formData.check_in_from,
-                  check_out_to: formData.check_out_to,
-                  facilities: selectedFacilities,
-                  rooms: roomTypes.map((r) => ({
-                    name: r.name,
-                    description: r.description,
-                    maxPeople: r.maxPeople,
-                    bedConfiguration: Array.isArray(r.bedConfiguration)
-                      ? r.bedConfiguration.map((b) => `${b.count} ${b.type}`).join(", ")
-                      : undefined,
-                  })),
-                }}
-                onDirty={() => setIsDirty(true)}
-              />
-            </TabsContent>
-
-             <TabsContent value="branding">
-              <BrandingTab
-                data={brandingData}
-                onChange={setBrandingData}
-                propertyId={propertyId}
-                onDirty={() => setIsDirty(true)}
-                canToggleBrand={isAdmin || isDev || isFearlessLeader}
-                ownerEmail={formData.owner_email}
-              />
-              {propertyId && <BrandVoiceCard propertyId={propertyId} />}
-             </TabsContent>
-
-            <TabsContent value="info-facilities">
-              <form onSubmit={handleSubmit} className="space-y-3">
-                {/* Property Info */}
+              {/* Property and Banking Details - Hidden for NightsBridge */}
+              {selectedPMS !== "nightsbridge" && (
                 <Card>
                   <CardHeader className="py-2 px-4">
                     <CardTitle className="text-sm flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <span>Property Info</span>
-                        <div className="flex items-center gap-2">
-                          <Label className="text-xs text-muted-foreground">Stars</Label>
-                          <div
-                            className={cn(
-                              "inline-block",
-                              getPMSFieldClass("star_rating", selectedPMS),
-                              isFieldPopulatedByPMS("star_rating", selectedPMS) && "opacity-60 pointer-events-none",
-                            )}
-                          >
-                            <StarRating
-                              rating={starRating}
-                              onRatingChange={
-                                isFieldPopulatedByPMS("star_rating", selectedPMS) ? () => {} : setStarRating
-                              }
-                            />
-                          </div>
-                        </div>
+                      <span>Banking Details</span>
+                      <div className="flex items-center gap-2">
+                        <Label htmlFor="has_vat" className="text-xs text-muted-foreground font-normal">
+                          VAT Registered?
+                        </Label>
+                        <Switch
+                          id="has_vat"
+                          checked={formData.has_vat}
+                          onCheckedChange={(checked) => handleInputChange("has_vat", checked)}
+                        />
                       </div>
-                      {selectedPMS && !isRolProperty && (
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <div className="flex items-center gap-2 text-xs font-normal">
-                                <div className="w-3 h-3 rounded bg-primary/10 border border-primary/30" />
-                                <span className="text-muted-foreground">
-                                  <Cloud className="inline h-3 w-3 mr-1" />
-                                  {getPMSDisplayName(selectedPMS)} synced
-                                </span>
-                              </div>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>Fields with this background are populated by {getPMSDisplayName(selectedPMS)}</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      )}
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="py-2 px-4">
-                    <div className="space-y-1">
-                      <Label htmlFor="description" className="text-xs">
-                        Description
-                      </Label>
-                      <Textarea
-                        id="description"
-                        value={formData.description}
-                        onChange={(e) => handleInputChange("description", e.target.value)}
-                        placeholder="Describe your property, its unique features, amenities, and what makes it special..."
-                        rows={3}
-                        disabled={isFieldPopulatedByPMS("description", selectedPMS)}
-                        className={cn(
-                          "resize-none text-xs",
-                          getPMSFieldClass("description", selectedPMS),
-                          isFieldPopulatedByPMS("description", selectedPMS) && "cursor-not-allowed",
-                        )}
-                      />
+                  <CardContent className="py-2 px-4 space-y-3">
+                    {/* Row 1: Traditional Banking */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      {formData.has_vat && (
+                        <div className="flex flex-col gap-1">
+                          <Label htmlFor="vat_number" className="text-xs">
+                            VAT #
+                          </Label>
+                          <Input
+                            id="vat_number"
+                            value={formData.vat_number}
+                            onChange={(e) => handleInputChange("vat_number", e.target.value)}
+                            placeholder="VAT number"
+                            className="h-7 text-xs"
+                          />
+                        </div>
+                      )}
+                      <div className="flex flex-col gap-1">
+                        <Label htmlFor="property_registration" className="text-xs">
+                          Reg #
+                        </Label>
+                        <Input
+                          id="property_registration"
+                          value={formData.property_registration}
+                          onChange={(e) => handleInputChange("property_registration", e.target.value)}
+                          placeholder="Registration"
+                          className="h-7 text-xs"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <Label htmlFor="bank_name" className="text-xs">
+                          Bank
+                        </Label>
+                        <Input
+                          id="bank_name"
+                          value={formData.bank_name}
+                          onChange={(e) => handleInputChange("bank_name", e.target.value)}
+                          placeholder="Bank name"
+                          className="h-7 text-xs"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <Label htmlFor="branch_code" className="text-xs">
+                          Branch
+                        </Label>
+                        <Input
+                          id="branch_code"
+                          value={formData.branch_code}
+                          onChange={(e) => handleInputChange("branch_code", e.target.value)}
+                          placeholder="Code"
+                          className="h-7 text-xs"
+                        />
+                      </div>
+                    </div>
+                    {/* Row 2: Account Details */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      <div className="flex flex-col gap-1">
+                        <Label htmlFor="account_holder" className="text-xs">
+                          Holder
+                        </Label>
+                        <Input
+                          id="account_holder"
+                          value={formData.account_holder}
+                          onChange={(e) => handleInputChange("account_holder", e.target.value)}
+                          placeholder="Name"
+                          className="h-7 text-xs"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <Label htmlFor="account_number" className="text-xs">
+                          Account #
+                        </Label>
+                        <Input
+                          id="account_number"
+                          value={formData.account_number}
+                          onChange={(e) => handleInputChange("account_number", e.target.value)}
+                          placeholder="Number"
+                          className="h-7 text-xs"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <Label htmlFor="account_type" className="text-xs">
+                          Type
+                        </Label>
+                        <Input
+                          id="account_type"
+                          value={formData.account_type}
+                          onChange={(e) => handleInputChange("account_type", e.target.value)}
+                          placeholder="Type"
+                          className="h-7 text-xs"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <Label htmlFor="swift_code" className="text-xs">
+                          SWIFT
+                        </Label>
+                        <Input
+                          id="swift_code"
+                          value={formData.swift_code}
+                          onChange={(e) => handleInputChange("swift_code", e.target.value)}
+                          placeholder="Code"
+                          className="h-7 text-xs"
+                        />
+                      </div>
+                    </div>
+                    {/* Row 3: Bitcoin */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-2 border-t border-border">
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          id="accepts_bitcoin"
+                          checked={formData.accepts_bitcoin}
+                          onCheckedChange={(checked) => handleInputChange("accepts_bitcoin", checked)}
+                        />
+                        <Label htmlFor="accepts_bitcoin" className="text-xs">
+                          Bitcoin
+                        </Label>
+                      </div>
+                      {formData.accepts_bitcoin && (
+                        <div className="flex flex-col gap-1 col-span-3">
+                          <Label htmlFor="bitcoin_wallet_address" className="text-xs">
+                            Wallet Address
+                          </Label>
+                          <Input
+                            id="bitcoin_wallet_address"
+                            value={formData.bitcoin_wallet_address}
+                            onChange={(e) => handleInputChange("bitcoin_wallet_address", e.target.value)}
+                            placeholder="Bitcoin wallet address"
+                            className="h-7 text-xs font-mono"
+                          />
+                        </div>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
+              )}
 
-                {/* Accommodation Type & Self Catering */}
-                <Card>
-                  <CardHeader className="py-2 px-4">
-                    <CardTitle className="text-sm">Accommodation Settings</CardTitle>
-                  </CardHeader>
-                  <CardContent className="py-2 px-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-1">
-                        <Label htmlFor="accommodation_label" className="text-xs">
-                          Accommodation Label
-                        </Label>
-                        <p className="text-[10px] text-muted-foreground mb-1">
-                          How "rooms" are referred to on your listing (e.g. Units, Chalets, Apartments)
-                        </p>
-                        <Select
-                          value={accommodationLabel || getAccommodationLabel({ property_type: formData.property_type, external_system: selectedPMS || null }).key}
-                          onValueChange={(value) => {
-                            setAccommodationLabel(value);
-                            setIsDirty(true);
+              {/* Contract Management - Only show for existing properties */}
+              {propertyId && (
+                <ContractManagementPanel
+                  propertyId={propertyId}
+                  propertyName={formData.name}
+                  ownerEmail={formData.owner_email}
+                  ownerName={formData.owner_name}
+                  isRolProperty={isRolProperty}
+                />
+              )}
+
+              <div className="flex justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => handleNavigate("/admin/property-overview")}
+                >
+                  Cancel
+                </Button>
+                {isDirty && (
+                  <Button type="submit" size="sm" className="h-7 text-xs" disabled={loading}>
+                    <Save className="mr-1 h-3 w-3" />
+                    {loading ? "Saving..." : "Save"}
+                  </Button>
+                )}
+              </div>
+            </form>
+          </TabsContent>
+
+          {/* House Style Tab */}
+          <TabsContent value="house-style">
+            <form className="space-y-6">
+              {/* Company Logo */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>COMPANY LOGO</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div
+                    className={cn(
+                      "border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors",
+                      isLogoUploading ? "border-primary bg-primary/5" : "border-blue-300 bg-blue-50",
+                    )}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={handleLogoDrop}
+                    onClick={() => document.getElementById("logo-upload")?.click()}
+                  >
+                    {companyLogo ? (
+                      <div className="relative">
+                        <img src={companyLogo} alt="Company Logo" className="max-h-48 mx-auto" />
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          className="absolute top-2 right-2"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setCompanyLogo(null);
                           }}
                         >
-                          <SelectTrigger id="accommodation_label" className="h-7 text-xs">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {ACCOMMODATION_LABEL_OPTIONS.map((opt) => (
-                              <SelectItem key={opt.value} value={opt.value}>
-                                {opt.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                          <X className="h-4 w-4" />
+                        </Button>
                       </div>
-                      <div className="space-y-1">
-                        <Label htmlFor="self_catering" className="text-xs">
-                          Self Catering
-                        </Label>
-                        <p className="text-[10px] text-muted-foreground mb-1">
-                          Property offers self-catering accommodation (kitchen/kitchenette)
-                        </p>
-                        <div className="flex items-center gap-2 pt-1">
-                          <Switch
-                            id="self_catering"
-                            checked={isSelfCatering}
-                            onCheckedChange={(checked) => {
-                              setIsSelfCatering(checked);
-                              setIsDirty(true);
-                            }}
-                          />
-                          <Label htmlFor="self_catering" className="text-xs cursor-pointer">
-                            {isSelfCatering ? 'Yes' : 'No'}
-                          </Label>
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader className="py-2 px-4">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-sm">Facilities</CardTitle>
-                      <div className="text-xs text-muted-foreground flex items-center gap-1">
-                        <Info className="h-3 w-3" />
-                        Checked items will be highlighted on your listing
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="py-2 px-4">
-                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                      {/* General */}
-                      <div>
-                        <h3 className="font-semibold mb-1 text-xs text-muted-foreground">General</h3>
-                        <div className="space-y-0.5">
-                          {facilities.general.map((facility) => (
-                            <div key={facility} className="flex items-center space-x-1.5">
-                              <Checkbox
-                                id={facility}
-                                checked={selectedFacilities.includes(facility)}
-                                onCheckedChange={() => toggleFacility(facility)}
-                                className="h-3 w-3"
-                              />
-                              <Label htmlFor={facility} className="cursor-pointer text-xs leading-none">
-                                {facility}
-                              </Label>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Business & Reception */}
-                      <div>
-                        <h3 className="font-semibold mb-1 text-xs text-muted-foreground">Business & Reception</h3>
-                        <div className="space-y-0.5">
-                          {facilities.businessReception.map((facility) => (
-                            <div key={facility} className="flex items-center space-x-1.5">
-                              <Checkbox
-                                id={facility}
-                                checked={selectedFacilities.includes(facility)}
-                                onCheckedChange={() => toggleFacility(facility)}
-                                className="h-3 w-3"
-                              />
-                              <Label htmlFor={facility} className="cursor-pointer text-xs leading-none">
-                                {facility}
-                              </Label>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Conference & Events */}
-                      <div>
-                        <h3 className="font-semibold mb-1 text-xs text-muted-foreground">Conference & Events</h3>
-                        <div className="space-y-0.5">
-                          {facilities.conferenceEvents.map((facility) => (
-                            <div key={facility} className="flex items-center space-x-1.5">
-                              <Checkbox
-                                id={facility}
-                                checked={selectedFacilities.includes(facility)}
-                                onCheckedChange={() => toggleFacility(facility)}
-                                className="h-3 w-3"
-                              />
-                              <Label htmlFor={facility} className="cursor-pointer text-xs leading-none">
-                                {facility}
-                              </Label>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Meals & Dining */}
-                      <div>
-                        <h3 className="font-semibold mb-1 text-xs text-muted-foreground">Meals & Dining</h3>
-                        <div className="space-y-0.5">
-                          {facilities.mealsDining.map((facility) => (
-                            <div key={facility} className="flex items-center space-x-1.5">
-                              <Checkbox
-                                id={facility}
-                                checked={selectedFacilities.includes(facility)}
-                                onCheckedChange={() => toggleFacility(facility)}
-                                className="h-3 w-3"
-                              />
-                              <Label htmlFor={facility} className="cursor-pointer text-xs leading-none">
-                                {facility}
-                              </Label>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Utility & Room Features */}
-                      <div>
-                        <h3 className="font-semibold mb-1 text-xs text-muted-foreground">Utility & Room Features</h3>
-                        <div className="space-y-0.5">
-                          {facilities.utilityRoom.map((facility) => (
-                            <div key={facility} className="flex items-center space-x-1.5">
-                              <Checkbox
-                                id={facility}
-                                checked={selectedFacilities.includes(facility)}
-                                onCheckedChange={() => toggleFacility(facility)}
-                                className="h-3 w-3"
-                              />
-                              <Label htmlFor={facility} className="cursor-pointer text-xs leading-none">
-                                {facility}
-                              </Label>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Wellness & Fitness */}
-                      <div>
-                        <h3 className="font-semibold mb-1 text-xs text-muted-foreground">Wellness & Fitness</h3>
-                        <div className="space-y-0.5">
-                          {facilities.wellnessFitness.map((facility) => (
-                            <div key={facility} className="flex items-center space-x-1.5">
-                              <Checkbox
-                                id={facility}
-                                checked={selectedFacilities.includes(facility)}
-                                onCheckedChange={() => toggleFacility(facility)}
-                                className="h-3 w-3"
-                              />
-                              <Label htmlFor={facility} className="cursor-pointer text-xs leading-none">
-                                {facility}
-                              </Label>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Activities & Experiences */}
-                      <div>
-                        <h3 className="font-semibold mb-1 text-xs text-muted-foreground">Activities & Experiences</h3>
-                        <div className="space-y-0.5">
-                          {facilities.activitiesExperiences.map((facility) => (
-                            <div key={facility} className="flex items-center space-x-1.5">
-                              <Checkbox
-                                id={facility}
-                                checked={selectedFacilities.includes(facility)}
-                                onCheckedChange={() => toggleFacility(facility)}
-                                className="h-3 w-3"
-                              />
-                              <Label htmlFor={facility} className="cursor-pointer text-xs leading-none">
-                                {facility}
-                              </Label>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Family Services */}
-                      <div>
-                        <h3 className="font-semibold mb-1 text-xs text-muted-foreground">Family Services</h3>
-                        <div className="space-y-0.5">
-                          {facilities.familyServices.map((facility) => (
-                            <div key={facility} className="flex items-center space-x-1.5">
-                              <Checkbox
-                                id={facility}
-                                checked={selectedFacilities.includes(facility)}
-                                onCheckedChange={() => toggleFacility(facility)}
-                                className="h-3 w-3"
-                              />
-                              <Label htmlFor={facility} className="cursor-pointer text-xs leading-none">
-                                {facility}
-                              </Label>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Safety & Security */}
-                      <div>
-                        <h3 className="font-semibold mb-1 text-xs text-muted-foreground">Safety & Security</h3>
-                        <div className="space-y-0.5">
-                          {facilities.safetySecurity.map((facility) => (
-                            <div key={facility} className="flex items-center space-x-1.5">
-                              <Checkbox
-                                id={facility}
-                                checked={selectedFacilities.includes(facility)}
-                                onCheckedChange={() => toggleFacility(facility)}
-                                className="h-3 w-3"
-                              />
-                              <Label htmlFor={facility} className="cursor-pointer text-xs leading-none">
-                                {facility}
-                              </Label>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Languages Spoken */}
-                      <div>
-                        <h3 className="font-semibold mb-1 text-xs text-muted-foreground">Languages Spoken</h3>
-                        <div className="space-y-0.5">
-                          {facilities.languagesSpoken.map((facility) => (
-                            <div key={facility} className="flex items-center space-x-1.5">
-                              <Checkbox
-                                id={facility}
-                                checked={selectedFacilities.includes(facility)}
-                                onCheckedChange={() => toggleFacility(facility)}
-                                className="h-3 w-3"
-                              />
-                              <Label htmlFor={facility} className="cursor-pointer text-xs leading-none">
-                                {facility}
-                              </Label>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Transport & Parking */}
-                      <div>
-                        <h3 className="font-semibold mb-1 text-xs text-muted-foreground">Transport & Parking</h3>
-                        <div className="space-y-0.5">
-                          {facilities.transportParking.map((facility) => (
-                            <div key={facility} className="flex items-center space-x-1.5">
-                              <Checkbox
-                                id={facility}
-                                checked={selectedFacilities.includes(facility)}
-                                onCheckedChange={() => toggleFacility(facility)}
-                                className="h-3 w-3"
-                              />
-                              <Label htmlFor={facility} className="cursor-pointer text-xs leading-none">
-                                {facility}
-                              </Label>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-
-                    {selectedFacilities.length > 0 && (
-                      <div className="pt-2 mt-2 border-t">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <Label className="text-xs text-muted-foreground">Selected:</Label>
-                          {selectedFacilities.map((facility) => (
-                            <Badge key={facility} variant="secondary" className="text-xs h-5 gap-1">
-                              {facility}
-                              <button
-                                type="button"
-                                onClick={() => toggleFacility(facility)}
-                                className="ml-0.5 hover:text-destructive"
-                              >
-                                <X className="h-2.5 w-2.5" />
-                              </button>
-                            </Badge>
-                          ))}
-                        </div>
-                      </div>
+                    ) : (
+                      <>
+                        <Upload className="h-12 w-12 mx-auto mb-4 text-blue-500" />
+                        <p className="text-sm text-blue-700">Click or Drag and drop image to upload</p>
+                      </>
                     )}
-                  </CardContent>
-                </Card>
+                    <input
+                      id="logo-upload"
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleLogoUpload}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
 
-                {/* Breakfast Options */}
-                <Card>
-                  <CardHeader className="py-2 px-4">
-                    <CardTitle className="text-sm">Breakfast Options</CardTitle>
-                  </CardHeader>
-                  <CardContent className="py-2 px-4">
-                    <div className="flex flex-wrap gap-3">
-                      {[
-                        "Continental",
-                        "Full English/Irish",
-                        "Vegetarian",
-                        "Vegan",
-                        "Halal",
-                        "Gluten-free",
-                        "Buffet",
-                      ].map((option) => (
+              {/* Book Page Header Settings */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>BOOK PAGE HEADER SETTINGS</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center gap-4">
+                    <Label className="whitespace-nowrap">RoomsOnline Bookings Link</Label>
+                    <Input
+                      value={roomsOnlineBookingsLink}
+                      onChange={(e) => setRoomsOnlineBookingsLink(e.target.value)}
+                      className="flex-1"
+                    />
+                    <Button size="sm" variant="ghost" className="text-destructive">
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+
+                  <div className="flex items-center gap-4">
+                    <Label className="whitespace-nowrap">Title Behaviour</Label>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant={titleBehaviour === "property-name" ? "destructive" : "outline"}
+                        onClick={() => setTitleBehaviour("property-name")}
+                      >
+                        Property Name
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={titleBehaviour === "property-logo" ? "destructive" : "outline"}
+                        onClick={() => setTitleBehaviour("property-logo")}
+                      >
+                        Property Logo
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={titleBehaviour === "no-title" ? "destructive" : "outline"}
+                        onClick={() => setTitleBehaviour("no-title")}
+                      >
+                        No Title
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Merchant Details */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>MERCHANT DETAILS</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="org-name">Organization Name</Label>
+                      <Input
+                        id="org-name"
+                        value={merchantDetails.organizationName}
+                        onChange={(e) => setMerchantDetails({ ...merchantDetails, organizationName: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="merchant-id">Merchant Id</Label>
+                      <Input
+                        id="merchant-id"
+                        value={merchantDetails.merchantId}
+                        onChange={(e) => setMerchantDetails({ ...merchantDetails, merchantId: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="merchant-key">Merchant Key</Label>
+                      <Input
+                        id="merchant-key"
+                        value={merchantDetails.merchantKey}
+                        onChange={(e) => setMerchantDetails({ ...merchantDetails, merchantKey: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="split-amount">Split Amount %</Label>
+                      <Input
+                        id="split-amount"
+                        value={merchantDetails.splitAmount}
+                        onChange={(e) => setMerchantDetails({ ...merchantDetails, splitAmount: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                  <div className="bg-blue-50 border border-blue-200 rounded p-3 space-y-1">
+                    <p className="text-sm text-blue-700">
+                      • Split % will be of the total booking. The amount will be credited to RoomsOnline
+                    </p>
+                    <p className="text-sm text-blue-700">
+                      • Decimal split amount percentage will be round off to whole number
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* AdPay Details */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>ADPAY DETAILS</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="adpay-merchant">AdPay Merchant</Label>
+                      <Input
+                        id="adpay-merchant"
+                        value={adpayDetails.merchant}
+                        onChange={(e) => setAdpayDetails({ ...adpayDetails, merchant: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="adpay-appid">AdPay AppId</Label>
+                      <Input
+                        id="adpay-appid"
+                        value={adpayDetails.appId}
+                        onChange={(e) => setAdpayDetails({ ...adpayDetails, appId: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="adpay-storeno">AdPay StoreNo</Label>
+                      <Input
+                        id="adpay-storeno"
+                        value={adpayDetails.storeNo}
+                        onChange={(e) => setAdpayDetails({ ...adpayDetails, storeNo: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="adpay-apikey">AdPay ApiKey</Label>
+                      <Input
+                        id="adpay-apikey"
+                        value={adpayDetails.apiKey}
+                        onChange={(e) => setAdpayDetails({ ...adpayDetails, apiKey: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Motar API */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>MOTAR API</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="motar-venueid">Motar VenueId</Label>
+                      <Input
+                        id="motar-venueid"
+                        value={motarApi.venueId}
+                        onChange={(e) => setMotarApi({ ...motarApi, venueId: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="motar-xapi">Motar XAPI</Label>
+                      <Input
+                        id="motar-xapi"
+                        value={motarApi.xapi}
+                        onChange={(e) => setMotarApi({ ...motarApi, xapi: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Website Color */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>WEBSITE COLOR</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex gap-8">
+                    <div className="space-y-2">
+                      <Label>Primary</Label>
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="w-12 h-12 rounded border-2 cursor-pointer"
+                          style={{ backgroundColor: websiteColors.primary }}
+                          onClick={() => document.getElementById("primary-color")?.click()}
+                        />
+                        <input
+                          id="primary-color"
+                          type="color"
+                          value={websiteColors.primary}
+                          onChange={(e) => setWebsiteColors({ ...websiteColors, primary: e.target.value })}
+                          className="sr-only"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Secondary</Label>
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="w-12 h-12 rounded border-2 cursor-pointer"
+                          style={{ backgroundColor: websiteColors.secondary }}
+                          onClick={() => document.getElementById("secondary-color")?.click()}
+                        />
+                        <input
+                          id="secondary-color"
+                          type="color"
+                          value={websiteColors.secondary}
+                          onChange={(e) => setWebsiteColors({ ...websiteColors, secondary: e.target.value })}
+                          className="sr-only"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>FontColor</Label>
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="w-12 h-12 rounded border-2 cursor-pointer"
+                          style={{ backgroundColor: websiteColors.fontColor }}
+                          onClick={() => document.getElementById("font-color")?.click()}
+                        />
+                        <input
+                          id="font-color"
+                          type="color"
+                          value={websiteColors.fontColor}
+                          onChange={(e) => setWebsiteColors({ ...websiteColors, fontColor: e.target.value })}
+                          className="sr-only"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Action Buttons */}
+              <div className="flex justify-end gap-4">
+                <Button type="button" variant="outline" onClick={() => handleNavigate("/admin/property-overview")}>
+                  Cancel
+                </Button>
+                {isDirty && (
+                  <Button type="submit" className="bg-primary">
+                    <Save className="mr-2 h-4 w-4" />
+                    Save
+                  </Button>
+                )}
+              </div>
+            </form>
+          </TabsContent>
+
+          <TabsContent value="rol-spec">
+            <ROLSpecTab
+              data={rolSpecData}
+              onChange={setRolSpecData}
+              propertyContext={{
+                name: formData.name,
+                property_type: formData.property_type,
+                property_url: formData.property_url,
+                property_id: propertyId || undefined,
+                star_rating: starRating,
+                description: formData.description,
+                country: formData.country,
+                city: formData.city,
+                suburb: formData.suburb,
+                restaurants_cafes: formData.restaurants_cafes,
+                public_transport: formData.public_transport,
+                closest_airport: formData.closest_airport,
+                pets_allowed: formData.pets_allowed,
+                children_allowed: formData.children_allowed,
+                smoking_allowed: formData.smoking_allowed,
+                check_in_from: formData.check_in_from,
+                check_out_to: formData.check_out_to,
+                facilities: selectedFacilities,
+                rooms: roomTypes.map((r) => ({
+                  name: r.name,
+                  description: r.description,
+                  maxPeople: r.maxPeople,
+                  bedConfiguration: Array.isArray(r.bedConfiguration)
+                    ? r.bedConfiguration.map((b) => `${b.count} ${b.type}`).join(", ")
+                    : undefined,
+                })),
+              }}
+              onDirty={() => setIsDirty(true)}
+            />
+          </TabsContent>
+
+          <TabsContent value="branding">
+            <BrandingTab
+              data={brandingData}
+              onChange={setBrandingData}
+              propertyId={propertyId}
+              onDirty={() => setIsDirty(true)}
+              canToggleBrand={isAdmin || isDev || isFearlessLeader}
+              ownerEmail={formData.owner_email}
+            />
+            {propertyId && <BrandVoiceCard propertyId={propertyId} />}
+          </TabsContent>
+
+          <TabsContent value="info-facilities">
+            <form onSubmit={handleSubmit} className="space-y-3">
+              {/* Property Info */}
+              <Card>
+                <CardHeader className="py-2 px-4">
+                  <CardTitle className="text-sm flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <span>Property Info</span>
+                      <div className="flex items-center gap-2">
+                        <Label className="text-xs text-muted-foreground">Stars</Label>
+                        <div
+                          className={cn(
+                            "inline-block",
+                            getPMSFieldClass("star_rating", selectedPMS),
+                            isFieldPopulatedByPMS("star_rating", selectedPMS) && "opacity-60 pointer-events-none",
+                          )}
+                        >
+                          <StarRating
+                            rating={starRating}
+                            onRatingChange={
+                              isFieldPopulatedByPMS("star_rating", selectedPMS) ? () => {} : setStarRating
+                            }
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    {selectedPMS && !isRolProperty && (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="flex items-center gap-2 text-xs font-normal">
+                              <div className="w-3 h-3 rounded bg-primary/10 border border-primary/30" />
+                              <span className="text-muted-foreground">
+                                <Cloud className="inline h-3 w-3 mr-1" />
+                                {getPMSDisplayName(selectedPMS)} synced
+                              </span>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Fields with this background are populated by {getPMSDisplayName(selectedPMS)}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="py-2 px-4">
+                  <div className="space-y-1">
+                    <Label htmlFor="description" className="text-xs">
+                      Description
+                    </Label>
+                    <Textarea
+                      id="description"
+                      value={formData.description}
+                      onChange={(e) => handleInputChange("description", e.target.value)}
+                      placeholder="Describe your property, its unique features, amenities, and what makes it special..."
+                      rows={3}
+                      disabled={isFieldPopulatedByPMS("description", selectedPMS)}
+                      className={cn(
+                        "resize-none text-xs",
+                        getPMSFieldClass("description", selectedPMS),
+                        isFieldPopulatedByPMS("description", selectedPMS) && "cursor-not-allowed",
+                      )}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Accommodation Type & Self Catering */}
+              <Card>
+                <CardHeader className="py-2 px-4">
+                  <CardTitle className="text-sm">Accommodation Settings</CardTitle>
+                </CardHeader>
+                <CardContent className="py-2 px-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <Label htmlFor="accommodation_label" className="text-xs">
+                        Accommodation Label
+                      </Label>
+                      <p className="text-[10px] text-muted-foreground mb-1">
+                        How "rooms" are referred to on your listing (e.g. Units, Chalets, Apartments)
+                      </p>
+                      <Select
+                        value={
+                          accommodationLabel ||
+                          getAccommodationLabel({
+                            property_type: formData.property_type,
+                            external_system: selectedPMS || null,
+                          }).key
+                        }
+                        onValueChange={(value) => {
+                          setAccommodationLabel(value);
+                          setIsDirty(true);
+                        }}
+                      >
+                        <SelectTrigger id="accommodation_label" className="h-7 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {ACCOMMODATION_LABEL_OPTIONS.map((opt) => (
+                            <SelectItem key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="self_catering" className="text-xs">
+                        Self Catering
+                      </Label>
+                      <p className="text-[10px] text-muted-foreground mb-1">
+                        Property offers self-catering accommodation (kitchen/kitchenette)
+                      </p>
+                      <div className="flex items-center gap-2 pt-1">
+                        <Switch
+                          id="self_catering"
+                          checked={isSelfCatering}
+                          onCheckedChange={(checked) => {
+                            setIsSelfCatering(checked);
+                            setIsDirty(true);
+                          }}
+                        />
+                        <Label htmlFor="self_catering" className="text-xs cursor-pointer">
+                          {isSelfCatering ? "Yes" : "No"}
+                        </Label>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="py-2 px-4">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-sm">Facilities</CardTitle>
+                    <div className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Info className="h-3 w-3" />
+                      Checked items will be highlighted on your listing
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="py-2 px-4">
+                  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                    {/* General */}
+                    <div>
+                      <h3 className="font-semibold mb-1 text-xs text-muted-foreground">General</h3>
+                      <div className="space-y-0.5">
+                        {facilities.general.map((facility) => (
+                          <div key={facility} className="flex items-center space-x-1.5">
+                            <Checkbox
+                              id={facility}
+                              checked={selectedFacilities.includes(facility)}
+                              onCheckedChange={() => toggleFacility(facility)}
+                              className="h-3 w-3"
+                            />
+                            <Label htmlFor={facility} className="cursor-pointer text-xs leading-none">
+                              {facility}
+                            </Label>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Business & Reception */}
+                    <div>
+                      <h3 className="font-semibold mb-1 text-xs text-muted-foreground">Business & Reception</h3>
+                      <div className="space-y-0.5">
+                        {facilities.businessReception.map((facility) => (
+                          <div key={facility} className="flex items-center space-x-1.5">
+                            <Checkbox
+                              id={facility}
+                              checked={selectedFacilities.includes(facility)}
+                              onCheckedChange={() => toggleFacility(facility)}
+                              className="h-3 w-3"
+                            />
+                            <Label htmlFor={facility} className="cursor-pointer text-xs leading-none">
+                              {facility}
+                            </Label>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Conference & Events */}
+                    <div>
+                      <h3 className="font-semibold mb-1 text-xs text-muted-foreground">Conference & Events</h3>
+                      <div className="space-y-0.5">
+                        {facilities.conferenceEvents.map((facility) => (
+                          <div key={facility} className="flex items-center space-x-1.5">
+                            <Checkbox
+                              id={facility}
+                              checked={selectedFacilities.includes(facility)}
+                              onCheckedChange={() => toggleFacility(facility)}
+                              className="h-3 w-3"
+                            />
+                            <Label htmlFor={facility} className="cursor-pointer text-xs leading-none">
+                              {facility}
+                            </Label>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Meals & Dining */}
+                    <div>
+                      <h3 className="font-semibold mb-1 text-xs text-muted-foreground">Meals & Dining</h3>
+                      <div className="space-y-0.5">
+                        {facilities.mealsDining.map((facility) => (
+                          <div key={facility} className="flex items-center space-x-1.5">
+                            <Checkbox
+                              id={facility}
+                              checked={selectedFacilities.includes(facility)}
+                              onCheckedChange={() => toggleFacility(facility)}
+                              className="h-3 w-3"
+                            />
+                            <Label htmlFor={facility} className="cursor-pointer text-xs leading-none">
+                              {facility}
+                            </Label>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Utility & Room Features */}
+                    <div>
+                      <h3 className="font-semibold mb-1 text-xs text-muted-foreground">Utility & Room Features</h3>
+                      <div className="space-y-0.5">
+                        {facilities.utilityRoom.map((facility) => (
+                          <div key={facility} className="flex items-center space-x-1.5">
+                            <Checkbox
+                              id={facility}
+                              checked={selectedFacilities.includes(facility)}
+                              onCheckedChange={() => toggleFacility(facility)}
+                              className="h-3 w-3"
+                            />
+                            <Label htmlFor={facility} className="cursor-pointer text-xs leading-none">
+                              {facility}
+                            </Label>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Wellness & Fitness */}
+                    <div>
+                      <h3 className="font-semibold mb-1 text-xs text-muted-foreground">Wellness & Fitness</h3>
+                      <div className="space-y-0.5">
+                        {facilities.wellnessFitness.map((facility) => (
+                          <div key={facility} className="flex items-center space-x-1.5">
+                            <Checkbox
+                              id={facility}
+                              checked={selectedFacilities.includes(facility)}
+                              onCheckedChange={() => toggleFacility(facility)}
+                              className="h-3 w-3"
+                            />
+                            <Label htmlFor={facility} className="cursor-pointer text-xs leading-none">
+                              {facility}
+                            </Label>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Activities & Experiences */}
+                    <div>
+                      <h3 className="font-semibold mb-1 text-xs text-muted-foreground">Activities & Experiences</h3>
+                      <div className="space-y-0.5">
+                        {facilities.activitiesExperiences.map((facility) => (
+                          <div key={facility} className="flex items-center space-x-1.5">
+                            <Checkbox
+                              id={facility}
+                              checked={selectedFacilities.includes(facility)}
+                              onCheckedChange={() => toggleFacility(facility)}
+                              className="h-3 w-3"
+                            />
+                            <Label htmlFor={facility} className="cursor-pointer text-xs leading-none">
+                              {facility}
+                            </Label>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Family Services */}
+                    <div>
+                      <h3 className="font-semibold mb-1 text-xs text-muted-foreground">Family Services</h3>
+                      <div className="space-y-0.5">
+                        {facilities.familyServices.map((facility) => (
+                          <div key={facility} className="flex items-center space-x-1.5">
+                            <Checkbox
+                              id={facility}
+                              checked={selectedFacilities.includes(facility)}
+                              onCheckedChange={() => toggleFacility(facility)}
+                              className="h-3 w-3"
+                            />
+                            <Label htmlFor={facility} className="cursor-pointer text-xs leading-none">
+                              {facility}
+                            </Label>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Safety & Security */}
+                    <div>
+                      <h3 className="font-semibold mb-1 text-xs text-muted-foreground">Safety & Security</h3>
+                      <div className="space-y-0.5">
+                        {facilities.safetySecurity.map((facility) => (
+                          <div key={facility} className="flex items-center space-x-1.5">
+                            <Checkbox
+                              id={facility}
+                              checked={selectedFacilities.includes(facility)}
+                              onCheckedChange={() => toggleFacility(facility)}
+                              className="h-3 w-3"
+                            />
+                            <Label htmlFor={facility} className="cursor-pointer text-xs leading-none">
+                              {facility}
+                            </Label>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Languages Spoken */}
+                    <div>
+                      <h3 className="font-semibold mb-1 text-xs text-muted-foreground">Languages Spoken</h3>
+                      <div className="space-y-0.5">
+                        {facilities.languagesSpoken.map((facility) => (
+                          <div key={facility} className="flex items-center space-x-1.5">
+                            <Checkbox
+                              id={facility}
+                              checked={selectedFacilities.includes(facility)}
+                              onCheckedChange={() => toggleFacility(facility)}
+                              className="h-3 w-3"
+                            />
+                            <Label htmlFor={facility} className="cursor-pointer text-xs leading-none">
+                              {facility}
+                            </Label>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Transport & Parking */}
+                    <div>
+                      <h3 className="font-semibold mb-1 text-xs text-muted-foreground">Transport & Parking</h3>
+                      <div className="space-y-0.5">
+                        {facilities.transportParking.map((facility) => (
+                          <div key={facility} className="flex items-center space-x-1.5">
+                            <Checkbox
+                              id={facility}
+                              checked={selectedFacilities.includes(facility)}
+                              onCheckedChange={() => toggleFacility(facility)}
+                              className="h-3 w-3"
+                            />
+                            <Label htmlFor={facility} className="cursor-pointer text-xs leading-none">
+                              {facility}
+                            </Label>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {selectedFacilities.length > 0 && (
+                    <div className="pt-2 mt-2 border-t">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Label className="text-xs text-muted-foreground">Selected:</Label>
+                        {selectedFacilities.map((facility) => (
+                          <Badge key={facility} variant="secondary" className="text-xs h-5 gap-1">
+                            {facility}
+                            <button
+                              type="button"
+                              onClick={() => toggleFacility(facility)}
+                              className="ml-0.5 hover:text-destructive"
+                            >
+                              <X className="h-2.5 w-2.5" />
+                            </button>
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Breakfast Options */}
+              <Card>
+                <CardHeader className="py-2 px-4">
+                  <CardTitle className="text-sm">Breakfast Options</CardTitle>
+                </CardHeader>
+                <CardContent className="py-2 px-4">
+                  <div className="flex flex-wrap gap-3">
+                    {["Continental", "Full English/Irish", "Vegetarian", "Vegan", "Halal", "Gluten-free", "Buffet"].map(
+                      (option) => (
                         <div key={option} className="flex items-center space-x-1.5">
                           <Checkbox
                             id={`breakfast-${option}`}
@@ -6262,651 +6460,13 @@ export default function PropertyForm({
                             {option}
                           </Label>
                         </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <div className="flex justify-end gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-7 text-xs"
-                    onClick={() => handleNavigate("/admin/property-overview")}
-                  >
-                    Cancel
-                  </Button>
-                  {isDirty && (
-                    <Button type="submit" size="sm" className="h-7 text-xs" disabled={loading}>
-                      <Save className="mr-1 h-3 w-3" />
-                      {loading ? "Saving..." : "Save Property"}
-                    </Button>
-                  )}
-                </div>
-              </form>
-            </TabsContent>
-
-            <TabsContent value="house-rules">
-              <form onSubmit={handleSubmit} className="space-y-3">
-                <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
-                  {/* Left Column */}
-                  <div className="lg:col-span-3 space-y-3">
-                    {/* Payment & Policy Toggles Row */}
-                    <Card>
-                      <CardContent className="py-3 px-4">
-                        <div className="flex flex-wrap items-center gap-4">
-                          <div className="flex items-center space-x-1.5">
-                            <Checkbox
-                              id="items_non_refundable"
-                              checked={formData.items_non_refundable}
-                              onCheckedChange={(checked) =>
-                                setFormData({ ...formData, items_non_refundable: checked as boolean })
-                              }
-                              className="h-3.5 w-3.5"
-                            />
-                            <Label htmlFor="items_non_refundable" className="cursor-pointer text-xs">
-                              Non Refundable
-                            </Label>
-                          </div>
-                          <Separator orientation="vertical" className="h-5" />
-                          {[
-                            { key: "smoking_allowed", label: "Smoking" },
-                            { key: "pets_allowed", label: "Pets" },
-                            { key: "children_allowed", label: "Children" },
-                            { key: "parties_allowed", label: "Parties" },
-                            { key: "check_in_24h", label: "24h Check-in" },
-                          ].map(({ key, label }) => (
-                            <div key={key} className="flex items-center gap-1.5">
-                              <div
-                                className={`h-5 w-5 rounded-full flex items-center justify-center cursor-pointer ${
-                                  formData[key as keyof typeof formData] ? "bg-green-500" : "bg-destructive"
-                                }`}
-                                onClick={() =>
-                                  setFormData({ ...formData, [key]: !formData[key as keyof typeof formData] })
-                                }
-                              >
-                                {formData[key as keyof typeof formData] ? (
-                                  <Check className="h-3 w-3 text-white" />
-                                ) : (
-                                  <X className="h-3 w-3 text-white" />
-                                )}
-                              </div>
-                              <span className="text-xs">{label}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </CardContent>
-                    </Card>
-
-                    {/* Cancellation Policies */}
-                    <Card>
-                      <CardHeader className="py-2 px-4">
-                        <CardTitle className="text-sm">Cancellation Policies</CardTitle>
-                      </CardHeader>
-                      <CardContent className="py-2 px-4 space-y-1.5">
-                        {cancellationPolicies.map((policy, index) => (
-                          <div key={index} className="flex items-center gap-1.5 text-xs">
-                            <span className="whitespace-nowrap">Forfeit</span>
-                            <Input
-                              className="w-14 h-6 text-xs px-1.5"
-                              value={policy.forfeit}
-                              onChange={(e) => updateCancellationPolicy(index, "forfeit", e.target.value)}
-                            />
-                            <Select
-                              value={policy.type}
-                              onValueChange={(value) => updateCancellationPolicy(index, "type", value)}
-                            >
-                              <SelectTrigger className="w-24 h-6 text-xs">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent className="bg-background z-50">
-                                <SelectItem value="% of Total" className="text-xs">
-                                  % of Total
-                                </SelectItem>
-                                <SelectItem value="Fixed Amount" className="text-xs">
-                                  Fixed Amount
-                                </SelectItem>
-                              </SelectContent>
-                            </Select>
-                            <span className="whitespace-nowrap">if cancels</span>
-                            <Input
-                              className="w-12 h-6 text-xs px-1.5"
-                              value={policy.days}
-                              onChange={(e) => updateCancellationPolicy(index, "days", e.target.value)}
-                            />
-                            <span className="whitespace-nowrap">days before</span>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="h-5 w-5"
-                              onClick={() => removeCancellationPolicy(index)}
-                            >
-                              <Minus className="h-3 w-3" />
-                            </Button>
-                            {index === cancellationPolicies.length - 1 && (
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="h-5 w-5"
-                                onClick={addCancellationPolicy}
-                              >
-                                <Plus className="h-3 w-3" />
-                              </Button>
-                            )}
-                          </div>
-                        ))}
-                      </CardContent>
-                    </Card>
-
-                    {/* Bottom Row - Deposit, Same Day, Check-in, Check-out, Age Ranges */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2">
-                      {/* Deposit */}
-                      <Card>
-                        <CardHeader className="py-1.5 px-3">
-                          <CardTitle className="text-xs flex items-center gap-1.5">
-                            <Checkbox
-                              id="deposit_allowed"
-                              checked={formData.deposit_allowed}
-                              onCheckedChange={(checked) =>
-                                setFormData({ ...formData, deposit_allowed: checked as boolean })
-                              }
-                              className="h-3 w-3"
-                            />
-                            Deposit
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent className="py-1.5 px-3 space-y-1">
-                          <div className="flex items-center gap-1">
-                            <Input
-                              placeholder="50"
-                              value={formData.deposit_percentage}
-                              onChange={(e) => handleInputChange("deposit_percentage", e.target.value)}
-                              className="h-6 text-xs"
-                            />
-                            <span className="text-xs text-muted-foreground">%</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Input
-                              placeholder="2"
-                              value={formData.deposit_days}
-                              onChange={(e) => handleInputChange("deposit_days", e.target.value)}
-                              className="h-6 text-xs"
-                            />
-                            <span className="text-xs text-muted-foreground">days</span>
-                          </div>
-                        </CardContent>
-                      </Card>
-
-                      {/* Same Day */}
-                      <Card>
-                        <CardHeader className="py-1.5 px-3">
-                          <CardTitle className="text-xs flex items-center gap-1.5">
-                            <Checkbox
-                              id="same_day_bookings"
-                              checked={formData.same_day_bookings}
-                              onCheckedChange={(checked) =>
-                                setFormData({ ...formData, same_day_bookings: checked as boolean })
-                              }
-                              className="h-3 w-3"
-                            />
-                            Same Day
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent className="py-1.5 px-3">
-                          <div className="flex items-center gap-1">
-                            <Label className="text-xs text-muted-foreground">Cutoff</Label>
-                            <Input
-                              type="time"
-                              value={formData.same_day_cutoff}
-                              onChange={(e) => handleInputChange("same_day_cutoff", e.target.value)}
-                              className="h-6 text-xs flex-1"
-                            />
-                          </div>
-                        </CardContent>
-                      </Card>
-
-                      {/* Check-in */}
-                      <Card>
-                        <CardHeader className="py-1.5 px-3">
-                          <CardTitle className="text-xs">Check-in</CardTitle>
-                        </CardHeader>
-                        <CardContent className="py-1.5 px-3 space-y-1">
-                          <div className="flex items-center gap-1">
-                            <Label className="text-xs text-muted-foreground w-8">From</Label>
-                            <Input
-                              type="time"
-                              value={formData.check_in_from}
-                              onChange={(e) => handleInputChange("check_in_from", e.target.value)}
-                              disabled={isFieldPopulatedByPMS("check_in_from", selectedPMS)}
-                              className={cn("h-6 text-xs flex-1", getPMSFieldClass("check_in_from", selectedPMS))}
-                            />
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Label className="text-xs text-muted-foreground w-8">To</Label>
-                            <Input
-                              type="time"
-                              value={formData.check_in_to}
-                              onChange={(e) => handleInputChange("check_in_to", e.target.value)}
-                              disabled={isFieldPopulatedByPMS("check_in_to", selectedPMS)}
-                              className={cn("h-6 text-xs flex-1", getPMSFieldClass("check_in_to", selectedPMS))}
-                            />
-                          </div>
-                        </CardContent>
-                      </Card>
-
-                      {/* Check-out */}
-                      <Card>
-                        <CardHeader className="py-1.5 px-3">
-                          <CardTitle className="text-xs">Check-out</CardTitle>
-                        </CardHeader>
-                        <CardContent className="py-1.5 px-3 space-y-1">
-                          <div className="flex items-center gap-1">
-                            <Label className="text-xs text-muted-foreground w-8">From</Label>
-                            <Input
-                              type="time"
-                              value={formData.check_out_from}
-                              onChange={(e) => handleInputChange("check_out_from", e.target.value)}
-                              disabled={isFieldPopulatedByPMS("check_out_from", selectedPMS)}
-                              className={cn("h-6 text-xs flex-1", getPMSFieldClass("check_out_from", selectedPMS))}
-                            />
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Label className="text-xs text-muted-foreground w-8">To</Label>
-                            <Input
-                              type="time"
-                              value={formData.check_out_to}
-                              onChange={(e) => handleInputChange("check_out_to", e.target.value)}
-                              disabled={isFieldPopulatedByPMS("check_out_to", selectedPMS)}
-                              className={cn("h-6 text-xs flex-1", getPMSFieldClass("check_out_to", selectedPMS))}
-                            />
-                          </div>
-                        </CardContent>
-                      </Card>
-
-                      {/* Infant Ages */}
-                      <Card>
-                        <CardHeader className="py-1.5 px-3">
-                          <CardTitle className="text-xs flex items-center gap-1">
-                            Infant
-                            {selectedPMS === "benson" && !isRolProperty && <Cloud className="h-3 w-3 text-primary" />}
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent className="py-1.5 px-3 flex gap-1">
-                          <Input
-                            value={formData.infant_age_from}
-                            onChange={(e) => handleInputChange("infant_age_from", e.target.value)}
-                            disabled={selectedPMS === "benson"}
-                            className={cn("h-6 text-xs", selectedPMS === "benson" && "bg-muted")}
-                            placeholder="From"
-                          />
-                          <Input
-                            value={formData.infant_age_to}
-                            onChange={(e) => handleInputChange("infant_age_to", e.target.value)}
-                            disabled={selectedPMS === "benson"}
-                            className={cn("h-6 text-xs", selectedPMS === "benson" && "bg-muted")}
-                            placeholder="To"
-                          />
-                        </CardContent>
-                      </Card>
-
-                      {/* Teen Ages */}
-                      <Card>
-                        <CardHeader className="py-1.5 px-3">
-                          <CardTitle className="text-xs flex items-center gap-1">
-                            Teen
-                            {selectedPMS === "benson" && !isRolProperty && <Cloud className="h-3 w-3 text-primary" />}
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent className="py-1.5 px-3 flex gap-1">
-                          <Input
-                            value={(formData as any).teen_age_from || ""}
-                            onChange={(e) => handleInputChange("teen_age_from" as any, e.target.value)}
-                            disabled={selectedPMS === "benson"}
-                            className={cn("h-6 text-xs", selectedPMS === "benson" && "bg-muted")}
-                            placeholder="From"
-                          />
-                          <Input
-                            value={(formData as any).teen_age_to || ""}
-                            onChange={(e) => handleInputChange("teen_age_to" as any, e.target.value)}
-                            disabled={selectedPMS === "benson"}
-                            className={cn("h-6 text-xs", selectedPMS === "benson" && "bg-muted")}
-                            placeholder="To"
-                          />
-                        </CardContent>
-                      </Card>
-
-                      {/* Children Ages */}
-                      <Card>
-                        <CardHeader className="py-1.5 px-3">
-                          <CardTitle className="text-xs flex items-center gap-1">
-                            Children
-                            {selectedPMS === "benson" && !isRolProperty && <Cloud className="h-3 w-3 text-primary" />}
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent className="py-1.5 px-3 flex gap-1">
-                          <Input
-                            value={formData.children_age_from}
-                            onChange={(e) => handleInputChange("children_age_from", e.target.value)}
-                            disabled={selectedPMS === "benson"}
-                            className={cn("h-6 text-xs", selectedPMS === "benson" && "bg-muted")}
-                            placeholder="From"
-                          />
-                          <Input
-                            value={formData.children_age_to}
-                            onChange={(e) => handleInputChange("children_age_to", e.target.value)}
-                            disabled={selectedPMS === "benson"}
-                            className={cn("h-6 text-xs", selectedPMS === "benson" && "bg-muted")}
-                            placeholder="To"
-                          />
-                        </CardContent>
-                      </Card>
-                    </div>
-
-                    {/* Additional Rules Row - Age Restriction, Pets Policy, Cot & Extra Beds */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
-                      {/* Age Restriction */}
-                      <Card>
-                        <CardHeader className="py-1.5 px-3">
-                          <CardTitle className="text-xs">Age Restriction</CardTitle>
-                        </CardHeader>
-                        <CardContent className="py-1.5 px-3">
-                          <div className="flex items-center gap-1">
-                            <Label className="text-xs text-muted-foreground whitespace-nowrap">Min Age</Label>
-                            <Input
-                              value={formData.min_check_in_age}
-                              onChange={(e) => handleInputChange("min_check_in_age", e.target.value)}
-                              className="h-6 text-xs flex-1"
-                              placeholder="18"
-                            />
-                          </div>
-                        </CardContent>
-                      </Card>
-
-                      {/* Child Charged as Adult Age */}
-                      <Card>
-                        <CardHeader className="py-1.5 px-3">
-                          <CardTitle className="text-xs">Adult Rate Age</CardTitle>
-                        </CardHeader>
-                        <CardContent className="py-1.5 px-3">
-                          <div className="flex items-center gap-1">
-                            <Label className="text-xs text-muted-foreground whitespace-nowrap">From</Label>
-                            <Input
-                              value={formData.child_adult_age}
-                              onChange={(e) => handleInputChange("child_adult_age", e.target.value)}
-                              className="h-6 text-xs flex-1"
-                              placeholder="12"
-                            />
-                            <span className="text-xs text-muted-foreground">yrs</span>
-                          </div>
-                        </CardContent>
-                      </Card>
-
-                      {/* Cot Policy */}
-                      <Card>
-                        <CardHeader className="py-1.5 px-3">
-                          <CardTitle className="text-xs flex items-center gap-1.5">
-                            <Checkbox
-                              id="cot_available"
-                              checked={formData.cot_available}
-                              onCheckedChange={(checked) =>
-                                setFormData({ ...formData, cot_available: checked as boolean })
-                              }
-                              className="h-3 w-3"
-                            />
-                            Cot Available
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent className="py-1.5 px-3 space-y-1">
-                          <div className="flex items-center gap-1">
-                            <Input
-                              value={formData.cot_age_from}
-                              onChange={(e) => handleInputChange("cot_age_from", e.target.value)}
-                              className="h-6 text-xs"
-                              placeholder="0"
-                            />
-                            <span className="text-xs">-</span>
-                            <Input
-                              value={formData.cot_age_to}
-                              onChange={(e) => handleInputChange("cot_age_to", e.target.value)}
-                              className="h-6 text-xs"
-                              placeholder="2"
-                            />
-                            <span className="text-xs text-muted-foreground">yrs</span>
-                          </div>
-                          <Input
-                            value={formData.cot_price}
-                            onChange={(e) => handleInputChange("cot_price", e.target.value)}
-                            className="h-6 text-xs"
-                            placeholder="Free"
-                          />
-                        </CardContent>
-                      </Card>
-
-                      {/* Extra Beds */}
-                      <Card>
-                        <CardHeader className="py-1.5 px-3">
-                          <CardTitle className="text-xs flex items-center gap-1.5">
-                            <Checkbox
-                              id="extra_beds_available"
-                              checked={formData.extra_beds_available}
-                              onCheckedChange={(checked) =>
-                                setFormData({ ...formData, extra_beds_available: checked as boolean })
-                              }
-                              className="h-3 w-3"
-                            />
-                            Extra Beds
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent className="py-1.5 px-3">
-                          <div className="flex items-center gap-1">
-                            <Label className="text-xs text-muted-foreground">Price</Label>
-                            <Input
-                              value={formData.extra_bed_price}
-                              onChange={(e) => handleInputChange("extra_bed_price", e.target.value)}
-                              className="h-6 text-xs flex-1"
-                              placeholder="Amount"
-                              disabled={!formData.extra_beds_available}
-                            />
-                          </div>
-                        </CardContent>
-                      </Card>
-
-                      {/* Advance Notice */}
-                      <Card>
-                        <CardHeader className="py-1.5 px-3">
-                          <CardTitle className="text-xs flex items-center gap-1.5">
-                            <Checkbox
-                              id="advance_notice_required"
-                              checked={formData.advance_notice_required}
-                              onCheckedChange={(checked) =>
-                                setFormData({ ...formData, advance_notice_required: checked as boolean })
-                              }
-                              className="h-3 w-3"
-                            />
-                            Advance Notice
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent className="py-1.5 px-3">
-                          <p className="text-xs text-muted-foreground">Guest must notify arrival time</p>
-                        </CardContent>
-                      </Card>
-
-                      {/* Pets Policy */}
-                      <Card>
-                        <CardHeader className="py-1.5 px-3">
-                          <CardTitle className="text-xs">Pets Policy</CardTitle>
-                        </CardHeader>
-                        <CardContent className="py-1.5 px-3">
-                          <Input
-                            value={formData.pets_policy}
-                            onChange={(e) => handleInputChange("pets_policy", e.target.value)}
-                            className="h-6 text-xs"
-                            placeholder="e.g., Pets are not allowed"
-                          />
-                        </CardContent>
-                      </Card>
-                    </div>
-
-                    {/* Special Requests Message */}
-                    <Card>
-                      <CardHeader className="py-2 px-3">
-                        <CardTitle className="text-xs">Special Requests Message</CardTitle>
-                      </CardHeader>
-                      <CardContent className="py-2 px-3">
-                        <Textarea
-                          value={formData.special_requests_message}
-                          onChange={(e) => handleInputChange("special_requests_message", e.target.value)}
-                          placeholder="e.g., Property takes special requests - add in the next step!"
-                          rows={2}
-                          className="resize-none text-xs"
-                        />
-                      </CardContent>
-                    </Card>
-
-                    {/* The Fine Print */}
-                    <Card>
-                      <CardHeader className="py-2 px-3">
-                        <CardTitle className="text-xs">The Fine Print</CardTitle>
-                        <p className="text-xs text-muted-foreground">Need-to-know information for guests</p>
-                      </CardHeader>
-                      <CardContent className="py-2 px-3">
-                        <Textarea
-                          value={formData.fine_print}
-                          onChange={(e) => handleInputChange("fine_print", e.target.value)}
-                          placeholder="e.g., Please inform the property in advance of your expected arrival time. You can use the Special Requests box when booking, or contact the property directly with the contact details provided in your confirmation."
-                          rows={3}
-                          className="resize-none text-xs"
-                        />
-                      </CardContent>
-                    </Card>
-                  </div>
-
-                  {/* Right Column - Children Policy */}
-                  <div>
-                    <Card className="sticky top-4">
-                      <CardHeader className="py-2 px-3">
-                        <CardTitle className="text-sm">Children Policy</CardTitle>
-                      </CardHeader>
-                      <CardContent className="py-2 px-3">
-                        <Textarea
-                          value={formData.children_policy}
-                          onChange={(e) => handleInputChange("children_policy", e.target.value)}
-                          placeholder="Enter children policy details..."
-                          rows={6}
-                          className="resize-none text-xs"
-                        />
-                      </CardContent>
-                    </Card>
-                  </div>
-                </div>
-
-                <div className="flex justify-end gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-7 text-xs"
-                    onClick={() => handleNavigate("/admin/property-overview")}
-                  >
-                    Cancel
-                  </Button>
-                  {isDirty && (
-                    <Button type="submit" size="sm" className="h-7 text-xs" disabled={loading}>
-                      <Save className="mr-1 h-3 w-3" />
-                      {loading ? "Saving..." : "Save Property"}
-                    </Button>
-                  )}
-                </div>
-              </form>
-            </TabsContent>
-
-            <TabsContent value="images">
-              <Card>
-                <CardHeader className="py-2 px-4">
-                  <CardTitle className="text-sm">Property Images</CardTitle>
-                </CardHeader>
-                <CardContent className="py-2 px-4">
-                  <div className="grid grid-cols-1 lg:grid-cols-5 gap-3">
-                    {/* Upload Area */}
-                    <div
-                      className={`border-2 border-dashed rounded-lg p-4 flex flex-col items-center justify-center cursor-pointer transition-colors ${
-                        isDragging ? "border-primary bg-primary/5" : "border-border hover:border-primary"
-                      }`}
-                      onDrop={handleDrop}
-                      onDragOver={handleDragOver}
-                      onDragLeave={handleDragLeave}
-                      onClick={() => document.getElementById("image-upload")?.click()}
-                    >
-                      <Upload className="h-8 w-8 text-muted-foreground mb-2" />
-                      <p className="text-xs text-muted-foreground text-center">Click or drag to upload</p>
-                      <input
-                        id="image-upload"
-                        type="file"
-                        accept="image/*"
-                        multiple
-                        className="hidden"
-                        onChange={(e) => handleImageUpload(e.target.files)}
-                      />
-                    </div>
-
-                    {/* Image Grid */}
-                    <div className="lg:col-span-4">
-                      <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
-                        {uploadedImages.map((imageUrl, index) => (
-                          <div
-                            key={index}
-                            className="relative aspect-square rounded-md overflow-hidden border border-border group"
-                          >
-                            <img src={imageUrl} alt={`Property ${index + 1}`} className="w-full h-full object-cover" />
-                            {/* Primary badge or set as primary button */}
-                            {index === 0 ? (
-                              <div className="absolute top-1 left-1 bg-primary rounded-full p-1" title="Primary image">
-                                <Heart className="h-3 w-3 text-white fill-white" />
-                              </div>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  // Move this image to first position
-                                  const newImages = [...uploadedImages];
-                                  const [selected] = newImages.splice(index, 1);
-                                  newImages.unshift(selected);
-                                  setUploadedImages(newImages);
-                                  setIsDirty(true);
-                                }}
-                                className="absolute top-1 left-1 bg-muted-foreground/60 hover:bg-primary rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                                title="Set as primary image"
-                              >
-                                <Heart className="h-3 w-3 text-white" />
-                              </button>
-                            )}
-                            <button
-                              type="button"
-                              onClick={() => removeImage(index)}
-                              className="absolute top-1 right-1 bg-muted-foreground/80 hover:bg-destructive rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                            >
-                              <X className="h-3 w-3 text-white" />
-                            </button>
-                          </div>
-                        ))}
-                        {Array.from({ length: Math.max(0, 12 - uploadedImages.length) }, (_, index) => (
-                          <div
-                            key={`empty-${index}`}
-                            className="relative aspect-square rounded-md border-2 border-dashed border-border bg-muted/20 flex items-center justify-center"
-                          >
-                            <X className="h-3 w-3 text-muted-foreground" />
-                          </div>
-                        ))}
-                      </div>
-                    </div>
+                      ),
+                    )}
                   </div>
                 </CardContent>
               </Card>
 
-              <div className="flex justify-end gap-2 mt-3">
+              <div className="flex justify-end gap-2">
                 <Button
                   type="button"
                   variant="outline"
@@ -6917,19 +6477,658 @@ export default function PropertyForm({
                   Cancel
                 </Button>
                 {isDirty && (
-                  <Button type="button" size="sm" className="h-7 text-xs" onClick={handleSubmit} disabled={loading}>
+                  <Button type="submit" size="sm" className="h-7 text-xs" disabled={loading}>
                     <Save className="mr-1 h-3 w-3" />
                     {loading ? "Saving..." : "Save Property"}
                   </Button>
                 )}
               </div>
-            </TabsContent>
+            </form>
+          </TabsContent>
 
-            {/* Templates and Notifications Tab */}
-            <TabsContent value="templates">
-              {experienceEngineEnabled && propertyId ? (
-                <ExperienceEmailDesigner propertyId={propertyId} />
-              ) : (
+          <TabsContent value="house-rules">
+            <form onSubmit={handleSubmit} className="space-y-3">
+              <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
+                {/* Left Column */}
+                <div className="lg:col-span-3 space-y-3">
+                  {/* Payment & Policy Toggles Row */}
+                  <Card>
+                    <CardContent className="py-3 px-4">
+                      <div className="flex flex-wrap items-center gap-4">
+                        <div className="flex items-center space-x-1.5">
+                          <Checkbox
+                            id="items_non_refundable"
+                            checked={formData.items_non_refundable}
+                            onCheckedChange={(checked) =>
+                              setFormData({ ...formData, items_non_refundable: checked as boolean })
+                            }
+                            className="h-3.5 w-3.5"
+                          />
+                          <Label htmlFor="items_non_refundable" className="cursor-pointer text-xs">
+                            Non Refundable
+                          </Label>
+                        </div>
+                        <Separator orientation="vertical" className="h-5" />
+                        {[
+                          { key: "smoking_allowed", label: "Smoking" },
+                          { key: "pets_allowed", label: "Pets" },
+                          { key: "children_allowed", label: "Children" },
+                          { key: "parties_allowed", label: "Parties" },
+                          { key: "check_in_24h", label: "24h Check-in" },
+                        ].map(({ key, label }) => (
+                          <div key={key} className="flex items-center gap-1.5">
+                            <div
+                              className={`h-5 w-5 rounded-full flex items-center justify-center cursor-pointer ${
+                                formData[key as keyof typeof formData] ? "bg-green-500" : "bg-destructive"
+                              }`}
+                              onClick={() =>
+                                setFormData({ ...formData, [key]: !formData[key as keyof typeof formData] })
+                              }
+                            >
+                              {formData[key as keyof typeof formData] ? (
+                                <Check className="h-3 w-3 text-white" />
+                              ) : (
+                                <X className="h-3 w-3 text-white" />
+                              )}
+                            </div>
+                            <span className="text-xs">{label}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Cancellation Policies */}
+                  <Card>
+                    <CardHeader className="py-2 px-4">
+                      <CardTitle className="text-sm">Cancellation Policies</CardTitle>
+                    </CardHeader>
+                    <CardContent className="py-2 px-4 space-y-1.5">
+                      {cancellationPolicies.map((policy, index) => (
+                        <div key={index} className="flex items-center gap-1.5 text-xs">
+                          <span className="whitespace-nowrap">Forfeit</span>
+                          <Input
+                            className="w-14 h-6 text-xs px-1.5"
+                            value={policy.forfeit}
+                            onChange={(e) => updateCancellationPolicy(index, "forfeit", e.target.value)}
+                          />
+                          <Select
+                            value={policy.type}
+                            onValueChange={(value) => updateCancellationPolicy(index, "type", value)}
+                          >
+                            <SelectTrigger className="w-24 h-6 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className="bg-background z-50">
+                              <SelectItem value="% of Total" className="text-xs">
+                                % of Total
+                              </SelectItem>
+                              <SelectItem value="Fixed Amount" className="text-xs">
+                                Fixed Amount
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <span className="whitespace-nowrap">if cancels</span>
+                          <Input
+                            className="w-12 h-6 text-xs px-1.5"
+                            value={policy.days}
+                            onChange={(e) => updateCancellationPolicy(index, "days", e.target.value)}
+                          />
+                          <span className="whitespace-nowrap">days before</span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-5 w-5"
+                            onClick={() => removeCancellationPolicy(index)}
+                          >
+                            <Minus className="h-3 w-3" />
+                          </Button>
+                          {index === cancellationPolicies.length - 1 && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-5 w-5"
+                              onClick={addCancellationPolicy}
+                            >
+                              <Plus className="h-3 w-3" />
+                            </Button>
+                          )}
+                        </div>
+                      ))}
+                    </CardContent>
+                  </Card>
+
+                  {/* Bottom Row - Deposit, Same Day, Check-in, Check-out, Age Ranges */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2">
+                    {/* Deposit */}
+                    <Card>
+                      <CardHeader className="py-1.5 px-3">
+                        <CardTitle className="text-xs flex items-center gap-1.5">
+                          <Checkbox
+                            id="deposit_allowed"
+                            checked={formData.deposit_allowed}
+                            onCheckedChange={(checked) =>
+                              setFormData({ ...formData, deposit_allowed: checked as boolean })
+                            }
+                            className="h-3 w-3"
+                          />
+                          Deposit
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="py-1.5 px-3 space-y-1">
+                        <div className="flex items-center gap-1">
+                          <Input
+                            placeholder="50"
+                            value={formData.deposit_percentage}
+                            onChange={(e) => handleInputChange("deposit_percentage", e.target.value)}
+                            className="h-6 text-xs"
+                          />
+                          <span className="text-xs text-muted-foreground">%</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Input
+                            placeholder="2"
+                            value={formData.deposit_days}
+                            onChange={(e) => handleInputChange("deposit_days", e.target.value)}
+                            className="h-6 text-xs"
+                          />
+                          <span className="text-xs text-muted-foreground">days</span>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {/* Same Day */}
+                    <Card>
+                      <CardHeader className="py-1.5 px-3">
+                        <CardTitle className="text-xs flex items-center gap-1.5">
+                          <Checkbox
+                            id="same_day_bookings"
+                            checked={formData.same_day_bookings}
+                            onCheckedChange={(checked) =>
+                              setFormData({ ...formData, same_day_bookings: checked as boolean })
+                            }
+                            className="h-3 w-3"
+                          />
+                          Same Day
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="py-1.5 px-3">
+                        <div className="flex items-center gap-1">
+                          <Label className="text-xs text-muted-foreground">Cutoff</Label>
+                          <Input
+                            type="time"
+                            value={formData.same_day_cutoff}
+                            onChange={(e) => handleInputChange("same_day_cutoff", e.target.value)}
+                            className="h-6 text-xs flex-1"
+                          />
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {/* Check-in */}
+                    <Card>
+                      <CardHeader className="py-1.5 px-3">
+                        <CardTitle className="text-xs">Check-in</CardTitle>
+                      </CardHeader>
+                      <CardContent className="py-1.5 px-3 space-y-1">
+                        <div className="flex items-center gap-1">
+                          <Label className="text-xs text-muted-foreground w-8">From</Label>
+                          <Input
+                            type="time"
+                            value={formData.check_in_from}
+                            onChange={(e) => handleInputChange("check_in_from", e.target.value)}
+                            disabled={isFieldPopulatedByPMS("check_in_from", selectedPMS)}
+                            className={cn("h-6 text-xs flex-1", getPMSFieldClass("check_in_from", selectedPMS))}
+                          />
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Label className="text-xs text-muted-foreground w-8">To</Label>
+                          <Input
+                            type="time"
+                            value={formData.check_in_to}
+                            onChange={(e) => handleInputChange("check_in_to", e.target.value)}
+                            disabled={isFieldPopulatedByPMS("check_in_to", selectedPMS)}
+                            className={cn("h-6 text-xs flex-1", getPMSFieldClass("check_in_to", selectedPMS))}
+                          />
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {/* Check-out */}
+                    <Card>
+                      <CardHeader className="py-1.5 px-3">
+                        <CardTitle className="text-xs">Check-out</CardTitle>
+                      </CardHeader>
+                      <CardContent className="py-1.5 px-3 space-y-1">
+                        <div className="flex items-center gap-1">
+                          <Label className="text-xs text-muted-foreground w-8">From</Label>
+                          <Input
+                            type="time"
+                            value={formData.check_out_from}
+                            onChange={(e) => handleInputChange("check_out_from", e.target.value)}
+                            disabled={isFieldPopulatedByPMS("check_out_from", selectedPMS)}
+                            className={cn("h-6 text-xs flex-1", getPMSFieldClass("check_out_from", selectedPMS))}
+                          />
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Label className="text-xs text-muted-foreground w-8">To</Label>
+                          <Input
+                            type="time"
+                            value={formData.check_out_to}
+                            onChange={(e) => handleInputChange("check_out_to", e.target.value)}
+                            disabled={isFieldPopulatedByPMS("check_out_to", selectedPMS)}
+                            className={cn("h-6 text-xs flex-1", getPMSFieldClass("check_out_to", selectedPMS))}
+                          />
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {/* Infant Ages */}
+                    <Card>
+                      <CardHeader className="py-1.5 px-3">
+                        <CardTitle className="text-xs flex items-center gap-1">
+                          Infant
+                          {selectedPMS === "benson" && !isRolProperty && <Cloud className="h-3 w-3 text-primary" />}
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="py-1.5 px-3 flex gap-1">
+                        <Input
+                          value={formData.infant_age_from}
+                          onChange={(e) => handleInputChange("infant_age_from", e.target.value)}
+                          disabled={selectedPMS === "benson"}
+                          className={cn("h-6 text-xs", selectedPMS === "benson" && "bg-muted")}
+                          placeholder="From"
+                        />
+                        <Input
+                          value={formData.infant_age_to}
+                          onChange={(e) => handleInputChange("infant_age_to", e.target.value)}
+                          disabled={selectedPMS === "benson"}
+                          className={cn("h-6 text-xs", selectedPMS === "benson" && "bg-muted")}
+                          placeholder="To"
+                        />
+                      </CardContent>
+                    </Card>
+
+                    {/* Teen Ages */}
+                    <Card>
+                      <CardHeader className="py-1.5 px-3">
+                        <CardTitle className="text-xs flex items-center gap-1">
+                          Teen
+                          {selectedPMS === "benson" && !isRolProperty && <Cloud className="h-3 w-3 text-primary" />}
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="py-1.5 px-3 flex gap-1">
+                        <Input
+                          value={(formData as any).teen_age_from || ""}
+                          onChange={(e) => handleInputChange("teen_age_from" as any, e.target.value)}
+                          disabled={selectedPMS === "benson"}
+                          className={cn("h-6 text-xs", selectedPMS === "benson" && "bg-muted")}
+                          placeholder="From"
+                        />
+                        <Input
+                          value={(formData as any).teen_age_to || ""}
+                          onChange={(e) => handleInputChange("teen_age_to" as any, e.target.value)}
+                          disabled={selectedPMS === "benson"}
+                          className={cn("h-6 text-xs", selectedPMS === "benson" && "bg-muted")}
+                          placeholder="To"
+                        />
+                      </CardContent>
+                    </Card>
+
+                    {/* Children Ages */}
+                    <Card>
+                      <CardHeader className="py-1.5 px-3">
+                        <CardTitle className="text-xs flex items-center gap-1">
+                          Children
+                          {selectedPMS === "benson" && !isRolProperty && <Cloud className="h-3 w-3 text-primary" />}
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="py-1.5 px-3 flex gap-1">
+                        <Input
+                          value={formData.children_age_from}
+                          onChange={(e) => handleInputChange("children_age_from", e.target.value)}
+                          disabled={selectedPMS === "benson"}
+                          className={cn("h-6 text-xs", selectedPMS === "benson" && "bg-muted")}
+                          placeholder="From"
+                        />
+                        <Input
+                          value={formData.children_age_to}
+                          onChange={(e) => handleInputChange("children_age_to", e.target.value)}
+                          disabled={selectedPMS === "benson"}
+                          className={cn("h-6 text-xs", selectedPMS === "benson" && "bg-muted")}
+                          placeholder="To"
+                        />
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* Additional Rules Row - Age Restriction, Pets Policy, Cot & Extra Beds */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
+                    {/* Age Restriction */}
+                    <Card>
+                      <CardHeader className="py-1.5 px-3">
+                        <CardTitle className="text-xs">Age Restriction</CardTitle>
+                      </CardHeader>
+                      <CardContent className="py-1.5 px-3">
+                        <div className="flex items-center gap-1">
+                          <Label className="text-xs text-muted-foreground whitespace-nowrap">Min Age</Label>
+                          <Input
+                            value={formData.min_check_in_age}
+                            onChange={(e) => handleInputChange("min_check_in_age", e.target.value)}
+                            className="h-6 text-xs flex-1"
+                            placeholder="18"
+                          />
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {/* Child Charged as Adult Age */}
+                    <Card>
+                      <CardHeader className="py-1.5 px-3">
+                        <CardTitle className="text-xs">Adult Rate Age</CardTitle>
+                      </CardHeader>
+                      <CardContent className="py-1.5 px-3">
+                        <div className="flex items-center gap-1">
+                          <Label className="text-xs text-muted-foreground whitespace-nowrap">From</Label>
+                          <Input
+                            value={formData.child_adult_age}
+                            onChange={(e) => handleInputChange("child_adult_age", e.target.value)}
+                            className="h-6 text-xs flex-1"
+                            placeholder="12"
+                          />
+                          <span className="text-xs text-muted-foreground">yrs</span>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {/* Cot Policy */}
+                    <Card>
+                      <CardHeader className="py-1.5 px-3">
+                        <CardTitle className="text-xs flex items-center gap-1.5">
+                          <Checkbox
+                            id="cot_available"
+                            checked={formData.cot_available}
+                            onCheckedChange={(checked) =>
+                              setFormData({ ...formData, cot_available: checked as boolean })
+                            }
+                            className="h-3 w-3"
+                          />
+                          Cot Available
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="py-1.5 px-3 space-y-1">
+                        <div className="flex items-center gap-1">
+                          <Input
+                            value={formData.cot_age_from}
+                            onChange={(e) => handleInputChange("cot_age_from", e.target.value)}
+                            className="h-6 text-xs"
+                            placeholder="0"
+                          />
+                          <span className="text-xs">-</span>
+                          <Input
+                            value={formData.cot_age_to}
+                            onChange={(e) => handleInputChange("cot_age_to", e.target.value)}
+                            className="h-6 text-xs"
+                            placeholder="2"
+                          />
+                          <span className="text-xs text-muted-foreground">yrs</span>
+                        </div>
+                        <Input
+                          value={formData.cot_price}
+                          onChange={(e) => handleInputChange("cot_price", e.target.value)}
+                          className="h-6 text-xs"
+                          placeholder="Free"
+                        />
+                      </CardContent>
+                    </Card>
+
+                    {/* Extra Beds */}
+                    <Card>
+                      <CardHeader className="py-1.5 px-3">
+                        <CardTitle className="text-xs flex items-center gap-1.5">
+                          <Checkbox
+                            id="extra_beds_available"
+                            checked={formData.extra_beds_available}
+                            onCheckedChange={(checked) =>
+                              setFormData({ ...formData, extra_beds_available: checked as boolean })
+                            }
+                            className="h-3 w-3"
+                          />
+                          Extra Beds
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="py-1.5 px-3">
+                        <div className="flex items-center gap-1">
+                          <Label className="text-xs text-muted-foreground">Price</Label>
+                          <Input
+                            value={formData.extra_bed_price}
+                            onChange={(e) => handleInputChange("extra_bed_price", e.target.value)}
+                            className="h-6 text-xs flex-1"
+                            placeholder="Amount"
+                            disabled={!formData.extra_beds_available}
+                          />
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {/* Advance Notice */}
+                    <Card>
+                      <CardHeader className="py-1.5 px-3">
+                        <CardTitle className="text-xs flex items-center gap-1.5">
+                          <Checkbox
+                            id="advance_notice_required"
+                            checked={formData.advance_notice_required}
+                            onCheckedChange={(checked) =>
+                              setFormData({ ...formData, advance_notice_required: checked as boolean })
+                            }
+                            className="h-3 w-3"
+                          />
+                          Advance Notice
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="py-1.5 px-3">
+                        <p className="text-xs text-muted-foreground">Guest must notify arrival time</p>
+                      </CardContent>
+                    </Card>
+
+                    {/* Pets Policy */}
+                    <Card>
+                      <CardHeader className="py-1.5 px-3">
+                        <CardTitle className="text-xs">Pets Policy</CardTitle>
+                      </CardHeader>
+                      <CardContent className="py-1.5 px-3">
+                        <Input
+                          value={formData.pets_policy}
+                          onChange={(e) => handleInputChange("pets_policy", e.target.value)}
+                          className="h-6 text-xs"
+                          placeholder="e.g., Pets are not allowed"
+                        />
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* Special Requests Message */}
+                  <Card>
+                    <CardHeader className="py-2 px-3">
+                      <CardTitle className="text-xs">Special Requests Message</CardTitle>
+                    </CardHeader>
+                    <CardContent className="py-2 px-3">
+                      <Textarea
+                        value={formData.special_requests_message}
+                        onChange={(e) => handleInputChange("special_requests_message", e.target.value)}
+                        placeholder="e.g., Property takes special requests - add in the next step!"
+                        rows={2}
+                        className="resize-none text-xs"
+                      />
+                    </CardContent>
+                  </Card>
+
+                  {/* The Fine Print */}
+                  <Card>
+                    <CardHeader className="py-2 px-3">
+                      <CardTitle className="text-xs">The Fine Print</CardTitle>
+                      <p className="text-xs text-muted-foreground">Need-to-know information for guests</p>
+                    </CardHeader>
+                    <CardContent className="py-2 px-3">
+                      <Textarea
+                        value={formData.fine_print}
+                        onChange={(e) => handleInputChange("fine_print", e.target.value)}
+                        placeholder="e.g., Please inform the property in advance of your expected arrival time. You can use the Special Requests box when booking, or contact the property directly with the contact details provided in your confirmation."
+                        rows={3}
+                        className="resize-none text-xs"
+                      />
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Right Column - Children Policy */}
+                <div>
+                  <Card className="sticky top-4">
+                    <CardHeader className="py-2 px-3">
+                      <CardTitle className="text-sm">Children Policy</CardTitle>
+                    </CardHeader>
+                    <CardContent className="py-2 px-3">
+                      <Textarea
+                        value={formData.children_policy}
+                        onChange={(e) => handleInputChange("children_policy", e.target.value)}
+                        placeholder="Enter children policy details..."
+                        rows={6}
+                        className="resize-none text-xs"
+                      />
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => handleNavigate("/admin/property-overview")}
+                >
+                  Cancel
+                </Button>
+                {isDirty && (
+                  <Button type="submit" size="sm" className="h-7 text-xs" disabled={loading}>
+                    <Save className="mr-1 h-3 w-3" />
+                    {loading ? "Saving..." : "Save Property"}
+                  </Button>
+                )}
+              </div>
+            </form>
+          </TabsContent>
+
+          <TabsContent value="images">
+            <Card>
+              <CardHeader className="py-2 px-4">
+                <CardTitle className="text-sm">Property Images</CardTitle>
+              </CardHeader>
+              <CardContent className="py-2 px-4">
+                <div className="grid grid-cols-1 lg:grid-cols-5 gap-3">
+                  {/* Upload Area */}
+                  <div
+                    className={`border-2 border-dashed rounded-lg p-4 flex flex-col items-center justify-center cursor-pointer transition-colors ${
+                      isDragging ? "border-primary bg-primary/5" : "border-border hover:border-primary"
+                    }`}
+                    onDrop={handleDrop}
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onClick={() => document.getElementById("image-upload")?.click()}
+                  >
+                    <Upload className="h-8 w-8 text-muted-foreground mb-2" />
+                    <p className="text-xs text-muted-foreground text-center">Click or drag to upload</p>
+                    <input
+                      id="image-upload"
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      className="hidden"
+                      onChange={(e) => handleImageUpload(e.target.files)}
+                    />
+                  </div>
+
+                  {/* Image Grid */}
+                  <div className="lg:col-span-4">
+                    <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+                      {uploadedImages.map((imageUrl, index) => (
+                        <div
+                          key={index}
+                          className="relative aspect-square rounded-md overflow-hidden border border-border group"
+                        >
+                          <img src={imageUrl} alt={`Property ${index + 1}`} className="w-full h-full object-cover" />
+                          {/* Primary badge or set as primary button */}
+                          {index === 0 ? (
+                            <div className="absolute top-1 left-1 bg-primary rounded-full p-1" title="Primary image">
+                              <Heart className="h-3 w-3 text-white fill-white" />
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                // Move this image to first position
+                                const newImages = [...uploadedImages];
+                                const [selected] = newImages.splice(index, 1);
+                                newImages.unshift(selected);
+                                setUploadedImages(newImages);
+                                setIsDirty(true);
+                              }}
+                              className="absolute top-1 left-1 bg-muted-foreground/60 hover:bg-primary rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                              title="Set as primary image"
+                            >
+                              <Heart className="h-3 w-3 text-white" />
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => removeImage(index)}
+                            className="absolute top-1 right-1 bg-muted-foreground/80 hover:bg-destructive rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <X className="h-3 w-3 text-white" />
+                          </button>
+                        </div>
+                      ))}
+                      {Array.from({ length: Math.max(0, 12 - uploadedImages.length) }, (_, index) => (
+                        <div
+                          key={`empty-${index}`}
+                          className="relative aspect-square rounded-md border-2 border-dashed border-border bg-muted/20 flex items-center justify-center"
+                        >
+                          <X className="h-3 w-3 text-muted-foreground" />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <div className="flex justify-end gap-2 mt-3">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() => handleNavigate("/admin/property-overview")}
+              >
+                Cancel
+              </Button>
+              {isDirty && (
+                <Button type="button" size="sm" className="h-7 text-xs" onClick={handleSubmit} disabled={loading}>
+                  <Save className="mr-1 h-3 w-3" />
+                  {loading ? "Saving..." : "Save Property"}
+                </Button>
+              )}
+            </div>
+          </TabsContent>
+
+          {/* Templates and Notifications Tab */}
+          <TabsContent value="templates">
+            {experienceEngineEnabled && propertyId ? (
+              <ExperienceEmailDesigner propertyId={propertyId} />
+            ) : (
               <Card>
                 <CardContent className="py-3 px-4 space-y-3">
                   {/* Template Selection Buttons */}
@@ -7023,897 +7222,911 @@ export default function PropertyForm({
                   </div>
                 </CardContent>
               </Card>
-              )}
+            )}
 
-              <div className="flex justify-end gap-2 mt-3">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-7 text-xs"
-                  onClick={() => handleNavigate("/admin/property-overview")}
-                >
-                  Cancel
+            <div className="flex justify-end gap-2 mt-3">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() => handleNavigate("/admin/property-overview")}
+              >
+                Cancel
+              </Button>
+              {isDirty && (
+                <Button type="button" size="sm" className="h-7 text-xs" onClick={handleSubmit} disabled={loading}>
+                  <Save className="mr-1 h-3 w-3" />
+                  Save
                 </Button>
-                {isDirty && (
-                  <Button type="button" size="sm" className="h-7 text-xs" onClick={handleSubmit} disabled={loading}>
-                    <Save className="mr-1 h-3 w-3" />
-                    Save
-                  </Button>
-                )}
-              </div>
-            </TabsContent>
+              )}
+            </div>
+          </TabsContent>
 
-            {/* Addons Tab */}
-            <TabsContent value="addons">
-              <Card>
-                <CardHeader className="py-2 px-4 flex flex-row items-center justify-between">
-                  <CardTitle className="text-sm">Addons</CardTitle>
-                  <Dialog open={isAddAddonOpen} onOpenChange={setIsAddAddonOpen}>
-                    <DialogTrigger asChild>
-                      <Button size="sm" className="h-7 text-xs gap-1">
-                        <Plus className="h-3 w-3" />
-                        Add Addon
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
-                      <DialogHeader>
-                        <DialogTitle className="text-sm">Add Addon</DialogTitle>
-                      </DialogHeader>
+          {/* Addons Tab */}
+          <TabsContent value="addons">
+            <Card>
+              <CardHeader className="py-2 px-4 flex flex-row items-center justify-between">
+                <CardTitle className="text-sm">Addons</CardTitle>
+                <Dialog open={isAddAddonOpen} onOpenChange={setIsAddAddonOpen}>
+                  <DialogTrigger asChild>
+                    <Button size="sm" className="h-7 text-xs gap-1">
+                      <Plus className="h-3 w-3" />
+                      Add Addon
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+                    <DialogHeader>
+                      <DialogTitle className="text-sm">Add Addon</DialogTitle>
+                    </DialogHeader>
 
-                      <Tabs value={addonDialogTab} onValueChange={setAddonDialogTab}>
-                        <TabsList className="h-7">
-                          <TabsTrigger value="addon" className="text-xs h-6">
-                            Addon
-                          </TabsTrigger>
-                          <TabsTrigger value="addon-images" className="text-xs h-6">
-                            Images
-                          </TabsTrigger>
-                        </TabsList>
+                    <Tabs value={addonDialogTab} onValueChange={setAddonDialogTab}>
+                      <TabsList className="h-7">
+                        <TabsTrigger value="addon" className="text-xs h-6">
+                          Addon
+                        </TabsTrigger>
+                        <TabsTrigger value="addon-images" className="text-xs h-6">
+                          Images
+                        </TabsTrigger>
+                      </TabsList>
 
-                        <TabsContent value="addon" className="space-y-2 mt-2">
-                          <div className="grid grid-cols-2 gap-2">
-                            <div className="space-y-1">
-                              <Label className="text-xs">Name</Label>
-                              <Input
-                                value={addonForm.name}
-                                onChange={(e) => setAddonForm({ ...addonForm, name: e.target.value })}
-                                className="h-7 text-xs"
-                              />
-                            </div>
-                            <div className="space-y-1">
-                              <Label className="text-xs">Offerings for:</Label>
-                              <div className="flex gap-3">
-                                <div className="flex items-center gap-1">
-                                  <Checkbox
-                                    id="addon-accommodation"
-                                    checked={addonForm.offeringsAccommodation}
-                                    onCheckedChange={(checked) =>
-                                      setAddonForm({ ...addonForm, offeringsAccommodation: checked as boolean })
-                                    }
-                                    className="h-3 w-3"
-                                  />
-                                  <Label htmlFor="addon-accommodation" className="cursor-pointer text-xs">
-                                    Accommodation
-                                  </Label>
-                                </div>
-                                <div className="flex items-center gap-1">
-                                  <Checkbox
-                                    id="addon-venue"
-                                    checked={addonForm.offeringsVenue}
-                                    onCheckedChange={(checked) =>
-                                      setAddonForm({ ...addonForm, offeringsVenue: checked as boolean })
-                                    }
-                                    className="h-3 w-3"
-                                  />
-                                  <Label htmlFor="addon-venue" className="cursor-pointer text-xs">
-                                    Venue
-                                  </Label>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-
+                      <TabsContent value="addon" className="space-y-2 mt-2">
+                        <div className="grid grid-cols-2 gap-2">
                           <div className="space-y-1">
-                            <Label className="text-xs">Description</Label>
-                            <Textarea
-                              rows={2}
-                              value={addonForm.description}
-                              onChange={(e) => setAddonForm({ ...addonForm, description: e.target.value })}
-                              className="text-xs"
+                            <Label className="text-xs">Name</Label>
+                            <Input
+                              value={addonForm.name}
+                              onChange={(e) => setAddonForm({ ...addonForm, name: e.target.value })}
+                              className="h-7 text-xs"
                             />
                           </div>
-
-                          <div className="grid grid-cols-4 gap-2">
-                            <div className="space-y-1">
-                              <Label className="text-xs">Price Type</Label>
-                              <Select
-                                value={addonForm.priceType}
-                                onValueChange={(value) => setAddonForm({ ...addonForm, priceType: value })}
-                              >
-                                <SelectTrigger className="h-7 text-xs">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="Price Per Item" className="text-xs">
-                                    Per Item
-                                  </SelectItem>
-                                  <SelectItem value="Price Per Person" className="text-xs">
-                                    Per Person
-                                  </SelectItem>
-                                  <SelectItem value="Price Per Night" className="text-xs">
-                                    Per Night
-                                  </SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-                            <div className="space-y-1">
-                              <Label className="text-xs">Price</Label>
-                              <Input
-                                type="number"
-                                value={addonForm.price}
-                                onChange={(e) => setAddonForm({ ...addonForm, price: Number(e.target.value) })}
-                                min="0"
-                                className="h-7 text-xs"
-                              />
-                            </div>
-                            <div className="col-span-2 space-y-1">
-                              <Label className="text-xs">Capacity</Label>
-                              <div className="flex items-center gap-1.5">
-                                <Checkbox
-                                  id="addon-capacity"
-                                  checked={addonForm.hasCapacity}
-                                  onCheckedChange={(checked) =>
-                                    setAddonForm({ ...addonForm, hasCapacity: checked as boolean })
-                                  }
-                                  className="h-3 w-3"
-                                />
-                                <Input
-                                  type="number"
-                                  className="w-20 h-7 text-xs"
-                                  value={addonForm.capacity}
-                                  onChange={(e) => setAddonForm({ ...addonForm, capacity: Number(e.target.value) })}
-                                  min="0"
-                                  disabled={!addonForm.hasCapacity}
-                                />
-                              </div>
-                            </div>
-                          </div>
-
                           <div className="space-y-1">
-                            <Label className="text-xs">Days</Label>
-                            <div className="flex flex-wrap gap-2">
+                            <Label className="text-xs">Offerings for:</Label>
+                            <div className="flex gap-3">
                               <div className="flex items-center gap-1">
                                 <Checkbox
-                                  id="addon-all-days"
-                                  checked={addonForm.allDays}
+                                  id="addon-accommodation"
+                                  checked={addonForm.offeringsAccommodation}
                                   onCheckedChange={(checked) =>
-                                    setAddonForm({ ...addonForm, allDays: checked as boolean })
+                                    setAddonForm({ ...addonForm, offeringsAccommodation: checked as boolean })
                                   }
                                   className="h-3 w-3"
                                 />
-                                <Label htmlFor="addon-all-days" className="cursor-pointer text-xs">
-                                  All
+                                <Label htmlFor="addon-accommodation" className="cursor-pointer text-xs">
+                                  Accommodation
                                 </Label>
                               </div>
-                              {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day, i) => {
-                                const fullDay = [
-                                  "sunday",
-                                  "monday",
-                                  "tuesday",
-                                  "wednesday",
-                                  "thursday",
-                                  "friday",
-                                  "saturday",
-                                ][i];
-                                return (
-                                  <div key={fullDay} className="flex items-center gap-1">
-                                    <Checkbox
-                                      id={`addon-${fullDay}`}
-                                      checked={addonForm[fullDay as keyof typeof addonForm] as boolean}
-                                      onCheckedChange={(checked) =>
-                                        setAddonForm({ ...addonForm, [fullDay]: checked as boolean })
-                                      }
-                                      className="h-3 w-3"
-                                    />
-                                    <Label htmlFor={`addon-${fullDay}`} className="cursor-pointer text-xs">
-                                      {day}
-                                    </Label>
-                                  </div>
-                                );
-                              })}
+                              <div className="flex items-center gap-1">
+                                <Checkbox
+                                  id="addon-venue"
+                                  checked={addonForm.offeringsVenue}
+                                  onCheckedChange={(checked) =>
+                                    setAddonForm({ ...addonForm, offeringsVenue: checked as boolean })
+                                  }
+                                  className="h-3 w-3"
+                                />
+                                <Label htmlFor="addon-venue" className="cursor-pointer text-xs">
+                                  Venue
+                                </Label>
+                              </div>
                             </div>
                           </div>
+                        </div>
 
-                          <div className="flex justify-end pt-2">
-                            <Button size="sm" className="h-7 text-xs" onClick={handleAddAddon}>
-                              Create
-                            </Button>
-                          </div>
-                        </TabsContent>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Description</Label>
+                          <Textarea
+                            rows={2}
+                            value={addonForm.description}
+                            onChange={(e) => setAddonForm({ ...addonForm, description: e.target.value })}
+                            className="text-xs"
+                          />
+                        </div>
 
-                        <TabsContent value="addon-images" className="mt-2">
-                          <div className="grid grid-cols-5 gap-2">
-                            <div
-                              className={`border-2 border-dashed rounded-md p-3 flex flex-col items-center justify-center cursor-pointer transition-colors ${isAddonImageDragging ? "border-primary bg-primary/5" : "border-border hover:border-primary"}`}
-                              onDrop={handleAddonImageDrop}
-                              onDragOver={(e) => {
-                                e.preventDefault();
-                                setIsAddonImageDragging(true);
-                              }}
-                              onDragLeave={() => setIsAddonImageDragging(false)}
-                              onClick={() => document.getElementById("addon-image-upload")?.click()}
+                        <div className="grid grid-cols-4 gap-2">
+                          <div className="space-y-1">
+                            <Label className="text-xs">Price Type</Label>
+                            <Select
+                              value={addonForm.priceType}
+                              onValueChange={(value) => setAddonForm({ ...addonForm, priceType: value })}
                             >
-                              <Upload className="h-6 w-6 text-muted-foreground mb-1" />
-                              <p className="text-xs text-muted-foreground text-center">Upload</p>
-                              <input
-                                id="addon-image-upload"
-                                type="file"
-                                accept="image/*"
-                                multiple
-                                className="hidden"
-                                onChange={(e) => handleAddonImageUpload(e.target.files)}
+                              <SelectTrigger className="h-7 text-xs">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="Price Per Item" className="text-xs">
+                                  Per Item
+                                </SelectItem>
+                                <SelectItem value="Price Per Person" className="text-xs">
+                                  Per Person
+                                </SelectItem>
+                                <SelectItem value="Price Per Night" className="text-xs">
+                                  Per Night
+                                </SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Price</Label>
+                            <Input
+                              type="number"
+                              value={addonForm.price}
+                              onChange={(e) => setAddonForm({ ...addonForm, price: Number(e.target.value) })}
+                              min="0"
+                              className="h-7 text-xs"
+                            />
+                          </div>
+                          <div className="col-span-2 space-y-1">
+                            <Label className="text-xs">Capacity</Label>
+                            <div className="flex items-center gap-1.5">
+                              <Checkbox
+                                id="addon-capacity"
+                                checked={addonForm.hasCapacity}
+                                onCheckedChange={(checked) =>
+                                  setAddonForm({ ...addonForm, hasCapacity: checked as boolean })
+                                }
+                                className="h-3 w-3"
+                              />
+                              <Input
+                                type="number"
+                                className="w-20 h-7 text-xs"
+                                value={addonForm.capacity}
+                                onChange={(e) => setAddonForm({ ...addonForm, capacity: Number(e.target.value) })}
+                                min="0"
+                                disabled={!addonForm.hasCapacity}
                               />
                             </div>
-                            {addonImages.slice(0, 8).map((imageUrl, index) => (
-                              <div
-                                key={index}
-                                className="relative aspect-square rounded-md overflow-hidden border border-border group"
-                              >
-                                <img src={imageUrl} alt={`Addon ${index + 1}`} className="w-full h-full object-cover" />
-                                <button
-                                  type="button"
-                                  onClick={() => removeAddonImage(index)}
-                                  className="absolute top-1 right-1 bg-muted-foreground/80 hover:bg-destructive rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
-                                >
-                                  <X className="h-3 w-3 text-white" />
-                                </button>
-                              </div>
-                            ))}
                           </div>
-                        </TabsContent>
-                      </Tabs>
-                    </DialogContent>
-                  </Dialog>
-                </CardHeader>
-                <CardContent className="py-2 px-4">
-                  <div className="border rounded-md overflow-hidden">
-                    <table className="w-full">
-                      <thead className="bg-muted">
-                        <tr>
-                          <th className="text-left py-1.5 px-2 font-medium text-xs">ITEM</th>
-                          <th className="text-left py-1.5 px-2 font-medium text-xs">DESCRIPTION</th>
-                          <th className="text-left py-1.5 px-2 font-medium text-xs">TYPE</th>
-                          <th className="text-left py-1.5 px-2 font-medium text-xs">CAP</th>
-                          <th className="text-left py-1.5 px-2 font-medium text-xs">PRICE</th>
-                          <th className="text-left py-1.5 px-2 font-medium text-xs w-16"></th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {addons.length === 0 ? (
-                          <tr>
-                            <td colSpan={6} className="py-4 text-center text-xs text-muted-foreground">
-                              No addons yet
-                            </td>
-                          </tr>
-                        ) : (
-                          addons.map((addon) => (
-                            <tr key={addon.id} className="border-t hover:bg-muted/50">
-                              <td className="py-1.5 px-2 text-xs">{addon.name}</td>
-                              <td className="py-1.5 px-2 text-xs text-muted-foreground truncate max-w-[200px]">
-                                {addon.description}
-                              </td>
-                              <td className="py-1.5 px-2 text-xs">{addon.priceType}</td>
-                              <td className="py-1.5 px-2 text-xs">{addon.hasCapacity ? addon.capacity : "-"}</td>
-                              <td className="py-1.5 px-2 text-xs">{addon.price}</td>
-                              <td className="py-1.5 px-2">
-                                <div className="flex gap-1">
-                                  <Button size="sm" variant="ghost" className="h-5 w-5 p-0">
-                                    <Edit className="h-3 w-3" />
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    className="h-5 w-5 p-0 text-destructive"
-                                    onClick={() => deleteAddon(addon.id)}
-                                  >
-                                    <Trash2 className="h-3 w-3" />
-                                  </Button>
-                                </div>
-                              </td>
-                            </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
+                        </div>
 
-            {/* Specials Tab */}
-            <TabsContent value="specials">
-              <Card>
-                <CardHeader className="py-2 px-4">
-                  <Tabs value={specialsCategory} onValueChange={setSpecialsCategory}>
-                    <TabsList className="h-7">
-                      <TabsTrigger value="accommodations" className="text-xs h-6">
-                        Accommodations
-                      </TabsTrigger>
-                      {isEvent && (
-                        <TabsTrigger value="event-wedding" className="text-xs h-6">
-                          Event/Wedding
-                        </TabsTrigger>
-                      )}
-                      {isConference && (
-                        <TabsTrigger value="conference" className="text-xs h-6">
-                          Conference
-                        </TabsTrigger>
-                      )}
-                      <TabsTrigger value="vouchers" className="text-xs h-6">
-                        Vouchers
-                      </TabsTrigger>
-                    </TabsList>
-                  </Tabs>
-                </CardHeader>
-                <CardContent className="py-2 px-4">
-                  {specialsCategory === "conference" && (
-                    <div className="flex gap-3">
-                      {/* Left Sidebar - Specials List */}
-                      <div className="w-48 space-y-1">
-                        <div className="flex items-center justify-between mb-2">
-                          <h3 className="font-semibold text-xs text-muted-foreground">CONFERENCE SPECIALS</h3>
-                          <Button size="sm" variant="ghost" className="h-5 w-5 p-0" onClick={addNewSpecial}>
-                            <Plus className="h-3 w-3" />
+                        <div className="space-y-1">
+                          <Label className="text-xs">Days</Label>
+                          <div className="flex flex-wrap gap-2">
+                            <div className="flex items-center gap-1">
+                              <Checkbox
+                                id="addon-all-days"
+                                checked={addonForm.allDays}
+                                onCheckedChange={(checked) =>
+                                  setAddonForm({ ...addonForm, allDays: checked as boolean })
+                                }
+                                className="h-3 w-3"
+                              />
+                              <Label htmlFor="addon-all-days" className="cursor-pointer text-xs">
+                                All
+                              </Label>
+                            </div>
+                            {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day, i) => {
+                              const fullDay = [
+                                "sunday",
+                                "monday",
+                                "tuesday",
+                                "wednesday",
+                                "thursday",
+                                "friday",
+                                "saturday",
+                              ][i];
+                              return (
+                                <div key={fullDay} className="flex items-center gap-1">
+                                  <Checkbox
+                                    id={`addon-${fullDay}`}
+                                    checked={addonForm[fullDay as keyof typeof addonForm] as boolean}
+                                    onCheckedChange={(checked) =>
+                                      setAddonForm({ ...addonForm, [fullDay]: checked as boolean })
+                                    }
+                                    className="h-3 w-3"
+                                  />
+                                  <Label htmlFor={`addon-${fullDay}`} className="cursor-pointer text-xs">
+                                    {day}
+                                  </Label>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        <div className="flex justify-end pt-2">
+                          <Button size="sm" className="h-7 text-xs" onClick={handleAddAddon}>
+                            Create
                           </Button>
                         </div>
-                        {conferenceSpecials.map((special) => (
+                      </TabsContent>
+
+                      <TabsContent value="addon-images" className="mt-2">
+                        <div className="grid grid-cols-5 gap-2">
                           <div
-                            key={special.id}
-                            className={`flex items-center justify-between py-1.5 px-2 rounded transition-colors text-xs ${
-                              selectedSpecial === special.id
-                                ? "bg-primary text-primary-foreground"
-                                : "bg-muted hover:bg-muted/80"
-                            }`}
-                          >
-                            <span
-                              className="flex-1 cursor-pointer truncate"
-                              onClick={() => setSelectedSpecial(special.id)}
-                            >
-                              {special.name}
-                            </span>
-                            <div className="flex gap-0.5">
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="h-4 w-4 p-0"
-                                onClick={() => setIsEditSpecialOpen(true)}
-                              >
-                                <Edit className="h-2.5 w-2.5" />
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="h-4 w-4 p-0"
-                                onClick={() => deleteSpecial(special.id)}
-                              >
-                                <Trash2 className="h-2.5 w-2.5" />
-                              </Button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-
-                      {/* Main Content - Edit Special Dialog */}
-                      <Dialog open={isEditSpecialOpen} onOpenChange={setIsEditSpecialOpen}>
-                        <DialogTrigger asChild>
-                          <div className="flex-1 flex items-center justify-center border-2 border-dashed rounded-md p-6 cursor-pointer hover:bg-muted/50">
-                            <div className="text-center">
-                              <p className="text-xs text-muted-foreground mb-1">Click to edit special</p>
-                              <Button size="sm" className="h-7 text-xs">
-                                <Edit className="mr-1 h-3 w-3" />
-                                Edit Special
-                              </Button>
-                            </div>
-                          </div>
-                        </DialogTrigger>
-                        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
-                          <DialogHeader>
-                            <div className="flex items-center justify-between">
-                              <DialogTitle className="text-sm">Edit Special</DialogTitle>
-                              <div className="flex items-center gap-1.5">
-                                <Switch
-                                  checked={specialForm.isPublic}
-                                  onCheckedChange={(checked) => setSpecialForm({ ...specialForm, isPublic: checked })}
-                                  className="scale-75"
-                                />
-                                <Label className="text-xs">Public</Label>
-                              </div>
-                            </div>
-                          </DialogHeader>
-
-                          <Tabs value={specialDialogTab} onValueChange={setSpecialDialogTab}>
-                            <TabsList className="h-7">
-                              <TabsTrigger value="edit-special" className="text-xs h-6">
-                                Edit Special
-                              </TabsTrigger>
-                              <TabsTrigger value="special-images" className="text-xs h-6">
-                                Images
-                              </TabsTrigger>
-                            </TabsList>
-
-                            <TabsContent value="edit-special" className="space-y-3 mt-2">
-                              <div className="grid grid-cols-3 gap-2">
-                                <div className="space-y-1">
-                                  <Label className="text-xs">Name*</Label>
-                                  <Input
-                                    value={specialForm.name}
-                                    onChange={(e) => setSpecialForm({ ...specialForm, name: e.target.value })}
-                                    className="h-7 text-xs"
-                                  />
-                                </div>
-                                <div className="space-y-1">
-                                  <Label className="text-xs">Season</Label>
-                                  <Select
-                                    value={specialForm.season}
-                                    onValueChange={(value) => setSpecialForm({ ...specialForm, season: value })}
-                                  >
-                                    <SelectTrigger className="h-7 text-xs">
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="08/05/2025-30/09/2025" className="text-xs">
-                                        08/05/2025-30/09/2025
-                                      </SelectItem>
-                                      <SelectItem value="01/10/2025-30/09/2026" className="text-xs">
-                                        01/10/2025-30/09/2026
-                                      </SelectItem>
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                                <div className="space-y-1">
-                                  <Label className="text-xs">Description</Label>
-                                  <Input
-                                    value={specialForm.description}
-                                    onChange={(e) => setSpecialForm({ ...specialForm, description: e.target.value })}
-                                    className="h-7 text-xs"
-                                  />
-                                </div>
-                              </div>
-
-                              <div className="grid grid-cols-4 gap-2">
-                                <div className="space-y-1">
-                                  <Label className="text-xs">From</Label>
-                                  <Popover>
-                                    <PopoverTrigger asChild>
-                                      <Button
-                                        variant="outline"
-                                        className={cn(
-                                          "w-full h-7 justify-start text-left text-xs",
-                                          !specialForm.periodFrom && "text-muted-foreground",
-                                        )}
-                                      >
-                                        <CalendarIcon className="mr-1 h-3 w-3" />
-                                        {specialForm.periodFrom ? format(specialForm.periodFrom, "MM/dd/yy") : "Pick"}
-                                      </Button>
-                                    </PopoverTrigger>
-                                    <PopoverContent className="w-auto p-0" align="start">
-                                      <CalendarComponent
-                                        mode="single"
-                                        selected={specialForm.periodFrom}
-                                        onSelect={(date) => setSpecialForm({ ...specialForm, periodFrom: date })}
-                                        initialFocus
-                                      />
-                                    </PopoverContent>
-                                  </Popover>
-                                </div>
-                                <div className="space-y-1">
-                                  <Label className="text-xs">To</Label>
-                                  <Popover>
-                                    <PopoverTrigger asChild>
-                                      <Button
-                                        variant="outline"
-                                        className={cn(
-                                          "w-full h-7 justify-start text-left text-xs",
-                                          !specialForm.periodTo && "text-muted-foreground",
-                                        )}
-                                      >
-                                        <CalendarIcon className="mr-1 h-3 w-3" />
-                                        {specialForm.periodTo ? format(specialForm.periodTo, "MM/dd/yy") : "Pick"}
-                                      </Button>
-                                    </PopoverTrigger>
-                                    <PopoverContent className="w-auto p-0" align="start">
-                                      <CalendarComponent
-                                        mode="single"
-                                        selected={specialForm.periodTo}
-                                        onSelect={(date) => setSpecialForm({ ...specialForm, periodTo: date })}
-                                        initialFocus
-                                      />
-                                    </PopoverContent>
-                                  </Popover>
-                                </div>
-                                <div className="col-span-2 space-y-1">
-                                  <Label className="text-xs">Pricing</Label>
-                                  <RadioGroup
-                                    value={specialForm.pricingConfig}
-                                    onValueChange={(value: any) =>
-                                      setSpecialForm({ ...specialForm, pricingConfig: value })
-                                    }
-                                    className="flex gap-3"
-                                  >
-                                    <div className="flex items-center space-x-1">
-                                      <RadioGroupItem value="discount" id="discount" className="h-3 w-3" />
-                                      <Label htmlFor="discount" className="text-xs">
-                                        Discount %
-                                      </Label>
-                                    </div>
-                                    <div className="flex items-center space-x-1">
-                                      <RadioGroupItem value="fixed-off" id="fixed-off" className="h-3 w-3" />
-                                      <Label htmlFor="fixed-off" className="text-xs">
-                                        Fixed Off
-                                      </Label>
-                                    </div>
-                                    <div className="flex items-center space-x-1">
-                                      <RadioGroupItem value="fixed-price" id="fixed-price" className="h-3 w-3" />
-                                      <Label htmlFor="fixed-price" className="text-xs">
-                                        Fixed Price
-                                      </Label>
-                                    </div>
-                                  </RadioGroup>
-                                </div>
-                              </div>
-                            </TabsContent>
-
-                            <TabsContent value="special-images" className="mt-2">
-                              <div className="grid grid-cols-5 gap-2">
-                                <div className="border-2 border-dashed rounded-md p-3 flex flex-col items-center justify-center cursor-pointer hover:bg-muted/50">
-                                  <Upload className="h-6 w-6 text-muted-foreground mb-1" />
-                                  <p className="text-xs text-muted-foreground">Upload</p>
-                                </div>
-                              </div>
-                            </TabsContent>
-                          </Tabs>
-                        </DialogContent>
-                      </Dialog>
-                    </div>
-                  )}
-
-                  {specialsCategory === "accommodations" && propertyId && (
-                    <AccommodationSpecialsTab
-                      propertyId={propertyId}
-                      category="accommodation"
-                      roomTypes={roomTypes.map((rt: any) => ({ id: rt.id || rt.name, name: rt.name }))}
-                    />
-                  )}
-
-                  {specialsCategory === "event-wedding" && propertyId && (
-                    <AccommodationSpecialsTab
-                      propertyId={propertyId}
-                      category="event_wedding"
-                      roomTypes={roomTypes.map((rt: any) => ({ id: rt.id || rt.name, name: rt.name }))}
-                    />
-                  )}
-
-                  {specialsCategory === "vouchers" && propertyId && (
-                    <PromoCodesTab propertyId={propertyId} />
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            {/* Rate Breakdown Tab */}
-            <TabsContent value="rates" className="space-y-0">
-              <RateManagerTab
-                propertyId={propertyId}
-                roomTypes={roomTypes}
-                selectedRoomType={selectedRoomType}
-                setSelectedRoomType={setSelectedRoomType}
-                pmsRateTypes={pmsRateTypes}
-                setPmsRateTypes={setPmsRateTypes}
-                seasons={seasons}
-                setSeasons={setSeasons}
-                seasonRates={seasonRates}
-                setSeasonRates={setSeasonRates}
-                selectedPMS={selectedPMS}
-                isRolProperty={isRolProperty}
-                accommodationLabel={accommodationLabel}
-                selectedMealTypes={selectedMealTypes}
-                formData={{ currency: formData.currency, owner_email: formData.owner_email }}
-                amenities={{ rate_types: pmsRateTypes, seasons }}
-                isAdmin={isAdmin ?? false}
-                isDev={isDev ?? false}
-                isFearlessLeader={isFearlessLeader ?? false}
-                setIsDirty={setIsDirty}
-              />
-            </TabsContent>
-
-            {/* Room Information Tab */}
-            <TabsContent value="rooms" className="space-y-0">
-              <RoomManagerTab
-                propertyId={propertyId}
-                propertySlug={propertySlug}
-                routeId={id}
-                roomTypes={roomTypes}
-                setRoomTypes={setRoomTypes}
-                selectedRoomType={selectedRoomType}
-                setSelectedRoomType={setSelectedRoomType}
-                selectedPMS={selectedPMS}
-                isRolProperty={isRolProperty}
-                pmsRateTypes={pmsRateTypes}
-                accommodationLabel={accommodationLabel}
-                homeIconOpenNewTab={homeIconOpenNewTab}
-                isDev={isDev ?? false}
-                isFearlessLeader={isFearlessLeader ?? false}
-                setIsDirty={setIsDirty}
-                mealTypeSuggestions={mealTypeSuggestions}
-                handleNewMealType={handleNewMealType}
-              />
-            </TabsContent>
-
-            {/* Packages Tab */}
-            <TabsContent value="packages" className="space-y-2">
-              <Tabs value={packagesCategory} onValueChange={(v) => setPackagesCategory(v as any)} className="w-full">
-                <TabsList className="h-7">
-                  <TabsTrigger value="accommodations" className="text-xs h-6">
-                    Accommodations
-                  </TabsTrigger>
-                  {isEvent && (
-                    <TabsTrigger value="event" className="text-xs h-6">
-                      Event/Wedding
-                    </TabsTrigger>
-                  )}
-                  {isConference && (
-                    <TabsTrigger value="conference" className="text-xs h-6">
-                      Conference
-                    </TabsTrigger>
-                  )}
-                </TabsList>
-
-                {["accommodations", "event", "conference"].map((cat) => (
-                  <TabsContent key={cat} value={cat} className="mt-2">
-                    <div className="grid grid-cols-[180px_1fr] gap-3">
-                      <Card>
-                        <CardHeader className="py-1.5 px-3 flex flex-row items-center justify-between">
-                          <CardTitle className="text-xs font-medium uppercase">{cat}</CardTitle>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-5 w-5 p-0"
-                            onClick={() => {
-                              setSelectedPackage(null);
-                              setPackageForm({
-                                name: "",
-                                description: "",
-                                minimumStay: 1,
-                                maximumStay: 1,
-                                season: "",
-                                periodFrom: undefined,
-                                periodTo: undefined,
-                                pricingType: "discount",
-                                discountPercent: 0,
-                                fixedAmountOff: 0,
-                                fixedPrice: 0,
-                                package_price: 0,
-                                discount_percentage: 0,
-                                isPublic: false,
-                                images: [],
-                                applicableRoomIds: [],
-                              });
-                              setPackageImages([]);
-                              setIsEditPackageOpen(true);
+                            className={`border-2 border-dashed rounded-md p-3 flex flex-col items-center justify-center cursor-pointer transition-colors ${isAddonImageDragging ? "border-primary bg-primary/5" : "border-border hover:border-primary"}`}
+                            onDrop={handleAddonImageDrop}
+                            onDragOver={(e) => {
+                              e.preventDefault();
+                              setIsAddonImageDragging(true);
                             }}
+                            onDragLeave={() => setIsAddonImageDragging(false)}
+                            onClick={() => document.getElementById("addon-image-upload")?.click()}
                           >
-                            <Plus className="h-3 w-3" />
-                          </Button>
-                        </CardHeader>
-                        <CardContent className="py-1 px-3 space-y-0.5">
-                          {packages.filter((p) => p.category === cat).length === 0 ? (
-                            <p className="text-xs text-muted-foreground">No items...</p>
-                          ) : (
-                            packages
-                              .filter((p) => p.category === cat)
-                              .map((pkg) => (
-                                <div
-                                  key={pkg.id}
-                                  className={cn(
-                                    "py-1 px-1.5 rounded cursor-pointer hover:bg-accent flex items-center justify-between text-xs",
-                                    selectedPackage?.id === pkg.id && "bg-accent",
-                                  )}
-                                  onClick={() => setSelectedPackage(pkg)}
-                                >
-                                  <span className="truncate">{pkg.name}</span>
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    className="h-4 w-4 p-0"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      deletePackage(pkg.id);
-                                    }}
-                                  >
-                                    <Trash2 className="h-2.5 w-2.5" />
-                                  </Button>
-                                </div>
-                              ))
-                          )}
-                        </CardContent>
-                      </Card>
-
-                      <div className="flex gap-1.5">
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          className="h-7 text-xs"
-                          disabled={!selectedPackage}
-                          onClick={() => {
-                            if (selectedPackage) {
-                              setPackageForm({
-                                name: selectedPackage.name || "",
-                                description: selectedPackage.description || "",
-                                minimumStay: selectedPackage.minimumStay || 1,
-                                maximumStay: selectedPackage.maximumStay || 1,
-                                season: selectedPackage.season || "",
-                                periodFrom: selectedPackage.periodFrom ? new Date(selectedPackage.periodFrom) : undefined,
-                                periodTo: selectedPackage.periodTo ? new Date(selectedPackage.periodTo) : undefined,
-                                pricingType: selectedPackage.pricingType || "discount",
-                                discountPercent: selectedPackage.discountPercent || selectedPackage.discount_percentage || 0,
-                                fixedAmountOff: selectedPackage.fixedAmountOff || 0,
-                                fixedPrice: selectedPackage.fixedPrice || selectedPackage.package_price || 0,
-                                package_price: selectedPackage.package_price || selectedPackage.fixedPrice || 0,
-                                discount_percentage: selectedPackage.discount_percentage || selectedPackage.discountPercent || 0,
-                                isPublic: selectedPackage.isPublic || false,
-                                images: selectedPackage.images || [],
-                                applicableRoomIds: selectedPackage.applicableRoomIds || selectedPackage.applicable_room_ids || [],
-                              });
-                              setPackageImages(selectedPackage.images || []);
-                              setIsEditPackageOpen(true);
-                            }
-                          }}
-                        >
-                          Edit Package
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          className="h-7 text-xs"
-                          onClick={() => setIsPackageImagesOpen(true)}
-                        >
-                          Package Images
-                        </Button>
-                      </div>
-                    </div>
-                  </TabsContent>
-                ))}
-              </Tabs>
-            </TabsContent>
-
-            {/* Announcements Tab */}
-            <TabsContent value="announcements" className="space-y-2">
-              <Card>
-                <CardHeader className="py-2 px-4 flex flex-row items-center justify-between">
-                  <CardTitle className="text-sm">Announcements</CardTitle>
-                  <Button size="sm" className="h-7 text-xs gap-1" onClick={() => { setEditingAnnouncementId(null); setAnnouncementForm({ announcement: "", order: 0, startDate: undefined, endDate: undefined, enabled: true }); setIsManageAnnouncementOpen(true); }}>
-                    <Plus className="h-3 w-3" />
-                    Add
-                  </Button>
-                </CardHeader>
-                <CardContent className="py-2 px-4">
-                  {announcements.length === 0 ? (
-                    <p className="text-xs text-muted-foreground text-center py-4">No announcements yet</p>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full">
-                        <thead>
-                          <tr className="border-b">
-                            <th className="text-left py-1.5 px-2 text-xs font-medium">ON</th>
-                            <th className="text-left py-1.5 px-2 text-xs font-medium">MESSAGE</th>
-                            <th className="text-left py-1.5 px-2 text-xs font-medium">START</th>
-                            <th className="text-left py-1.5 px-2 text-xs font-medium">END</th>
-                            <th className="text-left py-1.5 px-2 text-xs font-medium">#</th>
-                            <th className="py-1.5 px-2 w-10"></th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {announcements.map((announcement) => (
-                            <tr key={announcement.id} className="border-b hover:bg-muted/50">
-                              <td className="py-1 px-2">
-                                <Switch
-                                  checked={announcement.enabled}
-                                  onCheckedChange={() => toggleAnnouncementEnabled(announcement.id)}
-                                  className="scale-75"
-                                />
-                              </td>
-                              <td className="py-1 px-2 text-xs truncate max-w-[200px]">{announcement.announcement}</td>
-                              <td className="py-1 px-2 text-xs">
-                                {announcement.startDate ? format(announcement.startDate, "MM/dd/yy") : "-"}
-                              </td>
-                              <td className="py-1 px-2 text-xs">
-                                {announcement.endDate ? format(announcement.endDate, "MM/dd/yy") : "-"}
-                              </td>
-                              <td className="py-1 px-2 text-xs">{announcement.order}</td>
-                              <td className="py-1 px-2 flex gap-1">
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-5 w-5 p-0"
-                                  onClick={() => editAnnouncement(announcement)}
-                                >
+                            <Upload className="h-6 w-6 text-muted-foreground mb-1" />
+                            <p className="text-xs text-muted-foreground text-center">Upload</p>
+                            <input
+                              id="addon-image-upload"
+                              type="file"
+                              accept="image/*"
+                              multiple
+                              className="hidden"
+                              onChange={(e) => handleAddonImageUpload(e.target.files)}
+                            />
+                          </div>
+                          {addonImages.slice(0, 8).map((imageUrl, index) => (
+                            <div
+                              key={index}
+                              className="relative aspect-square rounded-md overflow-hidden border border-border group"
+                            >
+                              <img src={imageUrl} alt={`Addon ${index + 1}`} className="w-full h-full object-cover" />
+                              <button
+                                type="button"
+                                onClick={() => removeAddonImage(index)}
+                                className="absolute top-1 right-1 bg-muted-foreground/80 hover:bg-destructive rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                              >
+                                <X className="h-3 w-3 text-white" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </TabsContent>
+                    </Tabs>
+                  </DialogContent>
+                </Dialog>
+              </CardHeader>
+              <CardContent className="py-2 px-4">
+                <div className="border rounded-md overflow-hidden">
+                  <table className="w-full">
+                    <thead className="bg-muted">
+                      <tr>
+                        <th className="text-left py-1.5 px-2 font-medium text-xs">ITEM</th>
+                        <th className="text-left py-1.5 px-2 font-medium text-xs">DESCRIPTION</th>
+                        <th className="text-left py-1.5 px-2 font-medium text-xs">TYPE</th>
+                        <th className="text-left py-1.5 px-2 font-medium text-xs">CAP</th>
+                        <th className="text-left py-1.5 px-2 font-medium text-xs">PRICE</th>
+                        <th className="text-left py-1.5 px-2 font-medium text-xs w-16"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {addons.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="py-4 text-center text-xs text-muted-foreground">
+                            No addons yet
+                          </td>
+                        </tr>
+                      ) : (
+                        addons.map((addon) => (
+                          <tr key={addon.id} className="border-t hover:bg-muted/50">
+                            <td className="py-1.5 px-2 text-xs">{addon.name}</td>
+                            <td className="py-1.5 px-2 text-xs text-muted-foreground truncate max-w-[200px]">
+                              {addon.description}
+                            </td>
+                            <td className="py-1.5 px-2 text-xs">{addon.priceType}</td>
+                            <td className="py-1.5 px-2 text-xs">{addon.hasCapacity ? addon.capacity : "-"}</td>
+                            <td className="py-1.5 px-2 text-xs">{addon.price}</td>
+                            <td className="py-1.5 px-2">
+                              <div className="flex gap-1">
+                                <Button size="sm" variant="ghost" className="h-5 w-5 p-0">
                                   <Edit className="h-3 w-3" />
                                 </Button>
                                 <Button
                                   size="sm"
                                   variant="ghost"
-                                  className="h-5 w-5 p-0"
-                                  onClick={() => deleteAnnouncement(announcement.id)}
+                                  className="h-5 w-5 p-0 text-destructive"
+                                  onClick={() => deleteAddon(addon.id)}
                                 >
                                   <Trash2 className="h-3 w-3" />
                                 </Button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-            {/* Integrations Tab - All Properties */}
-            {propertyId && (
-              <TabsContent value="integrations" className="space-y-2">
-                <PropertyFormIntegrationsTab 
-                  property={{ 
-                    id: propertyId, 
-                    name: formData.name || "", 
-                    slug: propertySlug || propertyId,
-                    brand_primary_color: brandingData.brand_primary_color || null
-                  }} 
-                />
-              </TabsContent>
-            )}
-
-            {/* Admin Tab - Admin/Dev/FearlessLeader only */}
-            {propertyId && (isAdmin || isDev || isFearlessLeader) && (
-              <TabsContent value="admin" className="space-y-3">
-                <Alert className="border-amber-500/40 bg-amber-500/5">
-                  <ShieldCheck className="h-4 w-4 text-amber-600" />
-                  <AlertDescription className="text-xs">
-                    Admin-only controls. These settings define what capabilities the property owner sees in ROLOS (white-label, custom payment providers, commission/billing model). Owners never see this tab.
-                  </AlertDescription>
-                </Alert>
-                <Tabs defaultValue="overview" className="w-full" value={adminSubTab} onValueChange={setAdminSubTab}>
-                  <TabsList>
-                    <TabsTrigger value="overview">Overview</TabsTrigger>
-                    <TabsTrigger value="billing">Billing Config</TabsTrigger>
+          {/* Specials Tab */}
+          <TabsContent value="specials">
+            <Card>
+              <CardHeader className="py-2 px-4">
+                <Tabs value={specialsCategory} onValueChange={setSpecialsCategory}>
+                  <TabsList className="h-7">
+                    <TabsTrigger value="accommodations" className="text-xs h-6">
+                      Accommodations
+                    </TabsTrigger>
+                    {isEvent && (
+                      <TabsTrigger value="event-wedding" className="text-xs h-6">
+                        Event/Wedding
+                      </TabsTrigger>
+                    )}
+                    {isConference && (
+                      <TabsTrigger value="conference" className="text-xs h-6">
+                        Conference
+                      </TabsTrigger>
+                    )}
+                    <TabsTrigger value="vouchers" className="text-xs h-6">
+                      Vouchers
+                    </TabsTrigger>
                   </TabsList>
-                  <TabsContent value="overview" className="mt-3">
-                    <AdminOverviewTab
-                      propertyId={propertyId}
-                      onNavigate={(t) => setAdminSubTab(t)}
-                    />
-                  </TabsContent>
-                  <TabsContent value="billing" className="mt-3">
-                    <BillingConfigTab propertyId={propertyId} />
-                    <div className="mt-4"><ReferralSection propertyId={propertyId} /></div>
-                  </TabsContent>
                 </Tabs>
-              </TabsContent>
-            )}
-          </Tabs>
+              </CardHeader>
+              <CardContent className="py-2 px-4">
+                {specialsCategory === "conference" && (
+                  <div className="flex gap-3">
+                    {/* Left Sidebar - Specials List */}
+                    <div className="w-48 space-y-1">
+                      <div className="flex items-center justify-between mb-2">
+                        <h3 className="font-semibold text-xs text-muted-foreground">CONFERENCE SPECIALS</h3>
+                        <Button size="sm" variant="ghost" className="h-5 w-5 p-0" onClick={addNewSpecial}>
+                          <Plus className="h-3 w-3" />
+                        </Button>
+                      </div>
+                      {conferenceSpecials.map((special) => (
+                        <div
+                          key={special.id}
+                          className={`flex items-center justify-between py-1.5 px-2 rounded transition-colors text-xs ${
+                            selectedSpecial === special.id
+                              ? "bg-primary text-primary-foreground"
+                              : "bg-muted hover:bg-muted/80"
+                          }`}
+                        >
+                          <span
+                            className="flex-1 cursor-pointer truncate"
+                            onClick={() => setSelectedSpecial(special.id)}
+                          >
+                            {special.name}
+                          </span>
+                          <div className="flex gap-0.5">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-4 w-4 p-0"
+                              onClick={() => setIsEditSpecialOpen(true)}
+                            >
+                              <Edit className="h-2.5 w-2.5" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-4 w-4 p-0"
+                              onClick={() => deleteSpecial(special.id)}
+                            >
+                              <Trash2 className="h-2.5 w-2.5" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
 
-          {/* Embed-mode sticky Save bar */}
-          {embedded && isDirty && (
-            <div className="sticky bottom-0 left-0 right-0 mt-3 flex items-center justify-end gap-2 border-t bg-background/95 px-3 py-2 backdrop-blur">
-              <span className="text-xs text-muted-foreground">Unsaved changes</span>
-              <Button size="sm" className="h-7 text-xs" onClick={handleSubmit} disabled={loading}>
-                <Save className="mr-1 h-3 w-3" />
-                {loading ? "Saving..." : "Save changes"}
-              </Button>
-            </div>
+                    {/* Main Content - Edit Special Dialog */}
+                    <Dialog open={isEditSpecialOpen} onOpenChange={setIsEditSpecialOpen}>
+                      <DialogTrigger asChild>
+                        <div className="flex-1 flex items-center justify-center border-2 border-dashed rounded-md p-6 cursor-pointer hover:bg-muted/50">
+                          <div className="text-center">
+                            <p className="text-xs text-muted-foreground mb-1">Click to edit special</p>
+                            <Button size="sm" className="h-7 text-xs">
+                              <Edit className="mr-1 h-3 w-3" />
+                              Edit Special
+                            </Button>
+                          </div>
+                        </div>
+                      </DialogTrigger>
+                      <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+                        <DialogHeader>
+                          <div className="flex items-center justify-between">
+                            <DialogTitle className="text-sm">Edit Special</DialogTitle>
+                            <div className="flex items-center gap-1.5">
+                              <Switch
+                                checked={specialForm.isPublic}
+                                onCheckedChange={(checked) => setSpecialForm({ ...specialForm, isPublic: checked })}
+                                className="scale-75"
+                              />
+                              <Label className="text-xs">Public</Label>
+                            </div>
+                          </div>
+                        </DialogHeader>
+
+                        <Tabs value={specialDialogTab} onValueChange={setSpecialDialogTab}>
+                          <TabsList className="h-7">
+                            <TabsTrigger value="edit-special" className="text-xs h-6">
+                              Edit Special
+                            </TabsTrigger>
+                            <TabsTrigger value="special-images" className="text-xs h-6">
+                              Images
+                            </TabsTrigger>
+                          </TabsList>
+
+                          <TabsContent value="edit-special" className="space-y-3 mt-2">
+                            <div className="grid grid-cols-3 gap-2">
+                              <div className="space-y-1">
+                                <Label className="text-xs">Name*</Label>
+                                <Input
+                                  value={specialForm.name}
+                                  onChange={(e) => setSpecialForm({ ...specialForm, name: e.target.value })}
+                                  className="h-7 text-xs"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-xs">Season</Label>
+                                <Select
+                                  value={specialForm.season}
+                                  onValueChange={(value) => setSpecialForm({ ...specialForm, season: value })}
+                                >
+                                  <SelectTrigger className="h-7 text-xs">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="08/05/2025-30/09/2025" className="text-xs">
+                                      08/05/2025-30/09/2025
+                                    </SelectItem>
+                                    <SelectItem value="01/10/2025-30/09/2026" className="text-xs">
+                                      01/10/2025-30/09/2026
+                                    </SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-xs">Description</Label>
+                                <Input
+                                  value={specialForm.description}
+                                  onChange={(e) => setSpecialForm({ ...specialForm, description: e.target.value })}
+                                  className="h-7 text-xs"
+                                />
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-4 gap-2">
+                              <div className="space-y-1">
+                                <Label className="text-xs">From</Label>
+                                <Popover>
+                                  <PopoverTrigger asChild>
+                                    <Button
+                                      variant="outline"
+                                      className={cn(
+                                        "w-full h-7 justify-start text-left text-xs",
+                                        !specialForm.periodFrom && "text-muted-foreground",
+                                      )}
+                                    >
+                                      <CalendarIcon className="mr-1 h-3 w-3" />
+                                      {specialForm.periodFrom ? format(specialForm.periodFrom, "MM/dd/yy") : "Pick"}
+                                    </Button>
+                                  </PopoverTrigger>
+                                  <PopoverContent className="w-auto p-0" align="start">
+                                    <CalendarComponent
+                                      mode="single"
+                                      selected={specialForm.periodFrom}
+                                      onSelect={(date) => setSpecialForm({ ...specialForm, periodFrom: date })}
+                                      initialFocus
+                                    />
+                                  </PopoverContent>
+                                </Popover>
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-xs">To</Label>
+                                <Popover>
+                                  <PopoverTrigger asChild>
+                                    <Button
+                                      variant="outline"
+                                      className={cn(
+                                        "w-full h-7 justify-start text-left text-xs",
+                                        !specialForm.periodTo && "text-muted-foreground",
+                                      )}
+                                    >
+                                      <CalendarIcon className="mr-1 h-3 w-3" />
+                                      {specialForm.periodTo ? format(specialForm.periodTo, "MM/dd/yy") : "Pick"}
+                                    </Button>
+                                  </PopoverTrigger>
+                                  <PopoverContent className="w-auto p-0" align="start">
+                                    <CalendarComponent
+                                      mode="single"
+                                      selected={specialForm.periodTo}
+                                      onSelect={(date) => setSpecialForm({ ...specialForm, periodTo: date })}
+                                      initialFocus
+                                    />
+                                  </PopoverContent>
+                                </Popover>
+                              </div>
+                              <div className="col-span-2 space-y-1">
+                                <Label className="text-xs">Pricing</Label>
+                                <RadioGroup
+                                  value={specialForm.pricingConfig}
+                                  onValueChange={(value: any) =>
+                                    setSpecialForm({ ...specialForm, pricingConfig: value })
+                                  }
+                                  className="flex gap-3"
+                                >
+                                  <div className="flex items-center space-x-1">
+                                    <RadioGroupItem value="discount" id="discount" className="h-3 w-3" />
+                                    <Label htmlFor="discount" className="text-xs">
+                                      Discount %
+                                    </Label>
+                                  </div>
+                                  <div className="flex items-center space-x-1">
+                                    <RadioGroupItem value="fixed-off" id="fixed-off" className="h-3 w-3" />
+                                    <Label htmlFor="fixed-off" className="text-xs">
+                                      Fixed Off
+                                    </Label>
+                                  </div>
+                                  <div className="flex items-center space-x-1">
+                                    <RadioGroupItem value="fixed-price" id="fixed-price" className="h-3 w-3" />
+                                    <Label htmlFor="fixed-price" className="text-xs">
+                                      Fixed Price
+                                    </Label>
+                                  </div>
+                                </RadioGroup>
+                              </div>
+                            </div>
+                          </TabsContent>
+
+                          <TabsContent value="special-images" className="mt-2">
+                            <div className="grid grid-cols-5 gap-2">
+                              <div className="border-2 border-dashed rounded-md p-3 flex flex-col items-center justify-center cursor-pointer hover:bg-muted/50">
+                                <Upload className="h-6 w-6 text-muted-foreground mb-1" />
+                                <p className="text-xs text-muted-foreground">Upload</p>
+                              </div>
+                            </div>
+                          </TabsContent>
+                        </Tabs>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
+                )}
+
+                {specialsCategory === "accommodations" && propertyId && (
+                  <AccommodationSpecialsTab
+                    propertyId={propertyId}
+                    category="accommodation"
+                    roomTypes={roomTypes.map((rt: any) => ({ id: rt.id || rt.name, name: rt.name }))}
+                  />
+                )}
+
+                {specialsCategory === "event-wedding" && propertyId && (
+                  <AccommodationSpecialsTab
+                    propertyId={propertyId}
+                    category="event_wedding"
+                    roomTypes={roomTypes.map((rt: any) => ({ id: rt.id || rt.name, name: rt.name }))}
+                  />
+                )}
+
+                {specialsCategory === "vouchers" && propertyId && <PromoCodesTab propertyId={propertyId} />}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Rate Breakdown Tab */}
+          <TabsContent value="rates" className="space-y-0">
+            <RateManagerTab
+              propertyId={propertyId}
+              roomTypes={roomTypes}
+              selectedRoomType={selectedRoomType}
+              setSelectedRoomType={setSelectedRoomType}
+              pmsRateTypes={pmsRateTypes}
+              setPmsRateTypes={setPmsRateTypes}
+              seasons={seasons}
+              setSeasons={setSeasons}
+              seasonRates={seasonRates}
+              setSeasonRates={setSeasonRates}
+              selectedPMS={selectedPMS}
+              isRolProperty={isRolProperty}
+              accommodationLabel={accommodationLabel}
+              selectedMealTypes={selectedMealTypes}
+              formData={{ currency: formData.currency, owner_email: formData.owner_email }}
+              amenities={{ rate_types: pmsRateTypes, seasons }}
+              isAdmin={isAdmin ?? false}
+              isDev={isDev ?? false}
+              isFearlessLeader={isFearlessLeader ?? false}
+              setIsDirty={setIsDirty}
+            />
+          </TabsContent>
+
+          {/* Room Information Tab */}
+          <TabsContent value="rooms" className="space-y-0">
+            <RoomManagerTab
+              propertyId={propertyId}
+              propertySlug={propertySlug}
+              routeId={id}
+              roomTypes={roomTypes}
+              setRoomTypes={setRoomTypes}
+              selectedRoomType={selectedRoomType}
+              setSelectedRoomType={setSelectedRoomType}
+              selectedPMS={selectedPMS}
+              isRolProperty={isRolProperty}
+              pmsRateTypes={pmsRateTypes}
+              accommodationLabel={accommodationLabel}
+              homeIconOpenNewTab={homeIconOpenNewTab}
+              isDev={isDev ?? false}
+              isFearlessLeader={isFearlessLeader ?? false}
+              setIsDirty={setIsDirty}
+              mealTypeSuggestions={mealTypeSuggestions}
+              handleNewMealType={handleNewMealType}
+            />
+          </TabsContent>
+
+          {/* Packages Tab */}
+          <TabsContent value="packages" className="space-y-2">
+            <Tabs value={packagesCategory} onValueChange={(v) => setPackagesCategory(v as any)} className="w-full">
+              <TabsList className="h-7">
+                <TabsTrigger value="accommodations" className="text-xs h-6">
+                  Accommodations
+                </TabsTrigger>
+                {isEvent && (
+                  <TabsTrigger value="event" className="text-xs h-6">
+                    Event/Wedding
+                  </TabsTrigger>
+                )}
+                {isConference && (
+                  <TabsTrigger value="conference" className="text-xs h-6">
+                    Conference
+                  </TabsTrigger>
+                )}
+              </TabsList>
+
+              {["accommodations", "event", "conference"].map((cat) => (
+                <TabsContent key={cat} value={cat} className="mt-2">
+                  <div className="grid grid-cols-[180px_1fr] gap-3">
+                    <Card>
+                      <CardHeader className="py-1.5 px-3 flex flex-row items-center justify-between">
+                        <CardTitle className="text-xs font-medium uppercase">{cat}</CardTitle>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-5 w-5 p-0"
+                          onClick={() => {
+                            setSelectedPackage(null);
+                            setPackageForm({
+                              name: "",
+                              description: "",
+                              minimumStay: 1,
+                              maximumStay: 1,
+                              season: "",
+                              periodFrom: undefined,
+                              periodTo: undefined,
+                              pricingType: "discount",
+                              discountPercent: 0,
+                              fixedAmountOff: 0,
+                              fixedPrice: 0,
+                              package_price: 0,
+                              discount_percentage: 0,
+                              isPublic: false,
+                              images: [],
+                              applicableRoomIds: [],
+                            });
+                            setPackageImages([]);
+                            setIsEditPackageOpen(true);
+                          }}
+                        >
+                          <Plus className="h-3 w-3" />
+                        </Button>
+                      </CardHeader>
+                      <CardContent className="py-1 px-3 space-y-0.5">
+                        {packages.filter((p) => p.category === cat).length === 0 ? (
+                          <p className="text-xs text-muted-foreground">No items...</p>
+                        ) : (
+                          packages
+                            .filter((p) => p.category === cat)
+                            .map((pkg) => (
+                              <div
+                                key={pkg.id}
+                                className={cn(
+                                  "py-1 px-1.5 rounded cursor-pointer hover:bg-accent flex items-center justify-between text-xs",
+                                  selectedPackage?.id === pkg.id && "bg-accent",
+                                )}
+                                onClick={() => setSelectedPackage(pkg)}
+                              >
+                                <span className="truncate">{pkg.name}</span>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-4 w-4 p-0"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    deletePackage(pkg.id);
+                                  }}
+                                >
+                                  <Trash2 className="h-2.5 w-2.5" />
+                                </Button>
+                              </div>
+                            ))
+                        )}
+                      </CardContent>
+                    </Card>
+
+                    <div className="flex gap-1.5">
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        className="h-7 text-xs"
+                        disabled={!selectedPackage}
+                        onClick={() => {
+                          if (selectedPackage) {
+                            setPackageForm({
+                              name: selectedPackage.name || "",
+                              description: selectedPackage.description || "",
+                              minimumStay: selectedPackage.minimumStay || 1,
+                              maximumStay: selectedPackage.maximumStay || 1,
+                              season: selectedPackage.season || "",
+                              periodFrom: selectedPackage.periodFrom ? new Date(selectedPackage.periodFrom) : undefined,
+                              periodTo: selectedPackage.periodTo ? new Date(selectedPackage.periodTo) : undefined,
+                              pricingType: selectedPackage.pricingType || "discount",
+                              discountPercent:
+                                selectedPackage.discountPercent || selectedPackage.discount_percentage || 0,
+                              fixedAmountOff: selectedPackage.fixedAmountOff || 0,
+                              fixedPrice: selectedPackage.fixedPrice || selectedPackage.package_price || 0,
+                              package_price: selectedPackage.package_price || selectedPackage.fixedPrice || 0,
+                              discount_percentage:
+                                selectedPackage.discount_percentage || selectedPackage.discountPercent || 0,
+                              isPublic: selectedPackage.isPublic || false,
+                              images: selectedPackage.images || [],
+                              applicableRoomIds:
+                                selectedPackage.applicableRoomIds || selectedPackage.applicable_room_ids || [],
+                            });
+                            setPackageImages(selectedPackage.images || []);
+                            setIsEditPackageOpen(true);
+                          }
+                        }}
+                      >
+                        Edit Package
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        className="h-7 text-xs"
+                        onClick={() => setIsPackageImagesOpen(true)}
+                      >
+                        Package Images
+                      </Button>
+                    </div>
+                  </div>
+                </TabsContent>
+              ))}
+            </Tabs>
+          </TabsContent>
+
+          {/* Announcements Tab */}
+          <TabsContent value="announcements" className="space-y-2">
+            <Card>
+              <CardHeader className="py-2 px-4 flex flex-row items-center justify-between">
+                <CardTitle className="text-sm">Announcements</CardTitle>
+                <Button
+                  size="sm"
+                  className="h-7 text-xs gap-1"
+                  onClick={() => {
+                    setEditingAnnouncementId(null);
+                    setAnnouncementForm({
+                      announcement: "",
+                      order: 0,
+                      startDate: undefined,
+                      endDate: undefined,
+                      enabled: true,
+                    });
+                    setIsManageAnnouncementOpen(true);
+                  }}
+                >
+                  <Plus className="h-3 w-3" />
+                  Add
+                </Button>
+              </CardHeader>
+              <CardContent className="py-2 px-4">
+                {announcements.length === 0 ? (
+                  <p className="text-xs text-muted-foreground text-center py-4">No announcements yet</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b">
+                          <th className="text-left py-1.5 px-2 text-xs font-medium">ON</th>
+                          <th className="text-left py-1.5 px-2 text-xs font-medium">MESSAGE</th>
+                          <th className="text-left py-1.5 px-2 text-xs font-medium">START</th>
+                          <th className="text-left py-1.5 px-2 text-xs font-medium">END</th>
+                          <th className="text-left py-1.5 px-2 text-xs font-medium">#</th>
+                          <th className="py-1.5 px-2 w-10"></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {announcements.map((announcement) => (
+                          <tr key={announcement.id} className="border-b hover:bg-muted/50">
+                            <td className="py-1 px-2">
+                              <Switch
+                                checked={announcement.enabled}
+                                onCheckedChange={() => toggleAnnouncementEnabled(announcement.id)}
+                                className="scale-75"
+                              />
+                            </td>
+                            <td className="py-1 px-2 text-xs truncate max-w-[200px]">{announcement.announcement}</td>
+                            <td className="py-1 px-2 text-xs">
+                              {announcement.startDate ? format(announcement.startDate, "MM/dd/yy") : "-"}
+                            </td>
+                            <td className="py-1 px-2 text-xs">
+                              {announcement.endDate ? format(announcement.endDate, "MM/dd/yy") : "-"}
+                            </td>
+                            <td className="py-1 px-2 text-xs">{announcement.order}</td>
+                            <td className="py-1 px-2 flex gap-1">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-5 w-5 p-0"
+                                onClick={() => editAnnouncement(announcement)}
+                              >
+                                <Edit className="h-3 w-3" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-5 w-5 p-0"
+                                onClick={() => deleteAnnouncement(announcement.id)}
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Integrations Tab - All Properties */}
+          {propertyId && (
+            <TabsContent value="integrations" className="space-y-2">
+              <PropertyFormIntegrationsTab
+                property={{
+                  id: propertyId,
+                  name: formData.name || "",
+                  slug: propertySlug || propertyId,
+                  brand_primary_color: brandingData.brand_primary_color || null,
+                }}
+              />
+            </TabsContent>
           )}
-        </div>
 
+          {/* Admin Tab - Admin/Dev/FearlessLeader only */}
+          {propertyId && (isAdmin || isDev || isFearlessLeader) && (
+            <TabsContent value="admin" className="space-y-3">
+              <Alert className="border-amber-500/40 bg-amber-500/5">
+                <ShieldCheck className="h-4 w-4 text-amber-600" />
+                <AlertDescription className="text-xs">
+                  Admin-only controls. These settings define what capabilities the property owner sees in ROLOS
+                  (white-label, custom payment providers, commission/billing model). Owners never see this tab.
+                </AlertDescription>
+              </Alert>
+              <Tabs defaultValue="overview" className="w-full" value={adminSubTab} onValueChange={setAdminSubTab}>
+                <TabsList>
+                  <TabsTrigger value="overview">Overview</TabsTrigger>
+                  <TabsTrigger value="billing">Billing Config</TabsTrigger>
+                </TabsList>
+                <TabsContent value="overview" className="mt-3">
+                  <AdminOverviewTab propertyId={propertyId} onNavigate={(t) => setAdminSubTab(t)} />
+                </TabsContent>
+                <TabsContent value="billing" className="mt-3">
+                  <BillingConfigTab propertyId={propertyId} />
+                  <div className="mt-4">
+                    <ReferralSection propertyId={propertyId} />
+                  </div>
+                </TabsContent>
+              </Tabs>
+            </TabsContent>
+          )}
+        </Tabs>
+
+        {/* Embed-mode sticky Save bar */}
+        {embedded && isDirty && (
+          <div className="sticky bottom-0 left-0 right-0 mt-3 flex items-center justify-end gap-2 border-t bg-background/95 px-3 py-2 backdrop-blur">
+            <span className="text-xs text-muted-foreground">Unsaved changes</span>
+            <Button size="sm" className="h-7 text-xs" onClick={handleSubmit} disabled={loading}>
+              <Save className="mr-1 h-3 w-3" />
+              {loading ? "Saving..." : "Save changes"}
+            </Button>
+          </div>
+        )}
+      </div>
 
       {/* Manage Announcements Dialog */}
       <Dialog open={isManageAnnouncementOpen} onOpenChange={setIsManageAnnouncementOpen}>
@@ -8203,7 +8416,9 @@ export default function PropertyForm({
                     type="number"
                     min={0}
                     value={packageForm.fixedAmountOff || ""}
-                    onChange={(e) => setPackageForm({ ...packageForm, fixedAmountOff: parseFloat(e.target.value) || 0 })}
+                    onChange={(e) =>
+                      setPackageForm({ ...packageForm, fixedAmountOff: parseFloat(e.target.value) || 0 })
+                    }
                     placeholder="e.g. 500"
                   />
                 </div>
@@ -8245,119 +8460,119 @@ export default function PropertyForm({
                       const roomIdStr = String(room.id);
                       const isRoomChecked = packageForm.applicableRoomIds.includes(roomIdStr);
                       return (
-                      <tr key={room.id} className="border-b">
-                        <td className="p-2 text-sm">
-                          <div className="flex items-center gap-2">
-                            <Checkbox
-                              checked={isRoomChecked}
-                              onCheckedChange={(checked) => {
-                                const updated = checked
-                                  ? [...packageForm.applicableRoomIds, roomIdStr]
-                                  : packageForm.applicableRoomIds.filter(id => id !== roomIdStr);
-                                setPackageForm({ ...packageForm, applicableRoomIds: updated });
-                              }}
-                            />
-                            <span>{room.name}</span>
-                            <Link className="h-4 w-4 text-primary" />
-                          </div>
-                        </td>
-                        <td className="p-2">
-                          <div className="space-y-1">
+                        <tr key={room.id} className="border-b">
+                          <td className="p-2 text-sm">
                             <div className="flex items-center gap-2">
-                              <span className="text-xs text-blue-600">UnitRate</span>
-                              <Input className="h-8 text-xs" placeholder="Not Available" />
+                              <Checkbox
+                                checked={isRoomChecked}
+                                onCheckedChange={(checked) => {
+                                  const updated = checked
+                                    ? [...packageForm.applicableRoomIds, roomIdStr]
+                                    : packageForm.applicableRoomIds.filter((id) => id !== roomIdStr);
+                                  setPackageForm({ ...packageForm, applicableRoomIds: updated });
+                                }}
+                              />
+                              <span>{room.name}</span>
+                              <Link className="h-4 w-4 text-primary" />
                             </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs text-blue-600">SingleRate</span>
-                              <Input className="h-8 text-xs" placeholder="Not Available" />
+                          </td>
+                          <td className="p-2">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-blue-600">UnitRate</span>
+                                <Input className="h-8 text-xs" placeholder="Not Available" />
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-blue-600">SingleRate</span>
+                                <Input className="h-8 text-xs" placeholder="Not Available" />
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-blue-600">PerPersonRate</span>
+                                <Input className="h-8 text-xs" placeholder="Not Available" />
+                              </div>
                             </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs text-blue-600">PerPersonRate</span>
-                              <Input className="h-8 text-xs" placeholder="Not Available" />
+                          </td>
+                          <td className="p-2">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-blue-600">UnitRate</span>
+                                <Input className="h-8 text-xs" placeholder="Not Available" />
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-blue-600">SingleRate</span>
+                                <Input className="h-8 text-xs" placeholder="Not Available" />
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-blue-600">PerPersonRate</span>
+                                <Input className="h-8 text-xs" placeholder="Not Available" />
+                              </div>
                             </div>
-                          </div>
-                        </td>
-                        <td className="p-2">
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs text-blue-600">UnitRate</span>
-                              <Input className="h-8 text-xs" placeholder="Not Available" />
+                          </td>
+                          <td className="p-2">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-blue-600">UnitRate</span>
+                                <Input className="h-8 text-xs" placeholder="Not Available" />
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-blue-600">SingleRate</span>
+                                <Input className="h-8 text-xs" placeholder="Not Available" />
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-blue-600">PerPersonRate</span>
+                                <Input className="h-8 text-xs" placeholder="Not Available" />
+                              </div>
                             </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs text-blue-600">SingleRate</span>
-                              <Input className="h-8 text-xs" placeholder="Not Available" />
+                          </td>
+                          <td className="p-2">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-blue-600">UnitRate</span>
+                                <Input className="h-8 text-xs" placeholder="Not Available" />
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-blue-600">SingleRate</span>
+                                <Input className="h-8 text-xs" placeholder="Not Available" />
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-blue-600">PerPersonRate</span>
+                                <Input className="h-8 text-xs" placeholder="Not Available" />
+                              </div>
                             </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs text-blue-600">PerPersonRate</span>
-                              <Input className="h-8 text-xs" placeholder="Not Available" />
+                          </td>
+                          <td className="p-2">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-blue-600">UnitRate</span>
+                                <Input className="h-8 text-xs" placeholder="Not Available" />
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-blue-600">SingleRate</span>
+                                <Input className="h-8 text-xs" placeholder="Not Available" />
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-blue-600">PerPersonRate</span>
+                                <Input className="h-8 text-xs" placeholder="Not Available" />
+                              </div>
                             </div>
-                          </div>
-                        </td>
-                        <td className="p-2">
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs text-blue-600">UnitRate</span>
-                              <Input className="h-8 text-xs" placeholder="Not Available" />
+                          </td>
+                          <td className="p-2">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-blue-600">UnitRate</span>
+                                <Input className="h-8 text-xs" placeholder="Not Available" />
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-blue-600">SingleRate</span>
+                                <Input className="h-8 text-xs" placeholder="Not Available" />
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-blue-600">PerPersonRate</span>
+                                <Input className="h-8 text-xs" placeholder="Not Available" />
+                              </div>
                             </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs text-blue-600">SingleRate</span>
-                              <Input className="h-8 text-xs" placeholder="Not Available" />
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs text-blue-600">PerPersonRate</span>
-                              <Input className="h-8 text-xs" placeholder="Not Available" />
-                            </div>
-                          </div>
-                        </td>
-                        <td className="p-2">
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs text-blue-600">UnitRate</span>
-                              <Input className="h-8 text-xs" placeholder="Not Available" />
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs text-blue-600">SingleRate</span>
-                              <Input className="h-8 text-xs" placeholder="Not Available" />
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs text-blue-600">PerPersonRate</span>
-                              <Input className="h-8 text-xs" placeholder="Not Available" />
-                            </div>
-                          </div>
-                        </td>
-                        <td className="p-2">
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs text-blue-600">UnitRate</span>
-                              <Input className="h-8 text-xs" placeholder="Not Available" />
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs text-blue-600">SingleRate</span>
-                              <Input className="h-8 text-xs" placeholder="Not Available" />
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs text-blue-600">PerPersonRate</span>
-                              <Input className="h-8 text-xs" placeholder="Not Available" />
-                            </div>
-                          </div>
-                        </td>
-                        <td className="p-2">
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs text-blue-600">UnitRate</span>
-                              <Input className="h-8 text-xs" placeholder="Not Available" />
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs text-blue-600">SingleRate</span>
-                              <Input className="h-8 text-xs" placeholder="Not Available" />
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs text-blue-600">PerPersonRate</span>
-                              <Input className="h-8 text-xs" placeholder="Not Available" />
-                            </div>
-                          </div>
-                        </td>
-                      </tr>
+                          </td>
+                        </tr>
                       );
                     })}
                   </tbody>
@@ -8369,26 +8584,28 @@ export default function PropertyForm({
               <Button variant="outline" onClick={() => setIsEditPackageOpen(false)}>
                 Cancel
               </Button>
-              <Button onClick={() => {
-                if (selectedPackage) {
-                  // Update existing package
-                  const normalizedPackage = normalizePackage({
-                    ...selectedPackage,
-                    ...packageForm,
-                    category: packagesCategory,
-                  });
-                  const updated = packages.map(p => 
-                    p.id === selectedPackage.id ? normalizedPackage : p
-                  );
-                  setPackages(updated);
-                  setSelectedPackage(normalizedPackage);
-                  setIsEditPackageOpen(false);
-                  setIsDirty(true);
-                  toast({ title: "Package updated", description: "The package has been updated successfully." });
-                } else {
-                  addNewPackage();
-                }
-              }}>{selectedPackage ? "Update Package" : "Create Package"}</Button>
+              <Button
+                onClick={() => {
+                  if (selectedPackage) {
+                    // Update existing package
+                    const normalizedPackage = normalizePackage({
+                      ...selectedPackage,
+                      ...packageForm,
+                      category: packagesCategory,
+                    });
+                    const updated = packages.map((p) => (p.id === selectedPackage.id ? normalizedPackage : p));
+                    setPackages(updated);
+                    setSelectedPackage(normalizedPackage);
+                    setIsEditPackageOpen(false);
+                    setIsDirty(true);
+                    toast({ title: "Package updated", description: "The package has been updated successfully." });
+                  } else {
+                    addNewPackage();
+                  }
+                }}
+              >
+                {selectedPackage ? "Update Package" : "Create Package"}
+              </Button>
             </div>
           </div>
         </DialogContent>
@@ -8461,8 +8678,11 @@ export default function PropertyForm({
                   </AlertDialogTitle>
                   <AlertDialogDescription asChild>
                     <div className="space-y-3">
-                      <p>{pmsCapability?.syncDescription || `This will fetch editorial content from ${getPMSDisplayName(selectedPMS)}.`}</p>
-                      
+                      <p>
+                        {pmsCapability?.syncDescription ||
+                          `This will fetch editorial content from ${getPMSDisplayName(selectedPMS)}.`}
+                      </p>
+
                       {syncableFields.length > 0 && (
                         <div className="text-sm space-y-1">
                           <p className="font-medium text-foreground">Fields that will be synced:</p>
@@ -8476,11 +8696,9 @@ export default function PropertyForm({
                           </ul>
                         </div>
                       )}
-                      
-                      {pmsCapability?.notes && (
-                        <p className="text-xs text-muted-foreground">{pmsCapability.notes}</p>
-                      )}
-                      
+
+                      {pmsCapability?.notes && <p className="text-xs text-muted-foreground">{pmsCapability.notes}</p>}
+
                       <p className="text-sm font-medium text-amber-600">
                         ⚠️ This may overwrite existing editorial content.
                       </p>
@@ -8510,13 +8728,14 @@ export default function PropertyForm({
             <AlertDialogDescription asChild>
               <div className="space-y-3">
                 <p>
-                  Hostfully properties can only be connected through an owner's PMS credentials 
-                  in the Team Dashboard.
+                  Hostfully properties can only be connected through an owner's PMS credentials in the Team Dashboard.
                 </p>
                 <div className="text-sm space-y-1">
                   <p className="font-medium text-foreground">To connect a Hostfully property:</p>
                   <ol className="list-decimal list-inside text-muted-foreground space-y-0.5 ml-2">
-                    <li>Go to <strong>Team Dashboard → Users</strong></li>
+                    <li>
+                      Go to <strong>Team Dashboard → Users</strong>
+                    </li>
                     <li>Find or create the property owner</li>
                     <li>Connect their Hostfully account (Agency UID + API Key)</li>
                     <li>Import properties from their Hostfully account</li>
@@ -8526,15 +8745,18 @@ export default function PropertyForm({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogAction onClick={() => setShowHostfullyWarning(false)}>
-              Understood
-            </AlertDialogAction>
+            <AlertDialogAction onClick={() => setShowHostfullyWarning(false)}>Understood</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
       {/* Unsaved Changes Confirmation */}
-      <AlertDialog open={pendingNavPath !== null} onOpenChange={(open) => { if (!open) setPendingNavPath(null); }}>
+      <AlertDialog
+        open={pendingNavPath !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingNavPath(null);
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Unsaved changes</AlertDialogTitle>
@@ -8593,7 +8815,6 @@ export default function PropertyForm({
           });
         }}
       />
-
     </FormShell>
   );
 }
