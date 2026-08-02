@@ -1,38 +1,12 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 import PropertyForm from "@/pages/PropertyForm";
 import PropertyContactDetails from "@/components/property/PropertyContactDetails";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { cn } from "@/lib/utils";
-import {
-  PROPERTY_SECTION_ORDER,
-  PROPERTY_SECTION_GROUPS,
-  type PropertySectionKey,
-} from "@/config/propertySectionOrder";
-import {
-  DollarSign,
-  Package,
-  Sparkles,
-  CalendarRange,
-  Layers,
-  Calendar,
-  LayoutList,
-  Wallet,
-  ShieldCheck,
-  CreditCard,
-  Receipt,
-  FileText,
-  Mail,
-  Megaphone,
-  Building2,
-  BedDouble,
-  ListChecks,
-  Image as ImageIcon,
-  Phone,
-  Home,
-} from "lucide-react";
+import { PropertySectionRail } from "@/components/property/PropertySectionRail";
+import { buildSectionGroups, type PropertySectionKey } from "@/config/propertySectionOrder";
 
 /**
  * ROLOS "Property Setup" hub.
@@ -57,54 +31,8 @@ type TabKey = Extract<
   | "images"
 >;
 
-const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
-  general: Home,
-  "info-facilities": Building2,
-  rooms: BedDouble,
-  rates: DollarSign,
-  packages: Package,
-  specials: Sparkles,
-  addons: Package,
-  "house-rules": FileText,
-  templates: Mail,
-  announcements: Megaphone,
-  contacts: Phone,
-  images: ImageIcon,
-  branding: Sparkles,
-  "rol-spec": Sparkles,
-  integrations: Layers,
-};
-
-const HINTS: Partial<
-  Record<
-    TabKey,
-    { key: string; label: string; icon: React.ComponentType<{ className?: string }> }[]
-  >
-> = {
-  rooms: [
-    { key: "type", label: "Type", icon: Layers },
-    { key: "rate-types", label: "Rate Types", icon: DollarSign },
-    { key: "facilities", label: "Facilities", icon: ListChecks },
-    { key: "amenities", label: "Amenities", icon: Sparkles },
-    { key: "images", label: "Images", icon: ImageIcon },
-    { key: "agreement", label: "Agreement", icon: FileText },
-  ],
-  rates: [
-    { key: "seasons", label: "Seasons", icon: CalendarRange },
-    { key: "types", label: "Rate Types", icon: Layers },
-    { key: "calendar", label: "Calendar", icon: Calendar },
-    { key: "breakdown", label: "Breakdown", icon: LayoutList },
-    { key: "charges", label: "Charges", icon: Wallet },
-    { key: "policies", label: "Policies", icon: ShieldCheck },
-    { key: "providers", label: "Providers", icon: CreditCard },
-    { key: "overview", label: "Overview", icon: Receipt },
-  ],
-};
-
 /** Only sections that are editable inside this hub */
-const HUB_KEYS = new Set<
-  TabKey
->([
+const HUB_KEYS: TabKey[] = [
   "info-facilities",
   "rooms",
   "rates",
@@ -116,26 +44,13 @@ const HUB_KEYS = new Set<
   "announcements",
   "contacts",
   "images",
-]);
+];
 
-const SECTION_GROUPS = PROPERTY_SECTION_GROUPS.map((g) => ({
-  label: g.label,
-  sections: g.keys
-    .filter((k) => HUB_KEYS.has(k as TabKey))
-    .map((k) => {
-      const def = PROPERTY_SECTION_ORDER.find((s) => s.key === k)!;
-      return {
-        key: k as TabKey,
-        label: def.label,
-        icon: ICON_MAP[k] || Building2,
-        description: def.description,
-        hints: HINTS[k as TabKey],
-      };
-    }),
-})).filter((g) => g.sections.length > 0);
+const SECTION_GROUPS = buildSectionGroups(HUB_KEYS);
+const VALID_TABS = new Set<TabKey>(
+  SECTION_GROUPS.flatMap((g) => g.sections.map((s) => s.key as TabKey)),
+);
 
-const ALL_SECTIONS = SECTION_GROUPS.flatMap((g) => g.sections);
-const VALID_TABS = new Set<TabKey>(ALL_SECTIONS.map((s) => s.key));
 
 export default function PMSPropertySetup() {
   const { propertyId: resolvedPropertyId, properties } = usePmsPropertyId();
