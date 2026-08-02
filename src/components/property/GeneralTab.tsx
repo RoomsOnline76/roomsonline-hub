@@ -29,7 +29,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import {
   Home, Save, X, Plus, Check, MapPin, RefreshCw, Cloud, Key,
-  ChevronsUpDown, AlertTriangle, Sparkles, Info, ChevronDown,
+  ChevronsUpDown, AlertTriangle, Sparkles, Info,
 } from "lucide-react";
 import type { WebsiteSyncSuggestion } from "@/components/property/WebsiteSyncModal";
 import { WebsiteSyncModal } from "@/components/property/WebsiteSyncModal";
@@ -214,7 +214,6 @@ export function GeneralTab(props: GeneralTabProps) {
                     <Sparkles className="h-4 w-4 text-primary" />
                     Rates Overview
                   </span>
-                  <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
                 </CardTitle>
               </CardHeader>
             </CollapsibleTrigger>
@@ -339,7 +338,7 @@ export function GeneralTab(props: GeneralTabProps) {
                 Import from WETU
               </Button>
             )}
-            <span className="text-[10px] text-muted-foreground">Available for any property — pulls description, images, amenities & geo from WETU.</span>
+            <span className="text-[10px] text-muted-foreground">Available for any property — pulls description, images, amenities &amp; geo from WETU.</span>
           </div>
           <Separator className="my-3" />
 
@@ -520,7 +519,7 @@ export function GeneralTab(props: GeneralTabProps) {
         </CardContent>
       </Card>
 
-      {/* Property, Address & Map - Side by side layout (primary path) */}
+      {/* Property, Address & Map - Side by side layout */}
       <div className="flex gap-3 items-stretch">
         <div className="flex-1 flex flex-col gap-3">
           {/* Property Section */}
@@ -778,139 +777,107 @@ export function GeneralTab(props: GeneralTabProps) {
         </div>
       </div>
 
-      {/* Property Surroundings — collapsible secondary (Phase 2 density) */}
-      <Collapsible defaultOpen={false}>
-        <Card>
-          <CollapsibleTrigger asChild>
-            <CardHeader className="py-2 px-4 cursor-pointer hover:bg-muted/50 transition-colors">
-              <CardTitle className="text-sm flex items-center justify-between">
-                <span>Property Surroundings</span>
-                <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-              </CardTitle>
-            </CardHeader>
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <CardContent className="py-2 px-4 space-y-3">
-              {[
-                { label: "Restaurants & Cafes", field: "restaurants_cafes", distField: "restaurants_cafes_distance" },
-                { label: "Public Transport", field: "public_transport", distField: "public_transport_distance" },
-                { label: "Closest Airport", field: "closest_airport", distField: "closest_airport_distance" },
-              ].map(({ label, field, distField }) => (
-                <div key={field} className="grid grid-cols-2 gap-3">
-                  <div className="flex flex-col gap-1">
-                    <Label htmlFor={field} className="text-xs text-muted-foreground">{label}</Label>
-                    <Input id={field} value={(formData as any)[field]} onChange={(e) => handleInputChange(field, e.target.value)} placeholder={`e.g., ${label}`} className="h-7 text-xs" />
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <Label htmlFor={distField} className="text-xs text-muted-foreground">Distance</Label>
-                    <Input id={distField} value={(formData as any)[distField]} onChange={(e) => handleInputChange(distField, e.target.value)} placeholder="e.g., 2 km" className="h-7 text-xs" />
-                  </div>
-                </div>
-              ))}
-            </CardContent>
-          </CollapsibleContent>
-        </Card>
-      </Collapsible>
+      {/* Property Surroundings */}
+      <Card>
+        <CardHeader className="py-2 px-4"><CardTitle className="text-sm">Property Surroundings</CardTitle></CardHeader>
+        <CardContent className="py-2 px-4 space-y-3">
+          {[
+            { label: "Restaurants & Cafes", field: "restaurants_cafes", distField: "restaurants_cafes_distance" },
+            { label: "Public Transport", field: "public_transport", distField: "public_transport_distance" },
+            { label: "Closest Airport", field: "closest_airport", distField: "closest_airport_distance" },
+          ].map(({ label, field, distField }) => (
+            <div key={field} className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1">
+                <Label htmlFor={field} className="text-xs text-muted-foreground">{label}</Label>
+                <Input id={field} value={(formData as any)[field]} onChange={(e) => handleInputChange(field, e.target.value)} placeholder={`e.g., ${label}`} className="h-7 text-xs" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <Label htmlFor={distField} className="text-xs text-muted-foreground">Distance</Label>
+                <Input id={distField} value={(formData as any)[distField]} onChange={(e) => handleInputChange(distField, e.target.value)} placeholder="e.g., 2 km" className="h-7 text-xs" />
+              </div>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
 
-      {/* Business Registration — collapsible secondary */}
+      {/* Business Registration */}
       {selectedPMS !== "nightsbridge" && (
-        <Collapsible defaultOpen={false}>
-          <Card>
-            <CollapsibleTrigger asChild>
-              <CardHeader className="py-2 px-4 cursor-pointer hover:bg-muted/50 transition-colors">
-                <CardTitle className="text-sm flex items-center justify-between">
-                  <span>Business Registration</span>
-                  <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-                </CardTitle>
-              </CardHeader>
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <CardContent className="py-2 px-4 space-y-3">
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                  <div className="flex flex-col gap-1">
-                    <Label htmlFor="registered_business_name" className="text-xs">Registered Business Name</Label>
-                    <Input id="registered_business_name" value={registeredBusinessName} onChange={(e) => { setRegisteredBusinessName(e.target.value); setIsDirty(true); }} placeholder="e.g., Safari Lodge (Pty) Ltd" className="h-7 text-xs" />
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <Label htmlFor="mobile_number" className="text-xs">Mobile Number</Label>
-                    <Input id="mobile_number" value={mobileNumber} onChange={(e) => { setMobileNumber(e.target.value); setIsDirty(true); }} placeholder="e.g., +27 82 123 4567" className="h-7 text-xs" />
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <Label htmlFor="key_representative" className="text-xs">Key Representative</Label>
-                    <Input id="key_representative" value={keyRepresentative} onChange={(e) => { setKeyRepresentative(e.target.value); setIsDirty(true); }} placeholder="e.g., John Smith" className="h-7 text-xs" />
-                  </div>
-                </div>
-                <div className="flex flex-col gap-1">
-                  <Label htmlFor="postal_address" className="text-xs">Postal Address</Label>
-                  <Textarea id="postal_address" value={postalAddress} onChange={(e) => { setPostalAddress(e.target.value); setIsDirty(true); }} placeholder="e.g., PO Box 123, Hoedspruit, 1380" className="text-xs min-h-[50px]" />
-                </div>
-              </CardContent>
-            </CollapsibleContent>
-          </Card>
-        </Collapsible>
+        <Card>
+          <CardHeader className="py-2 px-4"><CardTitle className="text-sm">Business Registration</CardTitle></CardHeader>
+          <CardContent className="py-2 px-4 space-y-3">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="registered_business_name" className="text-xs">Registered Business Name</Label>
+                <Input id="registered_business_name" value={registeredBusinessName} onChange={(e) => { setRegisteredBusinessName(e.target.value); setIsDirty(true); }} placeholder="e.g., Safari Lodge (Pty) Ltd" className="h-7 text-xs" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="mobile_number" className="text-xs">Mobile Number</Label>
+                <Input id="mobile_number" value={mobileNumber} onChange={(e) => { setMobileNumber(e.target.value); setIsDirty(true); }} placeholder="e.g., +27 82 123 4567" className="h-7 text-xs" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="key_representative" className="text-xs">Key Representative</Label>
+                <Input id="key_representative" value={keyRepresentative} onChange={(e) => { setKeyRepresentative(e.target.value); setIsDirty(true); }} placeholder="e.g., John Smith" className="h-7 text-xs" />
+              </div>
+            </div>
+            <div className="flex flex-col gap-1">
+              <Label htmlFor="postal_address" className="text-xs">Postal Address</Label>
+              <Textarea id="postal_address" value={postalAddress} onChange={(e) => { setPostalAddress(e.target.value); setIsDirty(true); }} placeholder="e.g., PO Box 123, Hoedspruit, 1380" className="text-xs min-h-[50px]" />
+            </div>
+          </CardContent>
+        </Card>
       )}
 
-      {/* Banking Details — collapsible secondary */}
+      {/* Banking Details */}
       {selectedPMS !== "nightsbridge" && (
-        <Collapsible defaultOpen={false}>
-          <Card>
-            <CollapsibleTrigger asChild>
-              <CardHeader className="py-2 px-4 cursor-pointer hover:bg-muted/50 transition-colors">
-                <CardTitle className="text-sm flex items-center justify-between">
-                  <span className="flex items-center gap-2">
-                    Banking Details
-                    <span className="text-[10px] font-normal text-muted-foreground">(contract / payouts)</span>
-                  </span>
-                  <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                    <Label htmlFor="has_vat" className="text-xs text-muted-foreground font-normal">VAT Registered?</Label>
-                    <Switch id="has_vat" checked={formData.has_vat} onCheckedChange={(c) => handleInputChange("has_vat", c)} />
-                    <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-                  </div>
-                </CardTitle>
-              </CardHeader>
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <CardContent className="py-2 px-4 space-y-3">
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                  <div className="flex flex-col gap-1">
-                    <Label htmlFor="banking_currency" className="text-xs">Currency *</Label>
-                    <Select value={formData.currency || "ZAR"} onValueChange={(v) => handleInputChange("currency", v)}>
-                      <SelectTrigger id="banking_currency" className="h-7 text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent>{["ZAR","USD","EUR","GBP","BWP","MZN","NAD","KES","TZS","MUR","SCR"].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
-                    </Select>
-                  </div>
-                  {formData.has_vat && <div className="flex flex-col gap-1"><Label htmlFor="vat_number" className="text-xs">VAT #</Label><Input id="vat_number" value={formData.vat_number} onChange={(e) => handleInputChange("vat_number", e.target.value)} placeholder="VAT number" className="h-7 text-xs" /></div>}
-                  {[
-                    { id: "property_registration", label: "Reg #" },
-                    { id: "bank_name", label: "Bank" },
-                    { id: "branch_code", label: "Branch" },
-                  ].map(f => (
-                    <div key={f.id} className="flex flex-col gap-1"><Label htmlFor={f.id} className="text-xs">{f.label}</Label><Input id={f.id} value={(formData as any)[f.id]} onChange={(e) => handleInputChange(f.id, e.target.value)} placeholder={f.label} className="h-7 text-xs" /></div>
-                  ))}
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  {[
-                    { id: "account_holder", label: "Holder" },
-                    { id: "account_number", label: "Account #" },
-                    { id: "account_type", label: "Type" },
-                    { id: "swift_code", label: "SWIFT" },
-                  ].map(f => (
-                    <div key={f.id} className="flex flex-col gap-1"><Label htmlFor={f.id} className="text-xs">{f.label}</Label><Input id={f.id} value={(formData as any)[f.id]} onChange={(e) => handleInputChange(f.id, e.target.value)} placeholder={f.label} className="h-7 text-xs" /></div>
-                  ))}
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-2 border-t border-border">
-                  <div className="flex items-center gap-2">
-                    <Switch id="accepts_bitcoin" checked={formData.accepts_bitcoin} onCheckedChange={(c) => handleInputChange("accepts_bitcoin", c)} />
-                    <Label htmlFor="accepts_bitcoin" className="text-xs">Bitcoin</Label>
-                  </div>
-                  {formData.accepts_bitcoin && (
-                    <div className="flex flex-col gap-1 col-span-3"><Label htmlFor="bitcoin_wallet_address" className="text-xs">Wallet Address</Label><Input id="bitcoin_wallet_address" value={formData.bitcoin_wallet_address} onChange={(e) => handleInputChange("bitcoin_wallet_address", e.target.value)} placeholder="Bitcoin wallet address" className="h-7 text-xs font-mono" /></div>
-                  )}
-                </div>
-              </CardContent>
-            </CollapsibleContent>
-          </Card>
-        </Collapsible>
+        <Card>
+          <CardHeader className="py-2 px-4">
+            <CardTitle className="text-sm flex items-center justify-between">
+              <span>Banking Details</span>
+              <div className="flex items-center gap-2">
+                <Label htmlFor="has_vat" className="text-xs text-muted-foreground font-normal">VAT Registered?</Label>
+                <Switch id="has_vat" checked={formData.has_vat} onCheckedChange={(c) => handleInputChange("has_vat", c)} />
+              </div>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="py-2 px-4 space-y-3">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="banking_currency" className="text-xs">Currency *</Label>
+                <Select value={formData.currency || "ZAR"} onValueChange={(v) => handleInputChange("currency", v)}>
+                  <SelectTrigger id="banking_currency" className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>{["ZAR","USD","EUR","GBP","BWP","MZN","NAD","KES","TZS","MUR","SCR"].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              {formData.has_vat && <div className="flex flex-col gap-1"><Label htmlFor="vat_number" className="text-xs">VAT #</Label><Input id="vat_number" value={formData.vat_number} onChange={(e) => handleInputChange("vat_number", e.target.value)} placeholder="VAT number" className="h-7 text-xs" /></div>}
+              {[
+                { id: "property_registration", label: "Reg #" },
+                { id: "bank_name", label: "Bank" },
+                { id: "branch_code", label: "Branch" },
+              ].map(f => (
+                <div key={f.id} className="flex flex-col gap-1"><Label htmlFor={f.id} className="text-xs">{f.label}</Label><Input id={f.id} value={(formData as any)[f.id]} onChange={(e) => handleInputChange(f.id, e.target.value)} placeholder={f.label} className="h-7 text-xs" /></div>
+              ))}
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {[
+                { id: "account_holder", label: "Holder" },
+                { id: "account_number", label: "Account #" },
+                { id: "account_type", label: "Type" },
+                { id: "swift_code", label: "SWIFT" },
+              ].map(f => (
+                <div key={f.id} className="flex flex-col gap-1"><Label htmlFor={f.id} className="text-xs">{f.label}</Label><Input id={f.id} value={(formData as any)[f.id]} onChange={(e) => handleInputChange(f.id, e.target.value)} placeholder={f.label} className="h-7 text-xs" /></div>
+              ))}
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-2 border-t border-border">
+              <div className="flex items-center gap-2">
+                <Switch id="accepts_bitcoin" checked={formData.accepts_bitcoin} onCheckedChange={(c) => handleInputChange("accepts_bitcoin", c)} />
+                <Label htmlFor="accepts_bitcoin" className="text-xs">Bitcoin</Label>
+              </div>
+              {formData.accepts_bitcoin && (
+                <div className="flex flex-col gap-1 col-span-3"><Label htmlFor="bitcoin_wallet_address" className="text-xs">Wallet Address</Label><Input id="bitcoin_wallet_address" value={formData.bitcoin_wallet_address} onChange={(e) => handleInputChange("bitcoin_wallet_address", e.target.value)} placeholder="Bitcoin wallet address" className="h-7 text-xs font-mono" /></div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* Contract Management */}
