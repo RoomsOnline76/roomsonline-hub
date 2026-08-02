@@ -1,34 +1,38 @@
-## Correct Rentals United Phase 1 authentication
+## Goal
 
-### Confirmed
-- RU enabled `Push_CreateUser_RQ` privileges for the RoomsOnline parent account; no further enablement request should be shown.
-- The saved-password encryption/decryption and payload handoff are internally consistent.
-- The regression is the current assumption that the child portal email/password must authenticate directly on every XML method. That assumption replaced the previously working parent-account/child-scoped flow.
-- RU’s White Label guide explicitly defines the parent account as managing child accounts and directs the PMS to create each child, list it, then submit company details for that created child.
+Make `/admin/edit property` look and behave like ROLOS → Property Setup: a grouped left-rail navigation with labels, descriptions and sub-section hints, instead of the current cramped icon-only horizontal tab strip.
 
-### Implementation
-1. **Re-check the exact RU method schema**
-   - Use the authoritative `Push_FillCompanyDetails_RQ` and User Management request definitions—not inferred behavior from unrelated endpoints.
-   - Identify the documented child selector returned by `Push_CreateUser_RQ` / `Pull_ListMyUsers_RQ` (`UserAccountId`, `OwnerID`, or the method-specific field) and use that exact field.
+## Approach
 
-2. **Restore the documented parent-managed child flow**
-   - Update the locked `fill_company_details` builder/handler to authenticate with the configured parent API credentials and target the linked child using the documented selector.
-   - Do not use the child portal password as an API access key unless the method documentation explicitly requires it.
-   - Keep the hard rule that a missing or ambiguous linked child ID fails; never default to the master identity.
+Extract the rail from `PMSPropertySetup.tsx` into a reusable component so both screens render the exact same UI from the same config.
 
-3. **Correct verification semantics**
-   - Replace `verify_child_login` as the Phase 1 authority with verification that the parent account can list and uniquely resolve the linked child.
-   - Treat the saved password as a retained portal credential, not proof of XML API authorization.
-   - Remove the incorrect “ask RU to enable child API login” guidance and stop changing company status to `credentials_failed` from an unrelated child-login probe.
+### 1. New shared component: `src/components/property/PropertySectionRail.tsx`
+Moved verbatim (visually) from the current PMSPropertySetup left rail:
+- Grouped by `PROPERTY_SECTION_GROUPS` ("Property profile", "Booking backend", "Guest experience", "Advanced")
+- Group heading: 10px uppercase muted label
+- Each item: bordered button, icon + label, description line, and — when active — the sub-section hint chips (Seasons / Rate Types / Calendar / Charges / Policies …)
+- Active state: `border-primary/50 bg-primary/10`; idle: `bg-muted/40`
+- Props: `sections` (grouped), `activeKey`, `onSelect`, optional `blockerKeys` (Set) so the existing red blocker dot/ring is preserved
 
-4. **Prove the write landed on the correct child**
-   - Re-submit Jongensfontein company details for OwnerID `741761` through the corrected flow.
-   - Read back/list the child through the parent User Management API and verify the child identity and company completion evidence before marking Phase 1 complete.
-   - Do not accept an HTTP/API success alone, and do not mark the master profile as evidence.
+### 2. Shared config additions: `src/config/propertySectionOrder.ts`
+- Move the `ICON_MAP` and `HINTS` maps out of `PMSPropertySetup.tsx` into this config (single source of truth), adding icons for `general`, `branding`, `rol-spec`, `integrations`, `admin`, `onboarding`
+- Export a helper `buildSectionGroups(allowedKeys)` that returns the grouped rail model, filtered to the keys a given screen supports
 
-5. **Protect the corrected contract**
-   - Update the RU adapter-lock wording to match the documented parent-managed child targeting method, replacing the incorrect blanket child-login rule.
-   - Add regression coverage for correct child targeting, missing selector, ambiguous child identity, and accidental master targeting.
+### 3. `PMSPropertySetup.tsx`
+Swap its inline rail markup for `<PropertySectionRail />` + `buildSectionGroups(HUB_KEYS)`. No visual change — it's the reference design.
 
-### Locked scope
-This requires the explicitly requested changes to the locked `fill_company_details` authentication builder/handler in `rentalsunited-api`, its Phase 1 orchestration in `ru-cert-portal`, and the corresponding RU adapter-lock documentation. No reservation or booking adapter logic will be changed.
+### 4. `src/pages/PropertyForm.tsx` (non-embedded only)
+- Keep `<Tabs>` and every `<TabsContent>` untouched (no logic/state changes)
+- Hide the `TabsList` in non-embedded mode too, and render `<PropertySectionRail />` instead
+- Layout becomes `grid lg:grid-cols-[240px_1fr]` with the tab content in a bordered `rounded-lg border bg-background` panel, matching ROLOS
+- Feed the rail with `buildSectionGroups()` over the **same filtered tab list already computed today** — so all existing visibility rules stay: `contacts` excluded, onboarding hidden for new properties, `adminOnly` gating, ROLOS-managed sections hidden unless `forceTabs`, NightsBridge subset
+- Pass `blockerKeys={tabsWithBlockers}` so blocker indicators still show, now as a red dot + ring on the rail item
+- On mobile (`< lg`) the rail stacks above the content; groups render as a horizontally scrollable compact list so small screens stay usable
+- Breadcrumb keeps working: replace the hardcoded `activeTab === "x" && "Label"` chain with a lookup against the shared section config (fixes missing labels for branding / rol-spec / integrations / admin)
+
+### 5. Untouched
+Embedded mode (ROLOS embedding PropertyForm) keeps its hidden tab list — no double rail. All save logic, form state, data fetching, and tab content unchanged.
+
+## Technical notes
+- Purely presentational refactor; no schema, edge function, or business-logic changes.
+- `PropertyForm.tsx` shrinks slightly as the icon map and breadcrumb chain move to config.
