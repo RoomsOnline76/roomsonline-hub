@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 import PropertyForm from "@/pages/PropertyForm";
@@ -6,6 +6,11 @@ import PropertyContactDetails from "@/components/property/PropertyContactDetails
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { cn } from "@/lib/utils";
+import {
+  PROPERTY_SECTION_ORDER,
+  PROPERTY_SECTION_GROUPS,
+  type PropertySectionKey,
+} from "@/config/propertySectionOrder";
 import {
   DollarSign,
   Package,
@@ -26,20 +31,19 @@ import {
   ListChecks,
   Image as ImageIcon,
   Phone,
+  Home,
 } from "lucide-react";
-
-
 
 /**
  * ROLOS "Property Setup" hub.
  *
- * Renders the admin editor inline in embed mode. This is the source of truth for
- * ROLOS-PMS booking-backend + guest-experience data (Rates, Packages,
- * Specials, Addons, House Rules, Templates, Announcements). The public
- * book. OTA reads the same tables — no dual writes.
+ * Source of truth for ROLOS-PMS booking-backend + guest-experience data.
+ * Section order + groups come from the shared propertySectionOrder config
+ * (same IA as Admin PropertyForm and the onboarding wizard).
  */
 
-type TabKey =
+type TabKey = Extract<
+  PropertySectionKey,
   | "info-facilities"
   | "rooms"
   | "rates"
@@ -49,128 +53,96 @@ type TabKey =
   | "house-rules"
   | "templates"
   | "announcements"
-  | "contacts";
+  | "contacts"
+  | "images"
+>;
 
+const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
+  general: Home,
+  "info-facilities": Building2,
+  rooms: BedDouble,
+  rates: DollarSign,
+  packages: Package,
+  specials: Sparkles,
+  addons: Package,
+  "house-rules": FileText,
+  templates: Mail,
+  announcements: Megaphone,
+  contacts: Phone,
+  images: ImageIcon,
+  branding: Sparkles,
+  "rol-spec": Sparkles,
+  integrations: Layers,
+};
 
+const HINTS: Partial<
+  Record<
+    TabKey,
+    { key: string; label: string; icon: React.ComponentType<{ className?: string }> }[]
+  >
+> = {
+  rooms: [
+    { key: "type", label: "Type", icon: Layers },
+    { key: "rate-types", label: "Rate Types", icon: DollarSign },
+    { key: "facilities", label: "Facilities", icon: ListChecks },
+    { key: "amenities", label: "Amenities", icon: Sparkles },
+    { key: "images", label: "Images", icon: ImageIcon },
+    { key: "agreement", label: "Agreement", icon: FileText },
+  ],
+  rates: [
+    { key: "seasons", label: "Seasons", icon: CalendarRange },
+    { key: "types", label: "Rate Types", icon: Layers },
+    { key: "calendar", label: "Calendar", icon: Calendar },
+    { key: "breakdown", label: "Breakdown", icon: LayoutList },
+    { key: "charges", label: "Charges", icon: Wallet },
+    { key: "policies", label: "Policies", icon: ShieldCheck },
+    { key: "providers", label: "Providers", icon: CreditCard },
+    { key: "overview", label: "Overview", icon: Receipt },
+  ],
+};
 
-interface Section {
-  key: TabKey;
-  label: string;
-  icon: React.ComponentType<{ className?: string }>;
-  description: string;
-  hints?: { key: string; label: string; icon: React.ComponentType<{ className?: string }> }[];
-}
+/** Only sections that are editable inside this hub */
+const HUB_KEYS = new Set<
+  TabKey
+>([
+  "info-facilities",
+  "rooms",
+  "rates",
+  "packages",
+  "specials",
+  "addons",
+  "house-rules",
+  "templates",
+  "announcements",
+  "contacts",
+  "images",
+]);
 
-interface SectionGroup {
-  label: string;
-  sections: Section[];
-}
+const SECTION_GROUPS = PROPERTY_SECTION_GROUPS.map((g) => ({
+  label: g.label,
+  sections: g.keys
+    .filter((k) => HUB_KEYS.has(k as TabKey))
+    .map((k) => {
+      const def = PROPERTY_SECTION_ORDER.find((s) => s.key === k)!;
+      return {
+        key: k as TabKey,
+        label: def.label,
+        icon: ICON_MAP[k] || Building2,
+        description: def.description,
+        hints: HINTS[k as TabKey],
+      };
+    }),
+})).filter((g) => g.sections.length > 0);
 
-const SECTION_GROUPS: SectionGroup[] = [
-  {
-    label: "Property profile",
-    sections: [
-      {
-        key: "info-facilities",
-        label: "Info & Facilities",
-        icon: Building2,
-        description: "Star rating, accommodation type, facilities checklist, self-catering, breakfast options and property-level info.",
-      },
-    ],
-  },
-  {
-    label: "Booking backend",
-
-    sections: [
-      {
-        key: "rooms",
-        label: "Rooms",
-        icon: BedDouble,
-        description: "Room types, rate-type links, facilities, amenities, images and per-room agreements.",
-        hints: [
-          { key: "type", label: "Type", icon: Layers },
-          { key: "rate-types", label: "Rate Types", icon: DollarSign },
-          { key: "facilities", label: "Facilities", icon: ListChecks },
-          { key: "amenities", label: "Amenities", icon: Sparkles },
-          { key: "images", label: "Images", icon: ImageIcon },
-          { key: "agreement", label: "Agreement", icon: FileText },
-        ],
-      },
-      {
-
-        key: "rates",
-        label: "Rates",
-        icon: DollarSign,
-        description: "Seasons, rate types, calendar, breakdown, charges and policies.",
-        hints: [
-          { key: "seasons", label: "Seasons", icon: CalendarRange },
-          { key: "types", label: "Rate Types", icon: Layers },
-          { key: "calendar", label: "Calendar", icon: Calendar },
-          { key: "breakdown", label: "Breakdown", icon: LayoutList },
-          { key: "charges", label: "Charges", icon: Wallet },
-          { key: "policies", label: "Policies", icon: ShieldCheck },
-          { key: "providers", label: "Providers", icon: CreditCard },
-          { key: "overview", label: "Overview", icon: Receipt },
-        ],
-      },
-      {
-        key: "packages",
-        label: "Packages",
-        icon: Package,
-        description: "Curated stay packages that combine rooms with experiences or inclusions.",
-      },
-      {
-        key: "specials",
-        label: "Specials",
-        icon: Sparkles,
-        description: "Time-boxed promotional offers and discounted rate plans.",
-      },
-      {
-        key: "addons",
-        label: "Addons",
-        icon: Package,
-        description: "Optional guest add-ons: breakfast, transfers, activities, gifts.",
-      },
-    ],
-  },
-  {
-    label: "Guest experience",
-    sections: [
-      {
-        key: "house-rules",
-        label: "House Rules",
-        icon: FileText,
-        description: "Check-in/out times, child/pet/smoking policy, deposits and cancellation rules.",
-      },
-      {
-        key: "templates",
-        label: "Templates",
-        icon: Mail,
-        description: "Confirmation, pre-stay and post-stay guest email templates.",
-      },
-      {
-        key: "announcements",
-        label: "Announcements",
-        icon: Megaphone,
-        description: "Dated announcement banners shown on the booking site.",
-      },
-      {
-        key: "contacts",
-        label: "Contacts",
-        icon: Phone,
-        description: "Public reception, reservations and emergency contact details exposed via the API.",
-      },
-    ],
-  },
-];
-
-const ALL_SECTIONS: Section[] = SECTION_GROUPS.flatMap((g) => g.sections);
+const ALL_SECTIONS = SECTION_GROUPS.flatMap((g) => g.sections);
 const VALID_TABS = new Set<TabKey>(ALL_SECTIONS.map((s) => s.key));
 
 export default function PMSPropertySetup() {
   const { propertyId: resolvedPropertyId, properties } = usePmsPropertyId();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [stablePropertyId, setStablePropertyId] = useState<string | null>(() => searchParams.get("property"));
+  const [stablePropertyId, setStablePropertyId] = useState<string | null>(() =>
+    searchParams.get("property"),
+  );
 
   useEffect(() => {
     if (resolvedPropertyId && resolvedPropertyId !== stablePropertyId) {
@@ -195,20 +167,20 @@ export default function PMSPropertySetup() {
     }
   }, [activeTab, searchParams]);
 
-  // Change active tab AND URL together on user click. No mount-time URL writes,
-  // no cross-effects with usePmsPropertyId's own ?property= sync — that combo
-  // was causing the page to appear to reload continuously.
-  const handleSelectTab = useCallback((key: TabKey) => {
-    setActiveTab(key);
-    setSearchParams(
-      (prev) => {
-        const next = new URLSearchParams(prev);
-        next.set("section", key);
-        return next;
-      },
-      { replace: true },
-    );
-  }, [setSearchParams]);
+  const handleSelectTab = useCallback(
+    (key: TabKey) => {
+      setActiveTab(key);
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          next.set("section", key);
+          return next;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
+  );
 
   if (!propertyId) {
     return (
@@ -220,15 +192,15 @@ export default function PMSPropertySetup() {
     );
   }
 
-  const activeSection = ALL_SECTIONS.find((s) => s.key === activeTab);
-
   return (
     <div className="flex h-full flex-col gap-4 p-4">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div className="space-y-0.5">
           <div className="flex items-center gap-2">
             <h1 className="text-xl font-semibold tracking-tight">Property Setup</h1>
-            <Badge variant="outline" className="text-[10px]">ROLOS source of truth</Badge>
+            <Badge variant="outline" className="text-[10px]">
+              ROLOS source of truth
+            </Badge>
           </div>
           <p className="text-xs text-muted-foreground">
             {property?.name ? (
@@ -236,14 +208,14 @@ export default function PMSPropertySetup() {
                 <span className="font-medium text-foreground">{property.name}</span> ·{" "}
               </>
             ) : null}
-            Everything the booking engine and guest experience needs — rates, packages, specials,
-            addons, house rules, templates, announcements and contacts — lives here.
+            Rates, packages, specials, addons, house rules, templates, announcements and contacts
+            live here — same tables the admin editor and book. OTA read.
           </p>
         </div>
       </header>
 
       <div className="grid gap-4 lg:grid-cols-[240px_1fr]">
-        {/* Left rail */}
+        {/* Left rail — shared IA */}
         <nav className="space-y-4">
           {SECTION_GROUPS.map((group) => (
             <div key={group.label} className="space-y-1">
@@ -266,7 +238,12 @@ export default function PMSPropertySetup() {
                     )}
                   >
                     <div className="flex items-center gap-2">
-                      <Icon className={cn("h-3.5 w-3.5", active ? "text-primary" : "text-muted-foreground")} />
+                      <Icon
+                        className={cn(
+                          "h-3.5 w-3.5",
+                          active ? "text-primary" : "text-muted-foreground",
+                        )}
+                      />
                       <span className="font-medium">{s.label}</span>
                     </div>
                     <p className="mt-1 text-[10px] leading-tight opacity-80">{s.description}</p>
@@ -293,7 +270,6 @@ export default function PMSPropertySetup() {
           ))}
         </nav>
 
-        {/* Editor pane — inline embedded PropertyForm, or standalone contacts editor */}
         <div className="min-w-0 overflow-hidden rounded-lg border bg-background">
           {activeTab === "contacts" ? (
             <PropertyContactDetails propertyId={propertyId} />
@@ -310,11 +286,10 @@ export default function PMSPropertySetup() {
 
       <Alert>
         <AlertDescription className="text-[11px] text-muted-foreground">
-          Changes are written to the same tables the admin editor uses, so the book. OTA and ROLOS operations
-          always stay in sync.
+          Changes write to the same tables the admin editor uses, so the book. OTA and ROLOS
+          operations stay in sync.
         </AlertDescription>
       </Alert>
     </div>
   );
 }
-
