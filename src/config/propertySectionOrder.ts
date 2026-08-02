@@ -13,6 +13,31 @@
  * stay as collapsible advanced groups so the primary path stays dense and desktop-optimised.
  */
 
+import {
+  Home,
+  Building2,
+  BedDouble,
+  Image as ImageIcon,
+  FileText,
+  DollarSign,
+  Package,
+  Sparkles,
+  Mail,
+  Megaphone,
+  Phone,
+  Palette,
+  Layers,
+  ShieldCheck,
+  ListChecks,
+  CalendarRange,
+  Calendar,
+  LayoutList,
+  Wallet,
+  CreditCard,
+  Receipt,
+  type LucideIcon,
+} from "lucide-react";
+
 export type PropertySectionKey =
   | "general"           // Identity + Location + Contact + Business (dense, collapsible blocks)
   | "info-facilities"   // Facilities & amenities
