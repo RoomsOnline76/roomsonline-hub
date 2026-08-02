@@ -7899,10 +7899,15 @@ export default function PropertyForm({
                       </CardContent>
                     </Card>
 
-                    <div className="flex gap-1.5">
+                    <Card className="flex flex-col">
+                      <CardHeader className="flex flex-row items-center justify-between gap-2 py-1.5 px-3">
+                        <CardTitle className="text-xs font-medium">
+                          {selectedPackage ? selectedPackage.name : "No package selected"}
+                        </CardTitle>
+                        <div className="flex gap-1.5">
                       <Button
                         size="sm"
-                        variant="destructive"
+                        variant="outline"
                         className="h-7 text-xs"
                         disabled={!selectedPackage}
                         onClick={() => {
@@ -7937,13 +7942,31 @@ export default function PropertyForm({
                       </Button>
                       <Button
                         size="sm"
-                        variant="destructive"
+                        variant="outline"
                         className="h-7 text-xs"
+                        disabled={!selectedPackage}
                         onClick={() => setIsPackageImagesOpen(true)}
                       >
                         Package Images
                       </Button>
-                    </div>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="flex-1 py-2 px-3">
+                        {selectedPackage ? (
+                          <div className="space-y-1 text-xs text-muted-foreground">
+                            <p className="whitespace-pre-line">{selectedPackage.description || "No description yet."}</p>
+                            <p>
+                              Stay {selectedPackage.minimumStay || 1}–{selectedPackage.maximumStay || 1} nights ·{" "}
+                              {selectedPackage.isPublic ? "Public" : "Private"}
+                            </p>
+                          </div>
+                        ) : (
+                          <p className="text-xs text-muted-foreground">
+                            Select a package on the left, or use + to create one.
+                          </p>
+                        )}
+                      </CardContent>
+                    </Card>
                   </div>
                 </TabsContent>
               ))}
