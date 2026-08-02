@@ -131,59 +131,12 @@ export default function PMSPropertySetup() {
 
       <div className="grid gap-4 lg:grid-cols-[240px_1fr]">
         {/* Left rail — shared IA */}
-        <nav className="space-y-4">
-          {SECTION_GROUPS.map((group) => (
-            <div key={group.label} className="space-y-1">
-              <div className="px-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                {group.label}
-              </div>
-              {group.sections.map((s) => {
-                const Icon = s.icon;
-                const active = activeTab === s.key;
-                return (
-                  <button
-                    key={s.key}
-                    type="button"
-                    onClick={() => handleSelectTab(s.key)}
-                    className={cn(
-                      "w-full rounded-md border px-3 py-2 text-left text-xs transition-colors",
-                      active
-                        ? "border-primary/50 bg-primary/10 text-foreground"
-                        : "border-transparent bg-muted/40 text-muted-foreground hover:border-border hover:bg-muted",
-                    )}
-                  >
-                    <div className="flex items-center gap-2">
-                      <Icon
-                        className={cn(
-                          "h-3.5 w-3.5",
-                          active ? "text-primary" : "text-muted-foreground",
-                        )}
-                      />
-                      <span className="font-medium">{s.label}</span>
-                    </div>
-                    <p className="mt-1 text-[10px] leading-tight opacity-80">{s.description}</p>
-                    {active && s.hints && (
-                      <ul className="mt-2 flex flex-wrap gap-1">
-                        {s.hints.map((h) => {
-                          const HIcon = h.icon;
-                          return (
-                            <li
-                              key={h.key}
-                              className="flex items-center gap-1 rounded border border-border/50 bg-background/60 px-1.5 py-0.5 text-[9px] text-muted-foreground"
-                            >
-                              <HIcon className="h-2.5 w-2.5" />
-                              {h.label}
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          ))}
-        </nav>
+        <PropertySectionRail
+          groups={SECTION_GROUPS}
+          activeKey={activeTab}
+          onSelect={(key) => handleSelectTab(key as TabKey)}
+        />
+
 
         <div className="min-w-0 overflow-hidden rounded-lg border bg-background">
           {activeTab === "contacts" ? (
