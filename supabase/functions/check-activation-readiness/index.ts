@@ -230,9 +230,6 @@ function getPMSPropertyCode(property: any, amenities: Record<string, unknown>, e
       return property.siteminder_property_code || null;
     case 'rentalsunited':
       return property.rentalsunited_property_id || null;
-    case 'rol':
-      // Internal ROL-managed properties don't need external ID
-      return 'internal';
     default:
       return property.external_property_id || null;
   }
