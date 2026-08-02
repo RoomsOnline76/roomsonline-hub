@@ -3770,19 +3770,8 @@ export default function PropertyForm({
                 {isEditMode ? formData.name || "Edit Property" : "Add New Property"}
               </span>
               <ChevronRight className="h-3 w-3" />
-              <span className="text-foreground">
-                {activeTab === "general" && "General"}
-                {activeTab === "info-facilities" && "Info & Facilities"}
-                {activeTab === "house-rules" && "House Rules"}
-                {activeTab === "images" && "Images"}
-                {activeTab === "rooms" && "Rooms"}
-                {activeTab === "rates" && "Rates"}
-                {activeTab === "templates" && "Templates"}
-                {activeTab === "addons" && "Addons"}
-                {activeTab === "specials" && "Specials"}
-                {activeTab === "packages" && "Packages"}
-                {activeTab === "announcements" && "Announcements"}
-              </span>
+              <span className="text-foreground">{getSectionLabel(activeTab)}</span>
+
             </div>
 
             {/* Header with Property Name and Actions */}
