@@ -3718,7 +3718,33 @@ export default function PropertyForm({
     }
   };
 
+  // Visible sections (shared IA) — drives both the hidden TabsList and the left rail
+  const visibleSectionKeys = PROPERTY_SECTION_ORDER.filter((s) => s.key !== "contacts")
+    .filter((s) => {
+      if (s.key === "onboarding" && !propertyId) return false;
+      if (s.adminOnly && !(isAdmin || isDev || isFearlessLeader)) return false;
+      if (isRolosPms(selectedPMS) && !forceTabs && s.rolosManaged) return false;
+      if (selectedPMS === "nightsbridge") {
+        return [
+          "general",
+          "rol-spec",
+          "branding",
+          "images",
+          "rooms",
+          "rates",
+          "onboarding",
+          "integrations",
+          "admin",
+        ].includes(s.key);
+      }
+      return true;
+    })
+    .map((s) => s.key as string);
+
+  const railGroups = buildSectionGroups(visibleSectionKeys);
+
   return (
+
     <FormShell embedded={embedded}>
       <div className={embedded ? "property-form-container w-full p-3" : "property-form-container w-full"}>
         {/* Breadcrumb + Header — hidden in embed mode */}
