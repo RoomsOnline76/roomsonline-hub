@@ -132,7 +132,14 @@ import { useActivationReadiness } from "@/components/property/QualityGateIndicat
 import { RoomManagerTab } from "@/components/property/RoomManagerTab";
 import { RateManagerTab } from "@/components/property/RateManagerTab";
 import { usePMSSync, isPMSFullyIntegrated, getPMSIntegrationLevel, getPMSIcon } from "@/hooks/usePMSSync";
-import { PROPERTY_SECTION_ORDER, type PropertySectionKey } from "@/config/propertySectionOrder";
+import {
+  PROPERTY_SECTION_ORDER,
+  buildSectionGroups,
+  getSectionLabel,
+  type PropertySectionKey,
+} from "@/config/propertySectionOrder";
+import { PropertySectionRail } from "@/components/property/PropertySectionRail";
+
 
 // Schema factory to handle conditional address validation
 const createPropertySchema = (noStreetAddress: boolean) =>
