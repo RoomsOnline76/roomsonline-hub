@@ -239,7 +239,9 @@ function getPMSPropertyCode(property: any, amenities: Record<string, unknown>, e
  * Get human-readable PMS code label
  */
 function getPMSCodeLabel(externalSystem: string): string {
+  if (isNativeRolosSystem(externalSystem)) return 'Internal Property';
   switch (externalSystem.toLowerCase()) {
+
     case 'nightsbridge': return 'BBID';
     case 'benson': return 'Benson Code';
     case 'checkfront': return 'Checkfront Property Code';
