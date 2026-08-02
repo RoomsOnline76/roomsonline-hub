@@ -1970,6 +1970,24 @@ export default function PropertyForm({
   // directly so the migrated source-of-truth section opens without an iframe.
   const requestedInitialTab = embeddedInitialTab || searchParams.get("tab") || "general";
   const [activeTab, setActiveTab] = useState(requestedInitialTab);
+  const [railCollapsed, setRailCollapsed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem("property-rail-collapsed") === "1";
+    } catch {
+      return false;
+    }
+  });
+  const toggleRailCollapsed = useCallback(() => {
+    setRailCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("property-rail-collapsed", next ? "1" : "0");
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     if (embedded && requestedInitialTab && requestedInitialTab !== activeTab) {
