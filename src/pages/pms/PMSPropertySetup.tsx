@@ -74,6 +74,24 @@ export default function PMSPropertySetup() {
   })();
 
   const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
+  const [railCollapsed, setRailCollapsed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem("property-rail-collapsed") === "1";
+    } catch {
+      return false;
+    }
+  });
+  const toggleRailCollapsed = useCallback(() => {
+    setRailCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("property-rail-collapsed", next ? "1" : "0");
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     const section = searchParams.get("section") as TabKey | null;
@@ -129,12 +147,18 @@ export default function PMSPropertySetup() {
         </div>
       </header>
 
-      <div className="grid gap-3 lg:grid-cols-[200px_1fr]">
+      <div
+        className={
+          railCollapsed ? "grid gap-3 lg:grid-cols-[48px_1fr]" : "grid gap-3 lg:grid-cols-[200px_1fr]"
+        }
+      >
         {/* Left rail — shared IA */}
         <PropertySectionRail
           groups={SECTION_GROUPS}
           activeKey={activeTab}
           onSelect={(key) => handleSelectTab(key as TabKey)}
+          collapsed={railCollapsed}
+          onToggleCollapsed={toggleRailCollapsed}
         />
 
 

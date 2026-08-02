@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { PromoCodesTab } from "@/components/property/PromoCodesTab";
 import { HyperGuestSyncReflectionButton } from "@/components/property/HyperGuestSyncReflectionButton";
 import { HyperGuestPropertyLookup } from "@/components/property/HyperGuestPropertyLookup";
@@ -1970,6 +1970,24 @@ export default function PropertyForm({
   // directly so the migrated source-of-truth section opens without an iframe.
   const requestedInitialTab = embeddedInitialTab || searchParams.get("tab") || "general";
   const [activeTab, setActiveTab] = useState(requestedInitialTab);
+  const [railCollapsed, setRailCollapsed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem("property-rail-collapsed") === "1";
+    } catch {
+      return false;
+    }
+  });
+  const toggleRailCollapsed = useCallback(() => {
+    setRailCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("property-rail-collapsed", next ? "1" : "0");
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     if (embedded && requestedInitialTab && requestedInitialTab !== activeTab) {
@@ -3905,13 +3923,24 @@ export default function PropertyForm({
           </Alert>
         )}
 
-        <div className={embedded ? "" : "grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)]"}>
+        <div
+          className={
+            embedded
+              ? ""
+              : cn(
+                  "grid gap-4",
+                  railCollapsed ? "lg:grid-cols-[48px_minmax(0,1fr)]" : "lg:grid-cols-[240px_minmax(0,1fr)]",
+                )
+          }
+        >
           {!embedded && (
             <PropertySectionRail
               groups={railGroups}
               activeKey={activeTab}
               onSelect={setActiveTab}
               blockerKeys={tabsWithBlockers}
+              collapsed={railCollapsed}
+              onToggleCollapsed={toggleRailCollapsed}
             />
           )}
 
