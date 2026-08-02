@@ -3905,122 +3905,31 @@ export default function PropertyForm({
           </Alert>
         )}
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-3">
-          <TabsList className={embedded ? "hidden" : "bg-secondary h-8"}>
-            {(() => {
-              const SECTION_ICON: Record<string, LucideIcon> = {
-                general: Home,
-                "info-facilities": Building2,
-                rooms: BedDouble,
-                images: Image,
-                "house-rules": FileText,
-                rates: DollarSign,
-                packages: Package,
-                specials: Calendar,
-                addons: Package,
-                templates: Bell,
-                announcements: Bell,
-                branding: Palette,
-                "rol-spec": Sparkles,
-                integrations: Link,
-                admin: ShieldCheck,
-                onboarding: Sparkles,
-              };
-              // Phase 3: TabsList driven by shared PROPERTY_SECTION_ORDER (single source of truth)
-              // contacts is ROLOS-hub only (PropertyContactDetails) — never a PropertyForm tab
-              return PROPERTY_SECTION_ORDER.filter((s) => s.key !== "contacts").map((s) => ({
-                value: s.key,
-                icon: SECTION_ICON[s.key] || Home,
-                label: s.label,
-                highlight: s.key === "rol-spec",
-                highlightBlue: s.key === "onboarding",
-                highlightAdmin: s.key === "admin",
-                adminOnly: !!s.adminOnly,
-                onboardingOnly: s.key === "onboarding",
-                rolosManaged: !!s.rolosManaged,
-              }));
-            })()
-              .filter((tab) => {
-                // Hide onboarding tab for new properties
-                if (tab.value === "onboarding" && !propertyId) return false;
-                // Admin-only tab: hidden from owners
-                if (tab.adminOnly && !(isAdmin || isDev || isFearlessLeader)) return false;
-                // ROLOS PMS: booking-backend tabs live in /pms/property-setup (source of truth).
-                // Bypass with ?forceTabs=1 (used by the ROLOS setup hub when it embeds these editors).
-                if (isRolosPms(selectedPMS) && !forceTabs && tab.rolosManaged) {
-                  return false;
-                }
-                // NightsBridge filtering
-                if (selectedPMS === "nightsbridge") {
-                  return (
-                    tab.value === "general" ||
-                    tab.value === "rol-spec" ||
-                    tab.value === "branding" ||
-                    tab.value === "images" ||
-                    tab.value === "rooms" ||
-                    tab.value === "rates" ||
-                    tab.value === "onboarding" ||
-                    tab.value === "integrations" ||
-                    tab.value === "admin"
-                  );
-                }
-                return true;
-              })
-              .map((tab) => {
-                const isActive = activeTab === tab.value;
-                const Icon = tab.icon;
-                const hasBlocker = tabsWithBlockers.has(tab.value);
+        <div className={embedded ? "" : "grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)]"}>
+          {!embedded && (
+            <PropertySectionRail
+              groups={railGroups}
+              activeKey={activeTab}
+              onSelect={setActiveTab}
+              blockerKeys={tabsWithBlockers}
+            />
+          )}
 
-                if (isActive) {
-                  return (
-                    <TabsTrigger
-                      key={tab.value}
-                      value={tab.value}
-                      className={cn(
-                        "gap-1 text-xs py-1 relative",
-                        tab.highlight &&
-                          "bg-primary/10 text-primary border border-primary/30 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground",
-                        tab.highlightBlue &&
-                          "bg-blue-500/10 text-blue-600 border border-blue-500/30 data-[state=active]:bg-blue-600 data-[state=active]:text-white",
-                        hasBlocker && "ring-2 ring-destructive/60",
-                      )}
-                    >
-                      <Icon className="h-3 w-3" />
-                      {tab.label}
-                      {hasBlocker && (
-                        <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-destructive border-2 border-background" />
-                      )}
-                    </TabsTrigger>
-                  );
-                }
-
-                return (
-                  <Tooltip key={tab.value}>
-                    <TooltipTrigger asChild>
-                      <TabsTrigger
-                        value={tab.value}
-                        className={cn(
-                          "px-2 py-1 relative",
-                          tab.highlight && "bg-primary/10 text-primary border border-primary/30",
-                          tab.highlightBlue && "bg-blue-500/10 text-blue-600 border border-blue-500/30",
-                        )}
-                      >
-                        <Icon className="h-3 w-3" />
-                        {hasBlocker && (
-                          <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-destructive border-2 border-background" />
-                        )}
-                      </TabsTrigger>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p className="text-xs">
-                        {tab.label}
-                        {hasBlocker ? " ⚠️" : ""}
-                      </p>
-                    </TooltipContent>
-                  </Tooltip>
-                );
-              })}
+        <Tabs
+          value={activeTab}
+          onValueChange={setActiveTab}
+          className={
+            embedded ? "space-y-3" : "min-w-0 space-y-3 rounded-lg border bg-background p-3"
+          }
+        >
+          <TabsList className="hidden">
+            {visibleSectionKeys.map((key) => (
+              <TabsTrigger key={key} value={key}>
+                {getSectionLabel(key)}
+              </TabsTrigger>
+            ))}
           </TabsList>
+
 
           {/* Onboarding Tab - Full-screen wizard */}
           <TabsContent value="onboarding" className="mt-0">
