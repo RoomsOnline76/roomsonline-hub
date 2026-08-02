@@ -129,12 +129,18 @@ export default function PMSPropertySetup() {
         </div>
       </header>
 
-      <div className="grid gap-3 lg:grid-cols-[200px_1fr]">
+      <div
+        className={
+          railCollapsed ? "grid gap-3 lg:grid-cols-[48px_1fr]" : "grid gap-3 lg:grid-cols-[200px_1fr]"
+        }
+      >
         {/* Left rail — shared IA */}
         <PropertySectionRail
           groups={SECTION_GROUPS}
           activeKey={activeTab}
           onSelect={(key) => handleSelectTab(key as TabKey)}
+          collapsed={railCollapsed}
+          onToggleCollapsed={toggleRailCollapsed}
         />
 
 
