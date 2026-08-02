@@ -8065,6 +8065,8 @@ export default function PropertyForm({
             </TabsContent>
           )}
         </Tabs>
+        </div>
+
 
         {/* Embed-mode sticky Save bar */}
         {embedded && isDirty && (
