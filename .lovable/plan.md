@@ -1,38 +1,25 @@
-## Goal
+## Problem (confirmed)
 
-Make `/admin/edit property` look and behave like ROLOS → Property Setup: a grouped left-rail navigation with labels, descriptions and sub-section hints, instead of the current cramped icon-only horizontal tab strip.
+Dassiesingel Self-catering Units has `external_system = 'roomsonline'` (ROLOS native, no external PMS).
 
-## Approach
+The activation quality gate (`supabase/functions/check-activation-readiness/index.ts`) only recognises the literal string `'rol'` as internally managed. `'roomsonline'` falls through to the `default` branch of `getPMSPropertyCode`, which returns `null`, so the gate emits:
 
-Extract the rail from `PMSPropertySetup.tsx` into a reusable component so both screens render the exact same UI from the same config.
+> PMS Integration — "roomsonline connected but no External Property ID linked" (severity: **blocker**)
 
-### 1. New shared component: `src/components/property/PropertySectionRail.tsx`
-Moved verbatim (visually) from the current PMSPropertySetup left rail:
-- Grouped by `PROPERTY_SECTION_GROUPS` ("Property profile", "Booking backend", "Guest experience", "Advanced")
-- Group heading: 10px uppercase muted label
-- Each item: bordered button, icon + label, description line, and — when active — the sub-section hint chips (Seasons / Rate Types / Calendar / Charges / Policies …)
-- Active state: `border-primary/50 bg-primary/10`; idle: `bg-muted/40`
-- Props: `sections` (grouped), `activeKey`, `onSelect`, optional `blockerKeys` (Set) so the existing red blocker dot/ring is preserved
+That is the single blocker preventing activation. The frontend alias list already defines the correct set (`src/lib/pmsIdentity.ts` → `ROLOS_PMS_ALIASES = ["roomsonline", "rolos", "rol_os", "rolos_pms"]`), but the edge function never got it.
 
-### 2. Shared config additions: `src/config/propertySectionOrder.ts`
-- Move the `ICON_MAP` and `HINTS` maps out of `PMSPropertySetup.tsx` into this config (single source of truth), adding icons for `general`, `branding`, `rol-spec`, `integrations`, `admin`, `onboarding`
-- Export a helper `buildSectionGroups(allowedKeys)` that returns the grouped rail model, filtered to the keys a given screen supports
+## Fix
 
-### 3. `PMSPropertySetup.tsx`
-Swap its inline rail markup for `<PropertySectionRail />` + `buildSectionGroups(HUB_KEYS)`. No visual change — it's the reference design.
+In `check-activation-readiness`:
 
-### 4. `src/pages/PropertyForm.tsx` (non-embedded only)
-- Keep `<Tabs>` and every `<TabsContent>` untouched (no logic/state changes)
-- Hide the `TabsList` in non-embedded mode too, and render `<PropertySectionRail />` instead
-- Layout becomes `grid lg:grid-cols-[240px_1fr]` with the tab content in a bordered `rounded-lg border bg-background` panel, matching ROLOS
-- Feed the rail with `buildSectionGroups()` over the **same filtered tab list already computed today** — so all existing visibility rules stay: `contacts` excluded, onboarding hidden for new properties, `adminOnly` gating, ROLOS-managed sections hidden unless `forceTabs`, NightsBridge subset
-- Pass `blockerKeys={tabsWithBlockers}` so blocker indicators still show, now as a red dot + ring on the rail item
-- On mobile (`< lg`) the rail stacks above the content; groups render as a horizontally scrollable compact list so small screens stay usable
-- Breadcrumb keeps working: replace the hardcoded `activeTab === "x" && "Label"` chain with a lookup against the shared section config (fixes missing labels for branding / rol-spec / integrations / admin)
+1. Add a local alias set for native ROLOS management: `rol`, `rolos`, `roomsonline`, `rol_os`, `rolos_pms` (mirroring `ROLOS_PMS_ALIASES` plus the legacy `rol`).
+2. In `checkPMSConflicts`, match `external_system` against that set (case-insensitive) and return a passing `info` result — "ROLOS-managed property (internal inventory)" — before the external-code lookup and before the sandbox-mode lookup (there is no `pms_tracker_status` row for a native system, so that path is also meaningless here).
+3. Make `getPMSPropertyCode` / `getPMSCodeLabel` return `'internal'` / `'Internal Property'` for every alias, so any other consumer of those helpers stays consistent.
+4. Redeploy the function and re-check readiness for Dassiesingel so the blocker clears and the score recalculates.
 
-### 5. Untouched
-Embedded mode (ROLOS embedding PropertyForm) keeps its hidden tab list — no double rail. All save logic, form state, data fetching, and tab content unchanged.
+No database changes, no property-data edits, no UI changes needed — the indicator reads straight from this function.
 
 ## Technical notes
-- Purely presentational refactor; no schema, edge function, or business-logic changes.
-- `PropertyForm.tsx` shrinks slightly as the icon map and breadcrumb chain move to config.
+
+- Only `checkPMSConflicts` and the three `getPMS*` helpers change; all other checks (images, description, rates, contract, RU readiness) are untouched.
+- Keeping `'rol'` in the alias set preserves behaviour for any legacy rows still using it.

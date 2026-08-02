@@ -178,12 +178,35 @@ Deno.serve(async (req) => {
 // ============= PMS CODE HELPERS =============
 
 /**
+ * Native ROLOS management aliases (mirrors ROLOS_PMS_ALIASES on the frontend,
+ * plus the legacy 'rol' value). These properties are managed with internal
+ * inventory and never require an external property code.
+ */
+const NATIVE_ROLOS_SYSTEMS = new Set([
+  'rol',
+  'rolos',
+  'roomsonline',
+  'rol_os',
+  'rolos_pms',
+]);
+
+function isNativeRolosSystem(externalSystem?: string | null): boolean {
+  return !!externalSystem && NATIVE_ROLOS_SYSTEMS.has(externalSystem.toLowerCase().trim());
+}
+
+/**
  * Get the correct property code based on PMS type
  */
 function getPMSPropertyCode(property: any, amenities: Record<string, unknown>, externalSystem: string): string | null {
   const externalIds = amenities.external_ids as Record<string, unknown> | undefined;
-  
+
+  if (isNativeRolosSystem(externalSystem)) {
+    // Internally managed properties don't need an external ID
+    return 'internal';
+  }
+
   switch (externalSystem.toLowerCase()) {
+
     case 'nightsbridge':
       // NightsBridge uses BBID - check multiple locations
       return property.external_id || 
@@ -207,9 +230,6 @@ function getPMSPropertyCode(property: any, amenities: Record<string, unknown>, e
       return property.siteminder_property_code || null;
     case 'rentalsunited':
       return property.rentalsunited_property_id || null;
-    case 'rol':
-      // Internal ROL-managed properties don't need external ID
-      return 'internal';
     default:
       return property.external_property_id || null;
   }
@@ -219,7 +239,9 @@ function getPMSPropertyCode(property: any, amenities: Record<string, unknown>, e
  * Get human-readable PMS code label
  */
 function getPMSCodeLabel(externalSystem: string): string {
+  if (isNativeRolosSystem(externalSystem)) return 'Internal Property';
   switch (externalSystem.toLowerCase()) {
+
     case 'nightsbridge': return 'BBID';
     case 'benson': return 'Benson Code';
     case 'checkfront': return 'Checkfront Property Code';
@@ -439,6 +461,18 @@ async function checkPMSConflicts(supabase: any, property: any, amenities: Record
     };
   }
 
+  // Natively managed (ROLOS) properties use internal inventory — no external
+  // property code and no sandbox/production tracker row applies.
+  if (isNativeRolosSystem(externalSystem)) {
+    return {
+      id: 'pms',
+      name: 'PMS Integration',
+      passed: true,
+      message: 'ROLOS-managed property (internal inventory)',
+      severity: 'info'
+    };
+  }
+
   // Check if PMS is in production mode
   const { data: pmsStatus } = await supabase
     .from('pms_tracker_status')
@@ -461,17 +495,7 @@ async function checkPMSConflicts(supabase: any, property: any, amenities: Record
   const propertyCode = getPMSPropertyCode(property, amenities, externalSystem);
   const codeLabel = getPMSCodeLabel(externalSystem);
   const codeField = getPMSCodeField(externalSystem);
-  
-  // Internal ROL properties don't need external ID validation
-  if (externalSystem.toLowerCase() === 'rol') {
-    return {
-      id: 'pms',
-      name: 'PMS Integration',
-      passed: true,
-      message: 'ROL-managed property (internal)',
-      severity: 'info'
-    };
-  }
+
 
   // Check if the PMS-specific property code is set
   if (!propertyCode) {
