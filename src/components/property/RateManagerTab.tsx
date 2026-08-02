@@ -235,9 +235,9 @@ export function RateManagerTab({
 
   // ── Render ─────────────────────────────────────────────────────────────
   return (
-    <div className="flex gap-4 h-[calc(100vh-250px)]">
+    <div className="flex gap-3 h-[calc(100vh-230px)] min-h-[520px]">
       {/* Left Sidebar - Room Types List */}
-      <div className="w-56 border-r bg-muted/30 p-2 space-y-1">
+      <div className="w-44 shrink-0 overflow-y-auto border-r bg-muted/30 p-1.5 space-y-px">
         <div className="flex items-center justify-between mb-2 px-1">
           <h3 className="font-semibold text-xs text-muted-foreground">
             {(accommodationLabel ? ACCOMMODATION_LABEL_OPTIONS.find((o) => o.value === accommodationLabel)?.label?.toUpperCase() : "ROOM")} TYPES
@@ -247,7 +247,7 @@ export function RateManagerTab({
           <div
             key={room.id}
             onClick={() => setSelectedRoomType(room.id)}
-            className={`px-2 py-1.5 rounded cursor-pointer transition-colors ${
+            className={`px-2 py-1 rounded cursor-pointer text-left transition-colors ${
               selectedRoomType === room.id ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-muted/80"
             }`}
           >
@@ -259,7 +259,7 @@ export function RateManagerTab({
       {/* Main Content - Rate Breakdown Details */}
       <div className="flex-1 overflow-auto">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList>
+          <TabsList className="flex h-auto w-full flex-wrap justify-start gap-0.5">
             <TabsTrigger value="rate-types">Rate Types</TabsTrigger>
             <TabsTrigger value="season">Seasons</TabsTrigger>
             <TabsTrigger value="seasons-calendar">Calendar</TabsTrigger>
@@ -271,9 +271,9 @@ export function RateManagerTab({
           </TabsList>
 
           {/* ── Rate Types Sub-tab ────────────────────────────────────────── */}
-          <TabsContent value="rate-types" className="p-6 space-y-4">
-            <div className="flex justify-between items-center">
-              <p className="text-sm text-muted-foreground">
+          <TabsContent value="rate-types" className="p-3 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="max-w-[52ch] text-xs text-muted-foreground">
                 Manage rate types for this property. Each room type needs at least one rate type linked.
               </p>
               <div className="flex gap-2">
@@ -356,7 +356,7 @@ export function RateManagerTab({
                       {/* Base Rate - only editable for non-PMS */}
                       {!rateType.pms_synced && (
                         <div className="mb-4 p-3 bg-muted/50 rounded-lg">
-                          <div className="grid grid-cols-2 gap-4">
+                          <div className="grid grid-cols-2 gap-x-4 gap-y-3">
                             <div className="space-y-2">
                               <Label className="text-sm font-medium">Base Rate (R)</Label>
                               <Input
@@ -473,7 +473,7 @@ export function RateManagerTab({
                       <Separator className="my-4" />
                       <div className="space-y-2">
                         <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Stay/Pay Discount</Label>
-                        <div className="grid grid-cols-3 gap-4">
+                        <div className="grid grid-cols-3 gap-x-4 gap-y-3">
                           <div className="space-y-1">
                             <Label className="text-xs text-muted-foreground">Stay Nights</Label>
                             {rateType.pms_synced ? (
@@ -508,7 +508,7 @@ export function RateManagerTab({
           </TabsContent>
 
           {/* ── Season Sub-tab ────────────────────────────────────────────── */}
-          <TabsContent value="season" className="p-6 space-y-4">
+          <TabsContent value="season" className="p-3 space-y-4">
             <div className="flex justify-between items-center">
               <p className="text-sm text-muted-foreground">
                 Manually define seasonal periods with custom stay requirements. Seasons are not imported from PMS.
@@ -593,7 +593,7 @@ export function RateManagerTab({
                     <Input placeholder="e.g., Peak Season, Low Season, Christmas" value={seasonForm.name} onChange={(e) => setSeasonForm({ ...seasonForm, name: e.target.value })} />
                     <p className="text-xs text-muted-foreground">If left empty, the date range will be used as the name</p>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-3">
                     <div className="space-y-2">
                       <Label>Start Date *</Label>
                       <Popover>
@@ -623,7 +623,7 @@ export function RateManagerTab({
                       </Popover>
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-3">
                     <div className="space-y-2">
                       <Label>Minimum Stay (nights)</Label>
                       <Input type="number" min="1" value={seasonForm.minStay} onChange={(e) => setSeasonForm({ ...seasonForm, minStay: parseInt(e.target.value) || 1 })} />
@@ -1073,7 +1073,7 @@ export function RateManagerTab({
 
           {/* ── Data Explorer Sub-tab ──────────────────────────────────────── */}
           {(isDev || isFearlessLeader) && (
-            <TabsContent value="data-explorer" className="p-6 space-y-4">
+            <TabsContent value="data-explorer" className="p-3 space-y-3">
               {(() => {
                 const currentRoom = roomTypes.find((r: any) => r.id === selectedRoomType);
                 if (!currentRoom) {
