@@ -3905,13 +3905,24 @@ export default function PropertyForm({
           </Alert>
         )}
 
-        <div className={embedded ? "" : "grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)]"}>
+        <div
+          className={
+            embedded
+              ? ""
+              : cn(
+                  "grid gap-4",
+                  railCollapsed ? "lg:grid-cols-[48px_minmax(0,1fr)]" : "lg:grid-cols-[240px_minmax(0,1fr)]",
+                )
+          }
+        >
           {!embedded && (
             <PropertySectionRail
               groups={railGroups}
               activeKey={activeTab}
               onSelect={setActiveTab}
               blockerKeys={tabsWithBlockers}
+              collapsed={railCollapsed}
+              onToggleCollapsed={toggleRailCollapsed}
             />
           )}
 
