@@ -258,11 +258,11 @@ export function CompanyInformationCard({
   const rep = (companyProfile.legal_rep ?? {}) as Record<string, string | number | undefined>;
   const str = (v: unknown) => (v === undefined || v === null ? "" : String(v));
 
-  /** Legacy free-text time zones ("UTC+02:00") are mapped onto a canonical RU zone. */
+  /** Legacy IANA time zones are mapped onto RU's required fixed-offset format. */
   const rawTimeZone = str(companyProfile.time_zone).trim();
   const normalizedTimeZone = useMemo(() => {
-    const canonical = normalizeRuTimeZone(rawTimeZone);
-    return RU_TIME_ZONES.some((z) => z.value === canonical) ? canonical : "";
+    const offset = normalizeRuTimeZone(rawTimeZone);
+    return RU_TIME_ZONES.some((z) => z.value === offset) ? offset : "";
   }, [rawTimeZone]);
 
   /**
@@ -519,8 +519,7 @@ export function CompanyInformationCard({
                     </SelectContent>
                   </Select>
                   <Hint>
-                    Rentals United requires a canonical zone name (e.g. Africa/Johannesburg) — free
-                    text like “UTC+2” is rejected on the company push.
+                    Rentals United requires the exact format UTC±HH:MM (for South Africa: UTC+02:00).
                   </Hint>
                   {rawTimeZone && !normalizedTimeZone && (
                     <p className="text-[10px] leading-snug text-destructive">
