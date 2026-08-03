@@ -388,12 +388,60 @@ export function PortfolioRuAccountsTab() {
 
 
 
-  const openKeys = useCallback((acc: RuAccount) => {
+  /** Which RU OwnerIDs we already hold a key pair for (no secrets returned). */
+  const { data: storedKeys = [] } = useQuery({
+    queryKey: ["ru-stored-api-keys"],
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
+        body: { action: "list_stored_api_keys" },
+      });
+      if (error || !data?.success) return [];
+      return (data.credentials ?? []) as {
+        ru_owner_id: string;
+        login_email: string | null;
+        access_key: string;
+        key_label: string | null;
+        verified_at: string | null;
+      }[];
+    },
+    staleTime: 60_000,
+  });
+
+  const storedKeyByOwner = useMemo(() => {
+    const map = new Map<string, (typeof storedKeys)[number]>();
+    for (const row of storedKeys) map.set(String(row.ru_owner_id), row);
+    return map;
+  }, [storedKeys]);
+
+  const refreshStoredKeys = useCallback(async () => {
+    await queryClient.refetchQueries({ queryKey: ["ru-stored-api-keys"] });
+  }, [queryClient]);
+
+  const openKeys = useCallback(async (acc: RuAccount) => {
     setKeysFor({ id: acc.id, email: acc.ru_login_email || acc.owner_email, ownerId: acc.ru_owner_id });
     setKeyAccess("");
     setKeySecret("");
     setKeyLabel(acc.ru_api_key_label || "ROLOS");
+    setKeyOwnerId(acc.ru_owner_id ?? "");
+    // Keys belong to a specific RU sub-user — let the admin pick which one they are for.
+    setKeyCandidates([]);
+    setKeyCandidatesLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
+        body: { action: "list_ru_candidates" },
+      });
+      if (!error && data?.success) {
+        setKeyCandidates(
+          ((data.users ?? []) as { owner_id: string; email: string; archived?: boolean }[]).filter(
+            (u) => !u.archived,
+          ),
+        );
+      }
+    } finally {
+      setKeyCandidatesLoading(false);
+    }
   }, []);
+
 
   /** Store (and validate) the sub-user's own RU API key pair. */
   const saveApiKeys = useCallback(async () => {
