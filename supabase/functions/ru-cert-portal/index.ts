@@ -13,6 +13,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { summarizeReadiness, type RuCheck, type RuUnitInput } from "../_shared/ruReadiness.ts";
 import { evaluatePhases, findOwnerAccount, resolvePortfolioId } from "../_shared/ruPhaseGate.ts";
+import { createRateResolver, describeCoverage } from "../_shared/rateResolution.ts";
+
 
 
 const corsHeaders = {
@@ -439,6 +441,37 @@ Deno.serve(async (req) => {
         { name: p.name, validation: data?.validation ?? {} },
       ];
 
+      // ── Local rate coverage (calendar first, rack rate fallback) ──
+      // Reports what ROLOS would push, independently of what RU currently holds.
+      let localCoverage: { summary: string; calendar_days: number; rack_days: number; unpriced_days: number } | null = null;
+      try {
+        const from = isoDate(0);
+        const to = isoDate(365);
+        const resolver = await createRateResolver(admin, p.id, { window: { from, to } });
+        const expectedDays = Math.round((Date.parse(to) - Date.parse(from)) / 86400000) + 1;
+        const targets = resolver.units.length > 0 ? resolver.units : [{ id: p.id, name: p.name }];
+        let calendar = 0, rack = 0, priced = 0;
+        for (const u of targets) {
+          const days = resolver.resolveDays(u, from, to);
+          const cov = resolver.coverage(days);
+          calendar += cov.calendar_days;
+          rack += cov.rack_days + cov.unit_daily_days;
+          priced += cov.priced_days;
+        }
+        const perUnitExpected = expectedDays * targets.length;
+        localCoverage = {
+          summary: describeCoverage(perUnitExpected, {
+            total_days: priced, priced_days: priced, calendar_days: calendar,
+            rack_days: rack, unit_daily_days: 0, unpriced_days: perUnitExpected - priced,
+          }),
+          calendar_days: calendar,
+          rack_days: rack,
+          unpriced_days: Math.max(0, perUnitExpected - priced),
+        };
+      } catch (e) {
+        console.warn("[scoreProperty] rate coverage probe failed:", e);
+      }
+
       // ── Live ARI verification (365 days forward) ──
       const extraChecks: RuCheck[] = [];
       let ari: Record<string, unknown> | null = null;
@@ -448,6 +481,7 @@ Deno.serve(async (req) => {
         .filter((n: number) => Number.isFinite(n) && n > 0);
       const singleRuId = Number(p.rentalsunited_property_id ?? data?.ru_property_id ?? 0);
       if (ruIds.length === 0 && singleRuId > 0) ruIds.push(singleRuId);
+
 
       if (opts.probe_ari === false) {
         // ARI not probed in this context — omit the checks entirely.
@@ -485,8 +519,10 @@ Deno.serve(async (req) => {
           label: "Daily prices pushed for the next 365 days",
           mandatory: true,
           passed: allPricesPositive,
-          ...(allPricesPositive ? {} : { detail: `RU ${target}: prices missing or not all above zero for the next 365 days` }),
-          fix_hint: "Rate Manager → Rates",
+          ...(allPricesPositive
+            ? (localCoverage ? { detail: `Local rates: ${localCoverage.summary}` } : {})
+            : { detail: `RU ${target}: prices missing or not all above zero for the next 365 days${localCoverage ? ` — local rates: ${localCoverage.summary}` : ""}` }),
+          fix_hint: "Calendar seasons & rates (first), then Rate Manager → Rates rack rate",
         });
 
         ari = {
@@ -497,6 +533,7 @@ Deno.serve(async (req) => {
           price_points: prices.length,
           availability_ok: hasAvailability,
           prices_ok: allPricesPositive,
+          rate_coverage: localCoverage,
         };
       } else {
         const detail = "Not yet published to Rentals United (no RU property ID) — ARI cannot be verified";
@@ -506,9 +543,13 @@ Deno.serve(async (req) => {
         });
         extraChecks.push({
           key: "ari_prices", group: "Pricing 365d", label: "Daily prices pushed for the next 365 days",
-          mandatory: true, passed: false, detail, fix_hint: "Push the property to Rentals United first",
+          mandatory: true, passed: false,
+          detail: localCoverage ? `${detail} — local rates: ${localCoverage.summary}` : detail,
+          fix_hint: "Push the property to Rentals United first",
         });
+        ari = { rate_coverage: localCoverage };
       }
+
 
       const summary = summarizeReadiness(units, extraChecks);
 
