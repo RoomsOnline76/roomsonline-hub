@@ -552,7 +552,89 @@ export default function AdminContracts() {
     return [];
   }, [sendScope, multiPropertySelections, portfolioProperties]);
 
+  /** Send the once-off Referral Partner Agreement to a sales rep (no property linkage). */
+  const handleSendReferralAgreement = async () => {
+    const email = (newRepMode ? sendEmail : selectedRep?.email || sendEmail).toLowerCase().trim();
+    if (!email) {
+      toast.error("Rep email is required");
+      return;
+    }
+    if (!newRepMode && !selectedRepId) {
+      toast.error("Select a sales rep");
+      return;
+    }
+    if (newRepMode && !sendName.trim()) {
+      toast.error("Rep name is required");
+      return;
+    }
+    if (repAlreadyEngaged && !confirmReplaceRepAgreement) {
+      toast.error("This rep already has an agreement — confirm replacement first");
+      return;
+    }
+
+    try {
+      setSending(true);
+
+      let repId = selectedRepId;
+      let repName = selectedRep?.display_name || sendName;
+
+      if (newRepMode) {
+        // Create the rep record so the engagement has a home before sending.
+        const repCode = `REP-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
+        const { data: newRep, error: repErr } = await supabase
+          .from("sales_reps")
+          .insert({
+            display_name: sendName.trim(),
+            email,
+            rep_code: repCode,
+            commission_tier: newRepTier,
+            is_active: true,
+          } as any)
+          .select("id, display_name, email, rep_code, commission_tier, is_active")
+          .single();
+        if (repErr) throw repErr;
+        repId = newRep.id;
+        repName = newRep.display_name;
+      }
+
+      const { error } = await supabase.functions.invoke("send-owner-contract", {
+        body: {
+          owner_email: email,
+          owner_name: repName || undefined,
+          contract_type: "referral",
+          template_id: "c3d4e5f6-a7b8-4901-cdef-234567890123",
+          rep_id: repId,
+          terms_snapshot: {
+            tier: referralTerms.tier,
+            tier_label: referralTerms.tier_label,
+            first_year_rate: referralTerms.first_year_rate,
+            residual_rate: referralTerms.residual_rate,
+            residual_months: referralTerms.residual_months,
+            clawback_days: referralTerms.clawback_days,
+            source: referralTerms.source,
+            engagement: "independent_contractor_commission_only",
+          },
+        },
+      });
+      if (error) throw error;
+
+      toast.success("Referral Partner Agreement sent");
+      setSendModalOpen(false);
+      resetSendModal();
+      loadContracts();
+      loadReps();
+    } catch (error: any) {
+      toast.error(error.message || "Failed to send referral agreement");
+    } finally {
+      setSending(false);
+    }
+  };
+
   const handleSendContract = async () => {
+    if (isReferral) {
+      await handleSendReferralAgreement();
+      return;
+    }
     if (!sendEmail) {
       toast.error("Email is required");
       return;
@@ -575,6 +657,8 @@ export default function AdminContracts() {
         return;
       }
     }
+
+
 
     try {
       setSending(true);
