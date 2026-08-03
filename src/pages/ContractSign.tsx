@@ -60,7 +60,7 @@ interface ContractData {
   properties?: CoveredProperty[]; // For owner-level contracts
   owner_name?: string | null;
   owner_email?: string | null;
-  contract_type?: 'owner' | 'property';
+  contract_type?: 'owner' | 'property' | 'referral';
   template_content?: string | null;
   is_new_owner?: boolean;
   requires_property_details?: boolean;
