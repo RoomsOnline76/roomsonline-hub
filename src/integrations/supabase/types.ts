@@ -10407,6 +10407,42 @@ export type Database = {
         }
         Relationships: []
       }
+      ru_api_credentials: {
+        Row: {
+          access_key: string
+          created_at: string
+          id: string
+          key_label: string | null
+          login_email: string | null
+          ru_owner_id: string
+          secret_enc: string | null
+          updated_at: string
+          verified_at: string | null
+        }
+        Insert: {
+          access_key: string
+          created_at?: string
+          id?: string
+          key_label?: string | null
+          login_email?: string | null
+          ru_owner_id: string
+          secret_enc?: string | null
+          updated_at?: string
+          verified_at?: string | null
+        }
+        Update: {
+          access_key?: string
+          created_at?: string
+          id?: string
+          key_label?: string | null
+          login_email?: string | null
+          ru_owner_id?: string
+          secret_enc?: string | null
+          updated_at?: string
+          verified_at?: string | null
+        }
+        Relationships: []
+      }
       ru_cert_runs: {
         Row: {
           created_at: string
