@@ -316,20 +316,42 @@ Deno.serve(async (req) => {
       }
     }
 
-    // ── Phase 2: Poll Leads ──
-    try {
-      console.log(`[cron-pull-ru] Polling leads from ${dateFrom} to ${dateTo}`);
-      const { data: leadsResult, error: leadsErr } = await supabase.functions.invoke('rentalsunited-api', {
-        body: { action: 'get_leads', date_from: dateFrom, date_to: dateTo },
-      });
+  }
 
-      if (leadsErr || !leadsResult?.success) {
-        console.warn(`[cron-pull-ru] Leads API call failed: ${leadsErr?.message || leadsResult?.error?.message || 'Unknown'}`);
-      } else {
+  /**
+   * Pull_GetLeads_RQ is also account-scoped, so it fans out the same way.
+   * Leads are informational, so this stays best-effort inside the remaining budget.
+   */
+  async function pollLeads(scopes: RuOwnerScope[], dateFrom: string, dateTo: string) {
+    for (let i = 0; i < scopes.length; i++) {
+      const scope = scopes[i];
+      try {
+        if (i > 0) {
+          if (Date.now() + METHOD_WINDOW_MS > deadline) {
+            console.log(`[cron-pull-ru] Lead polling budget spent after ${i} account(s)`);
+            return;
+          }
+          await new Promise((r) => setTimeout(r, METHOD_WINDOW_MS));
+        }
+
+        console.log(`[cron-pull-ru] Polling leads for ${scope.label} from ${dateFrom} to ${dateTo}`);
+        const { data: leadsResult, error: leadsErr } = await supabase.functions.invoke('rentalsunited-api', {
+          body: { action: 'get_leads', date_from: dateFrom, date_to: dateTo, ...scope.payload },
+        });
+
+        if (leadsErr || !leadsResult?.success) {
+          console.warn(`[cron-pull-ru] ${scope.label} leads API call failed: ${leadsErr?.message || leadsResult?.error?.message || 'Unknown'}`);
+          continue;
+        }
+        if (scope.ownerId && leadsResult.auth_mode === 'master') {
+          console.error(`[cron-pull-ru] Refused leads for ${scope.label}: RU answered on master credentials`);
+          continue;
+        }
+
         const leadsXml: string = leadsResult.raw_xml || '';
         const leadBlocks = extractAllBlocks(leadsXml, 'Lead');
-        summary.leads_found = leadBlocks.length;
-        console.log(`[cron-pull-ru] Found ${leadBlocks.length} lead(s)`);
+        summary.leads_found += leadBlocks.length;
+        console.log(`[cron-pull-ru] ${scope.label}: found ${leadBlocks.length} lead(s)`);
 
         for (const leadBlock of leadBlocks) {
           try {
@@ -389,23 +411,10 @@ Deno.serve(async (req) => {
             console.error(`[cron-pull-ru] Error processing lead:`, leadErr);
           }
         }
+      } catch (leadsError) {
+        console.warn(`[cron-pull-ru] Leads polling error (non-fatal) for ${scope.label}:`, leadsError);
       }
-    } catch (leadsError) {
-      console.warn(`[cron-pull-ru] Leads polling error (non-fatal):`, leadsError);
     }
-
-    console.log(`[cron-pull-ru] Done. Summary:`, JSON.stringify(summary));
-    await logCadence(true, null);
-    return new Response(JSON.stringify({ success: true, summary }), {
-      status: 200,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
-  } catch (error) {
-    console.error('[cron-pull-ru] Fatal error:', error);
-    await logCadence(false, String(error));
-    return new Response(JSON.stringify({ success: false, error: String(error), summary }), {
-      status: 200,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
   }
 });
+
