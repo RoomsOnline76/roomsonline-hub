@@ -135,7 +135,7 @@ export function RuSyncProgressTracker({ runs, scopeIds, expectedProperties, trig
         {icon}
         {title}
       </div>
-      {group.map(({ ep, ok, total, last, successRate, coverage, touched, status }) => (
+      {group.map(({ ep, ok, total, last, successRate, coverage, touched, denom, status }) => (
         <div key={ep.method} className="rounded-md border p-3 space-y-2">
           <div className="flex flex-wrap items-center gap-2">
             {statusIcon(status)}
