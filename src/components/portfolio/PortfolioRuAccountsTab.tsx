@@ -874,13 +874,13 @@ export function PortfolioRuAccountsTab() {
                       </Button>
                       <Button
                         size="sm"
-                        variant={acc.ru_api_access_key ? "outline" : "default"}
+                        variant={activeAccessKey ? "outline" : "default"}
                         className="h-7 text-xs"
                         onClick={() => openKeys(acc)}
                       >
                         <KeyRound className="h-3 w-3" />
                         <span className="ml-1.5">
-                          {acc.ru_api_access_key ? "API keys" : "Add API keys"}
+                          {activeAccessKey ? "API keys" : "Add API keys"}
                         </span>
                       </Button>
                       <Button
