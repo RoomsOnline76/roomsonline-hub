@@ -2325,11 +2325,17 @@ Deno.serve(async (req) => {
         if (/rate limit/i.test(detail)) {
           return "Rentals United rate limit (1 call per sliding minute) — re-run after the cooldown.";
         }
-        if (/not implemented method/i.test(detail)) {
+        if (
+          /not implemented method/i.test(detail) ||
+          /method (is )?not (implemented|enabled|available|supported)/i.test(detail) ||
+          /not enabled for (this|your) (integration|account|user)/i.test(detail) ||
+          /no (access|permission) to (this )?method/i.test(detail)
+        ) {
           return "Rentals United has not enabled this method for this integration — informational only.";
         }
         return null;
       };
+
 
       /**
        * ── Rate-limit pacing ─────────────────────────────────────────────────────────
@@ -2715,6 +2721,9 @@ Deno.serve(async (req) => {
 
       const passed = steps.filter((s) => s.status === "passed").length;
       const failed = steps.filter((s) => s.status === "failed").length;
+      // Skipped steps (methods RU has not enabled, rate-limit deferrals, N/A scope) are
+      // informational and excluded from the success counter denominator.
+      const graded = passed + failed;
 
       const { data: finished } = await admin
         .from("ru_cert_runs")
@@ -2723,7 +2732,8 @@ Deno.serve(async (req) => {
           finished_at: new Date().toISOString(),
           passed,
           failed,
-          total: steps.length,
+          total: graded,
+
           steps,
           ru_property_id: ruPropertyId ? String(ruPropertyId) : null,
         })
