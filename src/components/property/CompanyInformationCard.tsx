@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -12,6 +12,8 @@ import {
 } from "@/components/ui/collapsible";
 import { AlertTriangle, Check, ChevronDown } from "lucide-react";
 import { RuLocationPicker } from "@/components/property/RuLocationPicker";
+import { supabase } from "@/integrations/supabase/client";
+
 
 /**
  * Company Information (formerly "Business Registration").
