@@ -372,7 +372,7 @@ export function RuCurrencyPanel() {
                 })}
                 {properties.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="px-3 py-6 text-center text-muted-foreground">
+                    <td colSpan={8} className="px-3 py-6 text-center text-muted-foreground">
                       No property is connected to Rentals United yet — push a property from Setup Property →
                       Integrations, and it will appear here with its currency decision.
                     </td>
