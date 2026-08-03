@@ -24,7 +24,10 @@ export interface RuCalendarDay {
   max_stay: number | null;
   changeover: number | null;
   blocked: boolean;
+  /** Confirmed reservations RU holds for that day — such days cannot be re-opened by a push. */
+  reservations: number | null;
 }
+
 
 const attr = (s: string, name: string): string | null => {
   const m = new RegExp(`\\b${name}="([^"]*)"`, 'i').exec(s);
