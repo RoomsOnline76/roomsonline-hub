@@ -1809,12 +1809,36 @@ Deno.serve(async (req) => {
     // ── Child-scoped auth resolution ─────────────────────────
     // Every action below that touches ONE sub-user's inventory authenticates as that
     // sub-user when API keys are on file, so the listing lands on the sub-account.
-    const childAuth = CHILD_SCOPED_ACTIONS.has(action) ? await resolveChildAuth(body) : null;
+    const childScoped = CHILD_SCOPED_ACTIONS.has(action);
+    const childResolution = childScoped
+      ? await resolveChildAuthDetailed(body)
+      : { auth: null, reason: null };
+    const childAuth = childResolution.auth;
     const scopedCreds = effectiveCreds(creds, childAuth);
     const authMode = childAuthMode(childAuth);
-    if (CHILD_SCOPED_ACTIONS.has(action)) {
+    if (childScoped) {
       console.log(`[rentalsunited-api] ${action} auth_mode=${authMode} owner_id=${body.owner_id ?? 'n/a'}`);
     }
+    // Hard stop: an OwnerID was supplied (i.e. this is a white-label sub-user's inventory)
+    // but we could not authenticate as that sub-user. Falling back to the master account
+    // makes RU answer "You are not the owner of the apartment" or, worse, writes to us.
+    if (
+      childScoped &&
+      !childAuth &&
+      CHILD_AUTH_STRICT_ACTIONS.has(action) &&
+      body.owner_id != null &&
+      String(body.owner_id).trim() !== ''
+    ) {
+      return jsonResponse({
+        success: false,
+        auth_mode: 'master',
+        error: {
+          code: 'RU_CHILD_AUTH_REQUIRED',
+          message: `${childResolution.reason ?? CHILD_AUTH_REQUIRED_MESSAGE} Master-account fallback is prohibited for sub-user inventory.`,
+        },
+      }, 422);
+    }
+
 
     // ── list_properties ──
     if (action === 'list_properties') {
