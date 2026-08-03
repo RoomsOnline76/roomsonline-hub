@@ -5279,7 +5279,58 @@ export default function PropertyForm({
                   </Card>
                 </div>
 
+                {/* Company Information — contract variables + banking + Rentals United profile */}
+                {selectedPMS !== "nightsbridge" && (
+                  <CompanyInformationCard
+                    registeredBusinessName={registeredBusinessName}
+                    onRegisteredBusinessNameChange={(v) => {
+                      setRegisteredBusinessName(v);
+                      setIsDirty(true);
+                    }}
+                    mobileNumber={mobileNumber}
+                    onMobileNumberChange={(v) => {
+                      setMobileNumber(v);
+                      setIsDirty(true);
+                    }}
+                    keyRepresentative={keyRepresentative}
+                    onKeyRepresentativeChange={(v) => {
+                      setKeyRepresentative(v);
+                      setIsDirty(true);
+                    }}
+                    postalAddress={postalAddress}
+                    onPostalAddressChange={(v) => {
+                      setPostalAddress(v);
+                      setIsDirty(true);
+                    }}
+                    companyProfile={ruCompanyProfile}
+                    onCompanyProfileChange={(next) => {
+                      setRuCompanyProfile(next);
+                      setIsDirty(true);
+                    }}
+                    ruLocationId={ruLocationId}
+                    onRuLocationIdChange={(id) => {
+                      setRuLocationId(id);
+                      setIsDirty(true);
+                    }}
+                    propertyCity={formData.city}
+                    propertyCountry={formData.country}
+                    banking={{
+                      has_vat: formData.has_vat,
+                      vat_number: formData.vat_number,
+                      property_registration: formData.property_registration,
+                      bank_name: formData.bank_name,
+                      branch_code: formData.branch_code,
+                      account_holder: formData.account_holder,
+                      account_number: formData.account_number,
+                      account_type: formData.account_type,
+                      swift_code: formData.swift_code,
+                    }}
+                    onBankingChange={(key, value) => handleInputChange(key, value as never)}
+                  />
+                )}
+
                 {/* Map — full-width strip under the location fields */}
+
                 <div className="flex w-full">
                   <Card className="flex h-[240px] flex-1 flex-col p-2">
 
