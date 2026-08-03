@@ -2403,14 +2403,9 @@ Deno.serve(async (req) => {
       console.log(`[push-property-to-ru] Multi-unit mode: ${activeRoomTypes.length} units for "${property.name}"`);
 
       // ── Readiness gate: no live push while mandatory WL requirements fail ──
+      // Reuses the image-verified scoring computed for the phase gate above.
       if (!dry_run && !forcePush) {
-        const gatedUnits = activeRoomTypes.map(rt => ({
-          name: rt.name,
-          validation: buildValidation(
-            buildUnitPayload(property as PropertyRow, rt, locationId, undefined, currencyId) as Record<string, any>,
-          ) as any,
-        }));
-        const gaps = mandatoryGaps(gatedUnits);
+        const gaps = precomputedGaps;
         if (gaps.length > 0) {
           return new Response(
             JSON.stringify({
@@ -2425,6 +2420,7 @@ Deno.serve(async (req) => {
           );
         }
       }
+
 
 
 
