@@ -1315,11 +1315,29 @@ export function PortfolioRuAccountsTab() {
             </p>
           ) : (
             <div className="space-y-2">
-              <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
-                Or bind to an existing RU account
-              </p>
-              {bindCandidates.map((u) => {
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
+                  Or bind to an existing RU account
+                </p>
+                {bindCandidates.some((u) => u.archived) && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 text-[11px]"
+                    onClick={() => setShowArchivedCandidates((v) => !v)}
+                  >
+                    {showArchivedCandidates ? <EyeOff className="h-3 w-3 mr-1" /> : <Eye className="h-3 w-3 mr-1" />}
+                    {showArchivedCandidates
+                      ? "Hide archived"
+                      : `Show archived (${bindCandidates.filter((u) => u.archived).length})`}
+                  </Button>
+                )}
+              </div>
+              {bindCandidates
+                .filter((u) => showArchivedCandidates || !u.archived)
+                .map((u) => {
                 const isCurrent = bindFor?.ownerId === u.owner_id;
+
                 return (
                   <div
                     key={u.owner_id}
