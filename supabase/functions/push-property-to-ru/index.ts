@@ -1835,6 +1835,11 @@ Deno.serve(async (req) => {
       const targetIds: string[] | undefined = Array.isArray(reqBody.property_ids) ? reqBody.property_ids : undefined;
       const dryRun = reqBody.dry_run === true;
 
+      // The cache is the input to every currency comparison below — refresh it first so a
+      // cold/stale ru_locations table can never silently skip the flip.
+      const cacheRefresh = await refreshRuLocationsCache(supabase);
+      console.log(`[push-property-to-ru] reconcile: location cache refresh ${cacheRefresh.success ? `ok (${cacheRefresh.upserted})` : `failed (${cacheRefresh.error})`}`);
+
       const [{ data: buildingProps }, { data: unitRows }] = await Promise.all([
         supabase
           .from('properties')
