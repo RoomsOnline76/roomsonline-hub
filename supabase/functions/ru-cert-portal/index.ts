@@ -2604,7 +2604,7 @@ Deno.serve(async (req) => {
           const assertFail = ok && opts.assert ? opts.assert(data) : null;
           const rawDetail =
             (masterLeak
-              ? `Authenticated as the MASTER account instead of sub-user ${payload.owner_id}. Add this sub-user's RU AccessKey/SecretKey in RU User Management, then re-run.`
+              ? `Authenticated as the MASTER account instead of sub-user ${payload.owner_id ?? certOwnerId}. Add this sub-user's RU AccessKey/SecretKey in RU User Management, then re-run.`
               : null) ??
             assertFail ??
             data?.error?.message ??
