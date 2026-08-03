@@ -2307,6 +2307,20 @@ export default function PropertyForm({
           setLatitude(data.latitude ? Number(data.latitude) : null);
           setLongitude(data.longitude ? Number(data.longitude) : null);
 
+          // Property composition (mandatory for channel pushes)
+          setPropBedrooms(Number((data as any).bedrooms) || 0);
+          setPropBathrooms(
+            (data as any).bathrooms === null || (data as any).bathrooms === undefined
+              ? null
+              : Number((data as any).bathrooms),
+          );
+          setPropToilets(
+            (data as any).toilets === null || (data as any).toilets === undefined
+              ? null
+              : Number((data as any).toilets),
+          );
+          setSeparateKitchen(!!(data as any).separate_kitchen);
+
           // Load google maps link if available
           if (amenities?.address_details?.google_maps_link) {
             setGoogleMapsLink(amenities.address_details.google_maps_link);
