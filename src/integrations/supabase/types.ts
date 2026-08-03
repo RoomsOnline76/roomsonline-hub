@@ -4292,6 +4292,7 @@ export type Database = {
           brand_override_enabled: boolean
           brand_primary_color: string | null
           brand_secondary_color: string | null
+          cancellation_master_mode: string
           checkfront_property_code: string | null
           city: string
           cloudbeds_property_id: string | null
@@ -4389,6 +4390,7 @@ export type Database = {
           brand_override_enabled?: boolean
           brand_primary_color?: string | null
           brand_secondary_color?: string | null
+          cancellation_master_mode?: string
           checkfront_property_code?: string | null
           city: string
           cloudbeds_property_id?: string | null
@@ -4486,6 +4488,7 @@ export type Database = {
           brand_override_enabled?: boolean
           brand_primary_color?: string | null
           brand_secondary_color?: string | null
+          cancellation_master_mode?: string
           checkfront_property_code?: string | null
           city?: string
           cloudbeds_property_id?: string | null

@@ -74,6 +74,8 @@ export interface RateManagerTabProps {
   isDev?: boolean;
   isFearlessLeader?: boolean;
   setIsDirty: (dirty: boolean) => void;
+  /** Navigate the parent form to the Specials tab. */
+  onOpenSpecials?: () => void;
 }
 
 export function RateManagerTab({
@@ -97,6 +99,7 @@ export function RateManagerTab({
   isDev,
   isFearlessLeader,
   setIsDirty,
+  onOpenSpecials,
 }: RateManagerTabProps) {
   const { toast } = useToast();
 
@@ -902,7 +905,7 @@ export function RateManagerTab({
 
           {/* ── Policies Sub-tab ──────────────────────────────────────────── */}
           <TabsContent value="policies" className="p-6">
-            {propertyId && <PoliciesTab propertyId={propertyId} />}
+            {propertyId && <PoliciesTab propertyId={propertyId} onOpenSpecials={onOpenSpecials} />}
             {!propertyId && <p className="text-sm text-muted-foreground">Save the property first to configure policies.</p>}
           </TabsContent>
 

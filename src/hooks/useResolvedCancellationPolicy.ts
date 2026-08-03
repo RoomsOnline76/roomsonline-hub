@@ -69,7 +69,14 @@ export function useResolvedCancellationPolicy(
         return { id: master.id, name: master.name, rule: master.rule, source: "master" };
       }
 
-      // 4. Legacy canonical row
+      // 4. Legacy canonical row — skipped when the owner explicitly chose "no policy"
+      const { data: prop } = await supabase
+        .from("properties")
+        .select("cancellation_master_mode")
+        .eq("id", propertyId)
+        .maybeSingle();
+      if ((prop?.cancellation_master_mode as string | undefined) === "none") return none;
+
       const { data: legacy } = await supabase
         .from("rolos_policies" as never)
         .select("rule")
