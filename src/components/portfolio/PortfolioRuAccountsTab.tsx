@@ -1631,6 +1631,11 @@ export function PortfolioRuAccountsTab() {
         </DialogContent>
       </Dialog>
 
+      <RuCompanyProfileDialog
+        account={profileFor}
+        onClose={() => setProfileFor(null)}
+        onSaved={refreshAccounts}
+      />
 
     </div>
   );
