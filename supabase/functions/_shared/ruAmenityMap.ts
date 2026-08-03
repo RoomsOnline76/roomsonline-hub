@@ -48,13 +48,23 @@ const normalise = (label: string) => label.toLowerCase().replace(/[^a-z0-9]+/g, 
 export function parseRuAmenityToken(token: unknown): number | null {
   if (typeof token === 'number') return Number.isFinite(token) && token > 0 ? token : null;
   if (typeof token !== 'string') return null;
-  const ruMatch = token.match(/^ru:(\d+)$/i);
+  // `ru:<id>` and `ru:<id>:<count>` (count used for internet, parking, cots, pools…)
+  const ruMatch = token.match(/^ru:(\d+)(?::\d+)?$/i);
   if (ruMatch) {
     const id = parseInt(ruMatch[1], 10);
     return Number.isFinite(id) && id > 0 ? id : null;
   }
   return LEGACY_LABEL_IDS[normalise(token)] ?? null;
 }
+
+/** Quantity carried on a `ru:<id>:<count>` token (1 when absent). */
+export function parseRuAmenityCount(token: unknown): number {
+  if (typeof token !== 'string') return 1;
+  const m = token.match(/^ru:\d+:(\d+)$/i);
+  const n = m ? parseInt(m[1], 10) : 1;
+  return Number.isFinite(n) && n > 0 ? n : 1;
+}
+
 
 /**
  * Resolve an amenity container (array, or object with list/amenities/features)
