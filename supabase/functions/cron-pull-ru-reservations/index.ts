@@ -1,15 +1,26 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { resolveRuOwnerScopes, type RuOwnerScope } from '../_shared/ruOwnerScopes.ts';
 
 /**
  * Cron job: Pull reservations from Rentals United every 30 minutes.
  * Safety net alongside RLNM — catches missed push notifications.
  * Queries last 7 days of reservations via Pull_ListReservations_RQ.
+ *
+ * Credentials: Pull_ListReservations_RQ / Pull_GetLeads_RQ are ACCOUNT-scoped —
+ * a white-label sub-user's bookings never appear in the master account's answer.
+ * The run therefore fans out over master + every sub-user with API keys, paced
+ * for RU's 1-call-per-method-per-sliding-minute limit.
  */
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+/** RU rate limit: one call per method per sliding minute (+1s safety). */
+const METHOD_WINDOW_MS = 61_000;
+/** Wall-clock budget for the whole run; remaining accounts roll into the next run. */
+const RUN_BUDGET_MS = 6 * 60_000;
 
 function extractTag(xml: string, tag: string): string | null {
   const regex = new RegExp(`<${tag}>([^<]*)</${tag}>`, 'i');
@@ -37,19 +48,31 @@ Deno.serve(async (req) => {
 
   const summary = { total: 0, created: 0, updated: 0, cancelled: 0, skipped: 0, failed: 0, unmatched: 0, leads_found: 0, leads_logged: 0 };
   const cronStartedAt = Date.now();
+  const deadline = cronStartedAt + RUN_BUDGET_MS;
 
-  // Cadence evidence for the RU certification console (Pull_ListReservations_RQ)
-  const logCadence = async (success: boolean, errorMessage: string | null) => {
+  // Cadence evidence for the RU certification console (Pull_ListReservations_RQ),
+  // logged per account so staleness rotation can order the next run.
+  const logCadence = async (
+    success: boolean,
+    errorMessage: string | null,
+    scope: RuOwnerScope,
+    extra: Record<string, unknown> = {},
+  ) => {
     await supabase.from('ru_sync_runs').insert({
       batch_id: crypto.randomUUID(),
       action: 'pull_reservations',
       success,
       error_message: errorMessage,
       elapsed_ms: Date.now() - cronStartedAt,
-      details: { ...summary, scope: 'reservation_poll' },
+      details: {
+        ...summary,
+        ...extra,
+        scope: 'reservation_poll',
+        ru_owner_id: scope.ownerId,
+        account: scope.label,
+      },
     }).then(() => {}, (e) => console.warn('[cron-pull-ru] log insert failed', e));
   };
-
 
   try {
     // Date range: last 7 days → today
@@ -59,37 +82,76 @@ Deno.serve(async (req) => {
     const dateTo = formatDate(now);
     const dateFrom = formatDate(sevenDaysAgo);
 
-    console.log(`[cron-pull-ru] Polling reservations from ${dateFrom} to ${dateTo}`);
+    const scopes = await resolveRuOwnerScopes(supabase, 'pull_reservations');
+    const covered: string[] = [];
+    const deferred: string[] = [];
 
-    // Call rentalsunited-api with list_reservations action
-    const { data: ruResult, error: ruErr } = await supabase.functions.invoke('rentalsunited-api', {
-      body: { action: 'list_reservations', date_from: dateFrom, date_to: dateTo },
+    for (let i = 0; i < scopes.length; i++) {
+      const scope = scopes[i];
+      if (i > 0) {
+        // Same RU method as the previous account → respect the sliding-minute window.
+        if (Date.now() + METHOD_WINDOW_MS > deadline) {
+          deferred.push(...scopes.slice(i).map((s) => s.label));
+          console.log(`[cron-pull-ru] Budget spent — deferring ${deferred.length} account(s) to the next run`);
+          break;
+        }
+        await new Promise((r) => setTimeout(r, METHOD_WINDOW_MS));
+      }
+
+      console.log(`[cron-pull-ru] Polling ${scope.label}: reservations ${dateFrom} → ${dateTo}`);
+      const { data: ruResult, error: ruErr } = await supabase.functions.invoke('rentalsunited-api', {
+        body: { action: 'list_reservations', date_from: dateFrom, date_to: dateTo, ...scope.payload },
+      });
+
+      if (ruErr || !ruResult?.success) {
+        const msg = ruErr?.message || ruResult?.error?.message || 'Unknown error';
+        console.error(`[cron-pull-ru] ${scope.label} API call failed: ${msg}`);
+        await logCadence(false, msg, scope);
+        continue;
+      }
+
+      if (scope.ownerId && ruResult.auth_mode === 'master') {
+        const msg = `Refused: RU answered on MASTER credentials for ${scope.label}. Add this sub-user's RU AccessKey/SecretKey before its reservations can be polled.`;
+        console.error(`[cron-pull-ru] ${msg}`);
+        await logCadence(false, msg, scope);
+        continue;
+      }
+
+      covered.push(scope.label);
+      const rawXml: string = ruResult.raw_xml || '';
+      if (!rawXml || rawXml.length < 50) {
+        console.log(`[cron-pull-ru] ${scope.label}: no reservations XML returned`);
+        await logCadence(true, null, scope, { reservations: 0 });
+        continue;
+      }
+      await processReservations(rawXml, scope);
+      await logCadence(true, null, scope);
+    }
+
+    // ── Phase 2: Leads (same fan-out, best effort within the remaining budget) ──
+    await pollLeads(scopes, dateFrom, dateTo);
+
+    console.log(`[cron-pull-ru] Done. Summary:`, JSON.stringify(summary));
+    return new Response(JSON.stringify({ success: true, summary, accounts_polled: covered, accounts_deferred: deferred }), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
+  } catch (error) {
+    console.error('[cron-pull-ru] Fatal error:', error);
+    await logCadence(false, String(error), { ownerId: null, label: 'master', payload: {} });
+    return new Response(JSON.stringify({ success: false, error: String(error), summary }), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
 
-    if (ruErr || !ruResult?.success) {
-      const msg = ruErr?.message || ruResult?.error?.message || 'Unknown error';
-      console.error(`[cron-pull-ru] API call failed: ${msg}`);
-      await logCadence(false, msg);
-      return new Response(JSON.stringify({ success: false, error: msg }), {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    const rawXml: string = ruResult.raw_xml || '';
-    if (!rawXml || rawXml.length < 50) {
-      console.log('[cron-pull-ru] No reservations XML returned');
-      await logCadence(true, null);
-      return new Response(JSON.stringify({ success: true, summary }), {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
+  /** Parse + upsert every <Reservation> block returned for one RU account. */
+  async function processReservations(rawXml: string, scope: RuOwnerScope) {
     // Extract all <Reservation> blocks
     const reservationBlocks = extractAllBlocks(rawXml, 'Reservation');
-    summary.total = reservationBlocks.length;
-    console.log(`[cron-pull-ru] Found ${reservationBlocks.length} reservation(s)`);
+    summary.total += reservationBlocks.length;
+    console.log(`[cron-pull-ru] ${scope.label}: found ${reservationBlocks.length} reservation(s)`);
+
 
     for (const block of reservationBlocks) {
       try {
