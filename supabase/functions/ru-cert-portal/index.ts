@@ -2725,13 +2725,15 @@ Deno.serve(async (req) => {
       // informational and excluded from the success counter denominator.
       const graded = passed + failed;
 
+      const { data: finished } = await admin
         .from("ru_cert_runs")
         .update({
           status: failed === 0 ? "passed" : "failed",
           finished_at: new Date().toISOString(),
           passed,
           failed,
-          total: steps.length,
+          total: graded,
+
           steps,
           ru_property_id: ruPropertyId ? String(ruPropertyId) : null,
         })
