@@ -877,9 +877,30 @@ export function RuCertificationConsole({ properties }: { properties: PropertyLit
                         {properties.find((p) => p.id === r.property_id)?.name ?? "Account-level"}
                       </TableCell>
                       <TableCell>
-                        <Badge variant={r.status === "passed" ? "default" : r.status === "running" ? "secondary" : "destructive"}>
-                          {r.passed ?? 0}/{r.total ?? 0} passed
-                        </Badge>
+                        {(() => {
+                          const passed = r.passed ?? 0;
+                          const total = r.total ?? 0;
+                          const rag: "green" | "amber" | "red" =
+                            r.status === "running"
+                              ? "amber"
+                              : total > 0 && passed === total
+                                ? "green"
+                                : passed > 0
+                                  ? "amber"
+                                  : "red";
+                          const cls =
+                            rag === "green"
+                              ? "bg-success-surface text-success border-success-border"
+                              : rag === "amber"
+                                ? "bg-warning-surface text-warning border-warning-border"
+                                : "bg-danger-surface text-destructive border-danger-border";
+                          return (
+                            <Badge variant="outline" className={cls}>
+                              {r.status === "running" ? "Running · " : ""}
+                              {passed}/{total} passed
+                            </Badge>
+                          );
+                        })()}
                       </TableCell>
                       <TableCell><ChevronRight className="h-4 w-4 text-muted-foreground" /></TableCell>
                     </TableRow>
