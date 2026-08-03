@@ -2317,12 +2317,13 @@ Deno.serve(async (req) => {
         name: string,
         ruAction: string,
         payload: Record<string, unknown>,
-        opts: { mandatory?: boolean; skip?: string; assert?: (data: any) => string | null } = {},
+        opts: { mandatory?: boolean; scope?: CertScope; skip?: string; assert?: (data: any) => string | null } = {},
       ) => {
         stepNo += 1;
         const ru_method = RU_METHOD_BY_ACTION[ruAction] ?? ruAction;
+        const scope: CertScope = opts.scope ?? "account";
         if (opts.skip) {
-          steps.push({ step: stepNo, name, ru_method, mandatory: !!opts.mandatory, status: "skipped", duration_ms: 0, detail: opts.skip });
+          steps.push({ step: stepNo, name, ru_method, mandatory: !!opts.mandatory, scope, status: "skipped", duration_ms: 0, detail: opts.skip });
           return null;
         }
         const t0 = Date.now();
@@ -2332,7 +2333,7 @@ Deno.serve(async (req) => {
           });
           const duration = Date.now() - t0;
           if (error) {
-            steps.push({ step: stepNo, name, ru_method, mandatory: !!opts.mandatory, status: "failed", duration_ms: duration, detail: error.message, request: payload });
+            steps.push({ step: stepNo, name, ru_method, mandatory: !!opts.mandatory, scope, status: "failed", duration_ms: duration, detail: error.message, request: payload });
             return null;
           }
           const ok = data?.success === true || data?.healthy === true;
@@ -2342,6 +2343,7 @@ Deno.serve(async (req) => {
             name,
             ru_method,
             mandatory: !!opts.mandatory,
+            scope,
             status: ok && !assertFail ? "passed" : "failed",
             duration_ms: duration,
             ru_status_id: data?.ru_status_id ?? data?.error?.ru_status_id ?? null,
@@ -2356,6 +2358,7 @@ Deno.serve(async (req) => {
             name,
             ru_method,
             mandatory: !!opts.mandatory,
+            scope,
             status: "failed",
             duration_ms: Date.now() - t0,
             detail: e instanceof Error ? e.message : "Unknown error",
