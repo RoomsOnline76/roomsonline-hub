@@ -190,20 +190,20 @@ const RU_METHOD_BY_ACTION: Record<string, string> = {
 };
 
 // Core functional certification milestones exercised on the RU certification call.
-const CERT_MILESTONES: { key: string; label: string; ru_method: string; mandatory: boolean; note: string }[] = [
-  { key: "auth", label: "Connectivity / auth", ru_method: "Pull_ListProp_RQ (health)", mandatory: true, note: "AccessKey + SecretKey working" },
-  { key: "list_properties", label: "List properties", ru_method: "Pull_ListProp_RQ", mandatory: true, note: "Pull_ListOwnerProp_RQ equivalent" },
-  { key: "get_property", label: "Get property content", ru_method: "Pull_GetProperty_RQ", mandatory: true, note: "Read-back verification (Pull_ListSpecProp_RQ)" },
-  { key: "get_availability", label: "Get availability (365d)", ru_method: "Pull_ListPropertyAvailabilityCalendar_RQ", mandatory: true, note: "" },
-  { key: "get_prices", label: "Get prices (365d)", ru_method: "Pull_ListPropertyPrices_RQ", mandatory: true, note: "" },
-  { key: "push_property", label: "Push property content", ru_method: "Push_PutProperty_RQ", mandatory: true, note: "Create + update" },
-  { key: "push_availability", label: "Push availability", ru_method: "Push_PutAvbUnits_RQ", mandatory: true, note: "" },
-  { key: "push_prices", label: "Push prices", ru_method: "Push_PutPrices_RQ", mandatory: true, note: "" },
-  { key: "rlnm", label: "Subscribe RLNM handler", ru_method: "LNM_PutHandlerUrl_RQ", mandatory: true, note: "Live notifications" },
-  { key: "reservations", label: "Pull reservations", ru_method: "Pull_ListReservations_RQ", mandatory: true, note: "" },
-  { key: "leads", label: "Pull leads", ru_method: "Pull_GetLeads_RQ", mandatory: false, note: "Optional" },
-  { key: "long_stay", label: "Long-stay discounts", ru_method: "Push_PutLongStayDiscounts_RQ", mandatory: false, note: "Optional but recommended" },
-  { key: "last_minute", label: "Last-minute discounts", ru_method: "Push_PutLastMinuteDiscounts_RQ", mandatory: false, note: "Optional but recommended" },
+const CERT_MILESTONES: { key: string; label: string; ru_method: string; mandatory: boolean; scope: CertScope; note: string }[] = [
+  { key: "auth", label: "Connectivity / auth", ru_method: "Pull_ListProp_RQ (health)", mandatory: true, scope: "account", note: "AccessKey + SecretKey working" },
+  { key: "list_properties", label: "List properties", ru_method: "Pull_ListProp_RQ", mandatory: true, scope: "account", note: "Pull_ListOwnerProp_RQ equivalent" },
+  { key: "get_property", label: "Get property content", ru_method: "Pull_GetProperty_RQ", mandatory: true, scope: "property", note: "Read-back verification (Pull_ListSpecProp_RQ)" },
+  { key: "get_availability", label: "Get availability (365d)", ru_method: "Pull_ListPropertyAvailabilityCalendar_RQ", mandatory: true, scope: "property", note: "" },
+  { key: "get_prices", label: "Get prices (365d)", ru_method: "Pull_ListPropertyPrices_RQ", mandatory: true, scope: "property", note: "" },
+  { key: "push_property", label: "Push property content", ru_method: "Push_PutProperty_RQ", mandatory: true, scope: "property", note: "Create + update" },
+  { key: "push_availability", label: "Push availability", ru_method: "Push_PutAvbUnits_RQ", mandatory: true, scope: "property", note: "" },
+  { key: "push_prices", label: "Push prices", ru_method: "Push_PutPrices_RQ", mandatory: true, scope: "property", note: "" },
+  { key: "rlnm", label: "Subscribe RLNM handler", ru_method: "LNM_PutHandlerUrl_RQ", mandatory: true, scope: "account", note: "Live notifications" },
+  { key: "reservations", label: "Pull reservations", ru_method: "Pull_ListReservations_RQ", mandatory: true, scope: "account", note: "" },
+  { key: "leads", label: "Pull leads", ru_method: "Pull_GetLeads_RQ", mandatory: false, scope: "account", note: "Optional" },
+  { key: "long_stay", label: "Long-stay discounts", ru_method: "Push_PutLongStayDiscounts_RQ", mandatory: false, scope: "property", note: "Optional but recommended" },
+  { key: "last_minute", label: "Last-minute discounts", ru_method: "Push_PutLastMinuteDiscounts_RQ", mandatory: false, scope: "property", note: "Optional but recommended" },
 ];
 
 
