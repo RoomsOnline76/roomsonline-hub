@@ -1290,7 +1290,11 @@ export function RuCertificationConsole({ properties }: { properties: PropertyLit
                         {s.name}
                         {s.mandatory && <Badge variant="outline" className="text-[10px]">mandatory</Badge>}
                         <ScopeBadge scope={s.scope} />
+                        {s.status === "skipped" && (
+                          <Badge variant="secondary" className="text-[10px]">not tested — excluded</Badge>
+                        )}
                       </div>
+
                       <div className="text-xs font-mono text-muted-foreground">{s.ru_method}</div>
                       {s.detail && <div className="text-xs text-muted-foreground mt-1">{s.detail}</div>}
                     </div>
