@@ -1910,8 +1910,19 @@ Deno.serve(async (req) => {
       const response = await callRentalsUnited(scopedCreds, xml);
       const { ok, status } = handleRUStatus(response);
       if (!ok) return ruErrorResponse(status);
-      return jsonResponse({ success: true, auth_mode: authMode, raw_xml: response });
+      // Surface the currency RU actually holds so callers can verify instead of assume.
+      const ccyMatch = response.match(/<CurrencyID>\s*(\d+)\s*<\/CurrencyID>/i);
+      const currencyId = ccyMatch ? parseInt(ccyMatch[1], 10) : null;
+      const RU_ISO_BY_ID: Record<number, string> = { 48: 'ZAR', 144: 'USD', 47: 'EUR', 49: 'GBP', 91: 'NAD', 24: 'BWP' };
+      return jsonResponse({
+        success: true,
+        auth_mode: authMode,
+        currency_id: currencyId,
+        currency_iso: currencyId != null ? (RU_ISO_BY_ID[currencyId] ?? null) : null,
+        raw_xml: response,
+      });
     }
+
 
     // ── get_availability ──
     if (action === 'get_availability') {
@@ -2748,7 +2759,21 @@ Deno.serve(async (req) => {
       const currencyIso = (body.currency_iso || (metadata as any)?.currency_iso || '').toString().trim().toUpperCase();
       if (!locationId) return errorResponse('MISSING_PARAM', 'location_id is required');
       if (!currencyIso || !/^[A-Z]{3}$/.test(currencyIso)) return errorResponse('VALIDATION', 'currency_iso must be a 3-letter ISO code');
+      // RU applies a location's currency to the AUTHENTICATING account only. Flipping as
+      // the master account leaves every white-label sub-user on its default (USD), which
+      // is invisible unless we refuse the master fallback outright.
+      if (!childAuth && body.allow_master !== true) {
+        return jsonResponse({
+          success: false,
+          auth_mode: authMode,
+          error: {
+            code: 'RU_CHILD_AUTH_REQUIRED',
+            message: `${childResolution.reason ?? CHILD_AUTH_REQUIRED_MESSAGE} Push_ChangeCurrency applies to the authenticating account only, so a master-credential flip would leave the sub-user's inventory in its default currency. Pass the sub-user's API keys, or allow_master: true to change the master account's own location.`,
+          },
+        }, 422);
+      }
       const xml = `<Push_ChangeCurrency_RQ>${buildAuthXml(scopedCreds)}<Location>${parseInt(String(locationId), 10)}</Location><Currency>${currencyIso}</Currency></Push_ChangeCurrency_RQ>`;
+
       const compactRequestXml = compactXml(xml);
       const response = await callRentalsUnited(scopedCreds, xml);
       console.log(`[rentalsunited-api] push_change_currency (auth=${authMode}) response: ${response.substring(0, 500)}`);
