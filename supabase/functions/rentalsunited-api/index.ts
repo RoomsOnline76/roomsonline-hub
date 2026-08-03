@@ -1241,7 +1241,12 @@ const CHILD_SCOPED_ACTIONS = new Set([
   'list_properties',
   'order_mcq',
   'push_change_currency',
+  // Reservation / lead pulls are account-scoped: a white-label sub-user's bookings do NOT
+  // appear in the master account's Pull_ListReservations_RQ response.
+  'list_reservations',
+  'get_leads',
 ]);
+
 
 /**
  * Child-scoped actions where a master-credential fallback is never acceptable once an
