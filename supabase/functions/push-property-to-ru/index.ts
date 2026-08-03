@@ -2761,6 +2761,18 @@ Deno.serve(async (req) => {
             && (ari.prices_verification?.mismatches?.length ?? 0) === 0
             && (ari.prices_verification?.missing_dates?.length ?? 0) === 0;
         });
+
+        // Once every unit lives standalone at RU, drop the stale building link so no future
+        // run (cron, cert suite, manual) can re-enter the building flow and spawn duplicates.
+        if (inventorySuccess && property.rentalsunited_building_id) {
+          await supabase.from('properties').update({ rentalsunited_building_id: null }).eq('id', property_id);
+          await supabase
+            .from('pms_mappings')
+            .update({ metadata: { mapping_kind: 'building', retired: true, retired_at: new Date().toISOString(), retired_reason: 'Units pushed standalone — building container no longer used', building_id: Number(property.rentalsunited_building_id), building_name: property.name.substring(0, 20) } })
+            .eq('external_id', String(property.rentalsunited_building_id));
+          console.log(`[push-property-to-ru] Cleared stale building link ${property.rentalsunited_building_id} for "${property.name}"`);
+        }
+
         await supabase.from('ru_sync_runs').insert({
           batch_id: crypto.randomUUID(),
           property_id,
