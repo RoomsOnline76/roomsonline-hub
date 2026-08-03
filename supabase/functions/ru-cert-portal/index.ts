@@ -198,6 +198,29 @@ const RU_METHOD_BY_ACTION: Record<string, string> = {
   list_users: "Pull_ListMyUsers_RQ",
 };
 
+/**
+ * RU actions that read/write ONE sub-user's inventory. Mirrors CHILD_SCOPED_ACTIONS in
+ * rentalsunited-api: a white-label listing lives on the sub-account, so a master-auth
+ * call returns "Property does not exist". Certification passes the bound OwnerID so the
+ * adapter authenticates with that sub-user's own API keys.
+ */
+const CERT_CHILD_SCOPED_ACTIONS = new Set([
+  "list_properties",
+  "get_property",
+  "get_availability",
+  "get_prices",
+  "get_long_stay_discounts",
+  "get_last_minute_discounts",
+  "push_long_stay_discounts",
+  "push_last_minute_discounts",
+  "push_availability",
+  "push_prices",
+  "push_property",
+  "set_property_status",
+]);
+
+
+
 // Core functional certification milestones exercised on the RU certification call.
 const CERT_MILESTONES: { key: string; label: string; ru_method: string; mandatory: boolean; scope: CertScope; note: string }[] = [
   { key: "auth", label: "Connectivity / auth", ru_method: "Pull_ListProp_RQ (health)", mandatory: true, scope: "account", note: "AccessKey + SecretKey working" },
@@ -2482,7 +2505,15 @@ Deno.serve(async (req) => {
         const fire = async () => {
           lastCallAt = Date.now();
           lastMethodCallAt.set(method, lastCallAt);
-          return await admin.functions.invoke("rentalsunited-api", { body: { action: ruAction, ...payload } });
+          // Child-scoped reads/writes must authenticate AS the white-label sub-user:
+          // a listing created under a sub-user does not exist for the master account
+          // (RU answers "Property does not exist"). Passing owner_id lets
+          // rentalsunited-api swap in that sub-user's AccessKey/SecretKey.
+          const scopedPayload =
+            CERT_CHILD_SCOPED_ACTIONS.has(ruAction) && certOwnerId && payload.owner_id == null
+              ? { ...payload, owner_id: certOwnerId }
+              : payload;
+          return await admin.functions.invoke("rentalsunited-api", { body: { action: ruAction, ...scopedPayload } });
         };
         let res = await fire();
         const detail = String(res.error?.message ?? res.data?.error?.message ?? "");
@@ -2680,7 +2711,20 @@ Deno.serve(async (req) => {
         // the first RUID the account returns — that grades an unrelated property.
         const propScoped = ruPropertyId ? undefined : PROPERTY_SKIP;
 
-        await call("Get property content", "get_property", { ru_property_id: ruPropertyId }, { mandatory: true, scope: "property", skip: propScoped });
+        await call(
+          "Get property content",
+          "get_property",
+          { ru_property_id: ruPropertyId },
+          {
+            mandatory: true,
+            scope: "property",
+            skip:
+              propScoped ??
+              (certOwnerId && !certOwnerHasKeys
+                ? `No API keys stored for OwnerID ${certOwnerId} — a white-label listing is only readable with the sub-user's own AccessKey/SecretKey. Save them in Portfolios → RU accounts.`
+                : undefined),
+          },
+        );
         await probeAri("Get availability (365 days)", "get_availability");
         await probeAri("Get prices (365 days)", "get_prices");
         await call("List reservations (last 7 days)", "list_reservations", { date_from: isoDate(-7), date_to: isoDate(0) }, { mandatory: true, scope: "account" });
