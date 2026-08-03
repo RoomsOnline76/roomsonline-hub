@@ -2796,7 +2796,7 @@ Deno.serve(async (req) => {
         );
       }
 
-      // ── DEFAULT MULTI-UNIT BUILDING FLOW ─────────────────────
+      // ── OPT-IN MULTI-UNIT BUILDING FLOW (use_building: true) ──
       // Step 1: Create/update RU Building
       let buildingId = property.rentalsunited_building_id ? parseInt(property.rentalsunited_building_id, 10) : 0;
       // Truncate building name to 20 chars (RU API limit)
@@ -2827,15 +2827,18 @@ Deno.serve(async (req) => {
       }
 
       const requestedBuildingId = buildingId;
+      // `create` is only ever true when the caller explicitly opted into buildings AND no
+      // container exists yet — the adapter refuses any other creation attempt.
       const { data: buildingResult, error: buildingErr } = await supabase.functions.invoke('rentalsunited-api', {
-        body: { action: 'push_building', building_name: buildingName, building_id: buildingId, unit_types: unitTypes, ...childAuthPayload },
+        body: { action: 'push_building', building_name: buildingName, building_id: buildingId, create: buildingId === 0, unit_types: unitTypes, ...childAuthPayload },
       });
 
       if (buildingErr || !buildingResult?.success) {
         const errMsg = buildingErr?.message || buildingResult?.error?.message || 'Unknown error';
-        console.error('[push-property-to-ru] Building push failed:', errMsg);
+        const errCode = buildingResult?.error?.code || 'BUILDING_FAILED';
+        console.error('[push-property-to-ru] Building push failed:', errCode, errMsg);
         return new Response(
-          JSON.stringify({ success: false, error: { code: 'BUILDING_FAILED', message: errMsg }, diagnostics: buildingResult?.diagnostics }),
+          JSON.stringify({ success: false, error: { code: errCode, message: errMsg }, diagnostics: buildingResult?.diagnostics }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
         );
       }
@@ -2843,10 +2846,32 @@ Deno.serve(async (req) => {
       if (buildingResult.building_id) {
         const returnedBuildingId = parseInt(String(buildingResult.building_id), 10);
         if (requestedBuildingId > 0 && returnedBuildingId > 0 && returnedBuildingId !== requestedBuildingId) {
-          // RU created a new building instead of updating ours — keep the existing one
-          // so repeated pushes never fan out into duplicate buildings.
-          console.warn(
-            `[push-property-to-ru] RU returned building ${returnedBuildingId} for update of ${requestedBuildingId} — keeping ${requestedBuildingId}`,
+          // RU created a DUPLICATE building instead of updating ours. Surface it loudly instead
+          // of silently discarding the returned ID — silent discards are what let 20+ duplicate
+          // containers accumulate unnoticed in the white-label portal.
+          console.error(
+            `[push-property-to-ru] RU created duplicate building ${returnedBuildingId} while updating ${requestedBuildingId}`,
+          );
+          await supabase.from('ru_sync_runs').insert({
+            batch_id: crypto.randomUUID(),
+            property_id,
+            action: 'building_push',
+            success: false,
+            error_code: 'RU_BUILDING_DUPLICATE',
+            error_message: `Rentals United created building ${returnedBuildingId} instead of updating ${requestedBuildingId}`,
+            details: { ru_owner_id: ruOwnerId, requested_building_id: requestedBuildingId, returned_building_id: returnedBuildingId, building_name: buildingName },
+          });
+          return new Response(
+            JSON.stringify({
+              success: false,
+              error: {
+                code: 'RU_BUILDING_DUPLICATE',
+                message: `Rentals United created a new building (${returnedBuildingId}) instead of updating ${requestedBuildingId}. Push aborted — remove the duplicate in the RU portal, or push units standalone (the default).`,
+              },
+              requested_building_id: requestedBuildingId,
+              returned_building_id: returnedBuildingId,
+            }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
           );
         } else if (returnedBuildingId > 0) {
           buildingId = returnedBuildingId;
