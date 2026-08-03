@@ -223,7 +223,63 @@ export default function AdminContracts() {
     loadContracts();
     loadContractTemplates();
     loadPortfolios();
+    loadReps();
   }, []);
+
+  const loadReps = async () => {
+    try {
+      const [{ data: repRows }, globals, { data: repContracts }] = await Promise.all([
+        supabase
+          .from("sales_reps")
+          .select("id, display_name, email, rep_code, commission_tier, is_active")
+          .order("display_name"),
+        fetchRepGlobals(),
+        supabase.from("rep_contracts").select("rep_id, status"),
+      ]);
+      setReps((repRows as RepRow[]) || []);
+      setRepGlobals(globals);
+      const map: Record<string, string> = {};
+      (repContracts || []).forEach((rc) => {
+        if (!rc.rep_id) return;
+        // Signed always wins over pending when a rep has multiple rows.
+        if (map[rc.rep_id] === "signed") return;
+        map[rc.rep_id] = rc.status;
+      });
+      setExistingRepContracts(map);
+    } catch (error) {
+      console.error("Failed to load sales reps:", error);
+    }
+  };
+
+  const filteredReps = useMemo(() => {
+    const q = repSearch.trim().toLowerCase();
+    const active = reps.filter((r) => r.is_active !== false);
+    if (!q) return active.slice(0, 30);
+    return active
+      .filter(
+        (r) =>
+          r.display_name?.toLowerCase().includes(q) ||
+          r.email?.toLowerCase().includes(q) ||
+          r.rep_code?.toLowerCase().includes(q),
+      )
+      .slice(0, 30);
+  }, [reps, repSearch]);
+
+  const selectedRep = useMemo(() => reps.find((r) => r.id === selectedRepId) || null, [reps, selectedRepId]);
+
+  /** Engagement terms resolved purely from the current default referral terms. */
+  const referralTerms: ResolvedRepTerms = useMemo(
+    () =>
+      resolveRepTerms(
+        selectedRep ? selectedRep : { commission_tier: newRepTier },
+        repGlobals,
+      ),
+    [selectedRep, newRepTier, repGlobals],
+  );
+
+  const repAlreadyEngaged = selectedRepId ? existingRepContracts[selectedRepId] : undefined;
+
+
 
   const loadPortfolios = async () => {
     try {
