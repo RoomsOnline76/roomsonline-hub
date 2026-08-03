@@ -1180,19 +1180,34 @@ Deno.serve(async (req) => {
         .maybeSingle();
       if (!account) return json({ success: false, error: { code: "NOT_FOUND", message: "RU owner account not found" } }, 404);
 
-      const { data: listed } = await admin.functions.invoke("rentalsunited-api", { body: { action: "list_users" } });
-      const match = (listed?.users ?? []).find(
-        (u: { owner_id?: string }) => String(u.owner_id ?? "").trim() === ruOwnerId,
-      );
-      if (!match) {
-        return json({
-          success: false,
-          error: {
-            code: "RU_OWNER_NOT_FOUND",
-            message: `Rentals United does not list OwnerID ${ruOwnerId} under our master account.`,
-          },
-        }, 422);
+      // Verify the OwnerID against RU's master list when we can reach it. A transient
+      // RU/list failure must NOT block the bind — it is a local pointer update.
+      let verifiedAgainstRu = false;
+      let match: { email?: string; user_account_id?: string } | undefined;
+      try {
+        const { data: listed, error: listErr } = await admin.functions.invoke("rentalsunited-api", {
+          body: { action: "list_users" },
+        });
+        if (listErr || !listed?.success) {
+          console.warn("[ru-cert-portal] bind: RU user list unavailable, binding without RU verification", listErr?.message ?? listed?.error?.message);
+        } else {
+          const users = (listed.users ?? []) as { owner_id?: string; email?: string; user_account_id?: string }[];
+          verifiedAgainstRu = true;
+          match = users.find((u) => String(u.owner_id ?? "").trim() === ruOwnerId);
+          if (!match) {
+            return json({
+              success: false,
+              error: {
+                code: "RU_OWNER_NOT_FOUND",
+                message: `Rentals United does not list OwnerID ${ruOwnerId} under our master account.`,
+              },
+            }, 422);
+          }
+        }
+      } catch (e) {
+        console.warn("[ru-cert-portal] bind: RU list threw, continuing", e instanceof Error ? e.message : e);
       }
+
 
       const update: Record<string, unknown> = {
         ru_owner_id: ruOwnerId,
