@@ -127,72 +127,83 @@ export const PoliciesTab: React.FC<PoliciesTabProps> = ({ propertyId, onOpenSpec
       : "";
 
   const inheriting = specials.filter((s) => !s.cancellation_policy_id);
+  const masterPolicy = policies.find((p) => p.is_master);
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <h3 className="text-sm font-semibold">Reservation policies</h3>
-          <p className="text-xs text-muted-foreground">
-            Set the property&rsquo;s master fallback first, then build the library that specials and rate plans draw
-            from.
-          </p>
-        </div>
-        <Button type="button" size="sm" onClick={openCreate} className="h-8 text-xs shrink-0">
-          <Plus className="h-3.5 w-3.5 mr-1" /> Create new policy
-        </Button>
-      </div>
+    <div className="space-y-5">
+      <FormSection
+        title="Master policy"
+        description="The property-wide fallback used whenever a special or rate plan carries no terms of its own."
+      >
+        <MasterPolicyPanel
+          policies={policies}
+          mode={mode}
+          saving={saving}
+          onSetMaster={handleSetMaster}
+          onSetMode={setMasterMode}
+          onEdit={(p) => {
+            setEditing(p);
+            setEditorOpen(true);
+          }}
+          onCreate={openCreate}
+        />
+      </FormSection>
 
-      <MasterPolicyPanel
-        policies={policies}
-        mode={mode}
-        saving={saving}
-        onSetMaster={handleSetMaster}
-        onSetMode={setMasterMode}
-        onEdit={(p) => {
-          setEditing(p);
-          setEditorOpen(true);
-        }}
-        onCreate={openCreate}
-      />
-
-      <PolicyLibraryTable
-        policies={policies}
-        links={links}
-        metrics={metrics}
-        specials={specials}
-        reportRange={reportRange}
-        onEdit={(p) => {
-          setEditing(p);
-          setEditorOpen(true);
-        }}
-        onSetMaster={handleSetMaster}
-        onSetDefault={setDefault}
-        onDelete={deletePolicy}
-        onApplyToProperties={setApplyingFrom}
-        onPushToLinked={propagateToLinked}
-        onOpenSpecials={onOpenSpecials}
-      />
+      <FormSection
+        title="Policy library"
+        description={
+          reportRange
+            ? `Cancellation and prepayment policies specials and rate plans draw from. Performance for ${reportRange}.`
+            : "Cancellation and prepayment policies that specials and rate plans draw from."
+        }
+        actions={
+          <Button type="button" size="sm" variant="outline" onClick={openCreate} className="h-7 text-xs">
+            <Plus className="h-3.5 w-3.5 mr-1" /> New policy
+          </Button>
+        }
+      >
+        <PolicyLibraryTable
+          policies={policies}
+          links={links}
+          metrics={metrics}
+          specials={specials}
+          reportRange={reportRange}
+          onEdit={(p) => {
+            setEditing(p);
+            setEditorOpen(true);
+          }}
+          onSetMaster={handleSetMaster}
+          onSetDefault={setDefault}
+          onDelete={deletePolicy}
+          onApplyToProperties={setApplyingFrom}
+          onPushToLinked={propagateToLinked}
+          onOpenSpecials={onOpenSpecials}
+        />
+      </FormSection>
 
       {specials.length > 0 && (
-        <div className="rounded-md border p-3 space-y-1">
-          <div className="flex items-center gap-2">
-            <Tag className="h-3.5 w-3.5 text-muted-foreground" />
-            <h4 className="text-sm font-semibold">Specials and their terms</h4>
-            {onOpenSpecials && (
-              <Button variant="link" size="sm" className="h-6 text-xs px-1" onClick={onOpenSpecials}>
-                Open Specials tab
+        <FormSection
+          title="Specials and their terms"
+          description={`${inheriting.length} of ${specials.length} special${
+            specials.length === 1 ? "" : "s"
+          } carry no policy of their own and use ${
+            masterPolicy?.name ?? (mode === "none" ? "no cancellation terms" : "an unset master policy")
+          }.`}
+          actions={
+            onOpenSpecials && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={onOpenSpecials}
+              >
+                <Tag className="h-3.5 w-3.5 mr-1" /> Open Specials
               </Button>
-            )}
-          </div>
-          <p className="text-xs text-muted-foreground">
-            {inheriting.length} of {specials.length} special{specials.length === 1 ? "" : "s"} carry no policy of their
-            own and therefore use{" "}
-            {policies.find((p) => p.is_master)?.name ??
-              (mode === "none" ? "no cancellation terms" : "an unset master policy")}
-            .
-          </p>
-          <div className="flex flex-wrap gap-1 pt-1">
+            )
+          }
+        >
+          <div className="flex flex-wrap gap-1">
             {specials.map((s) => {
               const own = policies.find((p) => p.id === s.cancellation_policy_id);
               return (
@@ -200,30 +211,28 @@ export const PoliciesTab: React.FC<PoliciesTabProps> = ({ propertyId, onOpenSpec
                   key={s.id}
                   type="button"
                   onClick={onOpenSpecials}
-                  className="rounded border px-1.5 py-0.5 text-[10px] hover:bg-muted text-left"
+                  className="rounded border border-border/60 bg-muted/20 px-1.5 py-0.5 text-[10px] text-left hover:bg-muted"
                 >
                   {s.name} —{" "}
-                  {own
-                    ? own.name
-                    : policies.find((p) => p.is_master)
-                      ? `inherits master: ${policies.find((p) => p.is_master)!.name}`
-                      : "no cancellation policy"}
+                  {own ? own.name : masterPolicy ? `inherits master: ${masterPolicy.name}` : "no cancellation policy"}
                 </button>
               );
             })}
           </div>
-        </div>
+        </FormSection>
       )}
 
       {siblings.length > 0 && (
-        <PortfolioPolicyLibrary
-          portfolioPolicies={portfolioPolicies}
-          ownPolicies={policies}
-          loading={loadingPortfolio}
-          activatingId={activating}
-          siblingName={siblingName}
-          onActivate={activateFromPortfolio}
-        />
+        <FormSection title="Portfolio library">
+          <PortfolioPolicyLibrary
+            portfolioPolicies={portfolioPolicies}
+            ownPolicies={policies}
+            loading={loadingPortfolio}
+            activatingId={activating}
+            siblingName={siblingName}
+            onActivate={activateFromPortfolio}
+          />
+        </FormSection>
       )}
 
       <ReservationPolicyDialog
@@ -246,3 +255,4 @@ export const PoliciesTab: React.FC<PoliciesTabProps> = ({ propertyId, onOpenSpec
     </div>
   );
 };
+
