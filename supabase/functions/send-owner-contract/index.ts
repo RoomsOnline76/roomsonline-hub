@@ -217,6 +217,28 @@ Deno.serve(async (req) => {
     console.log("Listing intent:", resolvedIntent);
     console.log("Commercial model:", resolvedCommercialModel);
 
+    // Resolve the portfolio name so the contracts register can label the scope.
+    let portfolioName: string | null = null;
+    if (!isReferral && portfolio_id) {
+      const { data: pf } = await supabase
+        .from("property_portfolios")
+        .select("name")
+        .eq("id", portfolio_id)
+        .maybeSingle();
+      portfolioName = pf?.name || null;
+    }
+
+    // Resolve the rep name for referral engagements.
+    let repName: string | null = null;
+    if (isReferral && rep_id) {
+      const { data: rep } = await supabase
+        .from("sales_reps")
+        .select("display_name, rep_code")
+        .eq("id", rep_id)
+        .maybeSingle();
+      repName = rep ? `${rep.display_name}${rep.rep_code ? ` (${rep.rep_code})` : ""}` : null;
+    }
+
     // Build contract metadata with intent information
     const contractMetadata: Record<string, unknown> = isReferral
       ? {
@@ -225,6 +247,7 @@ Deno.serve(async (req) => {
           scope: "rep_engagement",
           property_id: null,
           rep_id: rep_id || null,
+          rep_name: repName,
           terms_snapshot: terms_snapshot || null,
           engagement: "independent_contractor_commission_only",
         }
@@ -234,6 +257,10 @@ Deno.serve(async (req) => {
           expected_steps: INTENT_STEPS[resolvedIntent] || INTENT_STEPS.accommodation,
           min_requirements: INTENT_REQUIREMENTS[resolvedIntent] || INTENT_REQUIREMENTS.accommodation,
           property_id: property_id || null,
+          property_ids: Array.isArray(property_ids) && property_ids.length > 0 ? property_ids : null,
+          portfolio_id: portfolio_id || null,
+          portfolio_name: portfolioName,
+          scope: scope || "single",
           contract_type: contract_type || 'standard',
           template_id: activeTemplate?.template_id || null,
         };
