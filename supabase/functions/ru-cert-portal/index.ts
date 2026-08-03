@@ -280,8 +280,11 @@ Deno.serve(async (req) => {
       const latestByMethod = new Map<string, { step: StepRow; run_id: string; at: string }>();
       for (const run of (runs ?? []) as { id: string; started_at: string; steps: StepRow[] }[]) {
         for (const step of run.steps ?? []) {
-          const key = step.ru_method;
-          if (!latestByMethod.has(key)) latestByMethod.set(key, { step, run_id: run.id, at: run.started_at });
+          // A step may cover several RU methods (e.g. "Push_PutAvbUnits_RQ + Push_PutPrices_RQ")
+          // — register it under each method so the milestone matrix picks it up.
+          for (const key of String(step.ru_method ?? "").split("+").map((k) => k.trim()).filter(Boolean)) {
+            if (!latestByMethod.has(key)) latestByMethod.set(key, { step, run_id: run.id, at: run.started_at });
+          }
         }
       }
 
