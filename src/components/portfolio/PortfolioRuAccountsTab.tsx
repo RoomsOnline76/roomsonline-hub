@@ -788,6 +788,17 @@ export function PortfolioRuAccountsTab() {
                       </Button>
                       <Button
                         size="sm"
+                        variant={acc.ru_api_access_key ? "outline" : "default"}
+                        className="h-7 text-xs"
+                        onClick={() => openKeys(acc)}
+                      >
+                        <KeyRound className="h-3 w-3" />
+                        <span className="ml-1.5">
+                          {acc.ru_api_access_key ? "API keys" : "Add API keys"}
+                        </span>
+                      </Button>
+                      <Button
+                        size="sm"
                         variant="outline"
                         className="h-7 text-xs"
                         onClick={() => openBind(acc.id, acc.ru_owner_id)}
@@ -859,6 +870,70 @@ export function PortfolioRuAccountsTab() {
                         {acc.ru_login_url} <ExternalLink className="h-3 w-3" />
                       </a>
                     )}
+                    <div className="rounded-md border border-border bg-muted/20 p-3 space-y-2">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <p className="text-xs font-medium flex items-center gap-1.5">
+                          <KeyRound className="h-3.5 w-3.5 text-muted-foreground" />
+                          RU sub-user API keys
+                        </p>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs"
+                            onClick={() => openKeys(acc)}
+                          >
+                            <KeyRound className="h-3 w-3" />
+                            <span className="ml-1.5">{acc.ru_api_access_key ? "Replace keys" : "Add keys"}</span>
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs"
+                            disabled={!acc.ru_api_access_key || verifyingKeys === acc.id}
+                            onClick={() => verifyApiKeys(acc.id)}
+                          >
+                            {verifyingKeys === acc.id
+                              ? <Loader2 className="h-3 w-3 animate-spin" />
+                              : <ShieldCheck className="h-3 w-3" />}
+                            <span className="ml-1.5">Verify keys</span>
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs"
+                            disabled={creatingKey === acc.id}
+                            onClick={() => createApiKey(acc.id)}
+                            title="Mint an additional key pair through the RU API"
+                          >
+                            {creatingKey === acc.id
+                              ? <Loader2 className="h-3 w-3 animate-spin" />
+                              : <RotateCcw className="h-3 w-3" />}
+                            <span className="ml-1.5">New key via API</span>
+                          </Button>
+                        </div>
+                      </div>
+                      {acc.ru_api_access_key ? (
+                        <div className="space-y-1 text-xs">
+                          <p className="font-mono break-all">{acc.ru_api_access_key}</p>
+                          <p className="text-[10px] text-muted-foreground">
+                            {acc.ru_api_key_label ? `Label "${acc.ru_api_key_label}". ` : ""}
+                            {acc.ru_api_keys_verified_at
+                              ? `Verified ${new Date(acc.ru_api_keys_verified_at).toLocaleString()}.`
+                              : "Not verified yet."}{" "}
+                            The secret is encrypted at rest and never displayed.
+                          </p>
+                        </div>
+                      ) : (
+                        <p className="text-[10px] text-muted-foreground">
+                          Rentals United requires each sub-user to authenticate with its own
+                          AccessKey + SecretKey. Generate the first pair in the RU dashboard under
+                          Security settings, then save it here — company details, building pushes and
+                          archiving all use it.
+                        </p>
+                      )}
+                    </div>
+
                     <div className="rounded-md border border-border bg-muted/20 p-3 space-y-2">
                       <div className="flex items-center justify-between gap-2 flex-wrap">
                         <p className="text-xs font-medium flex items-center gap-1.5">
@@ -1203,6 +1278,66 @@ export function PortfolioRuAccountsTab() {
         </DialogContent>
       </Dialog>
 
+      <Dialog open={!!keysFor} onOpenChange={(o) => !o && setKeysFor(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>RU sub-user API keys</DialogTitle>
+            <DialogDescription>
+              Rentals United requires every sub-account to authenticate API calls with its own
+              AccessKey + SecretKey. Sign in to the RU dashboard as{" "}
+              <span className="font-mono">{keysFor?.email}</span>
+              {keysFor?.ownerId ? ` (OwnerID ${keysFor.ownerId})` : ""}, open Security settings,
+              create a key with the XmlApi scope and paste both values here. The pair is validated
+              against RU before it is stored, and the secret is encrypted at rest.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs">AccessKey</Label>
+              <Input
+                autoComplete="off"
+                className="font-mono text-sm"
+                value={keyAccess}
+                onChange={(e) => setKeyAccess(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">SecretKey</Label>
+              <Input
+                type="password"
+                autoComplete="off"
+                className="font-mono text-sm"
+                value={keySecret}
+                onChange={(e) => setKeySecret(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Label</Label>
+              <Input value={keyLabel} onChange={(e) => setKeyLabel(e.target.value)} className="text-sm" />
+            </div>
+            <a
+              href="https://new.rentalsunited.com/My/SecuritySettings"
+              target="_blank"
+              rel="noreferrer"
+              className="text-[11px] text-primary inline-flex items-center gap-1"
+            >
+              Open RU security settings <ExternalLink className="h-3 w-3" />
+            </a>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" size="sm" onClick={() => setKeysFor(null)}>Cancel</Button>
+            <Button
+              size="sm"
+              disabled={!keyAccess.trim() || !keySecret.trim() || savingKeys}
+              onClick={saveApiKeys}
+            >
+              {savingKeys && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
+              Verify &amp; store
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog
         open={!!archivePrompt}
         onOpenChange={(o) => {
@@ -1214,25 +1349,37 @@ export function PortfolioRuAccountsTab() {
       >
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>Sub-user password required</DialogTitle>
+            <DialogTitle>Sub-user API keys required</DialogTitle>
             <DialogDescription>
               Rentals United closes an account only when the request is authenticated as that
-              sub-user. Enter the RU portal password for{" "}
+              sub-user, using that sub-user's own API keys. Generate a pair in the RU dashboard
+              (Security settings) while signed in as{" "}
               <span className="font-mono">{archivePrompt?.email}</span> (OwnerID{" "}
-              {archivePrompt?.ownerId}). It is used for this request only.
+              {archivePrompt?.ownerId}) and paste it here. Used for this request only.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-1.5">
-            <Label htmlFor="ru-archive-password" className="text-xs">
-              RU portal password
-            </Label>
-            <Input
-              id="ru-archive-password"
-              type="password"
-              autoComplete="off"
-              value={archivePassword}
-              onChange={(e) => setArchivePassword(e.target.value)}
-            />
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="ru-archive-access" className="text-xs">AccessKey</Label>
+              <Input
+                id="ru-archive-access"
+                autoComplete="off"
+                className="font-mono text-sm"
+                value={archiveAccessKey}
+                onChange={(e) => setArchiveAccessKey(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="ru-archive-secret" className="text-xs">SecretKey</Label>
+              <Input
+                id="ru-archive-secret"
+                type="password"
+                autoComplete="off"
+                className="font-mono text-sm"
+                value={archiveSecretKey}
+                onChange={(e) => setArchiveSecretKey(e.target.value)}
+              />
+            </div>
           </div>
           <DialogFooter>
             <Button
@@ -1240,7 +1387,8 @@ export function PortfolioRuAccountsTab() {
               size="sm"
               onClick={() => {
                 setArchivePrompt(null);
-                setArchivePassword("");
+                setArchiveAccessKey("");
+                setArchiveSecretKey("");
               }}
             >
               Cancel
@@ -1248,10 +1396,13 @@ export function PortfolioRuAccountsTab() {
             <Button
               size="sm"
               variant="destructive"
-              disabled={!archivePassword.trim() || !!archiving}
+              disabled={!archiveAccessKey.trim() || !archiveSecretKey.trim() || !!archiving}
               onClick={() =>
                 archivePrompt &&
-                archiveCandidate(archivePrompt.ownerId, archivePrompt.email, archivePassword)
+                archiveCandidate(archivePrompt.ownerId, archivePrompt.email, {
+                  access_key: archiveAccessKey.trim(),
+                  secret_key: archiveSecretKey.trim(),
+                })
               }
             >
               {archiving ? (
