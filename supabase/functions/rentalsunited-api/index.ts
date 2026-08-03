@@ -2442,10 +2442,38 @@ Deno.serve(async (req) => {
       // THIS account already has active props. We need the master list to detect currency drift
       // on locations we haven't pushed yet.)
       const xml = `<Pull_ListCitiesAndCurrencies_RQ>${buildAuthXml(creds)}</Pull_ListCitiesAndCurrencies_RQ>`;
-      const response = await callRentalsUnited(creds, xml);
+      let response = await callRentalsUnited(creds, xml);
       console.log(`[rentalsunited-api] list_cities_and_currencies response (first 800): ${response.substring(0, 800)}`);
-      const { ok, status } = handleRUStatus(response);
+      let { ok, status } = handleRUStatus(response);
+
+      // Many integrations do not have the master city/currency dictionary enabled
+      // ("The XML contains not implemented method"). Fall back to the cities where this
+      // account already holds props — that response carries CurrencyCode per city too.
+      let usedFallback = false;
+      if (!ok && /not implemented/i.test(status.message || '')) {
+        const fbXml = `<Pull_ListCitiesProps_RQ>${buildAuthXml(creds)}</Pull_ListCitiesProps_RQ>`;
+        const fbResponse = await callRentalsUnited(creds, fbXml);
+        console.log(`[rentalsunited-api] list_cities_and_currencies fallback (first 800): ${fbResponse.substring(0, 800)}`);
+        const fb = handleRUStatus(fbResponse);
+        if (fb.ok) {
+          response = fbResponse;
+          ok = true;
+          status = fb.status;
+          usedFallback = true;
+        } else {
+          // Neither dictionary is available — report as an excluded capability rather than
+          // a hard failure so callers can fall back to the per-location currency probe.
+          return jsonResponse({
+            success: true,
+            locations: [],
+            count: 0,
+            endpoint_disabled: true,
+            note: 'Rentals United has not enabled Pull_ListCitiesAndCurrencies_RQ or Pull_ListCitiesProps_RQ for this integration — location currency is probed per property via Push_ChangeCurrency_RQ instead.',
+          });
+        }
+      }
       if (!ok) return ruErrorResponse(status, buildDiagnostics(compactXml(xml), status, 'list_cities_and_currencies', response));
+
 
       const locs: Array<{ id: number; name: string; parent_id: number | null; currency_iso: string | null; type: number | null }> = [];
 
