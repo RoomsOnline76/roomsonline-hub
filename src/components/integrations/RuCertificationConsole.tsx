@@ -364,6 +364,9 @@ export function RuCertificationConsole({ properties }: { properties: PropertyLit
   const { cooldownSeconds, cooling, markRun } = useRuRunCooldown();
   const [propertyId, setPropertyId] = useState<string>("none");
   const [running, setRunning] = useState(false);
+  /** Which phase of a staged full run is in flight, for the button label. */
+  const [phaseProgress, setPhaseProgress] = useState<{ label: string; index: number; total: number } | null>(null);
+
   const [runs, setRuns] = useState<CertRun[]>([]);
   const [selectedRun, setSelectedRun] = useState<CertRun | null>(null);
   const [selectedStep, setSelectedStep] = useState<CertStep | null>(null);
