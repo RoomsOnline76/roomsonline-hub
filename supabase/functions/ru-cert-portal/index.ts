@@ -2515,25 +2515,19 @@ Deno.serve(async (req) => {
 
         await call("List composition rooms", "list_composition_rooms", {}, { mandatory: false, scope: "account" });
         await call("List cities & currencies", "list_cities_and_currencies", {}, { mandatory: false, scope: "account" });
-        await call("Resolve location by coordinates", "get_location_by_coordinates", { latitude: -34.0333, longitude: 21.35 }, { mandatory: false, scope: "account" });
+        await call(
+          "Resolve location by coordinates",
+          "get_location_by_coordinates",
+          { metadata: { latitude: -34.0333, longitude: 21.35 } },
+          { mandatory: false, scope: "account" },
+        );
       }
 
       if (runMandatory) {
         const handlerUrl = `${supabaseUrl}/functions/v1/ru-reservation-handler`;
         await call("Subscribe RLNM handler", "subscribe_notifications", { handler_url: handlerUrl }, { mandatory: true, scope: "account" });
 
-        if (!propertyId) {
-          for (const [name, method] of [
-            ["Push property content", "Push_PutProperty_RQ"],
-            ["Push availability + prices (ARI)", "Push_PutAvbUnits_RQ + Push_PutPrices_RQ"],
-          ] as [string, string][]) {
-            stepNo += 1;
-            steps.push({
-              step: stepNo, name, ru_method: method, mandatory: true, scope: "property",
-              status: "skipped", duration_ms: 0, detail: PROPERTY_SKIP,
-            });
-          }
-        } else {
+        if (propertyId) {
           // Content + ARI push via the property pipeline (keeps payload mapping in one place)
           for (const [name, fnBody, method] of [
             ["Push property content", { property_id: propertyId }, "Push_PutProperty_RQ"],
