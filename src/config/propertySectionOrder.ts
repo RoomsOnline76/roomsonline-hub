@@ -201,7 +201,7 @@ export const SECTION_ICON_MAP: Record<string, LucideIcon> = {
   "info-facilities": Building2,
   rooms: BedDouble,
   images: ImageIcon,
-  "house-rules": FileText,
+  rates: DollarSign,
   rates: DollarSign,
   packages: Package,
   specials: Sparkles,
