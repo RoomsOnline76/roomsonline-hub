@@ -567,13 +567,16 @@ export function CompanyInformationCard({
                       {f.required && <Req />}
                     </Label>
                     <Input
+                      type={f.type ?? "text"}
                       value={str(rep[f.key])}
                       placeholder={f.placeholder}
                       onChange={(e) => setRepField(f.key, e.target.value)}
                       className="h-7 text-xs"
                     />
+                    {f.hint && <Hint>{f.hint}</Hint>}
                   </div>
                 ))}
+
               </div>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 <div className="flex flex-col gap-1">
