@@ -8,9 +8,10 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Trash2, Tag, Package, Percent, DollarSign, Gift } from "lucide-react";
+import { Plus, Trash2, Tag, Package, Percent, DollarSign, Gift, Wand2 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { SpecialWizard } from "@/components/property/specials/SpecialWizard";
 
 interface RoomTypeOption {
   id: string;
