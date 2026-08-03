@@ -1326,17 +1326,41 @@ Deno.serve(async (req) => {
           if (enc) await admin.from("ru_owner_accounts").update({ ru_login_password_enc: enc }).eq("id", account.id);
         }
 
-        // A child password is mandatory: RU's Push_FillCompanyDetails_RQ has no <OwnerID>
+        // Child credentials are mandatory: RU's Push_FillCompanyDetails_RQ has no <OwnerID>
         // element, so the details are written to whichever identity authenticates. Using the
         // parent envelope would overwrite the MASTER company profile instead of the child's.
-        if (!password) {
+        // Since RU's Nov-2025 rollout, sub-accounts must use their own API key pair; the
+        // legacy portal password only works on older accounts.
+        let childAccessKey: string | null = null;
+        let childSecretKey: string | null = null;
+        {
+          const { data: keyRow } = await admin
+            .from("ru_owner_accounts")
+            .select("ru_api_access_key, ru_api_secret_enc")
+            .eq("id", account.id)
+            .maybeSingle();
+          if (keyRow?.ru_api_access_key && keyRow?.ru_api_secret_enc) {
+            const { data: secret } = await admin.rpc("decrypt_sensitive_text", {
+              encrypted_data: keyRow.ru_api_secret_enc,
+            });
+            if (secret && secret !== "[ENCRYPTED]" && secret !== "[DECRYPTION_ERROR]") {
+              childAccessKey = String(keyRow.ru_api_access_key);
+              childSecretKey = String(secret);
+            }
+          }
+        }
+        const hasChildKeys = Boolean(childAccessKey && childSecretKey);
+
+        if (!password && !hasChildKeys) {
           return {
             sent: false,
             needs_password: true,
+            needs_api_keys: true,
             error:
-              "The RU sub-user password is required to write company details to the sub-user profile. Save it in Portfolios → RU accounts, then retry.",
+              "Rentals United requires the sub-user's own API keys (AccessKey + SecretKey) to write company details. Generate them in the RU dashboard under Security settings and save them in Portfolios → RU accounts, then retry.",
           };
         }
+
 
 
 
