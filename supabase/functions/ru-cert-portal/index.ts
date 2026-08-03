@@ -441,6 +441,37 @@ Deno.serve(async (req) => {
         { name: p.name, validation: data?.validation ?? {} },
       ];
 
+      // ── Local rate coverage (calendar first, rack rate fallback) ──
+      // Reports what ROLOS would push, independently of what RU currently holds.
+      let localCoverage: { summary: string; calendar_days: number; rack_days: number; unpriced_days: number } | null = null;
+      try {
+        const from = isoDate(0);
+        const to = isoDate(365);
+        const resolver = await createRateResolver(admin, p.id, { window: { from, to } });
+        const expectedDays = Math.round((Date.parse(to) - Date.parse(from)) / 86400000) + 1;
+        const targets = resolver.units.length > 0 ? resolver.units : [{ id: p.id, name: p.name }];
+        let calendar = 0, rack = 0, priced = 0;
+        for (const u of targets) {
+          const days = resolver.resolveDays(u, from, to);
+          const cov = resolver.coverage(days);
+          calendar += cov.calendar_days;
+          rack += cov.rack_days + cov.unit_daily_days;
+          priced += cov.priced_days;
+        }
+        const perUnitExpected = expectedDays * targets.length;
+        localCoverage = {
+          summary: describeCoverage(perUnitExpected, {
+            total_days: priced, priced_days: priced, calendar_days: calendar,
+            rack_days: rack, unit_daily_days: 0, unpriced_days: perUnitExpected - priced,
+          }),
+          calendar_days: calendar,
+          rack_days: rack,
+          unpriced_days: Math.max(0, perUnitExpected - priced),
+        };
+      } catch (e) {
+        console.warn("[scoreProperty] rate coverage probe failed:", e);
+      }
+
       // ── Live ARI verification (365 days forward) ──
       const extraChecks: RuCheck[] = [];
       let ari: Record<string, unknown> | null = null;
@@ -450,6 +481,7 @@ Deno.serve(async (req) => {
         .filter((n: number) => Number.isFinite(n) && n > 0);
       const singleRuId = Number(p.rentalsunited_property_id ?? data?.ru_property_id ?? 0);
       if (ruIds.length === 0 && singleRuId > 0) ruIds.push(singleRuId);
+
 
       if (opts.probe_ari === false) {
         // ARI not probed in this context — omit the checks entirely.
