@@ -13,7 +13,7 @@ import {
   RU_EMPLOYEE_RANGES,
   RU_PROPERTY_RANGES,
   RU_YEARS_RANGES,
-  labelForRangeId,
+  rangeLabel,
   type RuRange,
 } from "@/lib/ruRanges";
 
@@ -55,7 +55,7 @@ const norm = (v: unknown) =>
 function display(value: unknown, ranges?: RuRange[]) {
   const raw = norm(value);
   if (!raw) return "";
-  if (ranges) return labelForRangeId(ranges, Number(raw)) ?? raw;
+  if (ranges) return rangeLabel(ranges, raw) || raw;
   return raw;
 }
 
