@@ -749,28 +749,36 @@ Deno.serve(async (req) => {
      */
     if (action === "save_api_keys") {
       const accountId: string = body.account_id ?? "";
+      const suppliedOwnerId: string = String(body.ru_owner_id ?? "").trim();
+      const suppliedEmail: string = typeof body.login_email === "string" ? body.login_email.trim() : "";
       const accessKey: string = typeof body.access_key === "string" ? body.access_key.trim() : "";
       const secretKey: string = typeof body.secret_key === "string" ? body.secret_key.trim() : "";
       const keyLabel: string | null =
         typeof body.key_label === "string" && body.key_label.trim() ? body.key_label.trim() : null;
-      if (!accountId) return json({ success: false, error: { code: "BAD_REQUEST", message: "account_id is required" } }, 400);
+      if (!accountId && !suppliedOwnerId) {
+        return json({ success: false, error: { code: "BAD_REQUEST", message: "account_id or ru_owner_id is required" } }, 400);
+      }
       if (!accessKey || !secretKey) {
         return json({ success: false, error: { code: "BAD_REQUEST", message: "access_key and secret_key are required" } }, 400);
       }
 
-      const { data: account } = await admin
-        .from("ru_owner_accounts")
-        .select("id, owner_email, ru_login_email, ru_owner_id, company_details_sent")
-        .eq("id", accountId)
-        .maybeSingle();
-      if (!account) return json({ success: false, error: { code: "NOT_FOUND", message: "RU owner account not found" } }, 404);
+      let account: Record<string, any> | null = null;
+      if (accountId) {
+        const { data } = await admin
+          .from("ru_owner_accounts")
+          .select("id, owner_email, ru_login_email, ru_owner_id, company_details_sent")
+          .eq("id", accountId)
+          .maybeSingle();
+        if (!data) return json({ success: false, error: { code: "NOT_FOUND", message: "RU owner account not found" } }, 404);
+        account = data as Record<string, any>;
+      }
 
-      const loginEmail = account.ru_login_email ?? account.owner_email;
-      const ownerId = String(account.ru_owner_id ?? "").trim();
+      const ownerId = suppliedOwnerId || String(account?.ru_owner_id ?? "").trim();
+      const loginEmail = suppliedEmail || account?.ru_login_email || account?.owner_email || null;
       if (!ownerId) {
         return json({
           success: false,
-          error: { code: "RU_IDENTITY_INCOMPLETE", message: "Bind this record to an RU OwnerID before saving API keys." },
+          error: { code: "RU_IDENTITY_INCOMPLETE", message: "Pick an RU sub-user (OwnerID) before saving API keys." },
         }, 422);
       }
 
@@ -796,31 +804,46 @@ Deno.serve(async (req) => {
         return json({ success: false, error: { code: "ENCRYPT_FAILED", message: encErr?.message || "Could not encrypt the secret key" } }, 500);
       }
 
-      const update: Record<string, unknown> = {
-        ru_api_access_key: accessKey,
-        ru_api_secret_enc: enc,
-        ru_api_key_label: keyLabel,
-        ru_api_keys_verified_at: new Date().toISOString(),
-      };
-      if (!account.company_details_sent) update.company_details_status = "credentials_verified";
-      const { error: upErr } = await admin.from("ru_owner_accounts").update(update).eq("id", accountId);
-      if (upErr) return json({ success: false, error: { code: "SAVE_FAILED", message: upErr.message } }, 500);
+      // Keys live per RU OwnerID, so saving a second sub-user never wipes the first.
+      const { error: credErr } = await admin.from("ru_api_credentials").upsert({
+        ru_owner_id: ownerId,
+        login_email: loginEmail,
+        access_key: accessKey,
+        secret_enc: enc,
+        key_label: keyLabel,
+        verified_at: new Date().toISOString(),
+      }, { onConflict: "ru_owner_id" });
+      if (credErr) return json({ success: false, error: { code: "SAVE_FAILED", message: credErr.message } }, 500);
+
+      // Mirror onto the bound local row (legacy readers) only when it holds this OwnerID.
+      if (account?.id && String(account.ru_owner_id ?? "").trim() === ownerId) {
+        const update: Record<string, unknown> = {
+          ru_api_access_key: accessKey,
+          ru_api_secret_enc: enc,
+          ru_api_key_label: keyLabel,
+          ru_api_keys_verified_at: new Date().toISOString(),
+        };
+        if (!account.company_details_sent) update.company_details_status = "credentials_verified";
+        const { error: upErr } = await admin.from("ru_owner_accounts").update(update).eq("id", account.id);
+        if (upErr) return json({ success: false, error: { code: "SAVE_FAILED", message: upErr.message } }, 500);
+      }
 
       await admin.from("audit_logs").insert({
         user_id: user.id,
         user_email: user.email ?? "unknown",
         user_role: (roles ?? []).some((r: { role: string }) => r.role === "dev") ? "dev" : "admin",
         action_type: "other",
-        table_name: "ru_owner_accounts",
-        record_id: account.id,
+        table_name: "ru_api_credentials",
+        record_id: account?.id ?? null,
         request_origin: "edge_function",
         edge_function_name: "ru-cert-portal",
         is_sensitive: true,
-        change_summary: `Stored and verified Rentals United sub-user API keys for ${loginEmail} (OwnerID ${ownerId})`,
+        change_summary: `Stored and verified Rentals United sub-user API keys for ${loginEmail ?? "unknown"} (OwnerID ${ownerId})`,
       }).then(() => {}, (e) => console.warn("[ru-cert-portal] audit log insert failed", e));
 
       return json({ success: true, verified: true, ru_owner_id: ownerId, login_email: loginEmail });
     }
+
 
     // ── verify_api_keys: re-test the stored sub-user API key pair against RU ──
     if (action === "verify_api_keys") {
