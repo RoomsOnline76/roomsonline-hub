@@ -131,6 +131,8 @@ import { AccommodationSpecialsTab } from "@/components/property/AccommodationSpe
 import { useActivationReadiness } from "@/components/property/QualityGateIndicator";
 import { RoomManagerTab } from "@/components/property/RoomManagerTab";
 import { RateManagerTab } from "@/components/property/RateManagerTab";
+import { HouseRulesCard } from "@/components/property/policies/HouseRulesCard";
+
 import { syncPortfolioSeasonDates } from "@/lib/portfolioSeasonSync";
 import { usePMSSync, isPMSFullyIntegrated, getPMSIntegrationLevel, getPMSIcon } from "@/hooks/usePMSSync";
 import {
