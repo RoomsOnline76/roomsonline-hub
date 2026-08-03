@@ -492,7 +492,7 @@ export default function ContractSign() {
         if (isReferralContract || /\{\{(first_year_rate|residual_rate|rep_code)\}\}/.test(templateContent)) {
           try {
             const repResult = await resolveRepContractVariables({
-              id: data.rep_id || undefined,
+              repId: data.rep_id || undefined,
               email: contractData.sent_to_email || contractData.owner_email,
             });
             if (repResult) setRepVars(repResult.variables);
