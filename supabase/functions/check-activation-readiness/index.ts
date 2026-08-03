@@ -401,8 +401,15 @@ function checkMediaRequirements(images: any[], listingIntent: string): QualityCh
     };
   }
 
-  // Check for hero image
-  const hasHero = images.some((img: any) => img.type === 'hero');
+  // Hero image: ROLOS stores images either as plain URL strings (first = hero)
+  // or as objects. Only object-shaped galleries can miss a hero designation.
+  const hasHero = images.some(
+    (img: any) =>
+      typeof img === 'string' ||
+      img?.type === 'hero' ||
+      img?.is_main === true ||
+      img?.is_hero === true,
+  );
   if (!hasHero) {
     return {
       id: 'media',
@@ -414,6 +421,7 @@ function checkMediaRequirements(images: any[], listingIntent: string): QualityCh
       severity: 'warning'
     };
   }
+
 
   return {
     id: 'media',
