@@ -10,8 +10,22 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { AlertTriangle, Check, ChevronDown } from "lucide-react";
 import { RuLocationPicker } from "@/components/property/RuLocationPicker";
+import {
+  RU_TIME_ZONES,
+  RU_TIME_ZONE_GROUPS,
+  normalizeRuTimeZone,
+} from "@/lib/ruTimeZones";
 import { supabase } from "@/integrations/supabase/client";
 
 
