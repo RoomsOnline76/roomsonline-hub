@@ -207,7 +207,7 @@ Deno.serve(async (req) => {
 
     const compact = xml.replace(/<\?xml[^?]*\?>\s*/gi, "").replace(/>\s+</g, "><").trim();
     console.log(
-      `[ru-close-user] Push_ArchiveUser_RQ for OwnerID ${ownerId} as ${loginEmail} (child auth only)`,
+      `[ru-close-user] Push_ArchiveUser_RQ for OwnerID ${ownerId} as ${loginEmail || "child API key"} (auth=${authMode})`,
     );
 
     const ruRes = await fetch(endpoint, {
@@ -239,12 +239,15 @@ Deno.serve(async (req) => {
         error: {
           code: isAuth ? "RU_CHILD_LOGIN_REJECTED" : "RU_ARCHIVE_FAILED",
           message: isAuth
-            ? `Rentals United rejected the sub-user login for ${loginEmail} (OwnerID ${ownerId}, Status ${status.id}). The password cannot authenticate Push_ArchiveUser_RQ — check it in the RU portal and try again.`
+            ? (authMode === "child_api_keys"
+              ? `Rentals United rejected the sub-user API keys for OwnerID ${ownerId} (Status ${status.id}). Regenerate the AccessKey/SecretKey pair in the RU dashboard (Security settings) for ${loginEmail || "this sub-user"}, save them in Portfolios → RU accounts, then retry.`
+              : `Rentals United rejected the sub-user login for ${loginEmail} (OwnerID ${ownerId}, Status ${status.id}). RU now requires the sub-user's own API keys (AccessKey + SecretKey) for Push_ArchiveUser_RQ — generate them in the RU dashboard and save them in Portfolios → RU accounts.`)
             : `Rentals United rejected archive for OwnerID ${ownerId}: ${status.message} (Status ${status.id})`,
           ru_status_id: status.id,
         },
         login_email: loginEmail,
         ru_owner_id: ownerId,
+        auth_mode: authMode,
       }, 422);
     }
 
@@ -257,6 +260,10 @@ Deno.serve(async (req) => {
         ru_login_email: null,
         ru_login_url: null,
         ru_login_password_enc: null,
+        ru_api_access_key: null,
+        ru_api_secret_enc: null,
+        ru_api_key_label: null,
+        ru_api_keys_verified_at: null,
         company_details_sent: false,
         company_filled_at: null,
         company_details_status: "pending",
@@ -289,7 +296,7 @@ Deno.serve(async (req) => {
         request_origin: "edge_function",
         edge_function_name: "ru-close-user",
         is_sensitive: true,
-        change_summary: `Closed RU sub-user OwnerID ${ownerId} (${loginEmail}) via Push_ArchiveUser_RQ; local bind ${
+        change_summary: `Closed RU sub-user OwnerID ${ownerId} (${loginEmail}) via Push_ArchiveUser_RQ (auth=${authMode}); local bind ${
           localCleared ? "cleared" : "not present"
         }`,
       })
@@ -301,6 +308,7 @@ Deno.serve(async (req) => {
     return json({
       success: true,
       closed: true,
+      auth_mode: authMode,
       local_cleared: localCleared,
       ru_owner_id: ownerId,
       login_email: loginEmail,
