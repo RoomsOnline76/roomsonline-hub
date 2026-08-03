@@ -51,6 +51,7 @@ interface CertStep {
   name: string;
   ru_method: string;
   mandatory: boolean;
+  scope?: "account" | "property";
   status: "passed" | "failed" | "skipped";
   duration_ms: number;
   ru_status_id?: string | null;
@@ -133,11 +134,31 @@ interface DiscountRow {
   is_active: boolean;
 }
 
-const SUITES = [
-  { value: "read_only", label: "Read-only sweep (safe)" },
-  { value: "mandatory", label: "Mandatory push + read-back" },
-  { value: "discounts", label: "Discounts (long stay + last minute)" },
-  { value: "full", label: "Full certification run" },
+const SUITES: { value: string; label: string; requiresProperty: boolean; coverage: string }[] = [
+  {
+    value: "read_only",
+    label: "Read-only sweep (safe)",
+    requiresProperty: false,
+    coverage: "Account reads (auth, properties, reservations, leads, reference data). Property reads only when a property is selected.",
+  },
+  {
+    value: "mandatory",
+    label: "Mandatory push + read-back",
+    requiresProperty: true,
+    coverage: "RLNM handler (account) plus content + ARI push and read-back for the selected property.",
+  },
+  {
+    value: "discounts",
+    label: "Discounts (long stay + last minute)",
+    requiresProperty: true,
+    coverage: "Pushes and verifies the selected property's discount rules.",
+  },
+  {
+    value: "full",
+    label: "Full certification run",
+    requiresProperty: true,
+    coverage: "Everything above end to end.",
+  },
 ];
 
 /** Live test sub-user used for WL user-management playground defaults */
@@ -261,6 +282,15 @@ function StatusIcon({ status }: { status: CertStep["status"] }) {
   return <MinusCircle className="h-4 w-4 text-muted-foreground" />;
 }
 
+function ScopeBadge({ scope }: { scope?: "account" | "property" }) {
+  if (!scope) return null;
+  return (
+    <Badge variant="outline" className="text-[10px] capitalize">
+      {scope}
+    </Badge>
+  );
+}
+
 async function callPortal<T = any>(action: string, payload: Record<string, unknown> = {}): Promise<T | null> {
   const { data, error } = await supabase.functions.invoke("ru-cert-portal", { body: { action, ...payload } });
   if (error) {
@@ -279,6 +309,7 @@ interface CertMilestone {
   label: string;
   ru_method: string;
   mandatory: boolean;
+  scope?: "account" | "property";
   note: string;
   status: string;
   partial_success: boolean;
@@ -298,6 +329,7 @@ interface MilestoneSummary {
 
 export function RuCertificationConsole({ properties }: { properties: PropertyLite[] }) {
   const [suite, setSuite] = useState("read_only");
+  const { cooldownSeconds, cooling, markRun } = useRuRunCooldown();
   const [propertyId, setPropertyId] = useState<string>("none");
   const [running, setRunning] = useState(false);
   const [runs, setRuns] = useState<CertRun[]>([]);
@@ -334,6 +366,8 @@ export function RuCertificationConsole({ properties }: { properties: PropertyLit
   const [pgResponse, setPgResponse] = useState<string>("");
   const [pgSending, setPgSending] = useState(false);
 
+  const activeSuite = useMemo(() => SUITES.find((s) => s.value === suite) ?? SUITES[0], [suite]);
+
   const candidateProperties = useMemo(
     // Certification testing is limited to properties explicitly enabled for RU push.
     () => properties.filter((p) => p.ru_push_enabled === true),
@@ -342,8 +376,11 @@ export function RuCertificationConsole({ properties }: { properties: PropertyLit
 
   const loadRuns = useCallback(async () => {
     const res = await callPortal<{ runs: CertRun[] }>("list_runs");
-    if (res) setRuns(res.runs ?? []);
-  }, []);
+    if (res) {
+      setRuns(res.runs ?? []);
+      if (res.runs?.[0]?.started_at) markRun(res.runs[0].started_at);
+    }
+  }, [markRun]);
 
   useEffect(() => { loadRuns(); }, [loadRuns]);
 
@@ -496,7 +533,16 @@ export function RuCertificationConsole({ properties }: { properties: PropertyLit
   useEffect(() => { loadDiscounts(); }, [loadDiscounts]);
 
   const runSuite = async () => {
+    if (cooling) {
+      toast.error(`Rentals United allows one call per sliding minute — wait ${cooldownSeconds}s.`);
+      return;
+    }
+    if (activeSuite?.requiresProperty && propertyId === "none") {
+      toast.error(`"${activeSuite.label}" needs a property — select one above.`);
+      return;
+    }
     setRunning(true);
+    markRun();
     const res = await callPortal<{ run: CertRun }>("run_suite", {
       suite,
       property_id: propertyId === "none" ? null : propertyId,
@@ -510,7 +556,12 @@ export function RuCertificationConsole({ properties }: { properties: PropertyLit
   };
 
   const pushDiscountsNow = async () => {
+    if (cooling) {
+      toast.error(`Rentals United allows one call per sliding minute — wait ${cooldownSeconds}s.`);
+      return;
+    }
     setRunning(true);
+    markRun();
     const res = await callPortal<{ run: CertRun }>("run_suite", {
       suite: "discounts",
       property_id: propertyId === "none" ? null : propertyId,
@@ -594,7 +645,12 @@ export function RuCertificationConsole({ properties }: { properties: PropertyLit
             <Select value={suite} onValueChange={setSuite}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                {SUITES.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+                {SUITES.map((s) => (
+                  <SelectItem key={s.value} value={s.value} disabled={s.requiresProperty && propertyId === "none"}>
+                    {s.label}
+                    {s.requiresProperty && propertyId === "none" ? " — needs a property" : ""}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -608,10 +664,22 @@ export function RuCertificationConsole({ properties }: { properties: PropertyLit
               </SelectContent>
             </Select>
           </div>
-          <Button onClick={runSuite} disabled={running} className="gap-2">
+          <Button onClick={runSuite} disabled={running || cooling || (activeSuite.requiresProperty && propertyId === "none")} className="gap-2">
             {running ? <RefreshCw className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
-            Run suite
+            {cooling ? `Rate limit — ${cooldownSeconds}s` : "Run suite"}
           </Button>
+        </CardContent>
+        <CardContent className="pt-0 space-y-1">
+          <p className="text-xs text-muted-foreground">{activeSuite.coverage}</p>
+          {propertyId === "none" && (
+            <p className="text-xs text-muted-foreground">
+              Account-level only: property-scoped checks (content, availability, prices, buildings, discounts) are skipped
+              instead of being graded against an unrelated property.
+            </p>
+          )}
+          <p className="text-xs text-muted-foreground">
+            Rentals United accepts about one call per sliding minute — runs are paused for 60s after each attempt.
+          </p>
         </CardContent>
       </Card>
 
@@ -668,6 +736,7 @@ export function RuCertificationConsole({ properties }: { properties: PropertyLit
                       <TableCell className="text-sm">
                         {m.label}
                         {!m.mandatory && <Badge variant="outline" className="ml-2 text-[10px]">optional</Badge>}
+                        <span className="ml-2 inline-flex align-middle"><ScopeBadge scope={m.scope} /></span>
                         {m.note && <span className="block text-xs text-muted-foreground">{m.note}</span>}
                       </TableCell>
                       <TableCell className="font-mono text-xs">{m.ru_method}</TableCell>
@@ -1178,6 +1247,7 @@ export function RuCertificationConsole({ properties }: { properties: PropertyLit
                       <div className="text-sm font-medium flex items-center gap-2">
                         {s.name}
                         {s.mandatory && <Badge variant="outline" className="text-[10px]">mandatory</Badge>}
+                        <ScopeBadge scope={s.scope} />
                       </div>
                       <div className="text-xs font-mono text-muted-foreground">{s.ru_method}</div>
                       {s.detail && <div className="text-xs text-muted-foreground mt-1">{s.detail}</div>}
