@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { format, subDays } from "date-fns";
-import { RefreshCw, CheckCircle2, XCircle, Filter, Plus } from "lucide-react";
+import { RefreshCw, CheckCircle2, XCircle, Filter, Plus, Check, ChevronsUpDown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { isRolosPms } from "@/lib/pmsIdentity";
 
@@ -22,6 +22,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { RuCertificationConsole } from "@/components/integrations/RuCertificationConsole";
 import { RuErrorHandlingTab } from "@/components/integrations/RuErrorHandlingTab";
 import { RuOnboardingPipeline } from "@/components/integrations/RuOnboardingPipeline";
+import { RuSyncProgressTracker } from "@/components/integrations/RuSyncProgressTracker";
 
 
 interface SyncRun {
@@ -71,6 +72,9 @@ export default function AdminRentalsUnited() {
   // Properties toggled in this session stay on the board even when switched off.
   const [stickyIds, setStickyIds] = useState<Set<string>>(new Set());
   const [addOpen, setAddOpen] = useState(false);
+  // Manual-run scope: empty = every RU-enabled property.
+  const [runScopeIds, setRunScopeIds] = useState<string[]>([]);
+  const [scopeOpen, setScopeOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -178,13 +182,29 @@ export default function AdminRentalsUnited() {
     toast.success(next ? "RU push enabled" : "RU push disabled — property stays listed");
   };
 
-  const runCron = async (fn: string, label: string) => {
+  const toggleScope = (id: string) =>
+    setRunScopeIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+
+  const scopeLabel =
+    runScopeIds.length === 0
+      ? "All RU-enabled properties"
+      : runScopeIds.length === 1
+        ? propertyById.get(runScopeIds[0])?.name ?? "1 property"
+        : `${runScopeIds.length} properties`;
+
+  /**
+   * Trigger a sync job. `scoped` endpoints receive the manual property selection;
+   * account-level endpoints (RLNM, reservations pull) always run globally.
+   */
+  const runCron = async (fn: string, label: string, scoped = true) => {
     setTriggering(fn);
-    const { error } = await supabase.functions.invoke(fn, { body: { manual: true } });
+    const { error } = await supabase.functions.invoke(fn, {
+      body: { manual: true, property_ids: scoped && runScopeIds.length ? runScopeIds : undefined },
+    });
     setTriggering(null);
     if (error) toast.error(`${label} failed: ${error.message}`);
     else {
-      toast.success(`${label} triggered`);
+      toast.success(`${label} triggered${scoped && runScopeIds.length ? ` for ${scopeLabel}` : ""}`);
       setTimeout(load, 1500);
     }
   };
@@ -276,10 +296,68 @@ export default function AdminRentalsUnited() {
           </Card>
         </div>
 
+        {/* Endpoint progress tracker — push + pull across the whole RU implementation */}
+        <RuSyncProgressTracker
+          runs={runs}
+          scopeIds={runScopeIds}
+          expectedProperties={ruProperties.filter((p) => p.ru_push_enabled).length}
+          triggering={triggering}
+          onTrigger={runCron}
+        />
+
         {/* Manual triggers */}
         <Card>
-          <CardHeader><CardTitle>Manual runs</CardTitle></CardHeader>
-          <CardContent className="flex flex-wrap gap-2">
+          <CardHeader className="space-y-1">
+            <CardTitle>Manual runs</CardTitle>
+            <p className="text-xs text-muted-foreground">
+              Choose which properties the property-scoped jobs should cover. Account-level jobs
+              (RLNM handler, reservations pull) always run globally.
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <Popover open={scopeOpen} onOpenChange={setScopeOpen}>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="w-full sm:w-80 justify-between">
+                  <span className="truncate">{scopeLabel}</span>
+                  <ChevronsUpDown className="h-4 w-4 opacity-50 shrink-0" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-80 p-0" align="start">
+                <Command>
+                  <CommandInput placeholder="Search properties…" />
+                  <CommandList>
+                    <CommandEmpty>No properties found.</CommandEmpty>
+                    <CommandGroup heading="Run scope">
+                      <CommandItem value="__all__" onSelect={() => setRunScopeIds([])}>
+                        <Check className={`h-4 w-4 mr-2 ${runScopeIds.length === 0 ? "opacity-100" : "opacity-0"}`} />
+                        All RU-enabled properties
+                      </CommandItem>
+                      {ruProperties.map((p) => (
+                        <CommandItem key={p.id} value={p.name} onSelect={() => toggleScope(p.id)}>
+                          <Check className={`h-4 w-4 mr-2 ${runScopeIds.includes(p.id) ? "opacity-100" : "opacity-0"}`} />
+                          <span className="truncate">{p.name}</span>
+                          {!p.ru_push_enabled && (
+                            <Badge variant="outline" className="ml-auto text-[10px]">paused</Badge>
+                          )}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+
+            {runScopeIds.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {runScopeIds.map((id) => (
+                  <Badge key={id} variant="secondary" className="text-xs cursor-pointer" onClick={() => toggleScope(id)}>
+                    {propertyById.get(id)?.name ?? id} ×
+                  </Badge>
+                ))}
+              </div>
+            )}
+
+            <div className="flex flex-wrap gap-2">
             <Button
               variant="outline"
               disabled={triggering !== null}
@@ -299,14 +377,23 @@ export default function AdminRentalsUnited() {
             <Button
               variant="outline"
               disabled={triggering !== null}
-              onClick={() => runCron("pull-ru-reservations", "Reservations pull")}
+              onClick={() => runCron("cron-pull-ru-reservations", "Reservations pull", false)}
             >
-              <RefreshCw className={`h-4 w-4 mr-2 ${triggering === "pull-ru-reservations" ? "animate-spin" : ""}`} />
+              <RefreshCw className={`h-4 w-4 mr-2 ${triggering === "cron-pull-ru-reservations" ? "animate-spin" : ""}`} />
               Reservations pull
+            </Button>
+            <Button
+              variant="outline"
+              disabled={triggering !== null}
+              onClick={() => runCron("cron-ru-rlnm-refresh", "RLNM handler refresh", false)}
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${triggering === "cron-ru-rlnm-refresh" ? "animate-spin" : ""}`} />
+              RLNM handler refresh
             </Button>
             <Button variant="ghost" onClick={load} className="ml-auto">
               <RefreshCw className="h-4 w-4 mr-2" />Reload
             </Button>
+            </div>
           </CardContent>
         </Card>
 
