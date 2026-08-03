@@ -2191,7 +2191,7 @@ Deno.serve(async (req) => {
       console.log(`[rentalsunited-api] SetStatus response: ${response.substring(0, 500)}`);
       const { ok, status } = handleRUStatus(response);
       if (!ok) return ruErrorResponse(status);
-      return jsonResponse({ success: true, message: 'Property status updated', raw_xml: response });
+      return jsonResponse({ success: true, auth_mode: authMode, message: 'Property status updated', raw_xml: response });
     }
 
     // ── get_location_by_coordinates ──
