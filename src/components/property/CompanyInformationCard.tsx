@@ -112,6 +112,11 @@ function Req() {
   );
 }
 
+/** Small format/description note under a constrained input. */
+function Hint({ children }: { children: React.ReactNode }) {
+  return <p className="text-[10px] leading-snug text-muted-foreground">{children}</p>;
+}
+
 const COMPANY_TEXT_FIELDS: {
   key: keyof RuCompanyProfile;
   label: string;
