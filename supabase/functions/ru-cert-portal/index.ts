@@ -1211,10 +1211,11 @@ Deno.serve(async (req) => {
 
       const update: Record<string, unknown> = {
         ru_owner_id: ruOwnerId,
-        ru_login_email: loginEmail || String(match.email ?? "").trim() || account.ru_login_email,
+        ru_login_email: loginEmail || String(match?.email ?? "").trim() || account.ru_login_email,
       };
-      const userAccountId = String(match.user_account_id ?? "").trim();
+      const userAccountId = String(match?.user_account_id ?? "").trim();
       if (userAccountId && userAccountId !== "0") update.ru_user_id = userAccountId;
+
 
       // Rebinding to a different OwnerID: credentials, API keys and verification state
       // belonged to the previous sub-user — never carry them over.
