@@ -749,15 +749,30 @@ export function PortfolioRuAccountsTab() {
           {filtered.map(({ acc, scopeLabel, scopeName, linked }) => {
             const open = expanded === acc.id;
             const status = (acc.company_details_status ?? "").toLowerCase();
+            // Keys live per RU OwnerID — never fall back to legacy row-level keys for a
+            // bound account, or a rebind would show the previous sub-user's state.
+            const ownerKey = acc.ru_owner_id
+              ? storedKeyByOwner.get(String(acc.ru_owner_id))
+              : undefined;
+            const activeAccessKey = acc.ru_owner_id
+              ? (ownerKey?.access_key ?? null)
+              : (acc.ru_api_access_key ?? null);
+            const activeLabel = acc.ru_owner_id
+              ? (ownerKey?.key_label ?? null)
+              : (acc.ru_api_key_label ?? null);
+            const activeVerified = acc.ru_owner_id
+              ? (ownerKey?.verified_at ?? null)
+              : (acc.ru_api_keys_verified_at ?? null);
+            const apiVerified = Boolean(activeVerified);
             const showCredentialBadge =
               !acc.company_details_sent &&
-              (status === "api_access_verified" ||
+              (apiVerified ||
                 status === "api_access_failed" ||
                 status === "failed" ||
-                status === "password_stored" ||
-                status === "credentials_verified" ||
                 status === "credentials_failed" ||
+                status === "password_stored" ||
                 Boolean(acc.ru_login_password_enc));
+
 
             return (
               <Card key={acc.id}>
