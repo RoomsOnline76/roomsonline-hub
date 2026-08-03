@@ -1632,7 +1632,7 @@ const Booking = () => {
     if (property && rooms.length > 0 && selectedRateType && checkIn && checkOut) {
       calculateCost();
     }
-  }, [property?.id, rooms, selectedRateType, checkIn, checkOut, propertyCharges, ageVerified]);
+  }, [property?.id, rooms, selectedRateType, checkIn, checkOut, propertyCharges, ageVerified, selectedSpecialId]);
 
   // Form validation for required fields
   const isFormValid = guestName.trim().length >= 2 && 
