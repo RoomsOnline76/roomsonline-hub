@@ -3,7 +3,7 @@
 ## What I verified first
 
 - `ru_owner_accounts` currently holds **one** row: `julius@polka.co.za` (portfolio scope, unbound — no OwnerID, no API keys).
-- The two accounts you want deleted (`test-owner@example.com`, `rolos-apitest-544d36@roomsonline.co.za`) **do not exist in our database** — no `ru_owner_accounts`, no `profiles` row. They exist only at Rentals United, so "deleting" them means archiving them at RU (Push_ArchiveUser_RQ, sub-user API keys).
+- The two accounts you want deleted (`test-owner@example.com`, `rolos-apitest-544d36@roomsonline.co.za`) **do not exist in our database** — no `ru_owner_accounts`, no `profiles` row. They exist only at Rentals United, so "deleting" them means archiving them at RU (Push_ArchiveUser_RQ, sub-user API keys). Remove them from what we see in our UI. We will never use these and cannot loginto these accoutns to reset the passords or get API keys.
 - The key-wipe cause is confirmed: API keys are stored in columns **on the local portfolio row** (`ru_owner_accounts.ru_api_access_key` / `ru_api_secret_enc`), keyed by `account_id`. Since there is one row per portfolio, saving keys for a second OwnerID overwrites the first pair. Keys are not keyed by RU OwnerID anywhere.
 - The bind dialog lists whatever `Pull_ListMyUsers_RQ` returns, with no archived filter — that is why the `Archived_...` entries show.
 
