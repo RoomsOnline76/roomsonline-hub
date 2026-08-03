@@ -2500,27 +2500,89 @@ Deno.serve(async (req) => {
         }, 409);
       }
 
-      const ruPropertyId = body.ru_property_id ?? prop.rentalsunited_property_id;
-      if (!ruPropertyId) {
-        return json({ success: false, error: { code: "NO_RU_PROPERTY", message: "No Rentals United PropertyID stored for this property." } }, 422);
+      /**
+       * MCQ is ordered per RU *listing*. A multi-unit property has no property-level
+       * PropertyID — each unit is its own RU listing — so resolve the unit-level IDs and
+       * order a check for every one of them. Pacing: RU tolerates ~1 write per sliding
+       * minute, so units are ordered sequentially through the paced `call` helper budget.
+       */
+      const targets: Array<{ ru_property_id: string; label: string }> = [];
+      if (body.ru_property_id) {
+        targets.push({ ru_property_id: String(body.ru_property_id), label: prop.name ?? "Property" });
+      } else if (prop.rentalsunited_property_id) {
+        targets.push({ ru_property_id: String(prop.rentalsunited_property_id), label: prop.name ?? "Property" });
+      } else {
+        const { data: units } = await admin
+          .from("hostfully_room_types")
+          .select("name, rentalsunited_property_id")
+          .eq("property_id", propertyId)
+          .not("rentalsunited_property_id", "is", null);
+        for (const u of units ?? []) {
+          if (u.rentalsunited_property_id) {
+            targets.push({ ru_property_id: String(u.rentalsunited_property_id), label: u.name ?? "Unit" });
+          }
+        }
       }
 
-      const { data: result, error: mcqErr } = await admin.functions.invoke("rentalsunited-api", {
-        body: { action: "order_mcq", ru_property_id: ruPropertyId },
-      });
-      const ok = !mcqErr && result?.success === true;
-      await admin.from("ru_mcq_orders").insert({
-        property_id: propertyId,
-        ru_property_id: String(ruPropertyId),
-        ordered_by: user.id,
-        status: ok ? "ordered" : "failed",
-        ru_status_id: result?.ru_status_id ?? null,
-        response_preview: preview(result ?? mcqErr?.message, 3000),
-      });
-      if (!ok) {
-        return json({ success: false, error: { code: "RU_MCQ_FAILED", message: mcqErr?.message ?? result?.error?.message ?? "Rentals United rejected the quality check order" } }, 502);
+      if (targets.length === 0) {
+        return json({
+          success: false,
+          error: {
+            code: "NO_RU_PROPERTY",
+            message: "No Rentals United PropertyID stored for this property or any of its units — push the inventory to Rentals United first, then use “Fetch RU IDs”.",
+          },
+        }, 422);
       }
-      return json({ success: true, ru_property_id: ruPropertyId, result });
+
+      // White-label listings live on the owning sub-user account — ordering MCQ with the
+      // master credentials makes RU answer "you are not the owner of the apartment".
+      const { account: mcqOwnerAccount } = await findOwnerAccount(admin, propertyId, null, null);
+      const mcqOwnerId = Number(mcqOwnerAccount?.ru_owner_id ?? 0);
+      const mcqScope = mcqOwnerId > 0 ? { owner_id: mcqOwnerId } : {};
+
+      const mcqResults: Array<{ ru_property_id: string; label: string; ok: boolean; error?: string; ru_status_id?: unknown }> = [];
+      for (const target of targets) {
+        const { data: result, error: mcqErr } = await admin.functions.invoke("rentalsunited-api", {
+          body: { action: "order_mcq", ru_property_id: target.ru_property_id, property_id: propertyId, ...mcqScope },
+        });
+        const ok = !mcqErr && result?.success === true;
+        const errMessage = ok ? undefined : (mcqErr?.message ?? result?.error?.message ?? "Rentals United rejected the quality check order");
+        await admin.from("ru_mcq_orders").insert({
+          property_id: propertyId,
+          ru_property_id: target.ru_property_id,
+          ordered_by: user.id,
+          status: ok ? "ordered" : "failed",
+          ru_status_id: result?.ru_status_id ?? null,
+          response_preview: preview(result ?? mcqErr?.message, 3000),
+        });
+        mcqResults.push({ ru_property_id: target.ru_property_id, label: target.label, ok, error: errMessage, ru_status_id: result?.ru_status_id ?? null });
+      }
+
+      const ordered = mcqResults.filter((r) => r.ok);
+      if (ordered.length === 0) {
+        const firstError = mcqResults[0]?.error ?? "Rentals United rejected the quality check order";
+        // MCQ lives behind RU's LNM (Listing & Numbers Manager) subscription. Without it every
+        // listing is refused with "Subscribe to LNM first" — an account-level prerequisite the
+        // operator must enable with Rentals United, not a content problem on our side.
+        const lnmMissing = /subscribe to lnm/i.test(firstError);
+        return json({
+          success: false,
+          error: {
+            code: lnmMissing ? "RU_LNM_NOT_SUBSCRIBED" : "RU_MCQ_FAILED",
+            message: lnmMissing
+              ? "Rentals United has not enabled the LNM (Minimum Content Quality) service on this account, so the quality check cannot be ordered. Ask your Rentals United account manager to subscribe the account to LNM — all content is already pushed and verified."
+              : firstError,
+          },
+          results: mcqResults,
+        }, lnmMissing ? 422 : 502);
+      }
+      return json({
+        success: true,
+        ordered_count: ordered.length,
+        total_count: mcqResults.length,
+        ru_property_id: ordered[0].ru_property_id,
+        results: mcqResults,
+      });
     }
 
     // ── run_suite ──
