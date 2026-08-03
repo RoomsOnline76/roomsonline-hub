@@ -1442,7 +1442,7 @@ Deno.serve(async (req) => {
         let filled: any = null;
         let fillErr: any = null;
         let lastMessage = "";
-        const maxAttempts = passwordIsOurs ? 4 : 3;
+        const maxAttempts = hasChildKeys || passwordIsOurs ? 4 : 3;
         const ownerId = Number(account.ru_owner_id);
         if (!Number.isFinite(ownerId) || ownerId <= 0) {
           return { sent: false, error: "No valid Rentals United OwnerID is bound to this account" };
@@ -1455,8 +1455,12 @@ Deno.serve(async (req) => {
               owner_id: ownerId,
               // Authenticate AS the sub-user so RU writes the details onto the owner's
               // own profile (RU applies them to whichever account authenticates).
-              auth_username: (account.ru_login_email as string | null) || ownerEmail || null,
-              auth_password: password || null,
+              ...(hasChildKeys
+                ? { auth_access_key: childAccessKey, auth_secret_key: childSecretKey }
+                : {
+                  auth_username: (account.ru_login_email as string | null) || ownerEmail || null,
+                  auth_password: password || null,
+                }),
 
             },
           });
