@@ -24,7 +24,6 @@ type TabKey = Extract<
   | "packages"
   | "specials"
   | "addons"
-  | "house-rules"
   | "templates"
   | "announcements"
   | "contacts"
@@ -39,7 +38,6 @@ const HUB_KEYS: TabKey[] = [
   "packages",
   "specials",
   "addons",
-  "house-rules",
   "templates",
   "announcements",
   "contacts",

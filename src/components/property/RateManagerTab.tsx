@@ -76,6 +76,9 @@ export interface RateManagerTabProps {
   setIsDirty: (dirty: boolean) => void;
   /** Navigate the parent form to the Specials tab. */
   onOpenSpecials?: () => void;
+  /** Extra content rendered inside the Policies sub-tab (house rules & stay terms). */
+  policiesExtra?: React.ReactNode;
+
 }
 
 export function RateManagerTab({
@@ -100,7 +103,9 @@ export function RateManagerTab({
   isFearlessLeader,
   setIsDirty,
   onOpenSpecials,
+  policiesExtra,
 }: RateManagerTabProps) {
+
   const { toast } = useToast();
 
   // ── Local state ────────────────────────────────────────────────────────
@@ -904,10 +909,22 @@ export function RateManagerTab({
           </TabsContent>
 
           {/* ── Policies Sub-tab ──────────────────────────────────────────── */}
-          <TabsContent value="policies" className="p-6">
+          <TabsContent value="policies" className="p-6 space-y-6">
             {propertyId && <PoliciesTab propertyId={propertyId} onOpenSpecials={onOpenSpecials} />}
             {!propertyId && <p className="text-sm text-muted-foreground">Save the property first to configure policies.</p>}
+            {policiesExtra && (
+              <div className="space-y-3 border-t pt-6">
+                <div>
+                  <h3 className="text-sm font-semibold">House rules &amp; stay terms</h3>
+                  <p className="text-xs text-muted-foreground">
+                    Check-in/out times, deposits, age ranges, cots and extra beds, pets and fine print.
+                  </p>
+                </div>
+                {policiesExtra}
+              </div>
+            )}
           </TabsContent>
+
 
 
 

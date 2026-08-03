@@ -43,7 +43,7 @@ export type PropertySectionKey =
   | "info-facilities"   // Facilities & amenities
   | "rooms"             // Rooms overview
   | "images"            // Media
-  | "house-rules"       // Policies
+  
   | "rates"             // Pricing / seasons / rate types
   | "packages"
   | "specials"
@@ -92,12 +92,7 @@ export const PROPERTY_SECTION_ORDER: PropertySectionDef[] = [
     description: "Property gallery and hero images.",
   },
   {
-    key: "house-rules",
-    label: "Policies",
-    description: "Check-in/out, children/pets/smoking, deposits, cancellation.",
-    rolosManaged: true,
-  },
-  {
+
     key: "rates",
     label: "Rates & Pricing",
     description: "Seasons, rate types, calendar, charges, providers.",
@@ -179,7 +174,7 @@ export const PROPERTY_SECTION_GROUPS = [
   },
   {
     label: "Guest experience",
-    keys: ["house-rules", "templates", "announcements", "images"] as PropertySectionKey[],
+    keys: ["templates", "announcements", "images"] as PropertySectionKey[],
   },
   {
     label: "Advanced",
@@ -201,8 +196,8 @@ export const SECTION_ICON_MAP: Record<string, LucideIcon> = {
   "info-facilities": Building2,
   rooms: BedDouble,
   images: ImageIcon,
-  "house-rules": FileText,
   rates: DollarSign,
+
   packages: Package,
   specials: Sparkles,
   addons: Package,
@@ -252,12 +247,8 @@ export const SECTION_HINTS: Partial<Record<PropertySectionKey, SectionHint[]>> =
     { key: "gallery", label: "Gallery", icon: ImageIcon },
     { key: "hero", label: "Hero", icon: Sparkles },
   ],
-  "house-rules": [
-    { key: "checkin", label: "Check-in/out", icon: Calendar },
-    { key: "policies", label: "Policies", icon: ShieldCheck },
-    { key: "cancellation", label: "Cancellation", icon: FileText },
-  ],
 };
+
 
 export interface RailSection {
   key: string;
