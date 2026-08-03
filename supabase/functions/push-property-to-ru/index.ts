@@ -2011,8 +2011,8 @@ Deno.serve(async (req) => {
       const [{ data: buildingProps }, { data: unitRows }] = await Promise.all([
         supabase
           .from('properties')
-          .select('id, name, rentalsunited_property_id, country, latitude, longitude, amenities, city, ru_location_id')
-          .not('rentalsunited_property_id', 'is', null),
+          .select('id, name, rentalsunited_property_id, rentalsunited_building_id, country, latitude, longitude, amenities, city, ru_location_id')
+          .or('rentalsunited_property_id.not.is.null,rentalsunited_building_id.not.is.null'),
         supabase
           .from('hostfully_room_types')
           .select('property_id, properties!inner(id, name, rentalsunited_property_id, country, latitude, longitude, amenities, city, ru_location_id)')
@@ -2135,8 +2135,8 @@ Deno.serve(async (req) => {
       const [{ data: buildingProps }, { data: unitRows }] = await Promise.all([
         supabase
           .from('properties')
-          .select('id, name, rentalsunited_property_id, country, latitude, longitude, amenities, ru_location_id')
-          .not('rentalsunited_property_id', 'is', null),
+          .select('id, name, rentalsunited_property_id, rentalsunited_building_id, country, latitude, longitude, amenities, ru_location_id')
+          .or('rentalsunited_property_id.not.is.null,rentalsunited_building_id.not.is.null'),
         supabase
           .from('hostfully_room_types')
           .select('property_id, properties!inner(id, name, rentalsunited_property_id, country, latitude, longitude, amenities, ru_location_id)')
