@@ -474,6 +474,8 @@ Deno.serve(async (req) => {
 </body>
 </html>`;
 
+      const signeeAddr = (signee_email || "").trim().toLowerCase();
+
       // Send to signee
       await resend.emails.send({
         from: "RoomsOnline <hello@notify.roomsonline.co.za>",
@@ -482,23 +484,20 @@ Deno.serve(async (req) => {
         html: emailHtml,
       });
 
-      // Send to Carike
-      await resend.emails.send({
-        from: "RoomsOnline <hello@notify.roomsonline.co.za>",
-        to: "carike@roomsonline.co.za",
-        subject: `[Contract Signed] ${propertiesText} - ${signee_name}${isNewOwner ? ' (NEW OWNER)' : ''}`,
-        html: emailHtml.replace("Dear " + signee_name, "Dear Carike") + 
-          `<p style="color: #666; font-size: 12px;">Signed by: ${signee_name} (${signee_email}) from IP: ${clientIp}</p>${isNewOwner ? `<p style="color: #666; font-size: 12px;">New property created: ${createdPropertyName}</p>` : ''}`,
-      });
+      // Single internal notification (deduped, and never a duplicate to the signee)
+      const internalRecipients = ["carike@roomsonline.co.za", "sleepinafrica@roomsonline.co.za"]
+        .filter((addr, i, arr) => arr.indexOf(addr) === i && addr !== signeeAddr);
 
-      // Send to sleepinafrica@roomsonline.co.za
-      await resend.emails.send({
-        from: "RoomsOnline <hello@notify.roomsonline.co.za>",
-        to: "sleepinafrica@roomsonline.co.za",
-        subject: `[Contract Signed] ${propertiesText} - ${signee_name}${isNewOwner ? ' (NEW OWNER)' : ''}`,
-        html: emailHtml.replace("Dear " + signee_name, "Dear Team") + 
-          `<p style="color: #666; font-size: 12px;">Signed by: ${signee_name} (${signee_email}) from IP: ${clientIp}</p>${isNewOwner ? `<p style="color: #666; font-size: 12px;">New property created: ${createdPropertyName}</p>` : ''}`,
-      });
+      if (internalRecipients.length > 0) {
+        await resend.emails.send({
+          from: "RoomsOnline <hello@notify.roomsonline.co.za>",
+          to: internalRecipients,
+          subject: `[Contract Signed] ${propertiesText} - ${signee_name}${isNewOwner ? ' (NEW OWNER)' : ''}`,
+          html: emailHtml.replace("Dear " + signee_name, "Dear Team") +
+            `<p style="color: #666; font-size: 12px;">Signed by: ${signee_name} (${signee_email}) from IP: ${clientIp}</p>${isNewOwner ? `<p style="color: #666; font-size: 12px;">New property created: ${createdPropertyName}</p>` : ''}`,
+        });
+      }
+
 
       // For new owners, also send password reset email so they can set up their account
       if (isNewOwner) {
