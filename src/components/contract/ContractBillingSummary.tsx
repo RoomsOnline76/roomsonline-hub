@@ -4,6 +4,7 @@ import {
   resolveBillingContractVariables,
   type BillingContractVariables,
 } from "@/lib/contractBillingVariables";
+import { getPropertyRoomCount } from "@/lib/billingTierResolver";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Receipt, CalendarClock, Percent, AlertCircle } from "lucide-react";
 
@@ -18,17 +19,21 @@ interface LineItem {
   label: string;
   amount: number | null;
   note?: string;
+  /** Excluded from monthly totals (informational only). */
+  informational?: boolean;
 }
 
-interface PropertySummary {
-  propertyId: string;
-  name: string;
+interface BillingBlock {
+  key: string;
+  /** Heading — portfolio name, or the property name in per-property mode. */
+  title: string;
+  subtitle: string;
   strategyLabel: string;
   scope: "portfolio" | "property" | "global";
-  portfolioName: string;
   onceOff: LineItem[];
   monthly: LineItem[];
   commissions: LineItem[];
+  coveredProperties: { id: string; name: string; units: number }[];
 }
 
 const money = (v: number) =>
@@ -42,12 +47,22 @@ const numOf = (v: string | undefined): number | null => {
   return Number.isFinite(n) && n > 0 ? n : null;
 };
 
-/** Turn resolved contract variables into a plain fees breakdown. */
-function toSummary(
-  propertyId: string,
-  name: string,
+const sumMonthly = (items: LineItem[]) =>
+  items.filter((l) => !l.informational).reduce((a, l) => a + (l.amount || 0), 0);
+
+/**
+ * Build a fees breakdown from resolved contract variables.
+ * `units` = total bookable units in scope, `propertyCount` = properties in scope.
+ */
+function buildBlock(
+  key: string,
+  title: string,
+  subtitle: string,
   vars: BillingContractVariables,
-): PropertySummary {
+  covered: { id: string; name: string; units: number }[],
+): BillingBlock {
+  const units = covered.reduce((a, p) => a + p.units, 0);
+  const propertyCount = Math.max(covered.length, 1);
   const onceOff: LineItem[] = [];
   const monthly: LineItem[] = [];
   const commissions: LineItem[] = [];
@@ -70,9 +85,9 @@ function toSummary(
   const tierFee = numOf(vars.tier_monthly_fee);
   if (tierFee) {
     monthly.push({
-      label: "ROL'OS PMS subscription (tiered)",
+      label: "ROL'OS PMS subscription",
       amount: tierFee,
-      note: vars.tier_room_count ? `${vars.tier_room_count} rooms` : undefined,
+      note: `${vars.tier_room_count || units} rooms/units`,
     });
   }
   const subFee = numOf(vars.subscription_fee_monthly);
@@ -93,18 +108,35 @@ function toSummary(
   }
   const plMonthly = numOf(vars.pricelabs_monthly_fee);
   if (!isNA(vars.pricelabs_clause) && plMonthly) {
-    monthly.push({ label: "PriceLabs revenue management", amount: plMonthly });
+    monthly.push({
+      label: "PriceLabs revenue management",
+      amount: plMonthly * propertyCount,
+      note:
+        propertyCount > 1
+          ? `${propertyCount} properties × ${money(plMonthly)}`
+          : "per property",
+    });
   }
   const cmFee = numOf(vars.channel_manager_per_unit_fee);
   if (!isNA(vars.channel_manager_clause) && cmFee) {
-    monthly.push({ label: "Channel management", amount: cmFee, note: "per bookable unit" });
+    monthly.push({
+      label: "Channel management",
+      amount: units > 0 ? cmFee * units : null,
+      note:
+        units > 0
+          ? `${units} units × ${money(cmFee)}`
+          : `${money(cmFee)} per unit — unit count unavailable`,
+      informational: units === 0,
+    });
   }
   const byoFee = numOf(vars.byo_gateway_fee);
   if (!isNA(vars.byo_gateway_clause) && byoFee) {
     monthly.push({ label: "BYO gateway integration", amount: byoFee });
   }
+  // Enterprise licence only applies under an enterprise strategy — a stale
+  // custom fee on any other strategy is ignored.
   const entFee = numOf(vars.enterprise_fee);
-  if (entFee) {
+  if (entFee && /enterprise/i.test(vars.billing_strategy_label)) {
     monthly.push({ label: "Enterprise licence", amount: entFee });
   }
 
@@ -139,30 +171,32 @@ function toSummary(
   }
 
   return {
-    propertyId,
-    name,
+    key,
+    title,
+    subtitle,
     strategyLabel: vars.billing_strategy_label,
     scope: vars.scope,
-    portfolioName: vars.portfolio_name,
     onceOff,
     monthly,
     commissions,
+    coveredProperties: covered,
   };
 }
 
 /**
- * Pre-send review panel: shows the saved, property-specific billing figures that
- * will be embedded into the contract for every covered property.
+ * Pre-send review panel: shows the saved billing figures that will be embedded
+ * into the contract. Portfolio-billed properties are summarised once, combined
+ * across the portfolio (per-unit fees multiplied by total units).
  */
 export function ContractBillingSummary({ propertyIds, propertyNames }: Props) {
   const [loading, setLoading] = useState(false);
-  const [summaries, setSummaries] = useState<PropertySummary[]>([]);
+  const [blocks, setBlocks] = useState<BillingBlock[]>([]);
   const idKey = useMemo(() => propertyIds.filter(Boolean).join(","), [propertyIds]);
 
   useEffect(() => {
     const ids = idKey ? idKey.split(",") : [];
     if (!ids.length) {
-      setSummaries([]);
+      setBlocks([]);
       return;
     }
     let cancelled = false;
@@ -170,26 +204,50 @@ export function ContractBillingSummary({ propertyIds, propertyNames }: Props) {
     (async () => {
       setLoading(true);
       try {
-        let names: Record<string, string> = { ...(propertyNames || {}) };
+        const names: Record<string, string> = { ...(propertyNames || {}) };
         const missing = ids.filter((id) => !names[id]);
         if (missing.length) {
-          const { data } = await supabase
-            .from("properties")
-            .select("id, name")
-            .in("id", missing);
+          const { data } = await supabase.from("properties").select("id, name").in("id", missing);
           for (const row of data || []) names[row.id] = row.name as string;
         }
 
-        const resolved = await Promise.all(
-          ids.map(async (id) => {
-            const vars = await resolveBillingContractVariables([id]);
-            return toSummary(id, names[id] || "Unnamed property", vars);
-          }),
+        const unitCounts = await Promise.all(
+          ids.map(async (id) => ({
+            id,
+            name: names[id] || "Unnamed property",
+            units: await getPropertyRoomCount(id).catch(() => 0),
+          })),
         );
-        if (!cancelled) setSummaries(resolved);
+        const unitFor = (id: string) => unitCounts.find((u) => u.id === id)!;
+
+        // Resolve once for the whole set to learn the billing scope.
+        const combined = await resolveBillingContractVariables(ids);
+
+        let next: BillingBlock[];
+        if (combined.scope === "portfolio") {
+          next = [
+            buildBlock(
+              "portfolio",
+              combined.portfolio_name || "Portfolio",
+              `Combined portfolio billing · ${ids.length} ${ids.length === 1 ? "property" : "properties"}`,
+              combined,
+              unitCounts,
+            ),
+          ];
+        } else {
+          const perProperty = await Promise.all(
+            ids.map(async (id) => {
+              const vars = await resolveBillingContractVariables([id]);
+              return buildBlock(id, unitFor(id).name, "Property billing", vars, [unitFor(id)]);
+            }),
+          );
+          next = perProperty;
+        }
+
+        if (!cancelled) setBlocks(next);
       } catch (e) {
         console.error("[ContractBillingSummary] resolution failed", e);
-        if (!cancelled) setSummaries([]);
+        if (!cancelled) setBlocks([]);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -201,20 +259,13 @@ export function ContractBillingSummary({ propertyIds, propertyNames }: Props) {
   }, [idKey, propertyNames]);
 
   const totals = useMemo(() => {
-    const onceOff = summaries.reduce(
-      (sum, s) => sum + s.onceOff.reduce((a, l) => a + (l.amount || 0), 0),
+    const onceOff = blocks.reduce(
+      (sum, b) => sum + b.onceOff.reduce((a, l) => a + (l.amount || 0), 0),
       0,
     );
-    const monthly = summaries.reduce(
-      (sum, s) =>
-        sum +
-        s.monthly
-          .filter((l) => !l.note?.includes("per bookable unit"))
-          .reduce((a, l) => a + (l.amount || 0), 0),
-      0,
-    );
+    const monthly = blocks.reduce((sum, b) => sum + sumMonthly(b.monthly), 0);
     return { onceOff, monthly };
-  }, [summaries]);
+  }, [blocks]);
 
   if (!idKey) return null;
 
@@ -228,13 +279,13 @@ export function ContractBillingSummary({ propertyIds, propertyNames }: Props) {
         {loading && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
       </div>
 
-      {!loading && summaries.length === 0 && (
+      {!loading && blocks.length === 0 && (
         <p className="text-xs text-muted-foreground flex items-center gap-1">
           <AlertCircle className="h-3 w-3" /> No billing configuration resolved yet.
         </p>
       )}
 
-      {summaries.length > 1 && (
+      {blocks.length > 1 && (
         <div className="grid grid-cols-2 gap-2">
           <div className="rounded-md border border-border bg-background p-2">
             <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
@@ -251,50 +302,61 @@ export function ContractBillingSummary({ propertyIds, propertyNames }: Props) {
         </div>
       )}
 
-      <div className="space-y-3 max-h-[280px] overflow-y-auto">
-        {summaries.map((s) => {
-          const onceOffTotal = s.onceOff.reduce((a, l) => a + (l.amount || 0), 0);
-          const monthlyTotal = s.monthly
-            .filter((l) => !l.note?.includes("per bookable unit"))
-            .reduce((a, l) => a + (l.amount || 0), 0);
+      <div className="space-y-3 max-h-[320px] overflow-y-auto">
+        {blocks.map((b) => {
+          const onceOffTotal = b.onceOff.reduce((a, l) => a + (l.amount || 0), 0);
+          const monthlyTotal = sumMonthly(b.monthly);
+          const totalUnits = b.coveredProperties.reduce((a, p) => a + p.units, 0);
 
           return (
-            <div
-              key={s.propertyId}
-              className="rounded-md border border-border bg-background p-3 space-y-2"
-            >
+            <div key={b.key} className="rounded-md border border-border bg-background p-3 space-y-2">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="text-sm font-medium truncate">{s.name}</p>
-                  <p className="text-xs text-muted-foreground">{s.strategyLabel}</p>
+                  <p className="text-sm font-medium truncate">{b.title}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {b.strategyLabel} · {b.subtitle} · {totalUnits} units
+                  </p>
                 </div>
                 <Badge variant="secondary" className="text-[10px] flex-shrink-0">
-                  {s.scope === "portfolio"
-                    ? `Portfolio${s.portfolioName ? `: ${s.portfolioName}` : ""}`
-                    : s.scope === "property"
+                  {b.scope === "portfolio"
+                    ? "Portfolio billing"
+                    : b.scope === "property"
                       ? "Property config"
                       : "Global defaults"}
                 </Badge>
               </div>
 
+              {b.scope === "portfolio" && b.coveredProperties.length > 0 && (
+                <ul className="text-[11px] text-muted-foreground space-y-0.5">
+                  {b.coveredProperties.map((p) => (
+                    <li key={p.id} className="flex justify-between gap-2">
+                      <span className="truncate">• {p.name}</span>
+                      <span className="flex-shrink-0">
+                        {p.units} {p.units === 1 ? "unit" : "units"}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
               <Section
                 icon={<Receipt className="h-3 w-3" />}
                 title="Once-off fees"
-                items={s.onceOff}
+                items={b.onceOff}
                 total={onceOffTotal ? money(onceOffTotal) : undefined}
                 emptyLabel="None"
               />
               <Section
                 icon={<CalendarClock className="h-3 w-3" />}
                 title="Monthly recurring"
-                items={s.monthly}
+                items={b.monthly}
                 total={monthlyTotal ? `${money(monthlyTotal)}/mo` : undefined}
                 emptyLabel="None"
               />
               <Section
                 icon={<Percent className="h-3 w-3" />}
                 title="Commissions & transaction fees"
-                items={s.commissions}
+                items={b.commissions}
                 emptyLabel="No commission levied"
               />
             </div>
