@@ -453,23 +453,49 @@ export default function AdminContracts() {
     });
   }, [allActiveProperties, contracts]);
 
+  const scopedPropertyIds = useMemo(() => {
+    if (sendScope === "multiple") {
+      return Object.entries(multiPropertySelections)
+        .filter(([, checked]) => checked)
+        .map(([id]) => id);
+    }
+    if (sendScope === "portfolio") {
+      return portfolioProperties.map((p) => p.id);
+    }
+    return [];
+  }, [sendScope, multiPropertySelections, portfolioProperties]);
+
   const handleSendContract = async () => {
     if (!sendEmail) {
       toast.error("Email is required");
       return;
     }
-    if (!selectedProperty && !propertySearch.trim()) {
+    if (sendScope === "single" && !selectedProperty && !propertySearch.trim()) {
       toast.error("Property name is required");
       return;
+    }
+    if (sendScope === "multiple" && scopedPropertyIds.length === 0) {
+      toast.error("Select at least one property");
+      return;
+    }
+    if (sendScope === "portfolio") {
+      if (!selectedPortfolioId) {
+        toast.error("Select a portfolio");
+        return;
+      }
+      if (scopedPropertyIds.length === 0) {
+        toast.error("This portfolio has no properties linked");
+        return;
+      }
     }
 
     try {
       setSending(true);
 
-      let propertyId = selectedProperty?.id || undefined;
+      let propertyId = sendScope === "single" ? selectedProperty?.id || undefined : scopedPropertyIds[0];
 
       // If new property (no id), create it first
-      if (selectedProperty && !selectedProperty.id) {
+      if (sendScope === "single" && selectedProperty && !selectedProperty.id) {
         const { data: newProp, error: createErr } = await supabase
           .from("properties")
           .insert([{
@@ -489,7 +515,19 @@ export default function AdminContracts() {
         if (createErr) throw createErr;
         propertyId = newProp.id;
       }
-      
+
+      // For multi-property / portfolio scope, link every covered property to this owner
+      if (scopedPropertyIds.length > 0) {
+        const { error: linkErr } = await supabase
+          .from("properties")
+          .update({
+            owner_email: sendEmail.toLowerCase().trim(),
+            owner_name: sendName || null,
+          })
+          .in("id", scopedPropertyIds);
+        if (linkErr) throw linkErr;
+      }
+
       // Determine which template to use based on contract type
       const templateId = selectedContractType === "rolos" 
         ? "b2c3d4e5-f6a7-4890-bcde-f12345678901"
@@ -502,6 +540,9 @@ export default function AdminContracts() {
           owner_email: sendEmail, 
           owner_name: sendName || undefined,
           property_id: propertyId,
+          property_ids: scopedPropertyIds.length > 0 ? scopedPropertyIds : undefined,
+          portfolio_id: sendScope === "portfolio" ? selectedPortfolioId : undefined,
+          scope: sendScope,
           template_id: templateId,
           contract_type: selectedContractType,
         },
@@ -509,7 +550,9 @@ export default function AdminContracts() {
 
       if (error) throw error;
 
-      toast.success(`${selectedContractType === "rolos" ? "ROL'OS PMS" : selectedContractType === "referral" ? "Referral Partner" : "Standard"} contract sent successfully`);
+      const coverage = scopedPropertyIds.length > 0 ? ` covering ${scopedPropertyIds.length} propert${scopedPropertyIds.length === 1 ? "y" : "ies"}` : "";
+      toast.success(`${selectedContractType === "rolos" ? "ROL'OS PMS" : selectedContractType === "referral" ? "Referral Partner" : "Standard"} contract sent successfully${coverage}`);
+
       setSendModalOpen(false);
       resetSendModal();
       loadContracts();
