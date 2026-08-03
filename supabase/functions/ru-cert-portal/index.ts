@@ -1334,21 +1334,42 @@ Deno.serve(async (req) => {
         let childAccessKey: string | null = null;
         let childSecretKey: string | null = null;
         {
-          const { data: keyRow } = await admin
-            .from("ru_owner_accounts")
-            .select("ru_api_access_key, ru_api_secret_enc")
-            .eq("id", account.id)
-            .maybeSingle();
-          if (keyRow?.ru_api_access_key && keyRow?.ru_api_secret_enc) {
-            const { data: secret } = await admin.rpc("decrypt_sensitive_text", {
-              encrypted_data: keyRow.ru_api_secret_enc,
-            });
-            if (secret && secret !== "[ENCRYPTED]" && secret !== "[DECRYPTION_ERROR]") {
+          const decryptSecret = async (enc: unknown): Promise<string | null> => {
+            if (!enc) return null;
+            const { data: secret } = await admin.rpc("decrypt_sensitive_text", { encrypted_data: enc });
+            if (!secret || secret === "[ENCRYPTED]" || secret === "[DECRYPTION_ERROR]") return null;
+            return String(secret);
+          };
+
+          // Preferred: keys stored against this RU OwnerID
+          const boundOwnerId = String(account.ru_owner_id ?? "").trim();
+          if (boundOwnerId) {
+            const { data: credRow } = await admin
+              .from("ru_api_credentials")
+              .select("access_key, secret_enc")
+              .eq("ru_owner_id", boundOwnerId)
+              .maybeSingle();
+            const plain = await decryptSecret(credRow?.secret_enc);
+            if (credRow?.access_key && plain) {
+              childAccessKey = String(credRow.access_key);
+              childSecretKey = plain;
+            }
+          }
+
+          if (!childAccessKey) {
+            const { data: keyRow } = await admin
+              .from("ru_owner_accounts")
+              .select("ru_api_access_key, ru_api_secret_enc")
+              .eq("id", account.id)
+              .maybeSingle();
+            const plain = await decryptSecret(keyRow?.ru_api_secret_enc);
+            if (keyRow?.ru_api_access_key && plain) {
               childAccessKey = String(keyRow.ru_api_access_key);
-              childSecretKey = String(secret);
+              childSecretKey = plain;
             }
           }
         }
+
         const hasChildKeys = Boolean(childAccessKey && childSecretKey);
 
         if (!password && !hasChildKeys) {
