@@ -985,8 +985,13 @@ export default function AdminContracts() {
     setMultiPropertySelections({});
     setSelectedPortfolioId("");
     setPortfolioProperties([]);
-
+    setRepSearch("");
+    setSelectedRepId("");
+    setNewRepMode(false);
+    setNewRepTier("base");
+    setConfirmReplaceRepAgreement(false);
   };
+
 
   const searchProperties = async (query: string) => {
     setSearchingProperties(true);
