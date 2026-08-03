@@ -169,8 +169,26 @@ function pickSeasonRate(
     const hit = readBucket(seasonRates[key]);
     if (hit) return hit;
   }
-  return null;
+
+  // No key matched (legacy single-unit properties, or renamed rooms): fall back to the
+  // lowest positive rate configured for this season across every bucket.
+  let lowest = Infinity;
+  let lowestExtra: number | undefined;
+  for (const bucket of Object.values(seasonRates)) {
+    if (!bucket || typeof bucket !== "object") continue;
+    for (const [subKey, subData] of Object.entries(bucket as Record<string, any>)) {
+      if (!subKey.startsWith(`${seasonId}-`)) continue;
+      const amount = Number((subData as any)?.roomAmount);
+      if (Number.isFinite(amount) && amount > 0 && amount < lowest) {
+        lowest = amount;
+        const extra = Number((subData as any)?.adultAmount);
+        lowestExtra = Number.isFinite(extra) && extra > 0 ? extra : undefined;
+      }
+    }
+  }
+  return lowest < Infinity ? { price: lowest, extra_guest_price: lowestExtra } : null;
 }
+
 
 /**
  * Loads everything needed to price any unit of a property between two dates and
