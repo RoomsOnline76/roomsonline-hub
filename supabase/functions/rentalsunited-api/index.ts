@@ -1891,7 +1891,7 @@ Deno.serve(async (req) => {
 
       const response = await callRentalsUnited(creds, xml);
       const { ok, status } = handleRUStatus(response);
-      console.log(`[rentalsunited-api] Push building (auth=child_user_password) ok=${ok} response: ${response.substring(0, 500)}`);
+      console.log(`[rentalsunited-api] Push building (auth=${childAuthMode(childAuth)}) ok=${ok} response: ${response.substring(0, 500)}`);
       if (!ok) {
         return ruErrorResponse(
           status,
@@ -1904,7 +1904,7 @@ Deno.serve(async (req) => {
         success: true,
         building_id: buildingId ? parseInt(buildingId, 10) : null,
         unit_type_object_ids: unitTypeObjectIds,
-        auth_mode: 'child_user_password',
+        auth_mode: childAuthMode(childAuth),
         message: 'Building pushed successfully',
         raw_xml: response,
         diagnostics: {
@@ -1920,12 +1920,8 @@ Deno.serve(async (req) => {
     // Child-scoped only (see push_building lock note): the parent envelope would list the
     // master account's buildings and cross-contaminate thewhite-label client's inventory.
     if (action === 'list_buildings') {
-      const childUser = typeof body.auth_username === 'string' ? body.auth_username.trim() : '';
-      const childPass = typeof body.auth_password === 'string' ? body.auth_password : '';
-      const xml = buildListBuildingsXml(
-        creds,
-        childUser && childPass ? { username: childUser, password: childPass } : undefined,
-      );
+      const childAuth = await resolveChildAuth(body);
+      const xml = buildListBuildingsXml(creds, childAuth);
       const response = await callRentalsUnited(creds, xml);
       const { ok, status } = handleRUStatus(response);
       if (!ok) return ruErrorResponse(status, buildDiagnostics(sanitizeXmlForLogs(compactXml(xml)), status, 'list_buildings', response));
@@ -2011,11 +2007,10 @@ Deno.serve(async (req) => {
     if (action === 'get_building') {
       const bId = body.building_id;
       if (!bId) return errorResponse('MISSING_PARAM', 'building_id is required');
-      const childUser = typeof body.auth_username === 'string' ? body.auth_username.trim() : '';
-      const childPass = typeof body.auth_password === 'string' ? body.auth_password : '';
+      const childAuth = await resolveChildAuth(body);
       // Child-scoped only: no parent fallback (a building only exists on the account that
       // created it, and the parent envelope would read the master account's buildings).
-      const xml = buildGetBuildingXml(creds, parseInt(String(bId), 10), childUser && childPass ? { username: childUser, password: childPass } : undefined);
+      const xml = buildGetBuildingXml(creds, parseInt(String(bId), 10), childAuth);
       const response = await callRentalsUnited(creds, xml);
 
       const { ok, status } = handleRUStatus(response);
@@ -2105,31 +2100,27 @@ Deno.serve(async (req) => {
       // in the RU schema — RU applies the details to whichever identity authenticates. Using the
       // parent AccessKey/SecretKey therefore overwrites the MASTER company profile, never the
       // child's. Child UserName/Password is the only valid path; never add a parent fallback.
-      const childUser = typeof body.auth_username === 'string' ? body.auth_username.trim() : '';
-      const childPass = typeof body.auth_password === 'string' ? body.auth_password : '';
-      if (!childUser || !childPass) {
+      const childAuth = await resolveChildAuth(body);
+      if (!childAuth) {
         return jsonResponse({
           success: false,
           error: {
             code: 'RU_CHILD_AUTH_REQUIRED',
-            message: 'Company details must be submitted with the RU sub-user login (username + password). Save the sub-user password in Portfolios → RU accounts and retry.',
+            message: CHILD_AUTH_REQUIRED_MESSAGE,
           },
         }, 422);
       }
-      const xml = buildFillCompanyDetailsXml(creds, body.company as RUCompanyPayload, ownerId, {
-        username: childUser,
-        password: childPass,
-      });
+      const xml = buildFillCompanyDetailsXml(creds, body.company as RUCompanyPayload, ownerId, childAuth);
       const response = await callRentalsUnited(creds, xml);
       const { ok, status } = handleRUStatus(response);
       console.log(
-        `[rentalsunited-api] FillCompanyDetails (auth=child_user_password, owner=${ownerId}) ok=${ok} response: ${response.substring(0, 500)}`,
+        `[rentalsunited-api] FillCompanyDetails (auth=${childAuthMode(childAuth)}, owner=${ownerId}) ok=${ok} response: ${response.substring(0, 500)}`,
       );
       if (ok) {
         return jsonResponse({
           success: true,
           message: 'Company details filled successfully',
-          auth_mode: 'child_user_password',
+          auth_mode: childAuthMode(childAuth),
           owner_id: String(ownerId),
           raw_xml: response,
         });
