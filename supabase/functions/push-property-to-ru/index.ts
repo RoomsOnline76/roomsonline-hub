@@ -185,13 +185,14 @@ function toFiniteNumber(value: unknown): number | null {
 
 function mapAmenities(amenitiesData: Record<string, unknown> | null): { id: number; count: number; padded?: boolean }[] {
   if (!amenitiesData) return [];
-  // Canonical resolution: `ru:<id>` tokens picked in ROLOS, plus legacy free-text
-  // labels resolved through the shared RU dictionary map. No padding — a unit that
-  // falls short of RU's 10-amenity minimum must be fixed by the owner, and the
-  // readiness scorecard reports it.
-  const { ids } = resolveRuAmenityIds(amenitiesData);
-  return ids.map((id) => ({ id, count: 1 }));
+  // Canonical resolution: `ru:<id>` / `ru:<id>:<count>` tokens picked in ROLOS, plus
+  // legacy free-text labels resolved through the shared RU dictionary map. No padding —
+  // a unit that falls short of RU's 10-amenity minimum must be fixed by the owner, and
+  // the readiness scorecard reports it.
+  const { ids, counts } = resolveRuAmenityIds(amenitiesData);
+  return ids.map((id) => ({ id, count: Math.max(1, counts[id] || 1) }));
 }
+
 
 
 interface RuImage {
