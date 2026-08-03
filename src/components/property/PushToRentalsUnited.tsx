@@ -43,6 +43,8 @@ interface RuOwnerAccount {
 interface WlValidationFlags {
   has_zip_code?: boolean;
   has_space?: boolean;
+  has_bathrooms?: boolean;
+  has_toilets?: boolean;
   has_floor?: boolean;
   has_detailed_location_id?: boolean;
   has_payment_methods?: boolean;
