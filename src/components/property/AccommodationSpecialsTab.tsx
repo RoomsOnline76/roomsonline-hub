@@ -12,6 +12,9 @@ import { Plus, Trash2, Tag, Package, Percent, DollarSign, Gift, Wand2 } from "lu
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { SpecialWizard } from "@/components/property/specials/SpecialWizard";
+import { useMasterPolicyMode } from "@/hooks/useMasterPolicyMode";
+import { shortPolicyLabel } from "@/lib/policyLabels";
+import type { ManualCancellationRule } from "@/lib/cancellationPolicy";
 
 interface RoomTypeOption {
   id: string;
@@ -45,12 +48,22 @@ interface Special {
   min_age: number | null;
   max_age: number | null;
   age_label: string | null;
+  cancellation_policy_id: string | null;
+}
+
+interface PolicyOption {
+  id: string;
+  name: string;
+  is_master: boolean;
+  rule: ManualCancellationRule;
 }
 
 interface Props {
   propertyId: string;
   category?: string;
   roomTypes?: RoomTypeOption[];
+  /** Navigate the parent form to the Policies tab. */
+  onOpenPolicies?: () => void;
 }
 
 const SPECIAL_TYPES = [
@@ -86,9 +99,10 @@ const emptySpecial = (propertyId: string, category: string): Omit<Special, "id">
   min_age: null,
   max_age: null,
   age_label: null,
+  cancellation_policy_id: null,
 });
 
-export function AccommodationSpecialsTab({ propertyId, category = "accommodation", roomTypes = [] }: Props) {
+export function AccommodationSpecialsTab({ propertyId, category = "accommodation", roomTypes = [], onOpenPolicies }: Props) {
   const [specials, setSpecials] = useState<Special[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -96,6 +110,29 @@ export function AccommodationSpecialsTab({ propertyId, category = "accommodation
   const [draft, setDraft] = useState<Partial<Special> & { name: string }>({ name: "" });
   const [packageItem, setPackageItem] = useState("");
   const [wizardOpen, setWizardOpen] = useState(false);
+  const [policies, setPolicies] = useState<PolicyOption[]>([]);
+  const { mode: masterMode } = useMasterPolicyMode(propertyId);
+
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase
+        .from("rolos_reservation_policies")
+        .select("id, name, is_master, rule")
+        .eq("property_id", propertyId);
+      setPolicies((data ?? []) as unknown as PolicyOption[]);
+    })();
+  }, [propertyId]);
+
+  const masterPolicy = policies.find((p) => p.is_master) ?? null;
+
+  /** Terms a special will actually apply at checkout. */
+  const resolvedPolicyLabel = (policyId: string | null | undefined) => {
+    const own = policies.find((p) => p.id === policyId);
+    if (own) return `${own.name} — ${shortPolicyLabel(own.rule)}`;
+    if (masterPolicy) return `Inherits master: ${masterPolicy.name}`;
+    if (masterMode === "none") return "No cancellation policy";
+    return "No master policy set";
+  };
 
   const fetchSpecials = useCallback(async () => {
     const { data, error } = await supabase
@@ -170,6 +207,7 @@ export function AccommodationSpecialsTab({ propertyId, category = "accommodation
         min_age: draft.age_restricted ? (draft.min_age ?? null) : null,
         max_age: draft.age_restricted ? (draft.max_age ?? null) : null,
         age_label: draft.age_restricted ? (draft.age_label || null) : null,
+        cancellation_policy_id: draft.cancellation_policy_id || null,
       } as any)
       .eq("id", selectedId)
       .select();
