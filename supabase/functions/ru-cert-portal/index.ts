@@ -2482,7 +2482,15 @@ Deno.serve(async (req) => {
         const fire = async () => {
           lastCallAt = Date.now();
           lastMethodCallAt.set(method, lastCallAt);
-          return await admin.functions.invoke("rentalsunited-api", { body: { action: ruAction, ...payload } });
+          // Child-scoped reads/writes must authenticate AS the white-label sub-user:
+          // a listing created under a sub-user does not exist for the master account
+          // (RU answers "Property does not exist"). Passing owner_id lets
+          // rentalsunited-api swap in that sub-user's AccessKey/SecretKey.
+          const scopedPayload =
+            CERT_CHILD_SCOPED_ACTIONS.has(ruAction) && certOwnerId && payload.owner_id == null
+              ? { ...payload, owner_id: certOwnerId }
+              : payload;
+          return await admin.functions.invoke("rentalsunited-api", { body: { action: ruAction, ...scopedPayload } });
         };
         let res = await fire();
         const detail = String(res.error?.message ?? res.data?.error?.message ?? "");
