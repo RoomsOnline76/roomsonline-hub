@@ -9,6 +9,14 @@ import {
 } from '../_shared/ruReadiness.ts';
 import { evaluatePhases, phaseBlockedResponse, findOwnerAccount } from '../_shared/ruPhaseGate.ts';
 import { resolveRuAmenityIds } from '../_shared/ruAmenityMap.ts';
+import {
+  createRateResolver,
+  compressToPeriods,
+  describeCoverage,
+  type DayRate,
+  type UnitRateContext,
+} from '../_shared/rateResolution.ts';
+
 
 
 /**
