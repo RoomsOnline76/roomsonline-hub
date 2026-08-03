@@ -1467,9 +1467,9 @@ function buildFillCompanyDetailsXml(
     <Locations>
 ${locations}
     </Locations>
-    ${optNode('NumberOfProperties', company.number_of_properties)}
-    ${optNode('NumberOfEmployees', company.number_of_employees)}
-    ${optNode('YearsInBusiness', company.years_in_business)}
+    ${rangeNode('NumberOfProperties', RU_PROPERTY_RANGES, company.number_of_properties)}
+    ${rangeNode('NumberOfEmployees', RU_EMPLOYEE_RANGES, company.number_of_employees)}
+    ${rangeNode('YearsInBusiness', RU_YEARS_RANGES, company.years_in_business)}
     ${optNode('DescribeYourBusiness', company.describe_your_business)}
   </CompanyInfo>${legalRepXml}
 </Push_FillCompanyDetails_RQ>`;
