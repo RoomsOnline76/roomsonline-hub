@@ -2597,8 +2597,9 @@ Deno.serve(async (req) => {
           const authMode = typeof data?.auth_mode === "string" ? data.auth_mode : null;
           const masterLeak =
             CERT_MASTER_FORBIDDEN_ACTIONS.has(ruAction) &&
-            !!payload.owner_id &&
+            !!(payload.owner_id ?? certOwnerId) &&
             authMode === "master";
+
           const ok = (data?.success === true || data?.healthy === true) && !masterLeak;
           const assertFail = ok && opts.assert ? opts.assert(data) : null;
           const rawDetail =
