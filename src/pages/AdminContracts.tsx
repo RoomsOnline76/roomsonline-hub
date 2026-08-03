@@ -721,7 +721,7 @@ export default function AdminContracts() {
       if (error) throw error;
 
       const coverage = scopedPropertyIds.length > 0 ? ` covering ${scopedPropertyIds.length} propert${scopedPropertyIds.length === 1 ? "y" : "ies"}` : "";
-      toast.success(`${selectedContractType === "rolos" ? "ROL'OS PMS" : selectedContractType === "referral" ? "Referral Partner" : "Standard"} contract sent successfully${coverage}`);
+      toast.success(`${selectedContractType === "rolos" ? "ROL'OS PMS" : "Standard"} contract sent successfully${coverage}`);
 
       setSendModalOpen(false);
       resetSendModal();
