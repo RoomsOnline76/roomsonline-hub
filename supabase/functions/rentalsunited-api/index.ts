@@ -1421,7 +1421,7 @@ function buildFillCompanyDetailsXml(
     <CountryId>${Number(company.country_id)}</CountryId>
     <Address>${escapeXml(company.address)}</Address>
     <ZipCode>${escapeXml(company.zip_code)}</ZipCode>
-    <BirthDate>${escapeXml(company.birth_date || '1990-01-01')}</BirthDate>
+    <BirthDate>${escapeXml(company.birth_date || '')}</BirthDate>
     <LanguageId>${Number(company.language_id ?? 1)}</LanguageId>
   </ContactInfo>
   <CompanyInfo>
