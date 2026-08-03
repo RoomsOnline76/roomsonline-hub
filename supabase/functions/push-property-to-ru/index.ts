@@ -1266,15 +1266,20 @@ async function verifyPrices(
       }
     }
 
-    // Diff each requested season against returned per-day prices (sample first day of each season)
+    // Diff each requested season against returned per-day prices (sample first day of each
+    // season inside the read-back window — seasons that start before `windowFrom` are sampled
+    // at the window start, and seasons entirely outside the window are skipped because RU
+    // never returns them).
     for (const req of requested) {
-      const sampleDay = req.date_from;
+      if (req.date_to < windowFrom || req.date_from > windowTo) continue;
+      const sampleDay = req.date_from > windowFrom ? req.date_from : windowFrom;
       const got = returnedPerDay.get(sampleDay);
       if (!got) {
         report.mismatches.push({ date_from: req.date_from, date_to: req.date_to, field: 'missing', requested: req.price, returned: null });
         report.missing_dates.push(sampleDay);
         continue;
       }
+
       let ok = true;
       if (got.price != null && Math.abs(got.price - req.price) > 0.01) {
         report.mismatches.push({ date_from: req.date_from, date_to: req.date_to, field: 'price', requested: req.price, returned: got.price });
