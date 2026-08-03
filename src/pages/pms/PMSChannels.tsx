@@ -17,6 +17,7 @@ import { SyncLogTable } from "@/components/pms/channels/SyncLogTable";
 import { ALL_CHANNELS } from "@/components/pms/channels/ChannelLogo";
 import { RuReadinessScorecard } from "@/components/pms/channels/RuReadinessScorecard";
 import { RuOnboardingPipeline } from "@/components/integrations/RuOnboardingPipeline";
+import { RuCurrencyNotice } from "@/components/pms/channels/RuCurrencyNotice";
 
 import {
   useChannelConnections,
@@ -114,6 +115,9 @@ export default function PMSChannels() {
 
     <>
       <div className="space-y-6">
+        {/* Currency notice — only renders when USD conversion is in force for this property */}
+        <RuCurrencyNotice propertyId={propertyId} />
+
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
