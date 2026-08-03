@@ -2379,22 +2379,30 @@ Deno.serve(async (req) => {
        */
       const METHOD_WINDOW_MS = RUN_COOLDOWN_SECONDS * 1000;
       const MIN_GAP_MS = 1200;
-      const WAIT_BUDGET_MS = 150_000;
+      /**
+       * The edge runtime kills the request after 150s of idle time, so the run must
+       * finish well before that. Waiting is capped BOTH by a wait budget and by a
+       * wall-clock deadline that leaves room for RU calls and the final DB writes.
+       */
+      const RUN_DEADLINE_MS = Date.now() + 100_000;
+      const WAIT_BUDGET_MS = 90_000;
       let waitSpentMs = 0;
       let lastCallAt = 0;
       const lastMethodCallAt = new Map<string, number>();
       const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-      /** Sleeps up to `ms`, respecting the shared budget. Returns true when fully waited. */
+      /** Sleeps up to `ms`, respecting the shared budget and the run deadline. Returns true when fully waited. */
       const budgetedWait = async (ms: number): Promise<boolean> => {
         if (ms <= 0) return true;
-        const allowed = Math.min(ms, Math.max(0, WAIT_BUDGET_MS - waitSpentMs));
+        const untilDeadline = RUN_DEADLINE_MS - Date.now();
+        const allowed = Math.min(ms, Math.max(0, WAIT_BUDGET_MS - waitSpentMs), Math.max(0, untilDeadline));
         if (allowed > 0) {
           waitSpentMs += allowed;
           await sleep(allowed);
         }
         return allowed >= ms;
       };
+
 
       /** Invokes rentalsunited-api with pacing + one rate-limit retry. */
       const ruInvoke = async (
