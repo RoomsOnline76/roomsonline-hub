@@ -1,13 +1,16 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Plus, Pencil, Trash2, Share2, Star, StarOff, ShieldCheck } from "lucide-react";
+import { Loader2, Plus, Pencil, Trash2, Share2, Star, StarOff, ShieldCheck, Crown, RefreshCw } from "lucide-react";
 import { useReservationPolicies, type ReservationPolicy } from "@/hooks/useReservationPolicies";
+import { usePortfolioSiblings } from "@/hooks/usePortfolioSiblings";
+import { usePortfolioPolicies } from "@/hooks/usePortfolioPolicies";
 import { ReservationPolicyDialog } from "@/components/property/ReservationPolicyDialog";
 import { ApplyPolicyToPropertiesDialog } from "@/components/property/ApplyPolicyToPropertiesDialog";
 import { formatCancellationPolicy } from "@/lib/policyFormatter";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import { format } from "date-fns";
 
 interface Props {
