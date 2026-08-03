@@ -1294,8 +1294,32 @@ function extractUserAccountId(xml: string): string | null {
   return match?.[1] || null;
 }
 
-function extractUsers(xml: string): { user_account_id: string; email: string; first_name: string; last_name: string; owner_id: string }[] {
-  const results: { user_account_id: string; email: string; first_name: string; last_name: string; owner_id: string }[] = [];
+interface RUListedUser {
+  user_account_id: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  owner_id: string;
+  archived: boolean;
+}
+
+/**
+ * OwnerIDs that must never be offered in the UI again (abandoned test sub-users we
+ * cannot sign into to mint API keys, so they can neither be used nor archived).
+ */
+const RU_SUPPRESSED_OWNER_IDS = new Set(['741769', '741776']);
+
+/** RU renames a closed sub-user's login to `Archived_<email>` / `Archived.<email>`. */
+function isArchivedRuLogin(email: string, ownerId: string, block?: string): boolean {
+  if (RU_SUPPRESSED_OWNER_IDS.has(String(ownerId).trim())) return true;
+  if (/^archived[._-]/i.test(email.trim())) return true;
+  if (block && /<(IsArchived|Archived)>\s*(true|1)\s*<\/(IsArchived|Archived)>/i.test(block)) return true;
+  if (block && /<IsActive>\s*(false|0)\s*<\/IsActive>/i.test(block)) return true;
+  return false;
+}
+
+function extractUsers(xml: string): RUListedUser[] {
+  const results: RUListedUser[] = [];
   // Current RU format: <Owner OwnerID="741761"><FirstName/><SurName/><Email/>...<UserAccountId>0</UserAccountId></Owner>
   const ownerRegex = /<Owner\b[^>]*\bOwnerID\s*=\s*"(\d+)"[^>]*>([\s\S]*?)<\/Owner>/gi;
   let m: RegExpExecArray | null;
@@ -1303,12 +1327,14 @@ function extractUsers(xml: string): { user_account_id: string; email: string; fi
     const ownerId = m[1];
     const block = m[2];
     const val = (tag: string) => block.match(new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`, 'i'))?.[1]?.trim() ?? '';
+    const email = val('Email') || val('UserName');
     results.push({
       user_account_id: val('UserAccountId') || '',
       first_name: val('FirstName'),
       last_name: val('SurName') || val('LastName'),
-      email: val('Email') || val('UserName'),
+      email,
       owner_id: ownerId,
+      archived: isArchivedRuLogin(email, ownerId, block),
     });
   }
   if (results.length > 0) return results;
@@ -1317,16 +1343,20 @@ function extractUsers(xml: string): { user_account_id: string; email: string; fi
   const regex = /<User>[\s\S]*?<UserAccountId>(\d+)<\/UserAccountId>[\s\S]*?<FirstName>(.*?)<\/FirstName>[\s\S]*?<LastName>(.*?)<\/LastName>[\s\S]*?<Email>(.*?)<\/Email>[\s\S]*?(?:<OwnerID>(\d+)<\/OwnerID>)?[\s\S]*?<\/User>/g;
   let match;
   while ((match = regex.exec(xml)) !== null) {
+    const email = match[4]?.trim() || '';
+    const ownerId = match[5] || '';
     results.push({
       user_account_id: match[1],
       first_name: match[2]?.trim() || '',
       last_name: match[3]?.trim() || '',
-      email: match[4]?.trim() || '',
-      owner_id: match[5] || '',
+      email,
+      owner_id: ownerId,
+      archived: isArchivedRuLogin(email, ownerId),
     });
   }
   return results;
 }
+
 
 // ── Action Handlers ──────────────────────────────────────────
 
