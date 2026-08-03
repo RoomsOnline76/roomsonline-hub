@@ -2711,7 +2711,20 @@ Deno.serve(async (req) => {
         // the first RUID the account returns — that grades an unrelated property.
         const propScoped = ruPropertyId ? undefined : PROPERTY_SKIP;
 
-        await call("Get property content", "get_property", { ru_property_id: ruPropertyId }, { mandatory: true, scope: "property", skip: propScoped });
+        await call(
+          "Get property content",
+          "get_property",
+          { ru_property_id: ruPropertyId },
+          {
+            mandatory: true,
+            scope: "property",
+            skip:
+              propScoped ??
+              (certOwnerId && !certOwnerHasKeys
+                ? `No API keys stored for OwnerID ${certOwnerId} — a white-label listing is only readable with the sub-user's own AccessKey/SecretKey. Save them in Portfolios → RU accounts.`
+                : undefined),
+          },
+        );
         await probeAri("Get availability (365 days)", "get_availability");
         await probeAri("Get prices (365 days)", "get_prices");
         await call("List reservations (last 7 days)", "list_reservations", { date_from: isoDate(-7), date_to: isoDate(0) }, { mandatory: true, scope: "account" });
