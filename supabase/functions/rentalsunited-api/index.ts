@@ -1,3 +1,4 @@
+import { normalizeRuTimeZone } from '../_shared/ruTimeZones.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 /**
@@ -1430,7 +1431,7 @@ function buildFillCompanyDetailsXml(
     ${optNode('Address', company.company_address || company.address)}
     ${optNode('CountryId', company.company_country_id ?? company.country_id)}
     ${optNode('PostCode', company.post_code || company.zip_code)}
-    ${optNode('TimeZone', company.time_zone)}
+    ${optNode('TimeZone', normalizeRuTimeZone(company.time_zone))}
     ${optNode('Region', company.region)}
     ${optNode('PhoneNumber', company.company_phone || company.phone)}
     ${optNode('VATNumber', company.vat_number)}
