@@ -351,31 +351,42 @@ export function RuOnboardingPipeline({ propertyId, readOnly = false, standalone 
       <Dialog open={passwordOpen} onOpenChange={setPasswordOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Rentals United sub-user password</DialogTitle>
+            <DialogTitle>Rentals United sub-user API keys</DialogTitle>
             <DialogDescription>
-              We normally sign in with the password stored encrypted for this sub-user. It could not be used
-              (usually because the account was adopted rather than created here). Enter it once — it will be
-              stored encrypted and reused automatically from now on.
+              Since Rentals United's API-key rollout, company details must be submitted with the sub-user's own
+              AccessKey and SecretKey. Generate the first pair in the RU dashboard → Security settings while signed
+              in as that sub-user, then paste it here. Keys are stored encrypted against this OwnerID and reused
+              automatically from now on.
             </DialogDescription>
           </DialogHeader>
-          <Input
-            type="password"
-            autoComplete="off"
-            value={passwordValue}
-            onChange={(e) => setPasswordValue(e.target.value)}
-            placeholder="RU sub-user password"
-          />
+          <div className="space-y-2">
+            <Input
+              autoComplete="off"
+              value={accessKeyValue}
+              onChange={(e) => setAccessKeyValue(e.target.value)}
+              placeholder="Sub-user AccessKey"
+            />
+            <Input
+              type="password"
+              autoComplete="off"
+              value={secretKeyValue}
+              onChange={(e) => setSecretKeyValue(e.target.value)}
+              placeholder="Sub-user SecretKey"
+            />
+          </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setPasswordOpen(false)}>
               Cancel
             </Button>
             <Button
-              disabled={!passwordValue || busy !== null}
+              disabled={!accessKeyValue || !secretKeyValue || busy !== null}
               onClick={async () => {
-                const pwd = passwordValue;
+                const key = accessKeyValue;
+                const secret = secretKeyValue;
                 setPasswordOpen(false);
-                setPasswordValue("");
-                await submitCompanyDetails(pwd);
+                setAccessKeyValue("");
+                setSecretKeyValue("");
+                await submitCompanyDetails(key, secret);
               }}
             >
               Submit company details
@@ -383,6 +394,7 @@ export function RuOnboardingPipeline({ propertyId, readOnly = false, standalone 
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
 
       <Dialog open={resetOpen} onOpenChange={setResetOpen}>
         <DialogContent>
