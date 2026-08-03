@@ -2541,7 +2541,7 @@ Deno.serve(async (req) => {
           "Push long-stay discounts",
           "push_long_stay_discounts",
           { ru_property_id: ruPropertyId, discounts: mapLongStay(longStay) },
-          { mandatory: false, skip: noProp ?? (longStay.length === 0 ? "No active long-stay discounts configured for this property." : undefined) },
+          { mandatory: false, scope: "property", skip: noProp ?? (longStay.length === 0 ? "No active long-stay discounts configured for this property." : undefined) },
         );
         await call(
           "Verify long-stay discounts",
@@ -2549,6 +2549,7 @@ Deno.serve(async (req) => {
           { ru_property_id: ruPropertyId },
           {
             mandatory: false,
+            scope: "property",
             skip: noProp ?? (longStay.length === 0 ? "Nothing pushed." : undefined),
             assert: (d) => (/<LongStay/i.test(String(d?.raw_xml ?? "")) ? null : "RU did not echo any long-stay discounts"),
           },
@@ -2558,7 +2559,7 @@ Deno.serve(async (req) => {
           "Push last-minute discounts",
           "push_last_minute_discounts",
           { ru_property_id: ruPropertyId, discounts: mapLastMinute(lastMinute) },
-          { mandatory: false, skip: noProp ?? (lastMinute.length === 0 ? "No active last-minute discounts configured for this property." : undefined) },
+          { mandatory: false, scope: "property", skip: noProp ?? (lastMinute.length === 0 ? "No active last-minute discounts configured for this property." : undefined) },
         );
         await call(
           "Verify last-minute discounts",
@@ -2566,6 +2567,7 @@ Deno.serve(async (req) => {
           { ru_property_id: ruPropertyId },
           {
             mandatory: false,
+            scope: "property",
             skip: noProp ?? (lastMinute.length === 0 ? "Nothing pushed." : undefined),
             assert: (d) => (/<LastMinute/i.test(String(d?.raw_xml ?? "")) ? null : "RU did not echo any last-minute discounts"),
           },
