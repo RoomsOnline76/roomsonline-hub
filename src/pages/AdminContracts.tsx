@@ -1677,7 +1677,7 @@ export default function AdminContracts() {
             )}
 
             {/* Portfolio selection */}
-            {sendScope === "portfolio" && (
+            {!isReferral && sendScope === "portfolio" && (
               <div className="space-y-2">
                 <Label htmlFor="portfolioSelect">Portfolio *</Label>
                 <select
