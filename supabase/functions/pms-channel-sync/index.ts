@@ -524,7 +524,7 @@ async function handlePushRates(supabase: any, connectionId: string, headers: any
 
     await logSync(supabase, connectionId, "push_rates", result.success ? "success" : "failed", result.recordsProcessed, null, startedAt);
 
-    return new Response(JSON.stringify({ success: true, adapter: adapter.name, rate_coverage: coverageSummary, ...result }), {
+    return new Response(JSON.stringify({ ...result, success: result.success !== false, adapter: adapter.name, rate_coverage: coverageSummary }), {
       headers: { ...headers, "Content-Type": "application/json" },
     });
   } catch (err) {
