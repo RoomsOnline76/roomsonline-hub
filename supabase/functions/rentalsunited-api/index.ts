@@ -1239,7 +1239,33 @@ const CHILD_SCOPED_ACTIONS = new Set([
   'get_long_stay_discounts',
   'get_last_minute_discounts',
   'list_properties',
+  'order_mcq',
+  'push_change_currency',
 ]);
+
+/**
+ * Child-scoped actions where a master-credential fallback is never acceptable once an
+ * OwnerID is supplied: RU rejects them with "You are not the owner of the apartment"
+ * (or silently applies the write to OUR master account). When the sub-user's own keys
+ * cannot be resolved we fail loudly instead of calling RU as the master account.
+ */
+const CHILD_AUTH_STRICT_ACTIONS = new Set([
+  'push_property',
+  'push_availability',
+  'push_prices',
+  'push_prices_fsp',
+  'push_long_stay_discounts',
+  'push_last_minute_discounts',
+  'set_property_status',
+  'get_property',
+  'get_availability',
+  'get_prices',
+  'get_long_stay_discounts',
+  'get_last_minute_discounts',
+  'order_mcq',
+  'push_change_currency',
+]);
+
 
 /**
  * Resolve the credentials to use for a child-scoped RU call.
@@ -1248,15 +1274,21 @@ const CHILD_SCOPED_ACTIONS = new Set([
  * ru_owner_accounts → username/password supplied on the request (pre-migration
  * accounts only). Returns null when nothing usable is available.
  */
-async function resolveChildAuth(body: RequestBody): Promise<ChildAuth | null> {
+async function resolveChildAuthDetailed(
+  body: RequestBody,
+): Promise<{ auth: ChildAuth | null; reason: string | null }> {
   const suppliedKey = typeof body.auth_access_key === 'string' ? body.auth_access_key.trim() : '';
   const suppliedSecret = typeof body.auth_secret_key === 'string' ? body.auth_secret_key.trim() : '';
   if (suppliedKey && suppliedSecret) {
-    return { mode: 'keys', access_key: suppliedKey, secret_key: suppliedSecret };
+    return { auth: { mode: 'keys', access_key: suppliedKey, secret_key: suppliedSecret }, reason: null };
   }
 
   const username = typeof body.auth_username === 'string' ? body.auth_username.trim() : '';
   const ownerId = body.owner_id != null ? String(body.owner_id).trim() : '';
+  // Distinguish "no keys stored" from "stored secret could not be decrypted" so the
+  // operator knows whether to generate keys or simply re-save the secret.
+  let keyFound = false;
+  let decryptFailed = false;
 
   if (username || ownerId) {
     try {
@@ -1282,8 +1314,10 @@ async function resolveChildAuth(body: RequestBody): Promise<ChildAuth | null> {
       credQuery = ownerId ? credQuery.eq('ru_owner_id', ownerId) : credQuery.eq('login_email', username);
       const { data: credRow } = await credQuery.maybeSingle();
       if (credRow?.access_key) {
+        keyFound = true;
         const plain = await decrypt(credRow.secret_enc);
-        if (plain) return { mode: 'keys', access_key: String(credRow.access_key), secret_key: plain };
+        if (plain) return { auth: { mode: 'keys', access_key: String(credRow.access_key), secret_key: plain }, reason: null };
+        decryptFailed = true;
       }
 
       // Legacy store: keys held on the bound ru_owner_accounts row
@@ -1295,19 +1329,37 @@ async function resolveChildAuth(body: RequestBody): Promise<ChildAuth | null> {
       query = ownerId ? query.eq('ru_owner_id', ownerId) : query.eq('ru_login_email', username);
       const { data } = await query.maybeSingle();
       if (data?.ru_api_access_key && data?.ru_api_secret_enc) {
+        keyFound = true;
         const plain = await decrypt(data.ru_api_secret_enc);
-        if (plain) return { mode: 'keys', access_key: String(data.ru_api_access_key), secret_key: plain };
+        if (plain) return { auth: { mode: 'keys', access_key: String(data.ru_api_access_key), secret_key: plain }, reason: null };
+        decryptFailed = true;
       }
     } catch (e) {
       console.warn('[rentalsunited-api] child key lookup failed', e);
+      return {
+        auth: null,
+        reason: `Sub-user key lookup failed${ownerId ? ` for OwnerID ${ownerId}` : ''}: ${e instanceof Error ? e.message : 'unknown error'}`,
+      };
     }
   }
 
 
   const password = typeof body.auth_password === 'string' ? body.auth_password : '';
-  if (username && password) return { mode: 'password', username, password };
-  return null;
+  if (username && password) return { auth: { mode: 'password', username, password }, reason: null };
+
+  const scope = ownerId ? ` for OwnerID ${ownerId}` : username ? ` for ${username}` : '';
+  const reason = decryptFailed
+    ? `The stored SecretKey${scope} could not be decrypted — re-save the sub-user's AccessKey + SecretKey in Portfolios → RU accounts.`
+    : keyFound
+      ? `An AccessKey is on file${scope} but no usable SecretKey — re-save the key pair in Portfolios → RU accounts.`
+      : `No Rentals United sub-user API keys stored${scope} — generate them in the RU dashboard (Security settings) and save them in Portfolios → RU accounts.`;
+  return { auth: null, reason };
 }
+
+async function resolveChildAuth(body: RequestBody): Promise<ChildAuth | null> {
+  return (await resolveChildAuthDetailed(body)).auth;
+}
+
 
 const CHILD_AUTH_REQUIRED_MESSAGE =
   'This action must authenticate as the RU sub-user. Rentals United requires the sub-user\'s own API keys (AccessKey + SecretKey) — generate them in the RU dashboard under Security settings and save them in Portfolios → RU accounts, then retry.';
@@ -1757,12 +1809,36 @@ Deno.serve(async (req) => {
     // ── Child-scoped auth resolution ─────────────────────────
     // Every action below that touches ONE sub-user's inventory authenticates as that
     // sub-user when API keys are on file, so the listing lands on the sub-account.
-    const childAuth = CHILD_SCOPED_ACTIONS.has(action) ? await resolveChildAuth(body) : null;
+    const childScoped = CHILD_SCOPED_ACTIONS.has(action);
+    const childResolution = childScoped
+      ? await resolveChildAuthDetailed(body)
+      : { auth: null, reason: null };
+    const childAuth = childResolution.auth;
     const scopedCreds = effectiveCreds(creds, childAuth);
     const authMode = childAuthMode(childAuth);
-    if (CHILD_SCOPED_ACTIONS.has(action)) {
+    if (childScoped) {
       console.log(`[rentalsunited-api] ${action} auth_mode=${authMode} owner_id=${body.owner_id ?? 'n/a'}`);
     }
+    // Hard stop: an OwnerID was supplied (i.e. this is a white-label sub-user's inventory)
+    // but we could not authenticate as that sub-user. Falling back to the master account
+    // makes RU answer "You are not the owner of the apartment" or, worse, writes to us.
+    if (
+      childScoped &&
+      !childAuth &&
+      CHILD_AUTH_STRICT_ACTIONS.has(action) &&
+      body.owner_id != null &&
+      String(body.owner_id).trim() !== ''
+    ) {
+      return jsonResponse({
+        success: false,
+        auth_mode: 'master',
+        error: {
+          code: 'RU_CHILD_AUTH_REQUIRED',
+          message: `${childResolution.reason ?? CHILD_AUTH_REQUIRED_MESSAGE} Master-account fallback is prohibited for sub-user inventory.`,
+        },
+      }, 422);
+    }
+
 
     // ── list_properties ──
     if (action === 'list_properties') {
@@ -1786,7 +1862,7 @@ Deno.serve(async (req) => {
       const response = await callRentalsUnited(scopedCreds, xml);
       const { ok, status } = handleRUStatus(response);
       if (!ok) return ruErrorResponse(status);
-      return jsonResponse({ success: true, raw_xml: response });
+      return jsonResponse({ success: true, auth_mode: authMode, raw_xml: response });
     }
 
     // ── get_availability ──
@@ -1796,7 +1872,7 @@ Deno.serve(async (req) => {
       const response = await callRentalsUnited(scopedCreds, xml);
       const { ok, status } = handleRUStatus(response);
       if (!ok) return ruErrorResponse(status);
-      return jsonResponse({ success: true, raw_xml: response });
+      return jsonResponse({ success: true, auth_mode: authMode, raw_xml: response });
     }
 
     // ── get_prices ──
@@ -1806,8 +1882,9 @@ Deno.serve(async (req) => {
       const response = await callRentalsUnited(scopedCreds, xml);
       const { ok, status } = handleRUStatus(response);
       if (!ok) return ruErrorResponse(status);
-      return jsonResponse({ success: true, raw_xml: response });
+      return jsonResponse({ success: true, auth_mode: authMode, raw_xml: response });
     }
+
 
     // ── list_reservations ──
     if (action === 'list_reservations') {
@@ -2023,7 +2100,9 @@ Deno.serve(async (req) => {
         success: true,
         partial,
         message: partial ? 'FSP prices pushed with partial errors' : 'FSP prices pushed successfully',
+        auth_mode: authMode,
         notifs,
+
         raw_xml: response,
       });
     }
@@ -2112,7 +2191,7 @@ Deno.serve(async (req) => {
       console.log(`[rentalsunited-api] SetStatus response: ${response.substring(0, 500)}`);
       const { ok, status } = handleRUStatus(response);
       if (!ok) return ruErrorResponse(status);
-      return jsonResponse({ success: true, message: 'Property status updated', raw_xml: response });
+      return jsonResponse({ success: true, auth_mode: authMode, message: 'Property status updated', raw_xml: response });
     }
 
     // ── get_location_by_coordinates ──
@@ -2185,14 +2264,24 @@ Deno.serve(async (req) => {
     // Child-scoped only (see push_building lock note): the parent envelope would list the
     // master account's buildings and cross-contaminate thewhite-label client's inventory.
     if (action === 'list_buildings') {
-      const childAuth = await resolveChildAuth(body);
+      const { auth: childAuth, reason } = await resolveChildAuthDetailed(body);
+      // 🔒 ADAPTER LOCK — child isolation: Pull_ListBuildings_RQ has no <OwnerID>, so a
+      // master envelope would list OUR buildings. Fail loudly instead of falling back.
+      if (!childAuth) {
+        return jsonResponse({
+          success: false,
+          auth_mode: 'master',
+          error: { code: 'RU_CHILD_AUTH_REQUIRED', message: reason ?? CHILD_AUTH_REQUIRED_MESSAGE },
+        }, 422);
+      }
       const xml = buildListBuildingsXml(creds, childAuth);
       const response = await callRentalsUnited(creds, xml);
       const { ok, status } = handleRUStatus(response);
       if (!ok) return ruErrorResponse(status, buildDiagnostics(sanitizeXmlForLogs(compactXml(xml)), status, 'list_buildings', response));
       const buildings = extractBuildings(response);
-      return jsonResponse({ success: true, buildings, count: buildings.length, raw_xml: response });
+      return jsonResponse({ success: true, auth_mode: childAuthMode(childAuth), buildings, count: buildings.length, raw_xml: response });
     }
+
 
 
 
@@ -2272,11 +2361,19 @@ Deno.serve(async (req) => {
     if (action === 'get_building') {
       const bId = body.building_id;
       if (!bId) return errorResponse('MISSING_PARAM', 'building_id is required');
-      const childAuth = await resolveChildAuth(body);
+      const { auth: childAuth, reason } = await resolveChildAuthDetailed(body);
       // Child-scoped only: no parent fallback (a building only exists on the account that
       // created it, and the parent envelope would read the master account's buildings).
+      if (!childAuth) {
+        return jsonResponse({
+          success: false,
+          auth_mode: 'master',
+          error: { code: 'RU_CHILD_AUTH_REQUIRED', message: reason ?? CHILD_AUTH_REQUIRED_MESSAGE },
+        }, 422);
+      }
       const xml = buildGetBuildingXml(creds, parseInt(String(bId), 10), childAuth);
       const response = await callRentalsUnited(creds, xml);
+
 
       const { ok, status } = handleRUStatus(response);
       if (!ok) return ruErrorResponse(status, buildDiagnostics(compactXml(xml), status, 'get_building', response));
@@ -2402,19 +2499,23 @@ Deno.serve(async (req) => {
     if (action === 'order_mcq') {
       const ruPropertyId = Number(body.ru_property_id);
       if (!ruPropertyId) return errorResponse('MISSING_PARAM', 'ru_property_id is required');
-      const xml = `<?xml version="1.0" encoding="utf-8"?>\n<CM_LNM_OrderMinimumContentQualityCheck_RQ>${buildAuthXml(creds)}<PropertyID>${ruPropertyId}</PropertyID></CM_LNM_OrderMinimumContentQualityCheck_RQ>`;
-      const response = await callRentalsUnited(creds, xml);
-      console.log(`[rentalsunited-api] OrderMCQ response: ${response.substring(0, 500)}`);
+      // Sub-user listings must be quality-checked as the sub-user (scopedCreds), otherwise
+      // RU answers "You are not the owner of the apartment".
+      const xml = `<?xml version="1.0" encoding="utf-8"?>\n<CM_LNM_OrderMinimumContentQualityCheck_RQ>${buildAuthXml(scopedCreds)}<PropertyID>${ruPropertyId}</PropertyID></CM_LNM_OrderMinimumContentQualityCheck_RQ>`;
+      const response = await callRentalsUnited(scopedCreds, xml);
+      console.log(`[rentalsunited-api] OrderMCQ (auth=${authMode}) response: ${response.substring(0, 500)}`);
       const { ok, status } = handleRUStatus(response);
       if (!ok) return ruErrorResponse(status, buildDiagnostics(compactXml(xml), status, 'order_mcq', response));
       return jsonResponse({
         success: true,
+        auth_mode: authMode,
         ru_property_id: ruPropertyId,
         ru_status_id: status?.id ?? null,
         message: 'Minimum Content Quality check ordered',
         raw_xml: response,
       });
     }
+
 
     // ── get_location_by_name ──
     // Pull_GetLocationByName_RQ — find a LocationID by free-text name. Better than coords for
@@ -2595,10 +2696,10 @@ Deno.serve(async (req) => {
       const currencyIso = (body.currency_iso || (metadata as any)?.currency_iso || '').toString().trim().toUpperCase();
       if (!locationId) return errorResponse('MISSING_PARAM', 'location_id is required');
       if (!currencyIso || !/^[A-Z]{3}$/.test(currencyIso)) return errorResponse('VALIDATION', 'currency_iso must be a 3-letter ISO code');
-      const xml = `<Push_ChangeCurrency_RQ>${buildAuthXml(creds)}<Location>${parseInt(String(locationId), 10)}</Location><Currency>${currencyIso}</Currency></Push_ChangeCurrency_RQ>`;
+      const xml = `<Push_ChangeCurrency_RQ>${buildAuthXml(scopedCreds)}<Location>${parseInt(String(locationId), 10)}</Location><Currency>${currencyIso}</Currency></Push_ChangeCurrency_RQ>`;
       const compactRequestXml = compactXml(xml);
-      const response = await callRentalsUnited(creds, xml);
-      console.log(`[rentalsunited-api] push_change_currency response: ${response.substring(0, 500)}`);
+      const response = await callRentalsUnited(scopedCreds, xml);
+      console.log(`[rentalsunited-api] push_change_currency (auth=${authMode}) response: ${response.substring(0, 500)}`);
       const { ok, status } = handleRUStatus(response);
       // Status 339 = "Location already has the requested currency set" — treat as success.
       if (!ok && status.id !== '339') {
@@ -2606,12 +2707,14 @@ Deno.serve(async (req) => {
       }
       return jsonResponse({
         success: true,
+        auth_mode: authMode,
         already_set: status.id === '339',
         location_id: parseInt(String(locationId), 10),
         currency_iso: currencyIso,
         raw_xml: response,
       });
     }
+
 
     // Unknown action
     return errorResponse('UNKNOWN_ACTION', `Action "${action}" is not supported`);

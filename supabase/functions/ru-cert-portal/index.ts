@@ -217,7 +217,34 @@ const CERT_CHILD_SCOPED_ACTIONS = new Set([
   "push_prices",
   "push_property",
   "set_property_status",
+  "order_mcq",
+  "push_change_currency",
+  "list_buildings",
+  "get_building",
 ]);
+
+/**
+ * Child-scoped actions where authenticating as the MASTER account is a hard failure:
+ * RU either rejects them ("You are not the owner of the apartment") or applies the
+ * write to our own master inventory.
+ */
+const CERT_MASTER_FORBIDDEN_ACTIONS = new Set([
+  "get_property",
+  "get_availability",
+  "get_prices",
+  "get_long_stay_discounts",
+  "get_last_minute_discounts",
+  "push_long_stay_discounts",
+  "push_last_minute_discounts",
+  "push_availability",
+  "push_prices",
+  "push_property",
+  "set_property_status",
+  "order_mcq",
+  "list_buildings",
+  "get_building",
+]);
+
 
 
 
@@ -2565,15 +2592,29 @@ Deno.serve(async (req) => {
             steps.push({ step: stepNo, name, ru_method, mandatory: !!opts.mandatory, scope, status: soft ? "skipped" : "failed", duration_ms: duration, detail: soft ?? error.message, request: payload });
             return null;
           }
-          const ok = data?.success === true || data?.healthy === true;
+          // 🔒 Child isolation: a child-scoped step that answered on MASTER credentials is
+          // never a pass — RU either rejects it or applies the write to our own inventory.
+          const authMode = typeof data?.auth_mode === "string" ? data.auth_mode : null;
+          const masterLeak =
+            CERT_MASTER_FORBIDDEN_ACTIONS.has(ruAction) &&
+            !!(payload.owner_id ?? certOwnerId) &&
+            authMode === "master";
+
+          const ok = (data?.success === true || data?.healthy === true) && !masterLeak;
           const assertFail = ok && opts.assert ? opts.assert(data) : null;
           const rawDetail =
+            (masterLeak
+              ? `Authenticated as the MASTER account instead of sub-user ${payload.owner_id ?? certOwnerId}. Add this sub-user's RU AccessKey/SecretKey in RU User Management, then re-run.`
+              : null) ??
             assertFail ??
             data?.error?.message ??
-            (ok && opts.successDetail ? opts.successDetail : undefined) ??
+            (ok && opts.successDetail
+              ? `${opts.successDetail}${authMode && authMode !== "master" ? ` (auth: ${authMode})` : ""}`
+              : undefined) ??
             data?.message ??
             (ok ? "OK" : "Unexpected response");
-          const soft = ok && !assertFail ? null : softSkipReason(String(rawDetail));
+          const soft = ok && !assertFail ? null : masterLeak ? null : softSkipReason(String(rawDetail));
+
           steps.push({
             step: stepNo,
             name,
@@ -2810,61 +2851,72 @@ Deno.serve(async (req) => {
           ? "No active last-minute discounts, last-minute or advance-purchase specials configured for this property."
           : undefined;
 
-        const lsPushed = await call(
-          "Push long-stay discounts",
-          "push_long_stay_discounts",
-          { ru_property_id: ruPropertyId, discounts: lsWire },
-          {
-            mandatory: false,
-            scope: "property",
-            skip: noProp ?? noLongStay ?? invalid,
-            successDetail: `Pushed ${describeTierSources(ladder.longStay)}`,
-          },
-        );
-        await call(
-          "Verify long-stay discounts",
-          "get_long_stay_discounts",
-          { ru_property_id: ruPropertyId },
-          {
-            mandatory: false,
-            scope: "property",
-            skip: noProp ?? noLongStay ?? invalid ?? (lsPushed ? undefined : "Nothing pushed."),
-            assert: (d) => {
-              const diff = diffRuDiscountEcho(String(d?.raw_xml ?? ""), "LongStay", lsWire);
-              if (diff.returned === 0) return "RU did not echo any long-stay discounts";
-              return diff.matches === diff.requested ? null : `${diff.matches}/${diff.requested} tiers echoed — ${diff.firstMismatch}`;
-            },
-            successDetail: `RU echoed all ${lsWire.length} long-stay tier${lsWire.length === 1 ? "" : "s"}`,
-          },
-        );
+        // Discounts live on the APARTMENT (unit) RUID, not the building. Pushing to the
+        // parent id on a multi-unit property makes RU answer "You are not the owner of the
+        // apartment" — so iterate every mapped unit, exactly like the ARI probe.
+        const discountTargets = unitRuIds.length > 0 ? unitRuIds : ruPropertyId ? [ruPropertyId] : [];
+        const multi = discountTargets.length > 1;
+        const label = (base: string, id: number) => (multi ? `${base} (unit ${id})` : base);
 
-        const lmPushed = await call(
-          "Push last-minute discounts",
-          "push_last_minute_discounts",
-          { ru_property_id: ruPropertyId, discounts: lmWire },
-          {
-            mandatory: false,
-            scope: "property",
-            skip: noProp ?? noLastMinute ?? invalid,
-            successDetail: `Pushed ${describeTierSources(ladder.lastMinute)}`,
-          },
-        );
-        await call(
-          "Verify last-minute discounts",
-          "get_last_minute_discounts",
-          { ru_property_id: ruPropertyId },
-          {
-            mandatory: false,
-            scope: "property",
-            skip: noProp ?? noLastMinute ?? invalid ?? (lmPushed ? undefined : "Nothing pushed."),
-            assert: (d) => {
-              const diff = diffRuDiscountEcho(String(d?.raw_xml ?? ""), "LastMinute", lmWire);
-              if (diff.returned === 0) return "RU did not echo any last-minute discounts";
-              return diff.matches === diff.requested ? null : `${diff.matches}/${diff.requested} tiers echoed — ${diff.firstMismatch}`;
+        for (const targetId of discountTargets.length > 0 ? discountTargets : [0]) {
+          const targeted = targetId > 0 ? targetId : ruPropertyId;
+          const lsPushed = await call(
+            label("Push long-stay discounts", targeted ?? 0),
+            "push_long_stay_discounts",
+            { ru_property_id: targeted, discounts: lsWire },
+            {
+              mandatory: false,
+              scope: "property",
+              skip: noProp ?? noLongStay ?? invalid,
+              successDetail: `Pushed ${describeTierSources(ladder.longStay)}`,
             },
-            successDetail: `RU echoed all ${lmWire.length} last-minute tier${lmWire.length === 1 ? "" : "s"}`,
-          },
-        );
+          );
+          await call(
+            label("Verify long-stay discounts", targeted ?? 0),
+            "get_long_stay_discounts",
+            { ru_property_id: targeted },
+            {
+              mandatory: false,
+              scope: "property",
+              skip: noProp ?? noLongStay ?? invalid ?? (lsPushed ? undefined : "Nothing pushed."),
+              assert: (d) => {
+                const diff = diffRuDiscountEcho(String(d?.raw_xml ?? ""), "LongStay", lsWire);
+                if (diff.returned === 0) return "RU did not echo any long-stay discounts";
+                return diff.matches === diff.requested ? null : `${diff.matches}/${diff.requested} tiers echoed — ${diff.firstMismatch}`;
+              },
+              successDetail: `RU echoed all ${lsWire.length} long-stay tier${lsWire.length === 1 ? "" : "s"}`,
+            },
+          );
+
+          const lmPushed = await call(
+            label("Push last-minute discounts", targeted ?? 0),
+            "push_last_minute_discounts",
+            { ru_property_id: targeted, discounts: lmWire },
+            {
+              mandatory: false,
+              scope: "property",
+              skip: noProp ?? noLastMinute ?? invalid,
+              successDetail: `Pushed ${describeTierSources(ladder.lastMinute)}`,
+            },
+          );
+          await call(
+            label("Verify last-minute discounts", targeted ?? 0),
+            "get_last_minute_discounts",
+            { ru_property_id: targeted },
+            {
+              mandatory: false,
+              scope: "property",
+              skip: noProp ?? noLastMinute ?? invalid ?? (lmPushed ? undefined : "Nothing pushed."),
+              assert: (d) => {
+                const diff = diffRuDiscountEcho(String(d?.raw_xml ?? ""), "LastMinute", lmWire);
+                if (diff.returned === 0) return "RU did not echo any last-minute discounts";
+                return diff.matches === diff.requested ? null : `${diff.matches}/${diff.requested} tiers echoed — ${diff.firstMismatch}`;
+              },
+              successDetail: `RU echoed all ${lmWire.length} last-minute tier${lmWire.length === 1 ? "" : "s"}`,
+            },
+          );
+        }
+
       }
 
       const passed = steps.filter((s) => s.status === "passed").length;
