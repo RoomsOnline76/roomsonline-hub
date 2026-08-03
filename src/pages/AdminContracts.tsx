@@ -1427,6 +1427,87 @@ export default function AdminContracts() {
                 </AlertDescription>
               </Alert>
             )}
+            </>
+            )}
+
+            {/* Multiple properties selection */}
+            {sendScope === "multiple" && (
+              <div className="space-y-2">
+                <Label>Properties * <span className="text-xs text-muted-foreground font-normal">({scopedPropertyIds.length} selected)</span></Label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Filter properties..."
+                    value={multiPropertySearch}
+                    onChange={(e) => setMultiPropertySearch(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+                <div className="max-h-[220px] overflow-y-auto rounded-lg border border-border divide-y divide-border/50">
+                  {allActiveProperties
+                    .filter((p) => p.name.toLowerCase().includes(multiPropertySearch.toLowerCase()))
+                    .map((p) => (
+                      <label key={p.id} className="flex items-center gap-2 px-3 py-2 hover:bg-muted cursor-pointer">
+                        <Checkbox
+                          checked={!!multiPropertySelections[p.id]}
+                          onCheckedChange={(checked) =>
+                            setMultiPropertySelections((prev) => ({ ...prev, [p.id]: !!checked }))
+                          }
+                        />
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-sm truncate">{p.name}</span>
+                          {p.owner_email && (
+                            <span className="block text-xs text-muted-foreground truncate">{p.owner_email}</span>
+                          )}
+                        </span>
+                      </label>
+                    ))}
+                  {allActiveProperties.length === 0 && (
+                    <p className="px-3 py-2 text-sm text-muted-foreground">No properties available</p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Portfolio selection */}
+            {sendScope === "portfolio" && (
+              <div className="space-y-2">
+                <Label htmlFor="portfolioSelect">Portfolio *</Label>
+                <select
+                  id="portfolioSelect"
+                  value={selectedPortfolioId}
+                  onChange={(e) => handleSelectPortfolio(e.target.value)}
+                  className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  <option value="">Select a portfolio…</option>
+                  {portfolios.map((p) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+                {loadingPortfolioProps && (
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    <Loader2 className="h-3 w-3 animate-spin" /> Loading portfolio properties…
+                  </p>
+                )}
+                {!loadingPortfolioProps && selectedPortfolioId && (
+                  <div className="rounded-lg border border-border bg-muted/30 p-3">
+                    <p className="text-sm font-medium mb-1">
+                      Portfolio properties ({portfolioProperties.length})
+                    </p>
+                    {portfolioProperties.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">No properties linked to this portfolio.</p>
+                    ) : (
+                      <ul className="text-sm text-muted-foreground space-y-1 max-h-[160px] overflow-y-auto">
+                        {portfolioProperties.map((p) => (
+                          <li key={p.id}>• {p.name}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
 
             <div className="space-y-2">
               <Label htmlFor="email">Owner Email *</Label>
