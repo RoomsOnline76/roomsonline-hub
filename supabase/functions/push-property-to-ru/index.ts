@@ -1720,6 +1720,50 @@ Deno.serve(async (req) => {
     // ── Seed: pull RU's master list of cities + currencies into public.ru_locations ──
     // One-shot (or periodic) cache primer. Without this, name lookups can't be country-scoped
     // and we can't detect when an RU LocationID is configured to the wrong currency.
+    // ── Refresh RU location currency cache (all locations, any country) ──
+    // The empty ru_locations cache is what let currency drift go undetected. This is the
+    // scheduled/manual refresh that keeps the authoritative location currency current.
+    if (action === 'refresh_ru_location_currencies') {
+      const res = await refreshRuLocationsCache(supabase);
+      if (!res.success) {
+        return new Response(
+          JSON.stringify({ success: false, error: { code: 'REFRESH_FAILED', message: res.error }, upserted: res.upserted }),
+          { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      // Refresh the ZAR→USD reference rate at the same time so the fallback is always warm.
+      const fx = await getFxRate(supabase, 'ZAR', 'USD');
+      return new Response(
+        JSON.stringify({
+          success: true,
+          upserted: res.upserted,
+          fx: fx.rate != null
+            ? { base: 'ZAR', quote: 'USD', rate: fx.rate, margin_pct: FX_MARGIN_PCT, effective_rate: applyMargin(fx.rate), fetched_at: (fx as any).fetched_at }
+            : { error: (fx as any).error },
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // ── Currency status for one or more properties (read-only, no RU writes) ──
+    if (action === 'currency_status') {
+      const ids: string[] = Array.isArray(reqBody.property_ids)
+        ? reqBody.property_ids
+        : (reqBody.property_id ? [reqBody.property_id] : []);
+      const states = await Promise.all(ids.map(async (id) => ({ property_id: id, state: await loadCurrencyState(supabase, id) })));
+      const fx = await getFxRate(supabase, 'ZAR', 'USD');
+      return new Response(
+        JSON.stringify({
+          success: true,
+          states,
+          fx: fx.rate != null
+            ? { base: 'ZAR', quote: 'USD', rate: fx.rate, margin_pct: FX_MARGIN_PCT, effective_rate: applyMargin(fx.rate), fetched_at: (fx as any).fetched_at }
+            : { error: (fx as any).error },
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     if (action === 'seed_ru_locations') {
       const filter: string[] = Array.isArray(reqBody.countries) && reqBody.countries.length
         ? reqBody.countries.map((s: any) => String(s).trim().toUpperCase())
