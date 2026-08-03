@@ -2218,7 +2218,20 @@ Deno.serve(async (req) => {
         );
         await call("List reservations (last 7 days)", "list_reservations", { date_from: isoDate(-7), date_to: isoDate(0) }, { mandatory: true });
         await call("Get leads (optional)", "get_leads", { date_from: isoDate(-7), date_to: isoDate(0) }, { mandatory: false });
-        await call("List owner buildings", "list_buildings", {}, { mandatory: false });
+        await call(
+          "List owner buildings",
+          "list_buildings",
+          { owner_id: certOwnerId },
+          {
+            mandatory: false,
+            skip: !certOwnerId
+              ? "No RU sub-user (OwnerID) bound — buildings are read under the sub-user's own API keys."
+              : !certOwnerHasKeys
+                ? `No API keys stored for OwnerID ${certOwnerId} — generate them in the RU dashboard (Security settings) and save them in Portfolios → RU accounts.`
+                : undefined,
+          },
+        );
+
         await call("List composition rooms", "list_composition_rooms", {}, { mandatory: false });
         await call("List cities & currencies", "list_cities_and_currencies", {}, { mandatory: false });
         await call("Resolve location by coordinates", "get_location_by_coordinates", { latitude: -34.0333, longitude: 21.35 }, { mandatory: false });
