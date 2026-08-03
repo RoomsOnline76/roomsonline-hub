@@ -1127,6 +1127,27 @@ interface RUCompanyPayload {
   vat_number?: string;
   merchant_name?: string;
   location_ids?: number[];
+  // CompanyInfo extras — verified against the RU reference (Fill company details).
+  time_zone?: string;
+  region?: string;
+  manager_identification_number?: string;
+  number_of_properties?: number;
+  number_of_employees?: number;
+  years_in_business?: number;
+  describe_your_business?: string;
+  // LegalRepresentativeInfo — the only block that carries a nationality.
+  legal_rep?: {
+    first_name?: string;
+    last_name?: string;
+    email?: string;
+    city?: string;
+    country_of_residence_id?: number;
+    address?: string;
+    post_code?: string;
+    birthday?: string;
+    nationality_id?: number;
+    region?: string;
+  } | null;
 }
 
 const RU_COMPANY_REQUIRED: (keyof RUCompanyPayload)[] = [
@@ -1289,6 +1310,27 @@ function buildFillCompanyDetailsXml(
   const optNode = (tag: string, val?: string | number) =>
     val !== undefined && val !== null && String(val).trim() !== '' ? `<${tag}>${escapeXml(String(val))}</${tag}>` : '';
   const locations = (company.location_ids ?? []).map((id) => `      <Location Id="${Number(id)}" />`).join('\n');
+  // LegalRepresentativeInfo is optional, but RU's XSD fixes the element order:
+  // FirstName → LastName → Email → City → CountryOfResidenceId → Address → PostCode
+  // → Birthday → NationalityId → Region.
+  const rep = company.legal_rep ?? null;
+  const repNodes = rep
+    ? [
+        optNode('FirstName', rep.first_name),
+        optNode('LastName', rep.last_name),
+        optNode('Email', rep.email),
+        optNode('City', rep.city),
+        optNode('CountryOfResidenceId', rep.country_of_residence_id),
+        optNode('Address', rep.address),
+        optNode('PostCode', rep.post_code),
+        optNode('Birthday', rep.birthday),
+        optNode('NationalityId', rep.nationality_id),
+        optNode('Region', rep.region),
+      ].filter(Boolean)
+    : [];
+  const legalRepXml = repNodes.length > 0
+    ? `\n  <LegalRepresentativeInfo>\n    ${repNodes.join('\n    ')}\n  </LegalRepresentativeInfo>`
+    : '';
   return `<?xml version="1.0" encoding="utf-8"?>
 <Push_FillCompanyDetails_RQ>
   ${childAuth ? buildChildAuthXml(childAuth) : buildAuthXml(creds)}
@@ -1313,13 +1355,20 @@ function buildFillCompanyDetailsXml(
     ${optNode('Address', company.company_address || company.address)}
     ${optNode('CountryId', company.company_country_id ?? company.country_id)}
     ${optNode('PostCode', company.post_code || company.zip_code)}
+    ${optNode('TimeZone', company.time_zone)}
+    ${optNode('Region', company.region)}
     ${optNode('PhoneNumber', company.company_phone || company.phone)}
     ${optNode('VATNumber', company.vat_number)}
+    ${optNode('ManagerIdentificationNumber', company.manager_identification_number)}
     <MerchantName>${escapeXml(company.merchant_name || company.name)}</MerchantName>
     <Locations>
 ${locations}
     </Locations>
-  </CompanyInfo>
+    ${optNode('NumberOfProperties', company.number_of_properties)}
+    ${optNode('NumberOfEmployees', company.number_of_employees)}
+    ${optNode('YearsInBusiness', company.years_in_business)}
+    ${optNode('DescribeYourBusiness', company.describe_your_business)}
+  </CompanyInfo>${legalRepXml}
 </Push_FillCompanyDetails_RQ>`;
 }
 
