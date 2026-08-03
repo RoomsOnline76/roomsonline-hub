@@ -143,6 +143,13 @@ export function PortfolioRuAccountsTab() {
   const [binding, setBinding] = useState<string | null>(null);
   const [closing, setClosing] = useState(false);
 
+  // Archiving a listed RU sub-user (Push_ArchiveUser_RQ, child auth). RU requires the sub-user's
+  // own credentials, so when no password is stored locally the admin is prompted for it.
+  const [archiving, setArchiving] = useState<string | null>(null);
+  const [archivePrompt, setArchivePrompt] = useState<{ ownerId: string; email: string } | null>(null);
+  const [archivePassword, setArchivePassword] = useState("");
+
+
   // Unbinding clears the complete RU identity and the portfolio owner email, then prompts the
   // admin to choose the email that Phase 1 must use for the next RU sub-user login.
   const [ownerEmailFor, setOwnerEmailFor] = useState<{ portfolioId: string } | null>(null);
