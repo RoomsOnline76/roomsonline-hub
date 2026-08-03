@@ -83,6 +83,7 @@ export function parseRuAvailabilityDays(xml: string): Map<string, RuCalendarDay>
       max_stay: num(attr(attrs, 'MaxStay')) ?? childNum(inner, 'MaxStay'),
       changeover: num(attr(attrs, 'Changeover')) ?? childNum(inner, 'Changeover'),
       blocked,
+      reservations: num(attr(attrs, 'Reservations')) ?? childNum(inner, 'Reservations'),
     });
   }
 
@@ -103,7 +104,7 @@ export function parseRuAvailabilityDays(xml: string): Map<string, RuCalendarDay>
     const end = new Date(`${to}T00:00:00Z`);
     for (let d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
       const iso = d.toISOString().slice(0, 10);
-      days.set(iso, { date: iso, units, min_stay: minStay, max_stay: maxStay, changeover, blocked: units === 0 });
+      days.set(iso, { date: iso, units, min_stay: minStay, max_stay: maxStay, changeover, blocked: units === 0, reservations: null });
     }
   }
   return days;
