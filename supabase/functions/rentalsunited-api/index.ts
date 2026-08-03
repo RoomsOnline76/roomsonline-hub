@@ -1911,14 +1911,22 @@ Deno.serve(async (req) => {
       const { ok, status } = handleRUStatus(response);
       if (!ok) return ruErrorResponse(status);
       // Surface the currency RU actually holds so callers can verify instead of assume.
-      const ccyMatch = response.match(/<CurrencyID>\s*(\d+)\s*<\/CurrencyID>/i);
-      const currencyId = ccyMatch ? parseInt(ccyMatch[1], 10) : null;
+      // Pull_ListSpecProp_RS carries it as an ISO attribute: <Property Currency="USD">.
       const RU_ISO_BY_ID: Record<number, string> = { 48: 'ZAR', 144: 'USD', 47: 'EUR', 49: 'GBP', 91: 'NAD', 24: 'BWP' };
+      const RU_ID_BY_ISO: Record<string, number> = Object.fromEntries(Object.entries(RU_ISO_BY_ID).map(([id, iso]) => [iso, Number(id)]));
+      const isoMatch = response.match(/<Property\b[^>]*\bCurrency="([A-Za-z]{3})"/i);
+      const ccyMatch = response.match(/<CurrencyID>\s*(\d+)\s*<\/CurrencyID>/i);
+      let currencyIso: string | null = isoMatch ? isoMatch[1].toUpperCase() : null;
+      let currencyId: number | null = ccyMatch ? parseInt(ccyMatch[1], 10) : null;
+      if (!currencyIso && currencyId != null) currencyIso = RU_ISO_BY_ID[currencyId] ?? null;
+      if (currencyId == null && currencyIso) currencyId = RU_ID_BY_ISO[currencyIso] ?? null;
+      const locMatch = response.match(/<DetailedLocationID\b[^>]*>\s*(\d+)\s*</i);
       return jsonResponse({
         success: true,
         auth_mode: authMode,
         currency_id: currencyId,
-        currency_iso: currencyId != null ? (RU_ISO_BY_ID[currencyId] ?? null) : null,
+        currency_iso: currencyIso,
+        detailed_location_id: locMatch ? parseInt(locMatch[1], 10) : null,
         raw_xml: response,
       });
     }
