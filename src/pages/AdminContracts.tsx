@@ -1715,7 +1715,162 @@ export default function AdminContracts() {
               </div>
             )}
 
+            {isReferral && (
+              <div className="space-y-4">
+                <Alert>
+                  <Handshake className="h-4 w-4 text-primary" />
+                  <AlertDescription>
+                    <p className="font-medium">Once-off engagement agreement</p>
+                    <p className="text-sm mt-1">
+                      This agreement engages a sales rep as an independent contractor on a commission-only
+                      basis (no base salary). It is not linked to any property and is never renewed when a
+                      property is onboarded.
+                    </p>
+                  </AlertDescription>
+                </Alert>
 
+                <div className="flex items-center justify-between">
+                  <Label>Sales Rep *</Label>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setNewRepMode((v) => !v);
+                      setSelectedRepId("");
+                      setConfirmReplaceRepAgreement(false);
+                    }}
+                  >
+                    {newRepMode ? "Choose existing rep" : "Add new rep"}
+                  </Button>
+                </div>
+
+                {newRepMode ? (
+                  <div className="space-y-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="repName">Rep Name *</Label>
+                      <Input
+                        id="repName"
+                        placeholder="Jane Partner"
+                        value={sendName}
+                        onChange={(e) => setSendName(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="repEmail">Rep Email *</Label>
+                      <Input
+                        id="repEmail"
+                        type="email"
+                        placeholder="rep@example.com"
+                        value={sendEmail}
+                        onChange={(e) => setSendEmail(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Commission Tier *</Label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {(["base", "accelerated", "elite"] as RepTierKey[]).map((tier) => (
+                          <button
+                            key={tier}
+                            type="button"
+                            onClick={() => setNewRepTier(tier)}
+                            className={`p-2 rounded-lg border-2 text-sm font-medium transition-all ${
+                              newRepTier === tier
+                                ? "border-primary bg-primary/5"
+                                : "border-border hover:border-muted-foreground/50"
+                            }`}
+                          >
+                            {REP_TIER_LABELS[tier]}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Search reps by name, code or email…"
+                        className="pl-9"
+                        value={repSearch}
+                        onChange={(e) => setRepSearch(e.target.value)}
+                      />
+                    </div>
+                    <div className="max-h-[200px] overflow-y-auto rounded-lg border border-border divide-y divide-border">
+                      {filteredReps.length === 0 && (
+                        <p className="p-3 text-sm text-muted-foreground">No sales reps found.</p>
+                      )}
+                      {filteredReps.map((rep) => (
+                        <button
+                          key={rep.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedRepId(rep.id);
+                            setSendEmail(rep.email);
+                            setSendName(rep.display_name);
+                            setConfirmReplaceRepAgreement(false);
+                          }}
+                          className={`w-full text-left p-3 transition-colors ${
+                            selectedRepId === rep.id ? "bg-primary/5" : "hover:bg-muted/50"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-sm font-medium">{rep.display_name}</span>
+                            <Badge variant="outline" className="text-xs">{rep.rep_code}</Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            {rep.email} · {REP_TIER_LABELS[rep.commission_tier] || rep.commission_tier}
+                            {existingRepContracts[rep.id] ? ` · agreement ${existingRepContracts[rep.id]}` : ""}
+                          </p>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Engagement terms — read-only, straight from current defaults */}
+                <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-1">
+                  <p className="text-sm font-medium">
+                    Engagement Terms — {referralTerms.tier_label} tier
+                  </p>
+                  <ul className="text-sm text-muted-foreground space-y-1">
+                    <li>• First-year commission: {referralTerms.first_year_rate}%</li>
+                    <li>• Residual commission: {referralTerms.residual_rate}%</li>
+                    <li>• Residual duration: {referralTerms.residual_months} months</li>
+                    <li>• Clawback period: {referralTerms.clawback_days} days</li>
+                    <li>• Independent contractor · commission only · no base salary</li>
+                  </ul>
+                  <p className="text-xs text-muted-foreground pt-1">
+                    Terms come from the current defaults (Admin → Billing Defaults) and are snapshotted onto
+                    the agreement when sent.
+                  </p>
+                </div>
+
+                {repAlreadyEngaged && (
+                  <Alert className="bg-amber-50 border-amber-200">
+                    <AlertCircle className="h-4 w-4 text-amber-600" />
+                    <AlertDescription className="text-amber-800 space-y-2">
+                      <p className="font-medium">This rep is already engaged ({repAlreadyEngaged})</p>
+                      <p className="text-sm">
+                        The referral agreement is once-off. Only send a replacement if the terms of engagement
+                        have changed.
+                      </p>
+                      <label className="flex items-center gap-2 text-sm font-medium">
+                        <Checkbox
+                          checked={confirmReplaceRepAgreement}
+                          onCheckedChange={(c) => setConfirmReplaceRepAgreement(Boolean(c))}
+                        />
+                        Send replacement agreement
+                      </label>
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </div>
+            )}
+
+            {!isReferral && (
+            <>
             <div className="space-y-2">
               <Label htmlFor="email">Owner Email *</Label>
               <div className="relative">
@@ -1741,6 +1896,9 @@ export default function AdminContracts() {
                 onChange={(e) => setSendName(e.target.value)}
               />
             </div>
+            </>
+            )}
+
 
             {/* Contract Type Selector */}
             <div className="space-y-2">
