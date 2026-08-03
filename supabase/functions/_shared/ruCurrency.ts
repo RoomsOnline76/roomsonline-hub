@@ -76,6 +76,11 @@ export async function refreshRuLocationsCache(
     if (error || !data?.success) {
       return { success: false, upserted: 0, error: error?.message || data?.error?.message || 'list failed' };
     }
+    if (data.endpoint_disabled) {
+      // Dictionary not enabled for this integration — not an error; the per-location
+      // Push_ChangeCurrency probe in decideRuCurrency establishes the currency instead.
+      return { success: true, upserted: 0, error: data.note };
+    }
     const all: any[] = data.locations || [];
     const ISO_TO_COUNTRY: Record<string, string> = {
       ZAR: 'South Africa', NAD: 'Namibia', BWP: 'Botswana', USD: 'United States', EUR: 'Eurozone', GBP: 'United Kingdom',

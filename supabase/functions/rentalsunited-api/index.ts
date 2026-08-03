@@ -2528,7 +2528,7 @@ Deno.serve(async (req) => {
         }
       }
 
-      return jsonResponse({ success: true, locations: locs, count: locs.length, raw_xml: response.length > 8000 ? response.substring(0, 8000) + '…[truncated]' : response });
+      return jsonResponse({ success: true, locations: locs, count: locs.length, used_fallback: usedFallback, raw_xml: response.length > 8000 ? response.substring(0, 8000) + '…[truncated]' : response });
     }
 
     // ── push_change_currency ──
