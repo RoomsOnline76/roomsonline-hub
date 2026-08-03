@@ -1231,14 +1231,30 @@ export function RuCertificationConsole({ properties }: { properties: PropertyLit
                 </div>
               )}
 
-              {userMgmt?.users && userMgmt.users.length > 0 && (
+              {allSubUsers.length > 0 && (
                 <div className="rounded-lg border p-3 space-y-2">
-                  <p className="text-sm font-medium">Current RU sub-users (from last probe)</p>
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <p className="text-sm font-medium">Current RU sub-users (from last probe)</p>
+                    {archivedCount > 0 && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={() => setShowArchivedUsers((v) => !v)}
+                      >
+                        {showArchivedUsers ? "Hide" : "View"} archived ({archivedCount})
+                      </Button>
+                    )}
+                  </div>
                   <div className="space-y-1">
-                    {userMgmt.users.map((u, i) => (
+                    {visibleSubUsers.length === 0 && (
+                      <p className="text-xs text-muted-foreground">No active sub-users.</p>
+                    )}
+                    {visibleSubUsers.map((u, i) => (
                       <div key={i} className="flex items-center justify-between gap-2 text-xs border rounded px-2 py-1.5">
                         <span className="font-mono">OwnerID {u.owner_id ?? u.id ?? "?"}</span>
                         <span className="text-muted-foreground truncate">{u.email ?? "—"}</span>
+                        {u.archived && <Badge variant="secondary" className="text-[10px]">Archived</Badge>}
                       </div>
                     ))}
                   </div>
