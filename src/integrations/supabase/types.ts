@@ -4353,11 +4353,13 @@ export type Database = {
           ru_archived: boolean
           ru_archived_at: string | null
           ru_push_enabled: boolean
+          separate_kitchen: boolean
           short_description: string | null
           show_on_website: boolean | null
           siteminder_property_code: string | null
           slug: string | null
           timezone: string
+          toilets: number | null
           updated_at: string | null
           wetu_id: string | null
           what_its_really_like: string | null
@@ -4451,11 +4453,13 @@ export type Database = {
           ru_archived?: boolean
           ru_archived_at?: string | null
           ru_push_enabled?: boolean
+          separate_kitchen?: boolean
           short_description?: string | null
           show_on_website?: boolean | null
           siteminder_property_code?: string | null
           slug?: string | null
           timezone?: string
+          toilets?: number | null
           updated_at?: string | null
           wetu_id?: string | null
           what_its_really_like?: string | null
@@ -4549,11 +4553,13 @@ export type Database = {
           ru_archived?: boolean
           ru_archived_at?: string | null
           ru_push_enabled?: boolean
+          separate_kitchen?: boolean
           short_description?: string | null
           show_on_website?: boolean | null
           siteminder_property_code?: string | null
           slug?: string | null
           timezone?: string
+          toilets?: number | null
           updated_at?: string | null
           wetu_id?: string | null
           what_its_really_like?: string | null
@@ -10450,7 +10456,11 @@ export type Database = {
           is_active: boolean
           is_recommended: boolean
           name: string
+          popular_rank: number | null
+          ru_group: string | null
           ru_group_id: number | null
+          scope: string
+          supports_count: boolean
           synced_at: string
         }
         Insert: {
@@ -10460,7 +10470,11 @@ export type Database = {
           is_active?: boolean
           is_recommended?: boolean
           name: string
+          popular_rank?: number | null
+          ru_group?: string | null
           ru_group_id?: number | null
+          scope?: string
+          supports_count?: boolean
           synced_at?: string
         }
         Update: {
@@ -10470,7 +10484,11 @@ export type Database = {
           is_active?: boolean
           is_recommended?: boolean
           name?: string
+          popular_rank?: number | null
+          ru_group?: string | null
           ru_group_id?: number | null
+          scope?: string
+          supports_count?: boolean
           synced_at?: string
         }
         Relationships: []
