@@ -3070,8 +3070,11 @@ Deno.serve(async (req) => {
           // Read-back verification (small settle so RU has committed the push)
           await budgetedWait(3000);
           await call("Verify content read-back", "get_property", { ru_property_id: ruPropertyId }, { mandatory: true, scope: "property", skip: noProp });
-          await probeAri("Verify availability read-back", "get_availability");
-          await probeAri("Verify prices read-back", "get_prices");
+          // Offset window (tomorrow → +366d): a distinct parameter set, so RU treats these
+          // as fresh calls rather than repeats of the read-only phase's identical reads.
+          await probeAri("Verify availability read-back", "get_availability", { windowOffsetDays: 1 });
+          await probeAri("Verify prices read-back", "get_prices", { windowOffsetDays: 1 });
+
 
         }
       }
