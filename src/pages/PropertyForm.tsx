@@ -5314,6 +5314,8 @@ export default function PropertyForm({
                     }}
                     propertyCity={formData.city}
                     propertyCountry={formData.country}
+                    propertyPostalCode={formData.postal_code}
+
                     banking={{
                       has_vat: formData.has_vat,
                       vat_number: formData.vat_number,

@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -12,6 +12,8 @@ import {
 } from "@/components/ui/collapsible";
 import { AlertTriangle, Check, ChevronDown } from "lucide-react";
 import { RuLocationPicker } from "@/components/property/RuLocationPicker";
+import { supabase } from "@/integrations/supabase/client";
+
 
 /**
  * Company Information (formerly "Business Registration").
@@ -77,7 +79,9 @@ interface Props {
   onRuLocationIdChange: (id: number | null) => void;
   propertyCity?: string;
   propertyCountry?: string;
+  propertyPostalCode?: string;
   /** Banking / VAT / registration block merged in from the old Banking Details card. */
+
   banking: CompanyBankingFields;
   onBankingChange: (key: keyof CompanyBankingFields, value: string | boolean) => void;
 }
@@ -142,6 +146,8 @@ export function CompanyInformationCard({
   onRuLocationIdChange,
   propertyCity,
   propertyCountry,
+  propertyPostalCode,
+
   banking,
   onBankingChange,
 }: Props) {
@@ -177,6 +183,67 @@ export function CompanyInformationCard({
 
   const rep = (companyProfile.legal_rep ?? {}) as Record<string, string | number | undefined>;
   const str = (v: unknown) => (v === undefined || v === null ? "" : String(v));
+
+  /**
+   * Auto-populate the fields that follow from the property address (city, postal
+   * code, country) so the operator only fills them when they differ. Blank fields
+   * only — an existing value (or a manual dropdown change) is never overwritten.
+   */
+  const profileRef = useRef(companyProfile);
+  profileRef.current = companyProfile;
+  const autofilledCountry = useRef<string | null>(null);
+
+  useEffect(() => {
+    const current = profileRef.current;
+    const currentRep = (current.legal_rep ?? {}) as Record<string, string | number | undefined>;
+    const patch: Record<string, string | number> = {};
+    if (propertyCity?.trim() && !str(currentRep.city).trim()) patch.city = propertyCity.trim();
+    if (propertyPostalCode?.trim() && !str(currentRep.post_code).trim()) {
+      patch.post_code = propertyPostalCode.trim();
+    }
+    if (Object.keys(patch).length === 0) return;
+    onCompanyProfileChange({
+      ...current,
+      legal_rep: { ...currentRep, ...patch } as RuCompanyProfile["legal_rep"],
+    });
+  }, [propertyCity, propertyPostalCode, onCompanyProfileChange]);
+
+  useEffect(() => {
+    const country = propertyCountry?.trim();
+    if (!country || autofilledCountry.current === country) return;
+    const current = profileRef.current;
+    const currentRep = (current.legal_rep ?? {}) as Record<string, string | number | undefined>;
+    const needsNationality = !Number(currentRep.nationality_id);
+    const needsResidence = !Number(currentRep.country_of_residence_id);
+    if (!needsNationality && !needsResidence) return;
+    autofilledCountry.current = country;
+    let cancelled = false;
+    void (async () => {
+      const { data } = await supabase
+        .from("ru_locations")
+        .select("id, name")
+        .in("location_type_id", RU_COUNTRY_TYPE_FILTER)
+        .ilike("name", country)
+        .order("depth", { ascending: true })
+        .limit(1);
+      const match = (data ?? [])[0] as { id: number } | undefined;
+      if (cancelled || !match) return;
+      const latest = profileRef.current;
+      const latestRep = (latest.legal_rep ?? {}) as Record<string, string | number | undefined>;
+      const patch: Record<string, string | number> = {};
+      if (!Number(latestRep.nationality_id)) patch.nationality_id = match.id;
+      if (!Number(latestRep.country_of_residence_id)) patch.country_of_residence_id = match.id;
+      if (Object.keys(patch).length === 0) return;
+      onCompanyProfileChange({
+        ...latest,
+        legal_rep: { ...latestRep, ...patch } as RuCompanyProfile["legal_rep"],
+      });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [propertyCountry, onCompanyProfileChange]);
+
 
   /**
    * Mandatory set = everything that can block a Rentals United company/property
