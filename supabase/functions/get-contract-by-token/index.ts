@@ -32,16 +32,22 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (ownerContract) {
+      // A referral agreement is a once-off rep engagement — it covers no properties.
+      const meta = (ownerContract.metadata || {}) as Record<string, unknown>;
+      const isReferral = meta.contract_type === "referral";
+
       // Fetch properties for this owner (needed for both signed and unsigned contracts)
-      const { data: properties } = await supabase
-        .from("properties")
-        .select("id, name, slug, address, city, country, property_type, amenities")
-        .eq("owner_email", ownerContract.owner_email)
-        .is("permanently_deleted_at", null)
-        .order("name");
+      const { data: properties } = isReferral
+        ? { data: [] as any[] }
+        : await supabase
+            .from("properties")
+            .select("id, name, slug, address, city, country, property_type, amenities")
+            .eq("owner_email", ownerContract.owner_email)
+            .is("permanently_deleted_at", null)
+            .order("name");
 
       // Determine if this is a new owner who needs to provide property details
-      const isNewOwner = ownerContract.is_new_owner === true;
+      const isNewOwner = !isReferral && ownerContract.is_new_owner === true;
       const requiresPropertyDetails = isNewOwner && (!properties || properties.length === 0);
 
       // Fetch template content if template_version_id exists
@@ -71,7 +77,7 @@ Deno.serve(async (req) => {
           },
           properties: properties || [],
           code: "ALREADY_SIGNED",
-          contract_type: "owner",
+          contract_type: isReferral ? "referral" : "owner",
           template_content: templateContent,
           template_variables_schema: templateVariablesSchema,
         }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
@@ -94,11 +100,13 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({
         contract: ownerContract,
         properties: properties || [],
-        contract_type: "owner",
+        contract_type: isReferral ? "referral" : "owner",
         template_content: templateContent,
         template_variables_schema: templateVariablesSchema,
         requires_property_details: requiresPropertyDetails,
         is_new_owner: isNewOwner,
+        terms_snapshot: isReferral ? (meta.terms_snapshot || null) : null,
+        rep_id: isReferral ? (meta.rep_id || null) : null,
       }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 

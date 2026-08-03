@@ -59,6 +59,23 @@ import {
 import { ContractOverrideModal } from "@/components/contract/ContractOverrideModal";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  fetchRepGlobals,
+  resolveRepTerms,
+  REP_TIER_LABELS,
+  type RepTierKey,
+  type ResolvedRepTerms,
+} from "@/lib/repContractVariables";
+
+interface RepRow {
+  id: string;
+  display_name: string;
+  email: string;
+  rep_code: string;
+  commission_tier: RepTierKey;
+  is_active: boolean;
+}
+
 
 interface OwnerContract {
   id: string;
@@ -113,6 +130,20 @@ export default function AdminContracts() {
   const [sendName, setSendName] = useState("");
   const [sending, setSending] = useState(false);
   const [selectedContractType, setSelectedContractType] = useState<"standard" | "rolos" | "referral">("standard");
+
+  // Referral Partner Agreement: a once-off engagement contract with a sales rep.
+  // Independent contractor, commission-only, no base salary, no property linkage.
+  const isReferral = selectedContractType === "referral";
+  const [reps, setReps] = useState<RepRow[]>([]);
+  const [repSearch, setRepSearch] = useState("");
+  const [selectedRepId, setSelectedRepId] = useState<string>("");
+  const [newRepMode, setNewRepMode] = useState(false);
+  const [newRepTier, setNewRepTier] = useState<RepTierKey>("base");
+  const [repGlobals, setRepGlobals] = useState<Record<string, any> | null>(null);
+  const [existingRepContracts, setExistingRepContracts] = useState<Record<string, string>>({});
+  const [confirmReplaceRepAgreement, setConfirmReplaceRepAgreement] = useState(false);
+
+
 
   // Contract scope: single property, multiple properties, or an entire portfolio
   const [sendScope, setSendScope] = useState<"single" | "multiple" | "portfolio">("single");
@@ -192,7 +223,63 @@ export default function AdminContracts() {
     loadContracts();
     loadContractTemplates();
     loadPortfolios();
+    loadReps();
   }, []);
+
+  const loadReps = async () => {
+    try {
+      const [{ data: repRows }, globals, { data: repContracts }] = await Promise.all([
+        supabase
+          .from("sales_reps")
+          .select("id, display_name, email, rep_code, commission_tier, is_active")
+          .order("display_name"),
+        fetchRepGlobals(),
+        supabase.from("rep_contracts").select("rep_id, status"),
+      ]);
+      setReps((repRows as RepRow[]) || []);
+      setRepGlobals(globals);
+      const map: Record<string, string> = {};
+      (repContracts || []).forEach((rc) => {
+        if (!rc.rep_id) return;
+        // Signed always wins over pending when a rep has multiple rows.
+        if (map[rc.rep_id] === "signed") return;
+        map[rc.rep_id] = rc.status;
+      });
+      setExistingRepContracts(map);
+    } catch (error) {
+      console.error("Failed to load sales reps:", error);
+    }
+  };
+
+  const filteredReps = useMemo(() => {
+    const q = repSearch.trim().toLowerCase();
+    const active = reps.filter((r) => r.is_active !== false);
+    if (!q) return active.slice(0, 30);
+    return active
+      .filter(
+        (r) =>
+          r.display_name?.toLowerCase().includes(q) ||
+          r.email?.toLowerCase().includes(q) ||
+          r.rep_code?.toLowerCase().includes(q),
+      )
+      .slice(0, 30);
+  }, [reps, repSearch]);
+
+  const selectedRep = useMemo(() => reps.find((r) => r.id === selectedRepId) || null, [reps, selectedRepId]);
+
+  /** Engagement terms resolved purely from the current default referral terms. */
+  const referralTerms: ResolvedRepTerms = useMemo(
+    () =>
+      resolveRepTerms(
+        selectedRep ? selectedRep : { commission_tier: newRepTier },
+        repGlobals,
+      ),
+    [selectedRep, newRepTier, repGlobals],
+  );
+
+  const repAlreadyEngaged = selectedRepId ? existingRepContracts[selectedRepId] : undefined;
+
+
 
   const loadPortfolios = async () => {
     try {
@@ -465,7 +552,89 @@ export default function AdminContracts() {
     return [];
   }, [sendScope, multiPropertySelections, portfolioProperties]);
 
+  /** Send the once-off Referral Partner Agreement to a sales rep (no property linkage). */
+  const handleSendReferralAgreement = async () => {
+    const email = (newRepMode ? sendEmail : selectedRep?.email || sendEmail).toLowerCase().trim();
+    if (!email) {
+      toast.error("Rep email is required");
+      return;
+    }
+    if (!newRepMode && !selectedRepId) {
+      toast.error("Select a sales rep");
+      return;
+    }
+    if (newRepMode && !sendName.trim()) {
+      toast.error("Rep name is required");
+      return;
+    }
+    if (repAlreadyEngaged && !confirmReplaceRepAgreement) {
+      toast.error("This rep already has an agreement — confirm replacement first");
+      return;
+    }
+
+    try {
+      setSending(true);
+
+      let repId = selectedRepId;
+      let repName = selectedRep?.display_name || sendName;
+
+      if (newRepMode) {
+        // Create the rep record so the engagement has a home before sending.
+        const repCode = `REP-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
+        const { data: newRep, error: repErr } = await supabase
+          .from("sales_reps")
+          .insert({
+            display_name: sendName.trim(),
+            email,
+            rep_code: repCode,
+            commission_tier: newRepTier,
+            is_active: true,
+          } as any)
+          .select("id, display_name, email, rep_code, commission_tier, is_active")
+          .single();
+        if (repErr) throw repErr;
+        repId = newRep.id;
+        repName = newRep.display_name;
+      }
+
+      const { error } = await supabase.functions.invoke("send-owner-contract", {
+        body: {
+          owner_email: email,
+          owner_name: repName || undefined,
+          contract_type: "referral",
+          template_id: "c3d4e5f6-a7b8-4901-cdef-234567890123",
+          rep_id: repId,
+          terms_snapshot: {
+            tier: referralTerms.tier,
+            tier_label: referralTerms.tier_label,
+            first_year_rate: referralTerms.first_year_rate,
+            residual_rate: referralTerms.residual_rate,
+            residual_months: referralTerms.residual_months,
+            clawback_days: referralTerms.clawback_days,
+            source: referralTerms.source,
+            engagement: "independent_contractor_commission_only",
+          },
+        },
+      });
+      if (error) throw error;
+
+      toast.success("Referral Partner Agreement sent");
+      setSendModalOpen(false);
+      resetSendModal();
+      loadContracts();
+      loadReps();
+    } catch (error: any) {
+      toast.error(error.message || "Failed to send referral agreement");
+    } finally {
+      setSending(false);
+    }
+  };
+
   const handleSendContract = async () => {
+    if (isReferral) {
+      await handleSendReferralAgreement();
+      return;
+    }
     if (!sendEmail) {
       toast.error("Email is required");
       return;
@@ -488,6 +657,8 @@ export default function AdminContracts() {
         return;
       }
     }
+
+
 
     try {
       setSending(true);
@@ -528,12 +699,11 @@ export default function AdminContracts() {
         if (linkErr) throw linkErr;
       }
 
-      // Determine which template to use based on contract type
-      const templateId = selectedContractType === "rolos" 
+      // Determine which template to use based on contract type (referral handled separately)
+      const templateId = selectedContractType === "rolos"
         ? "b2c3d4e5-f6a7-4890-bcde-f12345678901"
-        : selectedContractType === "referral"
-        ? "c3d4e5f6-a7b8-4901-cdef-234567890123"
         : "f47ac10b-58cc-4372-a567-0e02b2c3d479";
+
       
       const { error } = await supabase.functions.invoke("send-owner-contract", {
         body: { 
@@ -551,7 +721,7 @@ export default function AdminContracts() {
       if (error) throw error;
 
       const coverage = scopedPropertyIds.length > 0 ? ` covering ${scopedPropertyIds.length} propert${scopedPropertyIds.length === 1 ? "y" : "ies"}` : "";
-      toast.success(`${selectedContractType === "rolos" ? "ROL'OS PMS" : selectedContractType === "referral" ? "Referral Partner" : "Standard"} contract sent successfully${coverage}`);
+      toast.success(`${selectedContractType === "rolos" ? "ROL'OS PMS" : "Standard"} contract sent successfully${coverage}`);
 
       setSendModalOpen(false);
       resetSendModal();
@@ -815,8 +985,13 @@ export default function AdminContracts() {
     setMultiPropertySelections({});
     setSelectedPortfolioId("");
     setPortfolioProperties([]);
-
+    setRepSearch("");
+    setSelectedRepId("");
+    setNewRepMode(false);
+    setNewRepTier("base");
+    setConfirmReplaceRepAgreement(false);
   };
+
 
   const searchProperties = async (query: string) => {
     setSearchingProperties(true);
@@ -1316,7 +1491,8 @@ export default function AdminContracts() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            {/* Contract Scope Selector */}
+            {/* Contract Scope Selector — property scope does not apply to referral agreements */}
+            {!isReferral && (
             <div className="space-y-2">
               <Label>Contract Scope *</Label>
               <div className="grid grid-cols-3 gap-2">
@@ -1344,8 +1520,10 @@ export default function AdminContracts() {
                 ))}
               </div>
             </div>
+            )}
 
-            {sendScope === "single" && (
+            {!isReferral && sendScope === "single" && (
+
             <>
             {/* Property Name Search */}
 
@@ -1463,7 +1641,7 @@ export default function AdminContracts() {
             )}
 
             {/* Multiple properties selection */}
-            {sendScope === "multiple" && (
+            {!isReferral && sendScope === "multiple" && (
               <div className="space-y-2">
                 <Label>Properties * <span className="text-xs text-muted-foreground font-normal">({scopedPropertyIds.length} selected)</span></Label>
                 <div className="relative">
@@ -1502,7 +1680,7 @@ export default function AdminContracts() {
             )}
 
             {/* Portfolio selection */}
-            {sendScope === "portfolio" && (
+            {!isReferral && sendScope === "portfolio" && (
               <div className="space-y-2">
                 <Label htmlFor="portfolioSelect">Portfolio *</Label>
                 <select
@@ -1540,7 +1718,162 @@ export default function AdminContracts() {
               </div>
             )}
 
+            {isReferral && (
+              <div className="space-y-4">
+                <Alert>
+                  <Handshake className="h-4 w-4 text-primary" />
+                  <AlertDescription>
+                    <p className="font-medium">Once-off engagement agreement</p>
+                    <p className="text-sm mt-1">
+                      This agreement engages a sales rep as an independent contractor on a commission-only
+                      basis (no base salary). It is not linked to any property and is never renewed when a
+                      property is onboarded.
+                    </p>
+                  </AlertDescription>
+                </Alert>
 
+                <div className="flex items-center justify-between">
+                  <Label>Sales Rep *</Label>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setNewRepMode((v) => !v);
+                      setSelectedRepId("");
+                      setConfirmReplaceRepAgreement(false);
+                    }}
+                  >
+                    {newRepMode ? "Choose existing rep" : "Add new rep"}
+                  </Button>
+                </div>
+
+                {newRepMode ? (
+                  <div className="space-y-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="repName">Rep Name *</Label>
+                      <Input
+                        id="repName"
+                        placeholder="Jane Partner"
+                        value={sendName}
+                        onChange={(e) => setSendName(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="repEmail">Rep Email *</Label>
+                      <Input
+                        id="repEmail"
+                        type="email"
+                        placeholder="rep@example.com"
+                        value={sendEmail}
+                        onChange={(e) => setSendEmail(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Commission Tier *</Label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {(["base", "accelerated", "elite"] as RepTierKey[]).map((tier) => (
+                          <button
+                            key={tier}
+                            type="button"
+                            onClick={() => setNewRepTier(tier)}
+                            className={`p-2 rounded-lg border-2 text-sm font-medium transition-all ${
+                              newRepTier === tier
+                                ? "border-primary bg-primary/5"
+                                : "border-border hover:border-muted-foreground/50"
+                            }`}
+                          >
+                            {REP_TIER_LABELS[tier]}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Search reps by name, code or email…"
+                        className="pl-9"
+                        value={repSearch}
+                        onChange={(e) => setRepSearch(e.target.value)}
+                      />
+                    </div>
+                    <div className="max-h-[200px] overflow-y-auto rounded-lg border border-border divide-y divide-border">
+                      {filteredReps.length === 0 && (
+                        <p className="p-3 text-sm text-muted-foreground">No sales reps found.</p>
+                      )}
+                      {filteredReps.map((rep) => (
+                        <button
+                          key={rep.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedRepId(rep.id);
+                            setSendEmail(rep.email);
+                            setSendName(rep.display_name);
+                            setConfirmReplaceRepAgreement(false);
+                          }}
+                          className={`w-full text-left p-3 transition-colors ${
+                            selectedRepId === rep.id ? "bg-primary/5" : "hover:bg-muted/50"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-sm font-medium">{rep.display_name}</span>
+                            <Badge variant="outline" className="text-xs">{rep.rep_code}</Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            {rep.email} · {REP_TIER_LABELS[rep.commission_tier] || rep.commission_tier}
+                            {existingRepContracts[rep.id] ? ` · agreement ${existingRepContracts[rep.id]}` : ""}
+                          </p>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Engagement terms — read-only, straight from current defaults */}
+                <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-1">
+                  <p className="text-sm font-medium">
+                    Engagement Terms — {referralTerms.tier_label} tier
+                  </p>
+                  <ul className="text-sm text-muted-foreground space-y-1">
+                    <li>• First-year commission: {referralTerms.first_year_rate}%</li>
+                    <li>• Residual commission: {referralTerms.residual_rate}%</li>
+                    <li>• Residual duration: {referralTerms.residual_months} months</li>
+                    <li>• Clawback period: {referralTerms.clawback_days} days</li>
+                    <li>• Independent contractor · commission only · no base salary</li>
+                  </ul>
+                  <p className="text-xs text-muted-foreground pt-1">
+                    Terms come from the current defaults (Admin → Billing Defaults) and are snapshotted onto
+                    the agreement when sent.
+                  </p>
+                </div>
+
+                {repAlreadyEngaged && (
+                  <Alert className="bg-amber-50 border-amber-200">
+                    <AlertCircle className="h-4 w-4 text-amber-600" />
+                    <AlertDescription className="text-amber-800 space-y-2">
+                      <p className="font-medium">This rep is already engaged ({repAlreadyEngaged})</p>
+                      <p className="text-sm">
+                        The referral agreement is once-off. Only send a replacement if the terms of engagement
+                        have changed.
+                      </p>
+                      <label className="flex items-center gap-2 text-sm font-medium">
+                        <Checkbox
+                          checked={confirmReplaceRepAgreement}
+                          onCheckedChange={(c) => setConfirmReplaceRepAgreement(Boolean(c))}
+                        />
+                        Send replacement agreement
+                      </label>
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </div>
+            )}
+
+            {!isReferral && (
+            <>
             <div className="space-y-2">
               <Label htmlFor="email">Owner Email *</Label>
               <div className="relative">
@@ -1566,6 +1899,9 @@ export default function AdminContracts() {
                 onChange={(e) => setSendName(e.target.value)}
               />
             </div>
+            </>
+            )}
+
 
             {/* Contract Type Selector */}
             <div className="space-y-2">
@@ -1624,7 +1960,7 @@ export default function AdminContracts() {
                 </button>
               </div>
             </div>
-            {noPropertiesWarning && !validatingEmail && sendEmail && !selectedProperty && (
+            {!isReferral && noPropertiesWarning && !validatingEmail && sendEmail && !selectedProperty && (
               <Alert className="bg-amber-50 border-amber-200">
                 <Building2 className="h-4 w-4 text-amber-600" />
                 <AlertDescription className="text-amber-800">
@@ -1636,7 +1972,7 @@ export default function AdminContracts() {
               </Alert>
             )}
 
-            {linkedProperties.length > 0 && (
+            {!isReferral && linkedProperties.length > 0 && (
               <div className="bg-muted/30 rounded-lg p-3 border border-border">
                 <p className="text-sm font-medium mb-2 flex items-center gap-2">
                   <Check className="h-4 w-4 text-green-600" />
@@ -1649,6 +1985,7 @@ export default function AdminContracts() {
                 </ul>
               </div>
             )}
+
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => {
@@ -1661,18 +1998,24 @@ export default function AdminContracts() {
               onClick={handleSendContract} 
               disabled={
                 sending ||
-                !sendEmail ||
-                (sendScope === "single" && !selectedProperty && !propertySearch.trim()) ||
-                (sendScope !== "single" && scopedPropertyIds.length === 0)
+                (isReferral
+                  ? (newRepMode ? !sendEmail || !sendName.trim() : !selectedRepId) ||
+                    (!!repAlreadyEngaged && !confirmReplaceRepAgreement)
+                  : !sendEmail ||
+                    (sendScope === "single" && !selectedProperty && !propertySearch.trim()) ||
+                    (sendScope !== "single" && scopedPropertyIds.length === 0))
               }
             >
               {sending
                 ? "Sending..."
+                : isReferral
+                ? "Send Referral Agreement"
                 : sendScope === "single"
                 ? (noPropertiesWarning ? "Send & Create Owner" : "Send Contract")
                 : `Send Contract (${scopedPropertyIds.length})`}
 
             </Button>
+
           </DialogFooter>
         </DialogContent>
       </Dialog>

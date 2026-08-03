@@ -56,7 +56,9 @@ Deno.serve(async (req) => {
       commercial_model,
       property_id, // Optional: if sending contract for specific property created via preflight
       template_id, // Optional: specific template to use
-      contract_type, // Optional: 'standard' or 'rolos'
+      contract_type, // Optional: 'standard' | 'rolos' | 'referral'
+      rep_id, // Referral only: the sales rep being engaged
+      terms_snapshot, // Referral only: engagement terms captured at send time
     } = await req.json();
 
     if (!owner_email) {
@@ -68,30 +70,37 @@ Deno.serve(async (req) => {
 
     const normalizedEmail = owner_email.toLowerCase().trim();
 
-    // Check if properties exist for this owner (determines if new owner)
-    const { data: properties, error: propError } = await supabase
-      .from("properties")
-      .select("id, name, slug, address, city, country, property_type, amenities, listing_intent, commercial_model")
-      .eq("owner_email", normalizedEmail)
-      .is("permanently_deleted_at", null)
-      .order("name");
+    // A referral agreement is a once-off engagement with a sales rep.
+    // It is never linked to properties and never renewed per onboarding.
+    const isReferral = contract_type === "referral";
 
-    if (propError) {
-      console.error("Error fetching properties:", propError);
-      return new Response(JSON.stringify({ error: "Failed to fetch properties" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    let properties: any[] | null = null;
+    if (!isReferral) {
+      const { data: props, error: propError } = await supabase
+        .from("properties")
+        .select("id, name, slug, address, city, country, property_type, amenities, listing_intent, commercial_model")
+        .eq("owner_email", normalizedEmail)
+        .is("permanently_deleted_at", null)
+        .order("name");
+
+      if (propError) {
+        console.error("Error fetching properties:", propError);
+        return new Response(JSON.stringify({ error: "Failed to fetch properties" }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      properties = props;
     }
 
-    const isNewOwner = !properties || properties.length === 0;
+    const isNewOwner = !isReferral && (!properties || properties.length === 0);
     
     // Determine listing intent - from request, property, or default
     let resolvedIntent = listing_intent || 'accommodation';
     let resolvedCommercialModel = commercial_model || 'commission';
     
     // If property_id is provided, get intent from that property
-    if (property_id) {
+    if (property_id && !isReferral) {
       const property = properties?.find(p => p.id === property_id);
       if (property) {
         resolvedIntent = property.listing_intent || resolvedIntent;
@@ -100,7 +109,7 @@ Deno.serve(async (req) => {
     }
     
     // If updating property status when sending contract
-    if (property_id) {
+    if (property_id && !isReferral) {
       const { error: statusError } = await supabase
         .from("properties")
         .update({ listing_status: 'contract_sent' })
@@ -110,6 +119,7 @@ Deno.serve(async (req) => {
         console.error("Error updating property status:", statusError);
       }
     }
+
 
     // Check if user exists and create if needed
     let userId: string | null = null;
@@ -186,6 +196,9 @@ Deno.serve(async (req) => {
     // If a specific template is requested, filter by it
     if (template_id) {
       activeTemplateQuery = activeTemplateQuery.eq("template_id", template_id);
+    } else if (isReferral) {
+      // Referral Partner Agreement template ID
+      activeTemplateQuery = activeTemplateQuery.eq("template_id", "c3d4e5f6-a7b8-4901-cdef-234567890123");
     } else if (contract_type === "rolos") {
       // ROL'OS PMS template ID
       activeTemplateQuery = activeTemplateQuery.eq("template_id", "b2c3d4e5-f6a7-4890-bcde-f12345678901");
@@ -202,15 +215,25 @@ Deno.serve(async (req) => {
     console.log("Commercial model:", resolvedCommercialModel);
 
     // Build contract metadata with intent information
-    const contractMetadata = {
-      listing_intent: resolvedIntent,
-      commercial_model: resolvedCommercialModel,
-      expected_steps: INTENT_STEPS[resolvedIntent] || INTENT_STEPS.accommodation,
-      min_requirements: INTENT_REQUIREMENTS[resolvedIntent] || INTENT_REQUIREMENTS.accommodation,
-      property_id: property_id || null,
-      contract_type: contract_type || 'standard',
-      template_id: activeTemplate?.template_id || null,
-    };
+    const contractMetadata: Record<string, unknown> = isReferral
+      ? {
+          contract_type: "referral",
+          template_id: activeTemplate?.template_id || null,
+          scope: "rep_engagement",
+          property_id: null,
+          rep_id: rep_id || null,
+          terms_snapshot: terms_snapshot || null,
+          engagement: "independent_contractor_commission_only",
+        }
+      : {
+          listing_intent: resolvedIntent,
+          commercial_model: resolvedCommercialModel,
+          expected_steps: INTENT_STEPS[resolvedIntent] || INTENT_STEPS.accommodation,
+          min_requirements: INTENT_REQUIREMENTS[resolvedIntent] || INTENT_REQUIREMENTS.accommodation,
+          property_id: property_id || null,
+          contract_type: contract_type || 'standard',
+          template_id: activeTemplate?.template_id || null,
+        };
 
     // Create contract record with template_version_id, is_new_owner flag, and metadata
     const { data: contract, error: createError } = await supabase
@@ -237,6 +260,26 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Mirror the engagement onto rep_contracts so rep-side tooling can track it.
+    if (isReferral && rep_id) {
+      const { error: repContractError } = await supabase
+        .from("rep_contracts")
+        .insert({
+          rep_id,
+          template_version_id: activeTemplate?.id || null,
+          signing_token: contract.signing_token,
+          status: "sent",
+          sent_at: new Date().toISOString(),
+          signer_name: owner_name || null,
+          signer_email: normalizedEmail,
+          terms_snapshot: terms_snapshot || null,
+        });
+      if (repContractError) {
+        console.error("Error mirroring rep contract:", repContractError);
+      }
+    }
+
+
     // Build signing URL
     const baseUrl = Deno.env.get("SITE_URL") || "https://sleepinafrica.roomsonline.co.za";
     const signingUrl = `${baseUrl}/contract/sign/${contract.signing_token}`;
@@ -246,7 +289,26 @@ Deno.serve(async (req) => {
     let emailIntroHtml: string;
     let propertiesSection: string;
 
-    if (isNewOwner) {
+    if (isReferral) {
+      const t = (terms_snapshot || {}) as Record<string, unknown>;
+      emailSubject = "RoomsOnline Referral Partner Agreement - Signature Required";
+      emailIntroHtml = `
+        <p style="color: #333; line-height: 1.6;">Your Referral Partner Agreement with RoomsOnline is ready for signature. This is a once-off engagement agreement — it is not tied to any individual property.</p>
+        <p style="color: #333; line-height: 1.6;">You are engaged as an independent contractor on a commission-only basis (no base salary), on the terms below.</p>
+      `;
+      propertiesSection = `
+        <div style="background-color: #f7fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 24px 0;">
+          <h3 style="margin: 0 0 12px 0; font-size: 16px; color: #2d3748;">Engagement Terms${t.tier_label ? ` — ${t.tier_label} tier` : ""}</h3>
+          <ul style="margin: 0; padding-left: 20px; color: #4a5568;">
+            <li>First-year commission: ${t.first_year_rate ?? "as per agreement"}%</li>
+            <li>Residual commission: ${t.residual_rate ?? "as per agreement"}%${t.residual_months ? ` for ${t.residual_months} months` : ""}</li>
+            <li>Clawback period: ${t.clawback_days ?? "as per agreement"} days</li>
+            <li>Independent contractor · commission only · no base salary</li>
+          </ul>
+        </div>
+      `;
+    } else if (isNewOwner) {
+
       emailSubject = "Welcome to RoomsOnline - Partnership Agreement";
       emailIntroHtml = `
         <p style="color: #333; line-height: 1.6;">Your RoomsOnline partnership agreement is ready. As part of the signing process, you'll be able to provide details about your property.</p>
@@ -304,12 +366,12 @@ Deno.serve(async (req) => {
           <tr>
             <td style="padding: 40px 40px 20px; text-align: center;">
               <img src="https://book.sleepinafrica.roomsonline.co.za/images/rol-logo-email.png" alt="RoomsOnline" style="max-width: 180px; height: auto; margin-bottom: 20px;" />
-              <h1 style="margin: 0; font-size: 24px; color: #333;">Partnership Agreement</h1>
+              <h1 style="margin: 0; font-size: 24px; color: #333;">${isReferral ? "Referral Partner Agreement" : "Partnership Agreement"}</h1>
             </td>
           </tr>
           <tr>
             <td style="padding: 20px 40px;">
-              <p style="color: #333; line-height: 1.6;">Dear ${owner_name || "Property Owner"},</p>
+              <p style="color: #333; line-height: 1.6;">Dear ${owner_name || (isReferral ? "Partner" : "Property Owner")},</p>
               ${emailIntroHtml}
               ${propertiesSection}
               <p style="color: #333; line-height: 1.6;">Please click the button below to review the full contract and sign electronically:</p>
@@ -340,6 +402,8 @@ Deno.serve(async (req) => {
       signing_url: signingUrl,
       properties_count: properties?.length || 0,
       is_new_owner: isNewOwner,
+      contract_type: contract_type || 'standard',
+      rep_id: isReferral ? (rep_id || null) : null,
       metadata: contractMetadata,
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
