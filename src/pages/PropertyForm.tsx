@@ -7295,6 +7295,28 @@ export default function PropertyForm({
               isFearlessLeader={isFearlessLeader ?? false}
               setIsDirty={setIsDirty}
               onOpenSpecials={() => setActiveTab("specials")}
+              policiesExtra={
+                <form onSubmit={handleSubmit} className="space-y-3">
+                  <HouseRulesCard
+                    formData={formData as any}
+                    setFormData={setFormData as any}
+                    handleInputChange={handleInputChange as any}
+                    selectedPMS={selectedPMS}
+                    isRolProperty={isRolProperty}
+                    isFieldPopulatedByPMS={isFieldPopulatedByPMS}
+                    getPMSFieldClass={getPMSFieldClass}
+                  />
+                  <div className="flex justify-end">
+                    {isDirty && (
+                      <Button type="submit" size="sm" className="h-7 text-xs" disabled={loading}>
+                        <Save className="mr-1 h-3 w-3" />
+                        {loading ? "Saving..." : "Save Property"}
+                      </Button>
+                    )}
+                  </div>
+                </form>
+              }
+
             />
           </TabsContent>
 
