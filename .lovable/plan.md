@@ -1,52 +1,33 @@
-## Goal
+# RU sub-user Archive: fix + per-account button
 
-Make both property editing surfaces (Admin → Edit Property, ROLOS → Property Setup) feel like one dense, desktop-first admin tool: smaller type, tighter spacing, aligned field grids, fewer oversized cards, clear section flow.
+## What's wrong today
 
-Both surfaces already render the same components (`PropertyForm` in embedded mode + shared `PropertySectionRail`), so every density fix lands in both automatically — that's the leverage point.
+The "Close / Archive on RU" button calls the `ru-close-user` backend function, but that function has **never been deployed** — a direct call returns `NOT_FOUND` (404). So the click always fails with a function error. The code exists; it just isn't live.
 
-## Approach
+Also, only the *currently bound* account can be archived. The list of existing RU sub-users (OwnerID 741765, 741777, 741778, 741769, 741761, 741776 in the screenshot) only offers **Bind**.
 
-### 1. Shared density layer (do this first)
+## What we'll do
 
-Add a small set of form primitives in `src/components/property/form/` used by every tab:
+1. **Deploy `ru-close-user`** so Close / Archive actually works.
+2. **Add an "Archive" button next to every "Bind" button** in the "Or bind to an existing RU account" list. It calls `Push_ArchiveUser_RQ` (per RU docs: close user account) for that specific OwnerID.
+3. **Password handling.** RU requires archive to authenticate *as the sub-user* (UserName + Password) — the master key must never be used, or the master account gets archived. Locally we only hold a stored password for OwnerID 741771; the other six have no local record. So:
+   - If we already hold a stored password for that OwnerID, archive straight away (after a confirm dialog naming the OwnerID and email).
+   - Otherwise, prompt for that sub-user's RU portal password in a small dialog, then archive with it. Nothing is persisted unless the archive succeeds.
+4. **Clear local state on success**: if the archived OwnerID matches a local record, clear its RU identity fields (same reset the current Close path does) and refresh the list. Archived owners are removed from the bind candidate list.
+5. **Clear error surfacing**: RU status `-4` / "incorrect login or password" reports as a wrong-password message with a retry prompt, rather than a generic failure.
 
-- `FormSection` — titled block with a thin rule, `text-xs` uppercase label, no nested card padding.
-- `FieldGrid` — responsive `lg:grid-cols-2 / xl:grid-cols-3` grid with consistent `gap-x-4 gap-y-3`, so fields align in columns instead of stacking full-width.
-- `Field` — label (`text-xs font-medium`) + control + helper text (`text-[11px]`), fixed vertical rhythm.
-- Dense input/select/switch sizing via a `dense` wrapper class (`h-8`, `text-sm`, `px-2.5`) applied through the primitives, not by editing shadcn defaults globally.
+## Technical detail
 
-Add one CSS utility group in `index.css` (e.g. `.form-dense`) that scales control heights, label sizes and card padding inside property editors only — keeps the rest of the app untouched.
+- `supabase/functions/ru-close-user/index.ts`
+  - Accept either `account_id` (existing behaviour) **or** `ru_owner_id` + `login_email` + optional `password`.
+  - Resolution order for credentials: explicit `password` from the request → stored `ru_login_password_enc` for a matching `ru_owner_accounts` row → 422 `PASSWORD_REQUIRED` telling the UI to prompt.
+  - Keep child-only auth (`UserName`/`Password` envelope). Master `AccessKey`/`SecretKey` stays out of the archive request.
+  - Keep admin/dev/fearless_leader gate and the sensitive audit-log entry; log the archived OwnerID and email, never the password.
+  - Fix the XML escape helper — its replacements are currently no-ops, so a password containing `&` or `<` would break the envelope.
+- `src/components/portfolio/PortfolioRuAccountsTab.tsx`
+  - Per-row `Archive` button (destructive ghost, `Archive` icon) with per-row loading state keyed by `owner_id`.
+  - Password prompt dialog (`archivePasswordFor` state) shown when the function replies `PASSWORD_REQUIRED`.
+  - On success: toast, remove from `bindCandidates`, `refreshAccounts()`, invalidate the RU queries already used by the unbind path.
+- Deploy `ru-close-user` after the edits and verify with a direct function call that it returns a validation error (not 404).
 
-### 2. Shell tightening
-
-- `PropertySectionRail`: narrower rail (200px), tighter rows, hint chips only on active section (already), reduce description line-height.
-- `PMSPropertySetup` + Admin form shell: reduce outer padding (`p-4` → `p-3`), drop the redundant bottom Alert into a one-line footnote, keep a single sticky header with property name + save actions so it stops scrolling away.
-
-### 3. Tab-by-tab pass (paired, both surfaces at once)
-
-Each tab gets: converted to `FormSection`/`FieldGrid`, related fields grouped, orphan/scattered fields folded into the right group, duplicate headings removed, oversized cards flattened.
-
-Order of work:
-1. General + Info & Facilities (largest, most scattered)
-2. Rooms / Room Manager (incl. bed config + amenity picker density)
-3. Rates / Rate Manager + Seasons Calendar
-4. Packages, Specials, Addons
-5. House Rules, Policies, Templates, Announcements
-6. Images, Branding / House Style
-7. Contacts, Integrations, Billing / Commission / Payment Providers, Admin Overview
-
-### 4. Verification
-
-After each group: typecheck, then a Playwright desktop capture (1280px) of the before/after tab to confirm alignment and that no controls overflow. Fix anything that regresses.
-
-## Constraints
-
-- Presentation only — no changes to form state, validation, save logic, or edge functions.
-- Semantic tokens only, no hardcoded colors.
-- Keep all existing fields and behaviour; nothing removed, only regrouped.
-- `PropertyForm.tsx` is already ~8.8k lines; extract tab bodies into their existing sibling components where a tab is edited heavily, rather than growing the file.
-
-## Technical notes
-
-- Files: `src/pages/PropertyForm.tsx`, `src/pages/pms/PMSPropertySetup.tsx`, `src/components/property/*Tab.tsx`, `src/components/property/PropertySectionRail.tsx`, `src/config/propertySectionOrder.ts`, `src/index.css`.
-- Work ships in batches (one tab group per pass) so the preview stays usable throughout.
+No database migration is needed.
