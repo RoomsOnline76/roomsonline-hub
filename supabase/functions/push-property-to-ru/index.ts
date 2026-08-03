@@ -26,6 +26,17 @@ import {
 } from '../_shared/rateResolution.ts';
 import { parseRuPriceSeasons } from '../_shared/ruPriceParsing.ts';
 import {
+  decideRuCurrency,
+  convertPriceEntries,
+  refreshRuLocationsCache,
+  loadCurrencyState,
+  getFxRate,
+  applyMargin,
+  FX_MARGIN_PCT,
+  RU_CURRENCY_BY_ISO as RU_CCY_BY_ISO,
+  type CurrencyDecision,
+} from '../_shared/ruCurrency.ts';
+import {
   resolveRuDiscounts,
   validateRuLadder,
   longStayToWire,
@@ -1302,11 +1313,11 @@ async function verifyAvailability(
   return report;
 }
 
-async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRow, unitUnits: number = 1, unit?: UnitContext, childAuth: Record<string, unknown> = {}) {
+async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRow, unitUnits: number = 1, unit?: UnitContext, childAuth: Record<string, unknown> = {}, currency?: CurrencyDecision | null) {
   const amenities = (property.amenities || {}) as Record<string, any>;
   const seasons = amenities.seasons as any[] | undefined;
   const seasonRates = amenities.season_rates as Record<string, any> | undefined;
-  const result: { availability_pushed?: boolean; prices_pushed?: boolean; availability_error?: string; prices_error?: string; availability_verification?: AvailabilityVerification; prices_verification?: PriceVerification; price_coverage?: Record<string, any> } = {};
+  const result: { availability_pushed?: boolean; prices_pushed?: boolean; availability_error?: string; prices_error?: string; availability_verification?: AvailabilityVerification; prices_verification?: PriceVerification; price_coverage?: Record<string, any>; currency?: Record<string, any> } = {};
 
   const today = new Date();
   const todayStr = today.toISOString().slice(0, 10);
@@ -1446,8 +1457,42 @@ async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRo
       }
 
 
+      // ── Currency: publish in the authored currency when RU holds it, otherwise in the
+      // fallback currency at the decided live rate + margin. Never send an unconverted
+      // number into a foreign-currency location.
+      if (currency?.blocked) {
+        result.prices_error = currency.block_reason || 'RU_FX_UNAVAILABLE: currency could not be resolved for this location';
+        console.error(`[pushARI] Aborting price push for RU property ${ruPropertyId}: ${result.prices_error}`);
+        return result;
+      }
+
+      let outboundPrices = priceEntries;
+      if (currency?.conversion_in_force && currency.effective_rate) {
+        outboundPrices = convertPriceEntries(priceEntries, currency.effective_rate);
+        result.currency = {
+          published_iso: currency.published_iso,
+          authored_iso: currency.authored_iso,
+          conversion_in_force: true,
+          fx_rate: currency.fx_rate,
+          margin_pct: currency.margin_pct,
+          effective_rate: currency.effective_rate,
+          reason: currency.reason,
+        };
+        console.log(`[pushARI] RU ${ruPropertyId}: converting ${priceEntries.length} price periods ${currency.authored_iso}→${currency.published_iso} at effective ${currency.effective_rate}`);
+      } else if (currency) {
+        result.currency = {
+          published_iso: currency.published_iso,
+          authored_iso: currency.authored_iso,
+          conversion_in_force: false,
+          fx_rate: null,
+          margin_pct: currency.margin_pct,
+          effective_rate: null,
+          reason: currency.reason,
+        };
+      }
+
       const { data: priceResult, error: priceErr } = await supabase.functions.invoke('rentalsunited-api', {
-        body: { action: 'push_prices', ru_property_id: ruPropertyId, prices: priceEntries, ...childAuth },
+        body: { action: 'push_prices', ru_property_id: ruPropertyId, prices: outboundPrices, ...childAuth },
       });
 
       if (priceErr || !priceResult?.success) {
@@ -1455,7 +1500,7 @@ async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRo
       } else {
         result.prices_pushed = true;
         // 7.2 — Verify prices post-push
-        const priceVerification = await verifyPrices(supabase, ruPropertyId, priceEntries, todayStr, oneYearStr, childAuth);
+        const priceVerification = await verifyPrices(supabase, ruPropertyId, outboundPrices, todayStr, oneYearStr, childAuth);
         result.prices_verification = priceVerification;
         console.log(`[pushARI] Price verification: ${priceVerification.matches}/${priceVerification.total_seasons} seasons matched, ${priceVerification.mismatches.length} mismatches, ${priceVerification.missing_dates.length} missing dates${priceVerification.error ? ` (error: ${priceVerification.error})` : ''}`);
         try {
@@ -2000,7 +2045,7 @@ Deno.serve(async (req) => {
     const country = property.country;
 
     // Resolve currency once for the whole push so every unit uses the same value.
-    const currencyId = mapCurrencyToRUId(property.amenities as Record<string, unknown> | null, country);
+    let currencyId = mapCurrencyToRUId(property.amenities as Record<string, unknown> | null, country);
 
     // Prefer cached RU location/currency if coords haven't drifted (T5).
     const cached = await loadRuPropertyMapping(supabase, property_id);
@@ -2031,6 +2076,25 @@ Deno.serve(async (req) => {
         ru_country: country ?? null,
         coords_hash: coordsHash,
       });
+    }
+
+    // ── Currency authority: RU owns currency on the LocationID ─────────────
+    // Try to make the location hold our authored currency (ZAR). Only if RU refuses do
+    // we publish converted rates in the fallback currency, at a live rate + margin.
+    const authoredIso = ISO_BY_RU_CURRENCY_ID[currencyId] || 'ZAR';
+    let currencyDecision: CurrencyDecision | null = null;
+    try {
+      currencyDecision = await decideRuCurrency(supabase, {
+        propertyId: property_id,
+        locationId,
+        authoredIso,
+        country,
+        dryRun: dry_run === true,
+      });
+      currencyId = RU_CCY_BY_ISO[currencyDecision.published_iso] ?? currencyId;
+      console.log(`[push-property-to-ru] Currency decision: publishing in ${currencyDecision.published_iso} (location ${locationId} holds ${currencyDecision.location_iso ?? 'unknown'}, flip: ${currencyDecision.flip_outcome})`);
+    } catch (e) {
+      console.warn('[push-property-to-ru] Currency decision failed, falling back to authored currency:', e instanceof Error ? e.message : e);
     }
 
     // ── Phase gate + RU OwnerID resolution ────────────────────
@@ -2308,7 +2372,7 @@ Deno.serve(async (req) => {
           const ruIdNum = unitRuId ? parseInt(unitRuId, 10) : 0;
           if (ruIdNum > 0) {
             console.log(`[push-property-to-ru] Pushing ARI for standalone unit "${unit.name}" (RU ID: ${ruIdNum})`);
-            ariResult = await pushARI(supabase, ruIdNum, property as PropertyRow, 1, { id: unit.id, name: unit.name, linked_rolos_id: unit.linked_rolos_id, amenities: (unit as any).amenities ?? null }, childAuthPayload);
+            ariResult = await pushARI(supabase, ruIdNum, property as PropertyRow, 1, { id: unit.id, name: unit.name, linked_rolos_id: unit.linked_rolos_id, amenities: (unit as any).amenities ?? null }, childAuthPayload, currencyDecision);
             if (ariResult.availability_error) console.error(`[push-property-to-ru] Availability error for "${unit.name}": ${ariResult.availability_error}`);
             if (ariResult.prices_error) console.error(`[push-property-to-ru] Prices error for "${unit.name}": ${ariResult.prices_error}`);
           }
@@ -2526,7 +2590,7 @@ Deno.serve(async (req) => {
         const ruIdNum = parseInt(unitRuId || '0', 10);
         if (ruIdNum > 0) {
           console.log(`[push-property-to-ru] Pushing ARI for unit "${unit.name}" (RU ID: ${ruIdNum})`);
-          const ariResult = await pushARI(supabase, ruIdNum, property as PropertyRow, 1, { id: unit.id, name: unit.name, linked_rolos_id: unit.linked_rolos_id, amenities: (unit as any).amenities ?? null }, childAuthPayload);
+          const ariResult = await pushARI(supabase, ruIdNum, property as PropertyRow, 1, { id: unit.id, name: unit.name, linked_rolos_id: unit.linked_rolos_id, amenities: (unit as any).amenities ?? null }, childAuthPayload, currencyDecision);
           if (ariResult.availability_error) console.error(`[push-property-to-ru] Availability error for "${unit.name}": ${ariResult.availability_error}`);
           if (ariResult.prices_error) console.error(`[push-property-to-ru] Prices error for "${unit.name}": ${ariResult.prices_error}`);
           unitResults.push({
@@ -2670,7 +2734,7 @@ Deno.serve(async (req) => {
     const finalRuId = parseInt(ruPropertyId || '0', 10);
     let pushExtras: Record<string, any> = {};
     if (finalRuId > 0) {
-      pushExtras = await pushARI(supabase, finalRuId, property as PropertyRow, activeRoomTypes.length || 1, undefined, childAuthPayload);
+      pushExtras = await pushARI(supabase, finalRuId, property as PropertyRow, activeRoomTypes.length || 1, undefined, childAuthPayload, currencyDecision);
       const discountResult = await pushDiscounts(supabase, property_id, [{ ruId: finalRuId }], childAuthPayload);
       pushExtras = { ...pushExtras, ...discountResult };
     }
