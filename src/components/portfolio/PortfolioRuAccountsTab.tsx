@@ -919,18 +919,23 @@ export function PortfolioRuAccountsTab() {
                       >
                         {acc.company_details_sent ? "Company details sent" : "Company details pending"}
                       </Badge>
+                      {acc.ru_owner_id && !activeAccessKey && (
+                        <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                          API keys missing
+                        </Badge>
+                      )}
                       {showCredentialBadge && (
                         <Badge
                           variant="outline"
                           className={
-                            status === "api_access_verified" || status === "credentials_verified"
+                            apiVerified
                               ? "text-success border-success/40 text-[10px]"
                               : status === "api_access_failed" || status === "credentials_failed" || status === "failed"
                                 ? "text-destructive border-destructive/40 text-[10px]"
                                 : "text-muted-foreground text-[10px]"
                           }
                         >
-                          {status === "api_access_verified" || status === "credentials_verified"
+                          {apiVerified
                             ? "API access verified"
                             : status === "api_access_failed" || status === "credentials_failed" || status === "failed"
                               ? "API access failed"
