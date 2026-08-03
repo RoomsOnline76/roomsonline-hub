@@ -1316,7 +1316,39 @@ export default function AdminContracts() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            {/* Contract Scope Selector */}
+            <div className="space-y-2">
+              <Label>Contract Scope *</Label>
+              <div className="grid grid-cols-3 gap-2">
+                {([
+                  { key: "single", label: "Single Property", hint: "One property", icon: Building2 },
+                  { key: "multiple", label: "Multiple", hint: "Pick properties", icon: FileText },
+                  { key: "portfolio", label: "Portfolio", hint: "All in portfolio", icon: LinkIcon },
+                ] as const).map((opt) => (
+                  <button
+                    key={opt.key}
+                    type="button"
+                    onClick={() => setSendScope(opt.key)}
+                    className={`p-3 rounded-lg border-2 text-left transition-all ${
+                      sendScope === opt.key
+                        ? "border-primary bg-primary/5"
+                        : "border-border hover:border-muted-foreground/50"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <opt.icon className="h-4 w-4 text-primary" />
+                      <span className="font-medium text-sm">{opt.label}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">{opt.hint}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {sendScope === "single" && (
+            <>
             {/* Property Name Search */}
+
             <div className="space-y-2">
               <Label htmlFor="propertyName">Property Name *</Label>
               <div className="relative">
