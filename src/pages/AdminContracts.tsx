@@ -59,6 +59,23 @@ import {
 import { ContractOverrideModal } from "@/components/contract/ContractOverrideModal";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  fetchRepGlobals,
+  resolveRepTerms,
+  REP_TIER_LABELS,
+  type RepTierKey,
+  type ResolvedRepTerms,
+} from "@/lib/repContractVariables";
+
+interface RepRow {
+  id: string;
+  display_name: string;
+  email: string;
+  rep_code: string;
+  commission_tier: RepTierKey;
+  is_active: boolean;
+}
+
 
 interface OwnerContract {
   id: string;
