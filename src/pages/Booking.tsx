@@ -1455,6 +1455,8 @@ const Booking = () => {
               hfRoomsRef.current = (hfRoomsFallback || []).map(r => ({ id: r.id, name: r.name, linked_rolos_id: r.linked_rolos_id }));
             }
             let nextPendingAgeSpecial: any | null = null;
+            type Candidate = CheckoutOffer & { stackable: boolean; priority: number };
+            const candidates: Candidate[] = [];
             const accommodationSubtotal = lineItems
               .filter((item) => item.nights > 0 && item.total > 0)
               .reduce((sum, item) => sum + item.total, 0);
