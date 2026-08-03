@@ -26,6 +26,14 @@ import {
   RU_TIME_ZONE_GROUPS,
   normalizeRuTimeZone,
 } from "@/lib/ruTimeZones";
+import {
+  RU_EMPLOYEE_RANGES,
+  RU_PROPERTY_RANGES,
+  RU_YEARS_RANGES,
+  isRangeId,
+  rangeIdForCount,
+  type RuRange,
+} from "@/lib/ruRanges";
 import { supabase } from "@/integrations/supabase/client";
 
 
@@ -52,6 +60,12 @@ export interface RuCompanyProfile {
   number_of_employees?: number;
   years_in_business?: number;
   describe_your_business?: string;
+  /** Explicit RU account contact person (replaces the old derived placeholders). */
+  contact_first_name?: string;
+  contact_last_name?: string;
+  contact_phone?: string;
+  contact_birth_date?: string;
+
   legal_rep?: {
     first_name?: string;
     last_name?: string;
@@ -60,6 +74,7 @@ export interface RuCompanyProfile {
     address?: string;
     post_code?: string;
     birthday?: string;
+    region?: string;
     nationality_id?: number;
     country_of_residence_id?: number;
   };
@@ -145,10 +160,35 @@ const COMPANY_TEXT_FIELDS: {
   },
 ];
 
-const COMPANY_NUMBER_FIELDS: { key: keyof RuCompanyProfile; label: string; hint?: string }[] = [
-  { key: "number_of_properties", label: "Number of properties", hint: "Whole number" },
-  { key: "number_of_employees", label: "Number of employees", hint: "Whole number" },
-  { key: "years_in_business", label: "Years in business", hint: "Whole number of years" },
+/**
+ * RU treats these three as range selectors (option IDs), not counts — see
+ * src/lib/ruRanges.ts. Captured as dropdowns so the pushed value can never land
+ * on the wrong bucket.
+ */
+const COMPANY_RANGE_FIELDS: {
+  key: keyof RuCompanyProfile;
+  label: string;
+  ranges: RuRange[];
+  hint: string;
+}[] = [
+  {
+    key: "number_of_properties",
+    label: "Number of properties",
+    ranges: RU_PROPERTY_RANGES,
+    hint: "Total units/properties managed on this Rentals United account (all portfolio properties combined).",
+  },
+  {
+    key: "number_of_employees",
+    label: "Number of employees",
+    ranges: RU_EMPLOYEE_RANGES,
+    hint: "Rentals United stores this as a range, not an exact headcount.",
+  },
+  {
+    key: "years_in_business",
+    label: "Years in business",
+    ranges: RU_YEARS_RANGES,
+    hint: "Rentals United stores this as a range, not an exact number of years.",
+  },
 ];
 
 const REP_FIELDS: {
@@ -166,12 +206,44 @@ const REP_FIELDS: {
   { key: "address", label: "Address" },
   { key: "post_code", label: "Postal code" },
   {
+    key: "region",
+    label: "Region / province",
+    hint: "Defaults to the company region when left blank.",
+  },
+  {
     key: "birthday",
     label: "Date of birth",
     type: "date",
     hint: "Sent to Rentals United as YYYY-MM-DD",
   },
 ];
+
+/**
+ * RU's account contact person. Previously derived (company name as first name,
+ * "Owner" as last name, 1990-01-01 birthday, +27000000000 phone) and written
+ * permanently onto the RU profile — captured explicitly now.
+ */
+const CONTACT_FIELDS: {
+  key: keyof RuCompanyProfile;
+  label: string;
+  type?: string;
+  hint?: string;
+}[] = [
+  { key: "contact_first_name", label: "Contact first name" },
+  { key: "contact_last_name", label: "Contact last name" },
+  {
+    key: "contact_phone",
+    label: "Contact phone",
+    hint: "International format, e.g. +27 82 123 4567 — no placeholder is sent to RU.",
+  },
+  {
+    key: "contact_birth_date",
+    label: "Contact date of birth",
+    type: "date",
+    hint: "Sent to Rentals United as YYYY-MM-DD",
+  },
+];
+
 
 /** South African bank account types (RU/bank payout files accept these labels). */
 const ACCOUNT_TYPES = ["Cheque / Current", "Savings", "Transmission", "Business", "Bond"];
@@ -325,6 +397,57 @@ export function CompanyInformationCard({
     };
   }, [propertyCountry, onCompanyProfileChange]);
 
+  /**
+   * Pre-fill the RU account contact person from the contract fields already on
+   * this card (Key Representative / Mobile Number) and the legal rep's region
+   * from the company region. Blank targets only — never overwrites an entry.
+   */
+  useEffect(() => {
+    const current = profileRef.current;
+    const patch: Record<string, unknown> = {};
+    const nameParts = keyRepresentative.trim().split(/\s+/).filter(Boolean);
+    if (nameParts.length > 0 && !str(current.contact_first_name).trim()) {
+      patch.contact_first_name = nameParts[0];
+    }
+    if (nameParts.length > 1 && !str(current.contact_last_name).trim()) {
+      patch.contact_last_name = nameParts.slice(1).join(" ");
+    }
+    if (mobileNumber.trim() && !str(current.contact_phone).trim()) {
+      patch.contact_phone = mobileNumber.trim();
+    }
+    const currentRep = (current.legal_rep ?? {}) as Record<string, string | number | undefined>;
+    const region = str(current.region).trim();
+    if (region && !str(currentRep.region).trim()) {
+      patch.legal_rep = { ...currentRep, region };
+    }
+    if (Object.keys(patch).length === 0) return;
+    onCompanyProfileChange({ ...current, ...patch } as RuCompanyProfile);
+  }, [keyRepresentative, mobileNumber, companyProfile.region, onCompanyProfileChange]);
+
+
+
+
+  /**
+   * Placeholder values RU permanently stored on profiles pushed before the
+   * account contact person was captured explicitly. Flagged so they get
+   * corrected on the next push instead of silently staying on file.
+   */
+  const placeholders = useMemo(() => {
+    const out: string[] = [];
+    const phone = str(companyProfile.contact_phone).replace(/[\s-]/g, "");
+    if (phone === "+27000000000") out.push("Contact phone");
+    if (str(companyProfile.contact_last_name).trim().toLowerCase() === "owner") {
+      out.push("Contact last name");
+    }
+    if (str(companyProfile.contact_birth_date).trim() === "1990-01-01") {
+      out.push("Contact date of birth");
+    }
+    return out;
+  }, [
+    companyProfile.contact_phone,
+    companyProfile.contact_last_name,
+    companyProfile.contact_birth_date,
+  ]);
 
   /**
    * Mandatory set = everything that can block a Rentals United company/property
@@ -345,11 +468,17 @@ export function CompanyInformationCard({
     if (!normalizeRuTimeZone(companyProfile.time_zone)) out.push("Time zone");
     if (!ruLocationId) out.push("RU LocationID");
     if (banking.has_vat) need("VAT number", banking.vat_number);
+    need("Contact first name", companyProfile.contact_first_name);
+    need("Contact last name", companyProfile.contact_last_name);
+    need("Contact phone", companyProfile.contact_phone);
+    need("Contact date of birth", companyProfile.contact_birth_date);
+    need("Describe your business", companyProfile.describe_your_business);
     need("Rep first name", rep.first_name);
     need("Rep last name", rep.last_name);
     need("Rep email", rep.email);
     if (!Number(rep.nationality_id)) out.push("Rep nationality");
     if (!Number(rep.country_of_residence_id)) out.push("Rep country of residence");
+    for (const p of placeholders) out.push(`${p} (placeholder)`);
     return out;
   }, [
     registeredBusinessName,
@@ -359,6 +488,11 @@ export function CompanyInformationCard({
     propertyCity,
     companyProfile.region,
     companyProfile.time_zone,
+    companyProfile.contact_first_name,
+    companyProfile.contact_last_name,
+    companyProfile.contact_phone,
+    companyProfile.contact_birth_date,
+    companyProfile.describe_your_business,
     ruLocationId,
     banking.has_vat,
     banking.vat_number,
@@ -367,7 +501,9 @@ export function CompanyInformationCard({
     rep.email,
     rep.nationality_id,
     rep.country_of_residence_id,
+    placeholders,
   ]);
+
 
   return (
     <Collapsible defaultOpen={false}>
@@ -542,18 +678,50 @@ export function CompanyInformationCard({
                     {f.hint && <Hint>{f.hint}</Hint>}
                   </div>
                 ))}
-                {COMPANY_NUMBER_FIELDS.map((f) => (
+                {COMPANY_RANGE_FIELDS.map((f) => {
+                  const stored = companyProfile[f.key];
+                  // A legacy raw count is re-read as a count and shown on its bucket.
+                  const resolved = isRangeId(f.ranges, stored)
+                    ? Number(stored)
+                    : rangeIdForCount(f.ranges, Number(stored));
+                  return (
+                    <div key={String(f.key)} className="flex flex-col gap-1">
+                      <Label className="text-xs">{f.label}</Label>
+                      <Select
+                        value={resolved ? String(resolved) : ""}
+                        onValueChange={(v) => setField(f.key, v, true)}
+                      >
+                        <SelectTrigger className="h-7 text-xs">
+                          <SelectValue placeholder="Select a range" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {f.ranges.map((r) => (
+                            <SelectItem key={r.id} value={String(r.id)} className="text-xs">
+                              {r.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Hint>{f.hint}</Hint>
+                    </div>
+                  );
+                })}
+                {CONTACT_FIELDS.map((f) => (
                   <div key={String(f.key)} className="flex flex-col gap-1">
-                    <Label className="text-xs">{f.label}</Label>
+                    <Label className="text-xs">
+                      {f.label}
+                      <Req />
+                    </Label>
                     <Input
-                      inputMode="numeric"
+                      type={f.type ?? "text"}
                       value={str(companyProfile[f.key])}
-                      onChange={(e) => setField(f.key, e.target.value, true)}
+                      onChange={(e) => setField(f.key, e.target.value)}
                       className="h-7 text-xs"
                     />
                     {f.hint && <Hint>{f.hint}</Hint>}
                   </div>
                 ))}
+
 
               </div>
               <div className="flex flex-col gap-1">

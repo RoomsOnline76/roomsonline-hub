@@ -1,4 +1,12 @@
 import { normalizeRuTimeZone } from '../_shared/ruTimeZones.ts';
+import {
+  RU_EMPLOYEE_RANGES,
+  RU_PROPERTY_RANGES,
+  RU_YEARS_RANGES,
+  isRangeId,
+  rangeIdForCount,
+  type RuRange,
+} from '../_shared/ruRanges.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 /**
@@ -1164,16 +1172,31 @@ interface RUCompanyPayload {
 
 const RU_COMPANY_REQUIRED: (keyof RUCompanyPayload)[] = [
   'first_name', 'last_name', 'email', 'phone', 'city', 'country_id', 'address', 'zip_code', 'name',
+  // RU stores the contact birth date permanently; a derived placeholder used to
+  // leak onto the profile, so it is now a caller-supplied requirement.
+  'birth_date',
 ];
+
+/** Placeholder values previous versions substituted for missing contact data. */
+const RU_COMPANY_PLACEHOLDERS: Partial<Record<keyof RUCompanyPayload, string[]>> = {
+  phone: ['+27000000000', '27000000000'],
+  last_name: ['owner'],
+  birth_date: ['1990-01-01'],
+};
 
 function missingCompanyFields(company: Partial<RUCompanyPayload>): string[] {
   const missing = RU_COMPANY_REQUIRED.filter((k) => {
     const v = (company as Record<string, unknown>)[k as string];
     return v === undefined || v === null || String(v).trim() === '' || (k === 'country_id' && !Number(v));
   }).map(String);
+  for (const [key, values] of Object.entries(RU_COMPANY_PLACEHOLDERS)) {
+    const raw = String((company as Record<string, unknown>)[key] ?? '').replace(/[\s-]/g, '').toLowerCase();
+    if (raw && values!.includes(raw)) missing.push(`${key} (placeholder — enter the real value)`);
+  }
   if (!Array.isArray(company.location_ids) || company.location_ids.length === 0) missing.push('location_ids');
   return missing;
 }
+
 
 /**
  * Sub-user ("child") authentication envelope. RU treats every sub-user as a separate
@@ -1386,6 +1409,18 @@ function buildFillCompanyDetailsXml(
   const optNode = (tag: string, val?: string | number) =>
     val !== undefined && val !== null && String(val).trim() !== '' ? `<${tag}>${escapeXml(String(val))}</${tag}>` : '';
   const locations = (company.location_ids ?? []).map((id) => `      <Location Id="${Number(id)}" />`).join('\n');
+  /**
+   * NumberOfProperties / NumberOfEmployees / YearsInBusiness are RU range option
+   * IDs. A caller that still passes a raw count is mapped onto its bucket here so
+   * "4 units" can never be stored as the 4th range ("20 - 29").
+   */
+  const rangeNode = (tag: string, ranges: RuRange[], val?: number) => {
+    if (val === undefined || val === null || !Number.isFinite(Number(val))) return '';
+    const n = Number(val);
+    const id = isRangeId(ranges, n) ? n : rangeIdForCount(ranges, n);
+    return id ? `<${tag}>${id}</${tag}>` : '';
+  };
+
   // LegalRepresentativeInfo is optional, but RU's XSD fixes the element order:
   // FirstName → LastName → Email → City → CountryOfResidenceId → Address → PostCode
   // → Birthday → NationalityId → Region.
@@ -1421,7 +1456,7 @@ function buildFillCompanyDetailsXml(
     <CountryId>${Number(company.country_id)}</CountryId>
     <Address>${escapeXml(company.address)}</Address>
     <ZipCode>${escapeXml(company.zip_code)}</ZipCode>
-    <BirthDate>${escapeXml(company.birth_date || '1990-01-01')}</BirthDate>
+    <BirthDate>${escapeXml(company.birth_date || '')}</BirthDate>
     <LanguageId>${Number(company.language_id ?? 1)}</LanguageId>
   </ContactInfo>
   <CompanyInfo>
@@ -1440,9 +1475,9 @@ function buildFillCompanyDetailsXml(
     <Locations>
 ${locations}
     </Locations>
-    ${optNode('NumberOfProperties', company.number_of_properties)}
-    ${optNode('NumberOfEmployees', company.number_of_employees)}
-    ${optNode('YearsInBusiness', company.years_in_business)}
+    ${rangeNode('NumberOfProperties', RU_PROPERTY_RANGES, company.number_of_properties)}
+    ${rangeNode('NumberOfEmployees', RU_EMPLOYEE_RANGES, company.number_of_employees)}
+    ${rangeNode('YearsInBusiness', RU_YEARS_RANGES, company.years_in_business)}
     ${optNode('DescribeYourBusiness', company.describe_your_business)}
   </CompanyInfo>${legalRepXml}
 </Push_FillCompanyDetails_RQ>`;

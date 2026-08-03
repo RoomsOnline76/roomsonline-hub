@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { RuLastSentPanel } from "./RuLastSentPanel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -51,6 +52,9 @@ interface RuAccount {
   ru_api_access_key?: string | null;
   ru_api_key_label?: string | null;
   ru_api_keys_verified_at?: string | null;
+  company_payload?: Record<string, unknown> | null;
+  company_profile?: Record<string, unknown> | null;
+  company_filled_at?: string | null;
   scope: string;
   portfolio_id: string | null;
   property_id: string | null;
@@ -1151,6 +1155,12 @@ export function PortfolioRuAccountsTab() {
                         ))}
                       </div>
                     )}
+
+                    <RuLastSentPanel
+                      sentPayload={acc.company_payload ?? null}
+                      currentProfile={acc.company_profile ?? null}
+                      sentAt={acc.company_filled_at ?? null}
+                    />
                   </CardContent>
                 )}
               </Card>

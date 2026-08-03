@@ -16,6 +16,14 @@ import { evaluatePhases, findOwnerAccount, resolvePortfolioId } from "../_shared
 import { createRateResolver, describeCoverage } from "../_shared/rateResolution.ts";
 import { parseRuPricePoints } from "../_shared/ruPriceParsing.ts";
 import {
+  RU_EMPLOYEE_RANGES,
+  RU_PROPERTY_RANGES,
+  RU_YEARS_RANGES,
+  isRangeId,
+  rangeIdForCount,
+  type RuRange,
+} from "../_shared/ruRanges.ts";
+import {
   resolveRuDiscounts,
   validateRuLadder,
   longStayToWire,
@@ -1821,6 +1829,21 @@ Deno.serve(async (req) => {
         // is the primary source for the RU company profile extras.
         let propertyProfile: Record<string, unknown> | null = null;
         let propertyRuLocationId: number | null = null;
+        // Bridged from the banking block on any portfolio member (see below).
+        let bridgedVatNumber: string | null = null;
+        let bridgedRegistration: string | null = null;
+        let portfolioPropertyCount: number | null = null;
+        const collectVatAndRegistration = (amenities: unknown) => {
+          if (!amenities || typeof amenities !== "object") return;
+          const am = amenities as Record<string, unknown>;
+          const bank = (am.banking && typeof am.banking === "object" ? am.banking : {}) as Record<string, unknown>;
+          const hasVat = bank.has_vat === true || am.has_vat === true;
+          const vat = String(am.vat_number ?? bank.vat_number ?? "").trim();
+          if (!bridgedVatNumber && hasVat && vat) bridgedVatNumber = vat;
+          const reg = String(am.property_registration ?? bank.property_registration ?? "").trim();
+          if (!bridgedRegistration && reg) bridgedRegistration = reg;
+        };
+
 
         let sourcePropertyId: string | null = propertyId ?? null;
         // Company Information is authored per property, but the RU company profile is
@@ -1848,7 +1871,14 @@ Deno.serve(async (req) => {
             if (rcp && typeof rcp === "object" && Object.keys(rcp as object).length > 0) {
               withProfile.push({ id: row.properties.id as string, profile: rcp as Record<string, unknown> });
             }
+            // VAT / company registration live on the banking block, NOT inside
+            // ru_company_profile — bridge them in so RU stops receiving a blank
+            // VAT number for VAT-registered owners.
+            collectVatAndRegistration(am);
           }
+          // RU's NumberOfProperties is account-wide: count every portfolio member.
+          portfolioPropertyCount = ((members ?? []) as any[]).length || null;
+
           if (withProfile.length > 0) {
             // Selected property last so its values win the merge.
             const ordered = [
@@ -1889,6 +1919,8 @@ Deno.serve(async (req) => {
           const am = (pr as any)?.amenities;
           const rcp = am && typeof am === "object" ? (am as Record<string, unknown>).ru_company_profile : null;
           if (rcp && typeof rcp === "object") propertyProfile = rcp as Record<string, unknown>;
+          collectVatAndRegistration(am);
+
           const prLoc = Number((pr as any)?.ru_location_id);
           if (Number.isFinite(prLoc) && prLoc > 1) propertyRuLocationId = prLoc;
           address = (pr as any)?.address ?? undefined;
@@ -1920,7 +1952,7 @@ Deno.serve(async (req) => {
           first_name: contactFirstName,
           last_name: contactLastName,
           email: ownerEmail!,
-          phone: phone || "+27000000000",
+          phone: phone || "",
           city: city || "Cape Town",
           country_id: countryId,
           address: address || "Address on file",
@@ -1953,6 +1985,12 @@ Deno.serve(async (req) => {
           propertyProfile || accountOverrides
             ? { ...(propertyProfile ?? {}), ...(accountOverrides ?? {}) }
             : null;
+        const CONTACT_KEYS = new Set([
+          "contact_first_name",
+          "contact_last_name",
+          "contact_phone",
+          "contact_birth_date",
+        ]);
         if (overrides && typeof overrides === "object") {
           for (const [k, v] of Object.entries(overrides)) {
             if (v === null || v === undefined || (typeof v === "string" && v.trim() === "")) continue;
@@ -1966,9 +2004,77 @@ Deno.serve(async (req) => {
               continue;
             }
             if (k === "location_ids") continue; // resolved from the property address
+            if (CONTACT_KEYS.has(k)) continue; // mapped explicitly below
             (company as Record<string, unknown>)[k] = v;
           }
         }
+
+        const c = company as Record<string, unknown>;
+        const ovr = (overrides ?? {}) as Record<string, unknown>;
+        const ovrStr = (key: string) => String(ovr[key] ?? "").trim();
+
+        // ── Explicit RU account contact person (no derived placeholders) ──
+        if (ovrStr("contact_first_name")) c.first_name = ovrStr("contact_first_name");
+        if (ovrStr("contact_last_name")) c.last_name = ovrStr("contact_last_name");
+        if (ovrStr("contact_phone")) {
+          c.phone = ovrStr("contact_phone");
+          c.company_phone = ovrStr("contact_phone");
+        }
+        if (ovrStr("contact_birth_date")) c.birth_date = ovrStr("contact_birth_date");
+
+        // ── VAT / company registration bridged from the banking block ──
+        if (!String(c.vat_number ?? "").trim() && bridgedVatNumber) c.vat_number = bridgedVatNumber;
+        if (!String(c.manager_identification_number ?? "").trim() && bridgedRegistration) {
+          c.manager_identification_number = bridgedRegistration;
+        }
+
+        // ── Size fields are RU range option IDs, never raw counts ──
+        const normalizeRange = (key: string, ranges: RuRange[], fallbackCount?: number | null) => {
+          const raw = c[key];
+          if (isRangeId(ranges, raw)) return;
+          const n = Number(raw);
+          if (Number.isFinite(n) && n > 0) {
+            const mapped = rangeIdForCount(ranges, n);
+            if (mapped) {
+              c[key] = mapped;
+              return;
+            }
+          }
+          if (fallbackCount && fallbackCount > 0) {
+            const mapped = rangeIdForCount(ranges, fallbackCount);
+            if (mapped) c[key] = mapped;
+            return;
+          }
+          delete c[key];
+        };
+        normalizeRange("number_of_properties", RU_PROPERTY_RANGES, portfolioPropertyCount);
+        normalizeRange("number_of_employees", RU_EMPLOYEE_RANGES);
+        normalizeRange("years_in_business", RU_YEARS_RANGES);
+
+        // ── Legal rep region defaults to the company region ──
+        const repObj = (c.legal_rep ?? null) as Record<string, unknown> | null;
+        if (repObj && !String(repObj.region ?? "").trim() && String(c.region ?? "").trim()) {
+          repObj.region = String(c.region).trim();
+        }
+
+        // ── Gate: never write placeholder contact data onto the RU profile ──
+        const incomplete: string[] = [];
+        if (!String(c.first_name ?? "").trim()) incomplete.push("contact first name");
+        if (!String(c.last_name ?? "").trim() || String(c.last_name).trim().toLowerCase() === "owner") {
+          incomplete.push("contact last name");
+        }
+        const cleanPhone = String(c.phone ?? "").replace(/[\s-]/g, "");
+        if (!cleanPhone || cleanPhone === "+27000000000") incomplete.push("contact phone");
+        if (!String(c.birth_date ?? "").trim()) incomplete.push("contact date of birth");
+        if (incomplete.length > 0) {
+          return {
+            sent: false,
+            error:
+              `Complete Company Information first — Rentals United would otherwise store placeholder data. Missing/placeholder: ${incomplete.join(", ")}. ` +
+              "Fill these on the property's Identity & Location → Company Information card, then retry.",
+          };
+        }
+
 
         // Retry transient RU/network failures — Phase 1 must not be left half-done.
         let filled: any = null;
