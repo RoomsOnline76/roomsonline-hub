@@ -538,6 +538,15 @@ export function AccommodationSpecialsTab({ propertyId, category = "accommodation
           </div>
         )}
       </div>
+
+      <SpecialWizard
+        open={wizardOpen}
+        onOpenChange={setWizardOpen}
+        propertyId={propertyId}
+        category={category}
+        roomTypes={roomTypes}
+        onSaved={fetchSpecials}
+      />
     </div>
   );
 }
