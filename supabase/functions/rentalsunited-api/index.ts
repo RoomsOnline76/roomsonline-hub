@@ -844,23 +844,24 @@ function buildBuildingCompositionXml(unitTypes?: RUBuildingUnitType[]): string {
   return unitTypeNodes ? `<Composition><UnitsComposition>${unitTypeNodes}</UnitsComposition></Composition>` : '';
 }
 
-function buildPushBuildingXml(creds: RUCredentials, buildingId: number, buildingName: string, unitTypes?: RUBuildingUnitType[], childAuth?: { username: string; password: string }): string {
+function buildPushBuildingXml(creds: RUCredentials, buildingId: number, buildingName: string, unitTypes?: RUBuildingUnitType[], childAuth?: ChildAuth | null): string {
   const truncatedName = buildingName.substring(0, 20);
   const buildingIdXml = buildingId > 0 ? `<BuildingID>${buildingId}</BuildingID>` : '';
   const compositionXml = buildBuildingCompositionXml(unitTypes);
   // Element order matters: RU's XSD expects <BuildingID> (update key) before
   // <BuildingName>. With the wrong order RU ignores the ID and creates a new
   // building on every push, which duplicates inventory.
-  return `<Push_PutBuilding_RQ>${childAuth ? buildChildAuthXml(childAuth.username, childAuth.password) : buildAuthXml(creds)}${buildingIdXml}<BuildingName>${escapeXml(truncatedName)}</BuildingName>${compositionXml}</Push_PutBuilding_RQ>`;
+  return `<Push_PutBuilding_RQ>${childAuth ? buildChildAuthXml(childAuth) : buildAuthXml(creds)}${buildingIdXml}<BuildingName>${escapeXml(truncatedName)}</BuildingName>${compositionXml}</Push_PutBuilding_RQ>`;
 }
 
-function buildListBuildingsXml(creds: RUCredentials, childAuth?: { username: string; password: string }): string {
-  return `<Pull_ListBuildings_RQ>${childAuth ? buildChildAuthXml(childAuth.username, childAuth.password) : buildAuthXml(creds)}</Pull_ListBuildings_RQ>`;
+function buildListBuildingsXml(creds: RUCredentials, childAuth?: ChildAuth | null): string {
+  return `<Pull_ListBuildings_RQ>${childAuth ? buildChildAuthXml(childAuth) : buildAuthXml(creds)}</Pull_ListBuildings_RQ>`;
 }
 
-function buildGetBuildingXml(creds: RUCredentials, buildingId: number, childAuth?: { username: string; password: string }): string {
-  return `<Pull_GetBuilding_RQ>${childAuth ? buildChildAuthXml(childAuth.username, childAuth.password) : buildAuthXml(creds)}<BuildingID>${buildingId}</BuildingID></Pull_GetBuilding_RQ>`;
+function buildGetBuildingXml(creds: RUCredentials, buildingId: number, childAuth?: ChildAuth | null): string {
+  return `<Pull_GetBuilding_RQ>${childAuth ? buildChildAuthXml(childAuth) : buildAuthXml(creds)}<BuildingID>${buildingId}</BuildingID></Pull_GetBuilding_RQ>`;
 }
+
 
 /**
  * Pull_ListCompositionRooms_RQ — fetch the global RU dictionary of valid
