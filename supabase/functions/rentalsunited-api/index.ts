@@ -1245,6 +1245,7 @@ const CHILD_SCOPED_ACTIONS = new Set([
   // appear in the master account's Pull_ListReservations_RQ response.
   'list_reservations',
   'get_leads',
+  'subscribe_notifications',
 ]);
 
 
@@ -1273,6 +1274,7 @@ const CHILD_AUTH_STRICT_ACTIONS = new Set([
   // which would look like "no reservations" for the white-label account.
   'list_reservations',
   'get_leads',
+  'subscribe_notifications',
 ]);
 
 
