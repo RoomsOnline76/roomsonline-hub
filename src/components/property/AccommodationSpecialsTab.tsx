@@ -235,6 +235,15 @@ export function AccommodationSpecialsTab({ propertyId, category = "accommodation
             <Plus className="h-3 w-3" />
           </Button>
         </div>
+        <Button
+          size="sm"
+          variant="outline"
+          className="w-full h-7 text-xs mb-2"
+          onClick={() => setWizardOpen(true)}
+        >
+          <Wand2 className="h-3 w-3 mr-1" /> Guided wizard
+        </Button>
+
         {specials.length === 0 && (
           <p className="text-xs text-muted-foreground italic">No specials yet</p>
         )}
