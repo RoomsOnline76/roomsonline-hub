@@ -272,7 +272,6 @@ export function RateManagerTab({
             <TabsTrigger value="charges">Charges</TabsTrigger>
             <TabsTrigger value="policies">Policies</TabsTrigger>
             <TabsTrigger value="overview">Overview</TabsTrigger>
-            {(isDev || isFearlessLeader) && <TabsTrigger value="data-explorer">Data Explorer</TabsTrigger>}
           </TabsList>
 
           {/* ── Rate Types Sub-tab ────────────────────────────────────────── */}
