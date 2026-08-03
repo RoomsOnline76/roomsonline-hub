@@ -11,11 +11,18 @@ sub-accounts. The MASTER key pair must never be used for child-scoped methods
 (`Push_FillCompanyDetails_RQ`, `Push_PutBuilding_RQ`, `Pull_ListBuildings_RQ`,
 `Push_ArchiveUser_RQ`) — those methods have no `<OwnerID>` and apply to whoever authenticates.
 
-Storage: `ru_owner_accounts.ru_api_access_key`, `ru_api_secret_enc` (encrypted),
-`ru_api_key_label`, `ru_api_keys_verified_at`.
+Storage: `ru_api_credentials` keyed on `ru_owner_id` (unique) — `access_key`, `secret_enc`
+(encrypted), `key_label`, `verified_at`. Keys MUST be stored per RU OwnerID, never on the single
+`ru_owner_accounts` row per portfolio (that overwrote the previous sub-user's keys). Legacy columns
+`ru_owner_accounts.ru_api_access_key` / `ru_api_secret_enc` are a mirror/fallback only.
+
+Archived sub-users: RU renames the login to `Archived_<email>`; the UI hides them behind a
+"Show archived" toggle and archiving deletes the stored key row.
 
 Resolution order for child calls (`resolveChildAuth` in `rentalsunited-api`):
-request keys → stored keys for that OwnerID/login email → legacy password (older accounts only).
+request keys → `ru_api_credentials` for that OwnerID/login email → legacy `ru_owner_accounts` keys
+→ legacy password (older accounts only).
+
 
 Key management actions:
 - `rentalsunited-api`: `create_child_api_key` (Push_CreateApiKey_RQ, Scope `XmlApi`),
