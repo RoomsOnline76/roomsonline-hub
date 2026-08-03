@@ -102,13 +102,14 @@ export function RuSyncProgressTracker({ runs, scopeIds, expectedProperties, trig
       const successRate = total ? Math.round((ok / total) * 100) : 0;
       // Coverage: distinct properties touched vs expected (property-scoped endpoints only).
       const touched = new Set(mine.filter((r) => r.property_id).map((r) => r.property_id as string));
+      // Historic runs can include properties since paused, so the denominator
+      // is whichever is larger: currently expected, or actually touched.
+      const denom = Math.max(expectedProperties, touched.size);
       const coverage =
-        ep.scoped && expectedProperties > 0
-          ? Math.min(100, Math.round((touched.size / expectedProperties) * 100))
-          : null;
+        ep.scoped && denom > 0 ? Math.min(100, Math.round((touched.size / denom) * 100)) : null;
       const status: "ok" | "degraded" | "failing" | "never" =
         total === 0 ? "never" : successRate === 100 ? "ok" : successRate >= 50 ? "degraded" : "failing";
-      return { ep, ok, total, last, successRate, coverage, touched: touched.size, status };
+      return { ep, ok, total, last, successRate, coverage, touched: touched.size, denom, status };
     });
   }, [runs, scopeIds, expectedProperties]);
 
@@ -173,7 +174,7 @@ export function RuSyncProgressTracker({ runs, scopeIds, expectedProperties, trig
                 <span>{ep.scoped ? "Property coverage" : "Scope"}</span>
                 <span>
                   {ep.scoped
-                    ? `${touched}/${expectedProperties} properties`
+                    ? `${touched}/${denom} properties`
                     : "Account-level"}
                 </span>
               </div>
