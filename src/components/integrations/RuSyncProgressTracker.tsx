@@ -25,7 +25,7 @@ export interface TrackerRun {
   success: boolean;
   error_message?: string | null;
   ru_property_id?: string | number | null;
-  details?: Record<string, unknown> | null;
+  details?: unknown;
 }
 
 type Direction = "push" | "pull";
