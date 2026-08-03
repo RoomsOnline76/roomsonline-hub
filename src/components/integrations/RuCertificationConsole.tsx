@@ -147,7 +147,11 @@ const TEST_SUBUSER = {
   owner_id: 741776,
   first_name: "Test",
   last_name: "Owner",
+  /** Sub-user API keys (RU dashboard → Security settings). Paste before running. */
+  access_key: "",
+  secret_key: "",
 } as const;
+
 
 /** User-management endpoints for the side-by-side playground */
 const USER_ENDPOINTS = [
@@ -177,13 +181,14 @@ const USER_ENDPOINTS = [
   {
     key: "fill_company_details",
     label: "Push_FillCompanyDetails_RQ",
-    description: "Fill company details for a sub-user. MUST authenticate as the child (auth_username + auth_password). Adapter still requires a positive owner_id for isolation logging — use OwnerID from list_users.",
+    description:
+      "Fill company details for a sub-user. MUST authenticate AS the child with its own API keys (auth_access_key + auth_secret_key). Leave the keys blank to use the pair stored for that OwnerID. owner_id is still required for isolation logging.",
     route: "rentalsunited-api",
     defaultPayload: {
       action: "fill_company_details",
       owner_id: TEST_SUBUSER.owner_id,
-      auth_username: TEST_SUBUSER.email,
-      auth_password: TEST_SUBUSER.password,
+      auth_access_key: TEST_SUBUSER.access_key,
+      auth_secret_key: TEST_SUBUSER.secret_key,
       company: {
         first_name: TEST_SUBUSER.first_name,
         last_name: TEST_SUBUSER.last_name,
@@ -203,23 +208,51 @@ const USER_ENDPOINTS = [
   {
     key: "verify_child_login",
     label: "verify_child_login",
-    description: "Probe child UserName/Password against RU (Pull_ListBuildings under child auth). Must return verified:true before fill_company_details will succeed.",
+    description:
+      "Probe the sub-user's own AccessKey/SecretKey against RU (Pull_ListBuildings under child auth). Must return verified:true before fill_company_details or building pushes will succeed. Legacy accounts may still pass auth_username + auth_password.",
     route: "rentalsunited-api",
     defaultPayload: {
       action: "verify_child_login",
-      auth_username: TEST_SUBUSER.email,
-      auth_password: TEST_SUBUSER.password,
+      owner_id: TEST_SUBUSER.owner_id,
+      auth_access_key: TEST_SUBUSER.access_key,
+      auth_secret_key: TEST_SUBUSER.secret_key,
+    },
+  },
+  {
+    key: "list_child_api_keys",
+    label: "Pull_GetApiKeys_RQ",
+    description:
+      "List the API keys on a sub-user account. Authenticates with that sub-user's existing key pair (stored per OwnerID when the keys are left blank).",
+    route: "rentalsunited-api",
+    defaultPayload: {
+      action: "list_child_api_keys",
+      owner_id: TEST_SUBUSER.owner_id,
+    },
+  },
+  {
+    key: "create_child_api_key",
+    label: "Push_CreateApiKey_RQ",
+    description:
+      "Mint an additional API key pair for a sub-user (Scope XmlApi). Requires an existing key pair for that same account — the FIRST pair must be generated in the RU dashboard → Security settings.",
+    route: "rentalsunited-api",
+    defaultPayload: {
+      action: "create_child_api_key",
+      owner_id: TEST_SUBUSER.owner_id,
+      key_label: "ROLOS",
     },
   },
   {
     key: "archive_user",
     label: "Push_ArchiveUser_RQ",
-    description: "Archive a sub-user via the isolated ru-close-user edge function (child auth). Pass a local ru_owner_accounts.id — not the RU OwnerID.",
+    description:
+      "Archive a sub-user via the isolated ru-close-user edge function. Authenticates with the sub-user's own API keys (stored per OwnerID, or pass access_key + secret_key). Accepts a local ru_owner_accounts.id or a bare ru_owner_id.",
     route: "ru-close-user",
     defaultPayload: {
       account_id: "",
+      ru_owner_id: "",
     },
   },
+
 ] as const;
 
 function StatusIcon({ status }: { status: CertStep["status"] }) {

@@ -1508,9 +1508,18 @@ Deno.serve(async (req) => {
             return String(secret);
           };
 
+          // Highest priority: keys supplied with this request (one-off manual recovery).
+          const reqKey = typeof body.ru_api_access_key === "string" ? body.ru_api_access_key.trim() : "";
+          const reqSecret = typeof body.ru_api_secret_key === "string" ? body.ru_api_secret_key.trim() : "";
+          if (reqKey && reqSecret) {
+            childAccessKey = reqKey;
+            childSecretKey = reqSecret;
+          }
+
           // Preferred: keys stored against this RU OwnerID
           const boundOwnerId = String(account.ru_owner_id ?? "").trim();
-          if (boundOwnerId) {
+          if (!childAccessKey && boundOwnerId) {
+
             const { data: credRow } = await admin
               .from("ru_api_credentials")
               .select("access_key, secret_enc")
@@ -2167,6 +2176,25 @@ Deno.serve(async (req) => {
 
       const noProp = ruPropertyId ? undefined : "No RU property id resolved — select a property that has been pushed to RU.";
 
+      // Child-scoped reads (buildings) must authenticate as the sub-user with its own
+      // API keys — resolve the bound OwnerID so rentalsunited-api picks up its key pair
+      // instead of silently listing the MASTER account's buildings.
+      let certOwnerId: string | null = null;
+      let certOwnerHasKeys = false;
+      if (propertyId) {
+        const { account: certAccount } = await findOwnerAccount(admin, propertyId, null, null);
+        certOwnerId = certAccount?.ru_owner_id ? String(certAccount.ru_owner_id) : null;
+        if (certOwnerId) {
+          const { data: keyRow } = await admin
+            .from("ru_api_credentials")
+            .select("access_key")
+            .eq("ru_owner_id", certOwnerId)
+            .maybeSingle();
+          certOwnerHasKeys = Boolean(keyRow?.access_key || certAccount?.ru_api_access_key);
+        }
+      }
+
+
       if (runReadOnly) {
         await call("Credentials & connectivity", "health_check", {}, { mandatory: true });
 
@@ -2199,7 +2227,20 @@ Deno.serve(async (req) => {
         );
         await call("List reservations (last 7 days)", "list_reservations", { date_from: isoDate(-7), date_to: isoDate(0) }, { mandatory: true });
         await call("Get leads (optional)", "get_leads", { date_from: isoDate(-7), date_to: isoDate(0) }, { mandatory: false });
-        await call("List owner buildings", "list_buildings", {}, { mandatory: false });
+        await call(
+          "List owner buildings",
+          "list_buildings",
+          { owner_id: certOwnerId },
+          {
+            mandatory: false,
+            skip: !certOwnerId
+              ? "No RU sub-user (OwnerID) bound — buildings are read under the sub-user's own API keys."
+              : !certOwnerHasKeys
+                ? `No API keys stored for OwnerID ${certOwnerId} — generate them in the RU dashboard (Security settings) and save them in Portfolios → RU accounts.`
+                : undefined,
+          },
+        );
+
         await call("List composition rooms", "list_composition_rooms", {}, { mandatory: false });
         await call("List cities & currencies", "list_cities_and_currencies", {}, { mandatory: false });
         await call("Resolve location by coordinates", "get_location_by_coordinates", { latitude: -34.0333, longitude: 21.35 }, { mandatory: false });
