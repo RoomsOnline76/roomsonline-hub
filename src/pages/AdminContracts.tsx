@@ -113,6 +113,16 @@ export default function AdminContracts() {
   const [sendName, setSendName] = useState("");
   const [sending, setSending] = useState(false);
   const [selectedContractType, setSelectedContractType] = useState<"standard" | "rolos" | "referral">("standard");
+
+  // Contract scope: single property, multiple properties, or an entire portfolio
+  const [sendScope, setSendScope] = useState<"single" | "multiple" | "portfolio">("single");
+  const [multiPropertySearch, setMultiPropertySearch] = useState("");
+  const [multiPropertySelections, setMultiPropertySelections] = useState<Record<string, boolean>>({});
+  const [portfolios, setPortfolios] = useState<{ id: string; name: string; owner_email: string | null }[]>([]);
+  const [selectedPortfolioId, setSelectedPortfolioId] = useState<string>("");
+  const [portfolioProperties, setPortfolioProperties] = useState<{ id: string; name: string }[]>([]);
+  const [loadingPortfolioProps, setLoadingPortfolioProps] = useState(false);
+
   
   // Contract templates
   const [contractTemplates, setContractTemplates] = useState<{ id: string; name: string }[]>([]);
