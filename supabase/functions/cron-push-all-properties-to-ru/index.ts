@@ -30,24 +30,33 @@ Deno.serve(async (req) => {
 
   try {
     // ── Step 0: Refresh RLNM subscription ──────────────────────
+    // The handler URL is registered PER ACCOUNT, so it must fan out over master +
+    // every sub-user with verified API keys. Delegate to the dedicated RLNM cron
+    // (which resolves scoped credentials and paces RU's per-method rate limit)
+    // instead of calling rentalsunited-api on master credentials here.
     const handlerUrl = `${supabaseUrl}/functions/v1/ru-reservation-handler`;
     let rlnmStatus = 'skipped';
     try {
-      console.log(`[cron-push-all] Subscribing RLNM handler: ${handlerUrl}`);
-      const { data: rlnmResult, error: rlnmErr } = await supabase.functions.invoke('rentalsunited-api', {
-        body: { action: 'subscribe_notifications', handler_url: handlerUrl },
+      console.log(`[cron-push-all] Refreshing RLNM handler per account: ${handlerUrl}`);
+      const { data: rlnmResult, error: rlnmErr } = await supabase.functions.invoke('cron-ru-rlnm-refresh', {
+        body: {},
       });
       if (rlnmErr || !rlnmResult?.success) {
-        rlnmStatus = `failed: ${rlnmErr?.message || rlnmResult?.error?.message || 'Unknown'}`;
+        const failed = (rlnmResult?.results ?? [])
+          .filter((r: { success: boolean }) => !r.success)
+          .map((r: { account: string; error: string | null }) => `${r.account}: ${r.error}`)
+          .join('; ');
+        rlnmStatus = `failed: ${rlnmErr?.message || failed || 'Unknown'}`;
         console.warn(`[cron-push-all] RLNM subscription failed:`, rlnmStatus);
       } else {
         rlnmStatus = 'ok';
-        console.log(`[cron-push-all] RLNM subscription refreshed successfully`);
+        console.log(`[cron-push-all] RLNM subscription refreshed for all RU accounts`);
       }
     } catch (err) {
       rlnmStatus = `error: ${err instanceof Error ? err.message : 'Unknown'}`;
       console.error(`[cron-push-all] RLNM subscription error:`, err);
     }
+
 
     // ── Step 1: Get all properties with an RU connection (respect ru_push_enabled flag) ──
     // A property qualifies if EITHER:
