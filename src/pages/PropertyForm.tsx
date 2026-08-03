@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { PromoCodesTab } from "@/components/property/PromoCodesTab";
+import { CompanyInformationCard, type RuCompanyProfile } from "@/components/property/CompanyInformationCard";
 import { HyperGuestSyncReflectionButton } from "@/components/property/HyperGuestSyncReflectionButton";
 import { HyperGuestPropertyLookup } from "@/components/property/HyperGuestPropertyLookup";
 import { GooglePlaceIdPastePopover } from "@/components/property/GooglePlaceIdPastePopover";
@@ -2082,6 +2083,9 @@ export default function PropertyForm({
   const [mobileNumber, setMobileNumber] = useState("");
   const [postalAddress, setPostalAddress] = useState("");
   const [keyRepresentative, setKeyRepresentative] = useState("");
+  // Rentals United company profile + location register selection
+  const [ruCompanyProfile, setRuCompanyProfile] = useState<RuCompanyProfile>({});
+  const [ruLocationId, setRuLocationId] = useState<number | null>(null);
 
   // Load property data if editing (wait for owners to load first)
   useEffect(() => {
@@ -2684,6 +2688,10 @@ export default function PropertyForm({
           if (amenities?.mobile_number) setMobileNumber(amenities.mobile_number);
           if (amenities?.postal_address) setPostalAddress(amenities.postal_address);
           if (amenities?.key_representative) setKeyRepresentative(amenities.key_representative);
+          if (amenities?.ru_company_profile && typeof amenities.ru_company_profile === "object") {
+            setRuCompanyProfile(amenities.ru_company_profile as RuCompanyProfile);
+          }
+          if ((data as any)?.ru_location_id) setRuLocationId(Number((data as any).ru_location_id));
 
           const templates = amenities?.templates || {};
           if (templates.selected_template) setSelectedTemplate(templates.selected_template);
@@ -2985,6 +2993,8 @@ export default function PropertyForm({
         city: formData.city,
         postal_code: formData.postal_code || null,
         country: formData.country,
+        // Rentals United location register selection (explicit LocationID wins at push time)
+        ru_location_id: ruLocationId,
         latitude: latitude,
         longitude: longitude,
         owner_name: formData.owner_name || null,
@@ -3074,6 +3084,7 @@ export default function PropertyForm({
           mobile_number: mobileNumber || null,
           postal_address: postalAddress || null,
           key_representative: keyRepresentative || formData.owner_name || null,
+          ru_company_profile: (Object.keys(ruCompanyProfile).length > 0 ? ruCompanyProfile : null) as never,
           banking: {
             has_vat: formData.has_vat,
             vat_number: formData.has_vat ? formData.vat_number : null,
@@ -5389,87 +5400,43 @@ export default function PropertyForm({
                 </Card>
               </Collapsible>
 
-              {/* Business Registration - For Contract Variables */}
+              {/* Company Information — contract variables + Rentals United company profile */}
               {selectedPMS !== "nightsbridge" && (
-                <Collapsible defaultOpen={false}>
-                  <Card>
-                    <CollapsibleTrigger asChild>
-                      <CardHeader className="py-2 px-4 cursor-pointer hover:bg-muted/50 transition-colors">
-                        <CardTitle className="text-sm flex items-center justify-between">
-                          <span>Business Registration</span>
-                          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-                        </CardTitle>
-                      </CardHeader>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent>
-                      <CardContent className="py-2 px-4 space-y-3">
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                          <div className="flex flex-col gap-1">
-                            <Label htmlFor="registered_business_name" className="text-xs">
-                              Registered Business Name
-                            </Label>
-                            <Input
-                              id="registered_business_name"
-                              value={registeredBusinessName}
-                              onChange={(e) => {
-                                setRegisteredBusinessName(e.target.value);
-                                setIsDirty(true);
-                              }}
-                              placeholder="e.g., Safari Lodge (Pty) Ltd"
-                              className="h-7 text-xs"
-                            />
-                          </div>
-                          <div className="flex flex-col gap-1">
-                            <Label htmlFor="mobile_number" className="text-xs">
-                              Mobile Number
-                            </Label>
-                            <Input
-                              id="mobile_number"
-                              value={mobileNumber}
-                              onChange={(e) => {
-                                setMobileNumber(e.target.value);
-                                setIsDirty(true);
-                              }}
-                              placeholder="e.g., +27 82 123 4567"
-                              className="h-7 text-xs"
-                            />
-                          </div>
-                          <div className="flex flex-col gap-1">
-                            <Label htmlFor="key_representative" className="text-xs">
-                              Key Representative
-                            </Label>
-                            <Input
-                              id="key_representative"
-                              value={keyRepresentative}
-                              onChange={(e) => {
-                                setKeyRepresentative(e.target.value);
-                                setIsDirty(true);
-                              }}
-                              placeholder="e.g., John Smith"
-                              className="h-7 text-xs"
-                            />
-                          </div>
-                        </div>
-                        <div className="flex flex-col gap-1">
-                          <Label htmlFor="postal_address" className="text-xs">
-                            Postal Address
-                          </Label>
-                          <Textarea
-                            id="postal_address"
-                            value={postalAddress}
-                            onChange={(e) => {
-                              setPostalAddress(e.target.value);
-                              setIsDirty(true);
-                            }}
-                            placeholder="e.g., PO Box 123, Hoedspruit, 1380"
-                            className="text-xs min-h-[50px]"
-                          />
-                        </div>
-                      </CardContent>
-                    </CollapsibleContent>
-                  </Card>
-                </Collapsible>
+                <CompanyInformationCard
+                  registeredBusinessName={registeredBusinessName}
+                  onRegisteredBusinessNameChange={(v) => {
+                    setRegisteredBusinessName(v);
+                    setIsDirty(true);
+                  }}
+                  mobileNumber={mobileNumber}
+                  onMobileNumberChange={(v) => {
+                    setMobileNumber(v);
+                    setIsDirty(true);
+                  }}
+                  keyRepresentative={keyRepresentative}
+                  onKeyRepresentativeChange={(v) => {
+                    setKeyRepresentative(v);
+                    setIsDirty(true);
+                  }}
+                  postalAddress={postalAddress}
+                  onPostalAddressChange={(v) => {
+                    setPostalAddress(v);
+                    setIsDirty(true);
+                  }}
+                  companyProfile={ruCompanyProfile}
+                  onCompanyProfileChange={(next) => {
+                    setRuCompanyProfile(next);
+                    setIsDirty(true);
+                  }}
+                  ruLocationId={ruLocationId}
+                  onRuLocationIdChange={(id) => {
+                    setRuLocationId(id);
+                    setIsDirty(true);
+                  }}
+                  propertyCity={formData.city}
+                />
               )}
+
 
               {/* Property and Banking Details - Hidden for NightsBridge */}
               {selectedPMS !== "nightsbridge" && (

@@ -1767,6 +1767,10 @@ Deno.serve(async (req) => {
         let zip: string | undefined;
         let phone: string | undefined;
         let website: string | undefined;
+        // Company Information frame on the property (Identity & Location → Company Information)
+        // is the primary source for the RU company profile extras.
+        let propertyProfile: Record<string, unknown> | null = null;
+        let propertyRuLocationId: number | null = null;
 
         let sourcePropertyId: string | null = propertyId ?? null;
         if (portfolioId) {
@@ -1789,10 +1793,15 @@ Deno.serve(async (req) => {
         if (sourcePropertyId) {
           const { data: pr } = await admin
             .from("properties")
-            .select("name, address, city, country, postal_code")
+            .select("name, address, city, country, postal_code, amenities, ru_location_id")
             .eq("id", sourcePropertyId)
             .maybeSingle();
           companyName = companyName || (pr as any)?.name || "";
+          const am = (pr as any)?.amenities;
+          const rcp = am && typeof am === "object" ? (am as Record<string, unknown>).ru_company_profile : null;
+          if (rcp && typeof rcp === "object") propertyProfile = rcp as Record<string, unknown>;
+          const prLoc = Number((pr as any)?.ru_location_id);
+          if (Number.isFinite(prLoc) && prLoc > 1) propertyRuLocationId = prLoc;
           address = (pr as any)?.address ?? undefined;
           city = (pr as any)?.city ?? undefined;
           country = (pr as any)?.country ?? undefined;
@@ -1830,7 +1839,10 @@ Deno.serve(async (req) => {
           post_code: zip || undefined,
           company_phone: phone || undefined,
           merchant_name: companyName,
-          location_ids: locationIds,
+          location_ids:
+            propertyRuLocationId && !locationIds.includes(propertyRuLocationId)
+              ? [propertyRuLocationId, ...locationIds]
+              : locationIds,
         };
 
         // Admin-entered RU profile extras (Portfolios → RU accounts → Company profile).
@@ -1841,7 +1853,12 @@ Deno.serve(async (req) => {
           .select("company_profile")
           .eq("id", account.id)
           .maybeSingle();
-        const overrides = (profileRow.data?.company_profile ?? null) as Record<string, unknown> | null;
+        const accountOverrides = (profileRow.data?.company_profile ?? null) as Record<string, unknown> | null;
+        // Property-level Company Information first, account-level extras on top.
+        const overrides: Record<string, unknown> | null =
+          propertyProfile || accountOverrides
+            ? { ...(propertyProfile ?? {}), ...(accountOverrides ?? {}) }
+            : null;
         if (overrides && typeof overrides === "object") {
           for (const [k, v] of Object.entries(overrides)) {
             if (v === null || v === undefined || (typeof v === "string" && v.trim() === "")) continue;

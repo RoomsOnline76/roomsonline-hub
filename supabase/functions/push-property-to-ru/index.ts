@@ -581,8 +581,17 @@ async function resolveLocationId(
   lng: number,
   country?: string | null,
   cityName?: string | null,
+  explicitLocationId?: number | null,
 ): Promise<number> {
+  // 0. Explicit RU LocationID chosen in ROLOS (Identity & Location → RU location picker).
+  //    An admin-selected ID always wins over any name/coordinate guess.
+  const explicit = Number(explicitLocationId);
+  if (Number.isFinite(explicit) && explicit > 1) {
+    console.log(`[push-property-to-ru] Using explicit RU LocationID from ROLOS: ${explicit}`);
+    return explicit;
+  }
   // 1. Try RU coordinate lookup
+
   if (lat && lng) {
     try {
       const { data, error } = await supabase.functions.invoke('rentalsunited-api', {
@@ -1824,6 +1833,86 @@ Deno.serve(async (req) => {
       );
     }
 
+    // ── Seed: pull RU's FULL location tree (Pull_ListLocations_RQ) into public.ru_locations ──
+    // This is the authoritative LocationID register the ROLOS location picker reads. Every
+    // location keeps its parent + type so we can present a readable path
+    // ("South Africa › Western Cape › Cape Town") and push the exact ID the admin chose.
+    // Currency values already cached from the city/currency dictionary are preserved.
+    if (action === 'seed_ru_location_tree') {
+      const { data: listData, error: listErr } = await supabase.functions.invoke('rentalsunited-api', {
+        body: { action: 'list_locations' },
+      });
+      if (listErr || !listData?.success) {
+        return new Response(
+          JSON.stringify({ success: false, error: { code: 'LIST_FAILED', message: listErr?.message || listData?.error?.message || 'Failed to list RU locations' } }),
+          { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      if (listData.endpoint_disabled) {
+        return new Response(
+          JSON.stringify({ success: true, upserted: 0, endpoint_disabled: true, note: listData.note }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      type RuLoc = { id: number; name: string; parent_id: number | null; location_type_id: number | null };
+      const all: RuLoc[] = (listData.locations || []).filter((l: any) => Number.isFinite(l?.id));
+      const byId = new Map<number, RuLoc>(all.map((l) => [l.id, l]));
+
+      // Build the readable path + depth by walking parents (guarded against cycles).
+      const pathCache = new Map<number, { path: string; depth: number; country: string }>();
+      const resolvePath = (loc: RuLoc): { path: string; depth: number; country: string } => {
+        const cached = pathCache.get(loc.id);
+        if (cached) return cached;
+        const chain: string[] = [];
+        let cursor: RuLoc | undefined = loc;
+        const seen = new Set<number>();
+        while (cursor && !seen.has(cursor.id) && chain.length < 12) {
+          seen.add(cursor.id);
+          chain.unshift(cursor.name);
+          cursor = cursor.parent_id ? byId.get(cursor.parent_id) : undefined;
+        }
+        const result = { path: chain.join(' › '), depth: chain.length, country: chain[0] || loc.name };
+        pathCache.set(loc.id, result);
+        return result;
+      };
+
+      const now = new Date().toISOString();
+      const rows = all.map((l) => {
+        const { path, depth, country } = resolvePath(l);
+        return {
+          id: l.id,
+          name: l.name,
+          parent_id: l.parent_id,
+          location_type_id: l.location_type_id,
+          path,
+          depth,
+          country,
+          last_synced_at: now,
+        };
+      });
+
+      let upserted = 0;
+      for (let i = 0; i < rows.length; i += 500) {
+        const chunk = rows.slice(i, i + 500);
+        const { error: upErr } = await supabase.from('ru_locations').upsert(chunk, { onConflict: 'id' });
+        if (upErr) {
+          console.error(`[push-property-to-ru] seed_ru_location_tree upsert failed at offset ${i}:`, upErr.message);
+          return new Response(
+            JSON.stringify({ success: false, error: { code: 'UPSERT_FAILED', message: upErr.message }, upserted }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        upserted += chunk.length;
+      }
+
+      return new Response(
+        JSON.stringify({ success: true, message: `Seeded ${upserted} RU locations from the full tree`, upserted }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+
     // ── Reconcile: fix RU location currency, then re-push affected properties ──
     // Implements the location-owns-currency rule: RU stores currency on the LocationID
     // (not on the property). Steps per property:
@@ -1843,11 +1932,11 @@ Deno.serve(async (req) => {
       const [{ data: buildingProps }, { data: unitRows }] = await Promise.all([
         supabase
           .from('properties')
-          .select('id, name, rentalsunited_property_id, country, latitude, longitude, amenities, city')
+          .select('id, name, rentalsunited_property_id, country, latitude, longitude, amenities, city, ru_location_id')
           .not('rentalsunited_property_id', 'is', null),
         supabase
           .from('hostfully_room_types')
-          .select('property_id, properties!inner(id, name, rentalsunited_property_id, country, latitude, longitude, amenities, city)')
+          .select('property_id, properties!inner(id, name, rentalsunited_property_id, country, latitude, longitude, amenities, city, ru_location_id)')
           .not('rentalsunited_property_id', 'is', null),
       ]);
 
@@ -1867,7 +1956,7 @@ Deno.serve(async (req) => {
         const lng = Number(p.longitude) || 0;
         const expectedCcyId = mapCurrencyToRUId(p.amenities, p.country);
         const expectedIso = ISO_BY_RU_CURRENCY_ID[expectedCcyId] || null;
-        const loc = await resolveLocationId(supabase, lat, lng, p.country, p.city);
+        const loc = await resolveLocationId(supabase, lat, lng, p.country, p.city, (p as any).ru_location_id);
 
         if (!loc || loc <= 1) {
           results.push({ property_id: p.id, name: p.name, success: false, reason: 'location_unresolvable', country: p.country });
@@ -1967,11 +2056,11 @@ Deno.serve(async (req) => {
       const [{ data: buildingProps }, { data: unitRows }] = await Promise.all([
         supabase
           .from('properties')
-          .select('id, name, rentalsunited_property_id, country, latitude, longitude, amenities')
+          .select('id, name, rentalsunited_property_id, country, latitude, longitude, amenities, ru_location_id')
           .not('rentalsunited_property_id', 'is', null),
         supabase
           .from('hostfully_room_types')
-          .select('property_id, properties!inner(id, name, rentalsunited_property_id, country, latitude, longitude, amenities)')
+          .select('property_id, properties!inner(id, name, rentalsunited_property_id, country, latitude, longitude, amenities, ru_location_id)')
           .not('rentalsunited_property_id', 'is', null),
       ]);
 
@@ -1988,7 +2077,7 @@ Deno.serve(async (req) => {
         const lat = Number(p.latitude) || 0;
         const lng = Number(p.longitude) || 0;
         const ccy = mapCurrencyToRUId(p.amenities, p.country);
-        const loc = await resolveLocationId(supabase, lat, lng, p.country);
+        const loc = await resolveLocationId(supabase, lat, lng, p.country, (p as any).city, (p as any).ru_location_id);
         if (!loc || loc <= 1) {
           results.push({ property_id: p.id, name: p.name, success: false, reason: 'location_unresolvable', country: p.country });
           continue;
@@ -2103,12 +2192,16 @@ Deno.serve(async (req) => {
     if (forceLocationId) {
       locationId = forceLocationId;
       console.log(`[push-property-to-ru] FORCE override: using LocationID ${locationId} (bypasses coord/cache resolution)`);
+    } else if (Number((property as any).ru_location_id) > 1) {
+      locationId = Number((property as any).ru_location_id);
+      console.log(`[push-property-to-ru] Using RU LocationID selected in ROLOS: ${locationId}`);
     } else if (cached?.ru_location_id && (cached.coords_hash === coordsHash || (!lat || !lng))) {
       locationId = Number(cached.ru_location_id);
       console.log(`[push-property-to-ru] Using cached RU LocationID ${locationId} (coords_hash match)`);
     } else {
       locationId = await resolveLocationId(supabase, lat, lng, country, (property as any).city);
     }
+
 
     if (!locationId || locationId <= 1) {
       return new Response(

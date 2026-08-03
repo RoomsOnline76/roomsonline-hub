@@ -2531,6 +2531,61 @@ Deno.serve(async (req) => {
       return jsonResponse({ success: true, locations: locs, count: locs.length, used_fallback: usedFallback, raw_xml: response.length > 8000 ? response.substring(0, 8000) + '…[truncated]' : response });
     }
 
+    // ── list_locations ──
+    // Pull_ListLocations_RQ — RU's full location tree (countries → regions → cities →
+    // neighbourhoods). This is the authoritative LocationID dictionary: every push that
+    // carries a <LocationID> should reference an ID harvested here rather than a name guess.
+    // Shape: <Location LocationID="1611" LocationTypeID="4" ParentID="1234">Cape Town</Location>
+    if (action === 'list_locations') {
+      const xml = `<Pull_ListLocations_RQ>${buildAuthXml(creds)}</Pull_ListLocations_RQ>`;
+      const response = await callRentalsUnited(creds, xml);
+      console.log(`[rentalsunited-api] list_locations response (first 600): ${response.substring(0, 600)}`);
+      const { ok, status } = handleRUStatus(response);
+      if (!ok) {
+        if (/not implemented|not enabled/i.test(status.message || '')) {
+          return jsonResponse({
+            success: true,
+            locations: [],
+            count: 0,
+            endpoint_disabled: true,
+            note: 'Rentals United has not enabled Pull_ListLocations_RQ for this integration — LocationIDs are resolved per name via Pull_GetLocationByName_RQ instead.',
+          });
+        }
+        return ruErrorResponse(status, buildDiagnostics(compactXml(xml), status, 'list_locations', response));
+      }
+
+      const locations: Array<{
+        id: number;
+        name: string;
+        parent_id: number | null;
+        location_type_id: number | null;
+      }> = [];
+      const locRe = /<Location\b([^>]*)(?:\/>|>([\s\S]*?)<\/Location>)/gi;
+      let m: RegExpExecArray | null;
+      while ((m = locRe.exec(response)) !== null) {
+        const attrs = m[1] || '';
+        const inner = m[2] || '';
+        const idAttr = /\bLocationID="(\d+)"/i.exec(attrs) || /\bID="(\d+)"/i.exec(attrs);
+        const idInner = !idAttr ? /<LocationID[^>]*>(\d+)<\/LocationID>/i.exec(inner) : null;
+        const id = idAttr ? parseInt(idAttr[1], 10) : (idInner ? parseInt(idInner[1], 10) : NaN);
+        if (!Number.isFinite(id)) continue;
+        const typeAttr = /\bLocationTypeID="(\d+)"/i.exec(attrs) || /\bType="(\d+)"/i.exec(attrs);
+        const parentAttr = /\bParentLocationID="(\d+)"/i.exec(attrs) || /\bParentID="(\d+)"/i.exec(attrs);
+        const nameInner = /<Name[^>]*>([\s\S]*?)<\/Name>/i.exec(inner);
+        const rawName = nameInner ? nameInner[1] : inner.replace(/<[^>]+>/g, '');
+        const name = rawName.replace(/<!\[CDATA\[|\]\]>/g, '').trim();
+        locations.push({
+          id,
+          name: name || `Location ${id}`,
+          parent_id: parentAttr ? parseInt(parentAttr[1], 10) : null,
+          location_type_id: typeAttr ? parseInt(typeAttr[1], 10) : null,
+        });
+      }
+
+      return jsonResponse({ success: true, locations, count: locations.length });
+    }
+
+
     // ── push_change_currency ──
     // Push_ChangeCurrency_RQ — set the currency for an entire RU location. Currency in RU
     // is owned by the LocationID, not by the property; this is the only way to make
