@@ -178,20 +178,25 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
       });
   }, [propertyId]);
 
-  const saveBuildingId = async () => {
+  /**
+   * Buildings are legacy: units are pushed to RU as standalone properties and no push
+   * touches building inventory any more. The only supported action is clearing a stale
+   * link so nothing can reference a duplicate container.
+   */
+  const clearBuildingId = async () => {
     setSavingBuildingId(true);
-    const newId = buildingIdDraft.trim() || null;
     const { error: err } = await supabase
       .from("properties")
-      .update({ rentalsunited_building_id: newId })
+      .update({ rentalsunited_building_id: null })
       .eq("id", propertyId);
 
     if (err) {
-      toast.error("Failed to save building ID");
+      toast.error("Failed to clear building link");
     } else {
-      setBuildingId(newId);
+      setBuildingId(null);
       setEditingBuildingId(false);
-      toast.success(newId ? "Building ID saved" : "Building ID cleared");
+      setBuildingIdDraft("");
+      toast.success("Building link cleared — units push standalone");
     }
 
     setSavingBuildingId(false);
