@@ -1085,12 +1085,13 @@ async function verifyPrices(
   ruPropertyId: number,
   requested: { date_from: string; date_to: string; price: number; extra_guest_price?: number }[],
   windowFrom: string,
-  windowTo: string
+  windowTo: string,
+  childAuth: Record<string, unknown> = {},
 ): Promise<PriceVerification> {
   const report: PriceVerification = { checked: false, total_seasons: requested.length, matches: 0, mismatches: [], missing_dates: [] };
   try {
     const { data, error } = await supabase.functions.invoke('rentalsunited-api', {
-      body: { action: 'get_prices', ru_property_id: ruPropertyId, date_from: windowFrom, date_to: windowTo },
+      body: { action: 'get_prices', ru_property_id: ruPropertyId, date_from: windowFrom, date_to: windowTo, ...childAuth },
     });
     if (error || !data?.success || !data?.raw_xml) {
       report.error = error?.message || data?.error?.message || 'No XML returned';
@@ -1155,12 +1156,13 @@ async function verifyAvailability(
   ruPropertyId: number,
   requested: { date_from: string; date_to: string; units: number; min_stay: number; changeover: number }[],
   windowFrom: string,
-  windowTo: string
+  windowTo: string,
+  childAuth: Record<string, unknown> = {},
 ): Promise<AvailabilityVerification> {
   const report: AvailabilityVerification = { checked: false, total_days: 0, matches: 0, mismatches: [] };
   try {
     const { data, error } = await supabase.functions.invoke('rentalsunited-api', {
-      body: { action: 'get_availability', ru_property_id: ruPropertyId, date_from: windowFrom, date_to: windowTo },
+      body: { action: 'get_availability', ru_property_id: ruPropertyId, date_from: windowFrom, date_to: windowTo, ...childAuth },
     });
     if (error || !data?.success || !data?.raw_xml) {
       report.error = error?.message || data?.error?.message || 'No XML returned';
@@ -1244,7 +1246,7 @@ async function verifyAvailability(
   return report;
 }
 
-async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRow, unitUnits: number = 1, unit?: UnitContext) {
+async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRow, unitUnits: number = 1, unit?: UnitContext, childAuth: Record<string, unknown> = {}) {
   const amenities = (property.amenities || {}) as Record<string, any>;
   const seasons = amenities.seasons as any[] | undefined;
   const seasonRates = amenities.season_rates as Record<string, any> | undefined;
@@ -1290,14 +1292,14 @@ async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRo
       const availEntries = expandAvailability(allPeriods, unitUnits, changeoverConfig);
       console.log(`[pushARI] Pushing ${availEntries.length} availability entries (per-day rules: ${changeoverConfig.perDow ? 'yes' : 'no'}, default changeover: ${changeoverConfig.defaultCode})`);
       const { data: availResult, error: availErr } = await supabase.functions.invoke('rentalsunited-api', {
-        body: { action: 'push_availability', ru_property_id: ruPropertyId, availability: availEntries },
+        body: { action: 'push_availability', ru_property_id: ruPropertyId, availability: availEntries, ...childAuth },
       });
       if (availErr || !availResult?.success) {
         result.availability_error = availErr?.message || availResult?.error?.message || 'Unknown error';
       } else {
         result.availability_pushed = true;
         // 6.2 + 6.3 — Verify
-        const verification = await verifyAvailability(supabase, ruPropertyId, availEntries, todayStr, oneYearStr);
+        const verification = await verifyAvailability(supabase, ruPropertyId, availEntries, todayStr, oneYearStr, childAuth);
         result.availability_verification = verification;
         console.log(`[pushARI] Verification: ${verification.matches}/${verification.total_days} days matched, ${verification.mismatches.length} mismatches${verification.error ? ` (error: ${verification.error})` : ''}`);
         try {
@@ -1389,7 +1391,7 @@ async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRo
 
 
       const { data: priceResult, error: priceErr } = await supabase.functions.invoke('rentalsunited-api', {
-        body: { action: 'push_prices', ru_property_id: ruPropertyId, prices: priceEntries },
+        body: { action: 'push_prices', ru_property_id: ruPropertyId, prices: priceEntries, ...childAuth },
       });
 
       if (priceErr || !priceResult?.success) {
@@ -1397,7 +1399,7 @@ async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRo
       } else {
         result.prices_pushed = true;
         // 7.2 — Verify prices post-push
-        const priceVerification = await verifyPrices(supabase, ruPropertyId, priceEntries, todayStr, oneYearStr);
+        const priceVerification = await verifyPrices(supabase, ruPropertyId, priceEntries, todayStr, oneYearStr, childAuth);
         result.prices_verification = priceVerification;
         console.log(`[pushARI] Price verification: ${priceVerification.matches}/${priceVerification.total_seasons} seasons matched, ${priceVerification.mismatches.length} mismatches, ${priceVerification.missing_dates.length} missing dates${priceVerification.error ? ` (error: ${priceVerification.error})` : ''}`);
         try {
@@ -1432,6 +1434,7 @@ async function verifyDiscounts(
   ruPropertyId: number,
   longStayRequested: RuDiscountWire[],
   lastMinuteRequested: RuDiscountWire[],
+  childAuth: Record<string, unknown> = {},
 ): Promise<{ long_stay: any; last_minute: any }> {
   const report: { long_stay: any; last_minute: any } = { long_stay: null, last_minute: null };
 
@@ -1442,7 +1445,7 @@ async function verifyDiscounts(
   ) => {
     try {
       const { data, error } = await supabase.functions.invoke('rentalsunited-api', {
-        body: { action, ru_property_id: ruPropertyId },
+        body: { action, ru_property_id: ruPropertyId, ...childAuth },
       });
       if (error || !data?.success) {
         return {
@@ -1468,6 +1471,7 @@ async function pushDiscounts(
   supabase: any,
   propertyId: string,
   ruPropertyIds: { ruId: number; roomTypeId?: string }[],
+  childAuth: Record<string, unknown> = {},
 ) {
   const result: {
     long_stay_discounts_pushed: number;
@@ -1532,7 +1536,7 @@ async function pushDiscounts(
     if (lsWire.length > 0 && validation.ok) {
       try {
         const { data: lsResult, error: lsErr } = await supabase.functions.invoke('rentalsunited-api', {
-          body: { action: 'push_long_stay_discounts', ru_property_id: ruId, discounts: lsWire },
+          body: { action: 'push_long_stay_discounts', ru_property_id: ruId, discounts: lsWire, ...childAuth },
         });
         if (lsErr || !lsResult?.success) {
           result.discount_errors.push(`Long stay (RU ${ruId}): ${lsErr?.message || lsResult?.error?.message || 'Unknown error'}`);
@@ -1549,7 +1553,7 @@ async function pushDiscounts(
     if (lmWire.length > 0 && validation.ok) {
       try {
         const { data: lmResult, error: lmErr } = await supabase.functions.invoke('rentalsunited-api', {
-          body: { action: 'push_last_minute_discounts', ru_property_id: ruId, discounts: lmWire },
+          body: { action: 'push_last_minute_discounts', ru_property_id: ruId, discounts: lmWire, ...childAuth },
         });
         if (lmErr || !lmResult?.success) {
           result.discount_errors.push(`Last minute (RU ${ruId}): ${lmErr?.message || lmResult?.error?.message || 'Unknown error'}`);
@@ -1563,7 +1567,7 @@ async function pushDiscounts(
     }
 
     // Verify (8.x) — diff requested vs returned
-    const verification = await verifyDiscounts(supabase, ruId, lsWire, lmWire);
+    const verification = await verifyDiscounts(supabase, ruId, lsWire, lmWire, childAuth);
     result.discounts_verification[`ru_${ruId}`] = verification;
     console.log(`[push-property-to-ru] Discount verification RU ${ruId}: long_stay matches=${verification.long_stay?.matches ?? 'n/a'}, last_minute matches=${verification.last_minute?.matches ?? 'n/a'}`);
 
@@ -2208,7 +2212,7 @@ Deno.serve(async (req) => {
           console.log(`[push-property-to-ru] Pushing standalone unit "${unit.name}" (existing RU ID: ${existingUnitRuId}, object_type_id: ${unitPayload.object_type_id})`);
 
           let { data: pushResult, error: pushErr } = await supabase.functions.invoke('rentalsunited-api', {
-            body: { action: 'push_property', ru_property_id: existingUnitRuId, property: unitPayload },
+            body: { action: 'push_property', ru_property_id: existingUnitRuId, property: unitPayload, ...childAuthPayload },
           });
 
           // Stale RU ID recovery (see multi-unit flow): re-push as a create.
@@ -2219,7 +2223,7 @@ Deno.serve(async (req) => {
             console.warn(`[push-property-to-ru] Stale RU ID ${existingUnitRuId} for unit "${unit.name}" — recreating`);
             await supabase.from('hostfully_room_types').update({ rentalsunited_property_id: null }).eq('id', unit.id);
             const retry = await supabase.functions.invoke('rentalsunited-api', {
-              body: { action: 'push_property', ru_property_id: 0, property: unitPayload },
+              body: { action: 'push_property', ru_property_id: 0, property: unitPayload, ...childAuthPayload },
             });
             pushResult = retry.data;
             pushErr = retry.error;
@@ -2248,7 +2252,7 @@ Deno.serve(async (req) => {
           const ruIdNum = unitRuId ? parseInt(unitRuId, 10) : 0;
           if (ruIdNum > 0) {
             console.log(`[push-property-to-ru] Pushing ARI for standalone unit "${unit.name}" (RU ID: ${ruIdNum})`);
-            ariResult = await pushARI(supabase, ruIdNum, property as PropertyRow, 1, { id: unit.id, name: unit.name, linked_rolos_id: unit.linked_rolos_id, amenities: (unit as any).amenities ?? null });
+            ariResult = await pushARI(supabase, ruIdNum, property as PropertyRow, 1, { id: unit.id, name: unit.name, linked_rolos_id: unit.linked_rolos_id, amenities: (unit as any).amenities ?? null }, childAuthPayload);
             if (ariResult.availability_error) console.error(`[push-property-to-ru] Availability error for "${unit.name}": ${ariResult.availability_error}`);
             if (ariResult.prices_error) console.error(`[push-property-to-ru] Prices error for "${unit.name}": ${ariResult.prices_error}`);
           }
@@ -2423,7 +2427,7 @@ Deno.serve(async (req) => {
         console.log(`[push-property-to-ru] Step 2: Pushing unit "${unit.name}" (existing RU ID: ${existingUnitRuId}, building: ${buildingId}, object_type_id: ${objTypeId})`);
 
         let { data: pushResult, error: pushErr } = await supabase.functions.invoke('rentalsunited-api', {
-          body: { action: 'push_property', ru_property_id: existingUnitRuId, property: unitPayload },
+          body: { action: 'push_property', ru_property_id: existingUnitRuId, property: unitPayload, ...childAuthPayload },
         });
 
         // Stale RU ID recovery: a stored unit ID can point at a property that no longer
@@ -2436,7 +2440,7 @@ Deno.serve(async (req) => {
           console.warn(`[push-property-to-ru] Stale RU ID ${existingUnitRuId} for unit "${unit.name}" — recreating`);
           await supabase.from('hostfully_room_types').update({ rentalsunited_property_id: null }).eq('id', unit.id);
           const retry = await supabase.functions.invoke('rentalsunited-api', {
-            body: { action: 'push_property', ru_property_id: 0, property: unitPayload },
+            body: { action: 'push_property', ru_property_id: 0, property: unitPayload, ...childAuthPayload },
           });
           pushResult = retry.data;
           pushErr = retry.error;
@@ -2466,7 +2470,7 @@ Deno.serve(async (req) => {
         const ruIdNum = parseInt(unitRuId || '0', 10);
         if (ruIdNum > 0) {
           console.log(`[push-property-to-ru] Pushing ARI for unit "${unit.name}" (RU ID: ${ruIdNum})`);
-          const ariResult = await pushARI(supabase, ruIdNum, property as PropertyRow, 1, { id: unit.id, name: unit.name, linked_rolos_id: unit.linked_rolos_id, amenities: (unit as any).amenities ?? null });
+          const ariResult = await pushARI(supabase, ruIdNum, property as PropertyRow, 1, { id: unit.id, name: unit.name, linked_rolos_id: unit.linked_rolos_id, amenities: (unit as any).amenities ?? null }, childAuthPayload);
           if (ariResult.availability_error) console.error(`[push-property-to-ru] Availability error for "${unit.name}": ${ariResult.availability_error}`);
           if (ariResult.prices_error) console.error(`[push-property-to-ru] Prices error for "${unit.name}": ${ariResult.prices_error}`);
           unitResults.push({
@@ -2497,7 +2501,7 @@ Deno.serve(async (req) => {
       const discountRuIds = unitResults
         .filter((u: any) => u.success && u.rentalsunited_property_id)
         .map((u: any) => ({ ruId: parseInt(u.rentalsunited_property_id, 10), roomTypeId: u.room_type_id }));
-      const discountResult = await pushDiscounts(supabase, property_id, discountRuIds);
+      const discountResult = await pushDiscounts(supabase, property_id, discountRuIds, childAuthPayload);
 
       const allUnitsPushed = unitResults.length === unitsToPush.length && unitResults.every((u: any) => u.success);
       const inventoryVerified = allUnitsPushed && unitResults.every((u: any) =>
@@ -2587,7 +2591,7 @@ Deno.serve(async (req) => {
 
 
     const { data: pushResult, error: pushErr } = await supabase.functions.invoke('rentalsunited-api', {
-      body: { action: 'push_property', ru_property_id: existingRuId, property: ruPayload },
+      body: { action: 'push_property', ru_property_id: existingRuId, property: ruPayload, ...childAuthPayload },
     });
 
     if (pushErr || !pushResult?.success) {
@@ -2610,8 +2614,8 @@ Deno.serve(async (req) => {
     const finalRuId = parseInt(ruPropertyId || '0', 10);
     let pushExtras: Record<string, any> = {};
     if (finalRuId > 0) {
-      pushExtras = await pushARI(supabase, finalRuId, property as PropertyRow, activeRoomTypes.length || 1);
-      const discountResult = await pushDiscounts(supabase, property_id, [{ ruId: finalRuId }]);
+      pushExtras = await pushARI(supabase, finalRuId, property as PropertyRow, activeRoomTypes.length || 1, undefined, childAuthPayload);
+      const discountResult = await pushDiscounts(supabase, property_id, [{ ruId: finalRuId }], childAuthPayload);
       pushExtras = { ...pushExtras, ...discountResult };
     }
 
