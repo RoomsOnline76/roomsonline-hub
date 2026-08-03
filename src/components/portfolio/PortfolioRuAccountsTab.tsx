@@ -941,11 +941,22 @@ export function PortfolioRuAccountsTab() {
                         {acc.ru_login_url} <ExternalLink className="h-3 w-3" />
                       </a>
                     )}
+                    {(() => {
+                      const ownerKey = acc.ru_owner_id ? storedKeyByOwner.get(String(acc.ru_owner_id)) : undefined;
+                      const activeAccessKey = ownerKey?.access_key ?? acc.ru_api_access_key ?? null;
+                      const activeLabel = ownerKey?.key_label ?? acc.ru_api_key_label ?? null;
+                      const activeVerified = ownerKey?.verified_at ?? acc.ru_api_keys_verified_at ?? null;
+                      return (
                     <div className="rounded-md border border-border bg-muted/20 p-3 space-y-2">
                       <div className="flex items-center justify-between gap-2 flex-wrap">
                         <p className="text-xs font-medium flex items-center gap-1.5">
                           <KeyRound className="h-3.5 w-3.5 text-muted-foreground" />
                           RU sub-user API keys
+                          {acc.ru_owner_id && (
+                            <span className="text-[10px] font-normal text-muted-foreground font-mono">
+                              OwnerID {acc.ru_owner_id}
+                            </span>
+                          )}
                         </p>
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <Button
@@ -955,14 +966,14 @@ export function PortfolioRuAccountsTab() {
                             onClick={() => openKeys(acc)}
                           >
                             <KeyRound className="h-3 w-3" />
-                            <span className="ml-1.5">{acc.ru_api_access_key ? "Replace keys" : "Add keys"}</span>
+                            <span className="ml-1.5">{activeAccessKey ? "Replace keys" : "Add keys"}</span>
                           </Button>
                           <Button
                             size="sm"
                             variant="outline"
                             className="h-7 text-xs"
-                            disabled={!acc.ru_api_access_key || verifyingKeys === acc.id}
-                            onClick={() => verifyApiKeys(acc.id)}
+                            disabled={!activeAccessKey || verifyingKeys === acc.id}
+                            onClick={() => verifyApiKeys(acc.id, acc.ru_owner_id)}
                           >
                             {verifyingKeys === acc.id
                               ? <Loader2 className="h-3 w-3 animate-spin" />
@@ -974,7 +985,7 @@ export function PortfolioRuAccountsTab() {
                             variant="outline"
                             className="h-7 text-xs"
                             disabled={creatingKey === acc.id}
-                            onClick={() => createApiKey(acc.id)}
+                            onClick={() => createApiKey(acc.id, acc.ru_owner_id)}
                             title="Mint an additional key pair through the RU API"
                           >
                             {creatingKey === acc.id
@@ -984,15 +995,16 @@ export function PortfolioRuAccountsTab() {
                           </Button>
                         </div>
                       </div>
-                      {acc.ru_api_access_key ? (
+                      {activeAccessKey ? (
                         <div className="space-y-1 text-xs">
-                          <p className="font-mono break-all">{acc.ru_api_access_key}</p>
+                          <p className="font-mono break-all">{activeAccessKey}</p>
                           <p className="text-[10px] text-muted-foreground">
-                            {acc.ru_api_key_label ? `Label "${acc.ru_api_key_label}". ` : ""}
-                            {acc.ru_api_keys_verified_at
-                              ? `Verified ${new Date(acc.ru_api_keys_verified_at).toLocaleString()}.`
+                            {activeLabel ? `Label "${activeLabel}". ` : ""}
+                            {activeVerified
+                              ? `Verified ${new Date(activeVerified).toLocaleString()}.`
                               : "Not verified yet."}{" "}
-                            The secret is encrypted at rest and never displayed.
+                            Stored against OwnerID {acc.ru_owner_id ?? "—"}; the secret is encrypted at
+                            rest and never displayed.
                           </p>
                         </div>
                       ) : (
@@ -1000,9 +1012,13 @@ export function PortfolioRuAccountsTab() {
                           Rentals United requires each sub-user to authenticate with its own
                           AccessKey + SecretKey. Generate the first pair in the RU dashboard under
                           Security settings, then save it here — company details, building pushes and
-                          archiving all use it.
+                          archiving all use it. Keys are held per OwnerID, so adding one sub-user's
+                          pair never replaces another's.
                         </p>
                       )}
+                      );
+                    })()}
+
                     </div>
 
                     <div className="rounded-md border border-border bg-muted/20 p-3 space-y-2">
