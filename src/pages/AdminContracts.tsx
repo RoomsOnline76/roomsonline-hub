@@ -1308,7 +1308,7 @@ export default function AdminContracts() {
         setSendModalOpen(open);
         if (!open) resetSendModal();
       }}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Send New Contract</DialogTitle>
             <DialogDescription>
