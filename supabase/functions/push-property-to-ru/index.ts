@@ -1839,23 +1839,68 @@ Deno.serve(async (req) => {
     // ("South Africa › Western Cape › Cape Town") and push the exact ID the admin chose.
     // Currency values already cached from the city/currency dictionary are preserved.
     if (action === 'seed_ru_location_tree') {
-      const { data: listData, error: listErr } = await supabase.functions.invoke('rentalsunited-api', {
+      let { data: listData, error: listErr } = await supabase.functions.invoke('rentalsunited-api', {
         body: { action: 'list_locations' },
       });
-      if (listErr || !listData?.success) {
-        return new Response(
-          JSON.stringify({ success: false, error: { code: 'LIST_FAILED', message: listErr?.message || listData?.error?.message || 'Failed to list RU locations' } }),
-          { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+      let sourceAction = 'list_locations';
+
+      // Fallback: many RU integrations do not have Pull_ListLocations_RQ enabled. The
+      // city/currency dictionary carries the same LocationIDs (plus currency), so use it
+      // to populate the register rather than failing the refresh outright.
+      const treeUnusable = !!listErr || !listData?.success || listData?.endpoint_disabled ||
+        !(Array.isArray(listData?.locations) && listData.locations.length > 0);
+      if (treeUnusable) {
+        console.log(`[push-property-to-ru] seed: list_locations unusable (${listErr?.message || listData?.error?.message || 'empty'}) — falling back to list_cities_and_currencies`);
+        const fallback = await supabase.functions.invoke('rentalsunited-api', {
+          body: { action: 'list_cities_and_currencies' },
+        });
+        if (!fallback.error && fallback.data?.success && Array.isArray(fallback.data.locations) && fallback.data.locations.length > 0) {
+          listData = {
+            success: true,
+            locations: fallback.data.locations.map((l: any) => ({
+              id: l.id,
+              name: l.name,
+              parent_id: l.parent_id ?? null,
+              location_type_id: l.type ?? l.location_type_id ?? null,
+              currency_iso: l.currency_iso ?? null,
+            })),
+          };
+          listErr = null;
+          sourceAction = 'list_cities_and_currencies';
+        }
       }
-      if (listData.endpoint_disabled) {
+
+      if (listErr || !listData?.success) {
+        // Return 200 so supabase.functions.invoke surfaces the real RU status/message
+        // instead of collapsing everything into "non-2xx status code".
         return new Response(
-          JSON.stringify({ success: true, upserted: 0, endpoint_disabled: true, note: listData.note }),
+          JSON.stringify({
+            success: false,
+            error: {
+              code: 'LIST_FAILED',
+              message: listErr?.message || listData?.error?.message || 'Failed to list RU locations',
+              ru_status_id: listData?.error?.ru_status_id,
+            },
+            diagnostics: listData?.diagnostics,
+          }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
+      if (listData.endpoint_disabled || !(Array.isArray(listData.locations) && listData.locations.length > 0)) {
+        return new Response(
+          JSON.stringify({
+            success: true,
+            upserted: 0,
+            endpoint_disabled: true,
+            note: listData.note || 'Rentals United returned no locations for this integration — LocationIDs stay name-resolved at push time.',
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      console.log(`[push-property-to-ru] seed: using ${sourceAction} (${listData.locations.length} locations)`);
 
-      type RuLoc = { id: number; name: string; parent_id: number | null; location_type_id: number | null };
+
+      type RuLoc = { id: number; name: string; parent_id: number | null; location_type_id: number | null; currency_iso?: string | null };
       const all: RuLoc[] = (listData.locations || []).filter((l: any) => Number.isFinite(l?.id));
       const byId = new Map<number, RuLoc>(all.map((l) => [l.id, l]));
 
@@ -1888,6 +1933,7 @@ Deno.serve(async (req) => {
           path,
           depth,
           country,
+          ...(l.currency_iso ? { currency_iso: l.currency_iso } : {}),
           last_synced_at: now,
         };
       });
@@ -1900,16 +1946,17 @@ Deno.serve(async (req) => {
           console.error(`[push-property-to-ru] seed_ru_location_tree upsert failed at offset ${i}:`, upErr.message);
           return new Response(
             JSON.stringify({ success: false, error: { code: 'UPSERT_FAILED', message: upErr.message }, upserted }),
-            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
         upserted += chunk.length;
       }
 
       return new Response(
-        JSON.stringify({ success: true, message: `Seeded ${upserted} RU locations from the full tree`, upserted }),
+        JSON.stringify({ success: true, message: `Seeded ${upserted} RU locations via ${sourceAction}`, upserted, source: sourceAction }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+
     }
 
 
