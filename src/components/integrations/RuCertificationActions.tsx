@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Loader2, PlayCircle, ChevronRight, CheckCircle2, AlertCircle } from "lucide-react";
+import { useRuRunCooldown } from "@/hooks/useRuRunCooldown";
 
 export const RU_CONSOLE_PATH = "/admin/integrations/rentals-united";
 
@@ -56,9 +57,15 @@ export function RuCertificationCheckButton({
 }) {
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<RunSuiteResult["run"] | null>(null);
+  const { cooldownSeconds, cooling, markRun } = useRuRunCooldown();
 
   const run = async () => {
+    if (cooling) {
+      toast.error(`Rentals United allows one call per sliding minute — wait ${cooldownSeconds}s.`);
+      return;
+    }
     setRunning(true);
+    markRun();
     setResult(null);
     try {
       const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
@@ -91,9 +98,9 @@ export function RuCertificationCheckButton({
 
   return (
     <div className="flex items-center gap-2 flex-wrap">
-      <Button size={size} variant={variant} onClick={run} disabled={running} className="gap-1.5">
+      <Button size={size} variant={variant} onClick={run} disabled={running || cooling} className="gap-1.5">
         {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
-        Run certification check
+        {cooling ? `Rate limit — ${cooldownSeconds}s` : "Run certification check"}
       </Button>
       {result && (
         <Badge
