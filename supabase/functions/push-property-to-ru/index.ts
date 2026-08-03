@@ -1361,9 +1361,9 @@ async function verifyAvailability(
     // not the self-closing <CalendarDay .../> this used to look for.
     const xml = String(data.raw_xml);
     const parsedDays = parseRuAvailabilityDays(xml);
-    const returnedDays = new Map<string, { min_stay: number | null; changeover: number | null; units: number | null }>();
+    const returnedDays = new Map<string, { min_stay: number | null; changeover: number | null; units: number | null; reservations: number | null }>();
     for (const [date, day] of parsedDays) {
-      returnedDays.set(date, { min_stay: day.min_stay, changeover: day.changeover, units: day.units });
+      returnedDays.set(date, { min_stay: day.min_stay, changeover: day.changeover, units: day.units, reservations: day.reservations });
     }
 
     report.checked = true;
@@ -1374,6 +1374,9 @@ async function verifyAvailability(
         report.mismatches.push({ date, field: 'units', requested: exp.units, returned: null });
         continue;
       }
+      // A day RU already holds a confirmed reservation for legitimately reads back with no
+      // free unit — that is correct state, not a sync mismatch.
+      if ((got.reservations ?? 0) > 0) { report.matches++; continue; }
       let dayOk = true;
       if (got.min_stay != null && got.min_stay !== exp.min_stay) {
         report.mismatches.push({ date, field: 'min_stay', requested: exp.min_stay, returned: got.min_stay });
@@ -1399,7 +1402,7 @@ async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRo
   const amenities = (property.amenities || {}) as Record<string, any>;
   const seasons = amenities.seasons as any[] | undefined;
   const seasonRates = amenities.season_rates as Record<string, any> | undefined;
-  const result: { availability_pushed?: boolean; prices_pushed?: boolean; availability_error?: string; prices_error?: string; availability_verification?: AvailabilityVerification; prices_verification?: PriceVerification; price_coverage?: Record<string, any>; currency?: Record<string, any> } = {};
+  const result: { availability_reserved_days?: number; availability_pushed?: boolean; prices_pushed?: boolean; availability_error?: string; prices_error?: string; availability_verification?: AvailabilityVerification; prices_verification?: PriceVerification; price_coverage?: Record<string, any>; currency?: Record<string, any> } = {};
 
   const today = new Date();
   const todayStr = today.toISOString().slice(0, 10);
@@ -1443,8 +1446,36 @@ async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRo
       const { data: availResult, error: availErr } = await supabase.functions.invoke('rentalsunited-api', {
         body: { action: 'push_availability', ru_property_id: ruPropertyId, availability: availEntries, ...childAuth },
       });
-      if (availErr || !availResult?.success) {
-        result.availability_error = availErr?.message || availResult?.error?.message || 'Unknown error';
+      let availOk = !availErr && availResult?.success === true;
+      let availErrorMessage = availErr?.message || availResult?.error?.message || 'Unknown error';
+
+      // RU rejects the whole batch when any day it holds a confirmed reservation for would be
+      // re-opened. Drop exactly those days (they are correctly booked out) and push the rest.
+      if (!availOk && /confirmed reservation/i.test(availErrorMessage)) {
+        const { data: calData } = await supabase.functions.invoke('rentalsunited-api', {
+          body: { action: 'get_availability', ru_property_id: ruPropertyId, date_from: todayStr, date_to: oneYearStr, ...childAuth },
+        });
+        const reservedDates = new Set<string>();
+        for (const [date, day] of parseRuAvailabilityDays(String(calData?.raw_xml ?? ''))) {
+          if ((day.reservations ?? 0) > 0) reservedDates.add(date);
+        }
+        const filtered = availEntries.filter((e: { date_from: string; date_to: string }) => !reservedDates.has(e.date_from) || e.date_from !== e.date_to);
+        const withoutReserved = availEntries.filter((e: { date_from: string }) => !reservedDates.has(e.date_from));
+        const retryEntries = withoutReserved.length ? withoutReserved : filtered;
+        result.availability_reserved_days = reservedDates.size;
+        if (reservedDates.size > 0 && retryEntries.length > 0) {
+          console.log(`[pushARI] Retrying availability without ${reservedDates.size} reserved day(s) for RU ${ruPropertyId}`);
+          const { data: retryResult, error: retryErr } = await supabase.functions.invoke('rentalsunited-api', {
+            body: { action: 'push_availability', ru_property_id: ruPropertyId, availability: retryEntries, ...childAuth },
+          });
+          availOk = !retryErr && retryResult?.success === true;
+          availErrorMessage = retryErr?.message || retryResult?.error?.message || availErrorMessage;
+          if (availOk) availEntries.length = 0, availEntries.push(...retryEntries);
+        }
+      }
+
+      if (!availOk) {
+        result.availability_error = availErrorMessage;
       } else {
         result.availability_pushed = true;
         // 6.2 + 6.3 — Verify
