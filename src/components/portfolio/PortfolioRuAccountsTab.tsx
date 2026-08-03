@@ -1016,10 +1016,10 @@ export function PortfolioRuAccountsTab() {
                           pair never replaces another's.
                         </p>
                       )}
+                    </div>
                       );
                     })()}
 
-                    </div>
 
                     <div className="rounded-md border border-border bg-muted/20 p-3 space-y-2">
                       <div className="flex items-center justify-between gap-2 flex-wrap">
