@@ -87,6 +87,8 @@ Deno.serve(async (req) => {
     const requestedOwnerId: string = String(body.ru_owner_id ?? "").trim();
     const requestedEmail: string = String(body.login_email ?? "").trim();
     const suppliedPassword: string = String(body.password ?? "");
+    const suppliedAccessKey: string = String(body.access_key ?? "").trim();
+    const suppliedSecretKey: string = String(body.secret_key ?? "").trim();
 
     if (!accountId && !requestedOwnerId) {
       return json({
@@ -98,7 +100,7 @@ Deno.serve(async (req) => {
     // Resolve the local row (may be absent when archiving an unbound RU sub-user)
     let account: Record<string, unknown> | null = null;
     const selectCols =
-      "id, owner_email, ru_login_email, ru_owner_id, ru_user_id, ru_login_password_enc, portfolio_id, property_id, scope";
+      "id, owner_email, ru_login_email, ru_owner_id, ru_user_id, ru_login_password_enc, ru_api_access_key, ru_api_secret_enc, portfolio_id, property_id, scope";
 
     if (accountId) {
       const { data } = await admin.from("ru_owner_accounts").select(selectCols).eq("id", accountId).maybeSingle();
@@ -129,39 +131,54 @@ Deno.serve(async (req) => {
         },
       }, 422);
     }
-    if (!loginEmail) {
-      return json({
-        success: false,
-        error: { code: "NO_LOGIN_EMAIL", message: "No RU login email for this sub-user." },
-      }, 422);
-    }
 
-    // Credential resolution: supplied password → stored encrypted password → ask the UI to prompt
-    let password = suppliedPassword;
-    if (!password) {
-      const enc = account?.ru_login_password_enc;
-      if (!enc) {
-        return json({
-          success: false,
-          error: {
-            code: "PASSWORD_REQUIRED",
-            message:
-              `No stored password for OwnerID ${ownerId}. Push_ArchiveUser_RQ must authenticate as the sub-user, so the RU portal password for ${loginEmail} is required.`,
-          },
-          ru_owner_id: ownerId,
-          login_email: loginEmail,
-        }, 422);
+    const decrypt = async (enc: unknown): Promise<string | null> => {
+      if (!enc) return null;
+      const { data, error } = await admin.rpc("decrypt_sensitive_text", { encrypted_data: enc });
+      if (error || !data || data === "[ENCRYPTED]" || data === "[DECRYPTION_ERROR]") return null;
+      return String(data);
+    };
+
+    /**
+     * Credential resolution. Push_ArchiveUser_RQ authenticates AS the sub-user; since RU's
+     * Nov-2025 API-keys rollout, sub-accounts must use their own AccessKey/SecretKey.
+     * Order: keys on the request → keys stored for the sub-user → legacy password (older
+     * accounts only). The MASTER key pair is never used — that would archive the master.
+     */
+    let childAuthXml = "";
+    let authMode = "";
+
+    if (suppliedAccessKey && suppliedSecretKey) {
+      childAuthXml = `<AccessKey>${escapeXml(suppliedAccessKey)}</AccessKey>
+    <SecretKey>${escapeXml(suppliedSecretKey)}</SecretKey>`;
+      authMode = "child_api_keys";
+    } else {
+      const storedKey = String(account?.ru_api_access_key ?? "").trim();
+      const storedSecret = await decrypt(account?.ru_api_secret_enc);
+      if (storedKey && storedSecret) {
+        childAuthXml = `<AccessKey>${escapeXml(storedKey)}</AccessKey>
+    <SecretKey>${escapeXml(storedSecret)}</SecretKey>`;
+        authMode = "child_api_keys";
+      } else {
+        const password = suppliedPassword || (await decrypt(account?.ru_login_password_enc)) || "";
+        if (!loginEmail || !password) {
+          return json({
+            success: false,
+            error: {
+              code: "API_KEYS_REQUIRED",
+              message:
+                `No API keys stored for OwnerID ${ownerId}. Rentals United requires the sub-user's own AccessKey + SecretKey for Push_ArchiveUser_RQ — generate them in the RU dashboard (Security settings) for ${
+                  loginEmail || "this sub-user"
+                } and save them in Portfolios → RU accounts, then retry.`,
+            },
+            ru_owner_id: ownerId,
+            login_email: loginEmail || null,
+          }, 422);
+        }
+        childAuthXml = `<UserName>${escapeXml(loginEmail)}</UserName>
+    <Password>${escapeXml(password)}</Password>`;
+        authMode = "child_user_password";
       }
-      const { data: decrypted, error: decErr } = await admin.rpc("decrypt_sensitive_text", {
-        encrypted_data: enc,
-      });
-      if (decErr || !decrypted || decrypted === "[ENCRYPTED]" || decrypted === "[DECRYPTION_ERROR]") {
-        return json({
-          success: false,
-          error: { code: "DECRYPT_FAILED", message: decErr?.message || "Could not decrypt the stored password" },
-        }, 500);
-      }
-      password = String(decrypted);
     }
 
     // Resolve RU endpoint (master keys only used to know the endpoint host — never for ArchiveUser auth)
@@ -183,10 +200,10 @@ Deno.serve(async (req) => {
     const xml = `<?xml version="1.0" encoding="utf-8"?>
 <Push_ArchiveUser_RQ>
   <Authentication>
-    <UserName>${escapeXml(loginEmail)}</UserName>
-    <Password>${escapeXml(password)}</Password>
+    ${childAuthXml}
   </Authentication>
 </Push_ArchiveUser_RQ>`;
+
 
     const compact = xml.replace(/<\?xml[^?]*\?>\s*/gi, "").replace(/>\s+</g, "><").trim();
     console.log(
