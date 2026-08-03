@@ -289,7 +289,26 @@ Deno.serve(async (req) => {
     let emailIntroHtml: string;
     let propertiesSection: string;
 
-    if (isNewOwner) {
+    if (isReferral) {
+      const t = (terms_snapshot || {}) as Record<string, unknown>;
+      emailSubject = "RoomsOnline Referral Partner Agreement - Signature Required";
+      emailIntroHtml = `
+        <p style="color: #333; line-height: 1.6;">Your Referral Partner Agreement with RoomsOnline is ready for signature. This is a once-off engagement agreement — it is not tied to any individual property.</p>
+        <p style="color: #333; line-height: 1.6;">You are engaged as an independent contractor on a commission-only basis (no base salary), on the terms below.</p>
+      `;
+      propertiesSection = `
+        <div style="background-color: #f7fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 24px 0;">
+          <h3 style="margin: 0 0 12px 0; font-size: 16px; color: #2d3748;">Engagement Terms${t.tier_label ? ` — ${t.tier_label} tier` : ""}</h3>
+          <ul style="margin: 0; padding-left: 20px; color: #4a5568;">
+            <li>First-year commission: ${t.first_year_rate ?? "as per agreement"}%</li>
+            <li>Residual commission: ${t.residual_rate ?? "as per agreement"}%${t.residual_months ? ` for ${t.residual_months} months` : ""}</li>
+            <li>Clawback period: ${t.clawback_days ?? "as per agreement"} days</li>
+            <li>Independent contractor · commission only · no base salary</li>
+          </ul>
+        </div>
+      `;
+    } else if (isNewOwner) {
+
       emailSubject = "Welcome to RoomsOnline - Partnership Agreement";
       emailIntroHtml = `
         <p style="color: #333; line-height: 1.6;">Your RoomsOnline partnership agreement is ready. As part of the signing process, you'll be able to provide details about your property.</p>
