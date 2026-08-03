@@ -2114,15 +2114,16 @@ Deno.serve(async (req) => {
 
       // Dry run: validate each unit
       if (dry_run) {
-        const units = activeRoomTypes.map(rt => {
-          const payload = buildUnitPayload(property as PropertyRow, rt, locationId, undefined, currencyId);
+        const units = await Promise.all(activeRoomTypes.map(async (rt) => {
+          const payload = buildUnitPayload(property as PropertyRow, rt, locationId, undefined, currencyId) as Record<string, any>;
+          await applyImageVerification(payload);
           return {
             room_type_id: rt.id,
             name: rt.name,
             ru_property_id: rt.rentalsunited_property_id || null,
-            validation: buildValidation(payload as Record<string, any>),
+            validation: buildValidation(payload),
           };
-        });
+        }));
 
         const gaps = mandatoryGaps(units.map(u => ({ name: u.name, validation: u.validation as any })));
         const allReady = gaps.length === 0;
@@ -2191,6 +2192,10 @@ Deno.serve(async (req) => {
           // buildingId=0 → adapter omits <BuildingID> entirely
           const unitPayload = buildUnitPayload(property as PropertyRow, unit, locationId, 0, currencyId);
           unitPayload.owner_id = ruOwnerId;
+          const unitImageIssues = await applyImageVerification(unitPayload as unknown as Record<string, any>);
+          if (unitImageIssues.length > 0) {
+            console.warn(`[push-property-to-ru] Unit "${unit.name}": dropped ${unitImageIssues.length} image(s) Rentals United would reject`, unitImageIssues.map(i => i.reason));
+          }
           // ObjectTypeID = property_type_id (no composition lookup)
           unitPayload.object_type_id = unitPayload.property_type_id;
 
@@ -2397,6 +2402,10 @@ Deno.serve(async (req) => {
       for (const unit of unitsToPush) {
         const existingUnitRuId = unit.rentalsunited_property_id ? parseInt(unit.rentalsunited_property_id, 10) : 0;
         const unitPayload = buildUnitPayload(property as PropertyRow, unit, locationId, buildingId, currencyId);
+        const unitImageIssues = await applyImageVerification(unitPayload as unknown as Record<string, any>);
+        if (unitImageIssues.length > 0) {
+          console.warn(`[push-property-to-ru] Unit "${unit.name}": dropped ${unitImageIssues.length} image(s) Rentals United would reject`, unitImageIssues.map(i => i.reason));
+        }
         unitPayload.owner_id = ruOwnerId;
 
         // Attach the building's ObjectTypeID for this unit's name (required when BuildingID is set).
@@ -2537,6 +2546,10 @@ Deno.serve(async (req) => {
     // ── SINGLE PROPERTY FLOW (legacy) ────────────────────────
     const ruPayload = buildSinglePropertyPayload(property as PropertyRow, activeRoomTypes, locationId, currencyId);
     ruPayload.owner_id = ruOwnerId;
+    const singleImageIssues = await applyImageVerification(ruPayload as unknown as Record<string, any>);
+    if (singleImageIssues.length > 0) {
+      console.warn(`[push-property-to-ru] Dropped ${singleImageIssues.length} image(s) Rentals United would reject`, singleImageIssues.map(i => i.reason));
+    }
     const existingRuId = property.rentalsunited_property_id ? parseInt(property.rentalsunited_property_id, 10) : 0;
 
     const singleValidation = buildValidation(ruPayload as unknown as Record<string, any>);
