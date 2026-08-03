@@ -158,7 +158,7 @@ export function RuOnboardingPipeline({ propertyId, readOnly = false, standalone 
   );
 
   const submitCompanyDetails = useCallback(
-    (password?: string) =>
+    (accessKey?: string, secretKey?: string) =>
       runAction(
         "p1_subuser",
         {
@@ -167,12 +167,15 @@ export function RuOnboardingPipeline({ propertyId, readOnly = false, standalone 
           // Always re-submit: RU overwrites the profile, so a manual run is the
           // recovery path when the RU portal profile still shows blank fields.
           force: true,
-          ...(password ? { ru_login_password: password } : {}),
+          ...(accessKey && secretKey
+            ? { ru_api_access_key: accessKey, ru_api_secret_key: secretKey }
+            : {}),
         },
         "Company details submitted to Rentals United",
       ),
     [runAction, propertyId],
   );
+
 
   const pushToRu = useCallback(async () => {
     setBusy("p3_push");
