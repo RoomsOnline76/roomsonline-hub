@@ -1269,7 +1269,12 @@ const CHILD_AUTH_STRICT_ACTIONS = new Set([
   'get_last_minute_discounts',
   'order_mcq',
   'push_change_currency',
+  // Pulling a sub-user's reservations on master credentials silently returns OUR bookings,
+  // which would look like "no reservations" for the white-label account.
+  'list_reservations',
+  'get_leads',
 ]);
+
 
 
 /**
