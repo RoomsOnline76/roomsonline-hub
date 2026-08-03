@@ -252,12 +252,8 @@ export const SECTION_HINTS: Partial<Record<PropertySectionKey, SectionHint[]>> =
     { key: "gallery", label: "Gallery", icon: ImageIcon },
     { key: "hero", label: "Hero", icon: Sparkles },
   ],
-  "house-rules": [
-    { key: "checkin", label: "Check-in/out", icon: Calendar },
-    { key: "policies", label: "Policies", icon: ShieldCheck },
-    { key: "cancellation", label: "Cancellation", icon: FileText },
-  ],
 };
+
 
 export interface RailSection {
   key: string;
