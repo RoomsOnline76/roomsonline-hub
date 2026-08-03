@@ -290,15 +290,20 @@ export function AccommodationSpecialsTab({ propertyId, category = "accommodation
         {specials.map((s) => (
           <div
             key={s.id}
-            className={`flex items-center justify-between py-1.5 px-2 rounded transition-colors text-xs cursor-pointer ${
+            className={`flex items-start justify-between py-1.5 px-2 rounded transition-colors text-xs cursor-pointer ${
               selectedId === s.id ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-muted/80"
             }`}
             onClick={() => setSelectedId(s.id)}
           >
-            <span className="flex items-center gap-1 truncate flex-1">
-              {typeIcon(s.special_type)}
-              {s.name}
-              {!s.is_active && <Badge variant="outline" className="text-[9px] h-3 ml-1">off</Badge>}
+            <span className="flex flex-col gap-0.5 truncate flex-1">
+              <span className="flex items-center gap-1 truncate">
+                {typeIcon(s.special_type)}
+                {s.name}
+                {!s.is_active && <Badge variant="outline" className="text-[9px] h-3 ml-1">off</Badge>}
+              </span>
+              <span className={`text-[9px] truncate ${selectedId === s.id ? "opacity-80" : "text-muted-foreground"}`}>
+                {resolvedPolicyLabel(s.cancellation_policy_id)}
+              </span>
             </span>
             <Button
               size="sm"
