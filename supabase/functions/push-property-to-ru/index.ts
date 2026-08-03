@@ -1900,7 +1900,7 @@ Deno.serve(async (req) => {
       console.log(`[push-property-to-ru] seed: using ${sourceAction} (${listData.locations.length} locations)`);
 
 
-      type RuLoc = { id: number; name: string; parent_id: number | null; location_type_id: number | null };
+      type RuLoc = { id: number; name: string; parent_id: number | null; location_type_id: number | null; currency_iso?: string | null };
       const all: RuLoc[] = (listData.locations || []).filter((l: any) => Number.isFinite(l?.id));
       const byId = new Map<number, RuLoc>(all.map((l) => [l.id, l]));
 
@@ -1933,6 +1933,7 @@ Deno.serve(async (req) => {
           path,
           depth,
           country,
+          ...(l.currency_iso ? { currency_iso: l.currency_iso } : {}),
           last_synced_at: now,
         };
       });
@@ -1945,16 +1946,17 @@ Deno.serve(async (req) => {
           console.error(`[push-property-to-ru] seed_ru_location_tree upsert failed at offset ${i}:`, upErr.message);
           return new Response(
             JSON.stringify({ success: false, error: { code: 'UPSERT_FAILED', message: upErr.message }, upserted }),
-            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
         upserted += chunk.length;
       }
 
       return new Response(
-        JSON.stringify({ success: true, message: `Seeded ${upserted} RU locations from the full tree`, upserted }),
+        JSON.stringify({ success: true, message: `Seeded ${upserted} RU locations via ${sourceAction}`, upserted, source: sourceAction }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+
     }
 
 
