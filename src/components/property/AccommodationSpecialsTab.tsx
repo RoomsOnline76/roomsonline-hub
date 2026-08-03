@@ -365,6 +365,41 @@ export function AccommodationSpecialsTab({ propertyId, category = "accommodation
               </div>
             </div>
 
+            {/* Cancellation policy for this special */}
+            <div className="flex gap-2 items-end flex-wrap rounded-md border p-2">
+              <div className="flex-1 min-w-[220px] space-y-1">
+                <Label className="text-xs">Cancellation policy</Label>
+                <Select
+                  value={draft.cancellation_policy_id ?? "__inherit__"}
+                  onValueChange={(v) =>
+                    setDraft({ ...draft, cancellation_policy_id: v === "__inherit__" ? null : v })
+                  }
+                >
+                  <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__inherit__" className="text-xs">
+                      Inherit property master
+                    </SelectItem>
+                    {policies.map((p) => (
+                      <SelectItem key={p.id} value={p.id} className="text-xs">
+                        {p.name} — {shortPolicyLabel(p.rule)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-[10px] text-muted-foreground">
+                  At checkout: {resolvedPolicyLabel(draft.cancellation_policy_id)}
+                </p>
+              </div>
+              {onOpenPolicies && (
+                <Button variant="outline" size="sm" className="h-7 text-xs" onClick={onOpenPolicies}>
+                  Manage policies
+                </Button>
+              )}
+            </div>
+
+
+
             {/* Age Restriction */}
             <div className="flex gap-2 items-end flex-wrap">
               <div className="flex items-center gap-2 pb-0.5">
