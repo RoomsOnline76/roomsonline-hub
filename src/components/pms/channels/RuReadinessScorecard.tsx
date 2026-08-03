@@ -115,8 +115,8 @@ export function RuReadinessScorecard({ propertyId, standalone = true, onReport }
           <ShieldAlert className="h-4 w-4" />
           <AlertTitle>Rentals United sync is blocked</AlertTitle>
           <AlertDescription>
-            Every mandatory requirement below must be completed before this property can be pushed to
-            Rentals United. Fix the items listed, then press Re-check.
+            Complete the mandatory local requirements below, then press Re-check. Live RU verification
+            is shown separately and will not prevent ROLOS from sending complete corrective rates.
           </AlertDescription>
         </Alert>
       )}
