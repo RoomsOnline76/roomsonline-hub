@@ -2462,14 +2462,18 @@ Deno.serve(async (req) => {
 
       /**
        * ── Rate-limit pacing ─────────────────────────────────────────────────────────
-       * Rentals United throttles per method at roughly 1 call per sliding minute
-       * (Pull_ListReservations_RQ is the strictest). A suite fires many calls, so we:
-       *   1. keep a small gap between any two RU calls,
-       *   2. wait out the remaining sliding-minute window before repeating the SAME method,
-       *   3. on an actual rate-limit response, sleep the window and retry once.
+       * Rentals United throttles a repeat of the SAME method with the SAME parameters at
+       * roughly 1 call per sliding minute. Verified live: Pull_ListPropertyPrices_RQ for
+       * three different PropertyIDs back-to-back all succeed, so the window is per
+       * method+parameters — NOT per method. Pacing therefore:
+       *   1. keeps a small gap between any two RU calls,
+       *   2. waits out the remaining sliding-minute window only before repeating the same
+       *      method with the same identifying parameters (property id + date range + owner),
+       *   3. on an actual rate-limit response, sleeps the window and retries once.
        * Waiting is capped by a budget so a suite cannot exceed the function timeout;
        * when the budget is spent, the step is recorded as an informational skip.
        */
+
       const METHOD_WINDOW_MS = RUN_COOLDOWN_SECONDS * 1000;
       const MIN_GAP_MS = 1200;
       /**
@@ -2481,7 +2485,20 @@ Deno.serve(async (req) => {
       const WAIT_BUDGET_MS = 90_000;
       let waitSpentMs = 0;
       let lastCallAt = 0;
-      const lastMethodCallAt = new Map<string, number>();
+      /** Keyed on method + identifying parameters — that is the granularity RU throttles on. */
+      const lastCallByKey = new Map<string, number>();
+      const paceKeyFor = (method: string, payload: Record<string, unknown>) => {
+        const p = payload as Record<string, any>;
+        const parts = [
+          method,
+          p.ru_property_id ?? p.property_id ?? "",
+          p.date_from ?? "",
+          p.date_to ?? "",
+          p.owner_id ?? certOwnerId ?? "",
+        ];
+        return parts.join("|");
+      };
+
       const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
       /** Sleeps up to `ms`, respecting the shared budget and the run deadline. Returns true when fully waited. */
@@ -2512,10 +2529,11 @@ Deno.serve(async (req) => {
           };
         }
         const now = Date.now();
+        const paceKey = paceKeyFor(method, payload);
         await budgetedWait(lastCallAt ? lastCallAt + MIN_GAP_MS - now : 0);
-        const prevSameMethod = lastMethodCallAt.get(method);
-        if (prevSameMethod) {
-          const remaining = prevSameMethod + METHOD_WINDOW_MS - Date.now();
+        const prevSameCall = lastCallByKey.get(paceKey);
+        if (prevSameCall) {
+          const remaining = prevSameCall + METHOD_WINDOW_MS - Date.now();
           const fullyWaited = await budgetedWait(remaining);
 
 
@@ -2524,14 +2542,14 @@ Deno.serve(async (req) => {
               data: null,
               error: null,
               paced_skip:
-                `Skipped to respect the Rentals United rate limit (1 call per sliding minute for ${method}) — ` +
+                `Skipped to respect the Rentals United rate limit (1 call per sliding minute for ${method} with the same parameters) — ` +
                 `the run's wait budget was already spent. Re-run this suite to cover this step.`,
             };
           }
         }
         const fire = async () => {
           lastCallAt = Date.now();
-          lastMethodCallAt.set(method, lastCallAt);
+          lastCallByKey.set(paceKey, lastCallAt);
           // Child-scoped reads/writes must authenticate AS the white-label sub-user:
           // a listing created under a sub-user does not exist for the master account
           // (RU answers "Property does not exist"). Passing owner_id lets
@@ -2557,6 +2575,7 @@ Deno.serve(async (req) => {
           }
           res = await fire();
         }
+
         return { data: res.data, error: res.error };
       };
 
@@ -2737,8 +2756,9 @@ Deno.serve(async (req) => {
           detail: failed.length === 0
             ? `${results.map((r) => `${r.ruId}: ${r.count} ${unitLabel}`).join(", ")}`
             : soft ?? `RU unit(s) ${failed.map((r) => r.ruId).join(", ")} returned no ${unitLabel} for the next 365 days${
-              failed[0]?.detail ? ` — ${failed[0].detail}` : ""
+              failed[0]?.detail ? ` — ${failed[0].detail}` : " — RU accepted the read but echoed an empty calendar for that unit"
             }`,
+
           request: { ru_property_ids: unitRuIds, date_from: from, date_to: to },
           response_preview: preview(results[0]?.xml ?? null),
         });
@@ -2821,10 +2841,12 @@ Deno.serve(async (req) => {
             });
           }
 
-          // Read-back verification
+          // Read-back verification (small settle so RU has committed the push)
+          await budgetedWait(3000);
           await call("Verify content read-back", "get_property", { ru_property_id: ruPropertyId }, { mandatory: true, scope: "property", skip: noProp });
           await probeAri("Verify availability read-back", "get_availability");
           await probeAri("Verify prices read-back", "get_prices");
+
         }
       }
 
