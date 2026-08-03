@@ -114,6 +114,20 @@ export default function AdminContracts() {
   const [sending, setSending] = useState(false);
   const [selectedContractType, setSelectedContractType] = useState<"standard" | "rolos" | "referral">("standard");
 
+  // Referral Partner Agreement: a once-off engagement contract with a sales rep.
+  // Independent contractor, commission-only, no base salary, no property linkage.
+  const isReferral = selectedContractType === "referral";
+  const [reps, setReps] = useState<RepRow[]>([]);
+  const [repSearch, setRepSearch] = useState("");
+  const [selectedRepId, setSelectedRepId] = useState<string>("");
+  const [newRepMode, setNewRepMode] = useState(false);
+  const [newRepTier, setNewRepTier] = useState<RepTierKey>("base");
+  const [repGlobals, setRepGlobals] = useState<Record<string, any> | null>(null);
+  const [existingRepContracts, setExistingRepContracts] = useState<Record<string, string>>({});
+  const [confirmReplaceRepAgreement, setConfirmReplaceRepAgreement] = useState(false);
+
+
+
   // Contract scope: single property, multiple properties, or an entire portfolio
   const [sendScope, setSendScope] = useState<"single" | "multiple" | "portfolio">("single");
   const [multiPropertySearch, setMultiPropertySearch] = useState("");
