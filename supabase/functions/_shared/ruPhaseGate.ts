@@ -319,6 +319,7 @@ export async function evaluatePhases(
       detail: {
         ru_property_id: property.rentalsunited_property_id ?? null,
         ru_building_id: property.rentalsunited_building_id ?? null,
+        ru_unit_property_ids: unitRuIds,
         ru_owner_id: account?.ru_owner_id ?? null,
         inventory_push_at: lastInventoryRun?.created_at ?? null,
       },
