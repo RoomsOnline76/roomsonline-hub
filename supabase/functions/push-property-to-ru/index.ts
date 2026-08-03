@@ -28,6 +28,7 @@ import { parseRuPriceSeasons } from '../_shared/ruPriceParsing.ts';
 import {
   decideRuCurrency,
   verifyAndRecordCurrency,
+  verifyRuPropertyCurrency,
   convertPriceEntries,
   refreshRuLocationsCache,
   loadCurrencyState,
