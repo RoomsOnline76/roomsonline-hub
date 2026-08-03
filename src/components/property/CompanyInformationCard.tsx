@@ -145,10 +145,35 @@ const COMPANY_TEXT_FIELDS: {
   },
 ];
 
-const COMPANY_NUMBER_FIELDS: { key: keyof RuCompanyProfile; label: string; hint?: string }[] = [
-  { key: "number_of_properties", label: "Number of properties", hint: "Whole number" },
-  { key: "number_of_employees", label: "Number of employees", hint: "Whole number" },
-  { key: "years_in_business", label: "Years in business", hint: "Whole number of years" },
+/**
+ * RU treats these three as range selectors (option IDs), not counts — see
+ * src/lib/ruRanges.ts. Captured as dropdowns so the pushed value can never land
+ * on the wrong bucket.
+ */
+const COMPANY_RANGE_FIELDS: {
+  key: keyof RuCompanyProfile;
+  label: string;
+  ranges: RuRange[];
+  hint: string;
+}[] = [
+  {
+    key: "number_of_properties",
+    label: "Number of properties",
+    ranges: RU_PROPERTY_RANGES,
+    hint: "Total units/properties managed on this Rentals United account (all portfolio properties combined).",
+  },
+  {
+    key: "number_of_employees",
+    label: "Number of employees",
+    ranges: RU_EMPLOYEE_RANGES,
+    hint: "Rentals United stores this as a range, not an exact headcount.",
+  },
+  {
+    key: "years_in_business",
+    label: "Years in business",
+    ranges: RU_YEARS_RANGES,
+    hint: "Rentals United stores this as a range, not an exact number of years.",
+  },
 ];
 
 const REP_FIELDS: {
@@ -166,12 +191,44 @@ const REP_FIELDS: {
   { key: "address", label: "Address" },
   { key: "post_code", label: "Postal code" },
   {
+    key: "region",
+    label: "Region / province",
+    hint: "Defaults to the company region when left blank.",
+  },
+  {
     key: "birthday",
     label: "Date of birth",
     type: "date",
     hint: "Sent to Rentals United as YYYY-MM-DD",
   },
 ];
+
+/**
+ * RU's account contact person. Previously derived (company name as first name,
+ * "Owner" as last name, 1990-01-01 birthday, +27000000000 phone) and written
+ * permanently onto the RU profile — captured explicitly now.
+ */
+const CONTACT_FIELDS: {
+  key: keyof RuCompanyProfile;
+  label: string;
+  type?: string;
+  hint?: string;
+}[] = [
+  { key: "contact_first_name", label: "Contact first name" },
+  { key: "contact_last_name", label: "Contact last name" },
+  {
+    key: "contact_phone",
+    label: "Contact phone",
+    hint: "International format, e.g. +27 82 123 4567 — no placeholder is sent to RU.",
+  },
+  {
+    key: "contact_birth_date",
+    label: "Contact date of birth",
+    type: "date",
+    hint: "Sent to Rentals United as YYYY-MM-DD",
+  },
+];
+
 
 /** South African bank account types (RU/bank payout files accept these labels). */
 const ACCOUNT_TYPES = ["Cheque / Current", "Savings", "Transmission", "Business", "Bond"];
