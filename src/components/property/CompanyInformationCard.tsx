@@ -255,6 +255,13 @@ export function CompanyInformationCard({
   const rep = (companyProfile.legal_rep ?? {}) as Record<string, string | number | undefined>;
   const str = (v: unknown) => (v === undefined || v === null ? "" : String(v));
 
+  /** Legacy free-text time zones ("UTC+02:00") are mapped onto a canonical RU zone. */
+  const rawTimeZone = str(companyProfile.time_zone).trim();
+  const normalizedTimeZone = useMemo(() => {
+    const canonical = normalizeRuTimeZone(rawTimeZone);
+    return RU_TIME_ZONES.some((z) => z.value === canonical) ? canonical : "";
+  }, [rawTimeZone]);
+
   /**
    * Auto-populate the fields that follow from the property address (city, postal
    * code, country) so the operator only fills them when they differ. Blank fields
