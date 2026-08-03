@@ -231,7 +231,24 @@ export function RuCurrencyPanel() {
               <p className="text-lg font-semibold">{converted.length}</p>
               <p className="text-[11px] text-muted-foreground">of {properties.length} RU-connected properties</p>
             </div>
+            <div className="rounded-md border border-border p-3">
+              <p className="text-[11px] uppercase text-muted-foreground">RU-confirmed drift</p>
+              <p className="text-lg font-semibold">{drifted.length}</p>
+              <p className="text-[11px] text-muted-foreground">
+                {unverified.length} never read back from RU
+              </p>
+            </div>
           </div>
+
+          {drifted.length > 0 && (
+            <Alert variant="destructive">
+              <AlertDescription className="text-xs">
+                Rentals United reports a different currency to the one ROLOS publishes for{" "}
+                <strong>{drifted.map((p) => p.name).join(", ")}</strong>. RU applies a location's currency to the
+                authenticating account only — re-push these as the owning white-label sub-user, then verify again.
+              </AlertDescription>
+            </Alert>
+          )}
 
           {cache.count === 0 && (
             <Alert>
@@ -249,6 +266,10 @@ export function RuCurrencyPanel() {
               {busy === "refresh" ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="mr-2 h-3.5 w-3.5" />}
               Refresh locations &amp; FX
             </Button>
+            <Button size="sm" variant="outline" onClick={verify} disabled={busy !== null}>
+              {busy === "verify" ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="mr-2 h-3.5 w-3.5" />}
+              Verify at RU {selected.length ? `(${selected.length})` : "(all)"}
+            </Button>
             <Button size="sm" variant="outline" onClick={() => reconcile(true)} disabled={busy !== null}>
               {busy === "dry" ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : null}
               Dry run {selected.length ? `(${selected.length})` : "(all)"}
@@ -258,6 +279,7 @@ export function RuCurrencyPanel() {
               Reconcile &amp; re-push {selected.length ? `(${selected.length})` : "(all)"}
             </Button>
           </div>
+
         </CardContent>
       </Card>
 
