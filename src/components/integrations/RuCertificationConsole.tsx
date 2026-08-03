@@ -759,7 +759,12 @@ export function RuCertificationConsole({ properties }: { properties: PropertyLit
           </div>
           <Button onClick={runSuite} disabled={running || cooling || (activeSuite.requiresProperty && propertyId === "none")} className="gap-2">
             {running ? <RefreshCw className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
-            {cooling ? `Rate limit — ${cooldownSeconds}s` : "Run suite"}
+            {cooling
+              ? `Rate limit — ${cooldownSeconds}s`
+              : phaseProgress
+                ? `Phase ${phaseProgress.index}/${phaseProgress.total} — ${PHASE_LABELS[phaseProgress.label] ?? phaseProgress.label}`
+                : "Run suite"}
+
           </Button>
         </CardContent>
         <CardContent className="pt-0 space-y-1">
