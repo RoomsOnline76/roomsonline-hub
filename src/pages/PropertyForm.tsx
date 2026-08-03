@@ -142,6 +142,8 @@ import {
   type PropertySectionKey,
 } from "@/config/propertySectionOrder";
 import { PropertySectionRail } from "@/components/property/PropertySectionRail";
+import RUAmenityPicker from "@/components/property/RUAmenityPicker";
+import { ROLOS_ONLY_FACILITY_GROUPS } from "@/lib/rolosOnlyFacilities";
 
 
 // Schema factory to handle conditional address validation
