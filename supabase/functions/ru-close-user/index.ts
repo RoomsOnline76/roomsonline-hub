@@ -269,8 +269,12 @@ Deno.serve(async (req) => {
       }, 422);
     }
 
+    // Archived sub-users can never authenticate again — drop their stored key pair.
+    await admin.from("ru_api_credentials").delete().eq("ru_owner_id", ownerId);
+
     // Clear local bind so Phase 1 can create a fresh sub-user (only if a local row holds this OwnerID)
     let localCleared = false;
+
     if (account?.id && String(account.ru_owner_id ?? "").trim() === ownerId) {
       const localPatch: Record<string, unknown> = {
         ru_owner_id: null,
