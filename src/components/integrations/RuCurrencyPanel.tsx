@@ -59,7 +59,7 @@ export function RuCurrencyPanel() {
         supabase.from("ru_locations").select("id", { count: "exact", head: true }).eq("currency_iso", "ZAR"),
         supabase
           .from("ru_fx_rates")
-          .select("rate, margin_pct:rate, fetched_at")
+          .select("rate, fetched_at")
           .eq("base_iso", "ZAR")
           .eq("quote_iso", "USD")
           .order("fetched_at", { ascending: false })
