@@ -1508,9 +1508,18 @@ Deno.serve(async (req) => {
             return String(secret);
           };
 
+          // Highest priority: keys supplied with this request (one-off manual recovery).
+          const reqKey = typeof body.ru_api_access_key === "string" ? body.ru_api_access_key.trim() : "";
+          const reqSecret = typeof body.ru_api_secret_key === "string" ? body.ru_api_secret_key.trim() : "";
+          if (reqKey && reqSecret) {
+            childAccessKey = reqKey;
+            childSecretKey = reqSecret;
+          }
+
           // Preferred: keys stored against this RU OwnerID
           const boundOwnerId = String(account.ru_owner_id ?? "").trim();
-          if (boundOwnerId) {
+          if (!childAccessKey && boundOwnerId) {
+
             const { data: credRow } = await admin
               .from("ru_api_credentials")
               .select("access_key, secret_enc")
