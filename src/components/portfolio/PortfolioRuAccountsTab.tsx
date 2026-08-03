@@ -443,15 +443,23 @@ export function PortfolioRuAccountsTab() {
   }, []);
 
 
-  /** Store (and validate) the sub-user's own RU API key pair. */
+  /** Store (and validate) the sub-user's own RU API key pair, keyed on its RU OwnerID. */
   const saveApiKeys = useCallback(async () => {
     if (!keysFor) return;
+    if (!keyOwnerId.trim()) {
+      toast.error("Pick the RU sub-user (OwnerID) these keys belong to");
+      return;
+    }
     setSavingKeys(true);
     try {
+      const targetEmail =
+        keyCandidates.find((u) => u.owner_id === keyOwnerId.trim())?.email || keysFor.email;
       const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
         body: {
           action: "save_api_keys",
           account_id: keysFor.id,
+          ru_owner_id: keyOwnerId.trim(),
+          login_email: targetEmail,
           access_key: keyAccess.trim(),
           secret_key: keySecret.trim(),
           key_label: keyLabel.trim() || null,
@@ -464,20 +472,20 @@ export function PortfolioRuAccountsTab() {
         );
         return;
       }
-      toast.success("API keys stored and verified against Rentals United");
+      toast.success(`API keys stored for OwnerID ${keyOwnerId.trim()} and verified against Rentals United`);
       setKeysFor(null);
-      await refreshAccounts();
+      await Promise.all([refreshAccounts(), refreshStoredKeys()]);
     } finally {
       setSavingKeys(false);
     }
-  }, [keysFor, keyAccess, keySecret, keyLabel, refreshAccounts]);
+  }, [keysFor, keyOwnerId, keyCandidates, keyAccess, keySecret, keyLabel, refreshAccounts, refreshStoredKeys]);
 
   /** Re-test the stored key pair on RU's XML surface. */
-  const verifyApiKeys = useCallback(async (accountId: string) => {
+  const verifyApiKeys = useCallback(async (accountId: string, ownerId?: string | null) => {
     setVerifyingKeys(accountId);
     try {
       const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
-        body: { action: "verify_api_keys", account_id: accountId },
+        body: { action: "verify_api_keys", account_id: accountId, ru_owner_id: ownerId ?? undefined },
       });
       if (error || !data?.success) {
         toast.error(
@@ -487,18 +495,23 @@ export function PortfolioRuAccountsTab() {
       } else {
         toast.success("Rentals United accepted the sub-user API keys");
       }
-      await refreshAccounts();
+      await Promise.all([refreshAccounts(), refreshStoredKeys()]);
     } finally {
       setVerifyingKeys(null);
     }
-  }, [refreshAccounts]);
+  }, [refreshAccounts, refreshStoredKeys]);
 
   /** Mint an additional key pair through the RU API (needs a working credential already). */
-  const createApiKey = useCallback(async (accountId: string) => {
+  const createApiKey = useCallback(async (accountId: string, ownerId?: string | null) => {
     setCreatingKey(accountId);
     try {
       const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
-        body: { action: "create_api_key", account_id: accountId, key_label: "ROLOS" },
+        body: {
+          action: "create_api_key",
+          account_id: accountId,
+          ru_owner_id: ownerId ?? undefined,
+          key_label: "ROLOS",
+        },
       });
       if (error || !data?.success) {
         toast.error(
@@ -508,11 +521,12 @@ export function PortfolioRuAccountsTab() {
         return;
       }
       toast.success(`New API key created (${data.access_key})`);
-      await refreshAccounts();
+      await Promise.all([refreshAccounts(), refreshStoredKeys()]);
     } finally {
       setCreatingKey(null);
     }
-  }, [refreshAccounts]);
+  }, [refreshAccounts, refreshStoredKeys]);
+
 
   const openReset = useCallback((accountId: string, email: string) => {
     setResetFor({ id: accountId, email });
