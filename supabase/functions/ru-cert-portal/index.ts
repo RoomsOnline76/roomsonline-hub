@@ -2393,22 +2393,24 @@ Deno.serve(async (req) => {
       }
 
 
+      const PROPERTY_SKIP = "Property-scoped check — select a ROLOS property to run it.";
+
       if (runReadOnly) {
-        await call("Credentials & connectivity", "health_check", {}, { mandatory: true });
+        await call("Credentials & connectivity", "health_check", {}, { mandatory: true, scope: "account" });
+        await call("List properties", "list_properties", {}, { mandatory: true, scope: "account" });
 
-        const list = await call("List properties", "list_properties", {}, { mandatory: true });
-        if (!ruPropertyId && Array.isArray(list?.properties) && list.properties.length > 0) {
-          ruPropertyId = Number(list.properties[0].id ?? list.properties[0]);
-        }
-        const propScoped = ruPropertyId ? undefined : "No RU property available on the account.";
+        // Property-scoped reads must only run against the SELECTED property. Never borrow
+        // the first RUID the account returns — that grades an unrelated property.
+        const propScoped = ruPropertyId ? undefined : PROPERTY_SKIP;
 
-        await call("Get property content", "get_property", { ru_property_id: ruPropertyId }, { mandatory: true, skip: propScoped });
+        await call("Get property content", "get_property", { ru_property_id: ruPropertyId }, { mandatory: true, scope: "property", skip: propScoped });
         await call(
           "Get availability (365 days)",
           "get_availability",
           { ru_property_id: ruPropertyId, date_from: isoDate(0), date_to: isoDate(365) },
           {
             mandatory: true,
+            scope: "property",
             skip: propScoped,
             assert: (d) => (/<CalendarDay/i.test(String(d?.raw_xml ?? "")) ? null : "No calendar days returned for the next 365 days"),
           },
@@ -2419,41 +2421,50 @@ Deno.serve(async (req) => {
           { ru_property_id: ruPropertyId, date_from: isoDate(0), date_to: isoDate(365) },
           {
             mandatory: true,
+            scope: "property",
             skip: propScoped,
             assert: (d) => (/<Season/i.test(String(d?.raw_xml ?? "")) ? null : "No price seasons returned for the next 365 days"),
           },
         );
-        await call("List reservations (last 7 days)", "list_reservations", { date_from: isoDate(-7), date_to: isoDate(0) }, { mandatory: true });
-        await call("Get leads (optional)", "get_leads", { date_from: isoDate(-7), date_to: isoDate(0) }, { mandatory: false });
+        await call("List reservations (last 7 days)", "list_reservations", { date_from: isoDate(-7), date_to: isoDate(0) }, { mandatory: true, scope: "account" });
+        await call("Get leads (optional)", "get_leads", { date_from: isoDate(-7), date_to: isoDate(0) }, { mandatory: false, scope: "account" });
         await call(
           "List owner buildings",
           "list_buildings",
           { owner_id: certOwnerId },
           {
             mandatory: false,
-            skip: !certOwnerId
-              ? "No RU sub-user (OwnerID) bound — buildings are read under the sub-user's own API keys."
-              : !certOwnerHasKeys
-                ? `No API keys stored for OwnerID ${certOwnerId} — generate them in the RU dashboard (Security settings) and save them in Portfolios → RU accounts.`
-                : undefined,
+            scope: "property",
+            skip: !propertyId
+              ? PROPERTY_SKIP
+              : !certOwnerId
+                ? "No RU sub-user (OwnerID) bound — buildings are read under the sub-user's own API keys."
+                : !certOwnerHasKeys
+                  ? `No API keys stored for OwnerID ${certOwnerId} — generate them in the RU dashboard (Security settings) and save them in Portfolios → RU accounts.`
+                  : undefined,
           },
         );
 
-        await call("List composition rooms", "list_composition_rooms", {}, { mandatory: false });
-        await call("List cities & currencies", "list_cities_and_currencies", {}, { mandatory: false });
-        await call("Resolve location by coordinates", "get_location_by_coordinates", { latitude: -34.0333, longitude: 21.35 }, { mandatory: false });
+        await call("List composition rooms", "list_composition_rooms", {}, { mandatory: false, scope: "account" });
+        await call("List cities & currencies", "list_cities_and_currencies", {}, { mandatory: false, scope: "account" });
+        await call("Resolve location by coordinates", "get_location_by_coordinates", { latitude: -34.0333, longitude: 21.35 }, { mandatory: false, scope: "account" });
       }
 
       if (runMandatory) {
         const handlerUrl = `${supabaseUrl}/functions/v1/ru-reservation-handler`;
-        await call("Subscribe RLNM handler", "subscribe_notifications", { handler_url: handlerUrl }, { mandatory: true });
+        await call("Subscribe RLNM handler", "subscribe_notifications", { handler_url: handlerUrl }, { mandatory: true, scope: "account" });
 
         if (!propertyId) {
-          stepNo += 1;
-          steps.push({
-            step: stepNo, name: "Push property content", ru_method: "Push_PutProperty_RQ", mandatory: true,
-            status: "skipped", duration_ms: 0, detail: "Select a ROLOS property to run the push suite.",
-          });
+          for (const [name, method] of [
+            ["Push property content", "Push_PutProperty_RQ"],
+            ["Push availability + prices (ARI)", "Push_PutAvbUnits_RQ + Push_PutPrices_RQ"],
+          ] as [string, string][]) {
+            stepNo += 1;
+            steps.push({
+              step: stepNo, name, ru_method: method, mandatory: true, scope: "property",
+              status: "skipped", duration_ms: 0, detail: PROPERTY_SKIP,
+            });
+          }
         } else {
           // Content + ARI push via the property pipeline (keeps payload mapping in one place)
           for (const [name, fnBody, method] of [
@@ -2465,7 +2476,7 @@ Deno.serve(async (req) => {
             const { data, error } = await admin.functions.invoke("push-property-to-ru", { body: fnBody });
             const ok = !error && data?.success === true;
             steps.push({
-              step: stepNo, name, ru_method: method, mandatory: true,
+              step: stepNo, name, ru_method: method, mandatory: true, scope: "property",
               status: ok ? "passed" : "failed",
               duration_ms: Date.now() - t0,
               detail: error?.message ?? data?.error?.message ?? (ok ? "OK" : "Push failed"),
@@ -2475,18 +2486,18 @@ Deno.serve(async (req) => {
           }
 
           // Read-back verification
-          await call("Verify content read-back", "get_property", { ru_property_id: ruPropertyId }, { mandatory: true, skip: noProp });
+          await call("Verify content read-back", "get_property", { ru_property_id: ruPropertyId }, { mandatory: true, scope: "property", skip: noProp });
           await call(
             "Verify availability read-back",
             "get_availability",
             { ru_property_id: ruPropertyId, date_from: isoDate(0), date_to: isoDate(365) },
-            { mandatory: true, skip: noProp },
+            { mandatory: true, scope: "property", skip: noProp },
           );
           await call(
             "Verify prices read-back",
             "get_prices",
             { ru_property_id: ruPropertyId, date_from: isoDate(0), date_to: isoDate(365) },
-            { mandatory: true, skip: noProp },
+            { mandatory: true, scope: "property", skip: noProp },
           );
         }
       }
