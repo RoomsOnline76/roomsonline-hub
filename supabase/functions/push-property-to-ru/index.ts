@@ -2000,6 +2000,97 @@ Deno.serve(async (req) => {
     //   (b) compare ru_locations.currency_iso to the property's expected ISO
     //   (c) if mismatched → Push_ChangeCurrency_RQ to flip the location
     //   (d) re-push the property so the new currency takes effect on the property record
+    // Read-back only: ask RU what currency it actually holds for each listing, as the
+    // owning sub-user. No pushes, no flips — this is how we prove a flip landed instead
+    // of trusting our own cache (which is what previously reported green while RU sat on USD).
+    if (action === 'verify_ru_currency') {
+      const targetIds: string[] | undefined = Array.isArray(reqBody.property_ids) ? reqBody.property_ids : undefined;
+      const { data: props } = await supabase
+        .from('properties')
+        .select('id, name, owner_email, country, amenities, ru_location_id, rentalsunited_property_id, rentalsunited_building_id')
+        .or('rentalsunited_property_id.not.is.null,rentalsunited_building_id.not.is.null');
+
+      const targets = (props ?? []).filter((p: any) => !targetIds || targetIds.includes(p.id));
+      const results: any[] = [];
+
+      for (const p of targets as any[]) {
+        const phase = await evaluatePhases(supabase, p as any, { readinessGaps: [] });
+        const ownerId = phase.ru_owner_id;
+        const { account } = await findOwnerAccount(supabase, p.id, p.owner_email, phase.portfolio_id);
+        const decrypt = async (enc: unknown): Promise<string> => {
+          if (!enc) return '';
+          const { data } = await supabase.rpc('decrypt_sensitive_text', { encrypted_data: enc });
+          const plain = typeof data === 'string' ? data : '';
+          return plain && plain !== '[ENCRYPTED]' && plain !== '[DECRYPTION_ERROR]' ? plain : '';
+        };
+        let accessKey = '';
+        let secretKey = '';
+        const { data: credRow } = await supabase
+          .from('ru_api_credentials')
+          .select('access_key, secret_enc')
+          .eq('ru_owner_id', String(ownerId))
+          .maybeSingle();
+        if (credRow?.access_key) {
+          const plain = await decrypt(credRow.secret_enc);
+          if (plain) { accessKey = String(credRow.access_key); secretKey = plain; }
+        }
+        const childAuth: Record<string, unknown> = accessKey && secretKey
+          ? { owner_id: ownerId, auth_access_key: accessKey, auth_secret_key: secretKey }
+          : { owner_id: ownerId, auth_username: account?.ru_login_email?.trim() ?? '', auth_password: await decrypt(account?.ru_login_password_enc) };
+
+        // Pick a representative listing: the property RUID, else the first unit RUID.
+        let ruId = parseInt(p.rentalsunited_property_id || '0', 10);
+        if (!ruId) {
+          const { data: unit } = await supabase
+            .from('hostfully_room_types')
+            .select('rentalsunited_property_id')
+            .eq('property_id', p.id)
+            .not('rentalsunited_property_id', 'is', null)
+            .limit(1)
+            .maybeSingle();
+          ruId = parseInt(unit?.rentalsunited_property_id || '0', 10);
+        }
+        if (!ruId) {
+          results.push({ property_id: p.id, name: p.name, success: false, reason: 'no_ru_listing_id' });
+          continue;
+        }
+
+        const state = await loadCurrencyState(supabase, p.id);
+        const verification = await verifyAndRecordCurrency(supabase, {
+          propertyId: p.id,
+          locationId: Number(p.ru_location_id) || Number(state?.ru_location_id) || 0,
+          authoredIso: state?.authored_currency_iso ?? 'ZAR',
+          ruPropertyId: ruId,
+          childAuth,
+          ownerScope: String(ownerId),
+          decision: null,
+        });
+
+        results.push({
+          property_id: p.id,
+          name: p.name,
+          ru_property_id: ruId,
+          owner_scope: String(ownerId),
+          expected_iso: state?.published_currency_iso ?? state?.authored_currency_iso ?? 'ZAR',
+          ru_reported_iso: verification.ru_reported_iso ?? null,
+          matches: verification.matches === true,
+          success: verification.error ? false : true,
+          error: verification.error ?? null,
+        });
+
+        await new Promise(r => setTimeout(r, 750));
+      }
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: `Verified ${results.filter(r => r.matches).length}/${results.length} listings against Rentals United`,
+          results,
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
+
     if (action === 'reconcile_ru_location_currency') {
       const targetIds: string[] | undefined = Array.isArray(reqBody.property_ids) ? reqBody.property_ids : undefined;
       const dryRun = reqBody.dry_run === true;
