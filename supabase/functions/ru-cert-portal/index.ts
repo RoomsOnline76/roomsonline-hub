@@ -519,8 +519,10 @@ Deno.serve(async (req) => {
           label: "Daily prices pushed for the next 365 days",
           mandatory: true,
           passed: allPricesPositive,
-          ...(allPricesPositive ? {} : { detail: `RU ${target}: prices missing or not all above zero for the next 365 days` }),
-          fix_hint: "Rate Manager → Rates",
+          ...(allPricesPositive
+            ? (localCoverage ? { detail: `Local rates: ${localCoverage.summary}` } : {})
+            : { detail: `RU ${target}: prices missing or not all above zero for the next 365 days${localCoverage ? ` — local rates: ${localCoverage.summary}` : ""}` }),
+          fix_hint: "Calendar seasons & rates (first), then Rate Manager → Rates rack rate",
         });
 
         ari = {
@@ -531,6 +533,7 @@ Deno.serve(async (req) => {
           price_points: prices.length,
           availability_ok: hasAvailability,
           prices_ok: allPricesPositive,
+          rate_coverage: localCoverage,
         };
       } else {
         const detail = "Not yet published to Rentals United (no RU property ID) — ARI cannot be verified";
@@ -540,9 +543,13 @@ Deno.serve(async (req) => {
         });
         extraChecks.push({
           key: "ari_prices", group: "Pricing 365d", label: "Daily prices pushed for the next 365 days",
-          mandatory: true, passed: false, detail, fix_hint: "Push the property to Rentals United first",
+          mandatory: true, passed: false,
+          detail: localCoverage ? `${detail} — local rates: ${localCoverage.summary}` : detail,
+          fix_hint: "Push the property to Rentals United first",
         });
+        ari = { rate_coverage: localCoverage };
       }
+
 
       const summary = summarizeReadiness(units, extraChecks);
 
