@@ -522,15 +522,41 @@ export function CompanyInformationCard({
                     <Label htmlFor={f.key} className="text-xs">
                       {f.label}
                     </Label>
-                    <Input
-                      id={f.key}
-                      value={String(banking[f.key] ?? "")}
-                      onChange={(e) => onBankingChange(f.key, e.target.value)}
-                      placeholder={f.placeholder}
-                      className="h-7 text-xs"
-                    />
+                    {f.options ? (
+                      <Select
+                        value={String(banking[f.key] ?? "")}
+                        onValueChange={(v) => onBankingChange(f.key, v)}
+                      >
+                        <SelectTrigger id={f.key} className="h-7 text-xs">
+                          <SelectValue placeholder={f.placeholder} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {f.options.map((o) => (
+                            <SelectItem key={o} value={o} className="text-xs">
+                              {o}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Input
+                        id={f.key}
+                        inputMode={f.numeric ? "numeric" : undefined}
+                        value={String(banking[f.key] ?? "")}
+                        onChange={(e) =>
+                          onBankingChange(
+                            f.key,
+                            f.key === "swift_code" ? e.target.value.toUpperCase() : e.target.value,
+                          )
+                        }
+                        placeholder={f.placeholder}
+                        className="h-7 text-xs"
+                      />
+                    )}
+                    {f.hint && <Hint>{f.hint}</Hint>}
                   </div>
                 ))}
+
               </div>
             </div>
 
