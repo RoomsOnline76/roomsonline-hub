@@ -1401,6 +1401,18 @@ function buildFillCompanyDetailsXml(
   const optNode = (tag: string, val?: string | number) =>
     val !== undefined && val !== null && String(val).trim() !== '' ? `<${tag}>${escapeXml(String(val))}</${tag}>` : '';
   const locations = (company.location_ids ?? []).map((id) => `      <Location Id="${Number(id)}" />`).join('\n');
+  /**
+   * NumberOfProperties / NumberOfEmployees / YearsInBusiness are RU range option
+   * IDs. A caller that still passes a raw count is mapped onto its bucket here so
+   * "4 units" can never be stored as the 4th range ("20 - 29").
+   */
+  const rangeNode = (tag: string, ranges: RuRange[], val?: number) => {
+    if (val === undefined || val === null || !Number.isFinite(Number(val))) return '';
+    const n = Number(val);
+    const id = isRangeId(ranges, n) ? n : rangeIdForCount(ranges, n);
+    return id ? `<${tag}>${id}</${tag}>` : '';
+  };
+
   // LegalRepresentativeInfo is optional, but RU's XSD fixes the element order:
   // FirstName → LastName → Email → City → CountryOfResidenceId → Address → PostCode
   // → Birthday → NationalityId → Region.
