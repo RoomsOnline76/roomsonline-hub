@@ -25,12 +25,17 @@ const corsHeaders = {
 };
 
 type StepStatus = "passed" | "failed" | "skipped";
+type CertScope = "account" | "property";
+
+/** Minimum seconds between certification runs (RU allows ~1 call per sliding minute). */
+const RUN_COOLDOWN_SECONDS = 60;
 
 interface CertStep {
   step: number;
   name: string;
   ru_method: string;
   mandatory: boolean;
+  scope: CertScope;
   status: StepStatus;
   duration_ms: number;
   ru_status_id?: string | null;
@@ -185,20 +190,20 @@ const RU_METHOD_BY_ACTION: Record<string, string> = {
 };
 
 // Core functional certification milestones exercised on the RU certification call.
-const CERT_MILESTONES: { key: string; label: string; ru_method: string; mandatory: boolean; note: string }[] = [
-  { key: "auth", label: "Connectivity / auth", ru_method: "Pull_ListProp_RQ (health)", mandatory: true, note: "AccessKey + SecretKey working" },
-  { key: "list_properties", label: "List properties", ru_method: "Pull_ListProp_RQ", mandatory: true, note: "Pull_ListOwnerProp_RQ equivalent" },
-  { key: "get_property", label: "Get property content", ru_method: "Pull_GetProperty_RQ", mandatory: true, note: "Read-back verification (Pull_ListSpecProp_RQ)" },
-  { key: "get_availability", label: "Get availability (365d)", ru_method: "Pull_ListPropertyAvailabilityCalendar_RQ", mandatory: true, note: "" },
-  { key: "get_prices", label: "Get prices (365d)", ru_method: "Pull_ListPropertyPrices_RQ", mandatory: true, note: "" },
-  { key: "push_property", label: "Push property content", ru_method: "Push_PutProperty_RQ", mandatory: true, note: "Create + update" },
-  { key: "push_availability", label: "Push availability", ru_method: "Push_PutAvbUnits_RQ", mandatory: true, note: "" },
-  { key: "push_prices", label: "Push prices", ru_method: "Push_PutPrices_RQ", mandatory: true, note: "" },
-  { key: "rlnm", label: "Subscribe RLNM handler", ru_method: "LNM_PutHandlerUrl_RQ", mandatory: true, note: "Live notifications" },
-  { key: "reservations", label: "Pull reservations", ru_method: "Pull_ListReservations_RQ", mandatory: true, note: "" },
-  { key: "leads", label: "Pull leads", ru_method: "Pull_GetLeads_RQ", mandatory: false, note: "Optional" },
-  { key: "long_stay", label: "Long-stay discounts", ru_method: "Push_PutLongStayDiscounts_RQ", mandatory: false, note: "Optional but recommended" },
-  { key: "last_minute", label: "Last-minute discounts", ru_method: "Push_PutLastMinuteDiscounts_RQ", mandatory: false, note: "Optional but recommended" },
+const CERT_MILESTONES: { key: string; label: string; ru_method: string; mandatory: boolean; scope: CertScope; note: string }[] = [
+  { key: "auth", label: "Connectivity / auth", ru_method: "Pull_ListProp_RQ (health)", mandatory: true, scope: "account", note: "AccessKey + SecretKey working" },
+  { key: "list_properties", label: "List properties", ru_method: "Pull_ListProp_RQ", mandatory: true, scope: "account", note: "Pull_ListOwnerProp_RQ equivalent" },
+  { key: "get_property", label: "Get property content", ru_method: "Pull_GetProperty_RQ", mandatory: true, scope: "property", note: "Read-back verification (Pull_ListSpecProp_RQ)" },
+  { key: "get_availability", label: "Get availability (365d)", ru_method: "Pull_ListPropertyAvailabilityCalendar_RQ", mandatory: true, scope: "property", note: "" },
+  { key: "get_prices", label: "Get prices (365d)", ru_method: "Pull_ListPropertyPrices_RQ", mandatory: true, scope: "property", note: "" },
+  { key: "push_property", label: "Push property content", ru_method: "Push_PutProperty_RQ", mandatory: true, scope: "property", note: "Create + update" },
+  { key: "push_availability", label: "Push availability", ru_method: "Push_PutAvbUnits_RQ", mandatory: true, scope: "property", note: "" },
+  { key: "push_prices", label: "Push prices", ru_method: "Push_PutPrices_RQ", mandatory: true, scope: "property", note: "" },
+  { key: "rlnm", label: "Subscribe RLNM handler", ru_method: "LNM_PutHandlerUrl_RQ", mandatory: true, scope: "account", note: "Live notifications" },
+  { key: "reservations", label: "Pull reservations", ru_method: "Pull_ListReservations_RQ", mandatory: true, scope: "account", note: "" },
+  { key: "leads", label: "Pull leads", ru_method: "Pull_GetLeads_RQ", mandatory: false, scope: "account", note: "Optional" },
+  { key: "long_stay", label: "Long-stay discounts", ru_method: "Push_PutLongStayDiscounts_RQ", mandatory: false, scope: "property", note: "Optional but recommended" },
+  { key: "last_minute", label: "Last-minute discounts", ru_method: "Push_PutLastMinuteDiscounts_RQ", mandatory: false, scope: "property", note: "Optional but recommended" },
 ];
 
 
@@ -2239,6 +2244,36 @@ Deno.serve(async (req) => {
       const suite: string = body.suite ?? "read_only";
       const propertyId: string | null = body.property_id ?? null;
 
+      // ── Rate-limit guard: RU tolerates ~1 call per sliding minute, and a suite fires
+      // several. Refuse a new run while the previous one is inside the cooldown window.
+      {
+        const { data: lastRun } = await admin
+          .from("ru_cert_runs")
+          .select("started_at")
+          .order("started_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (lastRun?.started_at) {
+          const elapsed = (Date.now() - new Date(lastRun.started_at).getTime()) / 1000;
+          const remaining = Math.ceil(RUN_COOLDOWN_SECONDS - elapsed);
+          if (remaining > 0) {
+            return json(
+              {
+                success: false,
+                cooldown_seconds: remaining,
+                error: {
+                  code: "RATE_LIMITED",
+                  message: `Rentals United allows one call per sliding minute — wait ${remaining}s before running again.`,
+                },
+              },
+              429,
+            );
+          }
+        }
+      }
+
+
+
       // Resolve an RU property id for property-scoped calls
       let ruPropertyId: number | null = body.ru_property_id ? Number(body.ru_property_id) : null;
       let propertyRow: { id: string; name: string; rentalsunited_property_id: string | null } | null = null;
@@ -2282,12 +2317,13 @@ Deno.serve(async (req) => {
         name: string,
         ruAction: string,
         payload: Record<string, unknown>,
-        opts: { mandatory?: boolean; skip?: string; assert?: (data: any) => string | null } = {},
+        opts: { mandatory?: boolean; scope?: CertScope; skip?: string; assert?: (data: any) => string | null } = {},
       ) => {
         stepNo += 1;
         const ru_method = RU_METHOD_BY_ACTION[ruAction] ?? ruAction;
+        const scope: CertScope = opts.scope ?? "account";
         if (opts.skip) {
-          steps.push({ step: stepNo, name, ru_method, mandatory: !!opts.mandatory, status: "skipped", duration_ms: 0, detail: opts.skip });
+          steps.push({ step: stepNo, name, ru_method, mandatory: !!opts.mandatory, scope, status: "skipped", duration_ms: 0, detail: opts.skip });
           return null;
         }
         const t0 = Date.now();
@@ -2297,7 +2333,7 @@ Deno.serve(async (req) => {
           });
           const duration = Date.now() - t0;
           if (error) {
-            steps.push({ step: stepNo, name, ru_method, mandatory: !!opts.mandatory, status: "failed", duration_ms: duration, detail: error.message, request: payload });
+            steps.push({ step: stepNo, name, ru_method, mandatory: !!opts.mandatory, scope, status: "failed", duration_ms: duration, detail: error.message, request: payload });
             return null;
           }
           const ok = data?.success === true || data?.healthy === true;
@@ -2307,6 +2343,7 @@ Deno.serve(async (req) => {
             name,
             ru_method,
             mandatory: !!opts.mandatory,
+            scope,
             status: ok && !assertFail ? "passed" : "failed",
             duration_ms: duration,
             ru_status_id: data?.ru_status_id ?? data?.error?.ru_status_id ?? null,
@@ -2321,6 +2358,7 @@ Deno.serve(async (req) => {
             name,
             ru_method,
             mandatory: !!opts.mandatory,
+            scope,
             status: "failed",
             duration_ms: Date.now() - t0,
             detail: e instanceof Error ? e.message : "Unknown error",
@@ -2355,22 +2393,24 @@ Deno.serve(async (req) => {
       }
 
 
+      const PROPERTY_SKIP = "Property-scoped check — select a ROLOS property to run it.";
+
       if (runReadOnly) {
-        await call("Credentials & connectivity", "health_check", {}, { mandatory: true });
+        await call("Credentials & connectivity", "health_check", {}, { mandatory: true, scope: "account" });
+        await call("List properties", "list_properties", {}, { mandatory: true, scope: "account" });
 
-        const list = await call("List properties", "list_properties", {}, { mandatory: true });
-        if (!ruPropertyId && Array.isArray(list?.properties) && list.properties.length > 0) {
-          ruPropertyId = Number(list.properties[0].id ?? list.properties[0]);
-        }
-        const propScoped = ruPropertyId ? undefined : "No RU property available on the account.";
+        // Property-scoped reads must only run against the SELECTED property. Never borrow
+        // the first RUID the account returns — that grades an unrelated property.
+        const propScoped = ruPropertyId ? undefined : PROPERTY_SKIP;
 
-        await call("Get property content", "get_property", { ru_property_id: ruPropertyId }, { mandatory: true, skip: propScoped });
+        await call("Get property content", "get_property", { ru_property_id: ruPropertyId }, { mandatory: true, scope: "property", skip: propScoped });
         await call(
           "Get availability (365 days)",
           "get_availability",
           { ru_property_id: ruPropertyId, date_from: isoDate(0), date_to: isoDate(365) },
           {
             mandatory: true,
+            scope: "property",
             skip: propScoped,
             assert: (d) => (/<CalendarDay/i.test(String(d?.raw_xml ?? "")) ? null : "No calendar days returned for the next 365 days"),
           },
@@ -2381,41 +2421,50 @@ Deno.serve(async (req) => {
           { ru_property_id: ruPropertyId, date_from: isoDate(0), date_to: isoDate(365) },
           {
             mandatory: true,
+            scope: "property",
             skip: propScoped,
             assert: (d) => (/<Season/i.test(String(d?.raw_xml ?? "")) ? null : "No price seasons returned for the next 365 days"),
           },
         );
-        await call("List reservations (last 7 days)", "list_reservations", { date_from: isoDate(-7), date_to: isoDate(0) }, { mandatory: true });
-        await call("Get leads (optional)", "get_leads", { date_from: isoDate(-7), date_to: isoDate(0) }, { mandatory: false });
+        await call("List reservations (last 7 days)", "list_reservations", { date_from: isoDate(-7), date_to: isoDate(0) }, { mandatory: true, scope: "account" });
+        await call("Get leads (optional)", "get_leads", { date_from: isoDate(-7), date_to: isoDate(0) }, { mandatory: false, scope: "account" });
         await call(
           "List owner buildings",
           "list_buildings",
           { owner_id: certOwnerId },
           {
             mandatory: false,
-            skip: !certOwnerId
-              ? "No RU sub-user (OwnerID) bound — buildings are read under the sub-user's own API keys."
-              : !certOwnerHasKeys
-                ? `No API keys stored for OwnerID ${certOwnerId} — generate them in the RU dashboard (Security settings) and save them in Portfolios → RU accounts.`
-                : undefined,
+            scope: "property",
+            skip: !propertyId
+              ? PROPERTY_SKIP
+              : !certOwnerId
+                ? "No RU sub-user (OwnerID) bound — buildings are read under the sub-user's own API keys."
+                : !certOwnerHasKeys
+                  ? `No API keys stored for OwnerID ${certOwnerId} — generate them in the RU dashboard (Security settings) and save them in Portfolios → RU accounts.`
+                  : undefined,
           },
         );
 
-        await call("List composition rooms", "list_composition_rooms", {}, { mandatory: false });
-        await call("List cities & currencies", "list_cities_and_currencies", {}, { mandatory: false });
-        await call("Resolve location by coordinates", "get_location_by_coordinates", { latitude: -34.0333, longitude: 21.35 }, { mandatory: false });
+        await call("List composition rooms", "list_composition_rooms", {}, { mandatory: false, scope: "account" });
+        await call("List cities & currencies", "list_cities_and_currencies", {}, { mandatory: false, scope: "account" });
+        await call("Resolve location by coordinates", "get_location_by_coordinates", { latitude: -34.0333, longitude: 21.35 }, { mandatory: false, scope: "account" });
       }
 
       if (runMandatory) {
         const handlerUrl = `${supabaseUrl}/functions/v1/ru-reservation-handler`;
-        await call("Subscribe RLNM handler", "subscribe_notifications", { handler_url: handlerUrl }, { mandatory: true });
+        await call("Subscribe RLNM handler", "subscribe_notifications", { handler_url: handlerUrl }, { mandatory: true, scope: "account" });
 
         if (!propertyId) {
-          stepNo += 1;
-          steps.push({
-            step: stepNo, name: "Push property content", ru_method: "Push_PutProperty_RQ", mandatory: true,
-            status: "skipped", duration_ms: 0, detail: "Select a ROLOS property to run the push suite.",
-          });
+          for (const [name, method] of [
+            ["Push property content", "Push_PutProperty_RQ"],
+            ["Push availability + prices (ARI)", "Push_PutAvbUnits_RQ + Push_PutPrices_RQ"],
+          ] as [string, string][]) {
+            stepNo += 1;
+            steps.push({
+              step: stepNo, name, ru_method: method, mandatory: true, scope: "property",
+              status: "skipped", duration_ms: 0, detail: PROPERTY_SKIP,
+            });
+          }
         } else {
           // Content + ARI push via the property pipeline (keeps payload mapping in one place)
           for (const [name, fnBody, method] of [
@@ -2427,7 +2476,7 @@ Deno.serve(async (req) => {
             const { data, error } = await admin.functions.invoke("push-property-to-ru", { body: fnBody });
             const ok = !error && data?.success === true;
             steps.push({
-              step: stepNo, name, ru_method: method, mandatory: true,
+              step: stepNo, name, ru_method: method, mandatory: true, scope: "property",
               status: ok ? "passed" : "failed",
               duration_ms: Date.now() - t0,
               detail: error?.message ?? data?.error?.message ?? (ok ? "OK" : "Push failed"),
@@ -2437,18 +2486,18 @@ Deno.serve(async (req) => {
           }
 
           // Read-back verification
-          await call("Verify content read-back", "get_property", { ru_property_id: ruPropertyId }, { mandatory: true, skip: noProp });
+          await call("Verify content read-back", "get_property", { ru_property_id: ruPropertyId }, { mandatory: true, scope: "property", skip: noProp });
           await call(
             "Verify availability read-back",
             "get_availability",
             { ru_property_id: ruPropertyId, date_from: isoDate(0), date_to: isoDate(365) },
-            { mandatory: true, skip: noProp },
+            { mandatory: true, scope: "property", skip: noProp },
           );
           await call(
             "Verify prices read-back",
             "get_prices",
             { ru_property_id: ruPropertyId, date_from: isoDate(0), date_to: isoDate(365) },
-            { mandatory: true, skip: noProp },
+            { mandatory: true, scope: "property", skip: noProp },
           );
         }
       }
@@ -2492,7 +2541,7 @@ Deno.serve(async (req) => {
           "Push long-stay discounts",
           "push_long_stay_discounts",
           { ru_property_id: ruPropertyId, discounts: mapLongStay(longStay) },
-          { mandatory: false, skip: noProp ?? (longStay.length === 0 ? "No active long-stay discounts configured for this property." : undefined) },
+          { mandatory: false, scope: "property", skip: noProp ?? (longStay.length === 0 ? "No active long-stay discounts configured for this property." : undefined) },
         );
         await call(
           "Verify long-stay discounts",
@@ -2500,6 +2549,7 @@ Deno.serve(async (req) => {
           { ru_property_id: ruPropertyId },
           {
             mandatory: false,
+            scope: "property",
             skip: noProp ?? (longStay.length === 0 ? "Nothing pushed." : undefined),
             assert: (d) => (/<LongStay/i.test(String(d?.raw_xml ?? "")) ? null : "RU did not echo any long-stay discounts"),
           },
@@ -2509,7 +2559,7 @@ Deno.serve(async (req) => {
           "Push last-minute discounts",
           "push_last_minute_discounts",
           { ru_property_id: ruPropertyId, discounts: mapLastMinute(lastMinute) },
-          { mandatory: false, skip: noProp ?? (lastMinute.length === 0 ? "No active last-minute discounts configured for this property." : undefined) },
+          { mandatory: false, scope: "property", skip: noProp ?? (lastMinute.length === 0 ? "No active last-minute discounts configured for this property." : undefined) },
         );
         await call(
           "Verify last-minute discounts",
@@ -2517,6 +2567,7 @@ Deno.serve(async (req) => {
           { ru_property_id: ruPropertyId },
           {
             mandatory: false,
+            scope: "property",
             skip: noProp ?? (lastMinute.length === 0 ? "Nothing pushed." : undefined),
             assert: (d) => (/<LastMinute/i.test(String(d?.raw_xml ?? "")) ? null : "RU did not echo any last-minute discounts"),
           },
