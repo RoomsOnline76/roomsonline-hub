@@ -1823,6 +1823,11 @@ Deno.serve(async (req) => {
         let propertyRuLocationId: number | null = null;
 
         let sourcePropertyId: string | null = propertyId ?? null;
+        // Company Information is authored per property, but the RU company profile is
+        // account-wide. Merge every portfolio member's profile (the selected property
+        // wins on conflicts) so a richer dataset entered on ANY member still reaches the
+        // sub-user — previously we grabbed an arbitrary member and sent a thin payload.
+        let mergedPortfolioProfile: Record<string, unknown> | null = null;
         if (portfolioId) {
           const { data: pf } = await admin
             .from("property_portfolios")
@@ -1830,6 +1835,40 @@ Deno.serve(async (req) => {
             .eq("id", portfolioId)
             .maybeSingle();
           companyName = pf?.name || companyName;
+
+          const { data: members } = await admin
+            .from("property_portfolio_members")
+            .select("property_id, properties!inner(id, amenities)")
+            .eq("portfolio_id", portfolioId);
+
+          const withProfile: { id: string; profile: Record<string, unknown> }[] = [];
+          for (const row of (members ?? []) as any[]) {
+            const am = row?.properties?.amenities;
+            const rcp = am && typeof am === "object" ? (am as Record<string, unknown>).ru_company_profile : null;
+            if (rcp && typeof rcp === "object" && Object.keys(rcp as object).length > 0) {
+              withProfile.push({ id: row.properties.id as string, profile: rcp as Record<string, unknown> });
+            }
+          }
+          if (withProfile.length > 0) {
+            // Selected property last so its values win the merge.
+            const ordered = [
+              ...withProfile.filter((w) => w.id !== sourcePropertyId),
+              ...withProfile.filter((w) => w.id === sourcePropertyId),
+            ];
+            mergedPortfolioProfile = {};
+            for (const w of ordered) {
+              for (const [k, v] of Object.entries(w.profile)) {
+                if (v === null || v === undefined || (typeof v === "string" && v.trim() === "")) continue;
+                if (k === "legal_rep" && typeof v === "object") {
+                  mergedPortfolioProfile[k] = { ...((mergedPortfolioProfile[k] as object) ?? {}), ...(v as object) };
+                  continue;
+                }
+                mergedPortfolioProfile[k] = v;
+              }
+            }
+          }
+          // Prefer an address source that actually has Company Information filled in.
+          if (!sourcePropertyId) sourcePropertyId = withProfile[0]?.id ?? null;
           if (!sourcePropertyId) {
             const { data: member } = await admin
               .from("property_portfolio_members")
@@ -1865,6 +1904,11 @@ Deno.serve(async (req) => {
             .maybeSingle();
           phone = (contact as any)?.phone ?? phone;
         }
+        // Portfolio-wide extras underpin the selected property's own profile.
+        if (mergedPortfolioProfile) {
+          propertyProfile = { ...mergedPortfolioProfile, ...(propertyProfile ?? {}) };
+        }
+
         if (!companyName) return { sent: false, error: "No company/portfolio name to submit" };
 
         const countryId = await locationIdByName(country || "South Africa");
