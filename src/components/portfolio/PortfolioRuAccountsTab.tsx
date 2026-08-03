@@ -1484,7 +1484,7 @@ export function PortfolioRuAccountsTab() {
             <Button variant="ghost" size="sm" onClick={() => setKeysFor(null)}>Cancel</Button>
             <Button
               size="sm"
-              disabled={!keyAccess.trim() || !keySecret.trim() || savingKeys}
+              disabled={!keyAccess.trim() || !keySecret.trim() || !keyOwnerId.trim() || savingKeys}
               onClick={saveApiKeys}
             >
               {savingKeys && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
