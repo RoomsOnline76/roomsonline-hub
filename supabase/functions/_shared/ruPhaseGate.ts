@@ -235,8 +235,24 @@ export async function evaluatePhases(
     .maybeSingle();
 
   // ── Phase 3 ──
+  // Multi-unit properties are pushed standalone: each unit carries its own RU PropertyID and
+  // the property row stays null (building links are retired on purpose). Count those unit IDs,
+  // otherwise a fully pushed multi-unit property never leaves phase 3.
+  const { data: unitRuRows } = await admin
+    .from("hostfully_room_types")
+    .select("rentalsunited_property_id")
+    .eq("property_id", property.id)
+    .not("rentalsunited_property_id", "is", null);
+  const unitRuIds = (unitRuRows ?? [])
+    .map((r: { rentalsunited_property_id: string | number | null }) => Number(r.rentalsunited_property_id))
+    .filter((n: number) => Number.isFinite(n) && n > 0);
+
   const p3Blockers: string[] = [];
-  if (!property.rentalsunited_property_id && !property.rentalsunited_building_id) {
+  if (
+    !property.rentalsunited_property_id &&
+    !property.rentalsunited_building_id &&
+    unitRuIds.length === 0
+  ) {
     p3Blockers.push("Property has not been pushed to Rentals United yet (no RU PropertyID/BuildingID stored).");
   }
   if (!lastInventoryRun?.success) {
@@ -244,6 +260,7 @@ export async function evaluatePhases(
   } else if (Number(lastInventoryRun?.details?.ru_owner_id) !== Number(account?.ru_owner_id)) {
     p3Blockers.push("The latest inventory push belongs to a different RU OwnerID; re-push under the linked sub-user.");
   }
+
 
   // ── Phase 4 ──
   const p4Blockers: string[] = [];
@@ -302,6 +319,7 @@ export async function evaluatePhases(
       detail: {
         ru_property_id: property.rentalsunited_property_id ?? null,
         ru_building_id: property.rentalsunited_building_id ?? null,
+        ru_unit_property_ids: unitRuIds,
         ru_owner_id: account?.ru_owner_id ?? null,
         inventory_push_at: lastInventoryRun?.created_at ?? null,
       },

@@ -1231,14 +1231,28 @@ interface PriceVerification {
   error?: string;
 }
 
+/**
+ * Rentals United never serves the current day in calendar/price pull responses (the day is
+ * already "in progress"), so read-back comparison must start tomorrow. Comparing from today
+ * produced a permanent single-day mismatch that stopped runs being marked verified.
+ */
+function verificationStart(windowFrom: string): string {
+  const tomorrow = new Date();
+  tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+  const iso = tomorrow.toISOString().slice(0, 10);
+  return windowFrom > iso ? windowFrom : iso;
+}
+
 async function verifyPrices(
   supabase: any,
   ruPropertyId: number,
   requested: { date_from: string; date_to: string; price: number; extra_guest_price?: number }[],
-  windowFrom: string,
+  windowFromRaw: string,
   windowTo: string,
   childAuth: Record<string, unknown> = {},
 ): Promise<PriceVerification> {
+  const windowFrom = verificationStart(windowFromRaw);
+
   const report: PriceVerification = { checked: false, total_seasons: requested.length, matches: 0, mismatches: [], missing_dates: [] };
   try {
     const { data, error } = await supabase.functions.invoke('rentalsunited-api', {
@@ -1266,15 +1280,20 @@ async function verifyPrices(
       }
     }
 
-    // Diff each requested season against returned per-day prices (sample first day of each season)
+    // Diff each requested season against returned per-day prices (sample first day of each
+    // season inside the read-back window — seasons that start before `windowFrom` are sampled
+    // at the window start, and seasons entirely outside the window are skipped because RU
+    // never returns them).
     for (const req of requested) {
-      const sampleDay = req.date_from;
+      if (req.date_to < windowFrom || req.date_from > windowTo) continue;
+      const sampleDay = req.date_from > windowFrom ? req.date_from : windowFrom;
       const got = returnedPerDay.get(sampleDay);
       if (!got) {
         report.mismatches.push({ date_from: req.date_from, date_to: req.date_to, field: 'missing', requested: req.price, returned: null });
         report.missing_dates.push(sampleDay);
         continue;
       }
+
       let ok = true;
       if (got.price != null && Math.abs(got.price - req.price) > 0.01) {
         report.mismatches.push({ date_from: req.date_from, date_to: req.date_to, field: 'price', requested: req.price, returned: got.price });
@@ -1306,10 +1325,11 @@ async function verifyAvailability(
   supabase: any,
   ruPropertyId: number,
   requested: { date_from: string; date_to: string; units: number; min_stay: number; changeover: number }[],
-  windowFrom: string,
+  windowFromRaw: string,
   windowTo: string,
   childAuth: Record<string, unknown> = {},
 ): Promise<AvailabilityVerification> {
+  const windowFrom = verificationStart(windowFromRaw);
   const report: AvailabilityVerification = { checked: false, total_days: 0, matches: 0, mismatches: [] };
   try {
     const { data, error } = await supabase.functions.invoke('rentalsunited-api', {
@@ -1319,24 +1339,31 @@ async function verifyAvailability(
       report.error = error?.message || data?.error?.message || 'No XML returned';
       return report;
     }
-    // Build expected per-day map from requested ranges
+    // Build expected per-day map from requested ranges, clamped to the read-back window.
+    // Pushed periods can start in the past (seasons authored earlier in the year); RU only
+    // returns the requested window, so unclamped past dates were counted as "returned: null"
+    // mismatches and kept the run from ever being marked verified.
     const expected = new Map<string, { min_stay: number; changeover: number; units: number }>();
     for (const r of requested) {
-      const start = new Date(r.date_from + 'T00:00:00Z');
-      const end = new Date(r.date_to + 'T00:00:00Z');
+      const rangeFrom = r.date_from > windowFrom ? r.date_from : windowFrom;
+      const rangeTo = r.date_to < windowTo ? r.date_to : windowTo;
+      if (rangeFrom > rangeTo) continue;
+      const start = new Date(rangeFrom + 'T00:00:00Z');
+      const end = new Date(rangeTo + 'T00:00:00Z');
       for (let d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
         const iso = d.toISOString().slice(0, 10);
         expected.set(iso, { min_stay: r.min_stay, changeover: r.changeover, units: r.units });
       }
     }
+
     // Parse RU's calendar through the shared parser: RU emits
     // <CalDay Date=".." Units="1"><IsBlocked>..</IsBlocked><MinStay>..</MinStay>..</CalDay>,
     // not the self-closing <CalendarDay .../> this used to look for.
     const xml = String(data.raw_xml);
     const parsedDays = parseRuAvailabilityDays(xml);
-    const returnedDays = new Map<string, { min_stay: number | null; changeover: number | null; units: number | null }>();
+    const returnedDays = new Map<string, { min_stay: number | null; changeover: number | null; units: number | null; reservations: number | null }>();
     for (const [date, day] of parsedDays) {
-      returnedDays.set(date, { min_stay: day.min_stay, changeover: day.changeover, units: day.units });
+      returnedDays.set(date, { min_stay: day.min_stay, changeover: day.changeover, units: day.units, reservations: day.reservations });
     }
 
     report.checked = true;
@@ -1347,6 +1374,9 @@ async function verifyAvailability(
         report.mismatches.push({ date, field: 'units', requested: exp.units, returned: null });
         continue;
       }
+      // A day RU already holds a confirmed reservation for legitimately reads back with no
+      // free unit — that is correct state, not a sync mismatch.
+      if ((got.reservations ?? 0) > 0) { report.matches++; continue; }
       let dayOk = true;
       if (got.min_stay != null && got.min_stay !== exp.min_stay) {
         report.mismatches.push({ date, field: 'min_stay', requested: exp.min_stay, returned: got.min_stay });
@@ -1372,7 +1402,7 @@ async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRo
   const amenities = (property.amenities || {}) as Record<string, any>;
   const seasons = amenities.seasons as any[] | undefined;
   const seasonRates = amenities.season_rates as Record<string, any> | undefined;
-  const result: { availability_pushed?: boolean; prices_pushed?: boolean; availability_error?: string; prices_error?: string; availability_verification?: AvailabilityVerification; prices_verification?: PriceVerification; price_coverage?: Record<string, any>; currency?: Record<string, any> } = {};
+  const result: { availability_reserved_days?: number; availability_pushed?: boolean; prices_pushed?: boolean; availability_error?: string; prices_error?: string; availability_verification?: AvailabilityVerification; prices_verification?: PriceVerification; price_coverage?: Record<string, any>; currency?: Record<string, any> } = {};
 
   const today = new Date();
   const todayStr = today.toISOString().slice(0, 10);
@@ -1416,8 +1446,38 @@ async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRo
       const { data: availResult, error: availErr } = await supabase.functions.invoke('rentalsunited-api', {
         body: { action: 'push_availability', ru_property_id: ruPropertyId, availability: availEntries, ...childAuth },
       });
-      if (availErr || !availResult?.success) {
-        result.availability_error = availErr?.message || availResult?.error?.message || 'Unknown error';
+      let availOk = !availErr && availResult?.success === true;
+      let availErrorMessage = availErr?.message || availResult?.error?.message || 'Unknown error';
+
+      // RU rejects the whole batch when any day it holds a confirmed reservation for would be
+      // re-opened. Drop exactly those days (they are correctly booked out) and push the rest.
+      if (!availOk && /confirmed reservation/i.test(availErrorMessage)) {
+        const { data: calData } = await supabase.functions.invoke('rentalsunited-api', {
+          body: { action: 'get_availability', ru_property_id: ruPropertyId, date_from: todayStr, date_to: oneYearStr, ...childAuth },
+        });
+        const reservedDates = new Set<string>();
+        for (const [date, day] of parseRuAvailabilityDays(String(calData?.raw_xml ?? ''))) {
+          if ((day.reservations ?? 0) > 0) reservedDates.add(date);
+        }
+        const retryEntries = availEntries.filter((e: { date_from: string }) => !reservedDates.has(e.date_from));
+        result.availability_reserved_days = reservedDates.size;
+        if (reservedDates.size > 0 && retryEntries.length > 0) {
+          console.log(`[pushARI] Retrying availability without ${reservedDates.size} reserved day(s) for RU ${ruPropertyId}`);
+          const { data: retryResult, error: retryErr } = await supabase.functions.invoke('rentalsunited-api', {
+            body: { action: 'push_availability', ru_property_id: ruPropertyId, availability: retryEntries, ...childAuth },
+          });
+          availOk = !retryErr && retryResult?.success === true;
+          availErrorMessage = retryErr?.message || retryResult?.error?.message || availErrorMessage;
+          if (availOk) {
+            availEntries.length = 0;
+            availEntries.push(...retryEntries);
+          }
+        }
+
+      }
+
+      if (!availOk) {
+        result.availability_error = availErrorMessage;
       } else {
         result.availability_pushed = true;
         // 6.2 + 6.3 — Verify
