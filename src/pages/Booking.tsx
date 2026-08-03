@@ -2069,6 +2069,18 @@ const Booking = () => {
           description: item.description,
           total: item.total,
         })),
+        cancellation_policy: resolvedPolicy?.rule
+          ? {
+              id: resolvedPolicy.id,
+              name: resolvedPolicy.name,
+              source: resolvedPolicy.source,
+              summary: formatCancellationPolicy(
+                resolvedPolicy.rule as CancellationRule,
+                checkIn || undefined,
+                totalCost || undefined,
+              ).summaryText,
+            }
+          : undefined,
         vat: vatConfig.isVat ? {
           rate: vatConfig.rate,
           number: vatConfig.number,
