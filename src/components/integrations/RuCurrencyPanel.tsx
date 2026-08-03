@@ -57,7 +57,7 @@ export function RuCurrencyPanel() {
   });
   const [fx, setFx] = useState<{ rate: number; effective: number; fetchedAt: string } | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
-  const [busy, setBusy] = useState<"refresh" | "dry" | "apply" | null>(null);
+  const [busy, setBusy] = useState<"refresh" | "dry" | "apply" | "verify" | null>(null);
 
   const load = useCallback(async () => {
     const [{ data: props }, { data: unitRows }, { data: stateRows }, { count }, { data: newest }, { count: zarCount }, { data: fxRow }] =
