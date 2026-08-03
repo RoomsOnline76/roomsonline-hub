@@ -1164,16 +1164,31 @@ interface RUCompanyPayload {
 
 const RU_COMPANY_REQUIRED: (keyof RUCompanyPayload)[] = [
   'first_name', 'last_name', 'email', 'phone', 'city', 'country_id', 'address', 'zip_code', 'name',
+  // RU stores the contact birth date permanently; a derived placeholder used to
+  // leak onto the profile, so it is now a caller-supplied requirement.
+  'birth_date',
 ];
+
+/** Placeholder values previous versions substituted for missing contact data. */
+const RU_COMPANY_PLACEHOLDERS: Partial<Record<keyof RUCompanyPayload, string[]>> = {
+  phone: ['+27000000000', '27000000000'],
+  last_name: ['owner'],
+  birth_date: ['1990-01-01'],
+};
 
 function missingCompanyFields(company: Partial<RUCompanyPayload>): string[] {
   const missing = RU_COMPANY_REQUIRED.filter((k) => {
     const v = (company as Record<string, unknown>)[k as string];
     return v === undefined || v === null || String(v).trim() === '' || (k === 'country_id' && !Number(v));
   }).map(String);
+  for (const [key, values] of Object.entries(RU_COMPANY_PLACEHOLDERS)) {
+    const raw = String((company as Record<string, unknown>)[key] ?? '').replace(/[\s-]/g, '').toLowerCase();
+    if (raw && values!.includes(raw)) missing.push(`${key} (placeholder — enter the real value)`);
+  }
   if (!Array.isArray(company.location_ids) || company.location_ids.length === 0) missing.push('location_ids');
   return missing;
 }
+
 
 /**
  * Sub-user ("child") authentication envelope. RU treats every sub-user as a separate
