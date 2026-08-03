@@ -462,6 +462,42 @@ export function CompanyInformationCard({
                     />
                   </div>
                 )}
+                <div className="flex flex-col gap-1">
+                  <Label className="text-xs">
+                    Time zone<Req />
+                  </Label>
+                  <Select
+                    value={normalizedTimeZone}
+                    onValueChange={(v) => setField("time_zone", v)}
+                  >
+                    <SelectTrigger className="h-7 text-xs">
+                      <SelectValue placeholder="Select a time zone" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-72">
+                      {RU_TIME_ZONE_GROUPS.map((group) => (
+                        <SelectGroup key={group}>
+                          <SelectLabel className="text-[10px] uppercase tracking-wide">
+                            {group}
+                          </SelectLabel>
+                          {RU_TIME_ZONES.filter((z) => z.group === group).map((z) => (
+                            <SelectItem key={z.value} value={z.value} className="text-xs">
+                              ({z.offset}) {z.label}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Hint>
+                    Rentals United requires a canonical zone name (e.g. Africa/Johannesburg) — free
+                    text like “UTC+2” is rejected on the company push.
+                  </Hint>
+                  {rawTimeZone && !normalizedTimeZone && (
+                    <p className="text-[10px] leading-snug text-destructive">
+                      Stored value “{rawTimeZone}” is not a valid RU time zone — pick one above.
+                    </p>
+                  )}
+                </div>
                 {COMPANY_TEXT_FIELDS.map((f) => (
                   <div key={String(f.key)} className="flex flex-col gap-1">
                     <Label className="text-xs">
@@ -474,6 +510,7 @@ export function CompanyInformationCard({
                       onChange={(e) => setField(f.key, e.target.value)}
                       className="h-7 text-xs"
                     />
+                    {f.hint && <Hint>{f.hint}</Hint>}
                   </div>
                 ))}
                 {COMPANY_NUMBER_FIELDS.map((f) => (
@@ -485,8 +522,10 @@ export function CompanyInformationCard({
                       onChange={(e) => setField(f.key, e.target.value, true)}
                       className="h-7 text-xs"
                     />
+                    {f.hint && <Hint>{f.hint}</Hint>}
                   </div>
                 ))}
+
               </div>
               <div className="flex flex-col gap-1">
                 <Label htmlFor="postal_address" className="text-xs">
