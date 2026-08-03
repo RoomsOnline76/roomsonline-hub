@@ -2549,18 +2549,8 @@ Deno.serve(async (req) => {
 
           // Read-back verification
           await call("Verify content read-back", "get_property", { ru_property_id: ruPropertyId }, { mandatory: true, scope: "property", skip: noProp });
-          await call(
-            "Verify availability read-back",
-            "get_availability",
-            { ru_property_id: ruPropertyId, date_from: isoDate(0), date_to: isoDate(365) },
-            { mandatory: true, scope: "property", skip: noProp },
-          );
-          await call(
-            "Verify prices read-back",
-            "get_prices",
-            { ru_property_id: ruPropertyId, date_from: isoDate(0), date_to: isoDate(365) },
-            { mandatory: true, scope: "property", skip: noProp },
-          );
+          await probeAri("Verify availability read-back", "get_availability");
+          await probeAri("Verify prices read-back", "get_prices");
         }
       }
 
