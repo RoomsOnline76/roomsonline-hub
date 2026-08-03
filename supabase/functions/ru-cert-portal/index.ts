@@ -2592,15 +2592,28 @@ Deno.serve(async (req) => {
             steps.push({ step: stepNo, name, ru_method, mandatory: !!opts.mandatory, scope, status: soft ? "skipped" : "failed", duration_ms: duration, detail: soft ?? error.message, request: payload });
             return null;
           }
-          const ok = data?.success === true || data?.healthy === true;
+          // 🔒 Child isolation: a child-scoped step that answered on MASTER credentials is
+          // never a pass — RU either rejects it or applies the write to our own inventory.
+          const authMode = typeof data?.auth_mode === "string" ? data.auth_mode : null;
+          const masterLeak =
+            CERT_MASTER_FORBIDDEN_ACTIONS.has(ruAction) &&
+            !!payload.owner_id &&
+            authMode === "master";
+          const ok = (data?.success === true || data?.healthy === true) && !masterLeak;
           const assertFail = ok && opts.assert ? opts.assert(data) : null;
           const rawDetail =
+            (masterLeak
+              ? `Authenticated as the MASTER account instead of sub-user ${payload.owner_id}. Add this sub-user's RU AccessKey/SecretKey in RU User Management, then re-run.`
+              : null) ??
             assertFail ??
             data?.error?.message ??
-            (ok && opts.successDetail ? opts.successDetail : undefined) ??
+            (ok && opts.successDetail
+              ? `${opts.successDetail}${authMode && authMode !== "master" ? ` (auth: ${authMode})` : ""}`
+              : undefined) ??
             data?.message ??
             (ok ? "OK" : "Unexpected response");
-          const soft = ok && !assertFail ? null : softSkipReason(String(rawDetail));
+          const soft = ok && !assertFail ? null : masterLeak ? null : softSkipReason(String(rawDetail));
+
           steps.push({
             step: stepNo,
             name,
