@@ -10,8 +10,22 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { AlertTriangle, Check, ChevronDown } from "lucide-react";
 import { RuLocationPicker } from "@/components/property/RuLocationPicker";
+import {
+  RU_TIME_ZONES,
+  RU_TIME_ZONE_GROUPS,
+  normalizeRuTimeZone,
+} from "@/lib/ruTimeZones";
 import { supabase } from "@/integrations/supabase/client";
 
 
@@ -98,38 +112,95 @@ function Req() {
   );
 }
 
-const COMPANY_TEXT_FIELDS: { key: keyof RuCompanyProfile; label: string; placeholder?: string; required?: boolean }[] = [
-  { key: "merchant_name", label: "Merchant name", placeholder: "As it appears on card statements" },
-  { key: "manager_identification_number", label: "Manager ID number" },
-  { key: "time_zone", label: "Time zone", placeholder: "UTC+02:00", required: true },
-  { key: "region", label: "Region / province", required: true },
+/** Small format/description note under a constrained input. */
+function Hint({ children }: { children: React.ReactNode }) {
+  return <p className="text-[10px] leading-snug text-muted-foreground">{children}</p>;
+}
+
+const COMPANY_TEXT_FIELDS: {
+  key: keyof RuCompanyProfile;
+  label: string;
+  placeholder?: string;
+  required?: boolean;
+  hint?: string;
+}[] = [
+  {
+    key: "merchant_name",
+    label: "Merchant name",
+    placeholder: "As it appears on card statements",
+    hint: "Max 22 characters, letters/numbers/spaces only — this is what guests see on their bank statement.",
+  },
+  {
+    key: "manager_identification_number",
+    label: "Manager ID number",
+    hint: "National ID or passport number of the account manager, digits only, no spaces.",
+  },
+  {
+    key: "region",
+    label: "Region / province",
+    required: true,
+    hint: "Full province or state name as registered (e.g. Western Cape) — not an abbreviation.",
+  },
 ];
 
-const COMPANY_NUMBER_FIELDS: { key: keyof RuCompanyProfile; label: string }[] = [
-  { key: "number_of_properties", label: "Number of properties" },
-  { key: "number_of_employees", label: "Number of employees" },
-  { key: "years_in_business", label: "Years in business" },
+const COMPANY_NUMBER_FIELDS: { key: keyof RuCompanyProfile; label: string; hint?: string }[] = [
+  { key: "number_of_properties", label: "Number of properties", hint: "Whole number" },
+  { key: "number_of_employees", label: "Number of employees", hint: "Whole number" },
+  { key: "years_in_business", label: "Years in business", hint: "Whole number of years" },
 ];
 
-const REP_FIELDS: { key: string; label: string; placeholder?: string; required?: boolean }[] = [
+const REP_FIELDS: {
+  key: string;
+  label: string;
+  placeholder?: string;
+  required?: boolean;
+  type?: string;
+  hint?: string;
+}[] = [
   { key: "first_name", label: "First name", required: true },
   { key: "last_name", label: "Last name", required: true },
-  { key: "email", label: "Email", required: true },
+  { key: "email", label: "Email", required: true, type: "email", hint: "name@domain.com" },
   { key: "city", label: "City" },
   { key: "address", label: "Address" },
   { key: "post_code", label: "Postal code" },
-  { key: "birthday", label: "Date of birth", placeholder: "YYYY-MM-DD" },
+  {
+    key: "birthday",
+    label: "Date of birth",
+    type: "date",
+    hint: "Sent to Rentals United as YYYY-MM-DD",
+  },
 ];
 
+/** South African bank account types (RU/bank payout files accept these labels). */
+const ACCOUNT_TYPES = ["Cheque / Current", "Savings", "Transmission", "Business", "Bond"];
 
-const BANKING_FIELDS: { key: keyof CompanyBankingFields; label: string; placeholder: string; mono?: boolean }[] = [
+const BANKING_FIELDS: {
+  key: keyof CompanyBankingFields;
+  label: string;
+  placeholder: string;
+  hint?: string;
+  options?: string[];
+  numeric?: boolean;
+}[] = [
   { key: "bank_name", label: "Bank", placeholder: "Bank name" },
-  { key: "branch_code", label: "Branch", placeholder: "Code" },
-  { key: "account_holder", label: "Holder", placeholder: "Name" },
-  { key: "account_number", label: "Account #", placeholder: "Number" },
-  { key: "account_type", label: "Type", placeholder: "Type" },
-  { key: "swift_code", label: "SWIFT", placeholder: "Code" },
+  {
+    key: "branch_code",
+    label: "Branch",
+    placeholder: "6 digits",
+    hint: "6-digit universal branch code",
+    numeric: true,
+  },
+  { key: "account_holder", label: "Holder", placeholder: "Name", hint: "Exactly as registered at the bank" },
+  { key: "account_number", label: "Account #", placeholder: "Number", hint: "Digits only", numeric: true },
+  { key: "account_type", label: "Type", placeholder: "Select", options: ACCOUNT_TYPES },
+  {
+    key: "swift_code",
+    label: "SWIFT",
+    placeholder: "e.g. SBZAZAJJ",
+    hint: "8 or 11 characters, uppercase (BIC)",
+  },
 ];
+
 
 export function CompanyInformationCard({
   registeredBusinessName,
@@ -183,6 +254,13 @@ export function CompanyInformationCard({
 
   const rep = (companyProfile.legal_rep ?? {}) as Record<string, string | number | undefined>;
   const str = (v: unknown) => (v === undefined || v === null ? "" : String(v));
+
+  /** Legacy free-text time zones ("UTC+02:00") are mapped onto a canonical RU zone. */
+  const rawTimeZone = str(companyProfile.time_zone).trim();
+  const normalizedTimeZone = useMemo(() => {
+    const canonical = normalizeRuTimeZone(rawTimeZone);
+    return RU_TIME_ZONES.some((z) => z.value === canonical) ? canonical : "";
+  }, [rawTimeZone]);
 
   /**
    * Auto-populate the fields that follow from the property address (city, postal
@@ -261,7 +339,7 @@ export function CompanyInformationCard({
     need("Country", propertyCountry);
     need("Region / province", companyProfile.region);
     need("City", propertyCity);
-    need("Time zone", companyProfile.time_zone);
+    if (!normalizeRuTimeZone(companyProfile.time_zone)) out.push("Time zone");
     if (!ruLocationId) out.push("RU LocationID");
     if (banking.has_vat) need("VAT number", banking.vat_number);
     need("Rep first name", rep.first_name);
@@ -410,6 +488,42 @@ export function CompanyInformationCard({
                     />
                   </div>
                 )}
+                <div className="flex flex-col gap-1">
+                  <Label className="text-xs">
+                    Time zone<Req />
+                  </Label>
+                  <Select
+                    value={normalizedTimeZone}
+                    onValueChange={(v) => setField("time_zone", v)}
+                  >
+                    <SelectTrigger className="h-7 text-xs">
+                      <SelectValue placeholder="Select a time zone" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-72">
+                      {RU_TIME_ZONE_GROUPS.map((group) => (
+                        <SelectGroup key={group}>
+                          <SelectLabel className="text-[10px] uppercase tracking-wide">
+                            {group}
+                          </SelectLabel>
+                          {RU_TIME_ZONES.filter((z) => z.group === group).map((z) => (
+                            <SelectItem key={z.value} value={z.value} className="text-xs">
+                              ({z.offset}) {z.label}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Hint>
+                    Rentals United requires a canonical zone name (e.g. Africa/Johannesburg) — free
+                    text like “UTC+2” is rejected on the company push.
+                  </Hint>
+                  {rawTimeZone && !normalizedTimeZone && (
+                    <p className="text-[10px] leading-snug text-destructive">
+                      Stored value “{rawTimeZone}” is not a valid RU time zone — pick one above.
+                    </p>
+                  )}
+                </div>
                 {COMPANY_TEXT_FIELDS.map((f) => (
                   <div key={String(f.key)} className="flex flex-col gap-1">
                     <Label className="text-xs">
@@ -422,6 +536,7 @@ export function CompanyInformationCard({
                       onChange={(e) => setField(f.key, e.target.value)}
                       className="h-7 text-xs"
                     />
+                    {f.hint && <Hint>{f.hint}</Hint>}
                   </div>
                 ))}
                 {COMPANY_NUMBER_FIELDS.map((f) => (
@@ -433,8 +548,10 @@ export function CompanyInformationCard({
                       onChange={(e) => setField(f.key, e.target.value, true)}
                       className="h-7 text-xs"
                     />
+                    {f.hint && <Hint>{f.hint}</Hint>}
                   </div>
                 ))}
+
               </div>
               <div className="flex flex-col gap-1">
                 <Label htmlFor="postal_address" className="text-xs">
@@ -470,15 +587,41 @@ export function CompanyInformationCard({
                     <Label htmlFor={f.key} className="text-xs">
                       {f.label}
                     </Label>
-                    <Input
-                      id={f.key}
-                      value={String(banking[f.key] ?? "")}
-                      onChange={(e) => onBankingChange(f.key, e.target.value)}
-                      placeholder={f.placeholder}
-                      className="h-7 text-xs"
-                    />
+                    {f.options ? (
+                      <Select
+                        value={String(banking[f.key] ?? "")}
+                        onValueChange={(v) => onBankingChange(f.key, v)}
+                      >
+                        <SelectTrigger id={f.key} className="h-7 text-xs">
+                          <SelectValue placeholder={f.placeholder} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {f.options.map((o) => (
+                            <SelectItem key={o} value={o} className="text-xs">
+                              {o}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Input
+                        id={f.key}
+                        inputMode={f.numeric ? "numeric" : undefined}
+                        value={String(banking[f.key] ?? "")}
+                        onChange={(e) =>
+                          onBankingChange(
+                            f.key,
+                            f.key === "swift_code" ? e.target.value.toUpperCase() : e.target.value,
+                          )
+                        }
+                        placeholder={f.placeholder}
+                        className="h-7 text-xs"
+                      />
+                    )}
+                    {f.hint && <Hint>{f.hint}</Hint>}
                   </div>
                 ))}
+
               </div>
             </div>
 
@@ -515,13 +658,16 @@ export function CompanyInformationCard({
                       {f.required && <Req />}
                     </Label>
                     <Input
+                      type={f.type ?? "text"}
                       value={str(rep[f.key])}
                       placeholder={f.placeholder}
                       onChange={(e) => setRepField(f.key, e.target.value)}
                       className="h-7 text-xs"
                     />
+                    {f.hint && <Hint>{f.hint}</Hint>}
                   </div>
                 ))}
+
               </div>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 <div className="flex flex-col gap-1">
