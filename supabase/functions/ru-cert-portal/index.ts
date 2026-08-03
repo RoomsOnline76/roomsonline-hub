@@ -25,12 +25,17 @@ const corsHeaders = {
 };
 
 type StepStatus = "passed" | "failed" | "skipped";
+type CertScope = "account" | "property";
+
+/** Minimum seconds between certification runs (RU allows ~1 call per sliding minute). */
+const RUN_COOLDOWN_SECONDS = 60;
 
 interface CertStep {
   step: number;
   name: string;
   ru_method: string;
   mandatory: boolean;
+  scope: CertScope;
   status: StepStatus;
   duration_ms: number;
   ru_status_id?: string | null;
