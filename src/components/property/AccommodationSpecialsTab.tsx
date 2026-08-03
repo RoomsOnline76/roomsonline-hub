@@ -95,6 +95,7 @@ export function AccommodationSpecialsTab({ propertyId, category = "accommodation
   const [saving, setSaving] = useState(false);
   const [draft, setDraft] = useState<Partial<Special> & { name: string }>({ name: "" });
   const [packageItem, setPackageItem] = useState("");
+  const [wizardOpen, setWizardOpen] = useState(false);
 
   const fetchSpecials = useCallback(async () => {
     const { data, error } = await supabase
