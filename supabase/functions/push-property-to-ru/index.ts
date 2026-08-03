@@ -2271,7 +2271,7 @@ Deno.serve(async (req) => {
       // RU building with the same (truncated) name instead of creating another one.
       if (buildingId === 0) {
         const { data: listed } = await supabase.functions.invoke('rentalsunited-api', {
-          body: { action: 'list_buildings', auth_username: childUsername, auth_password: childPassword },
+          body: { action: 'list_buildings', ...childAuthPayload },
         });
         const match = (listed?.buildings ?? []).find(
           (b: any) => String(b?.name ?? '').trim().toUpperCase() === buildingName.trim().toUpperCase(),
@@ -2285,7 +2285,7 @@ Deno.serve(async (req) => {
 
       const requestedBuildingId = buildingId;
       const { data: buildingResult, error: buildingErr } = await supabase.functions.invoke('rentalsunited-api', {
-        body: { action: 'push_building', building_name: buildingName, building_id: buildingId, unit_types: unitTypes, auth_username: childUsername, auth_password: childPassword },
+        body: { action: 'push_building', building_name: buildingName, building_id: buildingId, unit_types: unitTypes, ...childAuthPayload },
       });
 
       if (buildingErr || !buildingResult?.success) {
