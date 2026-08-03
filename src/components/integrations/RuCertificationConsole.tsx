@@ -357,6 +357,7 @@ export function RuCertificationConsole({ properties }: { properties: PropertyLit
 
   const [userMgmt, setUserMgmt] = useState<UserMgmtState | null>(null);
   const [userMgmtLoading, setUserMgmtLoading] = useState(false);
+  const [showArchivedUsers, setShowArchivedUsers] = useState(false);
   const [savingFlag, setSavingFlag] = useState(false);
   const [userDraft, setUserDraft] = useState({ first_name: "", last_name: "", email: "", password: "" });
   const [creatingUser, setCreatingUser] = useState(false);
