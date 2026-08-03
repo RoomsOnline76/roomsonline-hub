@@ -244,13 +244,18 @@ export const ReservationPoliciesList: React.FC<Props> = ({ propertyId }) => {
                   <Star className="h-3 w-3 mr-1" /> Set default
                 </Button>
               )}
+              {!p.is_master && (
+                <Button type="button" variant="ghost" size="sm" onClick={() => setMaster(p.id)} className="h-7 text-xs">
+                  <Crown className="h-3 w-3 mr-1" /> Set as master
+                </Button>
+              )}
               <Button
                 type="button"
                 variant="ghost"
                 size="sm"
                 onClick={() => deletePolicy(p.id)}
                 className="h-7 text-xs text-destructive"
-                disabled={p.is_default || linksForPolicy.length > 0}
+                disabled={p.is_default || p.is_master || linksForPolicy.length > 0}
               >
                 <Trash2 className="h-3 w-3 mr-1" /> Delete
               </Button>
@@ -263,10 +268,75 @@ export const ReservationPoliciesList: React.FC<Props> = ({ propertyId }) => {
               >
                 <Share2 className="h-3 w-3 mr-1" /> Apply to other properties
               </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => propagateToLinked(p.id)}
+                className="h-7 text-xs"
+              >
+                <RefreshCw className="h-3 w-3 mr-1" /> Push to linked copies
+              </Button>
             </CardContent>
           </Card>
         );
       })}
+
+      {siblings.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <h4 className="text-sm font-semibold">Available from other portfolio properties</h4>
+            <p className="text-xs text-muted-foreground">
+              Activate a policy created elsewhere in the portfolio — as an independent copy or linked to the original
+              master so future edits flow through.
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {loadingPortfolio && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+            {!loadingPortfolio && portfolioPolicies.length === 0 && (
+              <p className="text-xs text-muted-foreground">No policies found on sibling properties.</p>
+            )}
+            {portfolioPolicies
+              .filter((sp) => !policies.some((p) => p.source_policy_id === sp.id || p.name === sp.name))
+              .map((sp) => (
+                <div key={sp.id} className="flex items-center justify-between gap-2 p-2 rounded-md border">
+                  <div className="min-w-0">
+                    <div className="text-xs font-medium truncate">
+                      {sp.name}{" "}
+                      <span className="text-muted-foreground font-normal">— {siblingName(sp.property_id)}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {formatCancellationPolicy(sp.rule).summaryText}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs"
+                      disabled={activating === sp.id}
+                      onClick={() => activateFromPortfolio(sp, "copy")}
+                    >
+                      Copy
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 text-xs"
+                      disabled={activating === sp.id}
+                      onClick={() => activateFromPortfolio(sp, "link")}
+                    >
+                      Link
+                    </Button>
+                  </div>
+                </div>
+              ))}
+          </CardContent>
+        </Card>
+      )}
+
 
       <ReservationPolicyDialog
         open={editorOpen}
