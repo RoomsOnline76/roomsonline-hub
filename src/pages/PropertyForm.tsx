@@ -3091,6 +3091,11 @@ export default function PropertyForm({
         is_active: true,
         images: uploadedImages,
         max_guests: 2, // Default value, can be updated later
+        // Composition — required by Rentals United and downstream channels
+        bedrooms: propBedrooms || null,
+        bathrooms: propBathrooms ?? null,
+        toilets: propToilets ?? null,
+        separate_kitchen: separateKitchen,
         price_per_night: 0, // Default value, can be updated later
         // ROL Spec fields (stored as direct columns)
         hero_listing: rolSpecData.hero_listing,
