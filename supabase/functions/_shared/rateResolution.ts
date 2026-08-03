@@ -321,7 +321,14 @@ export async function createRateResolver(
     };
   };
 
-  return { seasons, rackRates, unitDailyRates, closedDates, resolveDays, coverage };
+  const units: UnitRateContext[] = ((hfRooms ?? []) as any[]).map((r) => ({
+    id: r.id,
+    name: r.name,
+    linked_rolos_id: r.linked_rolos_id,
+  }));
+
+  return { seasons, rackRates, unitDailyRates, closedDates, units, resolveDays, coverage };
+
 }
 
 /** Compress consecutive days with identical pricing into date ranges (RU Season blocks etc.). */
