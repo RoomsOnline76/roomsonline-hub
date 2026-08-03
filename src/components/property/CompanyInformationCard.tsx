@@ -79,7 +79,8 @@ interface Props {
   onRuLocationIdChange: (id: number | null) => void;
   propertyCity?: string;
   propertyCountry?: string;
-  /** Banking / VAT / registration block merged in from the old Banking Details card. */
+  propertyPostalCode?: string;
+
   banking: CompanyBankingFields;
   onBankingChange: (key: keyof CompanyBankingFields, value: string | boolean) => void;
 }
