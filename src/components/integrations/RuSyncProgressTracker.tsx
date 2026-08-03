@@ -107,8 +107,17 @@ export function RuSyncProgressTracker({ runs, scopeIds, expectedProperties, trig
       const denom = Math.max(expectedProperties, touched.size);
       const coverage =
         ep.scoped && denom > 0 ? Math.min(100, Math.round((touched.size / denom) * 100)) : null;
+      // Incomplete property coverage is amber even when every call succeeded — an
+      // endpoint that only reached half the portfolio is not green.
+      const coverageIncomplete = coverage !== null && coverage < 100;
       const status: "ok" | "degraded" | "failing" | "never" =
-        total === 0 ? "never" : successRate === 100 ? "ok" : successRate >= 50 ? "degraded" : "failing";
+        total === 0
+          ? "never"
+          : successRate < 50
+            ? "failing"
+            : successRate === 100 && !coverageIncomplete
+              ? "ok"
+              : "degraded";
       return { ep, ok, total, last, successRate, coverage, touched: touched.size, denom, status };
     });
   }, [runs, scopeIds, expectedProperties]);
