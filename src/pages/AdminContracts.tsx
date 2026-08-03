@@ -1371,6 +1371,7 @@ export default function AdminContracts() {
                       const isExpanded = expandedOwners.has(contract.owner_email);
                       return (
                         <div className="space-y-1">
+                          {portfolioBadge}
                           <div className="flex items-center gap-1">
                             <a
                               href={`/admin/properties/${props[0].slug}`}
