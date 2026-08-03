@@ -1862,7 +1862,7 @@ Deno.serve(async (req) => {
       const response = await callRentalsUnited(scopedCreds, xml);
       const { ok, status } = handleRUStatus(response);
       if (!ok) return ruErrorResponse(status);
-      return jsonResponse({ success: true, raw_xml: response });
+      return jsonResponse({ success: true, auth_mode: authMode, raw_xml: response });
     }
 
     // ── get_availability ──
@@ -1872,7 +1872,7 @@ Deno.serve(async (req) => {
       const response = await callRentalsUnited(scopedCreds, xml);
       const { ok, status } = handleRUStatus(response);
       if (!ok) return ruErrorResponse(status);
-      return jsonResponse({ success: true, raw_xml: response });
+      return jsonResponse({ success: true, auth_mode: authMode, raw_xml: response });
     }
 
     // ── get_prices ──
@@ -1882,8 +1882,9 @@ Deno.serve(async (req) => {
       const response = await callRentalsUnited(scopedCreds, xml);
       const { ok, status } = handleRUStatus(response);
       if (!ok) return ruErrorResponse(status);
-      return jsonResponse({ success: true, raw_xml: response });
+      return jsonResponse({ success: true, auth_mode: authMode, raw_xml: response });
     }
+
 
     // ── list_reservations ──
     if (action === 'list_reservations') {
