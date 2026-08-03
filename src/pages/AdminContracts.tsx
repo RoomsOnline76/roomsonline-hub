@@ -191,7 +191,54 @@ export default function AdminContracts() {
   useEffect(() => {
     loadContracts();
     loadContractTemplates();
+    loadPortfolios();
   }, []);
+
+  const loadPortfolios = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("property_portfolios")
+        .select("id, name, owner_email")
+        .order("name");
+      if (error) throw error;
+      setPortfolios(data || []);
+    } catch (error) {
+      console.error("Failed to load portfolios:", error);
+    }
+  };
+
+  const handleSelectPortfolio = async (portfolioId: string) => {
+    setSelectedPortfolioId(portfolioId);
+    setPortfolioProperties([]);
+    if (!portfolioId) return;
+
+    const portfolio = portfolios.find((p) => p.id === portfolioId);
+    if (portfolio?.owner_email && !sendEmail) {
+      setSendEmail(portfolio.owner_email);
+      validateOwnerEmail(portfolio.owner_email);
+    }
+
+    setLoadingPortfolioProps(true);
+    try {
+      const { data: members, error } = await supabase
+        .from("property_portfolio_members")
+        .select("property_id, properties:property_id(id, name)")
+        .eq("portfolio_id", portfolioId);
+      if (error) throw error;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const props = (members || [])
+        .map((m: any) => m.properties)
+        .filter((p: any): p is { id: string; name: string } => Boolean(p?.id))
+        .sort((a, b) => a.name.localeCompare(b.name));
+      setPortfolioProperties(props);
+    } catch (error) {
+      console.error("Failed to load portfolio properties:", error);
+      toast.error("Could not load portfolio properties");
+    } finally {
+      setLoadingPortfolioProps(false);
+    }
+  };
+
 
   const loadContractTemplates = async () => {
     try {
