@@ -1752,6 +1752,14 @@ Deno.serve(async (req) => {
   try {
     const reqBody = await req.json();
     const { property_id, dry_run, subscribe_rlnm, standalone_units, only_unit_ids, action } = reqBody;
+    /**
+     * Building containers are OPT-IN only.
+     * Every RU push used to run the building flow (Push_PutBuilding_RQ) first, and RU created a
+     * brand-new building on each call instead of updating ours — 20+ duplicate "Tidal Pools"
+     * buildings in the WL portal. Units are pushed as standalone RU properties, so the container
+     * is unnecessary: only an explicit `use_building: true` request may touch building inventory.
+     */
+    const useBuilding = reqBody.use_building === true;
     /** Admin override: allows a live push even when mandatory WL checks fail. */
     const forcePush = reqBody.force === true;
     const forceLocationIdRaw = reqBody.force_location_id;
@@ -2527,7 +2535,7 @@ Deno.serve(async (req) => {
     }
 
 
-    if (isMultiUnit && !standalone_units && !hasChildKeys && (!childUsername || !childPassword)) {
+    if (isMultiUnit && useBuilding && !hasChildKeys && (!childUsername || !childPassword)) {
       // Push_PutBuilding_RQ has no <OwnerID>: the building lands on whichever account
       // authenticates, so a parent fallback would create it on our master account. Hard stop.
       return new Response(JSON.stringify({ success: false, error: { code: 'RU_CHILD_AUTH_REQUIRED', message: `No Rentals United API keys are stored for OwnerID ${ruOwnerId}. RU requires the sub-user's own AccessKey + SecretKey to create or update its building inventory — generate them in the RU dashboard (Security settings) and save them in Portfolios → RU accounts.` } }), { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
@@ -2653,10 +2661,12 @@ Deno.serve(async (req) => {
       }
 
 
-      // ── STANDALONE UNITS FLOW (no building) ───────────────
+      // ── STANDALONE UNITS FLOW (no building) — DEFAULT ─────
       // Each room type is pushed as an independent RU property without a BuildingID.
       // ObjectTypeID falls back to property_type_id (Chalet=12, Apartment=1, etc.).
-      if (standalone_units) {
+      // No Push_PutBuilding_RQ is issued here, so repeat pushes and cron refreshes can never
+      // create duplicate building containers in the white-label portal.
+      if (!useBuilding) {
         // Optional filter: only_unit_ids restricts the push to specific room_type ids
         const filteredUnits = Array.isArray(only_unit_ids) && only_unit_ids.length > 0
           ? activeRoomTypes.filter(rt => only_unit_ids.includes(rt.id))
@@ -2751,6 +2761,18 @@ Deno.serve(async (req) => {
             && (ari.prices_verification?.mismatches?.length ?? 0) === 0
             && (ari.prices_verification?.missing_dates?.length ?? 0) === 0;
         });
+
+        // Once every unit lives standalone at RU, drop the stale building link so no future
+        // run (cron, cert suite, manual) can re-enter the building flow and spawn duplicates.
+        if (inventorySuccess && property.rentalsunited_building_id) {
+          await supabase.from('properties').update({ rentalsunited_building_id: null }).eq('id', property_id);
+          await supabase
+            .from('pms_mappings')
+            .update({ metadata: { mapping_kind: 'building', retired: true, retired_at: new Date().toISOString(), retired_reason: 'Units pushed standalone — building container no longer used', building_id: Number(property.rentalsunited_building_id), building_name: property.name.substring(0, 20) } })
+            .eq('external_id', String(property.rentalsunited_building_id));
+          console.log(`[push-property-to-ru] Cleared stale building link ${property.rentalsunited_building_id} for "${property.name}"`);
+        }
+
         await supabase.from('ru_sync_runs').insert({
           batch_id: crypto.randomUUID(),
           property_id,
@@ -2774,7 +2796,7 @@ Deno.serve(async (req) => {
         );
       }
 
-      // ── DEFAULT MULTI-UNIT BUILDING FLOW ─────────────────────
+      // ── OPT-IN MULTI-UNIT BUILDING FLOW (use_building: true) ──
       // Step 1: Create/update RU Building
       let buildingId = property.rentalsunited_building_id ? parseInt(property.rentalsunited_building_id, 10) : 0;
       // Truncate building name to 20 chars (RU API limit)
@@ -2805,15 +2827,18 @@ Deno.serve(async (req) => {
       }
 
       const requestedBuildingId = buildingId;
+      // `create` is only ever true when the caller explicitly opted into buildings AND no
+      // container exists yet — the adapter refuses any other creation attempt.
       const { data: buildingResult, error: buildingErr } = await supabase.functions.invoke('rentalsunited-api', {
-        body: { action: 'push_building', building_name: buildingName, building_id: buildingId, unit_types: unitTypes, ...childAuthPayload },
+        body: { action: 'push_building', building_name: buildingName, building_id: buildingId, create: buildingId === 0, unit_types: unitTypes, ...childAuthPayload },
       });
 
       if (buildingErr || !buildingResult?.success) {
         const errMsg = buildingErr?.message || buildingResult?.error?.message || 'Unknown error';
-        console.error('[push-property-to-ru] Building push failed:', errMsg);
+        const errCode = buildingResult?.error?.code || 'BUILDING_FAILED';
+        console.error('[push-property-to-ru] Building push failed:', errCode, errMsg);
         return new Response(
-          JSON.stringify({ success: false, error: { code: 'BUILDING_FAILED', message: errMsg }, diagnostics: buildingResult?.diagnostics }),
+          JSON.stringify({ success: false, error: { code: errCode, message: errMsg }, diagnostics: buildingResult?.diagnostics }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
         );
       }
@@ -2821,10 +2846,32 @@ Deno.serve(async (req) => {
       if (buildingResult.building_id) {
         const returnedBuildingId = parseInt(String(buildingResult.building_id), 10);
         if (requestedBuildingId > 0 && returnedBuildingId > 0 && returnedBuildingId !== requestedBuildingId) {
-          // RU created a new building instead of updating ours — keep the existing one
-          // so repeated pushes never fan out into duplicate buildings.
-          console.warn(
-            `[push-property-to-ru] RU returned building ${returnedBuildingId} for update of ${requestedBuildingId} — keeping ${requestedBuildingId}`,
+          // RU created a DUPLICATE building instead of updating ours. Surface it loudly instead
+          // of silently discarding the returned ID — silent discards are what let 20+ duplicate
+          // containers accumulate unnoticed in the white-label portal.
+          console.error(
+            `[push-property-to-ru] RU created duplicate building ${returnedBuildingId} while updating ${requestedBuildingId}`,
+          );
+          await supabase.from('ru_sync_runs').insert({
+            batch_id: crypto.randomUUID(),
+            property_id,
+            action: 'building_push',
+            success: false,
+            error_code: 'RU_BUILDING_DUPLICATE',
+            error_message: `Rentals United created building ${returnedBuildingId} instead of updating ${requestedBuildingId}`,
+            details: { ru_owner_id: ruOwnerId, requested_building_id: requestedBuildingId, returned_building_id: returnedBuildingId, building_name: buildingName },
+          });
+          return new Response(
+            JSON.stringify({
+              success: false,
+              error: {
+                code: 'RU_BUILDING_DUPLICATE',
+                message: `Rentals United created a new building (${returnedBuildingId}) instead of updating ${requestedBuildingId}. Push aborted — remove the duplicate in the RU portal, or push units standalone (the default).`,
+              },
+              requested_building_id: requestedBuildingId,
+              returned_building_id: returnedBuildingId,
+            }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
           );
         } else if (returnedBuildingId > 0) {
           buildingId = returnedBuildingId;

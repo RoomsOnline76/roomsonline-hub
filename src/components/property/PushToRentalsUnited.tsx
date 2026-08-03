@@ -178,20 +178,25 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
       });
   }, [propertyId]);
 
-  const saveBuildingId = async () => {
+  /**
+   * Buildings are legacy: units are pushed to RU as standalone properties and no push
+   * touches building inventory any more. The only supported action is clearing a stale
+   * link so nothing can reference a duplicate container.
+   */
+  const clearBuildingId = async () => {
     setSavingBuildingId(true);
-    const newId = buildingIdDraft.trim() || null;
     const { error: err } = await supabase
       .from("properties")
-      .update({ rentalsunited_building_id: newId })
+      .update({ rentalsunited_building_id: null })
       .eq("id", propertyId);
 
     if (err) {
-      toast.error("Failed to save building ID");
+      toast.error("Failed to clear building link");
     } else {
-      setBuildingId(newId);
+      setBuildingId(null);
       setEditingBuildingId(false);
-      toast.success(newId ? "Building ID saved" : "Building ID cleared");
+      setBuildingIdDraft("");
+      toast.success("Building link cleared — units push standalone");
     }
 
     setSavingBuildingId(false);
@@ -433,43 +438,24 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
                 Readiness {readiness.score}%{readiness.blocked ? " — sync blocked" : " — ready"}
               </Badge>
             )}
-            {isMultiUnit && (
-              editingBuildingId ? (
-                <div className="flex items-center gap-1">
-                  <Input
-                    value={buildingIdDraft}
-                    onChange={(e) => setBuildingIdDraft(e.target.value)}
-                    placeholder="Building ID"
-                    className="h-6 w-28 text-xs px-1.5"
-                  />
-                  <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={saveBuildingId} disabled={savingBuildingId}>
-                    {savingBuildingId ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 w-6 p-0"
-                    onClick={() => {
-                      setEditingBuildingId(false);
-                      setBuildingIdDraft(buildingId || "");
-                    }}
-                  >
-                    <X className="h-3 w-3" />
-                  </Button>
-                </div>
-              ) : (
-                <Badge
-                  variant={buildingId ? "secondary" : "outline"}
-                  className="text-[10px] gap-1 cursor-pointer hover:bg-accent"
-                  onClick={() => {
-                    setBuildingIdDraft(buildingId || "");
-                    setEditingBuildingId(true);
-                  }}
-                >
+            {isMultiUnit && buildingId && (
+              <div className="flex items-center gap-1">
+                <Badge variant="outline" className="text-[10px] gap-1">
                   <Building2 className="h-3 w-3" />
-                  {buildingId ? `Building: ${buildingId}` : "No Building ID — click to set"}
+                  Legacy building: {buildingId}
                 </Badge>
-              )
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-1.5 text-[10px]"
+                  onClick={clearBuildingId}
+                  disabled={savingBuildingId}
+                  title="Units are pushed as standalone RU properties — clear the stale building link"
+                >
+                  {savingBuildingId ? <Loader2 className="h-3 w-3 animate-spin" /> : <X className="h-3 w-3" />}
+                  <span className="ml-1">Clear</span>
+                </Button>
+              </div>
             )}
             {!isMultiUnit && (
               editingRuId ? (

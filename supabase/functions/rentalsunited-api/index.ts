@@ -2293,6 +2293,19 @@ Deno.serve(async (req) => {
       if (!body.building_name) return errorResponse('MISSING_PARAM', 'building_name is required');
       const childAuth = await resolveChildAuth(body);
       const bId = body.building_id || 0;
+      // 🔒 Duplicate guard: RU has no idempotent "upsert building" — a Push_PutBuilding_RQ with no
+      // <BuildingID> always CREATES. Callers must either update a known building or state creation
+      // intent explicitly (`create: true`); anything else is refused so repeat pushes and cron runs
+      // can never fan out into duplicate building containers.
+      if (bId <= 0 && body.create !== true) {
+        return jsonResponse({
+          success: false,
+          error: {
+            code: 'RU_BUILDING_CREATE_NOT_ALLOWED',
+            message: 'Refusing to create a Rentals United building: no building_id supplied and create:true was not requested. Units are pushed as standalone properties by default — buildings are opt-in.',
+          },
+        }, 422);
+      }
       if (!childAuth) {
         return jsonResponse({
           success: false,
