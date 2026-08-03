@@ -98,38 +98,90 @@ function Req() {
   );
 }
 
-const COMPANY_TEXT_FIELDS: { key: keyof RuCompanyProfile; label: string; placeholder?: string; required?: boolean }[] = [
-  { key: "merchant_name", label: "Merchant name", placeholder: "As it appears on card statements" },
-  { key: "manager_identification_number", label: "Manager ID number" },
-  { key: "time_zone", label: "Time zone", placeholder: "UTC+02:00", required: true },
-  { key: "region", label: "Region / province", required: true },
+const COMPANY_TEXT_FIELDS: {
+  key: keyof RuCompanyProfile;
+  label: string;
+  placeholder?: string;
+  required?: boolean;
+  hint?: string;
+}[] = [
+  {
+    key: "merchant_name",
+    label: "Merchant name",
+    placeholder: "As it appears on card statements",
+    hint: "Max 22 characters, letters/numbers/spaces only — this is what guests see on their bank statement.",
+  },
+  {
+    key: "manager_identification_number",
+    label: "Manager ID number",
+    hint: "National ID or passport number of the account manager, digits only, no spaces.",
+  },
+  {
+    key: "region",
+    label: "Region / province",
+    required: true,
+    hint: "Full province or state name as registered (e.g. Western Cape) — not an abbreviation.",
+  },
 ];
 
-const COMPANY_NUMBER_FIELDS: { key: keyof RuCompanyProfile; label: string }[] = [
-  { key: "number_of_properties", label: "Number of properties" },
-  { key: "number_of_employees", label: "Number of employees" },
-  { key: "years_in_business", label: "Years in business" },
+const COMPANY_NUMBER_FIELDS: { key: keyof RuCompanyProfile; label: string; hint?: string }[] = [
+  { key: "number_of_properties", label: "Number of properties", hint: "Whole number" },
+  { key: "number_of_employees", label: "Number of employees", hint: "Whole number" },
+  { key: "years_in_business", label: "Years in business", hint: "Whole number of years" },
 ];
 
-const REP_FIELDS: { key: string; label: string; placeholder?: string; required?: boolean }[] = [
+const REP_FIELDS: {
+  key: string;
+  label: string;
+  placeholder?: string;
+  required?: boolean;
+  type?: string;
+  hint?: string;
+}[] = [
   { key: "first_name", label: "First name", required: true },
   { key: "last_name", label: "Last name", required: true },
-  { key: "email", label: "Email", required: true },
+  { key: "email", label: "Email", required: true, type: "email", hint: "name@domain.com" },
   { key: "city", label: "City" },
   { key: "address", label: "Address" },
   { key: "post_code", label: "Postal code" },
-  { key: "birthday", label: "Date of birth", placeholder: "YYYY-MM-DD" },
+  {
+    key: "birthday",
+    label: "Date of birth",
+    type: "date",
+    hint: "Sent to Rentals United as YYYY-MM-DD",
+  },
 ];
 
+/** South African bank account types (RU/bank payout files accept these labels). */
+const ACCOUNT_TYPES = ["Cheque / Current", "Savings", "Transmission", "Business", "Bond"];
 
-const BANKING_FIELDS: { key: keyof CompanyBankingFields; label: string; placeholder: string; mono?: boolean }[] = [
+const BANKING_FIELDS: {
+  key: keyof CompanyBankingFields;
+  label: string;
+  placeholder: string;
+  hint?: string;
+  options?: string[];
+  numeric?: boolean;
+}[] = [
   { key: "bank_name", label: "Bank", placeholder: "Bank name" },
-  { key: "branch_code", label: "Branch", placeholder: "Code" },
-  { key: "account_holder", label: "Holder", placeholder: "Name" },
-  { key: "account_number", label: "Account #", placeholder: "Number" },
-  { key: "account_type", label: "Type", placeholder: "Type" },
-  { key: "swift_code", label: "SWIFT", placeholder: "Code" },
+  {
+    key: "branch_code",
+    label: "Branch",
+    placeholder: "6 digits",
+    hint: "6-digit universal branch code",
+    numeric: true,
+  },
+  { key: "account_holder", label: "Holder", placeholder: "Name", hint: "Exactly as registered at the bank" },
+  { key: "account_number", label: "Account #", placeholder: "Number", hint: "Digits only", numeric: true },
+  { key: "account_type", label: "Type", placeholder: "Select", options: ACCOUNT_TYPES },
+  {
+    key: "swift_code",
+    label: "SWIFT",
+    placeholder: "e.g. SBZAZAJJ",
+    hint: "8 or 11 characters, uppercase (BIC)",
+  },
 ];
+
 
 export function CompanyInformationCard({
   registeredBusinessName,
