@@ -1659,9 +1659,19 @@ export default function AdminContracts() {
             </Button>
             <Button 
               onClick={handleSendContract} 
-              disabled={sending || !sendEmail || (!selectedProperty && !propertySearch.trim())}
+              disabled={
+                sending ||
+                !sendEmail ||
+                (sendScope === "single" && !selectedProperty && !propertySearch.trim()) ||
+                (sendScope !== "single" && scopedPropertyIds.length === 0)
+              }
             >
-              {sending ? "Sending..." : noPropertiesWarning ? "Send & Create Owner" : "Send Contract"}
+              {sending
+                ? "Sending..."
+                : sendScope === "single"
+                ? (noPropertiesWarning ? "Send & Create Owner" : "Send Contract")
+                : `Send Contract (${scopedPropertyIds.length})`}
+
             </Button>
           </DialogFooter>
         </DialogContent>
