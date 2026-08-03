@@ -339,7 +339,7 @@ export function CompanyInformationCard({
     need("Country", propertyCountry);
     need("Region / province", companyProfile.region);
     need("City", propertyCity);
-    need("Time zone", companyProfile.time_zone);
+    if (!normalizeRuTimeZone(companyProfile.time_zone)) out.push("Time zone");
     if (!ruLocationId) out.push("RU LocationID");
     if (banking.has_vat) need("VAT number", banking.vat_number);
     need("Rep first name", rep.first_name);
