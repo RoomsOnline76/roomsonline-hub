@@ -962,10 +962,6 @@ export function PortfolioRuAccountsTab() {
                       </a>
                     )}
                     {(() => {
-                      const ownerKey = acc.ru_owner_id ? storedKeyByOwner.get(String(acc.ru_owner_id)) : undefined;
-                      const activeAccessKey = ownerKey?.access_key ?? acc.ru_api_access_key ?? null;
-                      const activeLabel = ownerKey?.key_label ?? acc.ru_api_key_label ?? null;
-                      const activeVerified = ownerKey?.verified_at ?? acc.ru_api_keys_verified_at ?? null;
                       return (
                     <div className="rounded-md border border-border bg-muted/20 p-3 space-y-2">
                       <div className="flex items-center justify-between gap-2 flex-wrap">
