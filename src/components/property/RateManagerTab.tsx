@@ -261,8 +261,8 @@ export function RateManagerTab({
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="flex h-auto w-full flex-wrap justify-start gap-0.5">
             <TabsTrigger value="rate-types">Rate Types</TabsTrigger>
-            <TabsTrigger value="season">Seasons</TabsTrigger>
-            <TabsTrigger value="seasons-calendar">Calendar</TabsTrigger>
+            {!isRolProperty && <TabsTrigger value="season">Seasons</TabsTrigger>}
+            <TabsTrigger value="seasons-calendar">Calendar / Seasons</TabsTrigger>
             <TabsTrigger value="rate-breakdown">Rate Breakdown</TabsTrigger>
             <TabsTrigger value="charges">Charges</TabsTrigger>
             <TabsTrigger value="policies">Policies</TabsTrigger>

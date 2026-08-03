@@ -14,6 +14,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { summarizeReadiness, type RuCheck, type RuUnitInput } from "../_shared/ruReadiness.ts";
 import { evaluatePhases, findOwnerAccount, resolvePortfolioId } from "../_shared/ruPhaseGate.ts";
 import { createRateResolver, describeCoverage } from "../_shared/rateResolution.ts";
+import { parseRuPricePoints } from "../_shared/ruPriceParsing.ts";
 
 
 
@@ -443,13 +444,21 @@ Deno.serve(async (req) => {
 
       // ── Local rate coverage (calendar first, rack rate fallback) ──
       // Reports what ROLOS would push, independently of what RU currently holds.
-      let localCoverage: { summary: string; calendar_days: number; rack_days: number; unpriced_days: number } | null = null;
+      let localCoverage: { summary: string; calendar_days: number; rack_days: number; unpriced_days: number; complete: boolean; unit_count: number } | null = null;
+      const mappedUnitRows = (data?.units ?? []).filter(
+        (unit: { ru_property_id?: string | null }) => Number(unit.ru_property_id) > 0,
+      );
       try {
         const from = isoDate(0);
         const to = isoDate(365);
         const resolver = await createRateResolver(admin, p.id, { window: { from, to } });
         const expectedDays = Math.round((Date.parse(to) - Date.parse(from)) / 86400000) + 1;
-        const targets = resolver.units.length > 0 ? resolver.units : [{ id: p.id, name: p.name }];
+        const mappedIds = new Set(
+          mappedUnitRows.map((unit: { room_type_id?: string }) => unit.room_type_id).filter(Boolean),
+        );
+        const targets = mappedIds.size > 0
+          ? resolver.units.filter((unit) => mappedIds.has(unit.id))
+          : resolver.units.length > 0 ? resolver.units : [{ id: p.id, name: p.name }];
         let calendar = 0, rack = 0, priced = 0;
         for (const u of targets) {
           const days = resolver.resolveDays(u, from, to);
@@ -467,6 +476,8 @@ Deno.serve(async (req) => {
           calendar_days: calendar,
           rack_days: rack,
           unpriced_days: Math.max(0, perUnitExpected - priced),
+          complete: priced === perUnitExpected && perUnitExpected > 0,
+          unit_count: targets.length,
         };
       } catch (e) {
         console.warn("[scoreProperty] rate coverage probe failed:", e);
@@ -486,23 +497,33 @@ Deno.serve(async (req) => {
       if (opts.probe_ari === false) {
         // ARI not probed in this context — omit the checks entirely.
       } else if (ruIds.length > 0) {
-        const target = ruIds[0];
         const from = isoDate(0);
         const to = isoDate(365);
-        const [avbRes, priceRes] = await Promise.all([
-          admin.functions.invoke("rentalsunited-api", {
-            body: { action: "get_availability", ru_property_id: target, date_from: from, date_to: to },
-          }),
-          admin.functions.invoke("rentalsunited-api", {
-            body: { action: "get_prices", ru_property_id: target, date_from: from, date_to: to },
-          }),
-        ]);
-        const avbXml: string = avbRes.data?.raw_xml ?? "";
-        const priceXml: string = priceRes.data?.raw_xml ?? "";
-        const openDays = (avbXml.match(/>\s*[1-9]\d*\s*</g) ?? []).length;
-        const prices = Array.from(priceXml.matchAll(/Price="([\d.]+)"/g)).map((m) => Number(m[1]));
-        const hasAvailability = !!avbRes.data?.success && openDays > 0;
-        const allPricesPositive = prices.length > 0 && prices.every((n) => n > 0);
+        const unitProbes = await Promise.all(ruIds.map(async (ruId) => {
+          const [avbRes, priceRes] = await Promise.all([
+            admin.functions.invoke("rentalsunited-api", {
+              body: { action: "get_availability", ru_property_id: ruId, date_from: from, date_to: to },
+            }),
+            admin.functions.invoke("rentalsunited-api", {
+              body: { action: "get_prices", ru_property_id: ruId, date_from: from, date_to: to },
+            }),
+          ]);
+          const avbXml: string = avbRes.data?.raw_xml ?? "";
+          const prices = parseRuPricePoints(priceRes.data?.raw_xml ?? "");
+          const openDays = (avbXml.match(/>\s*[1-9]\d*\s*</g) ?? []).length;
+          return {
+            ru_property_id: ruId,
+            open_days: openDays,
+            price_points: prices.length,
+            availability_ok: !!avbRes.data?.success && openDays > 0,
+            prices_ok: !!priceRes.data?.success && prices.length > 0 && prices.every((price) => price > 0),
+          };
+        }));
+        const hasAvailability = unitProbes.every((probe) => probe.availability_ok);
+        const livePricesVerified = unitProbes.every((probe) => probe.prices_ok);
+        const pricingReady = livePricesVerified || localCoverage?.complete === true;
+        const failedAvailabilityIds = unitProbes.filter((probe) => !probe.availability_ok).map((probe) => probe.ru_property_id);
+        const failedPriceIds = unitProbes.filter((probe) => !probe.prices_ok).map((probe) => probe.ru_property_id);
 
         extraChecks.push({
           key: "ari_availability",
@@ -510,29 +531,31 @@ Deno.serve(async (req) => {
           label: "Availability pushed for the next 365 days",
           mandatory: true,
           passed: hasAvailability,
-          ...(hasAvailability ? {} : { detail: `RU ${target}: no open availability day in the next 365 days` }),
+          ...(hasAvailability ? {} : { detail: `RU units ${failedAvailabilityIds.join(", ")}: no open availability day in the next 365 days` }),
           fix_hint: "Rate Manager → Calendar / availability",
         });
         extraChecks.push({
           key: "ari_prices",
           group: "Pricing 365d",
-          label: "Daily prices pushed for the next 365 days",
+          label: livePricesVerified ? "Rates verified on RU for the next 365 days" : "Local rates ready to push for the next 365 days",
           mandatory: true,
-          passed: allPricesPositive,
-          ...(allPricesPositive
-            ? (localCoverage ? { detail: `Local rates: ${localCoverage.summary}` } : {})
-            : { detail: `RU ${target}: prices missing or not all above zero for the next 365 days${localCoverage ? ` — local rates: ${localCoverage.summary}` : ""}` }),
+          passed: pricingReady,
+          ...(pricingReady
+            ? { detail: livePricesVerified
+              ? `Verified on ${unitProbes.length} RU unit(s)${localCoverage ? ` — local rates: ${localCoverage.summary}` : ""}`
+              : `Ready to push from ROLOS (${localCoverage?.summary ?? "complete local coverage"}); RU verification pending for ${failedPriceIds.join(", ")}` }
+            : { detail: `RU units ${failedPriceIds.join(", ")}: prices missing or non-positive${localCoverage ? ` — local rates: ${localCoverage.summary}` : ""}` }),
           fix_hint: "Calendar seasons & rates (first), then Rate Manager → Rates rack rate",
         });
 
         ari = {
-          ru_property_id: target,
+          ru_property_ids: ruIds,
           date_from: from,
           date_to: to,
-          open_days: openDays,
-          price_points: prices.length,
+          units: unitProbes,
           availability_ok: hasAvailability,
-          prices_ok: allPricesPositive,
+          prices_ok: pricingReady,
+          live_prices_verified: livePricesVerified,
           rate_coverage: localCoverage,
         };
       } else {
