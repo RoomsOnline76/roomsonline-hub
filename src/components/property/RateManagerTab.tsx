@@ -909,21 +909,22 @@ export function RateManagerTab({
           </TabsContent>
 
           {/* ── Policies Sub-tab ──────────────────────────────────────────── */}
-          <TabsContent value="policies" className="p-6 space-y-6">
+          <TabsContent value="policies" className="p-4 space-y-5">
             {propertyId && <PoliciesTab propertyId={propertyId} onOpenSpecials={onOpenSpecials} />}
-            {!propertyId && <p className="text-sm text-muted-foreground">Save the property first to configure policies.</p>}
+            {!propertyId && <p className="text-xs text-muted-foreground">Save the property first to configure policies.</p>}
             {policiesExtra && (
-              <div className="space-y-3 border-t pt-6">
-                <div>
-                  <h3 className="text-sm font-semibold">House rules &amp; stay terms</h3>
-                  <p className="text-xs text-muted-foreground">
+              <section className="pf-section">
+                <div className="mb-2 border-b border-border/60 pb-1.5">
+                  <h3 className="pf-section-title">House rules &amp; stay terms</h3>
+                  <p className="mt-0.5 text-[11px] leading-tight text-muted-foreground">
                     Check-in/out times, deposits, age ranges, cots and extra beds, pets and fine print.
                   </p>
                 </div>
                 {policiesExtra}
-              </div>
+              </section>
             )}
           </TabsContent>
+
 
 
 
