@@ -1799,7 +1799,7 @@ export default function AdminContracts() {
                 </button>
               </div>
             </div>
-            {noPropertiesWarning && !validatingEmail && sendEmail && !selectedProperty && (
+            {!isReferral && noPropertiesWarning && !validatingEmail && sendEmail && !selectedProperty && (
               <Alert className="bg-amber-50 border-amber-200">
                 <Building2 className="h-4 w-4 text-amber-600" />
                 <AlertDescription className="text-amber-800">
@@ -1811,7 +1811,7 @@ export default function AdminContracts() {
               </Alert>
             )}
 
-            {linkedProperties.length > 0 && (
+            {!isReferral && linkedProperties.length > 0 && (
               <div className="bg-muted/30 rounded-lg p-3 border border-border">
                 <p className="text-sm font-medium mb-2 flex items-center gap-2">
                   <Check className="h-4 w-4 text-green-600" />
@@ -1824,6 +1824,7 @@ export default function AdminContracts() {
                 </ul>
               </div>
             )}
+
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => {
