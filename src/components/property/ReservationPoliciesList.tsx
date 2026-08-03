@@ -150,6 +150,12 @@ export const ReservationPoliciesList: React.FC<Props> = ({ propertyId }) => {
         </Card>
       )}
 
+      {policies.length > 0 && !policies.some((p) => p.is_master) && (
+        <div className="text-xs p-2 rounded-md border border-destructive/40 text-destructive">
+          No master policy set — mark one policy as master so it applies whenever no special or rate-plan policy matches.
+        </div>
+      )}
+
       {policies.map((p) => {
         const preview = formatCancellationPolicy(p.rule);
         const linksForPolicy = links.filter((l) => l.policy_id === p.id);
@@ -166,15 +172,25 @@ export const ReservationPoliciesList: React.FC<Props> = ({ propertyId }) => {
                   <Badge variant="outline" className="text-[10px]">
                     {p.kind === "non_refundable" ? "Non Refundable" : p.kind === "general" ? "General" : "Custom"}
                   </Badge>
-                  {p.is_default && (
+                  {p.is_master && (
                     <Badge className="text-[10px] gap-1">
+                      <Crown className="h-3 w-3" /> Master fallback
+                    </Badge>
+                  )}
+                  {p.is_default && (
+                    <Badge variant="secondary" className="text-[10px] gap-1">
                       <Star className="h-3 w-3" /> Default
                     </Badge>
                   )}
-                  {p.source_policy_id && (
-                    <Badge variant="secondary" className="text-[10px]">Linked</Badge>
+                  {p.linked_master_id && (
+                    <Badge variant="outline" className="text-[10px]">Linked to master</Badge>
+                  )}
+                  {p.source_policy_id && !p.linked_master_id && (
+                    <Badge variant="secondary" className="text-[10px]">Copied</Badge>
                   )}
                 </div>
+                {p.description && <p className="text-xs text-muted-foreground">{p.description}</p>}
+
                 <ul className="text-xs text-muted-foreground space-y-0.5 list-disc pl-4">
                   <li>{preview.summaryText}</li>
                   {(p.rule.deposit_percent ?? 100) < 100 && (
