@@ -2519,10 +2519,21 @@ Deno.serve(async (req) => {
     if (action === "run_suite") {
       const suite: string = body.suite ?? "read_only";
       const propertyId: string | null = body.property_id ?? null;
+      /**
+       * A "full" certification is executed as three staged invocations so each phase gets
+       * its own request lifetime and its own wait budget — one invocation cannot hold the
+       * read-only sweep plus both pushes plus the discount ladder inside the runtime's
+       * 150s ceiling. `phase` selects the stage; `run_id` appends to an existing record.
+       */
+      const phase: string | null = body.phase ?? null;
+      const continuingRunId: string | null = body.run_id ?? null;
+      const isFinalPhase: boolean = body.final !== false;
 
       // ── Rate-limit guard: RU tolerates ~1 call per sliding minute, and a suite fires
       // several. Refuse a new run while the previous one is inside the cooldown window.
-      {
+      // Staged phases of one run are exempt: they are a continuation, not a new run.
+      if (!continuingRunId) {
+
         const { data: lastRun } = await admin
           .from("ru_cert_runs")
           .select("started_at")
@@ -2573,21 +2584,41 @@ Deno.serve(async (req) => {
         }
       }
 
-      const { data: run, error: runErr } = await admin
-        .from("ru_cert_runs")
-        .insert({
-          status: "running",
-          suite,
-          property_id: propertyId,
-          ru_property_id: ruPropertyId ? String(ruPropertyId) : null,
-          triggered_by: user.id,
-        })
-        .select("id")
-        .single();
-      if (runErr) throw runErr;
+      // Continuation of a staged run appends to the same record so the console shows one
+      // certification, not three fragments.
+      let run: { id: string };
+      let steps: CertStep[] = [];
+      if (continuingRunId) {
+        const { data: existing, error: exErr } = await admin
+          .from("ru_cert_runs")
+          .select("id, steps")
+          .eq("id", continuingRunId)
+          .maybeSingle();
+        if (exErr) throw exErr;
+        if (!existing) {
+          return json({ success: false, error: { code: "RUN_NOT_FOUND", message: "Certification run not found." } }, 404);
+        }
+        run = { id: existing.id };
+        steps = Array.isArray(existing.steps) ? (existing.steps as CertStep[]) : [];
+      } else {
+        const { data: created, error: runErr } = await admin
+          .from("ru_cert_runs")
+          .insert({
+            status: "running",
+            suite,
+            property_id: propertyId,
+            ru_property_id: ruPropertyId ? String(ruPropertyId) : null,
+            triggered_by: user.id,
+          })
+          .select("id")
+          .single();
+        if (runErr) throw runErr;
+        run = created;
+      }
 
-      const steps: CertStep[] = [];
-      let stepNo = 0;
+      const priorStepCount = steps.length;
+      let stepNo = steps.reduce((max, s: any) => Math.max(max, Number(s?.step ?? 0)), 0);
+
 
       /**
        * RU responses that are not our fault: the sliding-minute rate limit and methods RU has
@@ -2666,22 +2697,41 @@ Deno.serve(async (req) => {
       };
 
 
+      /**
+       * Within one run, an identical successful read is reused instead of being re-fired:
+       * repeating the same method with the same parameters would cost a full sliding
+       * minute of waiting for data we already hold.
+       */
+      const readCache = new Map<string, any>();
+      const CACHEABLE_READS = new Set([
+        "get_availability",
+        "get_prices",
+        "get_property",
+        "list_properties",
+        "list_composition_rooms",
+        "list_cities_and_currencies",
+      ]);
+
       /** Invokes rentalsunited-api with pacing + one rate-limit retry. */
       const ruInvoke = async (
         ruAction: string,
         payload: Record<string, unknown>,
-      ): Promise<{ data: any; error: any; paced_skip?: string }> => {
+      ): Promise<{ data: any; error: any; paced_skip?: string; paced?: boolean; cached?: boolean }> => {
         const method = RU_METHOD_BY_ACTION[ruAction] ?? ruAction;
+        const paceKey = paceKeyFor(method, payload);
+        if (CACHEABLE_READS.has(ruAction) && readCache.has(paceKey)) {
+          return { data: readCache.get(paceKey), error: null, cached: true };
+        }
         if (Date.now() >= RUN_DEADLINE_MS) {
           return {
             data: null,
             error: null,
+            paced: true,
             paced_skip:
               "Skipped — this run reached its time budget before the step could be paced safely. Re-run the suite to cover it.",
           };
         }
         const now = Date.now();
-        const paceKey = paceKeyFor(method, payload);
         await budgetedWait(lastCallAt ? lastCallAt + MIN_GAP_MS - now : 0);
         const prevSameCall = lastCallByKey.get(paceKey);
         if (prevSameCall) {
@@ -2693,6 +2743,7 @@ Deno.serve(async (req) => {
             return {
               data: null,
               error: null,
+              paced: true,
               paced_skip:
                 `Skipped to respect the Rentals United rate limit (1 call per sliding minute for ${method} with the same parameters) — ` +
                 `the run's wait budget was already spent. Re-run this suite to cover this step.`,
@@ -2721,12 +2772,17 @@ Deno.serve(async (req) => {
             return {
               data: res.data,
               error: res.error,
+              paced: true,
               paced_skip:
                 "Rentals United rate limit hit and the run's wait budget was spent — re-run this suite to cover this step.",
             };
           }
           res = await fire();
         }
+        if (CACHEABLE_READS.has(ruAction) && !res.error && res.data?.success === true) {
+          readCache.set(paceKey, res.data);
+        }
+
 
         return { data: res.data, error: res.error };
       };
@@ -2816,9 +2872,13 @@ Deno.serve(async (req) => {
         }
       };
 
-      const runReadOnly = suite === "read_only" || suite === "full";
-      const runMandatory = suite === "mandatory" || suite === "full";
-      const runDiscounts = suite === "discounts" || suite === "full";
+      // A staged full run passes `phase`; a single-suite run keeps its historic behaviour.
+      const activePhase = phase ?? (suite === "full" ? null : suite);
+      const runReadOnly = activePhase ? activePhase === "read_only" : suite === "read_only" || suite === "full";
+      const runMandatory = activePhase ? activePhase === "mandatory" : suite === "mandatory" || suite === "full";
+      const runDiscounts = activePhase ? activePhase === "discounts" : suite === "discounts" || suite === "full";
+      const phaseTag = activePhase ?? suite;
+
 
       const noProp = ruPropertyId ? undefined : "No RU property id resolved — select a property that has been pushed to RU.";
 
@@ -2859,8 +2919,17 @@ Deno.serve(async (req) => {
         if (unitRuIds.length === 0 && ruPropertyId) unitRuIds = [ruPropertyId];
       }
 
-      /** Availability / price read-back across every mapped RU unit. */
-      const probeAri = async (name: string, ruAction: "get_availability" | "get_prices") => {
+      /**
+       * Availability / price read-back across every mapped RU unit.
+       * `opts.windowOffsetDays` shifts the queried range: a post-push verification must not
+       * repeat the read-only phase's exact call, or RU's sliding-minute window forces a
+       * 60s wait per unit for data we would read again anyway.
+       */
+      const probeAri = async (
+        name: string,
+        ruAction: "get_availability" | "get_prices",
+        opts: { windowOffsetDays?: number } = {},
+      ) => {
         if (!propertyId) return;
         const ru_method = RU_METHOD_BY_ACTION[ruAction] ?? ruAction;
         stepNo += 1;
@@ -2873,13 +2942,14 @@ Deno.serve(async (req) => {
           return;
         }
         const t0 = Date.now();
-        const from = isoDate(0);
-        const to = isoDate(365);
+        const offset = opts.windowOffsetDays ?? 0;
+        const from = isoDate(offset);
+        const to = isoDate(365 + offset);
         // Sequential (never parallel): the same RU method for several units would otherwise
         // trip the sliding-minute limit. ruInvoke paces and retries each unit call.
-        const results: { ruId: number; ok: boolean; count: number; detail: string | null; xml: string }[] = [];
+        const results: { ruId: number; ok: boolean; count: number; detail: string | null; xml: string; paced: boolean }[] = [];
         for (const ruId of unitRuIds) {
-          const { data, error, paced_skip } = await ruInvoke(ruAction, {
+          const { data, error, paced_skip, paced } = await ruInvoke(ruAction, {
             ru_property_id: ruId,
             date_from: from,
             date_to: to,
@@ -2889,11 +2959,13 @@ Deno.serve(async (req) => {
             ? (xml.match(/>\s*[1-9]\d*\s*</g) ?? []).length
             : parseRuPricePoints(xml).filter((p) => p > 0).length;
           const detail = paced_skip ?? error?.message ?? data?.error?.message ?? null;
-          results.push({ ruId, ok: !paced_skip && !error && data?.success === true && count > 0, count, detail, xml });
+          results.push({ ruId, ok: !paced_skip && !error && data?.success === true && count > 0, count, detail, xml, paced: paced === true });
         }
         const failed = results.filter((r) => !r.ok);
+        // A step the run never got to attempt is informational, never a failure. The pacer
+        // says so with a flag — message matching used to grade budget skips as red.
         const soft = failed
-          .map((r) => (/(rate limit|wait budget)/i.test(String(r.detail ?? "")) ? String(r.detail) : softSkipReason(String(r.detail ?? ""))))
+          .map((r) => (r.paced ? String(r.detail ?? "Skipped to respect the Rentals United rate limit.") : softSkipReason(String(r.detail ?? ""))))
           .find(Boolean) ?? null;
 
         const unitLabel = ruAction === "get_availability" ? "open day(s)" : "price point(s)";
@@ -2915,6 +2987,8 @@ Deno.serve(async (req) => {
           response_preview: preview(results[0]?.xml ?? null),
         });
       };
+
+
 
       if (runReadOnly) {
         await call("Credentials & connectivity", "health_check", {}, { mandatory: true, scope: "account" });
@@ -2996,8 +3070,11 @@ Deno.serve(async (req) => {
           // Read-back verification (small settle so RU has committed the push)
           await budgetedWait(3000);
           await call("Verify content read-back", "get_property", { ru_property_id: ruPropertyId }, { mandatory: true, scope: "property", skip: noProp });
-          await probeAri("Verify availability read-back", "get_availability");
-          await probeAri("Verify prices read-back", "get_prices");
+          // Offset window (tomorrow → +366d): a distinct parameter set, so RU treats these
+          // as fresh calls rather than repeats of the read-only phase's identical reads.
+          await probeAri("Verify availability read-back", "get_availability", { windowOffsetDays: 1 });
+          await probeAri("Verify prices read-back", "get_prices", { windowOffsetDays: 1 });
+
 
         }
       }
@@ -3116,17 +3193,25 @@ Deno.serve(async (req) => {
 
       }
 
+      // Stamp the phase on the steps this invocation produced so the console can group a
+      // staged full run by phase.
+      for (let i = priorStepCount; i < steps.length; i++) {
+        (steps[i] as Record<string, unknown>).phase = phaseTag;
+      }
+
       const passed = steps.filter((s) => s.status === "passed").length;
       const failed = steps.filter((s) => s.status === "failed").length;
       // Skipped steps (methods RU has not enabled, rate-limit deferrals, N/A scope) are
       // informational and excluded from the success counter denominator.
       const graded = passed + failed;
 
+      // An intermediate phase leaves the run open: only the last phase closes it, so the
+      // record reflects one certification with a single verdict.
       const { data: finished } = await admin
         .from("ru_cert_runs")
         .update({
-          status: failed === 0 ? "passed" : "failed",
-          finished_at: new Date().toISOString(),
+          status: isFinalPhase ? (failed === 0 ? "passed" : "failed") : "running",
+          finished_at: isFinalPhase ? new Date().toISOString() : null,
           passed,
           failed,
           total: graded,
@@ -3138,7 +3223,8 @@ Deno.serve(async (req) => {
         .select("*")
         .single();
 
-      return json({ success: true, run: finished, property: propertyRow });
+      return json({ success: true, run: finished, property: propertyRow, run_id: run.id, phase: phaseTag });
+
     }
 
     return json({ success: false, error: { code: "UNKNOWN_ACTION", message: `Unknown action: ${action}` } }, 400);
