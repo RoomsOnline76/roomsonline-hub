@@ -10623,11 +10623,15 @@ export type Database = {
           id: string
           location_currency_iso: string | null
           margin_pct: number
+          owner_scope: string | null
           property_id: string
           published_currency_iso: string | null
           reason: string | null
           ru_location_id: number | null
+          ru_reported_currency_iso: string | null
           updated_at: string
+          verified_at: string | null
+          verified_ru_property_id: number | null
         }
         Insert: {
           authored_currency_iso?: string | null
@@ -10640,11 +10644,15 @@ export type Database = {
           id?: string
           location_currency_iso?: string | null
           margin_pct?: number
+          owner_scope?: string | null
           property_id: string
           published_currency_iso?: string | null
           reason?: string | null
           ru_location_id?: number | null
+          ru_reported_currency_iso?: string | null
           updated_at?: string
+          verified_at?: string | null
+          verified_ru_property_id?: number | null
         }
         Update: {
           authored_currency_iso?: string | null
@@ -10657,11 +10665,15 @@ export type Database = {
           id?: string
           location_currency_iso?: string | null
           margin_pct?: number
+          owner_scope?: string | null
           property_id?: string
           published_currency_iso?: string | null
           reason?: string | null
           ru_location_id?: number | null
+          ru_reported_currency_iso?: string | null
           updated_at?: string
+          verified_at?: string | null
+          verified_ru_property_id?: number | null
         }
         Relationships: [
           {
@@ -10775,6 +10787,36 @@ export type Database = {
           quote_iso?: string
           rate?: number
           source?: string
+        }
+        Relationships: []
+      }
+      ru_location_currency_scope: {
+        Row: {
+          currency_iso: string | null
+          currency_ru_id: number | null
+          last_synced_at: string
+          location_id: number
+          owner_scope: string
+          source: string
+          verified_at: string | null
+        }
+        Insert: {
+          currency_iso?: string | null
+          currency_ru_id?: number | null
+          last_synced_at?: string
+          location_id: number
+          owner_scope: string
+          source?: string
+          verified_at?: string | null
+        }
+        Update: {
+          currency_iso?: string | null
+          currency_ru_id?: number | null
+          last_synced_at?: string
+          location_id?: number
+          owner_scope?: string
+          source?: string
+          verified_at?: string | null
         }
         Relationships: []
       }

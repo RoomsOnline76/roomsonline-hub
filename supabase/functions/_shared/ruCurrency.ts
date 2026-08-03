@@ -37,7 +37,112 @@ export type CurrencyDecision = {
   reason: string;
   blocked?: boolean;
   block_reason?: string;
+  /** The RU account the flip/verification was performed as ('master' or the sub-user OwnerID). */
+  owner_scope?: string;
+  /** Currency RU itself reported on read-back (Pull_GetProperty_RQ). Null = never verified. */
+  ru_reported_iso?: string | null;
+  verified_at?: string | null;
+  verified_ru_property_id?: number | null;
 };
+
+/** RU applies currency per authenticating account, so every cached value is scoped to one. */
+export function ruOwnerScopeKey(childAuth: Record<string, unknown> = {}): string {
+  const owner = (childAuth as Record<string, unknown>)?.owner_id;
+  const s = owner == null ? '' : String(owner).trim();
+  return s ? s : 'master';
+}
+
+/**
+ * Scoped location-currency cache. Unlike `ru_locations` (a global dictionary), rows here
+ * are per RU account, and `source` records HOW we know: only `ru_readback` is evidence.
+ */
+export async function getScopedLocationCurrency(
+  supabase: any,
+  locationId: number,
+  ownerScope: string,
+): Promise<{ iso: string | null; source: string; verified_at: string | null; stale: boolean } | null> {
+  if (!locationId || locationId <= 1) return null;
+  try {
+    const { data } = await supabase
+      .from('ru_location_currency_scope')
+      .select('currency_iso, source, verified_at, last_synced_at')
+      .eq('location_id', locationId)
+      .eq('owner_scope', ownerScope)
+      .maybeSingle();
+    if (!data) return null;
+    const synced = data.last_synced_at ? Date.parse(data.last_synced_at) : 0;
+    return {
+      iso: data.currency_iso ? String(data.currency_iso).toUpperCase() : null,
+      source: data.source ?? 'unverified',
+      verified_at: data.verified_at ?? null,
+      stale: !synced || Date.now() - synced > 7 * 86400000,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function recordScopedLocationCurrency(
+  supabase: any,
+  locationId: number,
+  ownerScope: string,
+  iso: string | null,
+  source: 'ru_readback' | 'flip' | 'dictionary' | 'unverified',
+): Promise<void> {
+  if (!locationId || locationId <= 1) return;
+  try {
+    await supabase.from('ru_location_currency_scope').upsert({
+      location_id: locationId,
+      owner_scope: ownerScope,
+      currency_iso: iso ? iso.toUpperCase() : null,
+      currency_ru_id: iso ? (RU_CURRENCY_BY_ISO[iso.toUpperCase()] ?? null) : null,
+      source,
+      verified_at: source === 'ru_readback' ? new Date().toISOString() : null,
+      last_synced_at: new Date().toISOString(),
+    }, { onConflict: 'location_id,owner_scope' });
+  } catch (e) {
+    console.warn('[ruCurrency] Failed to record scoped location currency:', e instanceof Error ? e.message : e);
+  }
+}
+
+/**
+ * Ask RU what currency it actually holds for a listing. This is the only trustworthy
+ * source: our own post-flip cache write is an assumption, not an observation.
+ */
+export async function verifyRuPropertyCurrency(
+  supabase: any,
+  ruPropertyId: number,
+  childAuth: Record<string, unknown> = {},
+): Promise<{ iso: string | null; currency_id: number | null; error?: string }> {
+  if (!ruPropertyId || ruPropertyId <= 0) return { iso: null, currency_id: null, error: 'no ru_property_id' };
+  try {
+    const { data, error } = await supabase.functions.invoke('rentalsunited-api', {
+      body: { action: 'get_property', ru_property_id: ruPropertyId, ...childAuth },
+    });
+    if (error || !data?.success) {
+      return { iso: null, currency_id: null, error: error?.message || data?.error?.message || 'Pull_GetProperty failed' };
+    }
+    // RU reports the listing currency as an ISO attribute on <Property Currency="USD">,
+    // not as a <CurrencyID> element — read the attribute first, then fall back.
+    let iso: string | null = typeof data.currency_iso === 'string' && data.currency_iso ? String(data.currency_iso).toUpperCase() : null;
+    let currencyId: number | null = Number.isFinite(Number(data.currency_id)) ? Number(data.currency_id) : null;
+    if (!iso && typeof data.raw_xml === 'string') {
+      const attr = data.raw_xml.match(/<Property\b[^>]*\bCurrency="([A-Za-z]{3})"/i);
+      if (attr) iso = attr[1].toUpperCase();
+    }
+    if (currencyId == null && typeof data.raw_xml === 'string') {
+      const m = data.raw_xml.match(/<CurrencyID>\s*(\d+)\s*<\/CurrencyID>/i);
+      if (m) currencyId = parseInt(m[1], 10);
+    }
+    if (!iso && currencyId != null) iso = ISO_BY_RU_CURRENCY_ID[currencyId] ?? null;
+    if (iso && currencyId == null) currencyId = RU_CURRENCY_BY_ISO[iso] ?? null;
+    return { iso, currency_id: currencyId, error: iso == null ? 'RU response carried no currency' : undefined };
+
+  } catch (e) {
+    return { iso: null, currency_id: null, error: e instanceof Error ? e.message : 'read-back threw' };
+  }
+}
+
 
 // ── RU location cache ────────────────────────────────────────────────────────
 export async function getLocationCurrencyIso(
@@ -194,18 +299,23 @@ export async function decideRuCurrency(
     authoredIso: string;
     country?: string | null;
     childAuth?: Record<string, unknown>;
+    /** RU account the calls are made as; defaults to childAuth.owner_id or 'master'. */
+    ownerScope?: string;
     dryRun?: boolean;
     persist?: boolean;
   },
 ): Promise<CurrencyDecision> {
   const authored = (opts.authoredIso || 'ZAR').toUpperCase();
   const childAuth = opts.childAuth ?? {};
+  const ownerScope = opts.ownerScope || ruOwnerScopeKey(childAuth);
   const marginPct = FX_MARGIN_PCT;
 
-  let cached = await getLocationCurrencyIso(supabase, opts.locationId);
-  // Empty or stale cache is the root cause of currency drift going undetected —
-  // seed it on demand before deciding anything.
-  if (!cached || !cached.iso || cached.stale) {
+  // Only a read-back from RU on THIS account counts as knowing the currency. The global
+  // ru_locations dictionary describes the master account and must never stand in for a
+  // white-label sub-user (that is how a USD sub-account reported "ZAR" for months).
+  const scoped = await getScopedLocationCurrency(supabase, opts.locationId, ownerScope);
+  let cached = ownerScope === 'master' ? await getLocationCurrencyIso(supabase, opts.locationId) : null;
+  if (ownerScope === 'master' && (!cached || !cached.iso || cached.stale)) {
     await refreshRuLocationsCache(supabase, childAuth);
     cached = await getLocationCurrencyIso(supabase, opts.locationId);
   }
@@ -214,27 +324,31 @@ export async function decideRuCurrency(
     location_id: opts.locationId,
     authored_iso: authored,
     margin_pct: marginPct,
+    owner_scope: ownerScope,
     ...d,
   });
 
-  const locationIso = cached?.iso ?? null;
+  const verifiedIso = scoped?.source === 'ru_readback' && !scoped.stale ? scoped.iso : null;
+  const locationIso = verifiedIso ?? (ownerScope === 'master' ? cached?.iso ?? null : null);
 
-  // Location already publishes in the authored currency — nothing to do.
-  if (locationIso && locationIso === authored) {
+  // Verified-by-read-back only: an assumed value never short-circuits the flip.
+  if (verifiedIso && verifiedIso === authored) {
     const d = decide({
-      location_iso: locationIso,
+      location_iso: verifiedIso,
       published_iso: authored,
       conversion_in_force: false,
       fx_rate: null,
       effective_rate: null,
       flip_outcome: 'already_set',
-      reason: `Rentals United location ${opts.locationId} is set to ${authored}.`,
+      ru_reported_iso: verifiedIso,
+      verified_at: scoped?.verified_at ?? null,
+      reason: `Rentals United confirmed location ${opts.locationId} holds ${authored} for account ${ownerScope}.`,
     });
     await persistDecision(supabase, opts.propertyId, d, opts.persist !== false && !opts.dryRun);
     return d;
   }
 
-  // Location currency unknown even after a cache refresh — attempt the flip anyway;
+  // Location currency unknown or unverified — attempt the flip as the owning account;
   // a 339 ("already set") tells us it was correct all along.
   let flip: CurrencyDecision['flip_outcome'] = locationIso ? 'failed' : 'unknown_location';
   let flipMessage = '';
@@ -248,20 +362,26 @@ export async function decideRuCurrency(
         flipMessage = error?.message || data?.error?.message || 'Push_ChangeCurrency was refused';
       } else {
         flip = data.already_set ? 'already_set' : 'flipped';
-        await supabase.from('ru_locations').upsert({
-          id: opts.locationId,
-          name: `Location ${opts.locationId}`,
-          country: opts.country || cached?.country || 'Unknown',
-          currency_iso: authored,
-          currency_ru_id: RU_CURRENCY_BY_ISO[authored] ?? null,
-          last_synced_at: new Date().toISOString(),
-        }, { onConflict: 'id' });
+        // Record as an ASSUMPTION scoped to this account (source: 'flip'), pending read-back.
+        await recordScopedLocationCurrency(supabase, opts.locationId, ownerScope, authored, 'flip');
+        // The global dictionary only ever describes the master account.
+        if (ownerScope === 'master') {
+          await supabase.from('ru_locations').upsert({
+            id: opts.locationId,
+            name: `Location ${opts.locationId}`,
+            country: opts.country || cached?.country || 'Unknown',
+            currency_iso: authored,
+            currency_ru_id: RU_CURRENCY_BY_ISO[authored] ?? null,
+            last_synced_at: new Date().toISOString(),
+          }, { onConflict: 'id' });
+        }
       }
     } catch (e) {
       flip = 'failed';
       flipMessage = e instanceof Error ? e.message : 'Push_ChangeCurrency threw';
     }
   }
+
 
   if (flip === 'flipped' || flip === 'already_set') {
     const d = decide({
@@ -332,12 +452,73 @@ export async function persistDecision(
       effective_rate: d.effective_rate,
       reason: d.reason,
       flip_outcome: d.flip_outcome,
+      owner_scope: d.owner_scope ?? null,
+      ru_reported_currency_iso: d.ru_reported_iso ?? null,
+      verified_at: d.verified_at ?? null,
+      verified_ru_property_id: d.verified_ru_property_id ?? null,
       decided_at: new Date().toISOString(),
     }, { onConflict: 'property_id' });
   } catch (e) {
     console.warn('[ruCurrency] Failed to persist currency decision:', e instanceof Error ? e.message : e);
   }
 }
+
+/**
+ * Read the currency RU actually holds for one pushed listing and write it to state.
+ * Drift (RU says USD while we authored ZAR) is recorded as flip_outcome 'failed' so the
+ * tracker shows red instead of echoing our own assumption back at us.
+ */
+export async function verifyAndRecordCurrency(
+  supabase: any,
+  opts: {
+    propertyId: string;
+    locationId: number;
+    authoredIso: string;
+    ruPropertyId: number;
+    childAuth?: Record<string, unknown>;
+    ownerScope?: string;
+    decision?: CurrencyDecision | null;
+  },
+): Promise<{ ru_reported_iso: string | null; matches: boolean; error?: string }> {
+  const childAuth = opts.childAuth ?? {};
+  const ownerScope = opts.ownerScope || ruOwnerScopeKey(childAuth);
+  const expected = (opts.decision?.published_iso || opts.authoredIso || 'ZAR').toUpperCase();
+  const readback = await verifyRuPropertyCurrency(supabase, opts.ruPropertyId, childAuth);
+  if (!readback.iso) {
+    return { ru_reported_iso: null, matches: false, error: readback.error };
+  }
+  const iso = readback.iso.toUpperCase();
+  await recordScopedLocationCurrency(supabase, opts.locationId, ownerScope, iso, 'ru_readback');
+
+  const matches = iso === expected;
+  const base = opts.decision ?? {
+    location_id: opts.locationId,
+    authored_iso: (opts.authoredIso || 'ZAR').toUpperCase(),
+    location_iso: iso,
+    published_iso: expected,
+    conversion_in_force: false,
+    fx_rate: null,
+    margin_pct: FX_MARGIN_PCT,
+    effective_rate: null,
+    flip_outcome: 'unknown_location' as CurrencyDecision['flip_outcome'],
+    reason: '',
+  };
+  const d: CurrencyDecision = {
+    ...base,
+    owner_scope: ownerScope,
+    location_iso: iso,
+    ru_reported_iso: iso,
+    verified_at: new Date().toISOString(),
+    verified_ru_property_id: opts.ruPropertyId,
+    flip_outcome: matches ? (base.flip_outcome === 'flipped' ? 'flipped' : 'already_set') : 'failed',
+    reason: matches
+      ? `Verified against Rentals United: listing ${opts.ruPropertyId} publishes in ${iso} on account ${ownerScope}.${base.reason ? ` ${base.reason}` : ''}`
+      : `Currency drift: Rentals United reports ${iso} for listing ${opts.ruPropertyId} on account ${ownerScope}, but we publish in ${expected}. The location currency did not take effect for this account.`,
+  };
+  await persistDecision(supabase, opts.propertyId, d, true);
+  return { ru_reported_iso: iso, matches, error: matches ? undefined : 'RU_CURRENCY_DRIFT' };
+}
+
 
 export async function loadCurrencyState(supabase: any, propertyId: string) {
   try {

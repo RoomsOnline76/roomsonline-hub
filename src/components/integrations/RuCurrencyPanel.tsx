@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
-import { Coins, RefreshCw, Wrench, Loader2 } from "lucide-react";
+import { Coins, RefreshCw, Wrench, Loader2, ShieldCheck } from "lucide-react";
 
 /**
  * Admin control surface for the Rentals United currency rule.
@@ -39,7 +39,13 @@ type CurrencyStateRow = {
   reason: string | null;
   flip_outcome: string | null;
   decided_at: string | null;
+  /** What RU itself returned on read-back — the only proof a flip landed. */
+  ru_reported_currency_iso: string | null;
+  verified_at: string | null;
+  verified_ru_property_id: number | null;
+  owner_scope: string | null;
 };
+
 
 export function RuCurrencyPanel() {
   const [properties, setProperties] = useState<PropertyRow[]>([]);
@@ -51,7 +57,7 @@ export function RuCurrencyPanel() {
   });
   const [fx, setFx] = useState<{ rate: number; effective: number; fetchedAt: string } | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
-  const [busy, setBusy] = useState<"refresh" | "dry" | "apply" | null>(null);
+  const [busy, setBusy] = useState<"refresh" | "dry" | "apply" | "verify" | null>(null);
 
   const load = useCallback(async () => {
     const [{ data: props }, { data: unitRows }, { data: stateRows }, { count }, { data: newest }, { count: zarCount }, { data: fxRow }] =
@@ -157,10 +163,37 @@ export function RuCurrencyPanel() {
     }
   };
 
+  /** Ask RU (as the owning sub-user) what currency it actually holds. No pushes. */
+  const verify = async () => {
+    setBusy("verify");
+    try {
+      const { data, error } = await supabase.functions.invoke("push-property-to-ru", {
+        body: { action: "verify_ru_currency", ...(selected.length ? { property_ids: selected } : {}) },
+      });
+      if (error || !data?.success) throw new Error(error?.message || data?.error?.message || "Verification failed");
+      const results = (data.results ?? []) as Array<{ matches?: boolean }>;
+      const ok = results.filter((r) => r.matches).length;
+      if (ok === results.length) toast.success(`Rentals United confirms the expected currency on ${ok}/${results.length} listings`);
+      else toast.warning(`Rentals United disagrees on ${results.length - ok} of ${results.length} listings — see the RU reports column`);
+      await load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Verification failed");
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const toggle = (id: string) =>
     setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
 
   const converted = properties.filter((p) => states[p.id]?.conversion_in_force);
+  const drifted = properties.filter((p) => {
+    const st = states[p.id];
+    const reported = st?.ru_reported_currency_iso;
+    return !!reported && !!st?.published_currency_iso && reported.toUpperCase() !== st.published_currency_iso.toUpperCase();
+  });
+  const unverified = properties.filter((p) => states[p.id] && !states[p.id].verified_at);
+
 
   return (
     <div className="space-y-4">
@@ -198,7 +231,24 @@ export function RuCurrencyPanel() {
               <p className="text-lg font-semibold">{converted.length}</p>
               <p className="text-[11px] text-muted-foreground">of {properties.length} RU-connected properties</p>
             </div>
+            <div className="rounded-md border border-border p-3">
+              <p className="text-[11px] uppercase text-muted-foreground">RU-confirmed drift</p>
+              <p className="text-lg font-semibold">{drifted.length}</p>
+              <p className="text-[11px] text-muted-foreground">
+                {unverified.length} never read back from RU
+              </p>
+            </div>
           </div>
+
+          {drifted.length > 0 && (
+            <Alert variant="destructive">
+              <AlertDescription className="text-xs">
+                Rentals United reports a different currency to the one ROLOS publishes for{" "}
+                <strong>{drifted.map((p) => p.name).join(", ")}</strong>. RU applies a location's currency to the
+                authenticating account only — re-push these as the owning white-label sub-user, then verify again.
+              </AlertDescription>
+            </Alert>
+          )}
 
           {cache.count === 0 && (
             <Alert>
@@ -216,6 +266,10 @@ export function RuCurrencyPanel() {
               {busy === "refresh" ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="mr-2 h-3.5 w-3.5" />}
               Refresh locations &amp; FX
             </Button>
+            <Button size="sm" variant="outline" onClick={verify} disabled={busy !== null}>
+              {busy === "verify" ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="mr-2 h-3.5 w-3.5" />}
+              Verify at RU {selected.length ? `(${selected.length})` : "(all)"}
+            </Button>
             <Button size="sm" variant="outline" onClick={() => reconcile(true)} disabled={busy !== null}>
               {busy === "dry" ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : null}
               Dry run {selected.length ? `(${selected.length})` : "(all)"}
@@ -225,6 +279,7 @@ export function RuCurrencyPanel() {
               Reconcile &amp; re-push {selected.length ? `(${selected.length})` : "(all)"}
             </Button>
           </div>
+
         </CardContent>
       </Card>
 
@@ -242,6 +297,7 @@ export function RuCurrencyPanel() {
                   <th className="px-3 py-2 font-medium">RU location</th>
                   <th className="px-3 py-2 font-medium">Location holds</th>
                   <th className="px-3 py-2 font-medium">Publishing in</th>
+                  <th className="px-3 py-2 font-medium">RU reports</th>
                   <th className="px-3 py-2 font-medium">Effective rate</th>
                   <th className="px-3 py-2 font-medium">Last decided</th>
                 </tr>
@@ -281,7 +337,31 @@ export function RuCurrencyPanel() {
                           <span className="text-muted-foreground">not yet pushed</span>
                         )}
                       </td>
+                      <td className="px-3 py-2">
+                        {st?.ru_reported_currency_iso ? (
+                          <div className="space-y-0.5">
+                            <Badge
+                              variant={
+                                st.published_currency_iso
+                                && st.ru_reported_currency_iso.toUpperCase() !== st.published_currency_iso.toUpperCase()
+                                  ? "destructive"
+                                  : "default"
+                              }
+                              className="text-[11px]"
+                            >
+                              {st.ru_reported_currency_iso}
+                            </Badge>
+                            <p className="text-[10px] text-muted-foreground">
+                              {st.verified_at ? new Date(st.verified_at).toLocaleString() : ""}
+                              {st.owner_scope ? ` · owner ${st.owner_scope}` : ""}
+                            </p>
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">unverified</span>
+                        )}
+                      </td>
                       <td className="px-3 py-2 font-mono">
+
                         {st?.effective_rate ? Number(st.effective_rate).toFixed(5) : "—"}
                       </td>
                       <td className="px-3 py-2 text-muted-foreground">
@@ -292,7 +372,7 @@ export function RuCurrencyPanel() {
                 })}
                 {properties.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="px-3 py-6 text-center text-muted-foreground">
+                    <td colSpan={8} className="px-3 py-6 text-center text-muted-foreground">
                       No property is connected to Rentals United yet — push a property from Setup Property →
                       Integrations, and it will appear here with its currency decision.
                     </td>

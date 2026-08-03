@@ -27,6 +27,8 @@ import {
 import { parseRuPriceSeasons } from '../_shared/ruPriceParsing.ts';
 import {
   decideRuCurrency,
+  verifyAndRecordCurrency,
+  verifyRuPropertyCurrency,
   convertPriceEntries,
   refreshRuLocationsCache,
   loadCurrencyState,
@@ -1999,6 +2001,136 @@ Deno.serve(async (req) => {
     //   (b) compare ru_locations.currency_iso to the property's expected ISO
     //   (c) if mismatched → Push_ChangeCurrency_RQ to flip the location
     //   (d) re-push the property so the new currency takes effect on the property record
+    // Read-back only: ask RU what currency it actually holds for each listing, as the
+    // owning sub-user. No pushes, no flips — this is how we prove a flip landed instead
+    // of trusting our own cache (which is what previously reported green while RU sat on USD).
+    if (action === 'verify_ru_currency') {
+      const targetIds: string[] | undefined = Array.isArray(reqBody.property_ids) ? reqBody.property_ids : undefined;
+      const { data: props } = await supabase
+        .from('properties')
+        .select('id, name, owner_email, country, amenities, ru_location_id, rentalsunited_property_id, rentalsunited_building_id')
+        .or('rentalsunited_property_id.not.is.null,rentalsunited_building_id.not.is.null');
+
+      const targets = (props ?? []).filter((p: any) => !targetIds || targetIds.includes(p.id));
+      const results: any[] = [];
+
+      for (const p of targets as any[]) {
+        const phase = await evaluatePhases(supabase, p as any, { readinessGaps: [] });
+        const ownerId = phase.ru_owner_id;
+        const { account } = await findOwnerAccount(supabase, p.id, p.owner_email, phase.portfolio_id);
+        const decrypt = async (enc: unknown): Promise<string> => {
+          if (!enc) return '';
+          const { data } = await supabase.rpc('decrypt_sensitive_text', { encrypted_data: enc });
+          const plain = typeof data === 'string' ? data : '';
+          return plain && plain !== '[ENCRYPTED]' && plain !== '[DECRYPTION_ERROR]' ? plain : '';
+        };
+        let accessKey = '';
+        let secretKey = '';
+        const { data: credRow } = await supabase
+          .from('ru_api_credentials')
+          .select('access_key, secret_enc')
+          .eq('ru_owner_id', String(ownerId))
+          .maybeSingle();
+        if (credRow?.access_key) {
+          const plain = await decrypt(credRow.secret_enc);
+          if (plain) { accessKey = String(credRow.access_key); secretKey = plain; }
+        }
+        const childAuth: Record<string, unknown> = accessKey && secretKey
+          ? { owner_id: ownerId, auth_access_key: accessKey, auth_secret_key: secretKey }
+          : { owner_id: ownerId, auth_username: account?.ru_login_email?.trim() ?? '', auth_password: await decrypt(account?.ru_login_password_enc) };
+
+        // Every listing matters: a portfolio's units can sit on different RU accounts and
+        // locations, so verify each RUID rather than extrapolating from one.
+        const ruIds: number[] = [];
+        const propRuId = parseInt(p.rentalsunited_property_id || '0', 10);
+        if (propRuId > 0) ruIds.push(propRuId);
+        const { data: units } = await supabase
+          .from('hostfully_room_types')
+          .select('name, rentalsunited_property_id')
+          .eq('property_id', p.id)
+          .not('rentalsunited_property_id', 'is', null);
+        for (const u of (units ?? []) as any[]) {
+          const id = parseInt(u.rentalsunited_property_id || '0', 10);
+          if (id > 0 && !ruIds.includes(id)) ruIds.push(id);
+        }
+        if (ruIds.length === 0) {
+          results.push({ property_id: p.id, name: p.name, success: false, reason: 'no_ru_listing_id' });
+          continue;
+        }
+
+        const state = await loadCurrencyState(supabase, p.id);
+        const expectedIso = state?.published_currency_iso ?? state?.authored_currency_iso ?? 'ZAR';
+        const locId = Number(p.ru_location_id) || Number(state?.ru_location_id) || 0;
+        const listings: any[] = [];
+        let primaryVerification: { ru_reported_iso: string | null; matches: boolean; error?: string } | null = null;
+
+        for (const ruId of ruIds) {
+          const readback = await verifyRuPropertyCurrency(supabase, ruId, childAuth);
+          let onMaster = false;
+          let iso = readback.iso;
+          let err = readback.error ?? null;
+          // "Property does not exist" on the sub-user means the listing was created on the
+          // master account and never migrated — the account, not the currency, is the fault.
+          if (!iso && /does not exist/i.test(String(err ?? ''))) {
+            const masterRead = await verifyRuPropertyCurrency(supabase, ruId, {});
+            if (masterRead.iso) {
+              onMaster = true;
+              iso = masterRead.iso;
+              err = 'RU_LISTING_ON_MASTER_ACCOUNT';
+            }
+          }
+          listings.push({
+            ru_property_id: ruId,
+            ru_reported_iso: iso ?? null,
+            on_master_account: onMaster,
+            matches: !!iso && iso.toUpperCase() === expectedIso.toUpperCase(),
+            error: err,
+          });
+          // Persist the property-level state from the first listing the sub-user can see.
+          if (!primaryVerification && iso && !onMaster) {
+            primaryVerification = await verifyAndRecordCurrency(supabase, {
+              propertyId: p.id,
+              locationId: locId,
+              authoredIso: state?.authored_currency_iso ?? 'ZAR',
+              ruPropertyId: ruId,
+              childAuth,
+              ownerScope: String(ownerId),
+              decision: null,
+            });
+          }
+          await new Promise(r => setTimeout(r, 400));
+        }
+
+        const strays = listings.filter(l => l.on_master_account);
+        results.push({
+          property_id: p.id,
+          name: p.name,
+          owner_scope: String(ownerId),
+          expected_iso: expectedIso,
+          listings,
+          listings_on_master_account: strays.length,
+          ru_reported_iso: primaryVerification?.ru_reported_iso ?? listings.find(l => l.ru_reported_iso)?.ru_reported_iso ?? null,
+          matches: listings.length > 0 && listings.every(l => l.matches),
+          success: listings.some(l => !!l.ru_reported_iso),
+          error: strays.length
+            ? `${strays.length} listing(s) still live on the master Rentals United account (${strays.map((s: any) => s.ru_property_id).join(', ')}) — re-push them as the white-label sub-user.`
+            : (listings.find(l => l.error)?.error ?? null),
+        });
+
+
+        await new Promise(r => setTimeout(r, 750));
+      }
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: `Verified ${results.filter(r => r.matches).length}/${results.length} listings against Rentals United`,
+          results,
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
+
     if (action === 'reconcile_ru_location_currency') {
       const targetIds: string[] | undefined = Array.isArray(reqBody.property_ids) ? reqBody.property_ids : undefined;
       const dryRun = reqBody.dry_run === true;
@@ -2042,43 +2174,21 @@ Deno.serve(async (req) => {
           continue;
         }
 
+        // RU applies a location's currency to the AUTHENTICATING account only, so the flip
+        // must happen as the owning white-label sub-user — never here on master credentials
+        // (that is what left sub-accounts publishing USD while our cache claimed ZAR).
+        // The per-property push below performs the scoped flip and reads the result back.
         const cached = await getRuLocationCurrency(supabase, loc);
         const currentIso = cached?.iso || null;
-        let flipped: 'skipped' | 'already_set' | 'flipped' | 'failed' = 'skipped';
-        let flipError: string | null = null;
-
-        if (expectedIso && currentIso && currentIso !== expectedIso && !flippedLocations.has(loc)) {
-          if (dryRun) {
-            flipped = 'skipped';
-          } else {
-            try {
-              const { data: flipRes, error: flipErr } = await supabase.functions.invoke('rentalsunited-api', {
-                body: { action: 'push_change_currency', location_id: loc, currency_iso: expectedIso },
-              });
-              if (flipErr || !flipRes?.success) {
-                flipped = 'failed';
-                flipError = flipErr?.message || flipRes?.error?.message || 'Unknown';
-              } else {
-                flipped = flipRes.already_set ? 'already_set' : 'flipped';
-                flippedLocations.add(loc);
-                // Refresh ru_locations cache row
-                await supabase.from('ru_locations').upsert({
-                  id: loc,
-                  name: cached?.iso ? `Location ${loc}` : `Location ${loc}`,
-                  country: p.country || cached?.country || 'Unknown',
-                  currency_iso: expectedIso,
-                  currency_ru_id: expectedCcyId,
-                  last_synced_at: new Date().toISOString(),
-                }, { onConflict: 'id' });
-              }
-            } catch (e) {
-              flipped = 'failed';
-              flipError = e instanceof Error ? e.message : 'Unknown';
-            }
-          }
+        let flipped: 'skipped' | 'already_set' | 'flipped' | 'failed' | 'delegated' = 'skipped';
+        const flipError: string | null = null;
+        if (expectedIso && !dryRun) {
+          flipped = 'delegated';
+          flippedLocations.add(loc);
         } else if (expectedIso && currentIso && currentIso === expectedIso) {
           flipped = 'already_set';
         }
+
 
         await persistRuPropertyMapping(supabase, p.id, {
           ru_location_id: loc,
@@ -2097,6 +2207,9 @@ Deno.serve(async (req) => {
           pushError = pushErr?.message || pushResult?.error?.message || null;
         }
 
+        // What RU itself reported during the scoped push — the only trustworthy signal.
+        const verifiedState = !dryRun ? await loadCurrencyState(supabase, p.id) : null;
+
         results.push({
           property_id: p.id,
           name: p.name,
@@ -2105,10 +2218,18 @@ Deno.serve(async (req) => {
           current_location_currency_iso: currentIso,
           location_flip: flipped,
           flip_error: flipError,
+          ru_reported_currency_iso: verifiedState?.ru_reported_currency_iso ?? null,
+          currency_verified_at: verifiedState?.verified_at ?? null,
+          currency_drift: Boolean(
+            verifiedState?.ru_reported_currency_iso
+            && expectedIso
+            && String(verifiedState.ru_reported_currency_iso).toUpperCase() !== expectedIso,
+          ),
           push_ok: pushOk,
           push_error: pushError,
           success: !dryRun ? (pushOk && flipped !== 'failed') : true,
         });
+
 
         await new Promise(r => setTimeout(r, 750));
       }
@@ -2299,24 +2420,13 @@ Deno.serve(async (req) => {
       });
     }
 
-    // ── Currency authority: RU owns currency on the LocationID ─────────────
-    // Try to make the location hold our authored currency (ZAR). Only if RU refuses do
-    // we publish converted rates in the fallback currency, at a live rate + margin.
+    // ── Currency authority (decided AFTER sub-user auth is resolved) ───────
+    // RU applies a location's currency to the authenticating account, so the flip must be
+    // made as the owning sub-user. The decision therefore happens further below, once the
+    // child API keys are in hand. Pre-scoring uses the authored currency.
     const authoredIso = ISO_BY_RU_CURRENCY_ID[currencyId] || 'ZAR';
     let currencyDecision: CurrencyDecision | null = null;
-    try {
-      currencyDecision = await decideRuCurrency(supabase, {
-        propertyId: property_id,
-        locationId,
-        authoredIso,
-        country,
-        dryRun: dry_run === true,
-      });
-      currencyId = RU_CCY_BY_ISO[currencyDecision.published_iso] ?? currencyId;
-      console.log(`[push-property-to-ru] Currency decision: publishing in ${currencyDecision.published_iso} (location ${locationId} holds ${currencyDecision.location_iso ?? 'unknown'}, flip: ${currencyDecision.flip_outcome})`);
-    } catch (e) {
-      console.warn('[push-property-to-ru] Currency decision failed, falling back to authored currency:', e instanceof Error ? e.message : e);
-    }
+
 
     // ── Phase gate + RU OwnerID resolution ────────────────────
     // Phase 1 (sub-user) and Phase 2 (readiness) must pass before any RU write.
@@ -2395,6 +2505,27 @@ Deno.serve(async (req) => {
     const childAuthPayload: Record<string, unknown> = hasChildKeys
       ? { owner_id: ruOwnerId, auth_access_key: childAccessKey, auth_secret_key: childSecretKey }
       : { owner_id: ruOwnerId, auth_username: childUsername, auth_password: childPassword };
+
+    // ── Currency authority: RU owns currency on the LocationID, PER ACCOUNT ─────
+    // Flip the location to our authored currency (ZAR) authenticated as the owning
+    // sub-user. Only if RU refuses do we publish converted rates in the fallback
+    // currency at a live rate + margin.
+    try {
+      currencyDecision = await decideRuCurrency(supabase, {
+        propertyId: property_id,
+        locationId,
+        authoredIso,
+        country,
+        childAuth: childAuthPayload,
+        ownerScope: String(ruOwnerId),
+        dryRun: dry_run === true,
+      });
+      currencyId = RU_CCY_BY_ISO[currencyDecision.published_iso] ?? currencyId;
+      console.log(`[push-property-to-ru] Currency decision (owner ${ruOwnerId}): publishing in ${currencyDecision.published_iso} (location ${locationId} holds ${currencyDecision.location_iso ?? 'unverified'}, flip: ${currencyDecision.flip_outcome})`);
+    } catch (e) {
+      console.warn('[push-property-to-ru] Currency decision failed, falling back to authored currency:', e instanceof Error ? e.message : e);
+    }
+
 
     if (isMultiUnit && !standalone_units && !hasChildKeys && (!childUsername || !childPassword)) {
       // Push_PutBuilding_RQ has no <OwnerID>: the building lands on whichever account
@@ -2845,6 +2976,26 @@ Deno.serve(async (req) => {
         .map((u: any) => ({ ruId: parseInt(u.rentalsunited_property_id, 10), roomTypeId: u.room_type_id }));
       const discountResult = await pushDiscounts(supabase, property_id, discountRuIds, childAuthPayload);
 
+      // Step 6: Read back the currency RU actually holds for one pushed unit. Our own
+      // post-flip cache write is an assumption; only Pull_GetProperty is evidence.
+      let currencyVerification: Record<string, unknown> | null = null;
+      if (!dry_run && discountRuIds.length > 0) {
+        const v = await verifyAndRecordCurrency(supabase, {
+          propertyId: property_id,
+          locationId,
+          authoredIso,
+          ruPropertyId: discountRuIds[0].ruId,
+          childAuth: childAuthPayload,
+          ownerScope: String(ruOwnerId),
+          decision: currencyDecision,
+        });
+        currencyVerification = { ...v, expected_iso: currencyDecision?.published_iso ?? authoredIso, ru_property_id: discountRuIds[0].ruId };
+        if (!v.matches) {
+          console.warn(`[push-property-to-ru] Currency drift: RU reports ${v.ru_reported_iso ?? 'unknown'} for ${discountRuIds[0].ruId} (expected ${currencyDecision?.published_iso ?? authoredIso})`);
+        }
+      }
+
+
       const allUnitsPushed = unitResults.length === unitsToPush.length && unitResults.every((u: any) => u.success);
       const inventoryVerified = allUnitsPushed && unitResults.every((u: any) =>
         u.availability_pushed === true
@@ -2883,6 +3034,10 @@ Deno.serve(async (req) => {
           units: unitResults,
           building_assignment: { success: true, note: 'Units assigned via BuildingID in property XML' },
           ...discountResult,
+          currency: currencyDecision
+            ? { published_iso: currencyDecision.published_iso, location_iso: currencyDecision.location_iso, flip_outcome: currencyDecision.flip_outcome, owner_scope: String(ruOwnerId) }
+            : null,
+          currency_verification: currencyVerification,
           message: `Building "${property.name}" + ${unitResults.filter(u => u.success).length}/${activeRoomTypes.length} units pushed to Rentals United`,
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -2959,7 +3114,25 @@ Deno.serve(async (req) => {
       pushExtras = await pushARI(supabase, finalRuId, property as PropertyRow, activeRoomTypes.length || 1, undefined, childAuthPayload, currencyDecision);
       const discountResult = await pushDiscounts(supabase, property_id, [{ ruId: finalRuId }], childAuthPayload);
       pushExtras = { ...pushExtras, ...discountResult };
+      // Verify the currency RU actually holds for this listing (evidence, not assumption).
+      const v = await verifyAndRecordCurrency(supabase, {
+        propertyId: property_id,
+        locationId,
+        authoredIso,
+        ruPropertyId: finalRuId,
+        childAuth: childAuthPayload,
+        ownerScope: String(ruOwnerId),
+        decision: currencyDecision,
+      });
+      pushExtras.currency_verification = { ...v, expected_iso: currencyDecision?.published_iso ?? authoredIso, ru_property_id: finalRuId };
+      pushExtras.currency = currencyDecision
+        ? { published_iso: currencyDecision.published_iso, location_iso: currencyDecision.location_iso, flip_outcome: currencyDecision.flip_outcome, owner_scope: String(ruOwnerId) }
+        : null;
+      if (!v.matches) {
+        console.warn(`[push-property-to-ru] Currency drift: RU reports ${v.ru_reported_iso ?? 'unknown'} for ${finalRuId} (expected ${currencyDecision?.published_iso ?? authoredIso})`);
+      }
     }
+
 
     const inventorySuccess = finalRuId > 0 && !pushExtras.availability_error && !pushExtras.prices_error;
     const inventoryVerified = inventorySuccess
