@@ -297,6 +297,7 @@ export function RuCurrencyPanel() {
                   <th className="px-3 py-2 font-medium">RU location</th>
                   <th className="px-3 py-2 font-medium">Location holds</th>
                   <th className="px-3 py-2 font-medium">Publishing in</th>
+                  <th className="px-3 py-2 font-medium">RU reports</th>
                   <th className="px-3 py-2 font-medium">Effective rate</th>
                   <th className="px-3 py-2 font-medium">Last decided</th>
                 </tr>
