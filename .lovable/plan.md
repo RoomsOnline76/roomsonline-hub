@@ -1,26 +1,23 @@
-# Bring the new policy library into the Policies section
+# One home for policies: Rates & Pricing → Policies
 
-## What's actually happening
+## Decision
 
-The master-first policy work landed, but it was mounted in the wrong place. Confirmed by reading the code:
+Retire the standalone **Guest Experience → Policies** rail section. Everything about policies — the new master-first policy library plus the legacy house-rules/check-in/deposit fields — lives in **Rates & Pricing → Policies**, for every property, in both `/admin/edit property` and ROLOS `/pms/property-setup`.
 
-- `PoliciesTab` (master policy panel + policy library table + portfolio activation) is rendered only inside `RateManagerTab` — i.e. under **Rates & Pricing → Policies** subtab.
-- The left-rail section you are looking at (**Guest Experience → Policies**, `house-rules` section in both `/admin/edit property` and `/pms/property-setup`) still renders the original inline block in `src/pages/PropertyForm.tsx`: the toggle chips, the free-text "Cancellation Policies" forfeit rows stored in the amenities JSON, deposit/check-in/age cards.
+## What changes
 
-So nothing is broken — the new UX simply isn't on the screen in your screenshots.
-
-## The fix
-
-Make the Guest Experience → Policies section the single home for cancellation terms.
-
-1. In the `house-rules` section of `PropertyForm.tsx`, replace the legacy "Cancellation Policies" forfeit-rows card with the full `PoliciesTab` block (master policy panel, policy library table with usage metrics, specials cross-links, portfolio library). Keep the rest of the section untouched: rules chips, children policy, deposit, same-day, check-in/out, age ranges, cot/extra beds, advance notice, pets.
-2. Wire the section's `cancellation` sub-nav chip to scroll to that block, and keep `checkin` / `policies` chips pointing at their existing cards, so the three chips in the rail map to real content.
-3. Pass the existing `onOpenSpecials` handler through so "Open Specials tab" inside the library still navigates to Specials.
-4. Remove the duplicate `PoliciesTab` mount from `RateManagerTab` and leave a one-line pointer in the Rates → Policies subtab ("Cancellation policies live under Guest Experience → Policies") so there is one source of truth and no drift between two editors.
-5. Legacy data: the old amenities `cancellation_policies` rows keep saving as-is for now (channels that read them are unaffected), but the section no longer offers them for editing — the library is the authoring surface.
+1. **Rail**: drop `house-rules` from the section list and from the "Guest experience" group in `src/config/propertySectionOrder.ts` (also drop its hint chips). The Guest experience group keeps Templates, Announcements, Images. Same key removed from the ROLOS section list in `PMSPropertySetup.tsx`.
+2. **Rates → Policies subtab** becomes the consolidated home, in this order:
+   - Master policy panel (explicit master or explicit "no cancellation terms").
+   - Policy library table with usage metrics and specials cross-links.
+   - Portfolio policy library (activate/copy from sibling properties).
+   - New "House rules & stay terms" block: the existing toggle chips (non-refundable, smoking, pets, children, parties, 24h check-in), deposit, same-day booking, check-in/check-out times, age ranges, cot/extra beds, advance notice, pets detail — moved verbatim from the `house-rules` tab so nothing is lost.
+   - The legacy free-text "Cancellation Policies" forfeit rows are removed from the UI; the policy library is now the only authoring surface for cancellation terms. Existing stored values keep saving untouched so channel pushes are unaffected.
+3. **Saving**: the moved fields keep writing through the same `formData`/amenities save path, so the Rates → Policies subtab submits with the same form handler already used elsewhere in the form.
+4. **Deep links / redirects**: any navigation that targets `house-rules` (validation blocker mapping, progress/quality-gate jumps, `amenities.check_in_time` field mapping, saved rail state in storage) is remapped to the rates section + `policies` subtab so existing links and blockers still land on real content.
 
 ## Technical notes
 
-- Files: `src/pages/PropertyForm.tsx` (house-rules section body, ~lines 6548-6605 removed and replaced with `<PoliciesTab propertyId={propertyId} onOpenSpecials={...} />`), `src/components/property/RateManagerTab.tsx` (drop the mount, add pointer).
-- No schema change: `rolos_reservation_policies`, `properties.cancellation_master_mode`, and the resolver hooks already exist and are used by checkout.
-- Both `/admin/edit property` and ROLOS `/pms/property-setup` render the same `PropertyForm`, so one change covers both screens.
+- Files: `src/config/propertySectionOrder.ts` (remove key, group entry, icon, hints), `src/pages/PropertyForm.tsx` (delete the `house-rules` TabsContent, relocate its cards into the Policies subtab region; update the field→section map and blocker routing), `src/components/property/RateManagerTab.tsx` (Policies subtab renders `PoliciesTab` then the relocated house-rules cards), `src/pages/pms/PMSPropertySetup.tsx` (section key list).
+- To keep `PropertyForm.tsx` from growing, the relocated cards go into a new `src/components/property/policies/HouseRulesCard.tsx` that takes `formData` + `setFormData` props.
+- No schema change. `rolos_reservation_policies`, `properties.cancellation_master_mode` and the checkout resolver hooks stay as-is.
