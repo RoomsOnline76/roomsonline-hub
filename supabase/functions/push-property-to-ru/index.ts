@@ -1459,9 +1459,7 @@ async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRo
         for (const [date, day] of parseRuAvailabilityDays(String(calData?.raw_xml ?? ''))) {
           if ((day.reservations ?? 0) > 0) reservedDates.add(date);
         }
-        const filtered = availEntries.filter((e: { date_from: string; date_to: string }) => !reservedDates.has(e.date_from) || e.date_from !== e.date_to);
-        const withoutReserved = availEntries.filter((e: { date_from: string }) => !reservedDates.has(e.date_from));
-        const retryEntries = withoutReserved.length ? withoutReserved : filtered;
+        const retryEntries = availEntries.filter((e: { date_from: string }) => !reservedDates.has(e.date_from));
         result.availability_reserved_days = reservedDates.size;
         if (reservedDates.size > 0 && retryEntries.length > 0) {
           console.log(`[pushARI] Retrying availability without ${reservedDates.size} reserved day(s) for RU ${ruPropertyId}`);
@@ -1470,8 +1468,12 @@ async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRo
           });
           availOk = !retryErr && retryResult?.success === true;
           availErrorMessage = retryErr?.message || retryResult?.error?.message || availErrorMessage;
-          if (availOk) availEntries.length = 0, availEntries.push(...retryEntries);
+          if (availOk) {
+            availEntries.length = 0;
+            availEntries.push(...retryEntries);
+          }
         }
+
       }
 
       if (!availOk) {
