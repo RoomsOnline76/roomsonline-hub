@@ -67,23 +67,30 @@ export function parseRuAmenityCount(token: unknown): number {
 
 
 /**
- * Resolve an amenity container (array, or object with list/amenities/features)
- * into unique RU AmenityIDs. Unmappable entries are reported so the readiness
- * scorecard can nudge the owner to re-pick them from the RU catalogue.
+ * Resolve an amenity container (array, or object with list/amenities/features/facilities)
+ * into unique RU AmenityIDs plus their quantities. Unmappable entries are reported so the
+ * readiness scorecard can nudge the owner to re-pick them from the RU catalogue.
+ *
+ * `facilities` is the key property-level selections are stored under in ROLOS
+ * (`properties.amenities.facilities`), so property pushes resolve too.
  */
 export function resolveRuAmenityIds(
   amenitiesData: unknown,
-): { ids: number[]; unmapped: string[] } {
+): { ids: number[]; counts: Record<number, number>; unmapped: string[] } {
+  const obj = amenitiesData as Record<string, unknown> | null;
   const container = Array.isArray(amenitiesData)
     ? amenitiesData
-    : ((amenitiesData as Record<string, unknown> | null)?.list ||
-       (amenitiesData as Record<string, unknown> | null)?.amenities ||
-       (amenitiesData as Record<string, unknown> | null)?.features ||
-       []);
+    : ([] as unknown[]).concat(
+        (Array.isArray(obj?.list) ? obj!.list : []) as unknown[],
+        (Array.isArray(obj?.amenities) ? obj!.amenities : []) as unknown[],
+        (Array.isArray(obj?.features) ? obj!.features : []) as unknown[],
+        (Array.isArray(obj?.facilities) ? obj!.facilities : []) as unknown[],
+      );
   const ids: number[] = [];
+  const counts: Record<number, number> = {};
   const unmapped: string[] = [];
   const seen = new Set<number>();
-  if (!Array.isArray(container)) return { ids, unmapped };
+  if (!Array.isArray(container)) return { ids, counts, unmapped };
   for (const item of container) {
     const raw = typeof item === 'string' || typeof item === 'number'
       ? item
@@ -94,9 +101,15 @@ export function resolveRuAmenityIds(
       if (label) unmapped.push(label);
       continue;
     }
-    if (seen.has(id)) continue;
+    const count = parseRuAmenityCount(raw);
+    if (seen.has(id)) {
+      counts[id] = Math.max(counts[id] || 1, count);
+      continue;
+    }
     seen.add(id);
     ids.push(id);
+    counts[id] = count;
   }
-  return { ids, unmapped };
+  return { ids, counts, unmapped };
+
 }
