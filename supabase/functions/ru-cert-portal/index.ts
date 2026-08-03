@@ -2425,10 +2425,13 @@ Deno.serve(async (req) => {
         }
         const t0 = Date.now();
         try {
-          const { data, error } = await admin.functions.invoke("rentalsunited-api", {
-            body: { action: ruAction, ...payload },
-          });
+          const { data, error, paced_skip } = await ruInvoke(ruAction, payload);
           const duration = Date.now() - t0;
+          if (paced_skip) {
+            steps.push({ step: stepNo, name, ru_method, mandatory: !!opts.mandatory, scope, status: "skipped", duration_ms: duration, detail: paced_skip, request: payload });
+            return null;
+          }
+
           if (error) {
             const soft = softSkipReason(error.message ?? "");
             steps.push({ step: stepNo, name, ru_method, mandatory: !!opts.mandatory, scope, status: soft ? "skipped" : "failed", duration_ms: duration, detail: soft ?? error.message, request: payload });
