@@ -1368,12 +1368,6 @@ export default function AdminContracts() {
                           </div>
                         );
                       }
-                        return (
-                          <a href={`/admin/properties/${props[0].slug}`} className="text-sm text-primary hover:underline">
-                            {props[0].name}
-                          </a>
-                        );
-                      }
                       const isExpanded = expandedOwners.has(contract.owner_email);
                       return (
                         <div className="space-y-1">
