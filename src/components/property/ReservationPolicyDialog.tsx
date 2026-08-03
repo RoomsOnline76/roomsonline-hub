@@ -72,8 +72,10 @@ export const ReservationPolicyDialog: React.FC<Props> = ({
   onSave,
 }) => {
   const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
   const [kind, setKind] = useState<ReservationPolicy["kind"]>("custom");
   const [isDefault, setIsDefault] = useState(false);
+  const [isMaster, setIsMaster] = useState(false);
   const [rule, setRule] = useState<ManualCancellationRule>(DEFAULT_RULE);
   const [ratePlans, setRatePlans] = useState<RatePlan[]>([]);
   const [selectedRatePlans, setSelectedRatePlans] = useState<string[]>([]);
@@ -84,16 +86,20 @@ export const ReservationPolicyDialog: React.FC<Props> = ({
     if (!open) return;
     if (policy) {
       setName(policy.name);
+      setDescription(policy.description ?? "");
       setKind(policy.kind);
       setIsDefault(policy.is_default);
+      setIsMaster(policy.is_master ?? false);
       setRule({ ...DEFAULT_RULE, ...(policy.rule || {}) });
       const linksForPolicy = existingLinks.filter((l) => l.policy_id === policy.id);
       setSelectedRatePlans(linksForPolicy.filter((l) => l.rate_plan_id).map((l) => l.rate_plan_id!));
       setSelectedChannels(linksForPolicy.filter((l) => l.channel).map((l) => l.channel!));
     } else {
       setName("");
+      setDescription("");
       setKind("custom");
       setIsDefault(false);
+      setIsMaster(false);
       setRule(DEFAULT_RULE);
       setSelectedRatePlans([]);
       setSelectedChannels([]);
@@ -137,8 +143,12 @@ export const ReservationPolicyDialog: React.FC<Props> = ({
       await onSave(
         {
           name: name.trim(),
+          description: description.trim() || null,
           kind,
           is_default: isDefault,
+          is_master: isMaster,
+          scope: policy?.scope ?? "property",
+          linked_master_id: policy?.linked_master_id ?? null,
           rule: { ...rule, manual_override: true },
           source_policy_id: policy?.source_policy_id ?? null,
         },
@@ -192,6 +202,16 @@ export const ReservationPolicyDialog: React.FC<Props> = ({
             </div>
           </div>
 
+          <div className="space-y-1.5">
+            <Label className="text-xs">Short description (internal)</Label>
+            <Input
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="e.g. Used for winter promo rates"
+              className="h-8 text-xs"
+            />
+          </div>
+
           <div className="flex items-center justify-between p-2 rounded-md bg-muted/40">
             <div>
               <Label className="text-xs font-medium">Set as default</Label>
@@ -199,6 +219,17 @@ export const ReservationPolicyDialog: React.FC<Props> = ({
             </div>
             <Switch checked={isDefault} onCheckedChange={setIsDefault} />
           </div>
+
+          <div className="flex items-center justify-between p-2 rounded-md bg-muted/40">
+            <div>
+              <Label className="text-xs font-medium">Master (global fallback)</Label>
+              <p className="text-xs text-muted-foreground">
+                Applies whenever no special or rate-plan policy matches. Only one per property.
+              </p>
+            </div>
+            <Switch checked={isMaster} onCheckedChange={setIsMaster} />
+          </div>
+
 
           <Tabs defaultValue="cancellation" className="w-full">
             <TabsList>

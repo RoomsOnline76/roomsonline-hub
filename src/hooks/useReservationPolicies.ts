@@ -11,6 +11,12 @@ export interface ReservationPolicy {
   kind: "general" | "non_refundable" | "custom";
   rule: ManualCancellationRule;
   is_default: boolean;
+  /** The global fallback policy for the property when nothing more specific applies. */
+  is_master: boolean;
+  scope: "property" | "portfolio";
+  description: string | null;
+  /** When set, this policy mirrors a master policy on another property. */
+  linked_master_id: string | null;
   source_policy_id: string | null;
   created_at: string;
   updated_at: string;
@@ -175,6 +181,38 @@ export function useReservationPolicies(propertyId: string | undefined) {
     await updatePolicy(id, { is_default: true });
   };
 
+  /** Mark a policy as the property's master (global fallback). DB trigger clears any previous master. */
+  const setMaster = async (id: string) => {
+    const { error } = await supabase
+      .from("rolos_reservation_policies")
+      .update({ is_master: true } as never)
+      .eq("id", id);
+    if (error) {
+      toast.error(`Failed to set master: ${error.message}`);
+      return;
+    }
+    toast.success("Master policy updated");
+    await refetch();
+  };
+
+  /** Push this policy's rule/name to every policy linked to it on other properties. */
+  const propagateToLinked = async (id: string) => {
+    const source = policies.find((p) => p.id === id);
+    if (!source) return;
+    const { data, error } = await supabase
+      .from("rolos_reservation_policies")
+      .update({ rule: source.rule as never, kind: source.kind, description: source.description } as never)
+      .eq("linked_master_id", id)
+      .select("id");
+    if (error) {
+      toast.error(`Propagation failed: ${error.message}`);
+      return;
+    }
+    const count = (data ?? []).length;
+    toast.success(count ? `Updated ${count} linked ${count === 1 ? "property" : "properties"}` : "No linked properties");
+  };
+
+
   const setLinksFor = async (policyId: string, ratePlanIds: string[], channels: string[]) => {
     try {
       await supabase.from("rolos_policy_rate_links").delete().eq("policy_id", policyId);
@@ -200,6 +238,8 @@ export function useReservationPolicies(propertyId: string | undefined) {
     updatePolicy,
     deletePolicy,
     setDefault,
+    setMaster,
+    propagateToLinked,
     setLinksFor,
     refetch,
   };

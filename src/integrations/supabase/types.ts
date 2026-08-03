@@ -5891,15 +5891,20 @@ export type Database = {
         Row: {
           age_label: string | null
           age_restricted: boolean | null
+          applicable_rate_plan_ids: string[] | null
           applicable_room_ids: string[] | null
+          audience: string
           book_from: string | null
           book_until: string | null
+          cancellation_policy_id: string | null
           category: string
           created_at: string | null
           created_by: string | null
           currency: string | null
+          deal_type: string
           description: string | null
           discount_percent: number | null
+          dow_mask: string[] | null
           fixed_amount: number | null
           fixed_price: number | null
           id: string
@@ -5907,14 +5912,22 @@ export type Database = {
           included_items: Json | null
           is_active: boolean | null
           is_public: boolean | null
+          is_stackable: boolean
+          lead_days_max: number | null
+          lead_days_min: number | null
+          lead_hours_max: number | null
           max_age: number | null
           max_stay: number | null
           min_age: number | null
           min_stay: number | null
           name: string
+          price_pointing: string | null
+          priority: number
           property_id: string
+          rounding_mode: string | null
           sort_order: number | null
           special_type: string
+          stay_date_ranges: Json
           terms: string | null
           updated_at: string | null
           valid_from: string | null
@@ -5923,15 +5936,20 @@ export type Database = {
         Insert: {
           age_label?: string | null
           age_restricted?: boolean | null
+          applicable_rate_plan_ids?: string[] | null
           applicable_room_ids?: string[] | null
+          audience?: string
           book_from?: string | null
           book_until?: string | null
+          cancellation_policy_id?: string | null
           category?: string
           created_at?: string | null
           created_by?: string | null
           currency?: string | null
+          deal_type?: string
           description?: string | null
           discount_percent?: number | null
+          dow_mask?: string[] | null
           fixed_amount?: number | null
           fixed_price?: number | null
           id?: string
@@ -5939,14 +5957,22 @@ export type Database = {
           included_items?: Json | null
           is_active?: boolean | null
           is_public?: boolean | null
+          is_stackable?: boolean
+          lead_days_max?: number | null
+          lead_days_min?: number | null
+          lead_hours_max?: number | null
           max_age?: number | null
           max_stay?: number | null
           min_age?: number | null
           min_stay?: number | null
           name: string
+          price_pointing?: string | null
+          priority?: number
           property_id: string
+          rounding_mode?: string | null
           sort_order?: number | null
           special_type?: string
+          stay_date_ranges?: Json
           terms?: string | null
           updated_at?: string | null
           valid_from?: string | null
@@ -5955,15 +5981,20 @@ export type Database = {
         Update: {
           age_label?: string | null
           age_restricted?: boolean | null
+          applicable_rate_plan_ids?: string[] | null
           applicable_room_ids?: string[] | null
+          audience?: string
           book_from?: string | null
           book_until?: string | null
+          cancellation_policy_id?: string | null
           category?: string
           created_at?: string | null
           created_by?: string | null
           currency?: string | null
+          deal_type?: string
           description?: string | null
           discount_percent?: number | null
+          dow_mask?: string[] | null
           fixed_amount?: number | null
           fixed_price?: number | null
           id?: string
@@ -5971,20 +6002,35 @@ export type Database = {
           included_items?: Json | null
           is_active?: boolean | null
           is_public?: boolean | null
+          is_stackable?: boolean
+          lead_days_max?: number | null
+          lead_days_min?: number | null
+          lead_hours_max?: number | null
           max_age?: number | null
           max_stay?: number | null
           min_age?: number | null
           min_stay?: number | null
           name?: string
+          price_pointing?: string | null
+          priority?: number
           property_id?: string
+          rounding_mode?: string | null
           sort_order?: number | null
           special_type?: string
+          stay_date_ranges?: Json
           terms?: string | null
           updated_at?: string | null
           valid_from?: string | null
           valid_to?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "property_specials_cancellation_policy_id_fkey"
+            columns: ["cancellation_policy_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_reservation_policies"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "property_specials_property_id_fkey"
             columns: ["property_id"]
@@ -9425,38 +9471,57 @@ export type Database = {
       rolos_reservation_policies: {
         Row: {
           created_at: string
+          description: string | null
           id: string
           is_default: boolean
+          is_master: boolean
           kind: string
+          linked_master_id: string | null
           name: string
           property_id: string
           rule: Json
+          scope: string
           source_policy_id: string | null
           updated_at: string
         }
         Insert: {
           created_at?: string
+          description?: string | null
           id?: string
           is_default?: boolean
+          is_master?: boolean
           kind?: string
+          linked_master_id?: string | null
           name: string
           property_id: string
           rule?: Json
+          scope?: string
           source_policy_id?: string | null
           updated_at?: string
         }
         Update: {
           created_at?: string
+          description?: string | null
           id?: string
           is_default?: boolean
+          is_master?: boolean
           kind?: string
+          linked_master_id?: string | null
           name?: string
           property_id?: string
           rule?: Json
+          scope?: string
           source_policy_id?: string | null
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "rolos_reservation_policies_linked_master_id_fkey"
+            columns: ["linked_master_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_reservation_policies"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "rolos_reservation_policies_property_id_fkey"
             columns: ["property_id"]
