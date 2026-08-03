@@ -2783,6 +2783,14 @@ const Booking = () => {
                     </div>
                   )}
 
+                  {/* One-of-N special offer selection (two or more qualifying specials) */}
+                  <SpecialOfferPicker
+                    offers={specialOffers}
+                    selectedId={selectedSpecialId}
+                    onSelect={setSelectedSpecialId}
+                    renderAmount={(amount) => <FormattedPrice amount={amount} />}
+                  />
+
                   {/* Applied promotions banners */}
                   {appliedPromotions.length > 0 && appliedPromotions.map((promo, idx) => (
                     <div key={idx} className="border border-dashed border-border bg-card rounded-lg p-3 mt-2">
