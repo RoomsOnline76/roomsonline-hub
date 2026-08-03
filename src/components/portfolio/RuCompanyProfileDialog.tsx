@@ -159,7 +159,7 @@ export function RuCompanyProfileDialog({ account, onClose, onSaved }: Props) {
 
     const { error } = await supabase
       .from("ru_owner_accounts")
-      .update({ company_profile: Object.keys(payload).length > 0 ? payload : null })
+      .update({ company_profile: (Object.keys(payload).length > 0 ? payload : null) as never })
       .eq("id", account.id);
     setSaving(false);
     if (error) {
