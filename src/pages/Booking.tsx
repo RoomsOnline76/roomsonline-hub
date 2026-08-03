@@ -48,6 +48,9 @@ import { calculateCharges, getChargeTotals } from "@/components/charges/ChargeCa
 import type { ChargeCalculationContext } from "@/components/charges/ChargeCalculator";
 import { formatCancellationPolicy, type CancellationRule } from "@/lib/policyFormatter";
 import { captureCommissionOrigin } from "@/lib/bookingOrigin";
+import { SpecialOfferPicker, type CheckoutOffer } from "@/components/booking/SpecialOfferPicker";
+import { isSpecialEligible, type SpecialRecord } from "@/lib/specialsResolver";
+import { useResolvedCancellationPolicy } from "@/hooks/useResolvedCancellationPolicy";
 import {
   Collapsible,
   CollapsibleContent,
