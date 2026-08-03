@@ -2919,8 +2919,17 @@ Deno.serve(async (req) => {
         if (unitRuIds.length === 0 && ruPropertyId) unitRuIds = [ruPropertyId];
       }
 
-      /** Availability / price read-back across every mapped RU unit. */
-      const probeAri = async (name: string, ruAction: "get_availability" | "get_prices") => {
+      /**
+       * Availability / price read-back across every mapped RU unit.
+       * `opts.windowOffsetDays` shifts the queried range: a post-push verification must not
+       * repeat the read-only phase's exact call, or RU's sliding-minute window forces a
+       * 60s wait per unit for data we would read again anyway.
+       */
+      const probeAri = async (
+        name: string,
+        ruAction: "get_availability" | "get_prices",
+        opts: { windowOffsetDays?: number } = {},
+      ) => {
         if (!propertyId) return;
         const ru_method = RU_METHOD_BY_ACTION[ruAction] ?? ruAction;
         stepNo += 1;
@@ -2933,13 +2942,14 @@ Deno.serve(async (req) => {
           return;
         }
         const t0 = Date.now();
-        const from = isoDate(0);
-        const to = isoDate(365);
+        const offset = opts.windowOffsetDays ?? 0;
+        const from = isoDate(offset);
+        const to = isoDate(365 + offset);
         // Sequential (never parallel): the same RU method for several units would otherwise
         // trip the sliding-minute limit. ruInvoke paces and retries each unit call.
-        const results: { ruId: number; ok: boolean; count: number; detail: string | null; xml: string }[] = [];
+        const results: { ruId: number; ok: boolean; count: number; detail: string | null; xml: string; paced: boolean }[] = [];
         for (const ruId of unitRuIds) {
-          const { data, error, paced_skip } = await ruInvoke(ruAction, {
+          const { data, error, paced_skip, paced } = await ruInvoke(ruAction, {
             ru_property_id: ruId,
             date_from: from,
             date_to: to,
@@ -2949,11 +2959,13 @@ Deno.serve(async (req) => {
             ? (xml.match(/>\s*[1-9]\d*\s*</g) ?? []).length
             : parseRuPricePoints(xml).filter((p) => p > 0).length;
           const detail = paced_skip ?? error?.message ?? data?.error?.message ?? null;
-          results.push({ ruId, ok: !paced_skip && !error && data?.success === true && count > 0, count, detail, xml });
+          results.push({ ruId, ok: !paced_skip && !error && data?.success === true && count > 0, count, detail, xml, paced: paced === true });
         }
         const failed = results.filter((r) => !r.ok);
+        // A step the run never got to attempt is informational, never a failure. The pacer
+        // says so with a flag — message matching used to grade budget skips as red.
         const soft = failed
-          .map((r) => (/(rate limit|wait budget)/i.test(String(r.detail ?? "")) ? String(r.detail) : softSkipReason(String(r.detail ?? ""))))
+          .map((r) => (r.paced ? String(r.detail ?? "Skipped to respect the Rentals United rate limit.") : softSkipReason(String(r.detail ?? ""))))
           .find(Boolean) ?? null;
 
         const unitLabel = ruAction === "get_availability" ? "open day(s)" : "price point(s)";
@@ -2974,6 +2986,8 @@ Deno.serve(async (req) => {
           request: { ru_property_ids: unitRuIds, date_from: from, date_to: to },
           response_preview: preview(results[0]?.xml ?? null),
         });
+      };
+
       };
 
       if (runReadOnly) {
