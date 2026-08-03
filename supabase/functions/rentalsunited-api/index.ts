@@ -1,4 +1,12 @@
 import { normalizeRuTimeZone } from '../_shared/ruTimeZones.ts';
+import {
+  RU_EMPLOYEE_RANGES,
+  RU_PROPERTY_RANGES,
+  RU_YEARS_RANGES,
+  isRangeId,
+  rangeIdForCount,
+  type RuRange,
+} from '../_shared/ruRanges.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 /**
