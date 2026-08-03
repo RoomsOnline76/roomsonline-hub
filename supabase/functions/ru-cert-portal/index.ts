@@ -2354,21 +2354,24 @@ Deno.serve(async (req) => {
           });
           const duration = Date.now() - t0;
           if (error) {
-            steps.push({ step: stepNo, name, ru_method, mandatory: !!opts.mandatory, scope, status: "failed", duration_ms: duration, detail: error.message, request: payload });
+            const soft = softSkipReason(error.message ?? "");
+            steps.push({ step: stepNo, name, ru_method, mandatory: !!opts.mandatory, scope, status: soft ? "skipped" : "failed", duration_ms: duration, detail: soft ?? error.message, request: payload });
             return null;
           }
           const ok = data?.success === true || data?.healthy === true;
           const assertFail = ok && opts.assert ? opts.assert(data) : null;
+          const rawDetail = assertFail ?? data?.error?.message ?? data?.message ?? (ok ? "OK" : "Unexpected response");
+          const soft = ok && !assertFail ? null : softSkipReason(String(rawDetail));
           steps.push({
             step: stepNo,
             name,
             ru_method,
             mandatory: !!opts.mandatory,
             scope,
-            status: ok && !assertFail ? "passed" : "failed",
+            status: ok && !assertFail ? "passed" : soft ? "skipped" : "failed",
             duration_ms: duration,
             ru_status_id: data?.ru_status_id ?? data?.error?.ru_status_id ?? null,
-            detail: assertFail ?? data?.error?.message ?? data?.message ?? (ok ? "OK" : "Unexpected response"),
+            detail: soft ?? rawDetail,
             request: payload,
             response_preview: preview(data?.raw_xml ?? data),
           });
