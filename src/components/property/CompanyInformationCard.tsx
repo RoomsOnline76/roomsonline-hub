@@ -1,21 +1,24 @@
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { ChevronDown } from "lucide-react";
+import { AlertTriangle, Check, ChevronDown } from "lucide-react";
 import { RuLocationPicker } from "@/components/property/RuLocationPicker";
 
 /**
  * Company Information (formerly "Business Registration").
  *
  * Single home for the legal/company identity of a property: the contract
- * variables ROLOS already captured, plus the Rentals United company-profile
+ * variables ROLOS already captured, the banking/payout block (merged in from the
+ * old standalone "Banking Details" card) and the Rentals United company-profile
  * fields that used to live in a separate dialog under Portfolios → RU accounts.
  *
  * Deliberately excludes anything already captured on Identity & Location
@@ -24,6 +27,7 @@ import { RuLocationPicker } from "@/components/property/RuLocationPicker";
  */
 export interface RuCompanyProfile {
   merchant_name?: string;
+  /** VAT lives on the single form-level `vat_number` field; kept for legacy reads. */
   vat_number?: string;
   manager_identification_number?: string;
   time_zone?: string;
@@ -45,6 +49,18 @@ export interface RuCompanyProfile {
   };
 }
 
+export interface CompanyBankingFields {
+  has_vat: boolean;
+  vat_number: string;
+  property_registration: string;
+  bank_name: string;
+  branch_code: string;
+  account_holder: string;
+  account_number: string;
+  account_type: string;
+  swift_code: string;
+}
+
 interface Props {
   registeredBusinessName: string;
   onRegisteredBusinessNameChange: (v: string) => void;
@@ -60,11 +76,17 @@ interface Props {
   ruLocationId: number | null;
   onRuLocationIdChange: (id: number | null) => void;
   propertyCity?: string;
+  propertyCountry?: string;
+  /** Banking / VAT / registration block merged in from the old Banking Details card. */
+  banking: CompanyBankingFields;
+  onBankingChange: (key: keyof CompanyBankingFields, value: string | boolean) => void;
 }
+
+/** RU nationality/country fields are LocationIDs with LocationTypeID = 2. */
+const RU_COUNTRY_TYPE_FILTER = [2];
 
 const COMPANY_TEXT_FIELDS: { key: keyof RuCompanyProfile; label: string; placeholder?: string }[] = [
   { key: "merchant_name", label: "Merchant name", placeholder: "As it appears on card statements" },
-  { key: "vat_number", label: "VAT number" },
   { key: "manager_identification_number", label: "Manager ID number" },
   { key: "time_zone", label: "Time zone", placeholder: "UTC+02:00" },
   { key: "region", label: "Region / province" },
@@ -86,6 +108,15 @@ const REP_FIELDS: { key: string; label: string; placeholder?: string }[] = [
   { key: "birthday", label: "Date of birth", placeholder: "YYYY-MM-DD" },
 ];
 
+const BANKING_FIELDS: { key: keyof CompanyBankingFields; label: string; placeholder: string; mono?: boolean }[] = [
+  { key: "bank_name", label: "Bank", placeholder: "Bank name" },
+  { key: "branch_code", label: "Branch", placeholder: "Code" },
+  { key: "account_holder", label: "Holder", placeholder: "Name" },
+  { key: "account_number", label: "Account #", placeholder: "Number" },
+  { key: "account_type", label: "Type", placeholder: "Type" },
+  { key: "swift_code", label: "SWIFT", placeholder: "Code" },
+];
+
 export function CompanyInformationCard({
   registeredBusinessName,
   onRegisteredBusinessNameChange,
@@ -100,6 +131,9 @@ export function CompanyInformationCard({
   ruLocationId,
   onRuLocationIdChange,
   propertyCity,
+  propertyCountry,
+  banking,
+  onBankingChange,
 }: Props) {
   const setField = useCallback(
     (key: keyof RuCompanyProfile, raw: string, numeric = false) => {
@@ -134,24 +168,108 @@ export function CompanyInformationCard({
   const rep = (companyProfile.legal_rep ?? {}) as Record<string, string | number | undefined>;
   const str = (v: unknown) => (v === undefined || v === null ? "" : String(v));
 
+  /**
+   * Mandatory set = everything that can block a Rentals United company/property
+   * push, or that decides which RU LocationID (and therefore which currency) the
+   * property gets locked into.
+   */
+  const missing = useMemo(() => {
+    const out: string[] = [];
+    const need = (label: string, value: unknown) => {
+      if (!String(value ?? "").trim()) out.push(label);
+    };
+    need("Registered Business Name", registeredBusinessName);
+    need("Key Representative", keyRepresentative);
+    need("Mobile Number", mobileNumber);
+    need("Country", propertyCountry);
+    need("Region / province", companyProfile.region);
+    need("City", propertyCity);
+    need("Time zone", companyProfile.time_zone);
+    if (!ruLocationId) out.push("RU LocationID");
+    if (banking.has_vat) need("VAT number", banking.vat_number);
+    need("Rep first name", rep.first_name);
+    need("Rep last name", rep.last_name);
+    need("Rep email", rep.email);
+    if (!Number(rep.nationality_id)) out.push("Rep nationality");
+    if (!Number(rep.country_of_residence_id)) out.push("Rep country of residence");
+    return out;
+  }, [
+    registeredBusinessName,
+    keyRepresentative,
+    mobileNumber,
+    propertyCountry,
+    propertyCity,
+    companyProfile.region,
+    companyProfile.time_zone,
+    ruLocationId,
+    banking.has_vat,
+    banking.vat_number,
+    rep.first_name,
+    rep.last_name,
+    rep.email,
+    rep.nationality_id,
+    rep.country_of_residence_id,
+  ]);
+
   return (
     <Collapsible defaultOpen={false}>
       <Card>
         <CollapsibleTrigger asChild>
           <CardHeader className="cursor-pointer px-4 py-2 transition-colors hover:bg-muted/50">
             <CardTitle className="flex items-center justify-between text-sm">
-              <span>Company Information</span>
-              <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="flex items-center gap-2">
+                Company Information
+                <span className="text-[10px] font-normal text-muted-foreground">
+                  (contract · banking · Rentals United)
+                </span>
+              </span>
+              <span className="flex items-center gap-2">
+                {missing.length === 0 ? (
+                  <Badge variant="outline" className="h-5 gap-1 border-green-600 text-[10px] text-green-700">
+                    <Check className="h-3 w-3" />
+                    Complete
+                  </Badge>
+                ) : (
+                  <Badge variant="destructive" className="h-5 gap-1 text-[10px]">
+                    <AlertTriangle className="h-3 w-3" />
+                    {missing.length} missing
+                  </Badge>
+                )}
+                <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+              </span>
             </CardTitle>
           </CardHeader>
         </CollapsibleTrigger>
         <CollapsibleContent>
           <CardContent className="space-y-4 px-4 py-2">
+            {missing.length > 0 && (
+              <div className="rounded-md border border-destructive/40 bg-destructive/5 px-2.5 py-2">
+                <p className="text-[11px] font-semibold text-destructive">
+                  {missing.length} mandatory field{missing.length === 1 ? "" : "s"} outstanding
+                </p>
+                <p className="mt-0.5 text-[10px] leading-snug text-muted-foreground">
+                  {missing.join(" · ")}
+                </p>
+              </div>
+            )}
+
             {/* ── Legal entity ── */}
             <div className="space-y-2">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                Legal entity
-              </p>
+              <div className="flex items-center justify-between">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  Legal entity
+                </p>
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="has_vat" className="text-xs font-normal text-muted-foreground">
+                    VAT Registered?
+                  </Label>
+                  <Switch
+                    id="has_vat"
+                    checked={banking.has_vat}
+                    onCheckedChange={(checked) => onBankingChange("has_vat", checked)}
+                  />
+                </div>
+              </div>
               <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
                 <div className="flex flex-col gap-1">
                   <Label htmlFor="registered_business_name" className="text-xs">
@@ -189,6 +307,32 @@ export function CompanyInformationCard({
                     className="h-7 text-xs"
                   />
                 </div>
+                <div className="flex flex-col gap-1">
+                  <Label htmlFor="property_registration" className="text-xs">
+                    Registration #
+                  </Label>
+                  <Input
+                    id="property_registration"
+                    value={banking.property_registration}
+                    onChange={(e) => onBankingChange("property_registration", e.target.value)}
+                    placeholder="Company registration"
+                    className="h-7 text-xs"
+                  />
+                </div>
+                {banking.has_vat && (
+                  <div className="flex flex-col gap-1">
+                    <Label htmlFor="vat_number" className="text-xs">
+                      VAT #
+                    </Label>
+                    <Input
+                      id="vat_number"
+                      value={banking.vat_number}
+                      onChange={(e) => onBankingChange("vat_number", e.target.value)}
+                      placeholder="VAT number"
+                      className="h-7 text-xs"
+                    />
+                  </div>
+                )}
                 {COMPANY_TEXT_FIELDS.map((f) => (
                   <div key={String(f.key)} className="flex flex-col gap-1">
                     <Label className="text-xs">{f.label}</Label>
@@ -235,6 +379,29 @@ export function CompanyInformationCard({
               </div>
             </div>
 
+            {/* ── Banking (contract / payouts) ── */}
+            <div className="space-y-2 border-t border-border pt-3">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Banking <span className="font-normal normal-case tracking-normal">(contract / payouts)</span>
+              </p>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-3 md:grid-cols-3 xl:grid-cols-6">
+                {BANKING_FIELDS.map((f) => (
+                  <div key={f.key} className="flex flex-col gap-1">
+                    <Label htmlFor={f.key} className="text-xs">
+                      {f.label}
+                    </Label>
+                    <Input
+                      id={f.key}
+                      value={String(banking[f.key] ?? "")}
+                      onChange={(e) => onBankingChange(f.key, e.target.value)}
+                      placeholder={f.placeholder}
+                      className="h-7 text-xs"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+
             {/* ── RU location register ── */}
             <div className="space-y-1.5 rounded-md border border-border bg-muted/30 p-2.5">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -246,8 +413,9 @@ export function CompanyInformationCard({
                 initialQuery={propertyCity ?? ""}
               />
               <p className="text-[10px] leading-snug text-muted-foreground">
-                Attaches a real RU LocationID to this property and its company push. Leave empty to
-                let ROLOS resolve it from coordinates and city name at push time.
+                Attaches a real RU LocationID to this property and its company push. RU owns the
+                currency on the LocationID, so an explicit selection here decides which currency the
+                property is locked into.
               </p>
             </div>
 
@@ -256,7 +424,7 @@ export function CompanyInformationCard({
               <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                 Legal representative{" "}
                 <span className="font-normal normal-case tracking-normal">
-                  (optional — the only Rentals United block that carries a nationality)
+                  (nationality is mandatory for Rentals United)
                 </span>
               </p>
               <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
@@ -278,7 +446,7 @@ export function CompanyInformationCard({
                   <RuLocationPicker
                     value={Number(rep.nationality_id) || null}
                     onChange={(id) => setRepField("nationality_id", id)}
-                    typeFilter={[1]}
+                    typeFilter={RU_COUNTRY_TYPE_FILTER}
                     placeholder="Search countries…"
                     allowRefresh={false}
                   />
@@ -288,7 +456,7 @@ export function CompanyInformationCard({
                   <RuLocationPicker
                     value={Number(rep.country_of_residence_id) || null}
                     onChange={(id) => setRepField("country_of_residence_id", id)}
-                    typeFilter={[1]}
+                    typeFilter={RU_COUNTRY_TYPE_FILTER}
                     placeholder="Search countries…"
                     allowRefresh={false}
                   />
