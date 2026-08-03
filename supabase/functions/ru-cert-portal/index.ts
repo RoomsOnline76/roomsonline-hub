@@ -1201,6 +1201,19 @@ Deno.serve(async (req) => {
       const userAccountId = String(match.user_account_id ?? "").trim();
       if (userAccountId && userAccountId !== "0") update.ru_user_id = userAccountId;
 
+      // Rebinding to a different OwnerID: credentials, API keys and verification state
+      // belonged to the previous sub-user — never carry them over.
+      const previousOwnerId = String(account.ru_owner_id ?? "").trim();
+      if (previousOwnerId !== ruOwnerId) {
+        update.ru_api_access_key = null;
+        update.ru_api_secret_enc = null;
+        update.ru_api_key_label = null;
+        update.ru_api_keys_verified_at = null;
+        update.ru_login_password_enc = null;
+        update.company_details_sent = false;
+        update.company_details_status = null;
+      }
+
       const { error: upErr } = await admin.from("ru_owner_accounts").update(update).eq("id", accountId);
       if (upErr) return json({ success: false, error: { code: "SAVE_FAILED", message: upErr.message } }, 500);
 

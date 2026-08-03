@@ -749,15 +749,30 @@ export function PortfolioRuAccountsTab() {
           {filtered.map(({ acc, scopeLabel, scopeName, linked }) => {
             const open = expanded === acc.id;
             const status = (acc.company_details_status ?? "").toLowerCase();
+            // Keys live per RU OwnerID — never fall back to legacy row-level keys for a
+            // bound account, or a rebind would show the previous sub-user's state.
+            const ownerKey = acc.ru_owner_id
+              ? storedKeyByOwner.get(String(acc.ru_owner_id))
+              : undefined;
+            const activeAccessKey = acc.ru_owner_id
+              ? (ownerKey?.access_key ?? null)
+              : (acc.ru_api_access_key ?? null);
+            const activeLabel = acc.ru_owner_id
+              ? (ownerKey?.key_label ?? null)
+              : (acc.ru_api_key_label ?? null);
+            const activeVerified = acc.ru_owner_id
+              ? (ownerKey?.verified_at ?? null)
+              : (acc.ru_api_keys_verified_at ?? null);
+            const apiVerified = Boolean(activeVerified);
             const showCredentialBadge =
               !acc.company_details_sent &&
-              (status === "api_access_verified" ||
+              (apiVerified ||
                 status === "api_access_failed" ||
                 status === "failed" ||
-                status === "password_stored" ||
-                status === "credentials_verified" ||
                 status === "credentials_failed" ||
+                status === "password_stored" ||
                 Boolean(acc.ru_login_password_enc));
+
 
             return (
               <Card key={acc.id}>
@@ -859,13 +874,13 @@ export function PortfolioRuAccountsTab() {
                       </Button>
                       <Button
                         size="sm"
-                        variant={acc.ru_api_access_key ? "outline" : "default"}
+                        variant={activeAccessKey ? "outline" : "default"}
                         className="h-7 text-xs"
                         onClick={() => openKeys(acc)}
                       >
                         <KeyRound className="h-3 w-3" />
                         <span className="ml-1.5">
-                          {acc.ru_api_access_key ? "API keys" : "Add API keys"}
+                          {activeAccessKey ? "API keys" : "Add API keys"}
                         </span>
                       </Button>
                       <Button
@@ -904,18 +919,23 @@ export function PortfolioRuAccountsTab() {
                       >
                         {acc.company_details_sent ? "Company details sent" : "Company details pending"}
                       </Badge>
+                      {acc.ru_owner_id && !activeAccessKey && (
+                        <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                          API keys missing
+                        </Badge>
+                      )}
                       {showCredentialBadge && (
                         <Badge
                           variant="outline"
                           className={
-                            status === "api_access_verified" || status === "credentials_verified"
+                            apiVerified
                               ? "text-success border-success/40 text-[10px]"
                               : status === "api_access_failed" || status === "credentials_failed" || status === "failed"
                                 ? "text-destructive border-destructive/40 text-[10px]"
                                 : "text-muted-foreground text-[10px]"
                           }
                         >
-                          {status === "api_access_verified" || status === "credentials_verified"
+                          {apiVerified
                             ? "API access verified"
                             : status === "api_access_failed" || status === "credentials_failed" || status === "failed"
                               ? "API access failed"
@@ -942,10 +962,6 @@ export function PortfolioRuAccountsTab() {
                       </a>
                     )}
                     {(() => {
-                      const ownerKey = acc.ru_owner_id ? storedKeyByOwner.get(String(acc.ru_owner_id)) : undefined;
-                      const activeAccessKey = ownerKey?.access_key ?? acc.ru_api_access_key ?? null;
-                      const activeLabel = ownerKey?.key_label ?? acc.ru_api_key_label ?? null;
-                      const activeVerified = ownerKey?.verified_at ?? acc.ru_api_keys_verified_at ?? null;
                       return (
                     <div className="rounded-md border border-border bg-muted/20 p-3 space-y-2">
                       <div className="flex items-center justify-between gap-2 flex-wrap">
