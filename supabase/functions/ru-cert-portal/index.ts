@@ -939,17 +939,26 @@ Deno.serve(async (req) => {
      */
     if (action === "create_api_key") {
       const accountId: string = body.account_id ?? "";
+      const suppliedOwnerId: string = String(body.ru_owner_id ?? "").trim();
       const keyLabel: string = typeof body.key_label === "string" && body.key_label.trim()
         ? body.key_label.trim()
         : "ROLOS";
-      if (!accountId) return json({ success: false, error: { code: "BAD_REQUEST", message: "account_id is required" } }, 400);
-      const { data: account } = await admin
-        .from("ru_owner_accounts")
-        .select("id, owner_email, ru_login_email, ru_owner_id, ru_login_password_enc, ru_api_access_key, ru_api_secret_enc, company_details_sent")
-        .eq("id", accountId)
-        .maybeSingle();
-      if (!account) return json({ success: false, error: { code: "NOT_FOUND", message: "RU owner account not found" } }, 404);
-      const loginEmail = account.ru_login_email ?? account.owner_email;
+      if (!accountId && !suppliedOwnerId) {
+        return json({ success: false, error: { code: "BAD_REQUEST", message: "account_id or ru_owner_id is required" } }, 400);
+      }
+
+      let account: Record<string, any> | null = null;
+      if (accountId) {
+        const { data } = await admin
+          .from("ru_owner_accounts")
+          .select("id, owner_email, ru_login_email, ru_owner_id, ru_login_password_enc, ru_api_access_key, ru_api_secret_enc, company_details_sent")
+          .eq("id", accountId)
+          .maybeSingle();
+        if (!data) return json({ success: false, error: { code: "NOT_FOUND", message: "RU owner account not found" } }, 404);
+        account = data as Record<string, any>;
+      }
+
+      const ownerId = suppliedOwnerId || String(account?.ru_owner_id ?? "").trim();
 
       const decrypt = async (enc: unknown): Promise<string | null> => {
         if (!enc) return null;
@@ -958,11 +967,36 @@ Deno.serve(async (req) => {
         return String(data);
       };
 
-      const existingSecret = await decrypt(account.ru_api_secret_enc);
-      const portalPassword = await decrypt(account.ru_login_password_enc);
+      let existingKey: string | null = null;
+      let existingSecret: string | null = null;
+      let loginEmail: string | null = account?.ru_login_email ?? account?.owner_email ?? null;
+      if (ownerId) {
+        const { data: credRow } = await admin
+          .from("ru_api_credentials")
+          .select("access_key, secret_enc, login_email")
+          .eq("ru_owner_id", ownerId)
+          .maybeSingle();
+        if (credRow?.access_key) {
+          const plain = await decrypt(credRow.secret_enc);
+          if (plain) {
+            existingKey = String(credRow.access_key);
+            existingSecret = plain;
+          }
+          loginEmail = credRow.login_email ?? loginEmail;
+        }
+      }
+      if (!existingKey && account?.ru_api_access_key) {
+        const plain = await decrypt(account.ru_api_secret_enc);
+        if (plain) {
+          existingKey = String(account.ru_api_access_key);
+          existingSecret = plain;
+        }
+      }
+
+      const portalPassword = await decrypt(account?.ru_login_password_enc);
       const authBody: Record<string, unknown> = { action: "create_child_api_key", key_label: keyLabel };
-      if (account.ru_api_access_key && existingSecret) {
-        authBody.auth_access_key = account.ru_api_access_key;
+      if (existingKey && existingSecret) {
+        authBody.auth_access_key = existingKey;
         authBody.auth_secret_key = existingSecret;
       } else if (loginEmail && portalPassword) {
         authBody.auth_username = loginEmail;
@@ -992,31 +1026,60 @@ Deno.serve(async (req) => {
       if (encErr || !enc) {
         return json({ success: false, error: { code: "ENCRYPT_FAILED", message: encErr?.message || "Could not encrypt the new secret key" } }, 500);
       }
-      const update: Record<string, unknown> = {
-        ru_api_access_key: created.access_key,
-        ru_api_secret_enc: enc,
-        ru_api_key_label: keyLabel,
-        ru_api_keys_verified_at: new Date().toISOString(),
-      };
-      if (!account.company_details_sent) update.company_details_status = "credentials_verified";
-      const { error: upErr } = await admin.from("ru_owner_accounts").update(update).eq("id", accountId);
-      if (upErr) return json({ success: false, error: { code: "SAVE_FAILED", message: upErr.message } }, 500);
+
+      if (ownerId) {
+        const { error: credErr } = await admin.from("ru_api_credentials").upsert({
+          ru_owner_id: ownerId,
+          login_email: loginEmail,
+          access_key: created.access_key,
+          secret_enc: enc,
+          key_label: keyLabel,
+          verified_at: new Date().toISOString(),
+        }, { onConflict: "ru_owner_id" });
+        if (credErr) return json({ success: false, error: { code: "SAVE_FAILED", message: credErr.message } }, 500);
+      }
+
+      if (account?.id && String(account.ru_owner_id ?? "").trim() === ownerId) {
+        const update: Record<string, unknown> = {
+          ru_api_access_key: created.access_key,
+          ru_api_secret_enc: enc,
+          ru_api_key_label: keyLabel,
+          ru_api_keys_verified_at: new Date().toISOString(),
+        };
+        if (!account.company_details_sent) update.company_details_status = "credentials_verified";
+        const { error: upErr } = await admin.from("ru_owner_accounts").update(update).eq("id", account.id);
+        if (upErr) return json({ success: false, error: { code: "SAVE_FAILED", message: upErr.message } }, 500);
+      }
 
       await admin.from("audit_logs").insert({
         user_id: user.id,
         user_email: user.email ?? "unknown",
         user_role: (roles ?? []).some((r: { role: string }) => r.role === "dev") ? "dev" : "admin",
         action_type: "other",
-        table_name: "ru_owner_accounts",
-        record_id: account.id,
+        table_name: "ru_api_credentials",
+        record_id: account?.id ?? null,
         request_origin: "edge_function",
         edge_function_name: "ru-cert-portal",
         is_sensitive: true,
-        change_summary: `Created Rentals United sub-user API key "${keyLabel}" for ${loginEmail} (OwnerID ${account.ru_owner_id ?? "?"})`,
+        change_summary: `Created Rentals United sub-user API key "${keyLabel}" for ${loginEmail ?? "unknown"} (OwnerID ${ownerId || "?"})`,
       }).then(() => {}, (e) => console.warn("[ru-cert-portal] audit log insert failed", e));
 
-      return json({ success: true, access_key: created.access_key, label: keyLabel, login_email: loginEmail });
+      return json({ success: true, access_key: created.access_key, label: keyLabel, login_email: loginEmail, ru_owner_id: ownerId });
     }
+
+    /**
+     * ── list_stored_api_keys: which RU OwnerIDs we hold key pairs for (no secrets returned).
+     * Drives the per-sub-user key state in the RU accounts UI.
+     */
+    if (action === "list_stored_api_keys") {
+      const { data, error } = await admin
+        .from("ru_api_credentials")
+        .select("ru_owner_id, login_email, access_key, key_label, verified_at")
+        .order("updated_at", { ascending: false });
+      if (error) return json({ success: false, error: { code: "READ_FAILED", message: error.message } }, 500);
+      return json({ success: true, credentials: data ?? [] });
+    }
+
 
 
     // ── save_login_password: admin sets/resets the retained RU portal password ──
