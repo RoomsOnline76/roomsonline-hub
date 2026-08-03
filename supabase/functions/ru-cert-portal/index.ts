@@ -1079,6 +1079,102 @@ Deno.serve(async (req) => {
       if (error) return json({ success: false, error: { code: "READ_FAILED", message: error.message } }, 500);
       return json({ success: true, credentials: data ?? [] });
     }
+    /**
+     * ── resolve_ru_property_ids: capture the RUIDs RU already holds for a property.
+     * A push returns the new RUID in its response, but pushes fired outside this
+     * pipeline (playground, retries that lost the response) leave the local
+     * rentalsunited_property_id blank. This re-reads Pull_ListProp_RQ for the bound
+     * sub-user and matches by name so the readiness panel shows the real RUID.
+     */
+    if (action === "resolve_ru_property_ids") {
+      const targetPropertyId: string = typeof body.property_id === "string" ? body.property_id : "";
+      if (!targetPropertyId) {
+        return json({ success: false, error: { code: "BAD_REQUEST", message: "property_id is required" } }, 400);
+      }
+
+      const { data: prop } = await admin
+        .from("properties")
+        .select("id, name, owner_email, rentalsunited_property_id")
+        .eq("id", targetPropertyId)
+        .maybeSingle();
+      if (!prop) return json({ success: false, error: { code: "NOT_FOUND", message: "Property not found" } }, 404);
+
+      const portfolioId = await resolvePortfolioId(admin, targetPropertyId);
+      const { account } = await findOwnerAccount(admin, targetPropertyId, prop.owner_email ?? null, portfolioId);
+      const ownerId = String(account?.ru_owner_id ?? "").trim();
+      if (!ownerId) {
+        return json({
+          success: false,
+          error: {
+            code: "RU_OWNER_NOT_BOUND",
+            message: "No Rentals United sub-user (OwnerID) is bound for this property's portfolio, so its RU properties cannot be listed.",
+          },
+        }, 422);
+      }
+
+      const { data: listed, error: listErr } = await admin.functions.invoke("rentalsunited-api", {
+        body: { action: "list_properties", owner_id: Number(ownerId) },
+      });
+      if (listErr || listed?.success !== true) {
+        return json({
+          success: false,
+          error: {
+            code: "RU_LIST_FAILED",
+            message: listed?.error?.message ?? listErr?.message ?? "Rentals United did not return a property list",
+          },
+        }, 502);
+      }
+
+      const remote: { id: string; name: string }[] = Array.isArray(listed.properties) ? listed.properties : [];
+      const norm = (v: unknown) => String(v ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+      const findRemote = (name: string | null) => {
+        const key = norm(name);
+        if (!key) return null;
+        return remote.find((r) => norm(r.name) === key) ?? null;
+      };
+
+      const matched: { scope: "property" | "unit"; name: string; ru_property_id: string }[] = [];
+      const unmatched: string[] = [];
+
+      // Multi-unit properties carry the RUID per unit; single-unit on the property row.
+      const { data: units } = await admin
+        .from("hostfully_room_types")
+        .select("id, name, rentalsunited_property_id, is_active")
+        .eq("property_id", targetPropertyId);
+      const activeUnits = (units ?? []).filter((u) => u.is_active !== false);
+
+      for (const unit of activeUnits) {
+        const hit = findRemote(unit.name as string | null);
+        if (!hit) {
+          unmatched.push(String(unit.name ?? unit.id));
+          continue;
+        }
+        if (String(unit.rentalsunited_property_id ?? "") !== hit.id) {
+          await admin.from("hostfully_room_types").update({ rentalsunited_property_id: hit.id }).eq("id", unit.id);
+        }
+        matched.push({ scope: "unit", name: String(unit.name ?? ""), ru_property_id: hit.id });
+      }
+
+      const propertyHit = findRemote(prop.name as string | null);
+      if (propertyHit) {
+        if (String(prop.rentalsunited_property_id ?? "") !== propertyHit.id) {
+          await admin.from("properties").update({ rentalsunited_property_id: propertyHit.id }).eq("id", targetPropertyId);
+        }
+        matched.push({ scope: "property", name: String(prop.name ?? ""), ru_property_id: propertyHit.id });
+      } else if (activeUnits.length === 0) {
+        unmatched.push(String(prop.name ?? targetPropertyId));
+      }
+
+      return json({
+        success: true,
+        ru_owner_id: ownerId,
+        rentalsunited_property_id: propertyHit?.id ?? prop.rentalsunited_property_id ?? null,
+        matched,
+        unmatched,
+        remote_count: remote.length,
+      });
+    }
+
 
 
 

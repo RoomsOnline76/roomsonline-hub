@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { extractFunctionError } from "@/lib/functionError";
 import {
   Upload,
   CheckCircle,
@@ -20,6 +21,7 @@ import {
   Building2,
   ExternalLink,
   User,
+  RefreshCw,
 } from "lucide-react";
 import type { RuReadinessReport } from "@/components/pms/channels/RuReadinessScorecard";
 
@@ -128,6 +130,7 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
   const [editingRuId, setEditingRuId] = useState(false);
   const [ruIdDraft, setRuIdDraft] = useState("");
   const [savingRuId, setSavingRuId] = useState(false);
+  const [resolvingIds, setResolvingIds] = useState(false);
   const [editingUnitRuId, setEditingUnitRuId] = useState<string | null>(null);
   const [unitRuIdDraft, setUnitRuIdDraft] = useState("");
   const [savingUnitRuId, setSavingUnitRuId] = useState(false);
@@ -225,7 +228,49 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
     setSavingUnitRuId(false);
   };
 
+  /**
+   * A push returns the RUID in its response, but pushes fired outside this panel
+   * (or a lost response) leave the local RU ID blank. This re-reads the RU property
+   * list for the bound sub-user and captures the real RUIDs by name.
+   */
+  const resolveRuIds = async () => {
+    setResolvingIds(true);
+    try {
+      const { data, error: fnErr } = await supabase.functions.invoke("ru-cert-portal", {
+        body: { action: "resolve_ru_property_ids", property_id: propertyId },
+      });
+      if (fnErr) throw new Error(await extractFunctionError(fnErr, "Could not read the Rentals United property list"));
+      if (!data?.success) throw new Error(data?.error?.message ?? "Could not read the Rentals United property list");
+
+      const matched: { scope: string; name: string; ru_property_id: string }[] = data.matched ?? [];
+      const propMatch = matched.find((m) => m.scope === "property");
+      if (propMatch) setRuPropertyId(propMatch.ru_property_id);
+      else if (data.rentalsunited_property_id) setRuPropertyId(String(data.rentalsunited_property_id));
+
+      setUnits((prev) =>
+        prev.map((u) => {
+          const hit = matched.find((m) => m.scope === "unit" && m.name === u.name);
+          return hit ? { ...u, ru_property_id: hit.ru_property_id } : u;
+        }),
+      );
+
+      const unmatched: string[] = data.unmatched ?? [];
+      if (matched.length === 0) {
+        toast.warning(`No matching listings found on the Rentals United account (${data.remote_count ?? 0} listings scanned)`);
+      } else {
+        toast.success(
+          `Captured ${matched.length} Rentals United ID${matched.length === 1 ? "" : "s"}${unmatched.length ? ` — ${unmatched.length} still unmatched` : ""}`,
+        );
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to capture the Rentals United ID");
+    } finally {
+      setResolvingIds(false);
+    }
+  };
+
   const runDryRun = async () => {
+
     setDryRunning(true);
     setError(null);
     setDiagnostics(null);
@@ -428,6 +473,17 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
             )}
           </div>
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs gap-1"
+              onClick={resolveRuIds}
+              disabled={resolvingIds || loading || dryRunning}
+              title="Read the Rentals United listing IDs for this property's sub-user account and store them here"
+            >
+              {resolvingIds ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+              {resolvingIds ? "Fetching..." : "Fetch RU IDs"}
+            </Button>
             <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={runDryRun} disabled={dryRunning || loading}>
               {dryRunning ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle className="h-3 w-3" />}
               {dryRunning ? "Checking..." : "Validate"}
