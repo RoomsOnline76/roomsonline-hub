@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import type { Json } from "@/integrations/supabase/types";
 
 interface SeasonPeriod {
   from: string;
@@ -76,7 +77,7 @@ export async function syncPortfolioSeasonDates(propertyId: string, sourceSeasons
       : {};
     const targetSeasons = Array.isArray(amenities.seasons) ? amenities.seasons as PortfolioSeason[] : [];
     amenities.seasons = mergePortfolioSeasonDates(sourceSeasons, targetSeasons);
-    const { error } = await supabase.from("properties").update({ amenities }).eq("id", sibling.id);
+    const { error } = await supabase.from("properties").update({ amenities: amenities as Json }).eq("id", sibling.id);
     if (error) throw error;
     updated += 1;
   }
