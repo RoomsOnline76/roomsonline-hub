@@ -143,6 +143,8 @@ interface PropertyRow {
   max_guests: number | null;
   bedrooms: number | null;
   bathrooms: number | null;
+  toilets: number | null;
+  separate_kitchen: boolean | null;
   amenities: Record<string, unknown> | null;
   images: unknown[] | null;
   rentalsunited_property_id: string | null;
