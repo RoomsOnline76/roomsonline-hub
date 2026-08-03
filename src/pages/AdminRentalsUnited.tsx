@@ -222,10 +222,12 @@ export default function AdminRentalsUnited() {
         <TabsList>
           <TabsTrigger value="sync">Sync observability</TabsTrigger>
           <TabsTrigger value="onboarding">Onboarding</TabsTrigger>
+          <TabsTrigger value="buildings">Buildings</TabsTrigger>
           <TabsTrigger value="errors">Error handling</TabsTrigger>
           <TabsTrigger value="currency">Currency</TabsTrigger>
           <TabsTrigger value="cert">Certification &amp; compliance</TabsTrigger>
         </TabsList>
+
 
         <TabsContent value="onboarding" className="space-y-4">
           <Card>
