@@ -2331,6 +2331,82 @@ Deno.serve(async (req) => {
         return null;
       };
 
+      /**
+       * ── Rate-limit pacing ─────────────────────────────────────────────────────────
+       * Rentals United throttles per method at roughly 1 call per sliding minute
+       * (Pull_ListReservations_RQ is the strictest). A suite fires many calls, so we:
+       *   1. keep a small gap between any two RU calls,
+       *   2. wait out the remaining sliding-minute window before repeating the SAME method,
+       *   3. on an actual rate-limit response, sleep the window and retry once.
+       * Waiting is capped by a budget so a suite cannot exceed the function timeout;
+       * when the budget is spent, the step is recorded as an informational skip.
+       */
+      const METHOD_WINDOW_MS = RUN_COOLDOWN_SECONDS * 1000;
+      const MIN_GAP_MS = 1200;
+      const WAIT_BUDGET_MS = 150_000;
+      let waitSpentMs = 0;
+      let lastCallAt = 0;
+      const lastMethodCallAt = new Map<string, number>();
+      const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+      /** Sleeps up to `ms`, respecting the shared budget. Returns true when fully waited. */
+      const budgetedWait = async (ms: number): Promise<boolean> => {
+        if (ms <= 0) return true;
+        const allowed = Math.min(ms, Math.max(0, WAIT_BUDGET_MS - waitSpentMs));
+        if (allowed > 0) {
+          waitSpentMs += allowed;
+          await sleep(allowed);
+        }
+        return allowed >= ms;
+      };
+
+      /** Invokes rentalsunited-api with pacing + one rate-limit retry. */
+      const ruInvoke = async (
+        ruAction: string,
+        payload: Record<string, unknown>,
+      ): Promise<{ data: any; error: any; paced_skip?: string }> => {
+        const method = RU_METHOD_BY_ACTION[ruAction] ?? ruAction;
+        const now = Date.now();
+        await budgetedWait(lastCallAt ? lastCallAt + MIN_GAP_MS - now : 0);
+        const prevSameMethod = lastMethodCallAt.get(method);
+        if (prevSameMethod) {
+          const remaining = prevSameMethod + METHOD_WINDOW_MS - Date.now();
+          const fullyWaited = await budgetedWait(remaining);
+          if (!fullyWaited) {
+            return {
+              data: null,
+              error: null,
+              paced_skip:
+                `Skipped to respect the Rentals United rate limit (1 call per sliding minute for ${method}) — ` +
+                `the run's wait budget was already spent. Re-run this suite to cover this step.`,
+            };
+          }
+        }
+        const fire = async () => {
+          lastCallAt = Date.now();
+          lastMethodCallAt.set(method, lastCallAt);
+          return await admin.functions.invoke("rentalsunited-api", { body: { action: ruAction, ...payload } });
+        };
+        let res = await fire();
+        const detail = String(res.error?.message ?? res.data?.error?.message ?? "");
+        const rateLimited = /rate limit|too many requests|\b429\b/i.test(detail);
+        if (rateLimited) {
+          const fullyWaited = await budgetedWait(METHOD_WINDOW_MS);
+          if (!fullyWaited) {
+            return {
+              data: res.data,
+              error: res.error,
+              paced_skip:
+                "Rentals United rate limit hit and the run's wait budget was spent — re-run this suite to cover this step.",
+            };
+          }
+          res = await fire();
+        }
+        return { data: res.data, error: res.error };
+      };
+
+
+
       const call = async (
         name: string,
         ruAction: string,
