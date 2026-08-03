@@ -1836,18 +1836,24 @@ export default function AdminContracts() {
               onClick={handleSendContract} 
               disabled={
                 sending ||
-                !sendEmail ||
-                (sendScope === "single" && !selectedProperty && !propertySearch.trim()) ||
-                (sendScope !== "single" && scopedPropertyIds.length === 0)
+                (isReferral
+                  ? (newRepMode ? !sendEmail || !sendName.trim() : !selectedRepId) ||
+                    (!!repAlreadyEngaged && !confirmReplaceRepAgreement)
+                  : !sendEmail ||
+                    (sendScope === "single" && !selectedProperty && !propertySearch.trim()) ||
+                    (sendScope !== "single" && scopedPropertyIds.length === 0))
               }
             >
               {sending
                 ? "Sending..."
+                : isReferral
+                ? "Send Referral Agreement"
                 : sendScope === "single"
                 ? (noPropertiesWarning ? "Send & Create Owner" : "Send Contract")
                 : `Send Contract (${scopedPropertyIds.length})`}
 
             </Button>
+
           </DialogFooter>
         </DialogContent>
       </Dialog>
