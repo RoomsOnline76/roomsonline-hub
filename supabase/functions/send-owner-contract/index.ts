@@ -196,6 +196,9 @@ Deno.serve(async (req) => {
     // If a specific template is requested, filter by it
     if (template_id) {
       activeTemplateQuery = activeTemplateQuery.eq("template_id", template_id);
+    } else if (isReferral) {
+      // Referral Partner Agreement template ID
+      activeTemplateQuery = activeTemplateQuery.eq("template_id", "c3d4e5f6-a7b8-4901-cdef-234567890123");
     } else if (contract_type === "rolos") {
       // ROL'OS PMS template ID
       activeTemplateQuery = activeTemplateQuery.eq("template_id", "b2c3d4e5-f6a7-4890-bcde-f12345678901");
@@ -212,15 +215,25 @@ Deno.serve(async (req) => {
     console.log("Commercial model:", resolvedCommercialModel);
 
     // Build contract metadata with intent information
-    const contractMetadata = {
-      listing_intent: resolvedIntent,
-      commercial_model: resolvedCommercialModel,
-      expected_steps: INTENT_STEPS[resolvedIntent] || INTENT_STEPS.accommodation,
-      min_requirements: INTENT_REQUIREMENTS[resolvedIntent] || INTENT_REQUIREMENTS.accommodation,
-      property_id: property_id || null,
-      contract_type: contract_type || 'standard',
-      template_id: activeTemplate?.template_id || null,
-    };
+    const contractMetadata: Record<string, unknown> = isReferral
+      ? {
+          contract_type: "referral",
+          template_id: activeTemplate?.template_id || null,
+          scope: "rep_engagement",
+          property_id: null,
+          rep_id: rep_id || null,
+          terms_snapshot: terms_snapshot || null,
+          engagement: "independent_contractor_commission_only",
+        }
+      : {
+          listing_intent: resolvedIntent,
+          commercial_model: resolvedCommercialModel,
+          expected_steps: INTENT_STEPS[resolvedIntent] || INTENT_STEPS.accommodation,
+          min_requirements: INTENT_REQUIREMENTS[resolvedIntent] || INTENT_REQUIREMENTS.accommodation,
+          property_id: property_id || null,
+          contract_type: contract_type || 'standard',
+          template_id: activeTemplate?.template_id || null,
+        };
 
     // Create contract record with template_version_id, is_new_owner flag, and metadata
     const { data: contract, error: createError } = await supabase
@@ -246,6 +259,23 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    // Mirror the engagement onto rep_contracts so rep-side tooling can track it.
+    if (isReferral && rep_id) {
+      const { error: repContractError } = await supabase
+        .from("rep_contracts")
+        .insert({
+          rep_id,
+          template_version_id: activeTemplate?.id || null,
+          signing_token: contract.signing_token,
+          status: "sent",
+          terms_snapshot: terms_snapshot || null,
+        });
+      if (repContractError) {
+        console.error("Error mirroring rep contract:", repContractError);
+      }
+    }
+
 
     // Build signing URL
     const baseUrl = Deno.env.get("SITE_URL") || "https://sleepinafrica.roomsonline.co.za";
