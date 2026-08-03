@@ -103,7 +103,9 @@ export function RateManagerTab({
   isFearlessLeader,
   setIsDirty,
   onOpenSpecials,
+  policiesExtra,
 }: RateManagerTabProps) {
+
   const { toast } = useToast();
 
   // ── Local state ────────────────────────────────────────────────────────
