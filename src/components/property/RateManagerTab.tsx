@@ -1088,28 +1088,6 @@ export function RateManagerTab({
             })()}
           </TabsContent>
 
-          {/* ── Data Explorer Sub-tab ──────────────────────────────────────── */}
-          {(isDev || isFearlessLeader) && (
-            <TabsContent value="data-explorer" className="p-3 space-y-3">
-              {(() => {
-                const currentRoom = roomTypes.find((r: any) => r.id === selectedRoomType);
-                if (!currentRoom) {
-                  return (
-                    <div className="border rounded-lg p-8 text-center text-muted-foreground">
-                      <Info className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                      <p>Select a room type to explore its data.</p>
-                    </div>
-                  );
-                }
-                return (
-                  <>
-                    <p className="text-sm text-muted-foreground">Raw data explorer for <strong>{currentRoom.name}</strong></p>
-                    <RoomTypeDataViewer room={currentRoom} rateTypes={pmsRateTypes} />
-                  </>
-                );
-              })()}
-            </TabsContent>
-          )}
         </Tabs>
       </div>
 
