@@ -1344,9 +1344,18 @@ export function PortfolioRuAccountsTab() {
                     className="flex items-center justify-between gap-3 rounded-md border border-border p-3"
                   >
                     <div className="min-w-0">
-                      <p className="text-xs font-mono">OwnerID {u.owner_id}</p>
+                      <p className="text-xs font-mono flex items-center gap-1.5">
+                        OwnerID {u.owner_id}
+                        {u.archived && (
+                          <Badge variant="outline" className="text-[10px] px-1 py-0">Archived</Badge>
+                        )}
+                        {storedKeyByOwner.has(String(u.owner_id)) && (
+                          <Badge variant="secondary" className="text-[10px] px-1 py-0">Keys stored</Badge>
+                        )}
+                      </p>
                       <p className="text-[11px] text-muted-foreground truncate">{u.email}</p>
                     </div>
+
                     <div className="flex items-center gap-1.5 shrink-0">
                       <Button
                         size="sm"
