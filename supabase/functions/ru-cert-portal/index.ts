@@ -2244,6 +2244,36 @@ Deno.serve(async (req) => {
       const suite: string = body.suite ?? "read_only";
       const propertyId: string | null = body.property_id ?? null;
 
+      // ── Rate-limit guard: RU tolerates ~1 call per sliding minute, and a suite fires
+      // several. Refuse a new run while the previous one is inside the cooldown window.
+      {
+        const { data: lastRun } = await admin
+          .from("ru_cert_runs")
+          .select("started_at")
+          .order("started_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (lastRun?.started_at) {
+          const elapsed = (Date.now() - new Date(lastRun.started_at).getTime()) / 1000;
+          const remaining = Math.ceil(RUN_COOLDOWN_SECONDS - elapsed);
+          if (remaining > 0) {
+            return json(
+              {
+                success: false,
+                cooldown_seconds: remaining,
+                error: {
+                  code: "RATE_LIMITED",
+                  message: `Rentals United allows one call per sliding minute — wait ${remaining}s before running again.`,
+                },
+              },
+              429,
+            );
+          }
+        }
+      }
+
+
+
       // Resolve an RU property id for property-scoped calls
       let ruPropertyId: number | null = body.ru_property_id ? Number(body.ru_property_id) : null;
       let propertyRow: { id: string; name: string; rentalsunited_property_id: string | null } | null = null;
