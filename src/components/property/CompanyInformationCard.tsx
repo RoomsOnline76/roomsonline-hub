@@ -399,6 +399,28 @@ export function CompanyInformationCard({
 
 
   /**
+   * Placeholder values RU permanently stored on profiles pushed before the
+   * account contact person was captured explicitly. Flagged so they get
+   * corrected on the next push instead of silently staying on file.
+   */
+  const placeholders = useMemo(() => {
+    const out: string[] = [];
+    const phone = str(companyProfile.contact_phone).replace(/[\s-]/g, "");
+    if (phone === "+27000000000") out.push("Contact phone");
+    if (str(companyProfile.contact_last_name).trim().toLowerCase() === "owner") {
+      out.push("Contact last name");
+    }
+    if (str(companyProfile.contact_birth_date).trim() === "1990-01-01") {
+      out.push("Contact date of birth");
+    }
+    return out;
+  }, [
+    companyProfile.contact_phone,
+    companyProfile.contact_last_name,
+    companyProfile.contact_birth_date,
+  ]);
+
+  /**
    * Mandatory set = everything that can block a Rentals United company/property
    * push, or that decides which RU LocationID (and therefore which currency) the
    * property gets locked into.
@@ -417,11 +439,17 @@ export function CompanyInformationCard({
     if (!normalizeRuTimeZone(companyProfile.time_zone)) out.push("Time zone");
     if (!ruLocationId) out.push("RU LocationID");
     if (banking.has_vat) need("VAT number", banking.vat_number);
+    need("Contact first name", companyProfile.contact_first_name);
+    need("Contact last name", companyProfile.contact_last_name);
+    need("Contact phone", companyProfile.contact_phone);
+    need("Contact date of birth", companyProfile.contact_birth_date);
+    need("Describe your business", companyProfile.describe_your_business);
     need("Rep first name", rep.first_name);
     need("Rep last name", rep.last_name);
     need("Rep email", rep.email);
     if (!Number(rep.nationality_id)) out.push("Rep nationality");
     if (!Number(rep.country_of_residence_id)) out.push("Rep country of residence");
+    for (const p of placeholders) out.push(`${p} (placeholder)`);
     return out;
   }, [
     registeredBusinessName,
@@ -431,6 +459,11 @@ export function CompanyInformationCard({
     propertyCity,
     companyProfile.region,
     companyProfile.time_zone,
+    companyProfile.contact_first_name,
+    companyProfile.contact_last_name,
+    companyProfile.contact_phone,
+    companyProfile.contact_birth_date,
+    companyProfile.describe_your_business,
     ruLocationId,
     banking.has_vat,
     banking.vat_number,
@@ -439,7 +472,9 @@ export function CompanyInformationCard({
     rep.email,
     rep.nationality_id,
     rep.country_of_residence_id,
+    placeholders,
   ]);
+
 
   return (
     <Collapsible defaultOpen={false}>
