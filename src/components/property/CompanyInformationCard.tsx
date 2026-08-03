@@ -60,6 +60,12 @@ export interface RuCompanyProfile {
   number_of_employees?: number;
   years_in_business?: number;
   describe_your_business?: string;
+  /** Explicit RU account contact person (replaces the old derived placeholders). */
+  contact_first_name?: string;
+  contact_last_name?: string;
+  contact_phone?: string;
+  contact_birth_date?: string;
+
   legal_rep?: {
     first_name?: string;
     last_name?: string;
