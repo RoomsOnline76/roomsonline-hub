@@ -2530,19 +2530,27 @@ Deno.serve(async (req) => {
         const t0 = Date.now();
         const from = isoDate(0);
         const to = isoDate(365);
-        const results = await Promise.all(unitRuIds.map(async (ruId) => {
-          const { data, error } = await admin.functions.invoke("rentalsunited-api", {
-            body: { action: ruAction, ru_property_id: ruId, date_from: from, date_to: to },
+        // Sequential (never parallel): the same RU method for several units would otherwise
+        // trip the sliding-minute limit. ruInvoke paces and retries each unit call.
+        const results: { ruId: number; ok: boolean; count: number; detail: string | null; xml: string }[] = [];
+        for (const ruId of unitRuIds) {
+          const { data, error, paced_skip } = await ruInvoke(ruAction, {
+            ru_property_id: ruId,
+            date_from: from,
+            date_to: to,
           });
           const xml = String(data?.raw_xml ?? "");
           const count = ruAction === "get_availability"
             ? (xml.match(/>\s*[1-9]\d*\s*</g) ?? []).length
             : parseRuPricePoints(xml).filter((p) => p > 0).length;
-          const detail = error?.message ?? data?.error?.message ?? null;
-          return { ruId, ok: !error && data?.success === true && count > 0, count, detail, xml };
-        }));
+          const detail = paced_skip ?? error?.message ?? data?.error?.message ?? null;
+          results.push({ ruId, ok: !paced_skip && !error && data?.success === true && count > 0, count, detail, xml });
+        }
         const failed = results.filter((r) => !r.ok);
-        const soft = failed.map((r) => softSkipReason(String(r.detail ?? ""))).find(Boolean) ?? null;
+        const soft = failed
+          .map((r) => (/(rate limit|wait budget)/i.test(String(r.detail ?? "")) ? String(r.detail) : softSkipReason(String(r.detail ?? ""))))
+          .find(Boolean) ?? null;
+
         const unitLabel = ruAction === "get_availability" ? "open day(s)" : "price point(s)";
         steps.push({
           step: stepNo,
