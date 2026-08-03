@@ -108,6 +108,14 @@ import RichTextEditor from "@/components/RichTextEditor";
 import { pmsIntegrationStatus } from "@/components/ApiMilestones";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertTriangle, Sparkles, Globe, Palette, ShieldCheck } from "lucide-react";
+import RuImageTagPicker from "@/components/property/RuImageTagPicker";
+import {
+  RuImageTagMap,
+  normalizeRuImageTagMap,
+  pruneRuImageTagMap,
+  RU_TAG_MAIN,
+} from "@/lib/ruImageTags";
+
 import { BillingConfigTab } from "@/components/property/BillingConfigTab";
 
 import { ReferralSection } from "@/components/property/ReferralSection";
@@ -759,6 +767,9 @@ export default function PropertyForm({
     { forfeit: "100", type: "% of Total", days: "30" },
   ]);
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
+  /** Rentals United photo tags, keyed by image URL: { "<url>": [4, 83] } */
+  const [imageTags, setImageTags] = useState<RuImageTagMap>({});
+
   const [isDragging, setIsDragging] = useState(false);
 
   // Branding state
@@ -2364,6 +2375,10 @@ export default function PropertyForm({
             console.log("[PropertyForm] No images array found in data.images:", data.images);
           }
 
+          // Rentals United per-photo tags (URL-keyed map)
+          setImageTags(normalizeRuImageTagMap((data as any).ru_image_tags));
+
+
           // Load ROL Spec fields (direct columns)
           setRolSpecData({
             hero_listing: (data as any).hero_listing ?? false,
@@ -2451,6 +2466,8 @@ export default function PropertyForm({
                 images: Array.isArray(room.images)
                   ? room.images.map((img: any) => (typeof img === "string" ? img : img?.url)).filter(Boolean)
                   : [],
+                ruImageTags: normalizeRuImageTagMap(room.ru_image_tags ?? room.ruImageTags),
+
                 facilities: room.facilities || [],
                 amenities: room.amenities || [],
                 // Auto-link wizard rooms to their generated rate types if no existing links
@@ -2506,6 +2523,8 @@ export default function PropertyForm({
                 images: Array.isArray(hr.images)
                   ? hr.images.map((img: any) => (typeof img === "string" ? img : img?.url)).filter(Boolean)
                   : [],
+                ruImageTags: normalizeRuImageTagMap((hr as any).ru_image_tags),
+
                 facilities: [],
                 amenities: hr.amenities || [],
                 linkedRateTypeIds: hr.linked_rate_type_ids || ["per-unit"],
@@ -2994,6 +3013,8 @@ export default function PropertyForm({
         is_test_property: isTestProperty,
         is_active: true,
         images: uploadedImages,
+        ru_image_tags: pruneRuImageTagMap(imageTags, uploadedImages),
+
         max_guests: 2, // Default value, can be updated later
         // Composition — required by Rentals United and downstream channels
         bedrooms: propBedrooms || null,
@@ -3227,6 +3248,11 @@ export default function PropertyForm({
               bed_configuration: room.bedConfiguration || null,
               amenities: room.amenities || null,
               images: room.images || null,
+              ru_image_tags: pruneRuImageTagMap(
+                normalizeRuImageTagMap(room.ruImageTags),
+                Array.isArray(room.images) ? room.images : [],
+              ),
+
               facilities_raw: room.facilities || null,
               min_stay: room.minStay || null,
               max_stay: room.maxStay || null,
@@ -6285,8 +6311,37 @@ export default function PropertyForm({
 
           <TabsContent value="images">
             <Card>
-              <CardHeader className="py-2 px-4">
+              <CardHeader className="py-2 px-4 flex-row items-center justify-between gap-2">
                 <CardTitle className="text-sm">Property Images</CardTitle>
+                <div className="flex items-center gap-2">
+                  {(() => {
+                    const untagged = uploadedImages.slice(1).filter((u) => !(imageTags[u]?.length)).length;
+                    return untagged > 0 ? (
+                      <span className="text-[11px] text-warning">
+                        {untagged} photo{untagged === 1 ? "" : "s"} untagged — will push to channels as “Interior”
+                      </span>
+                    ) : uploadedImages.length > 0 ? (
+                      <span className="text-[11px] text-muted-foreground">All photos tagged</span>
+                    ) : null;
+                  })()}
+                  {uploadedImages.length > 1 && (
+                    <RuImageTagPicker
+                      value={[]}
+                      align="end"
+                      onChange={(next) => {
+                        if (!next.length) return;
+                        setImageTags((prev) => {
+                          const merged = { ...prev };
+                          uploadedImages.slice(1).forEach((url) => {
+                            if (!merged[url]?.length) merged[url] = next;
+                          });
+                          return merged;
+                        });
+                        setIsDirty(true);
+                      }}
+                    />
+                  )}
+                </div>
               </CardHeader>
               <CardContent className="py-2 px-4">
                 <div className="grid grid-cols-1 lg:grid-cols-5 gap-3">
@@ -6316,42 +6371,50 @@ export default function PropertyForm({
                   <div className="lg:col-span-4">
                     <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
                       {uploadedImages.map((imageUrl, index) => (
-                        <div
-                          key={index}
-                          className="relative aspect-square rounded-md overflow-hidden border border-border group"
-                        >
-                          <img src={imageUrl} alt={`Property ${index + 1}`} className="w-full h-full object-cover" />
-                          {/* Primary badge or set as primary button */}
-                          {index === 0 ? (
-                            <div className="absolute top-1 left-1 bg-primary rounded-full p-1" title="Primary image">
-                              <Heart className="h-3 w-3 text-white fill-white" />
-                            </div>
-                          ) : (
+                        <div key={index} className="space-y-1">
+                          <div className="relative aspect-square rounded-md overflow-hidden border border-border group">
+                            <img src={imageUrl} alt={`Property ${index + 1}`} className="w-full h-full object-cover" />
+                            {/* Primary badge or set as primary button */}
+                            {index === 0 ? (
+                              <div className="absolute top-1 left-1 bg-primary rounded-full p-1" title="Primary image">
+                                <Heart className="h-3 w-3 text-white fill-white" />
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  // Move this image to first position
+                                  const newImages = [...uploadedImages];
+                                  const [selected] = newImages.splice(index, 1);
+                                  newImages.unshift(selected);
+                                  setUploadedImages(newImages);
+                                  setIsDirty(true);
+                                }}
+                                className="absolute top-1 left-1 bg-muted-foreground/60 hover:bg-primary rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                                title="Set as primary image"
+                              >
+                                <Heart className="h-3 w-3 text-white" />
+                              </button>
+                            )}
                             <button
                               type="button"
-                              onClick={() => {
-                                // Move this image to first position
-                                const newImages = [...uploadedImages];
-                                const [selected] = newImages.splice(index, 1);
-                                newImages.unshift(selected);
-                                setUploadedImages(newImages);
-                                setIsDirty(true);
-                              }}
-                              className="absolute top-1 left-1 bg-muted-foreground/60 hover:bg-primary rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                              title="Set as primary image"
+                              onClick={() => removeImage(index)}
+                              className="absolute top-1 right-1 bg-muted-foreground/80 hover:bg-destructive rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
                             >
-                              <Heart className="h-3 w-3 text-white" />
+                              <X className="h-3 w-3 text-white" />
                             </button>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => removeImage(index)}
-                            className="absolute top-1 right-1 bg-muted-foreground/80 hover:bg-destructive rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                          >
-                            <X className="h-3 w-3 text-white" />
-                          </button>
+                          </div>
+                          <RuImageTagPicker
+                            value={imageTags[imageUrl] || []}
+                            isMain={index === 0}
+                            onChange={(next) => {
+                              setImageTags((prev) => ({ ...prev, [imageUrl]: next }));
+                              setIsDirty(true);
+                            }}
+                          />
                         </div>
                       ))}
+
                       {Array.from({ length: Math.max(0, 12 - uploadedImages.length) }, (_, index) => (
                         <div
                           key={`empty-${index}`}
