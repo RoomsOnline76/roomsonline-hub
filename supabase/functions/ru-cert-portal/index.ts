@@ -2584,21 +2584,41 @@ Deno.serve(async (req) => {
         }
       }
 
-      const { data: run, error: runErr } = await admin
-        .from("ru_cert_runs")
-        .insert({
-          status: "running",
-          suite,
-          property_id: propertyId,
-          ru_property_id: ruPropertyId ? String(ruPropertyId) : null,
-          triggered_by: user.id,
-        })
-        .select("id")
-        .single();
-      if (runErr) throw runErr;
+      // Continuation of a staged run appends to the same record so the console shows one
+      // certification, not three fragments.
+      let run: { id: string };
+      let steps: CertStep[] = [];
+      if (continuingRunId) {
+        const { data: existing, error: exErr } = await admin
+          .from("ru_cert_runs")
+          .select("id, steps")
+          .eq("id", continuingRunId)
+          .maybeSingle();
+        if (exErr) throw exErr;
+        if (!existing) {
+          return json({ success: false, error: { code: "RUN_NOT_FOUND", message: "Certification run not found." } }, 404);
+        }
+        run = { id: existing.id };
+        steps = Array.isArray(existing.steps) ? (existing.steps as CertStep[]) : [];
+      } else {
+        const { data: created, error: runErr } = await admin
+          .from("ru_cert_runs")
+          .insert({
+            status: "running",
+            suite,
+            property_id: propertyId,
+            ru_property_id: ruPropertyId ? String(ruPropertyId) : null,
+            triggered_by: user.id,
+          })
+          .select("id")
+          .single();
+        if (runErr) throw runErr;
+        run = created;
+      }
 
-      const steps: CertStep[] = [];
-      let stepNo = 0;
+      const priorStepCount = steps.length;
+      let stepNo = steps.reduce((max, s: any) => Math.max(max, Number(s?.step ?? 0)), 0);
+
 
       /**
        * RU responses that are not our fault: the sliding-minute rate limit and methods RU has
