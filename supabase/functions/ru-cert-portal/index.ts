@@ -2506,10 +2506,9 @@ Deno.serve(async (req) => {
 
       /**
        * ── Rate-limit pacing ─────────────────────────────────────────────────────────
-       * Rentals United throttles a repeat of the SAME method with the SAME parameters at
-       * roughly 1 call per sliding minute. Verified live: Pull_ListPropertyPrices_RQ for
-       * three different PropertyIDs back-to-back all succeed, so the window is per
-       * method+parameters — NOT per method. Pacing therefore:
+       * Rentals United throttles discount writes by method + owner account at roughly one
+       * call per sliding minute, even when PropertyID changes. Other ARI reads are less
+       * restrictive, so the key retains their identifying parameters. Pacing therefore:
        *   1. keeps a small gap between any two RU calls,
        *   2. waits out the remaining sliding-minute window only before repeating the same
        *      method with the same identifying parameters (property id + date range + owner),
@@ -2529,10 +2528,13 @@ Deno.serve(async (req) => {
       const WAIT_BUDGET_MS = 90_000;
       let waitSpentMs = 0;
       let lastCallAt = 0;
-      /** Keyed on method + identifying parameters — that is the granularity RU throttles on. */
+       /** Discount writes are account-scoped; other methods retain their request-scoped key. */
       const lastCallByKey = new Map<string, number>();
       const paceKeyFor = (method: string, payload: Record<string, unknown>) => {
         const p = payload as Record<string, any>;
+         if (method === "Push_PutLongStayDiscounts_RQ" || method === "Push_PutLastMinuteDiscounts_RQ") {
+           return [method, p.owner_id ?? certOwnerId ?? "master"].join("|");
+         }
         const parts = [
           method,
           p.ru_property_id ?? p.property_id ?? "",
@@ -2920,7 +2922,13 @@ Deno.serve(async (req) => {
         // Discounts live on the APARTMENT (unit) RUID, not the building. Pushing to the
         // parent id on a multi-unit property makes RU answer "You are not the owner of the
         // apartment" — so iterate every mapped unit, exactly like the ARI probe.
-        const discountTargets = unitRuIds.length > 0 ? unitRuIds : ruPropertyId ? [ruPropertyId] : [];
+        const allDiscountTargets = unitRuIds.length > 0 ? unitRuIds : ruPropertyId ? [ruPropertyId] : [];
+        // A certification run proves the endpoint, credentials and payload shape; it is not
+        // the bulk synchronizer. RU limits each discount-write method to one call per owner
+        // per sliding minute, so exercising every unit here makes a multi-unit certification
+        // exceed the edge request lifetime. Test one representative apartment; the normal
+        // property sync remains responsible for distributing rules to every mapped unit.
+        const discountTargets = allDiscountTargets.slice(0, 1);
         const multi = discountTargets.length > 1;
         const label = (base: string, id: number) => (multi ? `${base} (unit ${id})` : base);
 
@@ -2981,6 +2989,23 @@ Deno.serve(async (req) => {
               successDetail: `RU echoed all ${lmWire.length} last-minute tier${lmWire.length === 1 ? "" : "s"}`,
             },
           );
+        }
+
+        if (allDiscountTargets.length > discountTargets.length) {
+          stepNo += 1;
+          steps.push({
+            step: stepNo,
+            name: "Additional unit discount distribution",
+            ru_method: "Push_PutLongStayDiscounts_RQ + Push_PutLastMinuteDiscounts_RQ",
+            mandatory: false,
+            scope: "property",
+            status: "skipped",
+            duration_ms: 0,
+            detail:
+              `${allDiscountTargets.length - discountTargets.length} additional mapped unit(s) were not called during certification because RU permits only one discount write per method per owner per sliding minute. ` +
+              "They are distributed by the normal property sync and are excluded from the certification score.",
+            request: { representative_ru_property_id: discountTargets[0] ?? null, additional_ru_property_ids: allDiscountTargets.slice(1) },
+          });
         }
 
       }
