@@ -7789,6 +7789,7 @@ export default function PropertyForm({
                     propertyId={propertyId}
                     category="accommodation"
                     roomTypes={roomTypes.map((rt: any) => ({ id: rt.id || rt.name, name: rt.name }))}
+                    onOpenPolicies={() => setActiveTab("rates")}
                   />
                 )}
 
@@ -7797,6 +7798,7 @@ export default function PropertyForm({
                     propertyId={propertyId}
                     category="event_wedding"
                     roomTypes={roomTypes.map((rt: any) => ({ id: rt.id || rt.name, name: rt.name }))}
+                    onOpenPolicies={() => setActiveTab("rates")}
                   />
                 )}
 
