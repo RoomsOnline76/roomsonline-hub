@@ -2316,15 +2316,33 @@ Deno.serve(async (req) => {
       const steps: CertStep[] = [];
       let stepNo = 0;
 
+      /**
+       * RU responses that are not our fault: the sliding-minute rate limit and methods RU has
+       * not enabled for this integration. These are recorded as `skipped` (informational) so
+       * they never count as certification failures.
+       */
+      const softSkipReason = (detail: string): string | null => {
+        if (/rate limit/i.test(detail)) {
+          return "Rentals United rate limit (1 call per sliding minute) — re-run after the cooldown.";
+        }
+        if (/not implemented method/i.test(detail)) {
+          return "Rentals United has not enabled this method for this integration — informational only.";
+        }
+        return null;
+      };
+
       const call = async (
         name: string,
         ruAction: string,
         payload: Record<string, unknown>,
         opts: { mandatory?: boolean; scope?: CertScope; skip?: string; assert?: (data: any) => string | null } = {},
       ) => {
+        const scope: CertScope = opts.scope ?? "account";
+        // Property-scoped checks are omitted entirely from an account-level run — they are
+        // not applicable, so they should not appear in the step list at all.
+        if (scope === "property" && !propertyId) return null;
         stepNo += 1;
         const ru_method = RU_METHOD_BY_ACTION[ruAction] ?? ruAction;
-        const scope: CertScope = opts.scope ?? "account";
         if (opts.skip) {
           steps.push({ step: stepNo, name, ru_method, mandatory: !!opts.mandatory, scope, status: "skipped", duration_ms: 0, detail: opts.skip });
           return null;
