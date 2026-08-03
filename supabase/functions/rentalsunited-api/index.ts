@@ -1480,26 +1480,124 @@ Deno.serve(async (req) => {
     }
 
     // ── verify_child_login ──
-    // Real sub-user login test on RU's XML surface (child UserName/Password envelope).
-    // This is what company-details and building writes require, so it is the only
-    // meaningful "are these credentials usable" check for a white-label child account.
+    // Real sub-user login test on RU's XML surface. Prefers the sub-user's own API keys
+    // (mandatory for accounts created after RU's Nov-2025 API-keys rollout) and falls back
+    // to the legacy UserName/Password envelope for older accounts.
     if (action === 'verify_child_login') {
-      const username = typeof body.auth_username === 'string' ? body.auth_username.trim() : '';
-      const password = typeof body.auth_password === 'string' ? body.auth_password : '';
-      if (!username || !password) {
-        return errorResponse('MISSING_PARAM', 'auth_username and auth_password are required');
+      const childAuth = await resolveChildAuth(body);
+      if (!childAuth) {
+        return errorResponse(
+          'MISSING_PARAM',
+          'auth_access_key + auth_secret_key (preferred) or auth_username + auth_password are required',
+        );
       }
-      const xml = buildListBuildingsXml(creds, { username, password });
+      const xml = buildListBuildingsXml(creds, childAuth);
       const response = await callRentalsUnited(creds, xml);
       const { ok, status } = handleRUStatus(response);
       return jsonResponse({
         success: true,
         verified: ok,
-        auth_mode: 'child_user_password',
+        auth_mode: childAuthMode(childAuth),
         ru_status_id: status.id ?? null,
         ru_status_message: status.message ?? null,
       });
     }
+
+    // ── create_child_api_key: Push_CreateApiKey_RQ (authenticated AS the sub-user) ──
+    // RU only returns the SecretKey once, at creation time, so the caller must persist it.
+    if (action === 'create_child_api_key') {
+      const childAuth = await resolveChildAuth(body);
+      if (!childAuth) {
+        return jsonResponse({
+          success: false,
+          error: { code: 'RU_CHILD_AUTH_REQUIRED', message: CHILD_AUTH_REQUIRED_MESSAGE },
+        }, 422);
+      }
+      const label = (typeof body.key_label === 'string' && body.key_label.trim())
+        ? body.key_label.trim().substring(0, 255)
+        : 'ROLOS';
+      const xml = `<?xml version="1.0" encoding="utf-8"?>
+<Push_CreateApiKey_RQ>${buildChildAuthXml(childAuth)}<Scope>XmlApi</Scope><Label>${escapeXml(label)}</Label></Push_CreateApiKey_RQ>`;
+      const response = await callRentalsUnited(creds, xml);
+      const { ok, status } = handleRUStatus(response);
+      if (!ok) {
+        return ruErrorResponse(
+          status,
+          buildDiagnostics(sanitizeXmlForLogs(compactXml(xml)), status, 'create_child_api_key', response),
+        );
+      }
+      const accessKey = response.match(/<AccessKey>([\s\S]*?)<\/AccessKey>/i)?.[1]?.trim() ?? null;
+      const secretKey = response.match(/<SecretKey>([\s\S]*?)<\/SecretKey>/i)?.[1]?.trim() ?? null;
+      return jsonResponse({
+        success: true,
+        auth_mode: childAuthMode(childAuth),
+        access_key: accessKey,
+        secret_key: secretKey,
+        label,
+        message: accessKey && secretKey
+          ? 'API key created. The secret is only returned once — store it now.'
+          : 'RU accepted the request but no key pair was found in the response.',
+      });
+    }
+
+    // ── list_child_api_keys: Pull_GetApiKeys_RQ (authenticated AS the sub-user) ──
+    if (action === 'list_child_api_keys') {
+      const childAuth = await resolveChildAuth(body);
+      if (!childAuth) {
+        return jsonResponse({
+          success: false,
+          error: { code: 'RU_CHILD_AUTH_REQUIRED', message: CHILD_AUTH_REQUIRED_MESSAGE },
+        }, 422);
+      }
+      const xml = `<?xml version="1.0" encoding="utf-8"?>
+<Pull_GetApiKeys_RQ>${buildChildAuthXml(childAuth)}</Pull_GetApiKeys_RQ>`;
+      const response = await callRentalsUnited(creds, xml);
+      const { ok, status } = handleRUStatus(response);
+      if (!ok) {
+        return ruErrorResponse(
+          status,
+          buildDiagnostics(sanitizeXmlForLogs(compactXml(xml)), status, 'list_child_api_keys', response),
+        );
+      }
+      const keys = [...response.matchAll(/<ApiKeys>([\s\S]*?)<\/ApiKeys>/gi)].map((m) => {
+        const block = m[1];
+        const pick = (tag: string) =>
+          block.match(new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`, 'i'))?.[1]?.trim() ?? null;
+        return {
+          access_key: pick('AccessKey'),
+          label: pick('Label'),
+          scope: pick('Scope'),
+          created_at: pick('CreationTime'),
+          last_used_at: pick('LastUsageDate'),
+        };
+      });
+      return jsonResponse({ success: true, auth_mode: childAuthMode(childAuth), keys, count: keys.length });
+    }
+
+    // ── delete_child_api_key: Push_DeleteApiKey_RQ (authenticated AS the sub-user) ──
+    if (action === 'delete_child_api_key') {
+      const target = typeof body.target_access_key === 'string' ? body.target_access_key.trim() : '';
+      if (!target) return errorResponse('MISSING_PARAM', 'target_access_key is required');
+      const childAuth = await resolveChildAuth(body);
+      if (!childAuth) {
+        return jsonResponse({
+          success: false,
+          error: { code: 'RU_CHILD_AUTH_REQUIRED', message: CHILD_AUTH_REQUIRED_MESSAGE },
+        }, 422);
+      }
+      const xml = `<?xml version="1.0" encoding="utf-8"?>
+<Push_DeleteApiKey_RQ>${buildChildAuthXml(childAuth)}<AccessKey>${escapeXml(target)}</AccessKey></Push_DeleteApiKey_RQ>`;
+      const response = await callRentalsUnited(creds, xml);
+      const { ok, status } = handleRUStatus(response);
+      if (!ok) {
+        return ruErrorResponse(
+          status,
+          buildDiagnostics(sanitizeXmlForLogs(compactXml(xml)), status, 'delete_child_api_key', response),
+        );
+      }
+      return jsonResponse({ success: true, deleted_access_key: target });
+    }
+
 
 
 
