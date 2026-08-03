@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { extractFunctionError } from "@/lib/functionError";
 import {
   Upload,
   CheckCircle,
@@ -128,6 +129,7 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
   const [editingRuId, setEditingRuId] = useState(false);
   const [ruIdDraft, setRuIdDraft] = useState("");
   const [savingRuId, setSavingRuId] = useState(false);
+  const [resolvingIds, setResolvingIds] = useState(false);
   const [editingUnitRuId, setEditingUnitRuId] = useState<string | null>(null);
   const [unitRuIdDraft, setUnitRuIdDraft] = useState("");
   const [savingUnitRuId, setSavingUnitRuId] = useState(false);
