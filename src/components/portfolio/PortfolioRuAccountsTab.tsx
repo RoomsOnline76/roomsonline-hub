@@ -1343,7 +1343,8 @@ export function PortfolioRuAccountsTab() {
         onOpenChange={(o) => {
           if (!o) {
             setArchivePrompt(null);
-            setArchivePassword("");
+            setArchiveAccessKey("");
+            setArchiveSecretKey("");
           }
         }}
       >
