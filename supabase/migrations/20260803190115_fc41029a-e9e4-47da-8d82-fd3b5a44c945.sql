@@ -1,0 +1,2 @@
+ALTER TABLE public.properties ADD COLUMN IF NOT EXISTS ru_image_tags jsonb NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE public.hostfully_room_types ADD COLUMN IF NOT EXISTS ru_image_tags jsonb NOT NULL DEFAULT '{}'::jsonb;

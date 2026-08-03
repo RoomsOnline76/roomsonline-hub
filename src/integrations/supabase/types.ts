@@ -1621,6 +1621,7 @@ export type Database = {
           rentalsunited_property_id: string | null
           room_size: number | null
           room_size_unit: string | null
+          ru_image_tags: Json
           security_deposit: number | null
           tax_rate: number | null
           thumbnail_url: string | null
@@ -1675,6 +1676,7 @@ export type Database = {
           rentalsunited_property_id?: string | null
           room_size?: number | null
           room_size_unit?: string | null
+          ru_image_tags?: Json
           security_deposit?: number | null
           tax_rate?: number | null
           thumbnail_url?: string | null
@@ -1729,6 +1731,7 @@ export type Database = {
           rentalsunited_property_id?: string | null
           room_size?: number | null
           room_size_unit?: string | null
+          ru_image_tags?: Json
           security_deposit?: number | null
           tax_rate?: number | null
           thumbnail_url?: string | null
@@ -4352,6 +4355,7 @@ export type Database = {
           review_sentiment: Json | null
           ru_archived: boolean
           ru_archived_at: string | null
+          ru_image_tags: Json
           ru_push_enabled: boolean
           separate_kitchen: boolean
           short_description: string | null
@@ -4452,6 +4456,7 @@ export type Database = {
           review_sentiment?: Json | null
           ru_archived?: boolean
           ru_archived_at?: string | null
+          ru_image_tags?: Json
           ru_push_enabled?: boolean
           separate_kitchen?: boolean
           short_description?: string | null
@@ -4552,6 +4557,7 @@ export type Database = {
           review_sentiment?: Json | null
           ru_archived?: boolean
           ru_archived_at?: string | null
+          ru_image_tags?: Json
           ru_push_enabled?: boolean
           separate_kitchen?: boolean
           short_description?: string | null

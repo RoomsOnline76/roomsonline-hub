@@ -10,6 +10,14 @@ import {
 import { evaluatePhases, phaseBlockedResponse, findOwnerAccount } from '../_shared/ruPhaseGate.ts';
 import { resolveRuAmenityIds } from '../_shared/ruAmenityMap.ts';
 import {
+  normalizeRuImageTagMap,
+  resolvePrimaryRuTag,
+  resolveSecondaryRuTags,
+  RU_TAG_INTERIOR,
+  RU_TAG_MAIN,
+  RuImageTagMap,
+} from '../_shared/ruImageTags.ts';
+import {
   createRateResolver,
   compressToPeriods,
   describeCoverage,
@@ -203,6 +211,8 @@ interface RuImage {
   is_main: boolean;
   width?: number | null;
   height?: number | null;
+  /** Extra RU tags for the same photo, emitted as repeated <Image> nodes. */
+  extra_type_ids?: number[];
   /** Set once the URL has been fetched and accepted by the RU image probe. */
   verified?: boolean;
 }
@@ -224,19 +234,44 @@ function resolveZipCode(unitZip: string | null | undefined, property: { postal_c
   return m ? m[1] : '0000';
 }
 
-function mapImages(images: unknown[] | null): RuImage[] {
+function mapImages(images: unknown[] | null, tagMap?: unknown): RuImage[] {
   if (!Array.isArray(images) || images.length === 0) return [];
+  const tags: RuImageTagMap = normalizeRuImageTagMap(tagMap);
   return images.map((img, i) => {
     const rec = (typeof img === 'string' ? null : img) as Record<string, unknown> | null;
     const url = typeof img === 'string' ? img : (rec?.url as string) || '';
+    // Authored tags win; the gallery's first photo is always Main (1) and untagged
+    // photos keep RU's Interior (3) default instead of being silently overwritten.
+    const authored = tags[url] || [];
+    const primary = resolvePrimaryRuTag(authored, i === 0);
     return {
       url,
-      type_id: 1,
+      type_id: primary,
+      extra_type_ids: resolveSecondaryRuTags(authored, primary),
       is_main: i === 0,
       width: toDimension(rec?.width),
       height: toDimension(rec?.height),
     };
   }).filter(img => img.url);
+}
+
+/**
+ * Re-stamp the main flag after ordering/dedup without discarding authored tags:
+ * index 0 becomes Main (1); every other photo keeps its resolved tag.
+ */
+function restampRuImages(images: RuImage[]): RuImage[] {
+  return images.map((img, index) => {
+    const authored = index === 0
+      ? []
+      : [img.type_id, ...(img.extra_type_ids || [])].filter((id) => id && id !== RU_TAG_MAIN);
+    const primary = index === 0 ? RU_TAG_MAIN : (authored[0] ?? RU_TAG_INTERIOR);
+    return {
+      ...img,
+      is_main: index === 0,
+      type_id: primary,
+      extra_type_ids: resolveSecondaryRuTags(authored, primary),
+    };
+  });
 }
 
 /**
@@ -361,7 +396,7 @@ async function applyImageVerification(
     } as RuImage);
   });
 
-  payload.images = accepted.map((img, index) => ({ ...img, is_main: index === 0, type_id: index === 0 ? 1 : 3 }));
+  payload.images = restampRuImages(accepted);
   payload.image_issues = rejected;
   return rejected;
 }
@@ -723,15 +758,15 @@ function buildUnitPayload(
   const cleaningPrice = toFiniteNumber(unit.cleaning_fee) ?? 0;
 
   // Use unit images first, fall back to property images
-  let images = mapImages(unit.images as unknown[] | null);
+  let images = mapImages(unit.images as unknown[] | null, (unit as any).ru_image_tags);
   if (images.length < 10) {
-    const propImages = mapImages(property.images as unknown[] | null);
+    const propImages = mapImages(property.images as unknown[] | null, (property as any).ru_image_tags);
     const seenUrls = new Set(images.map(i => i.url));
     for (const pi of propImages) {
       if (!seenUrls.has(pi.url)) { images.push(pi); seenUrls.add(pi.url); }
     }
   }
-  images = images.map((img, index) => ({ ...img, is_main: index === 0, type_id: index === 0 ? 1 : 3 }));
+  images = restampRuImages(images);
 
   // Amenities: merge unit + property (property-level facilities are always additive so
   // the RU-aligned property selection reaches every unit of the listing).
@@ -922,11 +957,11 @@ function buildSinglePropertyPayload(property: PropertyRow, roomTypes: RoomTypeRo
   const emittedBeds = rooms.reduce((sum, r) => sum + r.amenities.reduce((s, a) => s + (a.count || 1), 0), 0);
   const requiredBeds = Math.ceil(maxGuests * 0.5);
   if (emittedBeds < requiredBeds && rooms[0]) rooms[0].amenities[0].count += requiredBeds - emittedBeds;
-  let allImages = mapImages(property.images as unknown[] | null);
-  for (const rt of roomTypes) allImages = allImages.concat(mapImages(rt.images as unknown[] | null));
+  let allImages = mapImages(property.images as unknown[] | null, (property as any).ru_image_tags);
+  for (const rt of roomTypes) allImages = allImages.concat(mapImages(rt.images as unknown[] | null, (rt as any).ru_image_tags));
   const seenUrls = new Set<string>();
   allImages = allImages.filter(img => { if (seenUrls.has(img.url)) return false; seenUrls.add(img.url); return true; });
-  allImages = allImages.map((img, index) => ({ ...img, is_main: index === 0, type_id: index === 0 ? 1 : 3 }));
+  allImages = restampRuImages(allImages);
   const totalBeds = rooms.reduce((sum, r) => sum + r.amenities.reduce((sm, a) => sm + (a.count || 1), 0), 0);
   const numberOfBeds = totalBeds > 0 ? totalBeds : (property.bedrooms || Math.max(1, maxGuests));
   return {
@@ -1922,7 +1957,7 @@ Deno.serve(async (req) => {
 
     const { data: property, error: propErr } = await supabase
       .from('properties')
-      .select('id, name, description, property_type, address, city, country, postal_code, latitude, longitude, max_guests, bedrooms, bathrooms, toilets, separate_kitchen, amenities, images, rentalsunited_property_id, rentalsunited_building_id, owner_email, external_system, ru_archived')
+      .select('id, name, description, property_type, address, city, country, postal_code, latitude, longitude, max_guests, bedrooms, bathrooms, toilets, separate_kitchen, amenities, images, ru_image_tags, rentalsunited_property_id, rentalsunited_building_id, owner_email, external_system, ru_archived')
       .eq('id', property_id)
       .single();
 
@@ -1953,7 +1988,7 @@ Deno.serve(async (req) => {
 
     const { data: roomTypes } = await supabase
       .from('hostfully_room_types')
-      .select('id, name, description, max_guests, bedrooms, bathrooms, beds, bed_configuration, linked_rolos_id, amenities, images, check_in_time, check_out_time, check_in_instructions, cleaning_fee, security_deposit, address_street, address_postal_code, latitude, longitude, property_type, cancellation_policy, room_size, rentalsunited_property_id')
+      .select('id, name, description, max_guests, bedrooms, bathrooms, beds, bed_configuration, linked_rolos_id, amenities, images, ru_image_tags, check_in_time, check_out_time, check_in_instructions, cleaning_fee, security_deposit, address_street, address_postal_code, latitude, longitude, property_type, cancellation_policy, room_size, rentalsunited_property_id')
       .eq('property_id', property_id)
       .eq('is_active', true);
 

@@ -20,6 +20,9 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { validateImageDimensions, getValidationErrorMessage } from "@/lib/imageValidation";
+import RuImageTagPicker from "@/components/property/RuImageTagPicker";
+import { normalizeRuImageTagMap } from "@/lib/ruImageTags";
+
 import { getRoomUrl } from "@/lib/config";
 import { parseBedConfiguration, BED_TYPES, BedEntry, calculateBedCapacity, sleepsPerBed } from "@/lib/bedConfig";
 import { cn } from "@/lib/utils";
@@ -1244,37 +1247,49 @@ export function RoomManagerTab({
 
               {/* Uploaded room images */}
               {(roomTypes.find((r) => r.id === selectedRoomType)?.images || []).map((imageUrl: string, index: number) => (
-                <div key={index} className="relative aspect-video rounded-lg overflow-hidden border border-border group">
-                  <img src={imageUrl} alt={`Room ${index + 1}`} className="w-full h-full object-cover" />
-                  {index === 0 ? (
-                    <div className="absolute top-2 left-2 bg-primary rounded-full p-1.5" title="Primary room image">
-                      <Heart className="h-3 w-3 text-white fill-white" />
-                    </div>
-                  ) : (
+                <div key={index} className="space-y-1">
+                  <div className="relative aspect-video rounded-lg overflow-hidden border border-border group">
+                    <img src={imageUrl} alt={`Room ${index + 1}`} className="w-full h-full object-cover" />
+                    {index === 0 ? (
+                      <div className="absolute top-2 left-2 bg-primary rounded-full p-1.5" title="Primary room image">
+                        <Heart className="h-3 w-3 text-white fill-white" />
+                      </div>
+                    ) : (
+                      <button type="button"
+                        onClick={() => {
+                          const currentRoom = roomTypes.find((r) => r.id === selectedRoomType);
+                          if (currentRoom?.images) {
+                            const newImages = [...currentRoom.images];
+                            const [selected] = newImages.splice(index, 1);
+                            newImages.unshift(selected);
+                            updateRoomTypeField(selectedRoomType, "images", newImages);
+                          }
+                        }}
+                        className="absolute top-2 left-2 bg-muted-foreground/60 hover:bg-primary rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                        title="Set as primary room image"
+                      >
+                        <Heart className="h-3 w-3 text-white" />
+                      </button>
+                    )}
                     <button type="button"
-                      onClick={() => {
-                        const currentRoom = roomTypes.find((r) => r.id === selectedRoomType);
-                        if (currentRoom?.images) {
-                          const newImages = [...currentRoom.images];
-                          const [selected] = newImages.splice(index, 1);
-                          newImages.unshift(selected);
-                          updateRoomTypeField(selectedRoomType, "images", newImages);
-                        }
-                      }}
-                      className="absolute top-2 left-2 bg-muted-foreground/60 hover:bg-primary rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity"
-                      title="Set as primary room image"
+                      onClick={() => removeRoomImage(imageUrl)}
+                      className="absolute top-2 right-2 bg-muted-foreground/80 hover:bg-destructive rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity"
                     >
-                      <Heart className="h-3 w-3 text-white" />
+                      <X className="h-4 w-4 text-white" />
                     </button>
-                  )}
-                  <button type="button"
-                    onClick={() => removeRoomImage(imageUrl)}
-                    className="absolute top-2 right-2 bg-muted-foreground/80 hover:bg-destructive rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity"
-                  >
-                    <X className="h-4 w-4 text-white" />
-                  </button>
+                  </div>
+                  <RuImageTagPicker
+                    value={normalizeRuImageTagMap(roomTypes.find((r) => r.id === selectedRoomType)?.ruImageTags)[imageUrl] || []}
+                    isMain={index === 0}
+                    onChange={(next) => {
+                      const currentRoom = roomTypes.find((r) => r.id === selectedRoomType);
+                      const map = normalizeRuImageTagMap(currentRoom?.ruImageTags);
+                      updateRoomTypeField(selectedRoomType, "ruImageTags", { ...map, [imageUrl]: next });
+                    }}
+                  />
                 </div>
               ))}
+
 
               {/* Placeholder empty slots */}
               {Array.from({ length: Math.max(0, 11 - (roomTypes.find((r) => r.id === selectedRoomType)?.images?.length || 0)) }).map((_, i) => (

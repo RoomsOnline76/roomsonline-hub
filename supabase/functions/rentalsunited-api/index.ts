@@ -57,6 +57,8 @@ interface RUDescription {
 interface RUImage {
   url: string;
   type_id?: number;
+  /** Additional RU tags for the same photo (emitted as repeated <Image> nodes). */
+  extra_type_ids?: number[];
   is_main?: boolean;
 }
 
@@ -491,10 +493,19 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
     .map(d => `<Description LanguageID="${d.language_id}"><Text>${escapeXml(d.text)}</Text></Description>`)
     .join('\n      ');
 
+  // RU accepts one ImageTypeID per <Image> node, so a photo carrying multiple tags is
+  // repeated with the same URL and a distinct tag on each node.
+  let imageRefId = 0;
   const imagesXml = prop.images
-    .map((img, index) => {
-      const imageTypeId = index === 0 ? 1 : (img.type_id && img.type_id !== 1 ? img.type_id : 3);
-      return `<Image ImageTypeID="${imageTypeId}" ImageReferenceID="${index + 1}">${escapeXml(img.url)}</Image>`;
+    .flatMap((img, index) => {
+      const primary = index === 0 ? 1 : (img.type_id && img.type_id !== 1 ? img.type_id : 3);
+      const extras = (img.extra_type_ids || []).filter(
+        (id) => Number.isFinite(id) && id > 0 && id !== 1 && id !== primary,
+      );
+      return [primary, ...Array.from(new Set(extras))].map((typeId) => {
+        imageRefId += 1;
+        return `<Image ImageTypeID="${typeId}" ImageReferenceID="${imageRefId}">${escapeXml(img.url)}</Image>`;
+      });
     })
     .join('\n      ');
 
