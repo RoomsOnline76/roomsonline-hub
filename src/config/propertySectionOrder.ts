@@ -174,7 +174,7 @@ export const PROPERTY_SECTION_GROUPS = [
   },
   {
     label: "Guest experience",
-    keys: ["house-rules", "templates", "announcements", "images"] as PropertySectionKey[],
+    keys: [""templates", "announcements", "images"] as PropertySectionKey[],
   },
   {
     label: "Advanced",
