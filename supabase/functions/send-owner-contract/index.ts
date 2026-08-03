@@ -59,6 +59,9 @@ Deno.serve(async (req) => {
       contract_type, // Optional: 'standard' | 'rolos' | 'referral'
       rep_id, // Referral only: the sales rep being engaged
       terms_snapshot, // Referral only: engagement terms captured at send time
+      portfolio_id, // Optional: portfolio the contract covers
+      property_ids, // Optional: all properties covered by this contract
+      scope, // Optional: 'single' | 'multiple' | 'portfolio'
     } = await req.json();
 
     if (!owner_email) {
