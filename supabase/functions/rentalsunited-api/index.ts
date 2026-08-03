@@ -2121,12 +2121,15 @@ Deno.serve(async (req) => {
     // ── subscribe_notifications (mandatory RNLM) ──
     if (action === 'subscribe_notifications') {
       if (!body.handler_url) return errorResponse('MISSING_PARAM', 'handler_url is required');
-      const xml = buildSubscribeNotificationsXml(creds, body.handler_url);
-      const response = await callRentalsUnited(creds, xml);
+      // Per-account registration: each white-label sub-user must register the handler with
+      // its OWN credentials, otherwise RU never pushes that sub-user's reservations to us.
+      const xml = buildSubscribeNotificationsXml(scopedCreds, body.handler_url);
+      const response = await callRentalsUnited(scopedCreds, xml);
       const { ok, status } = handleRUStatus(response);
       if (!ok) return ruErrorResponse(status);
-      return jsonResponse({ success: true, message: 'Notification handler registered successfully', raw_xml: response });
+      return jsonResponse({ success: true, auth_mode: authMode, message: 'Notification handler registered successfully', raw_xml: response });
     }
+
 
     // ── get_long_stay_discounts (verification) ──
     if (action === 'get_long_stay_discounts') {
