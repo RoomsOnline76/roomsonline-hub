@@ -57,6 +57,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { ContractOverrideModal } from "@/components/contract/ContractOverrideModal";
+import { ContractBillingSummary } from "@/components/contract/ContractBillingSummary";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -551,6 +552,21 @@ export default function AdminContracts() {
     }
     return [];
   }, [sendScope, multiPropertySelections, portfolioProperties]);
+
+  /** Properties whose saved billing figures are shown in the pre-send review panel. */
+  const billingReviewPropertyIds = useMemo(() => {
+    if (sendScope === "single") return selectedProperty?.id ? [selectedProperty.id] : [];
+    return scopedPropertyIds;
+  }, [sendScope, selectedProperty, scopedPropertyIds]);
+
+  const billingReviewNames = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const p of allActiveProperties) map[p.id] = p.name;
+    for (const p of portfolioProperties) map[p.id] = p.name;
+    if (selectedProperty?.id) map[selectedProperty.id] = selectedProperty.name;
+    return map;
+  }, [allActiveProperties, portfolioProperties, selectedProperty]);
+
 
   /** Send the once-off Referral Partner Agreement to a sales rep (no property linkage). */
   const handleSendReferralAgreement = async () => {
@@ -1717,6 +1733,16 @@ export default function AdminContracts() {
                 )}
               </div>
             )}
+
+            {/* Pre-send billing review for every covered property */}
+            {!isReferral && billingReviewPropertyIds.length > 0 && (
+              <ContractBillingSummary
+                propertyIds={billingReviewPropertyIds}
+                propertyNames={billingReviewNames}
+              />
+            )}
+
+
 
             {isReferral && (
               <div className="space-y-4">
