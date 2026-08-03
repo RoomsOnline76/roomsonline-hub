@@ -283,7 +283,7 @@ export function CompanyInformationCard({
               <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
                 <div className="flex flex-col gap-1">
                   <Label htmlFor="registered_business_name" className="text-xs">
-                    Registered Business Name
+                    Registered Business Name<Req />
                   </Label>
                   <Input
                     id="registered_business_name"
@@ -295,7 +295,7 @@ export function CompanyInformationCard({
                 </div>
                 <div className="flex flex-col gap-1">
                   <Label htmlFor="mobile_number" className="text-xs">
-                    Mobile Number
+                    Mobile Number<Req />
                   </Label>
                   <Input
                     id="mobile_number"
@@ -307,7 +307,7 @@ export function CompanyInformationCard({
                 </div>
                 <div className="flex flex-col gap-1">
                   <Label htmlFor="key_representative" className="text-xs">
-                    Key Representative
+                    Key Representative<Req />
                   </Label>
                   <Input
                     id="key_representative"
@@ -332,7 +332,7 @@ export function CompanyInformationCard({
                 {banking.has_vat && (
                   <div className="flex flex-col gap-1">
                     <Label htmlFor="vat_number" className="text-xs">
-                      VAT #
+                      VAT #<Req />
                     </Label>
                     <Input
                       id="vat_number"
@@ -345,7 +345,10 @@ export function CompanyInformationCard({
                 )}
                 {COMPANY_TEXT_FIELDS.map((f) => (
                   <div key={String(f.key)} className="flex flex-col gap-1">
-                    <Label className="text-xs">{f.label}</Label>
+                    <Label className="text-xs">
+                      {f.label}
+                      {f.required && <Req />}
+                    </Label>
                     <Input
                       value={str(companyProfile[f.key])}
                       placeholder={f.placeholder}
@@ -415,7 +418,7 @@ export function CompanyInformationCard({
             {/* ── RU location register ── */}
             <div className="space-y-1.5 rounded-md border border-border bg-muted/30 p-2.5">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                Rentals United location
+                Rentals United location<Req />
               </p>
               <RuLocationPicker
                 value={ruLocationId}
@@ -440,7 +443,10 @@ export function CompanyInformationCard({
               <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
                 {REP_FIELDS.map((f) => (
                   <div key={f.key} className="flex flex-col gap-1">
-                    <Label className="text-xs">{f.label}</Label>
+                    <Label className="text-xs">
+                      {f.label}
+                      {f.required && <Req />}
+                    </Label>
                     <Input
                       value={str(rep[f.key])}
                       placeholder={f.placeholder}
@@ -452,7 +458,10 @@ export function CompanyInformationCard({
               </div>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 <div className="flex flex-col gap-1">
-                  <Label className="text-xs">Nationality (RU location)</Label>
+                  <Label className="text-xs">
+                    Nationality (RU location)
+                    <Req />
+                  </Label>
                   <RuLocationPicker
                     value={Number(rep.nationality_id) || null}
                     onChange={(id) => setRepField("nationality_id", id)}
@@ -462,7 +471,10 @@ export function CompanyInformationCard({
                   />
                 </div>
                 <div className="flex flex-col gap-1">
-                  <Label className="text-xs">Country of residence (RU location)</Label>
+                  <Label className="text-xs">
+                    Country of residence (RU location)
+                    <Req />
+                  </Label>
                   <RuLocationPicker
                     value={Number(rep.country_of_residence_id) || null}
                     onChange={(id) => setRepField("country_of_residence_id", id)}
