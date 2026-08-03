@@ -1175,6 +1175,41 @@ function childAuthMode(auth: ChildAuth | null): string {
 }
 
 /**
+ * 🔒 ADAPTER LOCK (RU child isolation): Rentals United treats every sub-user as its
+ * own account. An authenticated MASTER request creates/updates the listing on the
+ * master account regardless of the <OwnerID> carried in the payload — that is why
+ * property, ARI and discount pushes for white-label sub-users landed on the ROL
+ * master account. Swapping the credentials that build the <Authentication> envelope
+ * for the sub-user's own AccessKey/SecretKey is the fix.
+ *
+ * Legacy accounts with only a portal UserName/Password fall back to master auth +
+ * <OwnerID> (the pre-migration behaviour) — nothing that works today breaks.
+ */
+function effectiveCreds(creds: RUCredentials, childAuth: ChildAuth | null): RUCredentials {
+  if (childAuth && childAuth.mode === 'keys') {
+    return { ...creds, api_key: childAuth.access_key, api_secret: childAuth.secret_key };
+  }
+  return creds;
+}
+
+/** Actions that operate on a single sub-user's inventory and must authenticate as that sub-user. */
+const CHILD_SCOPED_ACTIONS = new Set([
+  'push_property',
+  'push_availability',
+  'push_prices',
+  'push_prices_fsp',
+  'push_long_stay_discounts',
+  'push_last_minute_discounts',
+  'set_property_status',
+  'get_property',
+  'get_availability',
+  'get_prices',
+  'get_long_stay_discounts',
+  'get_last_minute_discounts',
+  'list_properties',
+]);
+
+/**
  * Resolve the credentials to use for a child-scoped RU call.
  *
  * Order: keys supplied on the request → keys stored for that sub-user in
@@ -1658,6 +1693,16 @@ Deno.serve(async (req) => {
 
 
 
+
+    // ── Child-scoped auth resolution ─────────────────────────
+    // Every action below that touches ONE sub-user's inventory authenticates as that
+    // sub-user when API keys are on file, so the listing lands on the sub-account.
+    const childAuth = CHILD_SCOPED_ACTIONS.has(action) ? await resolveChildAuth(body) : null;
+    const scopedCreds = effectiveCreds(creds, childAuth);
+    const authMode = childAuthMode(childAuth);
+    if (CHILD_SCOPED_ACTIONS.has(action)) {
+      console.log(`[rentalsunited-api] ${action} auth_mode=${authMode} owner_id=${body.owner_id ?? 'n/a'}`);
+    }
 
     // ── list_properties ──
     if (action === 'list_properties') {
