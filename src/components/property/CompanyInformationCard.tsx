@@ -74,6 +74,7 @@ export interface RuCompanyProfile {
     address?: string;
     post_code?: string;
     birthday?: string;
+    region?: string;
     nationality_id?: number;
     country_of_residence_id?: number;
   };
