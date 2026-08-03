@@ -1180,26 +1180,42 @@ Deno.serve(async (req) => {
         .maybeSingle();
       if (!account) return json({ success: false, error: { code: "NOT_FOUND", message: "RU owner account not found" } }, 404);
 
-      const { data: listed } = await admin.functions.invoke("rentalsunited-api", { body: { action: "list_users" } });
-      const match = (listed?.users ?? []).find(
-        (u: { owner_id?: string }) => String(u.owner_id ?? "").trim() === ruOwnerId,
-      );
-      if (!match) {
-        return json({
-          success: false,
-          error: {
-            code: "RU_OWNER_NOT_FOUND",
-            message: `Rentals United does not list OwnerID ${ruOwnerId} under our master account.`,
-          },
-        }, 422);
+      // Verify the OwnerID against RU's master list when we can reach it. A transient
+      // RU/list failure must NOT block the bind — it is a local pointer update.
+      let verifiedAgainstRu = false;
+      let match: { email?: string; user_account_id?: string } | undefined;
+      try {
+        const { data: listed, error: listErr } = await admin.functions.invoke("rentalsunited-api", {
+          body: { action: "list_users" },
+        });
+        if (listErr || !listed?.success) {
+          console.warn("[ru-cert-portal] bind: RU user list unavailable, binding without RU verification", listErr?.message ?? listed?.error?.message);
+        } else {
+          const users = (listed.users ?? []) as { owner_id?: string; email?: string; user_account_id?: string }[];
+          verifiedAgainstRu = true;
+          match = users.find((u) => String(u.owner_id ?? "").trim() === ruOwnerId);
+          if (!match) {
+            return json({
+              success: false,
+              error: {
+                code: "RU_OWNER_NOT_FOUND",
+                message: `Rentals United does not list OwnerID ${ruOwnerId} under our master account.`,
+              },
+            }, 422);
+          }
+        }
+      } catch (e) {
+        console.warn("[ru-cert-portal] bind: RU list threw, continuing", e instanceof Error ? e.message : e);
       }
+
 
       const update: Record<string, unknown> = {
         ru_owner_id: ruOwnerId,
-        ru_login_email: loginEmail || String(match.email ?? "").trim() || account.ru_login_email,
+        ru_login_email: loginEmail || String(match?.email ?? "").trim() || account.ru_login_email,
       };
-      const userAccountId = String(match.user_account_id ?? "").trim();
+      const userAccountId = String(match?.user_account_id ?? "").trim();
       if (userAccountId && userAccountId !== "0") update.ru_user_id = userAccountId;
+
 
       // Rebinding to a different OwnerID: credentials, API keys and verification state
       // belonged to the previous sub-user — never carry them over.
@@ -1215,22 +1231,36 @@ Deno.serve(async (req) => {
       }
 
       const { error: upErr } = await admin.from("ru_owner_accounts").update(update).eq("id", accountId);
-      if (upErr) return json({ success: false, error: { code: "SAVE_FAILED", message: upErr.message } }, 500);
+      if (upErr) {
+        console.error("[ru-cert-portal] bind update failed", upErr);
+        return json({ success: false, error: { code: "SAVE_FAILED", message: upErr.message } }, 500);
+      }
 
-      await admin.from("audit_logs").insert({
-        user_id: user.id,
-        user_email: user.email ?? "unknown",
-        user_role: (roles ?? []).some((r: { role: string }) => r.role === "dev") ? "dev" : "admin",
-        action_type: "other",
-        table_name: "ru_owner_accounts",
-        record_id: account.id,
-        request_origin: "edge_function",
-        edge_function_name: "ru-cert-portal",
-        is_sensitive: true,
-        change_summary: `Bound RU sub-account to OwnerID ${ruOwnerId} (${update.ru_login_email})`,
-      }).then(() => {}, (e) => console.warn("[ru-cert-portal] audit log insert failed", e));
+      try {
+        await admin.from("audit_logs").insert({
+          user_id: user.id,
+          user_email: user.email ?? "unknown",
+          user_role: (roles ?? []).some((r: { role: string }) => r.role === "dev") ? "dev" : "admin",
+          action_type: "other",
+          table_name: "ru_owner_accounts",
+          record_id: account.id,
+          request_origin: "edge_function",
+          edge_function_name: "ru-cert-portal",
+          is_sensitive: true,
+          change_summary: `Bound RU sub-account to OwnerID ${ruOwnerId} (${update.ru_login_email})`,
+        });
+      } catch (e) {
+        console.warn("[ru-cert-portal] audit log insert failed", e instanceof Error ? e.message : e);
+      }
 
-      return json({ success: true, ru_owner_id: ruOwnerId, login_email: update.ru_login_email });
+      console.log(`[ru-cert-portal] bind ok account=${accountId} owner=${ruOwnerId} ru_verified=${verifiedAgainstRu}`);
+      return json({
+        success: true,
+        ru_owner_id: ruOwnerId,
+        login_email: update.ru_login_email,
+        ru_verified: verifiedAgainstRu,
+      });
+
     }
 
 
