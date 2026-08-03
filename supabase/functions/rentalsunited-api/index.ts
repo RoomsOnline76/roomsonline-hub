@@ -567,7 +567,10 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
   //  - <Coordinates> wrapper is MANDATORY — loose <Longitude>/<Latitude> siblings produce
   //    "Missing mandatory element: Coordinates."
   //  - <NumberOfBeds> at root removed — bed counts go inside <CompositionRoomsAmenities> as
-  //    bed amenities (97-101) within Bedroom blocks (RoomID=257). Per Pull_ListCompositionRooms_RQ
+  //    bed amenities from RU's "Bedroom & Beds" dictionary (61 double, 323 single, 324 king,
+  //    485 queen, 440 twin pair, 444 bunk, 237 sofabed, 833 cot, 209 extra) inside Bedroom
+  //    blocks (RoomID=257). IDs 97-101 are Living-Area items (Hall/Corridor/Lounge/Terrace/
+  //    Kitchen) and must never be used as beds. Per Pull_ListCompositionRooms_RQ
   //    the only valid IDs are: 53(WC), 81(Bathroom), 94(Kitchen+Living), 101(Kitchen),
   //    249(LivingRoom), 257(Bedroom), 372(LivingRoom/Bedroom), 517(Bedroom/LR/Kitchen).
   //    There is NO 81/82/83 per-bedroom variant — all bedrooms repeat RoomID=257.
