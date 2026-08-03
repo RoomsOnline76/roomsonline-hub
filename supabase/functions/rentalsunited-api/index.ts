@@ -2100,7 +2100,9 @@ Deno.serve(async (req) => {
         success: true,
         partial,
         message: partial ? 'FSP prices pushed with partial errors' : 'FSP prices pushed successfully',
+        auth_mode: authMode,
         notifs,
+
         raw_xml: response,
       });
     }
