@@ -172,22 +172,29 @@ const airbnbAdapter: ChannelAdapter = {
   },
 
   async pushRates(connection, ratePlans, mappings) {
-    const priceUpdates = ratePlans.map(plan => {
+    const priceUpdates = ratePlans.flatMap(plan => {
       const mapping = mappings.find(m => m.rate_plan_id === plan.id);
-      return {
-        listing_id: mapping?.external_room_id || "DEFAULT",
-        daily_price: plan.base_rate,
+      const listing_id = mapping?.external_room_id || "DEFAULT";
+      const periods = Array.isArray(plan.rate_periods) && plan.rate_periods.length > 0
+        ? plan.rate_periods
+        : [{ date_from: null, date_to: null, price: plan.base_rate }];
+      return periods.map((p: any) => ({
+        listing_id,
+        start_date: p.date_from,
+        end_date: p.date_to,
+        daily_price: p.price,
         currency: "ZAR",
-      };
+      }));
     });
 
-    console.log(`[channel-sync] airbnb push_rates: ${priceUpdates.length} price updates`);
+    console.log(`[channel-sync] airbnb push_rates: ${priceUpdates.length} dated price updates`);
     return {
       success: true,
       recordsProcessed: priceUpdates.length,
-      details: `ADAPTER_READY — ${priceUpdates.length} pricing updates built for Airbnb. Live push pending OAuth.`,
+      details: `ADAPTER_READY — ${priceUpdates.length} dated pricing updates built for Airbnb. Live push pending OAuth.`,
     };
   },
+
 };
 
 // ============================================================================
