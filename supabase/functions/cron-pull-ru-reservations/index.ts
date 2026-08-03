@@ -4,7 +4,10 @@ import { resolveRuOwnerScopes, type RuOwnerScope } from '../_shared/ruOwnerScope
 /**
  * Cron job: Pull reservations from Rentals United every 30 minutes.
  * Safety net alongside RLNM — catches missed push notifications.
- * Queries last 7 days of reservations via Pull_ListReservations_RQ.
+ * Queries the last 30 days of reservations via Pull_ListReservations_RQ (RU filters on the
+ * reservation CREATION date, so a short window silently drops bookings taken earlier).
+ * Confirmed reservations also block the booked nights in `property_availability` so the ROL
+ * booking engine cannot resell a night a channel already sold; cancellations release them.
  *
  * Credentials: Pull_ListReservations_RQ / Pull_GetLeads_RQ are ACCOUNT-scoped —
  * a white-label sub-user's bookings never appear in the master account's answer.
@@ -19,6 +22,8 @@ const corsHeaders = {
 
 /** RU rate limit: one call per method per sliding minute (+1s safety). */
 const METHOD_WINDOW_MS = 61_000;
+/** How far back to ask RU for reservations (RU filters on the reservation creation date). */
+const PULL_WINDOW_DAYS = 30;
 /** Wall-clock budget for the whole run; remaining accounts roll into the next run. */
 const RUN_BUDGET_MS = 6 * 60_000;
 
@@ -75,12 +80,12 @@ Deno.serve(async (req) => {
   };
 
   try {
-    // Date range: last 7 days → today
+    // Date range: last PULL_WINDOW_DAYS days → today (RU filters on creation date)
     const now = new Date();
-    const sevenDaysAgo = new Date(now);
-    sevenDaysAgo.setDate(now.getDate() - 7);
+    const windowStart = new Date(now);
+    windowStart.setDate(now.getDate() - PULL_WINDOW_DAYS);
     const dateTo = formatDate(now);
-    const dateFrom = formatDate(sevenDaysAgo);
+    const dateFrom = formatDate(windowStart);
 
     const scopes = await resolveRuOwnerScopes(supabase, 'pull_reservations');
     const covered: string[] = [];
@@ -143,6 +148,61 @@ Deno.serve(async (req) => {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
+  }
+
+  /**
+   * Mirror a channel reservation into `property_availability` so the ROL booking engine and
+   * every other channel push see the night as sold. Keys match the manual-block convention
+   * used by push-booking: room_type = unit NAME, external_system = 'manual'.
+   */
+  async function applyAvailabilityBlock(
+    propertyId: string,
+    roomTypeId: string | null,
+    checkIn: string,
+    checkOut: string,
+    block: boolean,
+  ) {
+    try {
+      let roomName: string | null = null;
+      if (roomTypeId) {
+        const { data: rt } = await supabase
+          .from('hostfully_room_types')
+          .select('name')
+          .eq('id', roomTypeId)
+          .maybeSingle();
+        roomName = rt?.name ?? null;
+      }
+      if (!roomName) {
+        console.warn(`[cron-pull-ru] No unit name resolved — skipping availability ${block ? 'block' : 'release'}`);
+        return;
+      }
+
+      const dates: string[] = [];
+      for (let d = new Date(`${checkIn}T00:00:00Z`); d < new Date(`${checkOut}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + 1)) {
+        dates.push(d.toISOString().slice(0, 10));
+      }
+      if (dates.length === 0) return;
+
+      const rows = dates.map((date) => ({
+        property_id: propertyId,
+        room_type: roomName,
+        date,
+        external_system: 'manual',
+        available_units: block ? 0 : 1,
+        is_stop_sell: block,
+      }));
+
+      const { error } = await supabase
+        .from('property_availability')
+        .upsert(rows, { onConflict: 'property_id,room_type,date,external_system', ignoreDuplicates: false });
+      if (error) {
+        console.error(`[cron-pull-ru] Availability ${block ? 'block' : 'release'} failed: ${error.message}`);
+      } else {
+        console.log(`[cron-pull-ru] ${block ? 'Blocked' : 'Released'} ${rows.length} night(s) for ${roomName}`);
+      }
+    } catch (e) {
+      console.error('[cron-pull-ru] Availability sync error:', e);
+    }
   }
 
   /** Parse + upsert every <Reservation> block returned for one RU account. */
@@ -240,6 +300,9 @@ Deno.serve(async (req) => {
               .update({ status: 'cancelled', cancellation_reason: 'Cancelled via Rentals United (poll sync)' })
               .eq('id', existing.id);
             summary.cancelled++;
+            if (dateFromRes && dateToRes) {
+              await applyAvailabilityBlock(propertyId, roomTypeId, dateFromRes, dateToRes, false);
+            }
             console.log(`[cron-pull-ru] ✅ Cancelled booking for RU reservation ${ruReservationId}`);
           } else {
             summary.skipped++;
@@ -260,6 +323,9 @@ Deno.serve(async (req) => {
             if (Object.keys(updateData).length > 0) {
               await supabase.from('bookings').update(updateData).eq('id', existing.id);
               summary.updated++;
+              if (dateFromRes && dateToRes) {
+                await applyAvailabilityBlock(propertyId, roomTypeId, dateFromRes, dateToRes, true);
+              }
               console.log(`[cron-pull-ru] ✅ Updated booking for RU reservation ${ruReservationId}`);
             } else {
               summary.skipped++;
@@ -295,6 +361,7 @@ Deno.serve(async (req) => {
               summary.failed++;
             } else {
               summary.created++;
+              await applyAvailabilityBlock(propertyId, roomTypeId, dateFromRes, dateToRes, true);
               console.log(`[cron-pull-ru] ✅ Created booking for RU reservation ${ruReservationId}`);
             }
           }
