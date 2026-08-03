@@ -1833,6 +1833,32 @@ Deno.serve(async (req) => {
           location_ids: locationIds,
         };
 
+        // Admin-entered RU profile extras (Portfolios → RU accounts → Company profile).
+        // These fill the optional CompanyInfo / LegalRepresentativeInfo fields RU exposes
+        // and can also override any derived contact value.
+        const profileRow = await admin
+          .from("ru_owner_accounts")
+          .select("company_profile")
+          .eq("id", account.id)
+          .maybeSingle();
+        const overrides = (profileRow.data?.company_profile ?? null) as Record<string, unknown> | null;
+        if (overrides && typeof overrides === "object") {
+          for (const [k, v] of Object.entries(overrides)) {
+            if (v === null || v === undefined || (typeof v === "string" && v.trim() === "")) continue;
+            if (k === "legal_rep" && typeof v === "object") {
+              const rep = Object.fromEntries(
+                Object.entries(v as Record<string, unknown>).filter(
+                  ([, rv]) => rv !== null && rv !== undefined && String(rv).trim() !== "",
+                ),
+              );
+              if (Object.keys(rep).length > 0) (company as Record<string, unknown>).legal_rep = rep;
+              continue;
+            }
+            if (k === "location_ids") continue; // resolved from the property address
+            (company as Record<string, unknown>)[k] = v;
+          }
+        }
+
         // Retry transient RU/network failures — Phase 1 must not be left half-done.
         let filled: any = null;
         let fillErr: any = null;

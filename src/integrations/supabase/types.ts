@@ -10794,6 +10794,7 @@ export type Database = {
           company_details_status: string
           company_filled_at: string | null
           company_payload: Json | null
+          company_profile: Json | null
           created_at: string
           id: string
           owner_email: string
@@ -10816,6 +10817,7 @@ export type Database = {
           company_details_status?: string
           company_filled_at?: string | null
           company_payload?: Json | null
+          company_profile?: Json | null
           created_at?: string
           id?: string
           owner_email: string
@@ -10838,6 +10840,7 @@ export type Database = {
           company_details_status?: string
           company_filled_at?: string | null
           company_payload?: Json | null
+          company_profile?: Json | null
           created_at?: string
           id?: string
           owner_email?: string

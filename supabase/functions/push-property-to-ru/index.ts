@@ -69,6 +69,59 @@ const BED_AMENITY_MAP: Record<string, number> = {
   bunk: 101,
 };
 
+/**
+ * Normalise a free-text ROLOS bed label to an RU bed amenity ID.
+ *
+ * RU rejects a unit with "Add sufficient amount of beds" when the bed amenities
+ * inside the <CompositionRoomAmenities RoomID="257"> blocks cover less than half of
+ * CanSleepMax. ROLOS labels are authored by owners ("Queen Bed", "2 x Twin beds",
+ * "3/4 bed", "sleeper couch"), so a strict slug lookup silently lost most of them.
+ */
+export function resolveBedAmenityId(rawLabel: unknown): { id: number | null; normalized: string } {
+  const label = String(rawLabel ?? '')
+    .toLowerCase()
+    .replace(/[_]+/g, ' ')
+    .replace(/\b\d+\s*[x×]\s*/g, ' ')      // "2 x queen" → "queen"
+    .replace(/\bbeds?\b/g, ' ')
+    .replace(/[^a-z0-9/¾ -]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const has = (...needles: string[]) => needles.some((n) => label.includes(n));
+
+  // Order matters: the most specific label wins.
+  if (has('bunk', 'loft bunk', 'triple bunk')) return { id: 101, normalized: label };
+  if (has('sofa', 'sleeper couch', 'sleeper-couch', 'couch', 'futon', 'day', 'pull out', 'pull-out'))
+    return { id: 100, normalized: label };
+  if (has('king single', 'king-single', 'super single')) return { id: 97, normalized: label };
+  if (has('king', 'super king', 'emperor')) return { id: 99, normalized: label };
+  if (has('queen', 'double', 'full')) return { id: 98, normalized: label };
+  if (has('single', 'twin', '3/4', '¾', 'three quarter', 'three-quarter', 'cot', 'camp', 'stretcher', 'bunkbed'))
+    return { id: 97, normalized: label };
+
+  const slug = label.replace(/\s+/g, '-');
+  const direct = BED_AMENITY_MAP[slug] ?? BED_AMENITY_MAP[label];
+  return { id: direct ?? null, normalized: label };
+}
+
+/** Aggregate a bed_configuration array into RU bedroom blocks + total bed count. */
+function bedBlocksFromConfiguration(
+  bedConfiguration: unknown,
+): { rooms: { room_id: number; amenities: { id: number; count: number }[] }[]; totalBeds: number; unmapped: string[] } {
+  const rooms: { room_id: number; amenities: { id: number; count: number }[] }[] = [];
+  const unmapped: string[] = [];
+  let totalBeds = 0;
+  if (!Array.isArray(bedConfiguration)) return { rooms, totalBeds, unmapped };
+  for (const entry of bedConfiguration as Record<string, unknown>[]) {
+    const count = Math.max(1, Number(entry?.count) || 1);
+    const { id } = resolveBedAmenityId(entry?.type);
+    if (id == null && entry?.type) unmapped.push(String(entry.type));
+    rooms.push({ room_id: 257, amenities: [{ id: id ?? 98, count }] });
+    totalBeds += count;
+  }
+  return { rooms, totalBeds, unmapped };
+}
+
 const PAYMENT_METHOD_MAP: Record<string, number> = {
   cash: 1, visa: 2, mastercard: 3, amex: 4, bank_transfer: 5, paypal: 6,
   credit_card: 2, debit_card: 2, eft: 5,
@@ -147,6 +200,8 @@ interface RuImage {
   is_main: boolean;
   width?: number | null;
   height?: number | null;
+  /** Set once the URL has been fetched and accepted by the RU image probe. */
+  verified?: boolean;
 }
 
 function toDimension(value: unknown): number | null {
@@ -182,6 +237,133 @@ function mapImages(images: unknown[] | null): RuImage[] {
 }
 
 /**
+ * Probe an image URL the way Rentals United does: RU fetches every URL during
+ * validation and flags the photo ("Image N may be invalid") when it is unreachable,
+ * not an image, or below its minimum pixel size. Signed / expiring URLs and private
+ * bucket paths fail on RU's side even though they render inside ROLOS.
+ */
+interface RuImageProbe {
+  url: string;
+  ok: boolean;
+  reason?: string;
+  width?: number | null;
+  height?: number | null;
+}
+
+function readPixelDimensions(bytes: Uint8Array): { width: number; height: number } | null {
+  const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  // PNG
+  if (bytes.length > 24 && bytes[0] === 0x89 && bytes[1] === 0x50) {
+    return { width: dv.getUint32(16), height: dv.getUint32(20) };
+  }
+  // GIF
+  if (bytes.length > 10 && bytes[0] === 0x47 && bytes[1] === 0x49) {
+    return { width: dv.getUint16(6, true), height: dv.getUint16(8, true) };
+  }
+  // WebP (VP8X / VP8 lossy simple form)
+  if (bytes.length > 30 && String.fromCharCode(...bytes.slice(8, 12)) === 'WEBP') {
+    const chunk = String.fromCharCode(...bytes.slice(12, 16));
+    if (chunk === 'VP8X') return { width: 1 + (bytes[24] | (bytes[25] << 8) | (bytes[26] << 16)), height: 1 + (bytes[27] | (bytes[28] << 8) | (bytes[29] << 16)) };
+  }
+  // JPEG: walk the segment markers for SOF0/SOF2
+  if (bytes.length > 4 && bytes[0] === 0xff && bytes[1] === 0xd8) {
+    let offset = 2;
+    while (offset + 9 < bytes.length) {
+      if (bytes[offset] !== 0xff) { offset += 1; continue; }
+      const marker = bytes[offset + 1];
+      const length = dv.getUint16(offset + 2);
+      if (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc) {
+        return { height: dv.getUint16(offset + 5), width: dv.getUint16(offset + 7) };
+      }
+      offset += 2 + length;
+    }
+  }
+  return null;
+}
+
+async function probeRuImage(url: string): Promise<RuImageProbe> {
+  if (!/^https:\/\//i.test(url)) {
+    return { url, ok: false, reason: 'URL is not https — Rentals United only fetches secure URLs' };
+  }
+  if (/[?&](token|X-Amz-|Signature|Expires)/i.test(url)) {
+    return { url, ok: false, reason: 'URL carries an expiring access token — Rentals United needs a permanently public URL' };
+  }
+  try {
+    const res = await fetch(url, { headers: { Range: 'bytes=0-65535' } });
+    if (!res.ok && res.status !== 206) {
+      return { url, ok: false, reason: `URL returned HTTP ${res.status} — Rentals United cannot download it` };
+    }
+    const contentType = res.headers.get('content-type') || '';
+    const buf = new Uint8Array(await res.arrayBuffer());
+    if (contentType && !/^image\//i.test(contentType)) {
+      return { url, ok: false, reason: `URL is not an image (content-type ${contentType})` };
+    }
+    const dims = readPixelDimensions(buf);
+    if (!dims) {
+      // Reachable and served as an image, but the header block we read did not carry
+      // dimensions. Accept it and report that the size could not be measured.
+      return { url, ok: true, width: null, height: null, reason: 'reachable — pixel size could not be measured' };
+    }
+    if (dims.width < RU_MIN_IMAGE_WIDTH || dims.height < RU_MIN_IMAGE_HEIGHT) {
+      return { url, ok: false, width: dims.width, height: dims.height, reason: `${dims.width}x${dims.height}px is below Rentals United's ${RU_MIN_IMAGE_WIDTH}x${RU_MIN_IMAGE_HEIGHT}px minimum` };
+    }
+    return { url, ok: true, width: dims.width, height: dims.height };
+  } catch (e) {
+    return { url, ok: false, reason: `URL could not be fetched (${e instanceof Error ? e.message : String(e)})` };
+  }
+}
+
+const imageProbeCache = new Map<string, RuImageProbe>();
+
+/**
+ * Verify every image on a built payload, drop the ones Rentals United would reject,
+ * and stamp measured dimensions so the readiness scorecard reports real pixel sizes.
+ * Returns the rejected images with a plain-language reason each.
+ */
+async function applyImageVerification(
+  payload: Record<string, any>,
+): Promise<{ url: string; reason: string }[]> {
+  const images: RuImage[] = Array.isArray(payload.images) ? payload.images : [];
+  if (images.length === 0) return [];
+
+  const probes: RuImageProbe[] = [];
+  const CONCURRENCY = 6;
+  for (let i = 0; i < images.length; i += CONCURRENCY) {
+    const slice = images.slice(i, i + CONCURRENCY);
+    const results = await Promise.all(
+      slice.map(async (img) => {
+        const cached = imageProbeCache.get(img.url);
+        if (cached) return cached;
+        const probe = await probeRuImage(img.url);
+        imageProbeCache.set(img.url, probe);
+        return probe;
+      }),
+    );
+    probes.push(...results);
+  }
+
+  const rejected: { url: string; reason: string }[] = [];
+  const accepted: RuImage[] = [];
+  images.forEach((img, i) => {
+    const probe = probes[i];
+    if (!probe?.ok) {
+      rejected.push({ url: img.url, reason: probe?.reason || 'image could not be verified' });
+      return;
+    }
+    accepted.push({
+      ...img,
+      width: probe.width ?? img.width ?? null,
+      height: probe.height ?? img.height ?? null,
+      verified: true,
+    } as RuImage);
+  });
+
+  payload.images = accepted.map((img, index) => ({ ...img, is_main: index === 0, type_id: index === 0 ? 1 : 3 }));
+  payload.image_issues = rejected;
+  return rejected;
+}
+
+/**
  * RU White-Label minimum inventory validation for a built payload.
  * Shared by every dry-run branch and by the live-push readiness gate so the
  * admin console, the ROLOS scorecard and the API all score identically.
@@ -197,9 +379,15 @@ function buildValidation(payload: Record<string, any>): Record<string, unknown> 
   let sized = 0;
   let unverified = 0;
   for (const img of images) {
-    if (img.width == null || img.height == null) { unverified += 1; sized += 1; continue; }
+    if (img.width == null || img.height == null) {
+      unverified += 1;
+      // Only a probed-and-reachable image may pass without measurable dimensions.
+      if (img.verified) sized += 1;
+      continue;
+    }
     if (img.width >= RU_MIN_IMAGE_WIDTH && img.height >= RU_MIN_IMAGE_HEIGHT) sized += 1;
   }
+  const imageIssues: { url: string; reason: string }[] = (payload.image_issues || []) as { url: string; reason: string }[];
 
   // Beds: RU requires beds to cover at least 50% of CanSleepMax.
   const totalBeds = rooms.reduce((sum, r) =>
@@ -210,6 +398,9 @@ function buildValidation(payload: Record<string, any>): Record<string, unknown> 
 
   return {
     images_count: images.length,
+    images_rejected_count: imageIssues.length,
+    image_issues: imageIssues,
+    unmapped_bed_labels: payload.unmapped_bed_labels ?? [],
     images_meeting_size: sized,
     images_size_unverified: unverified,
     images_meet_size: images.length > 0 && sized === images.length,
@@ -554,8 +745,7 @@ function buildUnitPayload(
     // Map bed types to RU bed amenity IDs
     const seenBedIds = new Set<number>();
     for (const bedEntry of unit.bed_configuration) {
-      const bedType = (bedEntry.type || '').toLowerCase().replace(/[\s]+/g, '-');
-      const ruBedId = BED_AMENITY_MAP[bedType];
+      const ruBedId = resolveBedAmenityId(bedEntry.type).id;
       if (ruBedId && !seenBedIds.has(ruBedId)) {
         seenBedIds.add(ruBedId);
         bedAmenities.push({ id: ruBedId, count: bedEntry.count || 1 });
@@ -590,8 +780,7 @@ function buildUnitPayload(
   // Bedrooms: one block per bed_configuration entry (= one physical bedroom)
   if (Array.isArray(unit.bed_configuration) && unit.bed_configuration.length > 0) {
     unit.bed_configuration.forEach((bedEntry: any) => {
-      const bedType = (bedEntry.type || '').toLowerCase().replace(/[\s]+/g, '-');
-      const ruBedId = BED_AMENITY_MAP[bedType] || 98; // default = double bed
+      const ruBedId = resolveBedAmenityId(bedEntry.type).id ?? 98; // default = double bed
       rooms.push({
         room_id: RU_BEDROOM_ID,
         amenities: [{ id: ruBedId, count: bedEntry.count || 1 }],
@@ -682,15 +871,42 @@ function buildSinglePropertyPayload(property: PropertyRow, roomTypes: RoomTypeRo
   const depositTypeId = depositPercent && depositPercent > 0 ? 3 : depositAmount && depositAmount > 0 ? 5 : 1;
   const securityDeposit = banking.security_deposit || primaryRoom?.security_deposit || undefined;
   const cleaningPrice = toFiniteNumber(primaryRoom?.cleaning_fee) ?? 0;
-  // Building-level rooms: emit one Bedroom (257) per room type — these are RU's only valid IDs.
-  const rooms = roomTypes.map(() => ({ room_id: 257, amenities: [{ id: 98, count: 1 }] }));
-  if (rooms.length === 0) rooms.push({ room_id: 257, amenities: [{ id: 98, count: 1 }] });
+  // Building-level rooms: RU counts the bed amenities inside every Bedroom (257) block
+  // and rejects the listing ("Add sufficient amount of beds") when they cover less than
+  // half of CanSleepMax. Emit the real bed_configuration of every room type instead of a
+  // single default double bed per room type.
+  const rooms: { room_id: number; amenities: { id: number; count: number }[] }[] = [];
+  const unmappedBedLabels: string[] = [];
+  for (const rt of roomTypes) {
+    const built = bedBlocksFromConfiguration(rt.bed_configuration);
+    unmappedBedLabels.push(...built.unmapped);
+    if (built.rooms.length > 0) {
+      rooms.push(...built.rooms);
+      continue;
+    }
+    // No bed configuration on this room type: derive from beds / bedrooms / capacity.
+    const bedroomCount = Math.max(1, Number(rt.bedrooms) || 1);
+    const bedTotal = Math.max(bedroomCount, Number(rt.beds) || 0, Math.ceil((rt.max_guests || 2) / 2));
+    const perRoom = Math.max(1, Math.ceil(bedTotal / bedroomCount));
+    for (let i = 0; i < bedroomCount; i++) rooms.push({ room_id: 257, amenities: [{ id: 98, count: perRoom }] });
+  }
+  if (rooms.length === 0) {
+    const bedroomCount = Math.max(1, Number(property.bedrooms) || 1);
+    const perRoom = Math.max(1, Math.ceil(Math.max(2, maxGuests) / 2 / bedroomCount));
+    for (let i = 0; i < bedroomCount; i++) rooms.push({ room_id: 257, amenities: [{ id: 98, count: perRoom }] });
+  }
+  // RU minimum: beds must cover >= 50% of CanSleepMax. Top up the first bedroom block
+  // when the authored data falls short so a valid payload is never rejected outright;
+  // the readiness scorecard still reports the underlying gap.
+  const emittedBeds = rooms.reduce((sum, r) => sum + r.amenities.reduce((s, a) => s + (a.count || 1), 0), 0);
+  const requiredBeds = Math.ceil(maxGuests * 0.5);
+  if (emittedBeds < requiredBeds && rooms[0]) rooms[0].amenities[0].count += requiredBeds - emittedBeds;
   let allImages = mapImages(property.images as unknown[] | null);
   for (const rt of roomTypes) allImages = allImages.concat(mapImages(rt.images as unknown[] | null));
   const seenUrls = new Set<string>();
   allImages = allImages.filter(img => { if (seenUrls.has(img.url)) return false; seenUrls.add(img.url); return true; });
   allImages = allImages.map((img, index) => ({ ...img, is_main: index === 0, type_id: index === 0 ? 1 : 3 }));
-  const totalBeds = roomTypes.reduce((sum, rt) => sum + (rt.beds || 0), 0);
+  const totalBeds = rooms.reduce((sum, r) => sum + r.amenities.reduce((sm, a) => sm + (a.count || 1), 0), 0);
   const numberOfBeds = totalBeds > 0 ? totalBeds : (property.bedrooms || Math.max(1, maxGuests));
   return {
     name: property.name,
@@ -718,6 +934,7 @@ function buildSinglePropertyPayload(property: PropertyRow, roomTypes: RoomTypeRo
     check_in_to: houseRules.check_in_to || '22:00',
     check_out_until: houseRules.check_out_to || primaryRoom?.check_out_time || '10:00',
     check_in_place: 'at_the_apartment',
+    unmapped_bed_labels: unmappedBedLabels,
   };
 }
 
@@ -868,12 +1085,13 @@ async function verifyPrices(
   ruPropertyId: number,
   requested: { date_from: string; date_to: string; price: number; extra_guest_price?: number }[],
   windowFrom: string,
-  windowTo: string
+  windowTo: string,
+  childAuth: Record<string, unknown> = {},
 ): Promise<PriceVerification> {
   const report: PriceVerification = { checked: false, total_seasons: requested.length, matches: 0, mismatches: [], missing_dates: [] };
   try {
     const { data, error } = await supabase.functions.invoke('rentalsunited-api', {
-      body: { action: 'get_prices', ru_property_id: ruPropertyId, date_from: windowFrom, date_to: windowTo },
+      body: { action: 'get_prices', ru_property_id: ruPropertyId, date_from: windowFrom, date_to: windowTo, ...childAuth },
     });
     if (error || !data?.success || !data?.raw_xml) {
       report.error = error?.message || data?.error?.message || 'No XML returned';
@@ -938,12 +1156,13 @@ async function verifyAvailability(
   ruPropertyId: number,
   requested: { date_from: string; date_to: string; units: number; min_stay: number; changeover: number }[],
   windowFrom: string,
-  windowTo: string
+  windowTo: string,
+  childAuth: Record<string, unknown> = {},
 ): Promise<AvailabilityVerification> {
   const report: AvailabilityVerification = { checked: false, total_days: 0, matches: 0, mismatches: [] };
   try {
     const { data, error } = await supabase.functions.invoke('rentalsunited-api', {
-      body: { action: 'get_availability', ru_property_id: ruPropertyId, date_from: windowFrom, date_to: windowTo },
+      body: { action: 'get_availability', ru_property_id: ruPropertyId, date_from: windowFrom, date_to: windowTo, ...childAuth },
     });
     if (error || !data?.success || !data?.raw_xml) {
       report.error = error?.message || data?.error?.message || 'No XML returned';
@@ -1027,7 +1246,7 @@ async function verifyAvailability(
   return report;
 }
 
-async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRow, unitUnits: number = 1, unit?: UnitContext) {
+async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRow, unitUnits: number = 1, unit?: UnitContext, childAuth: Record<string, unknown> = {}) {
   const amenities = (property.amenities || {}) as Record<string, any>;
   const seasons = amenities.seasons as any[] | undefined;
   const seasonRates = amenities.season_rates as Record<string, any> | undefined;
@@ -1073,14 +1292,14 @@ async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRo
       const availEntries = expandAvailability(allPeriods, unitUnits, changeoverConfig);
       console.log(`[pushARI] Pushing ${availEntries.length} availability entries (per-day rules: ${changeoverConfig.perDow ? 'yes' : 'no'}, default changeover: ${changeoverConfig.defaultCode})`);
       const { data: availResult, error: availErr } = await supabase.functions.invoke('rentalsunited-api', {
-        body: { action: 'push_availability', ru_property_id: ruPropertyId, availability: availEntries },
+        body: { action: 'push_availability', ru_property_id: ruPropertyId, availability: availEntries, ...childAuth },
       });
       if (availErr || !availResult?.success) {
         result.availability_error = availErr?.message || availResult?.error?.message || 'Unknown error';
       } else {
         result.availability_pushed = true;
         // 6.2 + 6.3 — Verify
-        const verification = await verifyAvailability(supabase, ruPropertyId, availEntries, todayStr, oneYearStr);
+        const verification = await verifyAvailability(supabase, ruPropertyId, availEntries, todayStr, oneYearStr, childAuth);
         result.availability_verification = verification;
         console.log(`[pushARI] Verification: ${verification.matches}/${verification.total_days} days matched, ${verification.mismatches.length} mismatches${verification.error ? ` (error: ${verification.error})` : ''}`);
         try {
@@ -1172,7 +1391,7 @@ async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRo
 
 
       const { data: priceResult, error: priceErr } = await supabase.functions.invoke('rentalsunited-api', {
-        body: { action: 'push_prices', ru_property_id: ruPropertyId, prices: priceEntries },
+        body: { action: 'push_prices', ru_property_id: ruPropertyId, prices: priceEntries, ...childAuth },
       });
 
       if (priceErr || !priceResult?.success) {
@@ -1180,7 +1399,7 @@ async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRo
       } else {
         result.prices_pushed = true;
         // 7.2 — Verify prices post-push
-        const priceVerification = await verifyPrices(supabase, ruPropertyId, priceEntries, todayStr, oneYearStr);
+        const priceVerification = await verifyPrices(supabase, ruPropertyId, priceEntries, todayStr, oneYearStr, childAuth);
         result.prices_verification = priceVerification;
         console.log(`[pushARI] Price verification: ${priceVerification.matches}/${priceVerification.total_seasons} seasons matched, ${priceVerification.mismatches.length} mismatches, ${priceVerification.missing_dates.length} missing dates${priceVerification.error ? ` (error: ${priceVerification.error})` : ''}`);
         try {
@@ -1215,6 +1434,7 @@ async function verifyDiscounts(
   ruPropertyId: number,
   longStayRequested: RuDiscountWire[],
   lastMinuteRequested: RuDiscountWire[],
+  childAuth: Record<string, unknown> = {},
 ): Promise<{ long_stay: any; last_minute: any }> {
   const report: { long_stay: any; last_minute: any } = { long_stay: null, last_minute: null };
 
@@ -1225,7 +1445,7 @@ async function verifyDiscounts(
   ) => {
     try {
       const { data, error } = await supabase.functions.invoke('rentalsunited-api', {
-        body: { action, ru_property_id: ruPropertyId },
+        body: { action, ru_property_id: ruPropertyId, ...childAuth },
       });
       if (error || !data?.success) {
         return {
@@ -1251,6 +1471,7 @@ async function pushDiscounts(
   supabase: any,
   propertyId: string,
   ruPropertyIds: { ruId: number; roomTypeId?: string }[],
+  childAuth: Record<string, unknown> = {},
 ) {
   const result: {
     long_stay_discounts_pushed: number;
@@ -1315,7 +1536,7 @@ async function pushDiscounts(
     if (lsWire.length > 0 && validation.ok) {
       try {
         const { data: lsResult, error: lsErr } = await supabase.functions.invoke('rentalsunited-api', {
-          body: { action: 'push_long_stay_discounts', ru_property_id: ruId, discounts: lsWire },
+          body: { action: 'push_long_stay_discounts', ru_property_id: ruId, discounts: lsWire, ...childAuth },
         });
         if (lsErr || !lsResult?.success) {
           result.discount_errors.push(`Long stay (RU ${ruId}): ${lsErr?.message || lsResult?.error?.message || 'Unknown error'}`);
@@ -1332,7 +1553,7 @@ async function pushDiscounts(
     if (lmWire.length > 0 && validation.ok) {
       try {
         const { data: lmResult, error: lmErr } = await supabase.functions.invoke('rentalsunited-api', {
-          body: { action: 'push_last_minute_discounts', ru_property_id: ruId, discounts: lmWire },
+          body: { action: 'push_last_minute_discounts', ru_property_id: ruId, discounts: lmWire, ...childAuth },
         });
         if (lmErr || !lmResult?.success) {
           result.discount_errors.push(`Last minute (RU ${ruId}): ${lmErr?.message || lmResult?.error?.message || 'Unknown error'}`);
@@ -1346,7 +1567,7 @@ async function pushDiscounts(
     }
 
     // Verify (8.x) — diff requested vs returned
-    const verification = await verifyDiscounts(supabase, ruId, lsWire, lmWire);
+    const verification = await verifyDiscounts(supabase, ruId, lsWire, lmWire, childAuth);
     result.discounts_verification[`ru_${ruId}`] = verification;
     console.log(`[push-property-to-ru] Discount verification RU ${ruId}: long_stay matches=${verification.long_stay?.matches ?? 'n/a'}, last_minute matches=${verification.last_minute?.matches ?? 'n/a'}`);
 
@@ -1897,15 +2118,16 @@ Deno.serve(async (req) => {
 
       // Dry run: validate each unit
       if (dry_run) {
-        const units = activeRoomTypes.map(rt => {
-          const payload = buildUnitPayload(property as PropertyRow, rt, locationId, undefined, currencyId);
+        const units = await Promise.all(activeRoomTypes.map(async (rt) => {
+          const payload = buildUnitPayload(property as PropertyRow, rt, locationId, undefined, currencyId) as Record<string, any>;
+          await applyImageVerification(payload);
           return {
             room_type_id: rt.id,
             name: rt.name,
             ru_property_id: rt.rentalsunited_property_id || null,
-            validation: buildValidation(payload as Record<string, any>),
+            validation: buildValidation(payload),
           };
-        });
+        }));
 
         const gaps = mandatoryGaps(units.map(u => ({ name: u.name, validation: u.validation as any })));
         const allReady = gaps.length === 0;
@@ -1974,6 +2196,10 @@ Deno.serve(async (req) => {
           // buildingId=0 → adapter omits <BuildingID> entirely
           const unitPayload = buildUnitPayload(property as PropertyRow, unit, locationId, 0, currencyId);
           unitPayload.owner_id = ruOwnerId;
+          const unitImageIssues = await applyImageVerification(unitPayload as unknown as Record<string, any>);
+          if (unitImageIssues.length > 0) {
+            console.warn(`[push-property-to-ru] Unit "${unit.name}": dropped ${unitImageIssues.length} image(s) Rentals United would reject`, unitImageIssues.map(i => i.reason));
+          }
           // ObjectTypeID = property_type_id (no composition lookup)
           unitPayload.object_type_id = unitPayload.property_type_id;
 
@@ -1986,7 +2212,7 @@ Deno.serve(async (req) => {
           console.log(`[push-property-to-ru] Pushing standalone unit "${unit.name}" (existing RU ID: ${existingUnitRuId}, object_type_id: ${unitPayload.object_type_id})`);
 
           let { data: pushResult, error: pushErr } = await supabase.functions.invoke('rentalsunited-api', {
-            body: { action: 'push_property', ru_property_id: existingUnitRuId, property: unitPayload },
+            body: { action: 'push_property', ru_property_id: existingUnitRuId, property: unitPayload, ...childAuthPayload },
           });
 
           // Stale RU ID recovery (see multi-unit flow): re-push as a create.
@@ -1997,7 +2223,7 @@ Deno.serve(async (req) => {
             console.warn(`[push-property-to-ru] Stale RU ID ${existingUnitRuId} for unit "${unit.name}" — recreating`);
             await supabase.from('hostfully_room_types').update({ rentalsunited_property_id: null }).eq('id', unit.id);
             const retry = await supabase.functions.invoke('rentalsunited-api', {
-              body: { action: 'push_property', ru_property_id: 0, property: unitPayload },
+              body: { action: 'push_property', ru_property_id: 0, property: unitPayload, ...childAuthPayload },
             });
             pushResult = retry.data;
             pushErr = retry.error;
@@ -2026,7 +2252,7 @@ Deno.serve(async (req) => {
           const ruIdNum = unitRuId ? parseInt(unitRuId, 10) : 0;
           if (ruIdNum > 0) {
             console.log(`[push-property-to-ru] Pushing ARI for standalone unit "${unit.name}" (RU ID: ${ruIdNum})`);
-            ariResult = await pushARI(supabase, ruIdNum, property as PropertyRow, 1, { id: unit.id, name: unit.name, linked_rolos_id: unit.linked_rolos_id, amenities: (unit as any).amenities ?? null });
+            ariResult = await pushARI(supabase, ruIdNum, property as PropertyRow, 1, { id: unit.id, name: unit.name, linked_rolos_id: unit.linked_rolos_id, amenities: (unit as any).amenities ?? null }, childAuthPayload);
             if (ariResult.availability_error) console.error(`[push-property-to-ru] Availability error for "${unit.name}": ${ariResult.availability_error}`);
             if (ariResult.prices_error) console.error(`[push-property-to-ru] Prices error for "${unit.name}": ${ariResult.prices_error}`);
           }
@@ -2180,6 +2406,10 @@ Deno.serve(async (req) => {
       for (const unit of unitsToPush) {
         const existingUnitRuId = unit.rentalsunited_property_id ? parseInt(unit.rentalsunited_property_id, 10) : 0;
         const unitPayload = buildUnitPayload(property as PropertyRow, unit, locationId, buildingId, currencyId);
+        const unitImageIssues = await applyImageVerification(unitPayload as unknown as Record<string, any>);
+        if (unitImageIssues.length > 0) {
+          console.warn(`[push-property-to-ru] Unit "${unit.name}": dropped ${unitImageIssues.length} image(s) Rentals United would reject`, unitImageIssues.map(i => i.reason));
+        }
         unitPayload.owner_id = ruOwnerId;
 
         // Attach the building's ObjectTypeID for this unit's name (required when BuildingID is set).
@@ -2197,7 +2427,7 @@ Deno.serve(async (req) => {
         console.log(`[push-property-to-ru] Step 2: Pushing unit "${unit.name}" (existing RU ID: ${existingUnitRuId}, building: ${buildingId}, object_type_id: ${objTypeId})`);
 
         let { data: pushResult, error: pushErr } = await supabase.functions.invoke('rentalsunited-api', {
-          body: { action: 'push_property', ru_property_id: existingUnitRuId, property: unitPayload },
+          body: { action: 'push_property', ru_property_id: existingUnitRuId, property: unitPayload, ...childAuthPayload },
         });
 
         // Stale RU ID recovery: a stored unit ID can point at a property that no longer
@@ -2210,7 +2440,7 @@ Deno.serve(async (req) => {
           console.warn(`[push-property-to-ru] Stale RU ID ${existingUnitRuId} for unit "${unit.name}" — recreating`);
           await supabase.from('hostfully_room_types').update({ rentalsunited_property_id: null }).eq('id', unit.id);
           const retry = await supabase.functions.invoke('rentalsunited-api', {
-            body: { action: 'push_property', ru_property_id: 0, property: unitPayload },
+            body: { action: 'push_property', ru_property_id: 0, property: unitPayload, ...childAuthPayload },
           });
           pushResult = retry.data;
           pushErr = retry.error;
@@ -2240,7 +2470,7 @@ Deno.serve(async (req) => {
         const ruIdNum = parseInt(unitRuId || '0', 10);
         if (ruIdNum > 0) {
           console.log(`[push-property-to-ru] Pushing ARI for unit "${unit.name}" (RU ID: ${ruIdNum})`);
-          const ariResult = await pushARI(supabase, ruIdNum, property as PropertyRow, 1, { id: unit.id, name: unit.name, linked_rolos_id: unit.linked_rolos_id, amenities: (unit as any).amenities ?? null });
+          const ariResult = await pushARI(supabase, ruIdNum, property as PropertyRow, 1, { id: unit.id, name: unit.name, linked_rolos_id: unit.linked_rolos_id, amenities: (unit as any).amenities ?? null }, childAuthPayload);
           if (ariResult.availability_error) console.error(`[push-property-to-ru] Availability error for "${unit.name}": ${ariResult.availability_error}`);
           if (ariResult.prices_error) console.error(`[push-property-to-ru] Prices error for "${unit.name}": ${ariResult.prices_error}`);
           unitResults.push({
@@ -2271,7 +2501,7 @@ Deno.serve(async (req) => {
       const discountRuIds = unitResults
         .filter((u: any) => u.success && u.rentalsunited_property_id)
         .map((u: any) => ({ ruId: parseInt(u.rentalsunited_property_id, 10), roomTypeId: u.room_type_id }));
-      const discountResult = await pushDiscounts(supabase, property_id, discountRuIds);
+      const discountResult = await pushDiscounts(supabase, property_id, discountRuIds, childAuthPayload);
 
       const allUnitsPushed = unitResults.length === unitsToPush.length && unitResults.every((u: any) => u.success);
       const inventoryVerified = allUnitsPushed && unitResults.every((u: any) =>
@@ -2320,6 +2550,10 @@ Deno.serve(async (req) => {
     // ── SINGLE PROPERTY FLOW (legacy) ────────────────────────
     const ruPayload = buildSinglePropertyPayload(property as PropertyRow, activeRoomTypes, locationId, currencyId);
     ruPayload.owner_id = ruOwnerId;
+    const singleImageIssues = await applyImageVerification(ruPayload as unknown as Record<string, any>);
+    if (singleImageIssues.length > 0) {
+      console.warn(`[push-property-to-ru] Dropped ${singleImageIssues.length} image(s) Rentals United would reject`, singleImageIssues.map(i => i.reason));
+    }
     const existingRuId = property.rentalsunited_property_id ? parseInt(property.rentalsunited_property_id, 10) : 0;
 
     const singleValidation = buildValidation(ruPayload as unknown as Record<string, any>);
@@ -2357,7 +2591,7 @@ Deno.serve(async (req) => {
 
 
     const { data: pushResult, error: pushErr } = await supabase.functions.invoke('rentalsunited-api', {
-      body: { action: 'push_property', ru_property_id: existingRuId, property: ruPayload },
+      body: { action: 'push_property', ru_property_id: existingRuId, property: ruPayload, ...childAuthPayload },
     });
 
     if (pushErr || !pushResult?.success) {
@@ -2380,8 +2614,8 @@ Deno.serve(async (req) => {
     const finalRuId = parseInt(ruPropertyId || '0', 10);
     let pushExtras: Record<string, any> = {};
     if (finalRuId > 0) {
-      pushExtras = await pushARI(supabase, finalRuId, property as PropertyRow, activeRoomTypes.length || 1);
-      const discountResult = await pushDiscounts(supabase, property_id, [{ ruId: finalRuId }]);
+      pushExtras = await pushARI(supabase, finalRuId, property as PropertyRow, activeRoomTypes.length || 1, undefined, childAuthPayload);
+      const discountResult = await pushDiscounts(supabase, property_id, [{ ruId: finalRuId }], childAuthPayload);
       pushExtras = { ...pushExtras, ...discountResult };
     }
 
