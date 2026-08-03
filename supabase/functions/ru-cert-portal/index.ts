@@ -848,14 +848,44 @@ Deno.serve(async (req) => {
     // ── verify_api_keys: re-test the stored sub-user API key pair against RU ──
     if (action === "verify_api_keys") {
       const accountId: string = body.account_id ?? "";
-      if (!accountId) return json({ success: false, error: { code: "BAD_REQUEST", message: "account_id is required" } }, 400);
-      const { data: account } = await admin
-        .from("ru_owner_accounts")
-        .select("id, owner_email, ru_login_email, ru_owner_id, ru_api_access_key, ru_api_secret_enc")
-        .eq("id", accountId)
-        .maybeSingle();
-      if (!account) return json({ success: false, error: { code: "NOT_FOUND", message: "RU owner account not found" } }, 404);
-      if (!account.ru_api_access_key || !account.ru_api_secret_enc) {
+      const suppliedOwnerId: string = String(body.ru_owner_id ?? "").trim();
+      if (!accountId && !suppliedOwnerId) {
+        return json({ success: false, error: { code: "BAD_REQUEST", message: "account_id or ru_owner_id is required" } }, 400);
+      }
+
+      let account: Record<string, any> | null = null;
+      if (accountId) {
+        const { data } = await admin
+          .from("ru_owner_accounts")
+          .select("id, owner_email, ru_login_email, ru_owner_id, ru_api_access_key, ru_api_secret_enc")
+          .eq("id", accountId)
+          .maybeSingle();
+        if (!data) return json({ success: false, error: { code: "NOT_FOUND", message: "RU owner account not found" } }, 404);
+        account = data as Record<string, any>;
+      }
+
+      const ownerId = suppliedOwnerId || String(account?.ru_owner_id ?? "").trim();
+      let accessKey: string | null = null;
+      let secretEnc: unknown = null;
+      let loginEmail: string | null = account?.ru_login_email ?? account?.owner_email ?? null;
+
+      if (ownerId) {
+        const { data: credRow } = await admin
+          .from("ru_api_credentials")
+          .select("access_key, secret_enc, login_email")
+          .eq("ru_owner_id", ownerId)
+          .maybeSingle();
+        if (credRow?.access_key) {
+          accessKey = String(credRow.access_key);
+          secretEnc = credRow.secret_enc;
+          loginEmail = credRow.login_email ?? loginEmail;
+        }
+      }
+      if (!accessKey && account?.ru_api_access_key && account?.ru_api_secret_enc) {
+        accessKey = String(account.ru_api_access_key);
+        secretEnc = account.ru_api_secret_enc;
+      }
+      if (!accessKey || !secretEnc) {
         return json({
           success: false,
           error: {
@@ -864,17 +894,22 @@ Deno.serve(async (req) => {
           },
         }, 409);
       }
-      const { data: secret } = await admin.rpc("decrypt_sensitive_text", { encrypted_data: account.ru_api_secret_enc });
+
+      const { data: secret } = await admin.rpc("decrypt_sensitive_text", { encrypted_data: secretEnc });
       if (!secret || secret === "[ENCRYPTED]" || secret === "[DECRYPTION_ERROR]") {
         return json({ success: false, verified: false, error: { code: "DECRYPT_FAILED", message: "The stored secret key could not be decrypted." } }, 500);
       }
       const { data: verified, error: verifyError } = await admin.functions.invoke("rentalsunited-api", {
-        body: { action: "verify_child_login", auth_access_key: account.ru_api_access_key, auth_secret_key: secret },
+        body: { action: "verify_child_login", auth_access_key: accessKey, auth_secret_key: secret },
       });
       const accepted = !verifyError && verified?.success === true && verified?.verified === true;
-      await admin.from("ru_owner_accounts")
-        .update({ ru_api_keys_verified_at: accepted ? new Date().toISOString() : null })
-        .eq("id", accountId);
+      const stamp = accepted ? new Date().toISOString() : null;
+      if (ownerId) {
+        await admin.from("ru_api_credentials").update({ verified_at: stamp }).eq("ru_owner_id", ownerId);
+      }
+      if (account?.id) {
+        await admin.from("ru_owner_accounts").update({ ru_api_keys_verified_at: stamp }).eq("id", account.id);
+      }
       if (!accepted) {
         return json({
           success: false,
@@ -889,11 +924,12 @@ Deno.serve(async (req) => {
       return json({
         success: true,
         verified: true,
-        access_key: account.ru_api_access_key,
-        login_email: account.ru_login_email ?? account.owner_email,
-        ru_owner_id: String(account.ru_owner_id ?? ""),
+        access_key: accessKey,
+        login_email: loginEmail,
+        ru_owner_id: ownerId,
       });
     }
+
 
     /**
      * ── create_api_key: mint an additional key pair for the sub-user via the RU API ──
