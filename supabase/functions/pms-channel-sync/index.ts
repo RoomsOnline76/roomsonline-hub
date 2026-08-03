@@ -440,11 +440,68 @@ async function handlePushRates(supabase: any, connectionId: string, headers: any
       .eq("connection_id", connectionId)
       .eq("is_active", true);
 
-    const result = await adapter.pushRates(connection, ratePlans || [], mappings || []);
+    // Calendar-first pricing: resolve the real nightly price for the next 365 days
+    // (calendar season → rack rate → unit daily rate) instead of pushing a flat base rate.
+    const from = new Date().toISOString().slice(0, 10);
+    const to = addDays(from, 365);
+    const enriched: any[] = [];
+    let coverageSummary = "no rate resolution";
+    try {
+      const resolver = await createRateResolver(supabase, connection.property_id, { window: { from, to } });
+      const { data: planRooms } = await supabase
+        .from("rolos_rate_plan_room_types")
+        .select("rate_plan_id, room_type_id");
+
+      let calendarDays = 0, rackDays = 0, pricedDays = 0, expected = 0;
+      for (const plan of (ratePlans ?? [])) {
+        const roomIds = new Set(
+          (planRooms ?? [])
+            .filter((pr: any) => pr.rate_plan_id === plan.id)
+            .map((pr: any) => String(pr.room_type_id)),
+        );
+        const units = resolver.units.filter(
+          (u) => u.linked_rolos_id && roomIds.has(String(u.linked_rolos_id)),
+        );
+        const targets = units.length > 0 ? units : resolver.units;
+        // One period set per plan: cheapest priced unit per night (channels advertise "from").
+        const perDate = new Map<string, DayRate>();
+        for (const u of targets) {
+          for (const d of resolver.resolveDays(u, from, to)) {
+            const existing = perDate.get(d.date);
+            if (!existing || d.price < existing.price) perDate.set(d.date, d);
+          }
+        }
+        const days = [...perDate.values()];
+        const cov = resolver.coverage(days);
+        calendarDays += cov.calendar_days;
+        rackDays += cov.rack_days + cov.unit_daily_days;
+        pricedDays += cov.priced_days;
+        expected += eachDate(from, to).length;
+
+        const periods = compressToPeriods(days);
+        enriched.push({
+          ...plan,
+          // Keep base_rate meaningful for adapters that only send a single amount.
+          base_rate: periods[0]?.price ?? plan.base_rate,
+          rate_periods: periods,
+          rate_coverage: cov,
+        });
+      }
+      coverageSummary = describeCoverage(expected, {
+        total_days: pricedDays, priced_days: pricedDays, calendar_days: calendarDays,
+        rack_days: rackDays, unit_daily_days: 0, unpriced_days: Math.max(0, expected - pricedDays),
+      });
+    } catch (resolveErr) {
+      console.warn("[channel-sync] rate resolution failed, falling back to plan base rates:", resolveErr);
+    }
+
+    const plansToPush = enriched.length > 0 ? enriched : (ratePlans ?? []);
+    const result = await adapter.pushRates(connection, plansToPush, mappings || []);
+    result.details = `${result.details} Pricing: ${coverageSummary}.`;
 
     await logSync(supabase, connectionId, "push_rates", result.success ? "success" : "failed", result.recordsProcessed, null, startedAt);
 
-    return new Response(JSON.stringify({ success: true, adapter: adapter.name, ...result }), {
+    return new Response(JSON.stringify({ success: true, adapter: adapter.name, rate_coverage: coverageSummary, ...result }), {
       headers: { ...headers, "Content-Type": "application/json" },
     });
   } catch (err) {
@@ -452,6 +509,7 @@ async function handlePushRates(supabase: any, connectionId: string, headers: any
     throw err;
   }
 }
+
 
 async function handleGetSyncStatus(supabase: any, connectionId: string, headers: any) {
   const { data, error } = await supabase
