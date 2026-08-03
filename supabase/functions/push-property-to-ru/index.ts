@@ -10,6 +10,14 @@ import {
 import { evaluatePhases, phaseBlockedResponse, findOwnerAccount } from '../_shared/ruPhaseGate.ts';
 import { resolveRuAmenityIds } from '../_shared/ruAmenityMap.ts';
 import {
+  normalizeRuImageTagMap,
+  resolvePrimaryRuTag,
+  resolveSecondaryRuTags,
+  RU_TAG_INTERIOR,
+  RU_TAG_MAIN,
+  RuImageTagMap,
+} from '../_shared/ruImageTags.ts';
+import {
   createRateResolver,
   compressToPeriods,
   describeCoverage,
@@ -196,15 +204,6 @@ function mapAmenities(amenitiesData: Record<string, unknown> | null): { id: numb
 }
 
 
-
-import {
-  normalizeRuImageTagMap,
-  resolvePrimaryRuTag,
-  resolveSecondaryRuTags,
-  RU_TAG_INTERIOR,
-  RU_TAG_MAIN,
-  RuImageTagMap,
-} from '../_shared/ruImageTags.ts';
 
 interface RuImage {
   url: string;
