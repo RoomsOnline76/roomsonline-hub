@@ -2038,45 +2038,84 @@ Deno.serve(async (req) => {
           ? { owner_id: ownerId, auth_access_key: accessKey, auth_secret_key: secretKey }
           : { owner_id: ownerId, auth_username: account?.ru_login_email?.trim() ?? '', auth_password: await decrypt(account?.ru_login_password_enc) };
 
-        // Pick a representative listing: the property RUID, else the first unit RUID.
-        let ruId = parseInt(p.rentalsunited_property_id || '0', 10);
-        if (!ruId) {
-          const { data: unit } = await supabase
-            .from('hostfully_room_types')
-            .select('rentalsunited_property_id')
-            .eq('property_id', p.id)
-            .not('rentalsunited_property_id', 'is', null)
-            .limit(1)
-            .maybeSingle();
-          ruId = parseInt(unit?.rentalsunited_property_id || '0', 10);
+        // Every listing matters: a portfolio's units can sit on different RU accounts and
+        // locations, so verify each RUID rather than extrapolating from one.
+        const ruIds: number[] = [];
+        const propRuId = parseInt(p.rentalsunited_property_id || '0', 10);
+        if (propRuId > 0) ruIds.push(propRuId);
+        const { data: units } = await supabase
+          .from('hostfully_room_types')
+          .select('name, rentalsunited_property_id')
+          .eq('property_id', p.id)
+          .not('rentalsunited_property_id', 'is', null);
+        for (const u of (units ?? []) as any[]) {
+          const id = parseInt(u.rentalsunited_property_id || '0', 10);
+          if (id > 0 && !ruIds.includes(id)) ruIds.push(id);
         }
-        if (!ruId) {
+        if (ruIds.length === 0) {
           results.push({ property_id: p.id, name: p.name, success: false, reason: 'no_ru_listing_id' });
           continue;
         }
 
         const state = await loadCurrencyState(supabase, p.id);
-        const verification = await verifyAndRecordCurrency(supabase, {
-          propertyId: p.id,
-          locationId: Number(p.ru_location_id) || Number(state?.ru_location_id) || 0,
-          authoredIso: state?.authored_currency_iso ?? 'ZAR',
-          ruPropertyId: ruId,
-          childAuth,
-          ownerScope: String(ownerId),
-          decision: null,
-        });
+        const expectedIso = state?.published_currency_iso ?? state?.authored_currency_iso ?? 'ZAR';
+        const locId = Number(p.ru_location_id) || Number(state?.ru_location_id) || 0;
+        const listings: any[] = [];
+        let primaryVerification: { ru_reported_iso: string | null; matches: boolean; error?: string } | null = null;
 
+        for (const ruId of ruIds) {
+          const readback = await verifyRuPropertyCurrency(supabase, ruId, childAuth);
+          let onMaster = false;
+          let iso = readback.iso;
+          let err = readback.error ?? null;
+          // "Property does not exist" on the sub-user means the listing was created on the
+          // master account and never migrated — the account, not the currency, is the fault.
+          if (!iso && /does not exist/i.test(String(err ?? ''))) {
+            const masterRead = await verifyRuPropertyCurrency(supabase, ruId, {});
+            if (masterRead.iso) {
+              onMaster = true;
+              iso = masterRead.iso;
+              err = 'RU_LISTING_ON_MASTER_ACCOUNT';
+            }
+          }
+          listings.push({
+            ru_property_id: ruId,
+            ru_reported_iso: iso ?? null,
+            on_master_account: onMaster,
+            matches: !!iso && iso.toUpperCase() === expectedIso.toUpperCase(),
+            error: err,
+          });
+          // Persist the property-level state from the first listing the sub-user can see.
+          if (!primaryVerification && iso && !onMaster) {
+            primaryVerification = await verifyAndRecordCurrency(supabase, {
+              propertyId: p.id,
+              locationId: locId,
+              authoredIso: state?.authored_currency_iso ?? 'ZAR',
+              ruPropertyId: ruId,
+              childAuth,
+              ownerScope: String(ownerId),
+              decision: null,
+            });
+          }
+          await new Promise(r => setTimeout(r, 400));
+        }
+
+        const strays = listings.filter(l => l.on_master_account);
         results.push({
           property_id: p.id,
           name: p.name,
-          ru_property_id: ruId,
           owner_scope: String(ownerId),
-          expected_iso: state?.published_currency_iso ?? state?.authored_currency_iso ?? 'ZAR',
-          ru_reported_iso: verification.ru_reported_iso ?? null,
-          matches: verification.matches === true,
-          success: verification.error ? false : true,
-          error: verification.error ?? null,
+          expected_iso: expectedIso,
+          listings,
+          listings_on_master_account: strays.length,
+          ru_reported_iso: primaryVerification?.ru_reported_iso ?? listings.find(l => l.ru_reported_iso)?.ru_reported_iso ?? null,
+          matches: listings.length > 0 && listings.every(l => l.matches),
+          success: listings.some(l => !!l.ru_reported_iso),
+          error: strays.length
+            ? `${strays.length} listing(s) still live on the master Rentals United account (${strays.map((s: any) => s.ru_property_id).join(', ')}) — re-push them as the white-label sub-user.`
+            : (listings.find(l => l.error)?.error ?? null),
         });
+
 
         await new Promise(r => setTimeout(r, 750));
       }
