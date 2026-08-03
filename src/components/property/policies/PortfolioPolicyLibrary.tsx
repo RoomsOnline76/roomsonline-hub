@@ -1,8 +1,7 @@
 import React, { useState } from "react";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown, Loader2, Building2 } from "lucide-react";
+import { ChevronDown, Loader2 } from "lucide-react";
 import type { ReservationPolicy } from "@/hooks/useReservationPolicies";
 import { shortPolicyLabel } from "@/lib/policyLabels";
 
@@ -15,7 +14,7 @@ interface Props {
   onActivate: (source: ReservationPolicy, mode: "copy" | "link") => void;
 }
 
-/** Collapsible library of policies available from sibling properties in the same portfolio. */
+/** Dense collapsible list of policies available from sibling properties in the same portfolio. */
 export const PortfolioPolicyLibrary: React.FC<Props> = ({
   portfolioPolicies,
   ownPolicies,
@@ -30,62 +29,60 @@ export const PortfolioPolicyLibrary: React.FC<Props> = ({
   );
 
   return (
-    <Card>
-      <Collapsible open={open} onOpenChange={setOpen}>
-        <CardHeader className="py-3">
-          <CollapsibleTrigger className="flex w-full items-center justify-between gap-2 text-left">
-            <div className="min-w-0">
-              <h4 className="text-sm font-semibold flex items-center gap-2">
-                <Building2 className="h-3.5 w-3.5" /> Portfolio policies
-                <span className="text-xs font-normal text-muted-foreground">({available.length} available)</span>
-              </h4>
-              <p className="text-xs text-muted-foreground">
-                Activate a policy created on a sibling property — as an independent copy or linked to the original.
-              </p>
-            </div>
-            <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
-          </CollapsibleTrigger>
-        </CardHeader>
-        <CollapsibleContent>
-          <CardContent className="space-y-2 pt-0">
-            {loading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
-            {!loading && available.length === 0 && (
-              <p className="text-xs text-muted-foreground">No further policies available from sibling properties.</p>
-            )}
-            {available.map((sp) => (
-              <div key={sp.id} className="flex items-center justify-between gap-2 p-2 rounded-md border">
-                <div className="min-w-0">
-                  <div className="text-xs font-medium truncate">
-                    {sp.name}{" "}
-                    <span className="text-muted-foreground font-normal">— {siblingName(sp.property_id)}</span>
-                  </div>
-                  <p className="text-[11px] text-muted-foreground truncate">{shortPolicyLabel(sp.rule)}</p>
+    <Collapsible open={open} onOpenChange={setOpen} className="rounded-md border">
+      <CollapsibleTrigger className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left hover:bg-muted/40">
+        <div className="min-w-0">
+          <p className="text-xs font-medium">
+            Portfolio policies{" "}
+            <span className="font-normal text-muted-foreground">({available.length} available)</span>
+          </p>
+          <p className="text-[11px] leading-tight text-muted-foreground">
+            Activate a policy from a sibling property — as an independent copy or linked to the original.
+          </p>
+        </div>
+        <ChevronDown className={`h-3.5 w-3.5 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className="space-y-1.5 border-t px-3 py-2">
+          {loading && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+          {!loading && available.length === 0 && (
+            <p className="text-[11px] text-muted-foreground">No further policies available from sibling properties.</p>
+          )}
+          {available.map((sp) => (
+            <div
+              key={sp.id}
+              className="flex items-center justify-between gap-2 rounded-md border border-border/60 bg-muted/20 px-2.5 py-1.5"
+            >
+              <div className="min-w-0">
+                <div className="text-xs font-medium truncate">
+                  {sp.name} <span className="font-normal text-muted-foreground">— {siblingName(sp.property_id)}</span>
                 </div>
-                <div className="flex items-center gap-1 shrink-0">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-7 text-xs"
-                    disabled={activatingId === sp.id}
-                    onClick={() => onActivate(sp, "copy")}
-                  >
-                    Copy
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 text-xs"
-                    disabled={activatingId === sp.id}
-                    onClick={() => onActivate(sp, "link")}
-                  >
-                    Link
-                  </Button>
-                </div>
+                <p className="text-[11px] leading-tight text-muted-foreground truncate">{shortPolicyLabel(sp.rule)}</p>
               </div>
-            ))}
-          </CardContent>
-        </CollapsibleContent>
-      </Collapsible>
-    </Card>
+              <div className="flex items-center gap-1 shrink-0">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs"
+                  disabled={activatingId === sp.id}
+                  onClick={() => onActivate(sp, "copy")}
+                >
+                  Copy
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs"
+                  disabled={activatingId === sp.id}
+                  onClick={() => onActivate(sp, "link")}
+                >
+                  Link
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
   );
 };
