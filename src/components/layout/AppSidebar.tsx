@@ -227,10 +227,44 @@ export function AppSidebar() {
   const renderSection = (section: NavSection) => {
     if (!canAccessSection(section)) return null;
 
+    const SectionIcon = section.icon;
+
+    // Direct-link section: no sub-menu, the whole row navigates to section.href.
+    if (section.href) {
+      const active = isActive(section.href);
+      const link = (
+        <button
+          onClick={() => navigate(section.href!)}
+          className={cn(
+            "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-all",
+            "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+            active && "bg-sidebar-accent text-sidebar-primary border-l-2 border-sidebar-primary",
+            !active && "text-sidebar-foreground/70"
+          )}
+        >
+          <SectionIcon className="h-4 w-4 shrink-0" />
+          {!collapsed && (
+            <span className="flex-1 text-left">{section.label}</span>
+          )}
+        </button>
+      );
+
+      return (
+        <div key={section.id}>
+          {collapsed ? (
+            <Tooltip>
+              <TooltipTrigger asChild>{link}</TooltipTrigger>
+              <TooltipContent side="right">{section.label}</TooltipContent>
+            </Tooltip>
+          ) : (
+            link
+          )}
+        </div>
+      );
+    }
+
     const visibleItems = section.items.filter(canAccessItem);
     if (visibleItems.length === 0) return null;
-
-    const SectionIcon = section.icon;
 
     if (section.collapsible) {
       const isOpen = collapsedSections[section.id] ?? (section.defaultOpen ?? false);
