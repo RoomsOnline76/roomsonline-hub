@@ -214,6 +214,15 @@ interface RequestBody {
   user?: { first_name: string; last_name: string; email: string; password: string };
   company?: { name: string; address?: string; city?: string; country?: string; phone?: string; email?: string; vat_number?: string };
   owner_id?: string | number;
+  // Sub-user ("child") authentication. API keys are mandatory for RU accounts created
+  // after the Nov-2025 rollout; username/password remains for legacy accounts only.
+  auth_access_key?: string;
+  auth_secret_key?: string;
+  auth_username?: string;
+  auth_password?: string;
+  // API key management
+  key_label?: string;
+  target_access_key?: string;
 }
 
 // ── XML Helpers ──────────────────────────────────────────────
