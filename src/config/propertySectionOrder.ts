@@ -43,7 +43,7 @@ export type PropertySectionKey =
   | "info-facilities"   // Facilities & amenities
   | "rooms"             // Rooms overview
   | "images"            // Media
-  | "house-rules"       // Policies
+  
   | "rates"             // Pricing / seasons / rate types
   | "packages"
   | "specials"
