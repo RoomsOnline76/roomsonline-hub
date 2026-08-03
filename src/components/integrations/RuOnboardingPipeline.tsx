@@ -184,15 +184,17 @@ export function RuOnboardingPipeline({ propertyId, readOnly = false, standalone 
     });
     setBusy(null);
     if (fnError || !data?.success) {
-      const blockers: string[] = data?.blockers ?? [];
+      // PHASE_BLOCKED returns `blockers`; NOT_READY returns `gaps` — show either.
+      const reasons: string[] = [...(data?.blockers ?? []), ...(data?.gaps ?? [])].map(String);
       toast.error(
-        blockers.length
-          ? `${data?.error?.message ?? "Push blocked"} — ${blockers[0]}`
+        reasons.length
+          ? `${data?.error?.message ?? "Push blocked"} — ${reasons.slice(0, 3).join(" · ")}`
           : fnError
             ? await extractFunctionError(fnError, "Push failed")
             : data?.error?.message ?? "Push failed",
-        { duration: 10000 },
+        { duration: 12000 },
       );
+
     } else {
       toast.success("Property, inventory and rates pushed to Rentals United");
     }
