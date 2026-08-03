@@ -2560,11 +2560,21 @@ Deno.serve(async (req) => {
 
       const ordered = mcqResults.filter((r) => r.ok);
       if (ordered.length === 0) {
+        const firstError = mcqResults[0]?.error ?? "Rentals United rejected the quality check order";
+        // MCQ lives behind RU's LNM (Listing & Numbers Manager) subscription. Without it every
+        // listing is refused with "Subscribe to LNM first" — an account-level prerequisite the
+        // operator must enable with Rentals United, not a content problem on our side.
+        const lnmMissing = /subscribe to lnm/i.test(firstError);
         return json({
           success: false,
-          error: { code: "RU_MCQ_FAILED", message: mcqResults[0]?.error ?? "Rentals United rejected the quality check order" },
+          error: {
+            code: lnmMissing ? "RU_LNM_NOT_SUBSCRIBED" : "RU_MCQ_FAILED",
+            message: lnmMissing
+              ? "Rentals United has not enabled the LNM (Minimum Content Quality) service on this account, so the quality check cannot be ordered. Ask your Rentals United account manager to subscribe the account to LNM — all content is already pushed and verified."
+              : firstError,
+          },
           results: mcqResults,
-        }, 502);
+        }, lnmMissing ? 422 : 502);
       }
       return json({
         success: true,
