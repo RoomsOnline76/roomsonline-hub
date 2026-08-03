@@ -2697,22 +2697,41 @@ Deno.serve(async (req) => {
       };
 
 
+      /**
+       * Within one run, an identical successful read is reused instead of being re-fired:
+       * repeating the same method with the same parameters would cost a full sliding
+       * minute of waiting for data we already hold.
+       */
+      const readCache = new Map<string, any>();
+      const CACHEABLE_READS = new Set([
+        "get_availability",
+        "get_prices",
+        "get_property",
+        "list_properties",
+        "list_composition_rooms",
+        "list_cities_and_currencies",
+      ]);
+
       /** Invokes rentalsunited-api with pacing + one rate-limit retry. */
       const ruInvoke = async (
         ruAction: string,
         payload: Record<string, unknown>,
-      ): Promise<{ data: any; error: any; paced_skip?: string }> => {
+      ): Promise<{ data: any; error: any; paced_skip?: string; paced?: boolean; cached?: boolean }> => {
         const method = RU_METHOD_BY_ACTION[ruAction] ?? ruAction;
+        const paceKey = paceKeyFor(method, payload);
+        if (CACHEABLE_READS.has(ruAction) && readCache.has(paceKey)) {
+          return { data: readCache.get(paceKey), error: null, cached: true };
+        }
         if (Date.now() >= RUN_DEADLINE_MS) {
           return {
             data: null,
             error: null,
+            paced: true,
             paced_skip:
               "Skipped — this run reached its time budget before the step could be paced safely. Re-run the suite to cover it.",
           };
         }
         const now = Date.now();
-        const paceKey = paceKeyFor(method, payload);
         await budgetedWait(lastCallAt ? lastCallAt + MIN_GAP_MS - now : 0);
         const prevSameCall = lastCallByKey.get(paceKey);
         if (prevSameCall) {
@@ -2724,6 +2743,7 @@ Deno.serve(async (req) => {
             return {
               data: null,
               error: null,
+              paced: true,
               paced_skip:
                 `Skipped to respect the Rentals United rate limit (1 call per sliding minute for ${method} with the same parameters) — ` +
                 `the run's wait budget was already spent. Re-run this suite to cover this step.`,
@@ -2752,12 +2772,17 @@ Deno.serve(async (req) => {
             return {
               data: res.data,
               error: res.error,
+              paced: true,
               paced_skip:
                 "Rentals United rate limit hit and the run's wait budget was spent — re-run this suite to cover this step.",
             };
           }
           res = await fire();
         }
+        if (CACHEABLE_READS.has(ruAction) && !res.error && res.data?.success === true) {
+          readCache.set(paceKey, res.data);
+        }
+
 
         return { data: res.data, error: res.error };
       };
