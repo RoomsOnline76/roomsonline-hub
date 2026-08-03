@@ -19,6 +19,15 @@ Deno.serve(async (req) => {
   const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
   const supabase = createClient(supabaseUrl, supabaseKey);
 
+  // Optional manual scoping: { property_ids: [uuid, ...] } limits the run to those properties.
+  let scopeIds: string[] = [];
+  try {
+    const body = await req.json();
+    if (Array.isArray(body?.property_ids)) scopeIds = body.property_ids.filter((v: unknown) => typeof v === 'string');
+  } catch (_e) {
+    // no body — full run
+  }
+
   try {
     // ── Step 0: Refresh RLNM subscription ──────────────────────
     const handlerUrl = `${supabaseUrl}/functions/v1/ru-reservation-handler`;
@@ -65,7 +74,8 @@ Deno.serve(async (req) => {
       const p = row.properties;
       if (p && p.ru_push_enabled !== false && !propMap.has(p.id)) propMap.set(p.id, p);
     }
-    const properties = Array.from(propMap.values());
+    let properties = Array.from(propMap.values());
+    if (scopeIds.length) properties = properties.filter((p) => scopeIds.includes(p.id));
 
     if (error) {
       console.error('[cron-push-all] Query error:', error.message);
@@ -121,7 +131,7 @@ Deno.serve(async (req) => {
         success,
         error_message: errMsg,
         elapsed_ms: Date.now() - startedAt,
-        details: { rlnm: rlnmStatus },
+        details: { rlnm: rlnmStatus, manual_scope: scopeIds.length ? scopeIds : undefined },
       }).then(() => {}, (e) => console.warn('[cron-push-all] log insert failed', e));
 
       // Small delay between pushes

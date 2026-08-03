@@ -27,6 +27,15 @@ Deno.serve(async (req) => {
   const supabase = createClient(supabaseUrl, supabaseKey);
   const batchId = crypto.randomUUID();
 
+  // Optional manual scoping: { property_ids: [uuid, ...] } limits the run to those properties.
+  let scopeIds: string[] = [];
+  try {
+    const body = await req.json();
+    if (Array.isArray(body?.property_ids)) scopeIds = body.property_ids.filter((v: unknown) => typeof v === 'string');
+  } catch (_e) {
+    // no body — full run
+  }
+
   try {
     // Collect RU-connected properties (parent-level + fan-out via room types)
     const [{ data: buildingProps }, { data: unitRows }] = await Promise.all([
@@ -48,7 +57,8 @@ Deno.serve(async (req) => {
       const p = row.properties;
       if (p && !propMap.has(p.id) && p.ru_push_enabled !== false) propMap.set(p.id, p);
     }
-    const properties = Array.from(propMap.values());
+    let properties = Array.from(propMap.values());
+    if (scopeIds.length) properties = properties.filter((p) => scopeIds.includes(p.id));
 
     if (properties.length === 0) {
       return new Response(
