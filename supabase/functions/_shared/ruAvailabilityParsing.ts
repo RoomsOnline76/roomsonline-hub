@@ -52,7 +52,7 @@ export function parseRuAvailabilityDays(xml: string): Map<string, RuCalendarDay>
 
   // <CalDay ...>children</CalDay> and the self-closing <CalDay ... /> variant,
   // plus the legacy <CalendarDay .../> spelling.
-  const dayRegex = /<(CalDay|CalendarDay)\b([^>]*?)(\/)?>([\s\S]*?)(?:<\/\1>)?(?=<(?:CalDay|CalendarDay)\b|<\/PropertyCalendar|<\/[A-Za-z]|$)/gi;
+  const dayRegex = /<(CalDay|CalendarDay)\b([^>]*?)(\/)?>(?:([\s\S]*?)<\/\1>)?/gi;
   let m: RegExpExecArray | null;
   while ((m = dayRegex.exec(source)) !== null) {
     const attrs = m[2] ?? '';
