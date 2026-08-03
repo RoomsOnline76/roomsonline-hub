@@ -1248,15 +1248,21 @@ const CHILD_SCOPED_ACTIONS = new Set([
  * ru_owner_accounts → username/password supplied on the request (pre-migration
  * accounts only). Returns null when nothing usable is available.
  */
-async function resolveChildAuth(body: RequestBody): Promise<ChildAuth | null> {
+async function resolveChildAuthDetailed(
+  body: RequestBody,
+): Promise<{ auth: ChildAuth | null; reason: string | null }> {
   const suppliedKey = typeof body.auth_access_key === 'string' ? body.auth_access_key.trim() : '';
   const suppliedSecret = typeof body.auth_secret_key === 'string' ? body.auth_secret_key.trim() : '';
   if (suppliedKey && suppliedSecret) {
-    return { mode: 'keys', access_key: suppliedKey, secret_key: suppliedSecret };
+    return { auth: { mode: 'keys', access_key: suppliedKey, secret_key: suppliedSecret }, reason: null };
   }
 
   const username = typeof body.auth_username === 'string' ? body.auth_username.trim() : '';
   const ownerId = body.owner_id != null ? String(body.owner_id).trim() : '';
+  // Distinguish "no keys stored" from "stored secret could not be decrypted" so the
+  // operator knows whether to generate keys or simply re-save the secret.
+  let keyFound = false;
+  let decryptFailed = false;
 
   if (username || ownerId) {
     try {
@@ -1282,8 +1288,10 @@ async function resolveChildAuth(body: RequestBody): Promise<ChildAuth | null> {
       credQuery = ownerId ? credQuery.eq('ru_owner_id', ownerId) : credQuery.eq('login_email', username);
       const { data: credRow } = await credQuery.maybeSingle();
       if (credRow?.access_key) {
+        keyFound = true;
         const plain = await decrypt(credRow.secret_enc);
-        if (plain) return { mode: 'keys', access_key: String(credRow.access_key), secret_key: plain };
+        if (plain) return { auth: { mode: 'keys', access_key: String(credRow.access_key), secret_key: plain }, reason: null };
+        decryptFailed = true;
       }
 
       // Legacy store: keys held on the bound ru_owner_accounts row
@@ -1295,19 +1303,37 @@ async function resolveChildAuth(body: RequestBody): Promise<ChildAuth | null> {
       query = ownerId ? query.eq('ru_owner_id', ownerId) : query.eq('ru_login_email', username);
       const { data } = await query.maybeSingle();
       if (data?.ru_api_access_key && data?.ru_api_secret_enc) {
+        keyFound = true;
         const plain = await decrypt(data.ru_api_secret_enc);
-        if (plain) return { mode: 'keys', access_key: String(data.ru_api_access_key), secret_key: plain };
+        if (plain) return { auth: { mode: 'keys', access_key: String(data.ru_api_access_key), secret_key: plain }, reason: null };
+        decryptFailed = true;
       }
     } catch (e) {
       console.warn('[rentalsunited-api] child key lookup failed', e);
+      return {
+        auth: null,
+        reason: `Sub-user key lookup failed${ownerId ? ` for OwnerID ${ownerId}` : ''}: ${e instanceof Error ? e.message : 'unknown error'}`,
+      };
     }
   }
 
 
   const password = typeof body.auth_password === 'string' ? body.auth_password : '';
-  if (username && password) return { mode: 'password', username, password };
-  return null;
+  if (username && password) return { auth: { mode: 'password', username, password }, reason: null };
+
+  const scope = ownerId ? ` for OwnerID ${ownerId}` : username ? ` for ${username}` : '';
+  const reason = decryptFailed
+    ? `The stored SecretKey${scope} could not be decrypted — re-save the sub-user's AccessKey + SecretKey in Portfolios → RU accounts.`
+    : keyFound
+      ? `An AccessKey is on file${scope} but no usable SecretKey — re-save the key pair in Portfolios → RU accounts.`
+      : `No Rentals United sub-user API keys stored${scope} — generate them in the RU dashboard (Security settings) and save them in Portfolios → RU accounts.`;
+  return { auth: null, reason };
 }
+
+async function resolveChildAuth(body: RequestBody): Promise<ChildAuth | null> {
+  return (await resolveChildAuthDetailed(body)).auth;
+}
+
 
 const CHILD_AUTH_REQUIRED_MESSAGE =
   'This action must authenticate as the RU sub-user. Rentals United requires the sub-user\'s own API keys (AccessKey + SecretKey) — generate them in the RU dashboard under Security settings and save them in Portfolios → RU accounts, then retry.';
