@@ -1301,7 +1301,7 @@ export default function AdminContracts() {
           <TableHeader>
             <TableRow>
               <TableHead>Owner</TableHead>
-              <TableHead>Properties</TableHead>
+              <TableHead>Scope / Coverage</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Version</TableHead>
               <TableHead>Sent</TableHead>
