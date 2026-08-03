@@ -1821,6 +1821,21 @@ Deno.serve(async (req) => {
         // is the primary source for the RU company profile extras.
         let propertyProfile: Record<string, unknown> | null = null;
         let propertyRuLocationId: number | null = null;
+        // Bridged from the banking block on any portfolio member (see below).
+        let bridgedVatNumber: string | null = null;
+        let bridgedRegistration: string | null = null;
+        let portfolioPropertyCount: number | null = null;
+        const collectVatAndRegistration = (amenities: unknown) => {
+          if (!amenities || typeof amenities !== "object") return;
+          const am = amenities as Record<string, unknown>;
+          const bank = (am.banking && typeof am.banking === "object" ? am.banking : {}) as Record<string, unknown>;
+          const hasVat = bank.has_vat === true || am.has_vat === true;
+          const vat = String(am.vat_number ?? bank.vat_number ?? "").trim();
+          if (!bridgedVatNumber && hasVat && vat) bridgedVatNumber = vat;
+          const reg = String(am.property_registration ?? bank.property_registration ?? "").trim();
+          if (!bridgedRegistration && reg) bridgedRegistration = reg;
+        };
+
 
         let sourcePropertyId: string | null = propertyId ?? null;
         // Company Information is authored per property, but the RU company profile is
