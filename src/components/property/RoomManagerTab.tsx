@@ -1124,57 +1124,7 @@ export function RoomManagerTab({
             })()}
           </TabsContent>
 
-          {/* Facilities Sub-tab */}
-          <TabsContent value="facilities" className="p-6 space-y-4">
-            <div className="bg-warning-surface border border-warning-border rounded-md p-2 mb-4">
-              <p className="text-sm text-warning">
-                <strong>Manual Entry:</strong> Facilities are not available from the PMS API. Select the facilities available in this room type.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-4 gap-6">
-              {/* Cooking & Kitchen */}
-              <FacilityChecklistGroup
-                title="Cooking & Kitchen"
-                items={["Braai/Barbeque Facilities","Coffee/tea facilities","Electric kettle","Kitchenette","Microwave","Oven","Refrigerator","Toaster","Two Plate Stove","Dining Table"]}
-                roomTypes={roomTypes}
-                selectedRoomType={selectedRoomType}
-                updateRoomTypeField={updateRoomTypeField}
-                fieldKey="facilities"
-              />
-              {/* Room Features */}
-              <FacilityChecklistGroup
-                title="Room Features"
-                items={["Airconditioned room","Heating","Electric blankets","Hypoallergenic","Desk","Sitting area","DSTV/Satellite TV","Flat screen TV","Telephone","Shared lounge/TV area","Non-smoking","Patio","Terrace","Outdoor Furniture","Outdoor dining area"]}
-                roomTypes={roomTypes}
-                selectedRoomType={selectedRoomType}
-                updateRoomTypeField={updateRoomTypeField}
-                fieldKey="facilities"
-              />
-              {/* Bathroom & Laundry */}
-              <FacilityChecklistGroup
-                title="Bathroom & Laundry"
-                items={["Shower and bath","Hairdryer","Cleaning Service","Daily housekeeping","Iron","Ironing board","Ironing service","Laundry","Trouser press","Washing machine"]}
-                roomTypes={roomTypes}
-                selectedRoomType={selectedRoomType}
-                updateRoomTypeField={updateRoomTypeField}
-                fieldKey="facilities"
-              />
-              {/* Security & Safety + View */}
-              <div className="space-y-3">
-                <h4 className="font-semibold text-sm">Security & Safety</h4>
-                {["Safe","Safety deposit box","Fire extinguishers","Key access","24-hour security"].map((item) => (
-                  <ChecklistItem key={item} item={item} roomTypes={roomTypes} selectedRoomType={selectedRoomType} updateRoomTypeField={updateRoomTypeField} fieldKey="facilities" />
-                ))}
-                <h4 className="font-semibold text-sm pt-4">View</h4>
-                {["Garden view","Landmark view","Mountain view","Pool view"].map((item) => (
-                  <ChecklistItem key={item} item={item} roomTypes={roomTypes} selectedRoomType={selectedRoomType} updateRoomTypeField={updateRoomTypeField} fieldKey="facilities" />
-                ))}
-              </div>
-            </div>
-          </TabsContent>
-
-          {/* Amenities Sub-tab */}
+          {/* Amenities & Facilities Sub-tab (RU-aligned, single source of truth) */}
           <TabsContent value="amenities" className="p-6 space-y-4">
             {(() => {
               const currentRoom = roomTypes.find((r) => r.id === selectedRoomType);
@@ -1199,7 +1149,7 @@ export function RoomManagerTab({
               ) : (
                 <div className="bg-muted border border-border rounded-md p-2 mb-4">
                   <p className="text-sm text-muted-foreground">
-                    Amenities are managed here in ROLOS — the selection below is the source of truth pushed to Rentals United and downstream channels.
+                    Room facilities and amenities are managed in one place here — the selection below is the source of truth pushed to Rentals United and downstream channels.
                   </p>
                 </div>
               );
@@ -1209,7 +1159,36 @@ export function RoomManagerTab({
               onChange={(next) => updateRoomTypeField(selectedRoomType, "amenities", next)}
             />
 
+            {(() => {
+              const legacy = ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.facilities) as string[];
+              if (!legacy.length) return null;
+              return (
+                <div className="rounded-md border border-border p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-semibold">Legacy facilities (website only)</h4>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 text-xs"
+                      onClick={() => updateRoomTypeField(selectedRoomType, "facilities", [])}
+                    >
+                      Clear all
+                    </Button>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Captured before the Rentals United alignment. Re-select the equivalents above so they reach the channels, then clear these.
+                  </p>
+                  <div className="flex flex-wrap gap-1">
+                    {legacy.map((f) => (
+                      <Badge key={f} variant="outline" className="text-xs">{f}</Badge>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
           </TabsContent>
+
 
           {/* Room Images Sub-tab */}
           <TabsContent value="room-images" className="p-6 space-y-4">
