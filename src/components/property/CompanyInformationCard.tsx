@@ -85,11 +85,20 @@ interface Props {
 /** RU nationality/country fields are LocationIDs with LocationTypeID = 2. */
 const RU_COUNTRY_TYPE_FILTER = [2];
 
-const COMPANY_TEXT_FIELDS: { key: keyof RuCompanyProfile; label: string; placeholder?: string }[] = [
+/** Pink asterisk marking a field that is mandatory for the Rentals United push. */
+function Req() {
+  return (
+    <span aria-hidden className="ml-0.5 font-semibold text-primary">
+      *
+    </span>
+  );
+}
+
+const COMPANY_TEXT_FIELDS: { key: keyof RuCompanyProfile; label: string; placeholder?: string; required?: boolean }[] = [
   { key: "merchant_name", label: "Merchant name", placeholder: "As it appears on card statements" },
   { key: "manager_identification_number", label: "Manager ID number" },
-  { key: "time_zone", label: "Time zone", placeholder: "UTC+02:00" },
-  { key: "region", label: "Region / province" },
+  { key: "time_zone", label: "Time zone", placeholder: "UTC+02:00", required: true },
+  { key: "region", label: "Region / province", required: true },
 ];
 
 const COMPANY_NUMBER_FIELDS: { key: keyof RuCompanyProfile; label: string }[] = [
@@ -98,15 +107,16 @@ const COMPANY_NUMBER_FIELDS: { key: keyof RuCompanyProfile; label: string }[] = 
   { key: "years_in_business", label: "Years in business" },
 ];
 
-const REP_FIELDS: { key: string; label: string; placeholder?: string }[] = [
-  { key: "first_name", label: "First name" },
-  { key: "last_name", label: "Last name" },
-  { key: "email", label: "Email" },
+const REP_FIELDS: { key: string; label: string; placeholder?: string; required?: boolean }[] = [
+  { key: "first_name", label: "First name", required: true },
+  { key: "last_name", label: "Last name", required: true },
+  { key: "email", label: "Email", required: true },
   { key: "city", label: "City" },
   { key: "address", label: "Address" },
   { key: "post_code", label: "Postal code" },
   { key: "birthday", label: "Date of birth", placeholder: "YYYY-MM-DD" },
 ];
+
 
 const BANKING_FIELDS: { key: keyof CompanyBankingFields; label: string; placeholder: string; mono?: boolean }[] = [
   { key: "bank_name", label: "Bank", placeholder: "Bank name" },
@@ -273,7 +283,7 @@ export function CompanyInformationCard({
               <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
                 <div className="flex flex-col gap-1">
                   <Label htmlFor="registered_business_name" className="text-xs">
-                    Registered Business Name
+                    Registered Business Name<Req />
                   </Label>
                   <Input
                     id="registered_business_name"
@@ -285,7 +295,7 @@ export function CompanyInformationCard({
                 </div>
                 <div className="flex flex-col gap-1">
                   <Label htmlFor="mobile_number" className="text-xs">
-                    Mobile Number
+                    Mobile Number<Req />
                   </Label>
                   <Input
                     id="mobile_number"
@@ -297,7 +307,7 @@ export function CompanyInformationCard({
                 </div>
                 <div className="flex flex-col gap-1">
                   <Label htmlFor="key_representative" className="text-xs">
-                    Key Representative
+                    Key Representative<Req />
                   </Label>
                   <Input
                     id="key_representative"
@@ -322,7 +332,7 @@ export function CompanyInformationCard({
                 {banking.has_vat && (
                   <div className="flex flex-col gap-1">
                     <Label htmlFor="vat_number" className="text-xs">
-                      VAT #
+                      VAT #<Req />
                     </Label>
                     <Input
                       id="vat_number"
@@ -335,7 +345,10 @@ export function CompanyInformationCard({
                 )}
                 {COMPANY_TEXT_FIELDS.map((f) => (
                   <div key={String(f.key)} className="flex flex-col gap-1">
-                    <Label className="text-xs">{f.label}</Label>
+                    <Label className="text-xs">
+                      {f.label}
+                      {f.required && <Req />}
+                    </Label>
                     <Input
                       value={str(companyProfile[f.key])}
                       placeholder={f.placeholder}
@@ -405,7 +418,7 @@ export function CompanyInformationCard({
             {/* ── RU location register ── */}
             <div className="space-y-1.5 rounded-md border border-border bg-muted/30 p-2.5">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                Rentals United location
+                Rentals United location<Req />
               </p>
               <RuLocationPicker
                 value={ruLocationId}
@@ -430,7 +443,10 @@ export function CompanyInformationCard({
               <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
                 {REP_FIELDS.map((f) => (
                   <div key={f.key} className="flex flex-col gap-1">
-                    <Label className="text-xs">{f.label}</Label>
+                    <Label className="text-xs">
+                      {f.label}
+                      {f.required && <Req />}
+                    </Label>
                     <Input
                       value={str(rep[f.key])}
                       placeholder={f.placeholder}
@@ -442,7 +458,10 @@ export function CompanyInformationCard({
               </div>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 <div className="flex flex-col gap-1">
-                  <Label className="text-xs">Nationality (RU location)</Label>
+                  <Label className="text-xs">
+                    Nationality (RU location)
+                    <Req />
+                  </Label>
                   <RuLocationPicker
                     value={Number(rep.nationality_id) || null}
                     onChange={(id) => setRepField("nationality_id", id)}
@@ -452,7 +471,10 @@ export function CompanyInformationCard({
                   />
                 </div>
                 <div className="flex flex-col gap-1">
-                  <Label className="text-xs">Country of residence (RU location)</Label>
+                  <Label className="text-xs">
+                    Country of residence (RU location)
+                    <Req />
+                  </Label>
                   <RuLocationPicker
                     value={Number(rep.country_of_residence_id) || null}
                     onChange={(id) => setRepField("country_of_residence_id", id)}
