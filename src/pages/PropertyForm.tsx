@@ -7828,6 +7828,7 @@ export default function PropertyForm({
               isDev={isDev ?? false}
               isFearlessLeader={isFearlessLeader ?? false}
               setIsDirty={setIsDirty}
+              onOpenSpecials={() => setActiveTab("specials")}
             />
           </TabsContent>
 
