@@ -397,6 +397,35 @@ export function CompanyInformationCard({
     };
   }, [propertyCountry, onCompanyProfileChange]);
 
+  /**
+   * Pre-fill the RU account contact person from the contract fields already on
+   * this card (Key Representative / Mobile Number) and the legal rep's region
+   * from the company region. Blank targets only — never overwrites an entry.
+   */
+  useEffect(() => {
+    const current = profileRef.current;
+    const patch: Record<string, unknown> = {};
+    const nameParts = keyRepresentative.trim().split(/\s+/).filter(Boolean);
+    if (nameParts.length > 0 && !str(current.contact_first_name).trim()) {
+      patch.contact_first_name = nameParts[0];
+    }
+    if (nameParts.length > 1 && !str(current.contact_last_name).trim()) {
+      patch.contact_last_name = nameParts.slice(1).join(" ");
+    }
+    if (mobileNumber.trim() && !str(current.contact_phone).trim()) {
+      patch.contact_phone = mobileNumber.trim();
+    }
+    const currentRep = (current.legal_rep ?? {}) as Record<string, string | number | undefined>;
+    const region = str(current.region).trim();
+    if (region && !str(currentRep.region).trim()) {
+      patch.legal_rep = { ...currentRep, region };
+    }
+    if (Object.keys(patch).length === 0) return;
+    onCompanyProfileChange({ ...current, ...patch } as RuCompanyProfile);
+  }, [keyRepresentative, mobileNumber, companyProfile.region, onCompanyProfileChange]);
+
+
+
 
   /**
    * Placeholder values RU permanently stored on profiles pushed before the
