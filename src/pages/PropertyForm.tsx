@@ -5342,6 +5342,37 @@ export default function PropertyForm({
                       swift_code: formData.swift_code,
                     }}
                     onBankingChange={(key, value) => handleInputChange(key, value as never)}
+                    headerAction={
+                      <PortfolioIdentityCopy
+                        propertyId={propertyId}
+                        isDirty={isDirty}
+                        payload={{
+                          registered_business_name: registeredBusinessName || null,
+                          registration_number: formData.property_registration || null,
+                          vat_number: formData.has_vat ? formData.vat_number : null,
+                          has_vat: formData.has_vat,
+                          mobile_number: mobileNumber || null,
+                          postal_address: postalAddress || null,
+                          key_representative: keyRepresentative || formData.owner_name || null,
+                          ru_company_profile:
+                            Object.keys(ruCompanyProfile).length > 0
+                              ? (ruCompanyProfile as Record<string, unknown>)
+                              : null,
+                          banking: {
+                            has_vat: formData.has_vat,
+                            vat_number: formData.has_vat ? formData.vat_number : null,
+                            property_registration: formData.property_registration,
+                            bank_name: formData.bank_name,
+                            branch_code: formData.branch_code,
+                            account_holder: formData.account_holder,
+                            account_number: formData.account_number,
+                            account_type: formData.account_type,
+                            swift_code: formData.swift_code,
+                          },
+                          ru_location_id: ruLocationId,
+                        }}
+                      />
+                    }
                   />
                 )}
 
