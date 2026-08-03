@@ -2331,6 +2331,82 @@ Deno.serve(async (req) => {
         return null;
       };
 
+      /**
+       * ── Rate-limit pacing ─────────────────────────────────────────────────────────
+       * Rentals United throttles per method at roughly 1 call per sliding minute
+       * (Pull_ListReservations_RQ is the strictest). A suite fires many calls, so we:
+       *   1. keep a small gap between any two RU calls,
+       *   2. wait out the remaining sliding-minute window before repeating the SAME method,
+       *   3. on an actual rate-limit response, sleep the window and retry once.
+       * Waiting is capped by a budget so a suite cannot exceed the function timeout;
+       * when the budget is spent, the step is recorded as an informational skip.
+       */
+      const METHOD_WINDOW_MS = RUN_COOLDOWN_SECONDS * 1000;
+      const MIN_GAP_MS = 1200;
+      const WAIT_BUDGET_MS = 150_000;
+      let waitSpentMs = 0;
+      let lastCallAt = 0;
+      const lastMethodCallAt = new Map<string, number>();
+      const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+      /** Sleeps up to `ms`, respecting the shared budget. Returns true when fully waited. */
+      const budgetedWait = async (ms: number): Promise<boolean> => {
+        if (ms <= 0) return true;
+        const allowed = Math.min(ms, Math.max(0, WAIT_BUDGET_MS - waitSpentMs));
+        if (allowed > 0) {
+          waitSpentMs += allowed;
+          await sleep(allowed);
+        }
+        return allowed >= ms;
+      };
+
+      /** Invokes rentalsunited-api with pacing + one rate-limit retry. */
+      const ruInvoke = async (
+        ruAction: string,
+        payload: Record<string, unknown>,
+      ): Promise<{ data: any; error: any; paced_skip?: string }> => {
+        const method = RU_METHOD_BY_ACTION[ruAction] ?? ruAction;
+        const now = Date.now();
+        await budgetedWait(lastCallAt ? lastCallAt + MIN_GAP_MS - now : 0);
+        const prevSameMethod = lastMethodCallAt.get(method);
+        if (prevSameMethod) {
+          const remaining = prevSameMethod + METHOD_WINDOW_MS - Date.now();
+          const fullyWaited = await budgetedWait(remaining);
+          if (!fullyWaited) {
+            return {
+              data: null,
+              error: null,
+              paced_skip:
+                `Skipped to respect the Rentals United rate limit (1 call per sliding minute for ${method}) — ` +
+                `the run's wait budget was already spent. Re-run this suite to cover this step.`,
+            };
+          }
+        }
+        const fire = async () => {
+          lastCallAt = Date.now();
+          lastMethodCallAt.set(method, lastCallAt);
+          return await admin.functions.invoke("rentalsunited-api", { body: { action: ruAction, ...payload } });
+        };
+        let res = await fire();
+        const detail = String(res.error?.message ?? res.data?.error?.message ?? "");
+        const rateLimited = /rate limit|too many requests|\b429\b/i.test(detail);
+        if (rateLimited) {
+          const fullyWaited = await budgetedWait(METHOD_WINDOW_MS);
+          if (!fullyWaited) {
+            return {
+              data: res.data,
+              error: res.error,
+              paced_skip:
+                "Rentals United rate limit hit and the run's wait budget was spent — re-run this suite to cover this step.",
+            };
+          }
+          res = await fire();
+        }
+        return { data: res.data, error: res.error };
+      };
+
+
+
       const call = async (
         name: string,
         ruAction: string,
@@ -2349,10 +2425,13 @@ Deno.serve(async (req) => {
         }
         const t0 = Date.now();
         try {
-          const { data, error } = await admin.functions.invoke("rentalsunited-api", {
-            body: { action: ruAction, ...payload },
-          });
+          const { data, error, paced_skip } = await ruInvoke(ruAction, payload);
           const duration = Date.now() - t0;
+          if (paced_skip) {
+            steps.push({ step: stepNo, name, ru_method, mandatory: !!opts.mandatory, scope, status: "skipped", duration_ms: duration, detail: paced_skip, request: payload });
+            return null;
+          }
+
           if (error) {
             const soft = softSkipReason(error.message ?? "");
             steps.push({ step: stepNo, name, ru_method, mandatory: !!opts.mandatory, scope, status: soft ? "skipped" : "failed", duration_ms: duration, detail: soft ?? error.message, request: payload });
@@ -2451,19 +2530,27 @@ Deno.serve(async (req) => {
         const t0 = Date.now();
         const from = isoDate(0);
         const to = isoDate(365);
-        const results = await Promise.all(unitRuIds.map(async (ruId) => {
-          const { data, error } = await admin.functions.invoke("rentalsunited-api", {
-            body: { action: ruAction, ru_property_id: ruId, date_from: from, date_to: to },
+        // Sequential (never parallel): the same RU method for several units would otherwise
+        // trip the sliding-minute limit. ruInvoke paces and retries each unit call.
+        const results: { ruId: number; ok: boolean; count: number; detail: string | null; xml: string }[] = [];
+        for (const ruId of unitRuIds) {
+          const { data, error, paced_skip } = await ruInvoke(ruAction, {
+            ru_property_id: ruId,
+            date_from: from,
+            date_to: to,
           });
           const xml = String(data?.raw_xml ?? "");
           const count = ruAction === "get_availability"
             ? (xml.match(/>\s*[1-9]\d*\s*</g) ?? []).length
             : parseRuPricePoints(xml).filter((p) => p > 0).length;
-          const detail = error?.message ?? data?.error?.message ?? null;
-          return { ruId, ok: !error && data?.success === true && count > 0, count, detail, xml };
-        }));
+          const detail = paced_skip ?? error?.message ?? data?.error?.message ?? null;
+          results.push({ ruId, ok: !paced_skip && !error && data?.success === true && count > 0, count, detail, xml });
+        }
         const failed = results.filter((r) => !r.ok);
-        const soft = failed.map((r) => softSkipReason(String(r.detail ?? ""))).find(Boolean) ?? null;
+        const soft = failed
+          .map((r) => (/(rate limit|wait budget)/i.test(String(r.detail ?? "")) ? String(r.detail) : softSkipReason(String(r.detail ?? ""))))
+          .find(Boolean) ?? null;
+
         const unitLabel = ruAction === "get_availability" ? "open day(s)" : "price point(s)";
         steps.push({
           step: stepNo,
