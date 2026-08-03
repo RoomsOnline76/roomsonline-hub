@@ -810,6 +810,12 @@ export default function AdminContracts() {
     setShowUnarchivePrompt(false);
     setPropertyDropdownOpen(false);
     setSelectedContractType("standard");
+    setSendScope("single");
+    setMultiPropertySearch("");
+    setMultiPropertySelections({});
+    setSelectedPortfolioId("");
+    setPortfolioProperties([]);
+
   };
 
   const searchProperties = async (query: string) => {
