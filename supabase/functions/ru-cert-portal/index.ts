@@ -2721,8 +2721,10 @@ Deno.serve(async (req) => {
 
       const passed = steps.filter((s) => s.status === "passed").length;
       const failed = steps.filter((s) => s.status === "failed").length;
+      // Skipped steps (methods RU has not enabled, rate-limit deferrals, N/A scope) are
+      // informational and excluded from the success counter denominator.
+      const graded = passed + failed;
 
-      const { data: finished } = await admin
         .from("ru_cert_runs")
         .update({
           status: failed === 0 ? "passed" : "failed",
