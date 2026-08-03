@@ -482,7 +482,7 @@ function buildValidation(payload: Record<string, any>): Record<string, unknown> 
 
   // Beds: RU requires beds to cover at least 50% of CanSleepMax.
   const totalBeds = rooms.reduce((sum, r) =>
-    sum + (r.amenities || []).filter((a: any) => a.id >= 97 && a.id <= 101)
+    sum + (r.amenities || []).filter((a: any) => RU_BED_AMENITY_IDS.includes(Number(a.id)))
       .reduce((s: number, a: any) => s + (a.count || 1), 0), 0);
 
   const roomsWithAmenities = rooms.filter(r => (r.room_id || 0) > 0 && (r.amenities || []).length > 0).length;
