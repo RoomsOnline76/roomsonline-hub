@@ -16,7 +16,15 @@ import { Coins, RefreshCw, Wrench, Loader2 } from "lucide-react";
  * reconciliation (flip the RU location to ZAR, re-push) with an optional dry run.
  */
 
-type PropertyRow = { id: string; name: string; country: string | null };
+type PropertyRow = {
+  id: string;
+  name: string;
+  country: string | null;
+  /** RU listing shape: single listing, or a building with per-unit RU IDs. */
+  ru_property_id: string | null;
+  ru_building_id: string | null;
+  ru_unit_count: number;
+};
 
 type CurrencyStateRow = {
   property_id: string;
@@ -46,13 +54,18 @@ export function RuCurrencyPanel() {
   const [busy, setBusy] = useState<"refresh" | "dry" | "apply" | null>(null);
 
   const load = useCallback(async () => {
-    const [{ data: props }, { data: stateRows }, { count }, { data: newest }, { count: zarCount }, { data: fxRow }] =
+    const [{ data: props }, { data: unitRows }, { data: stateRows }, { count }, { data: newest }, { count: zarCount }, { data: fxRow }] =
       await Promise.all([
+        // A property counts as RU-connected when it has its own RU property ID, a building
+        // ID (multi-unit parent), or at least one unit carrying an RU property ID.
         supabase
           .from("properties")
-          .select("id, name, country")
-          .not("rentalsunited_property_id", "is", null)
+          .select("id, name, country, rentalsunited_property_id, rentalsunited_building_id")
           .order("name"),
+        supabase
+          .from("hostfully_room_types")
+          .select("property_id, rentalsunited_property_id")
+          .not("rentalsunited_property_id", "is", null),
         supabase.from("ru_currency_state").select("*"),
         supabase.from("ru_locations").select("id", { count: "exact", head: true }),
         supabase.from("ru_locations").select("last_synced_at").order("last_synced_at", { ascending: false }).limit(1).maybeSingle(),
@@ -67,7 +80,23 @@ export function RuCurrencyPanel() {
           .maybeSingle(),
       ]);
 
-    setProperties((props as PropertyRow[]) ?? []);
+    const unitCounts = new Map<string, number>();
+    ((unitRows as { property_id: string }[]) ?? []).forEach((u) => {
+      unitCounts.set(u.property_id, (unitCounts.get(u.property_id) ?? 0) + 1);
+    });
+    const connected: PropertyRow[] = (
+      (props as { id: string; name: string; country: string | null; rentalsunited_property_id: string | null; rentalsunited_building_id: string | null }[]) ?? []
+    )
+      .map((p) => ({
+        id: p.id,
+        name: p.name,
+        country: p.country,
+        ru_property_id: p.rentalsunited_property_id,
+        ru_building_id: p.rentalsunited_building_id,
+        ru_unit_count: unitCounts.get(p.id) ?? 0,
+      }))
+      .filter((p) => !!p.ru_property_id || !!p.ru_building_id || p.ru_unit_count > 0);
+    setProperties(connected);
     const map: Record<string, CurrencyStateRow> = {};
     ((stateRows as CurrencyStateRow[]) ?? []).forEach((r) => {
       map[r.property_id] = r;
@@ -228,6 +257,17 @@ export function RuCurrencyPanel() {
                       <td className="px-3 py-2">
                         <span className="font-medium">{p.name}</span>
                         <span className="ml-2 text-muted-foreground">{p.country || "—"}</span>
+                        {p.ru_unit_count > 0 && (
+                          <Badge variant="outline" className="ml-2 text-[10px]">
+                            {p.ru_building_id ? `Building ${p.ru_building_id} · ` : ""}
+                            {p.ru_unit_count} unit{p.ru_unit_count === 1 ? "" : "s"}
+                          </Badge>
+                        )}
+                        {p.ru_unit_count === 0 && p.ru_property_id && (
+                          <Badge variant="outline" className="ml-2 text-[10px] font-mono">
+                            RU {p.ru_property_id}
+                          </Badge>
+                        )}
                       </td>
                       <td className="px-3 py-2 font-mono">{st?.ru_location_id ?? "—"}</td>
                       <td className="px-3 py-2">{st?.location_currency_iso ?? "unknown"}</td>
@@ -253,7 +293,8 @@ export function RuCurrencyPanel() {
                 {properties.length === 0 && (
                   <tr>
                     <td colSpan={7} className="px-3 py-6 text-center text-muted-foreground">
-                      No Rentals United connected properties yet.
+                      No property is connected to Rentals United yet — push a property from Setup Property →
+                      Integrations, and it will appear here with its currency decision.
                     </td>
                   </tr>
                 )}
