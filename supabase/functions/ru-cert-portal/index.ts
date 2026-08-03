@@ -2988,7 +2988,7 @@ Deno.serve(async (req) => {
         });
       };
 
-      };
+
 
       if (runReadOnly) {
         await call("Credentials & connectivity", "health_check", {}, { mandatory: true, scope: "account" });
