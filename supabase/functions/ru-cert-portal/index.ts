@@ -2419,6 +2419,70 @@ Deno.serve(async (req) => {
 
       const PROPERTY_SKIP = "Property-scoped check — select a ROLOS property to run it.";
 
+      // Every RU property ID mapped to this ROLOS property. Multi-unit properties push one RU
+      // property per unit, so ARI read-backs must probe each unit — reading only the parent
+      // RUID returns an empty calendar and looked like a failure.
+      let unitRuIds: number[] = [];
+      if (propertyId) {
+        const { data: unitRows } = await admin
+          .from("hostfully_room_types")
+          .select("rentalsunited_property_id")
+          .eq("property_id", propertyId)
+          .not("rentalsunited_property_id", "is", null);
+        unitRuIds = (unitRows ?? [])
+          .map((u: { rentalsunited_property_id: string | null }) => Number(u.rentalsunited_property_id))
+          .filter((n: number) => Number.isFinite(n) && n > 0);
+        if (unitRuIds.length === 0 && ruPropertyId) unitRuIds = [ruPropertyId];
+      }
+
+      /** Availability / price read-back across every mapped RU unit. */
+      const probeAri = async (name: string, ruAction: "get_availability" | "get_prices") => {
+        if (!propertyId) return;
+        const ru_method = RU_METHOD_BY_ACTION[ruAction] ?? ruAction;
+        stepNo += 1;
+        if (unitRuIds.length === 0) {
+          steps.push({
+            step: stepNo, name, ru_method, mandatory: true, scope: "property",
+            status: "skipped", duration_ms: 0,
+            detail: "No RU property id resolved — push this property to Rentals United first.",
+          });
+          return;
+        }
+        const t0 = Date.now();
+        const from = isoDate(0);
+        const to = isoDate(365);
+        const results = await Promise.all(unitRuIds.map(async (ruId) => {
+          const { data, error } = await admin.functions.invoke("rentalsunited-api", {
+            body: { action: ruAction, ru_property_id: ruId, date_from: from, date_to: to },
+          });
+          const xml = String(data?.raw_xml ?? "");
+          const count = ruAction === "get_availability"
+            ? (xml.match(/>\s*[1-9]\d*\s*</g) ?? []).length
+            : parseRuPricePoints(xml).filter((p) => p > 0).length;
+          const detail = error?.message ?? data?.error?.message ?? null;
+          return { ruId, ok: !error && data?.success === true && count > 0, count, detail, xml };
+        }));
+        const failed = results.filter((r) => !r.ok);
+        const soft = failed.map((r) => softSkipReason(String(r.detail ?? ""))).find(Boolean) ?? null;
+        const unitLabel = ruAction === "get_availability" ? "open day(s)" : "price point(s)";
+        steps.push({
+          step: stepNo,
+          name,
+          ru_method,
+          mandatory: true,
+          scope: "property",
+          status: failed.length === 0 ? "passed" : soft ? "skipped" : "failed",
+          duration_ms: Date.now() - t0,
+          detail: failed.length === 0
+            ? `${results.map((r) => `${r.ruId}: ${r.count} ${unitLabel}`).join(", ")}`
+            : soft ?? `RU unit(s) ${failed.map((r) => r.ruId).join(", ")} returned no ${unitLabel} for the next 365 days${
+              failed[0]?.detail ? ` — ${failed[0].detail}` : ""
+            }`,
+          request: { ru_property_ids: unitRuIds, date_from: from, date_to: to },
+          response_preview: preview(results[0]?.xml ?? null),
+        });
+      };
+
       if (runReadOnly) {
         await call("Credentials & connectivity", "health_check", {}, { mandatory: true, scope: "account" });
         await call("List properties", "list_properties", {}, { mandatory: true, scope: "account" });
@@ -2428,28 +2492,8 @@ Deno.serve(async (req) => {
         const propScoped = ruPropertyId ? undefined : PROPERTY_SKIP;
 
         await call("Get property content", "get_property", { ru_property_id: ruPropertyId }, { mandatory: true, scope: "property", skip: propScoped });
-        await call(
-          "Get availability (365 days)",
-          "get_availability",
-          { ru_property_id: ruPropertyId, date_from: isoDate(0), date_to: isoDate(365) },
-          {
-            mandatory: true,
-            scope: "property",
-            skip: propScoped,
-            assert: (d) => (/<CalendarDay/i.test(String(d?.raw_xml ?? "")) ? null : "No calendar days returned for the next 365 days"),
-          },
-        );
-        await call(
-          "Get prices (365 days)",
-          "get_prices",
-          { ru_property_id: ruPropertyId, date_from: isoDate(0), date_to: isoDate(365) },
-          {
-            mandatory: true,
-            scope: "property",
-            skip: propScoped,
-            assert: (d) => (/<Season/i.test(String(d?.raw_xml ?? "")) ? null : "No price seasons returned for the next 365 days"),
-          },
-        );
+        await probeAri("Get availability (365 days)", "get_availability");
+        await probeAri("Get prices (365 days)", "get_prices");
         await call("List reservations (last 7 days)", "list_reservations", { date_from: isoDate(-7), date_to: isoDate(0) }, { mandatory: true, scope: "account" });
         await call("Get leads (optional)", "get_leads", { date_from: isoDate(-7), date_to: isoDate(0) }, { mandatory: false, scope: "account" });
         await call(
