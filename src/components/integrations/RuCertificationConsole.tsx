@@ -147,7 +147,11 @@ const TEST_SUBUSER = {
   owner_id: 741776,
   first_name: "Test",
   last_name: "Owner",
+  /** Sub-user API keys (RU dashboard → Security settings). Paste before running. */
+  access_key: "",
+  secret_key: "",
 } as const;
+
 
 /** User-management endpoints for the side-by-side playground */
 const USER_ENDPOINTS = [
