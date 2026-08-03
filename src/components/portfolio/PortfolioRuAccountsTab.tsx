@@ -212,9 +212,13 @@ export function PortfolioRuAccountsTab() {
           },
         });
         if (error || !data?.success) {
-          toast.error(data?.error?.message || error?.message || "Could not bind the RU account");
+          toast.error(
+            data?.error?.message ||
+              (error ? await extractFunctionError(error, "Could not bind the RU account") : "Could not bind the RU account"),
+          );
           return;
         }
+
         toast.success(`Bound to OwnerID ${ruOwnerId}`);
         setBindFor(null);
         await refreshAccounts();
