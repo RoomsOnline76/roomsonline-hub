@@ -85,11 +85,20 @@ interface Props {
 /** RU nationality/country fields are LocationIDs with LocationTypeID = 2. */
 const RU_COUNTRY_TYPE_FILTER = [2];
 
-const COMPANY_TEXT_FIELDS: { key: keyof RuCompanyProfile; label: string; placeholder?: string }[] = [
+/** Pink asterisk marking a field that is mandatory for the Rentals United push. */
+function Req() {
+  return (
+    <span aria-hidden className="ml-0.5 font-semibold text-primary">
+      *
+    </span>
+  );
+}
+
+const COMPANY_TEXT_FIELDS: { key: keyof RuCompanyProfile; label: string; placeholder?: string; required?: boolean }[] = [
   { key: "merchant_name", label: "Merchant name", placeholder: "As it appears on card statements" },
   { key: "manager_identification_number", label: "Manager ID number" },
-  { key: "time_zone", label: "Time zone", placeholder: "UTC+02:00" },
-  { key: "region", label: "Region / province" },
+  { key: "time_zone", label: "Time zone", placeholder: "UTC+02:00", required: true },
+  { key: "region", label: "Region / province", required: true },
 ];
 
 const COMPANY_NUMBER_FIELDS: { key: keyof RuCompanyProfile; label: string }[] = [
@@ -98,15 +107,16 @@ const COMPANY_NUMBER_FIELDS: { key: keyof RuCompanyProfile; label: string }[] = 
   { key: "years_in_business", label: "Years in business" },
 ];
 
-const REP_FIELDS: { key: string; label: string; placeholder?: string }[] = [
-  { key: "first_name", label: "First name" },
-  { key: "last_name", label: "Last name" },
-  { key: "email", label: "Email" },
+const REP_FIELDS: { key: string; label: string; placeholder?: string; required?: boolean }[] = [
+  { key: "first_name", label: "First name", required: true },
+  { key: "last_name", label: "Last name", required: true },
+  { key: "email", label: "Email", required: true },
   { key: "city", label: "City" },
   { key: "address", label: "Address" },
   { key: "post_code", label: "Postal code" },
   { key: "birthday", label: "Date of birth", placeholder: "YYYY-MM-DD" },
 ];
+
 
 const BANKING_FIELDS: { key: keyof CompanyBankingFields; label: string; placeholder: string; mono?: boolean }[] = [
   { key: "bank_name", label: "Bank", placeholder: "Bank name" },
