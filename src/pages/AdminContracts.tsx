@@ -57,6 +57,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { ContractOverrideModal } from "@/components/contract/ContractOverrideModal";
+import { ContractBillingSummary } from "@/components/contract/ContractBillingSummary";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
