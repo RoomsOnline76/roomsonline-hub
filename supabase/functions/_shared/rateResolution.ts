@@ -68,6 +68,9 @@ export interface RateResolver {
   unitDailyRates: Record<string, number>;
   /** stop-sell dates per linked_rolos_id */
   closedDates: Record<string, Set<string>>;
+  /** Active units of the property, as loaded from hostfully_room_types. */
+  units: UnitRateContext[];
+
   resolveDays: (unit: UnitRateContext, from: string, to: string) => DayRate[];
   coverage: (days: DayRate[]) => RateCoverage;
 }
