@@ -699,12 +699,11 @@ export default function AdminContracts() {
         if (linkErr) throw linkErr;
       }
 
-      // Determine which template to use based on contract type
-      const templateId = selectedContractType === "rolos" 
+      // Determine which template to use based on contract type (referral handled separately)
+      const templateId = selectedContractType === "rolos"
         ? "b2c3d4e5-f6a7-4890-bcde-f12345678901"
-        : selectedContractType === "referral"
-        ? "c3d4e5f6-a7b8-4901-cdef-234567890123"
         : "f47ac10b-58cc-4372-a567-0e02b2c3d479";
+
       
       const { error } = await supabase.functions.invoke("send-owner-contract", {
         body: { 
