@@ -56,7 +56,9 @@ Deno.serve(async (req) => {
       commercial_model,
       property_id, // Optional: if sending contract for specific property created via preflight
       template_id, // Optional: specific template to use
-      contract_type, // Optional: 'standard' or 'rolos'
+      contract_type, // Optional: 'standard' | 'rolos' | 'referral'
+      rep_id, // Referral only: the sales rep being engaged
+      terms_snapshot, // Referral only: engagement terms captured at send time
     } = await req.json();
 
     if (!owner_email) {
@@ -68,30 +70,37 @@ Deno.serve(async (req) => {
 
     const normalizedEmail = owner_email.toLowerCase().trim();
 
-    // Check if properties exist for this owner (determines if new owner)
-    const { data: properties, error: propError } = await supabase
-      .from("properties")
-      .select("id, name, slug, address, city, country, property_type, amenities, listing_intent, commercial_model")
-      .eq("owner_email", normalizedEmail)
-      .is("permanently_deleted_at", null)
-      .order("name");
+    // A referral agreement is a once-off engagement with a sales rep.
+    // It is never linked to properties and never renewed per onboarding.
+    const isReferral = contract_type === "referral";
 
-    if (propError) {
-      console.error("Error fetching properties:", propError);
-      return new Response(JSON.stringify({ error: "Failed to fetch properties" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    let properties: any[] | null = null;
+    if (!isReferral) {
+      const { data: props, error: propError } = await supabase
+        .from("properties")
+        .select("id, name, slug, address, city, country, property_type, amenities, listing_intent, commercial_model")
+        .eq("owner_email", normalizedEmail)
+        .is("permanently_deleted_at", null)
+        .order("name");
+
+      if (propError) {
+        console.error("Error fetching properties:", propError);
+        return new Response(JSON.stringify({ error: "Failed to fetch properties" }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      properties = props;
     }
 
-    const isNewOwner = !properties || properties.length === 0;
+    const isNewOwner = !isReferral && (!properties || properties.length === 0);
     
     // Determine listing intent - from request, property, or default
     let resolvedIntent = listing_intent || 'accommodation';
     let resolvedCommercialModel = commercial_model || 'commission';
     
     // If property_id is provided, get intent from that property
-    if (property_id) {
+    if (property_id && !isReferral) {
       const property = properties?.find(p => p.id === property_id);
       if (property) {
         resolvedIntent = property.listing_intent || resolvedIntent;
@@ -100,7 +109,7 @@ Deno.serve(async (req) => {
     }
     
     // If updating property status when sending contract
-    if (property_id) {
+    if (property_id && !isReferral) {
       const { error: statusError } = await supabase
         .from("properties")
         .update({ listing_status: 'contract_sent' })
@@ -110,6 +119,7 @@ Deno.serve(async (req) => {
         console.error("Error updating property status:", statusError);
       }
     }
+
 
     // Check if user exists and create if needed
     let userId: string | null = null;
