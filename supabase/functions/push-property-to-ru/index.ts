@@ -200,6 +200,8 @@ interface RuImage {
   is_main: boolean;
   width?: number | null;
   height?: number | null;
+  /** Set once the URL has been fetched and accepted by the RU image probe. */
+  verified?: boolean;
 }
 
 function toDimension(value: unknown): number | null {
@@ -235,6 +237,133 @@ function mapImages(images: unknown[] | null): RuImage[] {
 }
 
 /**
+ * Probe an image URL the way Rentals United does: RU fetches every URL during
+ * validation and flags the photo ("Image N may be invalid") when it is unreachable,
+ * not an image, or below its minimum pixel size. Signed / expiring URLs and private
+ * bucket paths fail on RU's side even though they render inside ROLOS.
+ */
+interface RuImageProbe {
+  url: string;
+  ok: boolean;
+  reason?: string;
+  width?: number | null;
+  height?: number | null;
+}
+
+function readPixelDimensions(bytes: Uint8Array): { width: number; height: number } | null {
+  const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  // PNG
+  if (bytes.length > 24 && bytes[0] === 0x89 && bytes[1] === 0x50) {
+    return { width: dv.getUint32(16), height: dv.getUint32(20) };
+  }
+  // GIF
+  if (bytes.length > 10 && bytes[0] === 0x47 && bytes[1] === 0x49) {
+    return { width: dv.getUint16(6, true), height: dv.getUint16(8, true) };
+  }
+  // WebP (VP8X / VP8 lossy simple form)
+  if (bytes.length > 30 && String.fromCharCode(...bytes.slice(8, 12)) === 'WEBP') {
+    const chunk = String.fromCharCode(...bytes.slice(12, 16));
+    if (chunk === 'VP8X') return { width: 1 + (bytes[24] | (bytes[25] << 8) | (bytes[26] << 16)), height: 1 + (bytes[27] | (bytes[28] << 8) | (bytes[29] << 16)) };
+  }
+  // JPEG: walk the segment markers for SOF0/SOF2
+  if (bytes.length > 4 && bytes[0] === 0xff && bytes[1] === 0xd8) {
+    let offset = 2;
+    while (offset + 9 < bytes.length) {
+      if (bytes[offset] !== 0xff) { offset += 1; continue; }
+      const marker = bytes[offset + 1];
+      const length = dv.getUint16(offset + 2);
+      if (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc) {
+        return { height: dv.getUint16(offset + 5), width: dv.getUint16(offset + 7) };
+      }
+      offset += 2 + length;
+    }
+  }
+  return null;
+}
+
+async function probeRuImage(url: string): Promise<RuImageProbe> {
+  if (!/^https:\/\//i.test(url)) {
+    return { url, ok: false, reason: 'URL is not https — Rentals United only fetches secure URLs' };
+  }
+  if (/[?&](token|X-Amz-|Signature|Expires)/i.test(url)) {
+    return { url, ok: false, reason: 'URL carries an expiring access token — Rentals United needs a permanently public URL' };
+  }
+  try {
+    const res = await fetch(url, { headers: { Range: 'bytes=0-65535' } });
+    if (!res.ok && res.status !== 206) {
+      return { url, ok: false, reason: `URL returned HTTP ${res.status} — Rentals United cannot download it` };
+    }
+    const contentType = res.headers.get('content-type') || '';
+    const buf = new Uint8Array(await res.arrayBuffer());
+    if (contentType && !/^image\//i.test(contentType)) {
+      return { url, ok: false, reason: `URL is not an image (content-type ${contentType})` };
+    }
+    const dims = readPixelDimensions(buf);
+    if (!dims) {
+      // Reachable and served as an image, but the header block we read did not carry
+      // dimensions. Accept it and report that the size could not be measured.
+      return { url, ok: true, width: null, height: null, reason: 'reachable — pixel size could not be measured' };
+    }
+    if (dims.width < RU_MIN_IMAGE_WIDTH || dims.height < RU_MIN_IMAGE_HEIGHT) {
+      return { url, ok: false, width: dims.width, height: dims.height, reason: `${dims.width}x${dims.height}px is below Rentals United's ${RU_MIN_IMAGE_WIDTH}x${RU_MIN_IMAGE_HEIGHT}px minimum` };
+    }
+    return { url, ok: true, width: dims.width, height: dims.height };
+  } catch (e) {
+    return { url, ok: false, reason: `URL could not be fetched (${e instanceof Error ? e.message : String(e)})` };
+  }
+}
+
+const imageProbeCache = new Map<string, RuImageProbe>();
+
+/**
+ * Verify every image on a built payload, drop the ones Rentals United would reject,
+ * and stamp measured dimensions so the readiness scorecard reports real pixel sizes.
+ * Returns the rejected images with a plain-language reason each.
+ */
+async function applyImageVerification(
+  payload: Record<string, any>,
+): Promise<{ url: string; reason: string }[]> {
+  const images: RuImage[] = Array.isArray(payload.images) ? payload.images : [];
+  if (images.length === 0) return [];
+
+  const probes: RuImageProbe[] = [];
+  const CONCURRENCY = 6;
+  for (let i = 0; i < images.length; i += CONCURRENCY) {
+    const slice = images.slice(i, i + CONCURRENCY);
+    const results = await Promise.all(
+      slice.map(async (img) => {
+        const cached = imageProbeCache.get(img.url);
+        if (cached) return cached;
+        const probe = await probeRuImage(img.url);
+        imageProbeCache.set(img.url, probe);
+        return probe;
+      }),
+    );
+    probes.push(...results);
+  }
+
+  const rejected: { url: string; reason: string }[] = [];
+  const accepted: RuImage[] = [];
+  images.forEach((img, i) => {
+    const probe = probes[i];
+    if (!probe?.ok) {
+      rejected.push({ url: img.url, reason: probe?.reason || 'image could not be verified' });
+      return;
+    }
+    accepted.push({
+      ...img,
+      width: probe.width ?? img.width ?? null,
+      height: probe.height ?? img.height ?? null,
+      verified: true,
+    } as RuImage);
+  });
+
+  payload.images = accepted.map((img, index) => ({ ...img, is_main: index === 0, type_id: index === 0 ? 1 : 3 }));
+  payload.image_issues = rejected;
+  return rejected;
+}
+
+/**
  * RU White-Label minimum inventory validation for a built payload.
  * Shared by every dry-run branch and by the live-push readiness gate so the
  * admin console, the ROLOS scorecard and the API all score identically.
@@ -250,9 +379,15 @@ function buildValidation(payload: Record<string, any>): Record<string, unknown> 
   let sized = 0;
   let unverified = 0;
   for (const img of images) {
-    if (img.width == null || img.height == null) { unverified += 1; sized += 1; continue; }
+    if (img.width == null || img.height == null) {
+      unverified += 1;
+      // Only a probed-and-reachable image may pass without measurable dimensions.
+      if (img.verified) sized += 1;
+      continue;
+    }
     if (img.width >= RU_MIN_IMAGE_WIDTH && img.height >= RU_MIN_IMAGE_HEIGHT) sized += 1;
   }
+  const imageIssues: { url: string; reason: string }[] = (payload.image_issues || []) as { url: string; reason: string }[];
 
   // Beds: RU requires beds to cover at least 50% of CanSleepMax.
   const totalBeds = rooms.reduce((sum, r) =>
@@ -263,6 +398,9 @@ function buildValidation(payload: Record<string, any>): Record<string, unknown> 
 
   return {
     images_count: images.length,
+    images_rejected_count: imageIssues.length,
+    image_issues: imageIssues,
+    unmapped_bed_labels: payload.unmapped_bed_labels ?? [],
     images_meeting_size: sized,
     images_size_unverified: unverified,
     images_meet_size: images.length > 0 && sized === images.length,
