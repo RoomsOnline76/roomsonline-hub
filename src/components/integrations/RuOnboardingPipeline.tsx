@@ -93,7 +93,9 @@ export function RuOnboardingPipeline({ propertyId, readOnly = false, standalone 
   const [busy, setBusy] = useState<PhaseKey | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [passwordOpen, setPasswordOpen] = useState(false);
-  const [passwordValue, setPasswordValue] = useState("");
+  const [accessKeyValue, setAccessKeyValue] = useState("");
+  const [secretKeyValue, setSecretKeyValue] = useState("");
+
   const [resetOpen, setResetOpen] = useState(false);
 
   const load = useCallback(async () => {
