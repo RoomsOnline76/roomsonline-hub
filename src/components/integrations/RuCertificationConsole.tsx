@@ -359,6 +359,13 @@ interface MilestoneSummary {
 }
 
 
+/** Human labels for the staged phases of a full certification run. */
+const PHASE_LABELS: Record<string, string> = {
+  read_only: "read-only sweep",
+  mandatory: "mandatory pushes",
+  discounts: "discount ladder",
+};
+
 export function RuCertificationConsole({ properties }: { properties: PropertyLite[] }) {
   const [suite, setSuite] = useState("read_only");
   const { cooldownSeconds, cooling, markRun } = useRuRunCooldown();
