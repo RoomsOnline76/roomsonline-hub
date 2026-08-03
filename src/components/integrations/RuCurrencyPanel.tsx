@@ -163,10 +163,37 @@ export function RuCurrencyPanel() {
     }
   };
 
+  /** Ask RU (as the owning sub-user) what currency it actually holds. No pushes. */
+  const verify = async () => {
+    setBusy("verify");
+    try {
+      const { data, error } = await supabase.functions.invoke("push-property-to-ru", {
+        body: { action: "verify_ru_currency", ...(selected.length ? { property_ids: selected } : {}) },
+      });
+      if (error || !data?.success) throw new Error(error?.message || data?.error?.message || "Verification failed");
+      const results = (data.results ?? []) as Array<{ matches?: boolean }>;
+      const ok = results.filter((r) => r.matches).length;
+      if (ok === results.length) toast.success(`Rentals United confirms the expected currency on ${ok}/${results.length} listings`);
+      else toast.warning(`Rentals United disagrees on ${results.length - ok} of ${results.length} listings — see the RU reports column`);
+      await load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Verification failed");
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const toggle = (id: string) =>
     setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
 
   const converted = properties.filter((p) => states[p.id]?.conversion_in_force);
+  const drifted = properties.filter((p) => {
+    const st = states[p.id];
+    const reported = st?.ru_reported_currency_iso;
+    return !!reported && !!st?.published_currency_iso && reported.toUpperCase() !== st.published_currency_iso.toUpperCase();
+  });
+  const unverified = properties.filter((p) => states[p.id] && !states[p.id].verified_at);
+
 
   return (
     <div className="space-y-4">
