@@ -2410,12 +2410,16 @@ Deno.serve(async (req) => {
         payload: Record<string, unknown>,
       ): Promise<{ data: any; error: any; paced_skip?: string }> => {
         const method = RU_METHOD_BY_ACTION[ruAction] ?? ruAction;
+        if (Date.now() >= RUN_DEADLINE_MS) {
+          return {
+            data: null,
+            error: null,
+            paced_skip:
+              "Skipped — this run reached its time budget before the step could be paced safely. Re-run the suite to cover it.",
+          };
+        }
         const now = Date.now();
-        await budgetedWait(lastCallAt ? lastCallAt + MIN_GAP_MS - now : 0);
-        const prevSameMethod = lastMethodCallAt.get(method);
-        if (prevSameMethod) {
-          const remaining = prevSameMethod + METHOD_WINDOW_MS - Date.now();
-          const fullyWaited = await budgetedWait(remaining);
+
           if (!fullyWaited) {
             return {
               data: null,
