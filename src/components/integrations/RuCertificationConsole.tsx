@@ -370,6 +370,30 @@ export function RuCertificationConsole({ properties }: { properties: PropertyLit
 
   const activeSuite = useMemo(() => SUITES.find((s) => s.value === suite) ?? SUITES[0], [suite]);
 
+  /**
+   * Throwaway sandbox logins that Rentals United will not let us archive. They are never used
+   * for real inventory, so they are always hidden from the sub-user list.
+   */
+  const isHiddenTestLogin = (email?: string) => {
+    const e = (email ?? "").toLowerCase();
+    return e === "test-owner@example.com" || e.startsWith("rolo-apitest");
+  };
+
+  const allSubUsers = userMgmt?.users ?? [];
+  const visibleSubUsers = useMemo(
+    () =>
+      allSubUsers.filter(
+        (u) => !isHiddenTestLogin(u.email) && (showArchivedUsers || !u.archived),
+      ),
+    [allSubUsers, showArchivedUsers],
+  );
+  const archivedCount = useMemo(
+    () => allSubUsers.filter((u) => !isHiddenTestLogin(u.email) && u.archived).length,
+    [allSubUsers],
+  );
+
+
+
   const candidateProperties = useMemo(
     // Certification testing is limited to properties explicitly enabled for RU push.
     () => properties.filter((p) => p.ru_push_enabled === true),
