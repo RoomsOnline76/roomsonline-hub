@@ -1733,6 +1733,16 @@ export default function AdminContracts() {
               </div>
             )}
 
+            {/* Pre-send billing review for every covered property */}
+            {!isReferral && billingReviewPropertyIds.length > 0 && (
+              <ContractBillingSummary
+                propertyIds={billingReviewPropertyIds}
+                propertyNames={billingReviewNames}
+              />
+            )}
+
+
+
             {isReferral && (
               <div className="space-y-4">
                 <Alert>
