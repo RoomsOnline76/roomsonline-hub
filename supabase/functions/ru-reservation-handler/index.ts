@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { loadCurrencyState, revertAmount } from '../_shared/ruCurrency.ts';
 
 /**
  * RU Reservation Live Notification Mechanism (RLNM) Handler — Phase 2
@@ -133,6 +134,34 @@ Deno.serve(async (req) => {
       if (existing) {
         console.log(`[ru-reservation-handler] Booking already exists for RU reservation ${ruReservationId}, skipping`);
       } else {
+        // ── Currency: if this property publishes converted rates at Rentals United
+        // (because RU would not hold ZAR for its location), the inbound RUPrice is in the
+        // published currency. Convert it back to the authored currency at the exact
+        // effective rate used on the push, and keep the original amount on the record.
+        let bookedAmount = ruPrice || 0;
+        let currencyMeta: Record<string, unknown> | null = null;
+        try {
+          const ccyState = await loadCurrencyState(supabase, propertyId);
+          if (ccyState?.conversion_in_force && Number(ccyState.effective_rate) > 0 && bookedAmount > 0) {
+            const original = bookedAmount;
+            bookedAmount = revertAmount(original, Number(ccyState.effective_rate));
+            currencyMeta = {
+              ru_currency_conversion: {
+                published_currency: ccyState.published_currency_iso,
+                published_amount: original,
+                authored_currency: ccyState.authored_currency_iso,
+                authored_amount: bookedAmount,
+                fx_rate: ccyState.fx_rate,
+                margin_pct: ccyState.margin_pct,
+                effective_rate: ccyState.effective_rate,
+              },
+            };
+            console.log(`[ru-reservation-handler] Converted inbound ${ccyState.published_currency_iso} ${original} → ${ccyState.authored_currency_iso} ${bookedAmount} at ${ccyState.effective_rate}`);
+          }
+        } catch (e) {
+          console.warn('[ru-reservation-handler] Currency state lookup failed:', e instanceof Error ? e.message : e);
+        }
+
         const bookingData: Record<string, unknown> = {
           property_id: propertyId,
           guest_name: guestName,
@@ -141,7 +170,7 @@ Deno.serve(async (req) => {
           check_in_date: dateFrom,
           check_out_date: dateTo,
           adults: numGuests || 1,
-          total_price: ruPrice || 0,
+          total_price: bookedAmount,
           status: 'confirmed',
           booking_channel: 'rentals_united',
           integration_type: 'rentalsunited',
@@ -151,6 +180,9 @@ Deno.serve(async (req) => {
 
         if (roomTypeId) {
           bookingData.room_type_id = roomTypeId;
+        }
+        if (currencyMeta) {
+          bookingData.ai_metadata = currencyMeta;
         }
 
         const { error: bookingErr } = await supabase.from('bookings').insert(bookingData);

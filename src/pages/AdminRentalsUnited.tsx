@@ -17,6 +17,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { RuCurrencyPanel } from "@/components/integrations/RuCurrencyPanel";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { RuCertificationConsole } from "@/components/integrations/RuCertificationConsole";
@@ -222,6 +223,7 @@ export default function AdminRentalsUnited() {
           <TabsTrigger value="sync">Sync observability</TabsTrigger>
           <TabsTrigger value="onboarding">Onboarding</TabsTrigger>
           <TabsTrigger value="errors">Error handling</TabsTrigger>
+          <TabsTrigger value="currency">Currency</TabsTrigger>
           <TabsTrigger value="cert">Certification &amp; compliance</TabsTrigger>
         </TabsList>
 
@@ -263,6 +265,10 @@ export default function AdminRentalsUnited() {
             runs={runs}
             propertyNameById={new Map(properties.map((p) => [p.id, p.name]))}
           />
+        </TabsContent>
+
+        <TabsContent value="currency">
+          <RuCurrencyPanel />
         </TabsContent>
 
         <TabsContent value="cert">

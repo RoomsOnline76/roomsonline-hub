@@ -10608,6 +10608,82 @@ export type Database = {
           },
         ]
       }
+      ru_currency_state: {
+        Row: {
+          authored_currency_iso: string | null
+          conversion_in_force: boolean
+          created_at: string
+          decided_at: string
+          effective_rate: number | null
+          flip_outcome: string | null
+          fx_rate: number | null
+          id: string
+          location_currency_iso: string | null
+          margin_pct: number
+          property_id: string
+          published_currency_iso: string | null
+          reason: string | null
+          ru_location_id: number | null
+          updated_at: string
+        }
+        Insert: {
+          authored_currency_iso?: string | null
+          conversion_in_force?: boolean
+          created_at?: string
+          decided_at?: string
+          effective_rate?: number | null
+          flip_outcome?: string | null
+          fx_rate?: number | null
+          id?: string
+          location_currency_iso?: string | null
+          margin_pct?: number
+          property_id: string
+          published_currency_iso?: string | null
+          reason?: string | null
+          ru_location_id?: number | null
+          updated_at?: string
+        }
+        Update: {
+          authored_currency_iso?: string | null
+          conversion_in_force?: boolean
+          created_at?: string
+          decided_at?: string
+          effective_rate?: number | null
+          flip_outcome?: string | null
+          fx_rate?: number | null
+          id?: string
+          location_currency_iso?: string | null
+          margin_pct?: number
+          property_id?: string
+          published_currency_iso?: string | null
+          reason?: string | null
+          ru_location_id?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ru_currency_state_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: true
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "ru_currency_state_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: true
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ru_currency_state_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: true
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ru_discounts: {
         Row: {
           created_at: string
@@ -10668,6 +10744,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      ru_fx_rates: {
+        Row: {
+          base_iso: string
+          created_at: string
+          fetched_at: string
+          id: string
+          quote_iso: string
+          rate: number
+          source: string
+        }
+        Insert: {
+          base_iso: string
+          created_at?: string
+          fetched_at?: string
+          id?: string
+          quote_iso: string
+          rate: number
+          source?: string
+        }
+        Update: {
+          base_iso?: string
+          created_at?: string
+          fetched_at?: string
+          id?: string
+          quote_iso?: string
+          rate?: number
+          source?: string
+        }
+        Relationships: []
       }
       ru_locations: {
         Row: {
