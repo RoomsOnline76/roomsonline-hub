@@ -2534,10 +2534,16 @@ Deno.serve(async (req) => {
         }, 422);
       }
 
+      // White-label listings live on the owning sub-user account — ordering MCQ with the
+      // master credentials makes RU answer "you are not the owner of the apartment".
+      const { account: mcqOwnerAccount } = await findOwnerAccount(admin, propertyId, null, null);
+      const mcqOwnerId = Number(mcqOwnerAccount?.ru_owner_id ?? 0);
+      const mcqScope = mcqOwnerId > 0 ? { owner_id: mcqOwnerId } : {};
+
       const mcqResults: Array<{ ru_property_id: string; label: string; ok: boolean; error?: string; ru_status_id?: unknown }> = [];
       for (const target of targets) {
         const { data: result, error: mcqErr } = await admin.functions.invoke("rentalsunited-api", {
-          body: { action: "order_mcq", ru_property_id: target.ru_property_id, property_id: propertyId },
+          body: { action: "order_mcq", ru_property_id: target.ru_property_id, property_id: propertyId, ...mcqScope },
         });
         const ok = !mcqErr && result?.success === true;
         const errMessage = ok ? undefined : (mcqErr?.message ?? result?.error?.message ?? "Rentals United rejected the quality check order");
