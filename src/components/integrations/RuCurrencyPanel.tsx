@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
-import { Coins, RefreshCw, Wrench, Loader2 } from "lucide-react";
+import { Coins, RefreshCw, Wrench, Loader2, ShieldCheck } from "lucide-react";
 
 /**
  * Admin control surface for the Rentals United currency rule.
