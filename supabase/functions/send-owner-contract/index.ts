@@ -269,6 +269,9 @@ Deno.serve(async (req) => {
           template_version_id: activeTemplate?.id || null,
           signing_token: contract.signing_token,
           status: "sent",
+          sent_at: new Date().toISOString(),
+          signer_name: owner_name || null,
+          signer_email: normalizedEmail,
           terms_snapshot: terms_snapshot || null,
         });
       if (repContractError) {
