@@ -1638,7 +1638,7 @@ export default function AdminContracts() {
             )}
 
             {/* Multiple properties selection */}
-            {sendScope === "multiple" && (
+            {!isReferral && sendScope === "multiple" && (
               <div className="space-y-2">
                 <Label>Properties * <span className="text-xs text-muted-foreground font-normal">({scopedPropertyIds.length} selected)</span></Label>
                 <div className="relative">
