@@ -1031,7 +1031,12 @@ export function RuCertificationConsole({ properties }: { properties: PropertyLit
                         onChange={(e) => setDraft({ ...draft, date_to: e.target.value })} />
                     </div>
                     <Button onClick={addDiscount} className="gap-1.5"><Plus className="h-4 w-4" />Add rule</Button>
-                    <Button variant="outline" disabled={running || discounts.length === 0} onClick={pushDiscountsNow} className="gap-1.5">
+                    <Button
+                      variant="outline"
+                      disabled={running || (ladder ? ladder.ladder.longStay.length === 0 && ladder.ladder.lastMinute.length === 0 : discounts.length === 0)}
+                      onClick={pushDiscountsNow}
+                      className="gap-1.5"
+                    >
                       <Percent className="h-4 w-4" />Push & verify now
                     </Button>
                   </div>
