@@ -611,17 +611,39 @@ export function RuCertificationConsole({ properties }: { properties: PropertyLit
     }
     setRunning(true);
     markRun();
-    const res = await callPortal<{ run: CertRun }>("run_suite", {
-      suite,
-      property_id: propertyId === "none" ? null : propertyId,
-    });
-    setRunning(false);
-    if (res?.run) {
+    const property_id = propertyId === "none" ? null : propertyId;
+
+    // A full certification exceeds a single request's lifetime once Rentals United's
+    // sliding-minute waits are added up, so it is driven as three consecutive phases that
+    // append to one run record — each phase gets a fresh request budget.
+    const phases: (string | null)[] = suite === "full" ? ["read_only", "mandatory", "discounts"] : [null];
+    let runId: string | null = null;
+    let lastRun: CertRun | null = null;
+
+    for (let i = 0; i < phases.length; i++) {
+      const phase = phases[i];
+      if (phase) setPhaseProgress({ label: phase, index: i + 1, total: phases.length });
+      const res = await callPortal<{ run: CertRun; run_id?: string }>("run_suite", {
+        suite,
+        property_id,
+        phase,
+        run_id: runId,
+        final: i === phases.length - 1,
+      });
+      if (!res?.run) break;
+      runId = res.run_id ?? res.run.id;
+      lastRun = res.run;
       setSelectedRun(res.run);
-      toast.success(`Run complete — ${res.run.passed}/${res.run.total} passed`);
+    }
+
+    setPhaseProgress(null);
+    setRunning(false);
+    if (lastRun) {
+      toast.success(`Run complete — ${lastRun.passed}/${lastRun.total} passed`);
       loadRuns();
     }
   };
+
 
   const pushDiscountsNow = async () => {
     if (cooling) {
