@@ -2359,11 +2359,19 @@ Deno.serve(async (req) => {
     if (action === 'get_building') {
       const bId = body.building_id;
       if (!bId) return errorResponse('MISSING_PARAM', 'building_id is required');
-      const childAuth = await resolveChildAuth(body);
+      const { auth: childAuth, reason } = await resolveChildAuthDetailed(body);
       // Child-scoped only: no parent fallback (a building only exists on the account that
       // created it, and the parent envelope would read the master account's buildings).
+      if (!childAuth) {
+        return jsonResponse({
+          success: false,
+          auth_mode: 'master',
+          error: { code: 'RU_CHILD_AUTH_REQUIRED', message: reason ?? CHILD_AUTH_REQUIRED_MESSAGE },
+        }, 422);
+      }
       const xml = buildGetBuildingXml(creds, parseInt(String(bId), 10), childAuth);
       const response = await callRentalsUnited(creds, xml);
+
 
       const { ok, status } = handleRUStatus(response);
       if (!ok) return ruErrorResponse(status, buildDiagnostics(compactXml(xml), status, 'get_building', response));
