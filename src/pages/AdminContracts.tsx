@@ -101,6 +101,8 @@ interface OwnerContract {
   override_by: string | null;
   override_reason: string | null;
   created_at: string | null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  metadata?: any;
 }
 
 interface LinkedProperty {
@@ -1299,7 +1301,7 @@ export default function AdminContracts() {
           <TableHeader>
             <TableRow>
               <TableHead>Owner</TableHead>
-              <TableHead>Properties</TableHead>
+              <TableHead>Scope / Coverage</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Version</TableHead>
               <TableHead>Sent</TableHead>
@@ -1331,18 +1333,45 @@ export default function AdminContracts() {
                   </TableCell>
                   <TableCell>
                     {(() => {
+                      const meta = contract.metadata || {};
+                      // Referral / sales rep engagement: not property scoped at all.
+                      if (meta.contract_type === "referral" || meta.scope === "rep_engagement") {
+                        return (
+                          <div className="space-y-1">
+                            <Badge variant="secondary" className="text-xs gap-1">
+                              <Handshake className="h-3 w-3" /> Referral partner
+                            </Badge>
+                            <p className="text-xs text-muted-foreground">
+                              {meta.rep_name || contract.owner_name || "Sales rep engagement"}
+                            </p>
+                          </div>
+                        );
+                      }
+
                       const props = propertiesByOwner[contract.owner_email];
-                      if (!props || props.length === 0) return <span className="text-muted-foreground">—</span>;
+                      const portfolioBadge = meta.portfolio_id ? (
+                        <Badge variant="outline" className="text-xs gap-1">
+                          <LinkIcon className="h-3 w-3" /> {meta.portfolio_name || "Portfolio"}
+                        </Badge>
+                      ) : null;
+
+                      if (!props || props.length === 0) {
+                        return portfolioBadge || <span className="text-muted-foreground">—</span>;
+                      }
                       if (props.length === 1) {
                         return (
-                          <a href={`/admin/properties/${props[0].slug}`} className="text-sm text-primary hover:underline">
-                            {props[0].name}
-                          </a>
+                          <div className="space-y-1">
+                            {portfolioBadge}
+                            <a href={`/admin/properties/${props[0].slug}`} className="block text-sm text-primary hover:underline">
+                              {props[0].name}
+                            </a>
+                          </div>
                         );
                       }
                       const isExpanded = expandedOwners.has(contract.owner_email);
                       return (
                         <div className="space-y-1">
+                          {portfolioBadge}
                           <div className="flex items-center gap-1">
                             <a
                               href={`/admin/properties/${props[0].slug}`}
