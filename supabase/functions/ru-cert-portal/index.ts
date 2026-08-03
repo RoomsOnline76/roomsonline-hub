@@ -15,6 +15,15 @@ import { summarizeReadiness, type RuCheck, type RuUnitInput } from "../_shared/r
 import { evaluatePhases, findOwnerAccount, resolvePortfolioId } from "../_shared/ruPhaseGate.ts";
 import { createRateResolver, describeCoverage } from "../_shared/rateResolution.ts";
 import { parseRuPricePoints } from "../_shared/ruPriceParsing.ts";
+import {
+  resolveRuDiscounts,
+  validateRuLadder,
+  longStayToWire,
+  lastMinuteToWire,
+  describeTierSources,
+  diffRuDiscountEcho,
+  type RuDiscountLadder,
+} from "../_shared/ruDiscounts.ts";
 
 
 
@@ -623,6 +632,27 @@ Deno.serve(async (req) => {
       const report = await scoreProperty(prop, { probe_ari: body.probe_ari !== false });
       return json({ success: true, property: report });
     }
+
+    // Derived discount ladder (no RU call — pure resolution, safe to call freely).
+    // Lets the console show exactly which tiers a discount push will send.
+    if (action === "discount_ladder") {
+      const propertyId: string = body.property_id ?? "";
+      if (!propertyId) {
+        return json({ success: false, error: { code: "BAD_REQUEST", message: "property_id is required" } }, 400);
+      }
+      const ladder = await resolveRuDiscounts(admin, propertyId);
+      const validation = validateRuLadder(ladder);
+      return json({
+        success: true,
+        ladder,
+        validation,
+        summary: {
+          long_stay: describeTierSources(ladder.longStay),
+          last_minute: describeTierSources(ladder.lastMinute),
+        },
+      });
+    }
+
 
     if (action === "wl_readiness") {
       const { data: props } = await admin
@@ -2417,7 +2447,7 @@ Deno.serve(async (req) => {
         name: string,
         ruAction: string,
         payload: Record<string, unknown>,
-        opts: { mandatory?: boolean; scope?: CertScope; skip?: string; assert?: (data: any) => string | null } = {},
+        opts: { mandatory?: boolean; scope?: CertScope; skip?: string; assert?: (data: any) => string | null; successDetail?: string } = {},
       ) => {
         const scope: CertScope = opts.scope ?? "account";
         // Property-scoped checks are omitted entirely from an account-level run — they are
@@ -2445,7 +2475,12 @@ Deno.serve(async (req) => {
           }
           const ok = data?.success === true || data?.healthy === true;
           const assertFail = ok && opts.assert ? opts.assert(data) : null;
-          const rawDetail = assertFail ?? data?.error?.message ?? data?.message ?? (ok ? "OK" : "Unexpected response");
+          const rawDetail =
+            assertFail ??
+            data?.error?.message ??
+            (ok && opts.successDetail ? opts.successDetail : undefined) ??
+            data?.message ??
+            (ok ? "OK" : "Unexpected response");
           const soft = ok && !assertFail ? null : softSkipReason(String(rawDetail));
           steps.push({
             step: stepNo,
@@ -2648,45 +2683,38 @@ Deno.serve(async (req) => {
       }
 
       if (runDiscounts) {
-        type DiscountRow = { threshold: number; discount_percent: number; date_from: string | null; date_to: string | null };
-        let longStay: DiscountRow[] = [];
-        let lastMinute: DiscountRow[] = [];
-        if (propertyId) {
-          const { data: discounts } = await admin
-            .from("ru_discounts")
-            .select("discount_type, threshold, discount_percent, date_from, date_to")
-            .eq("property_id", propertyId)
-            .eq("is_active", true)
-            .order("threshold");
-          longStay = (discounts ?? []).filter((d: any) => d.discount_type === "long_stay") as DiscountRow[];
-          lastMinute = (discounts ?? []).filter((d: any) => d.discount_type === "last_minute") as DiscountRow[];
-        }
+        // Same resolver production uses, so certification proves the real ladder:
+        // manual ru_discounts rules + long-stay / last-minute / advance-purchase specials.
+        let ladder: RuDiscountLadder = {
+          longStay: [],
+          lastMinute: [],
+          warnings: [],
+          unmapped: [],
+          counts: { manual_long_stay: 0, manual_last_minute: 0, special_long_stay: 0, special_last_minute: 0 },
+        };
+        if (propertyId) ladder = await resolveRuDiscounts(admin, propertyId);
 
-        // RUDiscountEntry wire shape — long stay: nights_from = threshold nights.
-        // Last minute: nights_from/nights_to map to DaysToArrivalFrom/To, so a
-        // "within N days of arrival" rule is 0 -> threshold.
-        const mapLongStay = (rows: DiscountRow[]) =>
-          rows.map((r) => ({
-            date_from: r.date_from ?? isoDate(0),
-            date_to: r.date_to ?? isoDate(365),
-            nights_from: Number(r.threshold),
-            nights_to: 999,
-            discount_percentage: Number(r.discount_percent),
-          }));
-        const mapLastMinute = (rows: DiscountRow[]) =>
-          rows.map((r) => ({
-            date_from: r.date_from ?? isoDate(0),
-            date_to: r.date_to ?? isoDate(365),
-            nights_from: 0,
-            nights_to: Number(r.threshold),
-            discount_percentage: Number(r.discount_percent),
-          }));
+        const validation = validateRuLadder(ladder);
+        const lsWire = longStayToWire(ladder.longStay);
+        const lmWire = lastMinuteToWire(ladder.lastMinute);
+        const invalid = validation.ok ? undefined : `Ladder rejected before push — ${validation.errors[0]}`;
+        const noLongStay = ladder.longStay.length === 0
+          ? "No active long-stay discounts or long-stay specials configured for this property."
+          : undefined;
+        const noLastMinute = ladder.lastMinute.length === 0
+          ? "No active last-minute discounts, last-minute or advance-purchase specials configured for this property."
+          : undefined;
 
-        await call(
+        const lsPushed = await call(
           "Push long-stay discounts",
           "push_long_stay_discounts",
-          { ru_property_id: ruPropertyId, discounts: mapLongStay(longStay) },
-          { mandatory: false, scope: "property", skip: noProp ?? (longStay.length === 0 ? "No active long-stay discounts configured for this property." : undefined) },
+          { ru_property_id: ruPropertyId, discounts: lsWire },
+          {
+            mandatory: false,
+            scope: "property",
+            skip: noProp ?? noLongStay ?? invalid,
+            successDetail: `Pushed ${describeTierSources(ladder.longStay)}`,
+          },
         );
         await call(
           "Verify long-stay discounts",
@@ -2695,16 +2723,26 @@ Deno.serve(async (req) => {
           {
             mandatory: false,
             scope: "property",
-            skip: noProp ?? (longStay.length === 0 ? "Nothing pushed." : undefined),
-            assert: (d) => (/<LongStay/i.test(String(d?.raw_xml ?? "")) ? null : "RU did not echo any long-stay discounts"),
+            skip: noProp ?? noLongStay ?? invalid ?? (lsPushed ? undefined : "Nothing pushed."),
+            assert: (d) => {
+              const diff = diffRuDiscountEcho(String(d?.raw_xml ?? ""), "LongStay", lsWire);
+              if (diff.returned === 0) return "RU did not echo any long-stay discounts";
+              return diff.matches === diff.requested ? null : `${diff.matches}/${diff.requested} tiers echoed — ${diff.firstMismatch}`;
+            },
+            successDetail: `RU echoed all ${lsWire.length} long-stay tier${lsWire.length === 1 ? "" : "s"}`,
           },
         );
 
-        await call(
+        const lmPushed = await call(
           "Push last-minute discounts",
           "push_last_minute_discounts",
-          { ru_property_id: ruPropertyId, discounts: mapLastMinute(lastMinute) },
-          { mandatory: false, scope: "property", skip: noProp ?? (lastMinute.length === 0 ? "No active last-minute discounts configured for this property." : undefined) },
+          { ru_property_id: ruPropertyId, discounts: lmWire },
+          {
+            mandatory: false,
+            scope: "property",
+            skip: noProp ?? noLastMinute ?? invalid,
+            successDetail: `Pushed ${describeTierSources(ladder.lastMinute)}`,
+          },
         );
         await call(
           "Verify last-minute discounts",
@@ -2713,8 +2751,13 @@ Deno.serve(async (req) => {
           {
             mandatory: false,
             scope: "property",
-            skip: noProp ?? (lastMinute.length === 0 ? "Nothing pushed." : undefined),
-            assert: (d) => (/<LastMinute/i.test(String(d?.raw_xml ?? "")) ? null : "RU did not echo any last-minute discounts"),
+            skip: noProp ?? noLastMinute ?? invalid ?? (lmPushed ? undefined : "Nothing pushed."),
+            assert: (d) => {
+              const diff = diffRuDiscountEcho(String(d?.raw_xml ?? ""), "LastMinute", lmWire);
+              if (diff.returned === 0) return "RU did not echo any last-minute discounts";
+              return diff.matches === diff.requested ? null : `${diff.matches}/${diff.requested} tiers echoed — ${diff.firstMismatch}`;
+            },
+            successDetail: `RU echoed all ${lmWire.length} last-minute tier${lmWire.length === 1 ? "" : "s"}`,
           },
         );
       }
