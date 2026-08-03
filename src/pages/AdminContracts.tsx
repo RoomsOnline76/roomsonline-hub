@@ -113,6 +113,16 @@ export default function AdminContracts() {
   const [sendName, setSendName] = useState("");
   const [sending, setSending] = useState(false);
   const [selectedContractType, setSelectedContractType] = useState<"standard" | "rolos" | "referral">("standard");
+
+  // Contract scope: single property, multiple properties, or an entire portfolio
+  const [sendScope, setSendScope] = useState<"single" | "multiple" | "portfolio">("single");
+  const [multiPropertySearch, setMultiPropertySearch] = useState("");
+  const [multiPropertySelections, setMultiPropertySelections] = useState<Record<string, boolean>>({});
+  const [portfolios, setPortfolios] = useState<{ id: string; name: string; owner_email: string | null }[]>([]);
+  const [selectedPortfolioId, setSelectedPortfolioId] = useState<string>("");
+  const [portfolioProperties, setPortfolioProperties] = useState<{ id: string; name: string }[]>([]);
+  const [loadingPortfolioProps, setLoadingPortfolioProps] = useState(false);
+
   
   // Contract templates
   const [contractTemplates, setContractTemplates] = useState<{ id: string; name: string }[]>([]);
@@ -181,7 +191,54 @@ export default function AdminContracts() {
   useEffect(() => {
     loadContracts();
     loadContractTemplates();
+    loadPortfolios();
   }, []);
+
+  const loadPortfolios = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("property_portfolios")
+        .select("id, name, owner_email")
+        .order("name");
+      if (error) throw error;
+      setPortfolios(data || []);
+    } catch (error) {
+      console.error("Failed to load portfolios:", error);
+    }
+  };
+
+  const handleSelectPortfolio = async (portfolioId: string) => {
+    setSelectedPortfolioId(portfolioId);
+    setPortfolioProperties([]);
+    if (!portfolioId) return;
+
+    const portfolio = portfolios.find((p) => p.id === portfolioId);
+    if (portfolio?.owner_email && !sendEmail) {
+      setSendEmail(portfolio.owner_email);
+      validateOwnerEmail(portfolio.owner_email);
+    }
+
+    setLoadingPortfolioProps(true);
+    try {
+      const { data: members, error } = await supabase
+        .from("property_portfolio_members")
+        .select("property_id, properties:property_id(id, name)")
+        .eq("portfolio_id", portfolioId);
+      if (error) throw error;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const props = (members || [])
+        .map((m: any) => m.properties)
+        .filter((p: any): p is { id: string; name: string } => Boolean(p?.id))
+        .sort((a, b) => a.name.localeCompare(b.name));
+      setPortfolioProperties(props);
+    } catch (error) {
+      console.error("Failed to load portfolio properties:", error);
+      toast.error("Could not load portfolio properties");
+    } finally {
+      setLoadingPortfolioProps(false);
+    }
+  };
+
 
   const loadContractTemplates = async () => {
     try {
@@ -396,23 +453,49 @@ export default function AdminContracts() {
     });
   }, [allActiveProperties, contracts]);
 
+  const scopedPropertyIds = useMemo(() => {
+    if (sendScope === "multiple") {
+      return Object.entries(multiPropertySelections)
+        .filter(([, checked]) => checked)
+        .map(([id]) => id);
+    }
+    if (sendScope === "portfolio") {
+      return portfolioProperties.map((p) => p.id);
+    }
+    return [];
+  }, [sendScope, multiPropertySelections, portfolioProperties]);
+
   const handleSendContract = async () => {
     if (!sendEmail) {
       toast.error("Email is required");
       return;
     }
-    if (!selectedProperty && !propertySearch.trim()) {
+    if (sendScope === "single" && !selectedProperty && !propertySearch.trim()) {
       toast.error("Property name is required");
       return;
+    }
+    if (sendScope === "multiple" && scopedPropertyIds.length === 0) {
+      toast.error("Select at least one property");
+      return;
+    }
+    if (sendScope === "portfolio") {
+      if (!selectedPortfolioId) {
+        toast.error("Select a portfolio");
+        return;
+      }
+      if (scopedPropertyIds.length === 0) {
+        toast.error("This portfolio has no properties linked");
+        return;
+      }
     }
 
     try {
       setSending(true);
 
-      let propertyId = selectedProperty?.id || undefined;
+      let propertyId = sendScope === "single" ? selectedProperty?.id || undefined : scopedPropertyIds[0];
 
       // If new property (no id), create it first
-      if (selectedProperty && !selectedProperty.id) {
+      if (sendScope === "single" && selectedProperty && !selectedProperty.id) {
         const { data: newProp, error: createErr } = await supabase
           .from("properties")
           .insert([{
@@ -432,7 +515,19 @@ export default function AdminContracts() {
         if (createErr) throw createErr;
         propertyId = newProp.id;
       }
-      
+
+      // For multi-property / portfolio scope, link every covered property to this owner
+      if (scopedPropertyIds.length > 0) {
+        const { error: linkErr } = await supabase
+          .from("properties")
+          .update({
+            owner_email: sendEmail.toLowerCase().trim(),
+            owner_name: sendName || null,
+          })
+          .in("id", scopedPropertyIds);
+        if (linkErr) throw linkErr;
+      }
+
       // Determine which template to use based on contract type
       const templateId = selectedContractType === "rolos" 
         ? "b2c3d4e5-f6a7-4890-bcde-f12345678901"
@@ -445,6 +540,9 @@ export default function AdminContracts() {
           owner_email: sendEmail, 
           owner_name: sendName || undefined,
           property_id: propertyId,
+          property_ids: scopedPropertyIds.length > 0 ? scopedPropertyIds : undefined,
+          portfolio_id: sendScope === "portfolio" ? selectedPortfolioId : undefined,
+          scope: sendScope,
           template_id: templateId,
           contract_type: selectedContractType,
         },
@@ -452,7 +550,9 @@ export default function AdminContracts() {
 
       if (error) throw error;
 
-      toast.success(`${selectedContractType === "rolos" ? "ROL'OS PMS" : selectedContractType === "referral" ? "Referral Partner" : "Standard"} contract sent successfully`);
+      const coverage = scopedPropertyIds.length > 0 ? ` covering ${scopedPropertyIds.length} propert${scopedPropertyIds.length === 1 ? "y" : "ies"}` : "";
+      toast.success(`${selectedContractType === "rolos" ? "ROL'OS PMS" : selectedContractType === "referral" ? "Referral Partner" : "Standard"} contract sent successfully${coverage}`);
+
       setSendModalOpen(false);
       resetSendModal();
       loadContracts();
@@ -710,6 +810,12 @@ export default function AdminContracts() {
     setShowUnarchivePrompt(false);
     setPropertyDropdownOpen(false);
     setSelectedContractType("standard");
+    setSendScope("single");
+    setMultiPropertySearch("");
+    setMultiPropertySelections({});
+    setSelectedPortfolioId("");
+    setPortfolioProperties([]);
+
   };
 
   const searchProperties = async (query: string) => {
@@ -1202,7 +1308,7 @@ export default function AdminContracts() {
         setSendModalOpen(open);
         if (!open) resetSendModal();
       }}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Send New Contract</DialogTitle>
             <DialogDescription>
@@ -1210,7 +1316,39 @@ export default function AdminContracts() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            {/* Contract Scope Selector */}
+            <div className="space-y-2">
+              <Label>Contract Scope *</Label>
+              <div className="grid grid-cols-3 gap-2">
+                {([
+                  { key: "single", label: "Single Property", hint: "One property", icon: Building2 },
+                  { key: "multiple", label: "Multiple", hint: "Pick properties", icon: FileText },
+                  { key: "portfolio", label: "Portfolio", hint: "All in portfolio", icon: LinkIcon },
+                ] as const).map((opt) => (
+                  <button
+                    key={opt.key}
+                    type="button"
+                    onClick={() => setSendScope(opt.key)}
+                    className={`p-3 rounded-lg border-2 text-left transition-all ${
+                      sendScope === opt.key
+                        ? "border-primary bg-primary/5"
+                        : "border-border hover:border-muted-foreground/50"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <opt.icon className="h-4 w-4 text-primary" />
+                      <span className="font-medium text-sm">{opt.label}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">{opt.hint}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {sendScope === "single" && (
+            <>
             {/* Property Name Search */}
+
             <div className="space-y-2">
               <Label htmlFor="propertyName">Property Name *</Label>
               <div className="relative">
@@ -1321,6 +1459,87 @@ export default function AdminContracts() {
                 </AlertDescription>
               </Alert>
             )}
+            </>
+            )}
+
+            {/* Multiple properties selection */}
+            {sendScope === "multiple" && (
+              <div className="space-y-2">
+                <Label>Properties * <span className="text-xs text-muted-foreground font-normal">({scopedPropertyIds.length} selected)</span></Label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Filter properties..."
+                    value={multiPropertySearch}
+                    onChange={(e) => setMultiPropertySearch(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+                <div className="max-h-[220px] overflow-y-auto rounded-lg border border-border divide-y divide-border/50">
+                  {allActiveProperties
+                    .filter((p) => p.name.toLowerCase().includes(multiPropertySearch.toLowerCase()))
+                    .map((p) => (
+                      <label key={p.id} className="flex items-center gap-2 px-3 py-2 hover:bg-muted cursor-pointer">
+                        <Checkbox
+                          checked={!!multiPropertySelections[p.id]}
+                          onCheckedChange={(checked) =>
+                            setMultiPropertySelections((prev) => ({ ...prev, [p.id]: !!checked }))
+                          }
+                        />
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-sm truncate">{p.name}</span>
+                          {p.owner_email && (
+                            <span className="block text-xs text-muted-foreground truncate">{p.owner_email}</span>
+                          )}
+                        </span>
+                      </label>
+                    ))}
+                  {allActiveProperties.length === 0 && (
+                    <p className="px-3 py-2 text-sm text-muted-foreground">No properties available</p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Portfolio selection */}
+            {sendScope === "portfolio" && (
+              <div className="space-y-2">
+                <Label htmlFor="portfolioSelect">Portfolio *</Label>
+                <select
+                  id="portfolioSelect"
+                  value={selectedPortfolioId}
+                  onChange={(e) => handleSelectPortfolio(e.target.value)}
+                  className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  <option value="">Select a portfolio…</option>
+                  {portfolios.map((p) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+                {loadingPortfolioProps && (
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    <Loader2 className="h-3 w-3 animate-spin" /> Loading portfolio properties…
+                  </p>
+                )}
+                {!loadingPortfolioProps && selectedPortfolioId && (
+                  <div className="rounded-lg border border-border bg-muted/30 p-3">
+                    <p className="text-sm font-medium mb-1">
+                      Portfolio properties ({portfolioProperties.length})
+                    </p>
+                    {portfolioProperties.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">No properties linked to this portfolio.</p>
+                    ) : (
+                      <ul className="text-sm text-muted-foreground space-y-1 max-h-[160px] overflow-y-auto">
+                        {portfolioProperties.map((p) => (
+                          <li key={p.id}>• {p.name}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
 
             <div className="space-y-2">
               <Label htmlFor="email">Owner Email *</Label>
@@ -1440,9 +1659,19 @@ export default function AdminContracts() {
             </Button>
             <Button 
               onClick={handleSendContract} 
-              disabled={sending || !sendEmail || (!selectedProperty && !propertySearch.trim())}
+              disabled={
+                sending ||
+                !sendEmail ||
+                (sendScope === "single" && !selectedProperty && !propertySearch.trim()) ||
+                (sendScope !== "single" && scopedPropertyIds.length === 0)
+              }
             >
-              {sending ? "Sending..." : noPropertiesWarning ? "Send & Create Owner" : "Send Contract"}
+              {sending
+                ? "Sending..."
+                : sendScope === "single"
+                ? (noPropertiesWarning ? "Send & Create Owner" : "Send Contract")
+                : `Send Contract (${scopedPropertyIds.length})`}
+
             </Button>
           </DialogFooter>
         </DialogContent>
