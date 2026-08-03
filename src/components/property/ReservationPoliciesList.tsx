@@ -24,12 +24,50 @@ interface PolicyMetric {
 }
 
 export const ReservationPoliciesList: React.FC<Props> = ({ propertyId }) => {
-  const { policies, links, loading, createPolicy, updatePolicy, deletePolicy, setDefault, setLinksFor, refetch } =
-    useReservationPolicies(propertyId);
+  const {
+    policies,
+    links,
+    loading,
+    createPolicy,
+    updatePolicy,
+    deletePolicy,
+    setDefault,
+    setMaster,
+    propagateToLinked,
+    setLinksFor,
+    refetch,
+  } = useReservationPolicies(propertyId);
+  const { siblings } = usePortfolioSiblings(propertyId);
+  const siblingIds = useMemo(() => siblings.map((s) => s.id), [siblings]);
+  const { portfolioPolicies, loading: loadingPortfolio } = usePortfolioPolicies(propertyId, siblingIds);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editing, setEditing] = useState<ReservationPolicy | null>(null);
   const [applyingFrom, setApplyingFrom] = useState<ReservationPolicy | null>(null);
   const [metrics, setMetrics] = useState<Record<string, PolicyMetric>>({});
+  const [activating, setActivating] = useState<string | null>(null);
+
+  const siblingName = (id: string) => siblings.find((s) => s.id === id)?.name ?? "portfolio";
+
+  const activateFromPortfolio = async (source: ReservationPolicy, mode: "copy" | "link") => {
+    setActivating(source.id);
+    try {
+      const created = await createPolicy({
+        name: source.name,
+        description: source.description,
+        kind: source.kind,
+        rule: source.rule,
+        is_default: false,
+        is_master: false,
+        scope: "property",
+        source_policy_id: source.id,
+        linked_master_id: mode === "link" ? source.id : null,
+      });
+      if (created) toast.success(`"${source.name}" activated on this property`);
+    } finally {
+      setActivating(null);
+    }
+  };
+
 
   useEffect(() => {
     if (!policies.length) return;
