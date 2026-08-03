@@ -5,6 +5,15 @@
 // ============================================================================
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  createRateResolver,
+  compressToPeriods,
+  describeCoverage,
+  addDays,
+  eachDate,
+  type DayRate,
+} from "../_shared/rateResolution.ts";
+
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
