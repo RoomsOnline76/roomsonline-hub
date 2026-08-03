@@ -730,15 +730,30 @@ function buildUnitPayload(
   }
   images = images.map((img, index) => ({ ...img, is_main: index === 0, type_id: index === 0 ? 1 : 3 }));
 
-  // Amenities: merge unit + property
+  // Amenities: merge unit + property (property-level facilities are always additive so
+  // the RU-aligned property selection reaches every unit of the listing).
   let unitAmenities = mapAmenities(unit.amenities);
-  if (unitAmenities.length < 10) {
+  {
     const propAmenities = mapAmenities(property.amenities);
     const seenIds = new Set(unitAmenities.map(a => a.id));
     for (const pa of propAmenities) {
       if (!seenIds.has(pa.id)) { unitAmenities.push(pa); seenIds.add(pa.id); }
     }
+    // Composition-derived amenities: RU expects Bathroom (81), WC (37) and Kitchen (101)
+    // to be declared with their quantities. Unit values win, property values are the fallback.
+    const bathroomCount = Number(unit.bathrooms) || Number(property.bathrooms) || 0;
+    const toiletCount = Number(property.toilets) || 0;
+    const pushComposition = (id: number, count: number) => {
+      if (count <= 0) return;
+      const existing = unitAmenities.find(a => a.id === id);
+      if (existing) existing.count = Math.max(existing.count, count);
+      else unitAmenities.push({ id, count });
+    };
+    pushComposition(81, bathroomCount);
+    pushComposition(37, toiletCount);
+    if (property.separate_kitchen) pushComposition(101, 1);
   }
+
 
   // Calculate beds from bed_configuration if available
   let beds = 0;
