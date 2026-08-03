@@ -217,7 +217,34 @@ const CERT_CHILD_SCOPED_ACTIONS = new Set([
   "push_prices",
   "push_property",
   "set_property_status",
+  "order_mcq",
+  "push_change_currency",
+  "list_buildings",
+  "get_building",
 ]);
+
+/**
+ * Child-scoped actions where authenticating as the MASTER account is a hard failure:
+ * RU either rejects them ("You are not the owner of the apartment") or applies the
+ * write to our own master inventory.
+ */
+const CERT_MASTER_FORBIDDEN_ACTIONS = new Set([
+  "get_property",
+  "get_availability",
+  "get_prices",
+  "get_long_stay_discounts",
+  "get_last_minute_discounts",
+  "push_long_stay_discounts",
+  "push_last_minute_discounts",
+  "push_availability",
+  "push_prices",
+  "push_property",
+  "set_property_status",
+  "order_mcq",
+  "list_buildings",
+  "get_building",
+]);
+
 
 
 
