@@ -138,11 +138,11 @@ export function RuOnboardingPipeline({ propertyId, readOnly = false, standalone 
           { duration: 10000 },
         );
       } else if (data?.company_details_manual_required) {
-        // Stored credentials could not authenticate — ask for the password in-app
+        // Stored credentials could not authenticate — ask for the sub-user API keys in-app
         // (never via a native browser prompt, which exposes the host URL).
         setPasswordOpen(true);
         toast.warning(
-          String(data.company_details_warning ?? "The stored sub-user password could not be used — enter it once to continue."),
+          String(data.company_details_warning ?? "No usable Rentals United API keys for this sub-user — paste its AccessKey and SecretKey once to continue."),
           { duration: 10000 },
         );
       } else if (data?.company_details_warning) {
