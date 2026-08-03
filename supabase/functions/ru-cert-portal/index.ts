@@ -198,6 +198,29 @@ const RU_METHOD_BY_ACTION: Record<string, string> = {
   list_users: "Pull_ListMyUsers_RQ",
 };
 
+/**
+ * RU actions that read/write ONE sub-user's inventory. Mirrors CHILD_SCOPED_ACTIONS in
+ * rentalsunited-api: a white-label listing lives on the sub-account, so a master-auth
+ * call returns "Property does not exist". Certification passes the bound OwnerID so the
+ * adapter authenticates with that sub-user's own API keys.
+ */
+const CERT_CHILD_SCOPED_ACTIONS = new Set([
+  "list_properties",
+  "get_property",
+  "get_availability",
+  "get_prices",
+  "get_long_stay_discounts",
+  "get_last_minute_discounts",
+  "push_long_stay_discounts",
+  "push_last_minute_discounts",
+  "push_availability",
+  "push_prices",
+  "push_property",
+  "set_property_status",
+]);
+
+
+
 // Core functional certification milestones exercised on the RU certification call.
 const CERT_MILESTONES: { key: string; label: string; ru_method: string; mandatory: boolean; scope: CertScope; note: string }[] = [
   { key: "auth", label: "Connectivity / auth", ru_method: "Pull_ListProp_RQ (health)", mandatory: true, scope: "account", note: "AccessKey + SecretKey working" },
