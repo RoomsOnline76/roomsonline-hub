@@ -21,6 +21,7 @@ import {
   Building2,
   ExternalLink,
   User,
+  RefreshCw,
 } from "lucide-react";
 import type { RuReadinessReport } from "@/components/pms/channels/RuReadinessScorecard";
 
@@ -472,6 +473,17 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
             )}
           </div>
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs gap-1"
+              onClick={resolveRuIds}
+              disabled={resolvingIds || loading || dryRunning}
+              title="Read the Rentals United listing IDs for this property's sub-user account and store them here"
+            >
+              {resolvingIds ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+              {resolvingIds ? "Fetching..." : "Fetch RU IDs"}
+            </Button>
             <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={runDryRun} disabled={dryRunning || loading}>
               {dryRunning ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle className="h-3 w-3" />}
               {dryRunning ? "Checking..." : "Validate"}
