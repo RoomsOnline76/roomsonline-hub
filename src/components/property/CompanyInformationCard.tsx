@@ -614,18 +614,50 @@ export function CompanyInformationCard({
                     {f.hint && <Hint>{f.hint}</Hint>}
                   </div>
                 ))}
-                {COMPANY_NUMBER_FIELDS.map((f) => (
+                {COMPANY_RANGE_FIELDS.map((f) => {
+                  const stored = companyProfile[f.key];
+                  // A legacy raw count is re-read as a count and shown on its bucket.
+                  const resolved = isRangeId(f.ranges, stored)
+                    ? Number(stored)
+                    : rangeIdForCount(f.ranges, Number(stored));
+                  return (
+                    <div key={String(f.key)} className="flex flex-col gap-1">
+                      <Label className="text-xs">{f.label}</Label>
+                      <Select
+                        value={resolved ? String(resolved) : ""}
+                        onValueChange={(v) => setField(f.key, v, true)}
+                      >
+                        <SelectTrigger className="h-7 text-xs">
+                          <SelectValue placeholder="Select a range" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {f.ranges.map((r) => (
+                            <SelectItem key={r.id} value={String(r.id)} className="text-xs">
+                              {r.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Hint>{f.hint}</Hint>
+                    </div>
+                  );
+                })}
+                {CONTACT_FIELDS.map((f) => (
                   <div key={String(f.key)} className="flex flex-col gap-1">
-                    <Label className="text-xs">{f.label}</Label>
+                    <Label className="text-xs">
+                      {f.label}
+                      <Req />
+                    </Label>
                     <Input
-                      inputMode="numeric"
+                      type={f.type ?? "text"}
                       value={str(companyProfile[f.key])}
-                      onChange={(e) => setField(f.key, e.target.value, true)}
+                      onChange={(e) => setField(f.key, e.target.value)}
                       className="h-7 text-xs"
                     />
                     {f.hint && <Hint>{f.hint}</Hint>}
                   </div>
                 ))}
+
 
               </div>
               <div className="flex flex-col gap-1">
