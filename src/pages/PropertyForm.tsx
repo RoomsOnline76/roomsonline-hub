@@ -131,6 +131,7 @@ import { AccommodationSpecialsTab } from "@/components/property/AccommodationSpe
 import { useActivationReadiness } from "@/components/property/QualityGateIndicator";
 import { RoomManagerTab } from "@/components/property/RoomManagerTab";
 import { RateManagerTab } from "@/components/property/RateManagerTab";
+import { syncPortfolioSeasonDates } from "@/lib/portfolioSeasonSync";
 import { usePMSSync, isPMSFullyIntegrated, getPMSIntegrationLevel, getPMSIcon } from "@/hooks/usePMSSync";
 import {
   PROPERTY_SECTION_ORDER,
@@ -3241,6 +3242,20 @@ export default function PropertyForm({
       if (error) throw error;
 
       const savedPropertyId = savedProperty?.id || propertyId;
+
+      // Portfolio calendars share season definitions only. Each property's season/rack rates remain untouched.
+      if (isRolProperty && savedPropertyId) {
+        try {
+          await syncPortfolioSeasonDates(savedPropertyId, seasons);
+        } catch (seasonSyncError) {
+          console.error("Portfolio season date sync failed:", seasonSyncError);
+          toast({
+            title: "Property saved; portfolio season sync failed",
+            description: "This property's rates were saved, but sibling season dates could not be updated.",
+            variant: "destructive",
+          });
+        }
+      }
 
       // For ROL properties, sync room types to hostfully_room_types table
       // This triggers the bidirectional sync to rolos_room_types
