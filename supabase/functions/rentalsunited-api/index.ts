@@ -2694,10 +2694,10 @@ Deno.serve(async (req) => {
       const currencyIso = (body.currency_iso || (metadata as any)?.currency_iso || '').toString().trim().toUpperCase();
       if (!locationId) return errorResponse('MISSING_PARAM', 'location_id is required');
       if (!currencyIso || !/^[A-Z]{3}$/.test(currencyIso)) return errorResponse('VALIDATION', 'currency_iso must be a 3-letter ISO code');
-      const xml = `<Push_ChangeCurrency_RQ>${buildAuthXml(creds)}<Location>${parseInt(String(locationId), 10)}</Location><Currency>${currencyIso}</Currency></Push_ChangeCurrency_RQ>`;
+      const xml = `<Push_ChangeCurrency_RQ>${buildAuthXml(scopedCreds)}<Location>${parseInt(String(locationId), 10)}</Location><Currency>${currencyIso}</Currency></Push_ChangeCurrency_RQ>`;
       const compactRequestXml = compactXml(xml);
-      const response = await callRentalsUnited(creds, xml);
-      console.log(`[rentalsunited-api] push_change_currency response: ${response.substring(0, 500)}`);
+      const response = await callRentalsUnited(scopedCreds, xml);
+      console.log(`[rentalsunited-api] push_change_currency (auth=${authMode}) response: ${response.substring(0, 500)}`);
       const { ok, status } = handleRUStatus(response);
       // Status 339 = "Location already has the requested currency set" — treat as success.
       if (!ok && status.id !== '339') {
@@ -2705,12 +2705,14 @@ Deno.serve(async (req) => {
       }
       return jsonResponse({
         success: true,
+        auth_mode: authMode,
         already_set: status.id === '339',
         location_id: parseInt(String(locationId), 10),
         currency_iso: currencyIso,
         raw_xml: response,
       });
     }
+
 
     // Unknown action
     return errorResponse('UNKNOWN_ACTION', `Action "${action}" is not supported`);
