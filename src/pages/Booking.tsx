@@ -1514,9 +1514,14 @@ const Booking = () => {
                 if (!hasMatchingRoom) continue;
               }
 
-              const todayStr = new Date().toISOString().split('T')[0];
-              if (special.book_from && todayStr < special.book_from) continue;
-              if (special.book_until && todayStr > special.book_until) continue;
+              // Lead time, weekday mask, stay ranges, audience & booking window (Phase 4 resolver)
+              if (!isSpecialEligible(special as SpecialRecord, {
+                checkIn: bookingCheckIn,
+                checkOut: bookingCheckOut,
+                subtotal: basisForSpecial,
+                isSubscriber: false,
+                ageVerified: true, // handled separately below so we can prompt for proof
+              })) continue;
 
               let discount = 0;
               const sType = special.special_type || special.discount_type || '';
@@ -1547,29 +1552,64 @@ const Booking = () => {
                   continue;
                 }
 
-                if (appliedPromos.some((promo) => promo.type === 'special' && promo.name === specialName)) {
-                  continue;
-                }
-
-                appliedPromos.push({
+                candidates.push({
+                  id: String(special.id),
                   name: specialName,
-                  type: 'special',
+                  description: special.description ?? null,
+                  label: pctLabel ? `${pctLabel}% off` : 'Special offer',
+                  dealType: special.deal_type ?? null,
                   discount,
-                  description: special.description,
+                  cancellationPolicyId: special.cancellation_policy_id ?? null,
+                  stackable: special.is_stackable === true,
+                  priority: Number(special.priority ?? 0),
                 });
-                const discountLabel = pctLabel ? `(-${pctLabel}%)` : '';
-                lineItems.push({
-                  description: `🏷️ ${specialName} ${discountLabel}`,
-                  nights: 0,
-                  quantity: 1,
-                  unitPrice: -discount,
-                  total: -discount,
-                });
-                runningTotal -= discount;
               }
             }
 
             setPendingAgeSpecial(nextPendingAgeSpecial);
+
+            // De-duplicate by name (legacy specials can be mirrored per room type)
+            const seenNames = new Set<string>();
+            const unique = candidates.filter((c) => {
+              const key = c.name.toLowerCase();
+              if (seenNames.has(key)) return false;
+              seenNames.add(key);
+              return true;
+            });
+
+            const exclusive = unique
+              .filter((c) => !c.stackable)
+              .sort((a, b) => b.discount - a.discount || b.priority - a.priority);
+            const stackable = unique.filter((c) => c.stackable);
+
+            // Exactly one eligible offer -> auto-apply. Two or more -> guest picks one.
+            const chosen =
+              exclusive.find((c) => c.id === selectedSpecialId) ?? exclusive[0] ?? null;
+
+            const offerList: CheckoutOffer[] = exclusive.map(({ stackable: _s, priority: _p, ...rest }) => rest);
+            setSpecialOffers(offerList);
+            setSelectedSpecialId(chosen ? chosen.id : null);
+            setAppliedSpecialPolicyId(chosen?.cancellationPolicyId ?? null);
+
+            for (const applied of [...(chosen ? [chosen] : []), ...stackable]) {
+              appliedPromos.push({
+                name: applied.name,
+                type: 'special',
+                discount: applied.discount,
+                description: applied.description ?? undefined,
+              });
+              lineItems.push({
+                description: `🏷️ ${applied.name} (${applied.label})`,
+                nights: 0,
+                quantity: 1,
+                unitPrice: -applied.discount,
+                total: -applied.discount,
+              });
+              runningTotal -= applied.discount;
+            }
+          } else {
+            setSpecialOffers([]);
+            setAppliedSpecialPolicyId(null);
           }
         } catch (err) {
           console.warn('[Booking] Failed to fetch specials:', err);
