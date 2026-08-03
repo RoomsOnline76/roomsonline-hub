@@ -2167,6 +2167,25 @@ Deno.serve(async (req) => {
 
       const noProp = ruPropertyId ? undefined : "No RU property id resolved — select a property that has been pushed to RU.";
 
+      // Child-scoped reads (buildings) must authenticate as the sub-user with its own
+      // API keys — resolve the bound OwnerID so rentalsunited-api picks up its key pair
+      // instead of silently listing the MASTER account's buildings.
+      let certOwnerId: string | null = null;
+      let certOwnerHasKeys = false;
+      if (propertyId) {
+        const { account: certAccount } = await findOwnerAccount(admin, propertyId, null, null);
+        certOwnerId = certAccount?.ru_owner_id ? String(certAccount.ru_owner_id) : null;
+        if (certOwnerId) {
+          const { data: keyRow } = await admin
+            .from("ru_api_credentials")
+            .select("access_key")
+            .eq("ru_owner_id", certOwnerId)
+            .maybeSingle();
+          certOwnerHasKeys = Boolean(keyRow?.access_key || certAccount?.ru_api_access_key);
+        }
+      }
+
+
       if (runReadOnly) {
         await call("Credentials & connectivity", "health_check", {}, { mandatory: true });
 
