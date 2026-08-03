@@ -366,12 +366,12 @@ Deno.serve(async (req) => {
           <tr>
             <td style="padding: 40px 40px 20px; text-align: center;">
               <img src="https://book.sleepinafrica.roomsonline.co.za/images/rol-logo-email.png" alt="RoomsOnline" style="max-width: 180px; height: auto; margin-bottom: 20px;" />
-              <h1 style="margin: 0; font-size: 24px; color: #333;">Partnership Agreement</h1>
+              <h1 style="margin: 0; font-size: 24px; color: #333;">${isReferral ? "Referral Partner Agreement" : "Partnership Agreement"}</h1>
             </td>
           </tr>
           <tr>
             <td style="padding: 20px 40px;">
-              <p style="color: #333; line-height: 1.6;">Dear ${owner_name || "Property Owner"},</p>
+              <p style="color: #333; line-height: 1.6;">Dear ${owner_name || (isReferral ? "Partner" : "Property Owner")},</p>
               ${emailIntroHtml}
               ${propertiesSection}
               <p style="color: #333; line-height: 1.6;">Please click the button below to review the full contract and sign electronically:</p>
@@ -402,6 +402,8 @@ Deno.serve(async (req) => {
       signing_url: signingUrl,
       properties_count: properties?.length || 0,
       is_new_owner: isNewOwner,
+      contract_type: contract_type || 'standard',
+      rep_id: isReferral ? (rep_id || null) : null,
       metadata: contractMetadata,
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
