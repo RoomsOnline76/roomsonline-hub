@@ -1114,64 +1114,56 @@ async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRo
 
   {
     try {
-      const priceEntries: { date_from: string; date_to: string; price: number; extra_guest_price?: number }[] = [];
-      let lastKnownRate = 0;
-      let lastKnownExtraGuest: number | undefined;
+      // Calendar first, rack rate as the fallback for any date the calendar does not price.
+      // The resolver is shared with the ROL booking engine and the channel push so all three
+      // agree on the price of every night.
+      const resolver = await createRateResolver(supabase, property.id, {
+        amenities,
+        window: { from: todayStr, to: oneYearStr },
+      });
 
-      if (seasonRates && Array.isArray(seasons) && seasons.length > 0) {
-        for (const season of seasons) {
-          const seasonId = String(season.id);
-          let resolved: ResolvedRate | null = null;
+      const targetUnit: UnitRateContext = unit
+        ? { id: unit.id, name: unit.name, linked_rolos_id: unit.linked_rolos_id }
+        : (resolver.units.length === 1
+            ? resolver.units[0]
+            : { id: property.id, name: property.name });
 
-          if (unit) {
-            resolved = resolveUnitRateKey(seasonRates, seasonId, unit, amenities);
-          } else {
-            // Legacy single-unit: find lowest rate
-            let lowestRate = Infinity;
-            let lowestExtra: number | undefined;
-            for (const [, rateData] of Object.entries(seasonRates)) {
-              if (typeof rateData === 'object' && rateData !== null) {
-                for (const [subKey, subData] of Object.entries(rateData as Record<string, any>)) {
-                  if (subKey.startsWith(seasonId + '-') && typeof subData === 'object' && subData !== null) {
-                    const amount = (subData as any).roomAmount;
-                    if (typeof amount === 'number' && amount > 0 && amount < lowestRate) {
-                      lowestRate = amount;
-                      lowestExtra = typeof (subData as any).adultAmount === 'number' && (subData as any).adultAmount > 0 ? (subData as any).adultAmount : undefined;
-                    }
-                  }
-                }
-              }
-            }
-            resolved = lowestRate < Infinity ? { price: lowestRate, extra_guest_price: lowestExtra } : null;
-          }
+      let dayRates: DayRate[] = resolver.resolveDays(targetUnit, todayStr, oneYearStr);
 
-          if (resolved !== null && resolved.price > 0) {
-            lastKnownRate = resolved.price;
-            lastKnownExtraGuest = resolved.extra_guest_price;
-            const periods = season.periods || [{ from: season.from, to: season.to }];
-            for (const period of periods) {
-              if (!period.from || !period.to) continue;
-              // RU rejects ranges that start in the past ("Past dates" notif) and would
-              // fail the whole push. Clamp each season period into today..+365d.
-              const from = period.from < todayStr ? todayStr : period.from;
-              const to = period.to > oneYearStr ? oneYearStr : period.to;
-              if (to < todayStr || from > oneYearStr || from > to) continue;
-              priceEntries.push({ date_from: from, date_to: to, price: resolved.price, extra_guest_price: resolved.extra_guest_price });
-            }
+      // Legacy building-level push (no specific unit and several units): price each day at the
+      // lowest unit price so RU never advertises less than the property actually charges.
+      if (!unit && resolver.units.length > 1) {
+        const perDate = new Map<string, DayRate>();
+        for (const u of resolver.units) {
+          for (const d of resolver.resolveDays(u, todayStr, oneYearStr)) {
+            const existing = perDate.get(d.date);
+            if (!existing || d.price < existing.price) perDate.set(d.date, d);
           }
         }
-        // Filler period with last known rate
-        if (lastKnownRate > 0 && latestEnd < oneYearStr) {
-          const nextDay = new Date(latestEnd); nextDay.setDate(nextDay.getDate() + 1);
-          const fillerFrom = nextDay.toISOString().slice(0, 10);
-          if (fillerFrom <= oneYearStr) priceEntries.push({ date_from: fillerFrom, date_to: oneYearStr, price: lastKnownRate, extra_guest_price: lastKnownExtraGuest });
-        }
+        dayRates = [...perDate.values()];
       }
+
+      const priceEntries = compressToPeriods(dayRates).map((p) => ({
+        date_from: p.date_from,
+        date_to: p.date_to,
+        price: p.price,
+        extra_guest_price: p.extra_guest_price,
+      }));
+
+      const expectedDays = Math.round((Date.parse(oneYearStr) - Date.parse(todayStr)) / 86400000) + 1;
+      const cov = resolver.coverage(dayRates);
+      result.price_coverage = {
+        ...cov,
+        expected_days: expectedDays,
+        unpriced_days: Math.max(0, expectedDays - cov.priced_days),
+        summary: describeCoverage(expectedDays, cov),
+      };
+      console.log(`[pushARI] RU ${ruPropertyId} pricing: ${result.price_coverage.summary}`);
 
       // RU requires real pricing for 365 days. Never push a dummy price — a price of 1
       // passes RU's schema but fails channel content-quality checks (LekkeSlaap, Booking.com).
       if (priceEntries.length === 0) {
-        result.prices_error = 'RU_NO_REAL_RATES: no configured rates found for the next 365 days — configure seasons and rates in ROLOS before pushing (dummy prices are never sent)';
+        result.prices_error = 'RU_NO_REAL_RATES: no calendar rate and no rack rate found for the next 365 days — set seasonal rates in the calendar, or a rate plan base rate in Rate Manager → Rates, before pushing (dummy prices are never sent)';
         console.error(`[pushARI] Aborting price push for RU property ${ruPropertyId}: ${result.prices_error}`);
         try {
           await supabase.from('sync_logs').insert({
@@ -1187,6 +1179,7 @@ async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRo
         }
         return result;
       }
+
 
       const { data: priceResult, error: priceErr } = await supabase.functions.invoke('rentalsunited-api', {
         body: { action: 'push_prices', ru_property_id: ruPropertyId, prices: priceEntries },
