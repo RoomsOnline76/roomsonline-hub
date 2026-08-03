@@ -60,6 +60,8 @@ export interface NavSection {
   label: string;
   icon: LucideIcon;
   minRole: UserRole;
+  /** When set, the section itself is a direct link and sub-items are not rendered. */
+  href?: string;
   collapsible?: boolean;
   defaultOpen?: boolean;
   items: NavItem[];
