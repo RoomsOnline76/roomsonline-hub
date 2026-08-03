@@ -39,7 +39,13 @@ type CurrencyStateRow = {
   reason: string | null;
   flip_outcome: string | null;
   decided_at: string | null;
+  /** What RU itself returned on read-back — the only proof a flip landed. */
+  ru_reported_currency_iso: string | null;
+  verified_at: string | null;
+  verified_ru_property_id: number | null;
+  owner_scope: string | null;
 };
+
 
 export function RuCurrencyPanel() {
   const [properties, setProperties] = useState<PropertyRow[]>([]);
