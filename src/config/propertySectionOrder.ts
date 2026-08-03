@@ -92,12 +92,7 @@ export const PROPERTY_SECTION_ORDER: PropertySectionDef[] = [
     description: "Property gallery and hero images.",
   },
   {
-    key: "house-rules",
-    label: "Policies",
-    description: "Check-in/out, children/pets/smoking, deposits, cancellation.",
-    rolosManaged: true,
-  },
-  {
+
     key: "rates",
     label: "Rates & Pricing",
     description: "Seasons, rate types, calendar, charges, providers.",
