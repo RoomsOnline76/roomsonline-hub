@@ -146,6 +146,8 @@ export function CompanyInformationCard({
   onRuLocationIdChange,
   propertyCity,
   propertyCountry,
+  propertyPostalCode,
+
   banking,
   onBankingChange,
 }: Props) {
