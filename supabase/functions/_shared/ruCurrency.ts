@@ -122,13 +122,22 @@ export async function verifyRuPropertyCurrency(
     if (error || !data?.success) {
       return { iso: null, currency_id: null, error: error?.message || data?.error?.message || 'Pull_GetProperty failed' };
     }
+    // RU reports the listing currency as an ISO attribute on <Property Currency="USD">,
+    // not as a <CurrencyID> element — read the attribute first, then fall back.
+    let iso: string | null = typeof data.currency_iso === 'string' && data.currency_iso ? String(data.currency_iso).toUpperCase() : null;
     let currencyId: number | null = Number.isFinite(Number(data.currency_id)) ? Number(data.currency_id) : null;
+    if (!iso && typeof data.raw_xml === 'string') {
+      const attr = data.raw_xml.match(/<Property\b[^>]*\bCurrency="([A-Za-z]{3})"/i);
+      if (attr) iso = attr[1].toUpperCase();
+    }
     if (currencyId == null && typeof data.raw_xml === 'string') {
       const m = data.raw_xml.match(/<CurrencyID>\s*(\d+)\s*<\/CurrencyID>/i);
       if (m) currencyId = parseInt(m[1], 10);
     }
-    const iso = currencyId != null ? (ISO_BY_RU_CURRENCY_ID[currencyId] ?? null) : null;
-    return { iso, currency_id: currencyId, error: currencyId == null ? 'RU response carried no CurrencyID' : undefined };
+    if (!iso && currencyId != null) iso = ISO_BY_RU_CURRENCY_ID[currencyId] ?? null;
+    if (iso && currencyId == null) currencyId = RU_CURRENCY_BY_ISO[iso] ?? null;
+    return { iso, currency_id: currencyId, error: iso == null ? 'RU response carried no currency' : undefined };
+
   } catch (e) {
     return { iso: null, currency_id: null, error: e instanceof Error ? e.message : 'read-back threw' };
   }
