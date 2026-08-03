@@ -1134,38 +1134,103 @@ function missingCompanyFields(company: Partial<RUCompanyPayload>): string[] {
 }
 
 /**
- * Sub-user ("child") authentication envelope. Push_FillCompanyDetails_RQ writes the
- * profile of whichever account authenticates, so filling a sub-user's own company
- * details requires logging in AS that sub-user.
+ * Sub-user ("child") authentication envelope. RU treats every sub-user as a separate
+ * account: since the API-keys rollout (Nov 2025) new accounts MUST authenticate with
+ * that sub-user's own AccessKey/SecretKey. Legacy accounts may still use the portal
+ * UserName/Password pair, so both shapes are supported.
  *
- * 🔒 This method is the ONE RU request whose documented Authentication members are
- * <UserName>/<Password> (see the Fill Company Details XML example in the RU reference).
- * Every other RU method uses <AccessKey>/<SecretKey>. Do not "normalise" this builder to
- * AccessKey/SecretKey — RU deserialises into a typed object and drops unknown members,
- * which authenticates with empty credentials and returns Status -4.
+ * 🔒 ADAPTER LOCK (RU child isolation): never substitute the MASTER AccessKey/SecretKey
+ * here — child-scoped methods (buildings, company details, archive) have no OwnerID and
+ * would be applied to the master account.
  */
-function buildChildAuthXml(username: string, password: string): string {
+type ChildAuth =
+  | { mode: 'keys'; access_key: string; secret_key: string }
+  | { mode: 'password'; username: string; password: string };
+
+function buildChildAuthXml(auth: ChildAuth): string {
+  if (auth.mode === 'keys') {
+    return `<Authentication>
+    <AccessKey>${escapeXml(auth.access_key)}</AccessKey>
+    <SecretKey>${escapeXml(auth.secret_key)}</SecretKey>
+  </Authentication>`;
+  }
   return `<Authentication>
-    <UserName>${escapeXml(username)}</UserName>
-    <Password>${escapeXml(password)}</Password>
+    <UserName>${escapeXml(auth.username)}</UserName>
+    <Password>${escapeXml(auth.password)}</Password>
   </Authentication>`;
 }
 
+function childAuthMode(auth: ChildAuth | null): string {
+  if (!auth) return 'parent_access_key';
+  return auth.mode === 'keys' ? 'child_api_keys' : 'child_user_password';
+}
 
+/**
+ * Resolve the credentials to use for a child-scoped RU call.
+ *
+ * Order: keys supplied on the request → keys stored for that sub-user in
+ * ru_owner_accounts → username/password supplied on the request (pre-migration
+ * accounts only). Returns null when nothing usable is available.
+ */
+async function resolveChildAuth(body: RequestBody): Promise<ChildAuth | null> {
+  const suppliedKey = typeof body.auth_access_key === 'string' ? body.auth_access_key.trim() : '';
+  const suppliedSecret = typeof body.auth_secret_key === 'string' ? body.auth_secret_key.trim() : '';
+  if (suppliedKey && suppliedSecret) {
+    return { mode: 'keys', access_key: suppliedKey, secret_key: suppliedSecret };
+  }
+
+  const username = typeof body.auth_username === 'string' ? body.auth_username.trim() : '';
+  const ownerId = body.owner_id != null ? String(body.owner_id).trim() : '';
+
+  if (username || ownerId) {
+    try {
+      const admin = createClient(
+        Deno.env.get('SUPABASE_URL')!,
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+      );
+      let query = admin
+        .from('ru_owner_accounts')
+        .select('ru_api_access_key, ru_api_secret_enc')
+        .not('ru_api_access_key', 'is', null)
+        .limit(1);
+      query = ownerId ? query.eq('ru_owner_id', ownerId) : query.eq('ru_login_email', username);
+      const { data } = await query.maybeSingle();
+      if (data?.ru_api_access_key && data?.ru_api_secret_enc) {
+        const { data: secret } = await admin.rpc('decrypt_sensitive_text', {
+          encrypted_data: data.ru_api_secret_enc,
+        });
+        const plain = typeof secret === 'string' ? secret : '';
+        if (plain && plain !== '[ENCRYPTED]' && plain !== '[DECRYPTION_ERROR]') {
+          return { mode: 'keys', access_key: String(data.ru_api_access_key), secret_key: plain };
+        }
+      }
+    } catch (e) {
+      console.warn('[rentalsunited-api] child key lookup failed', e);
+    }
+  }
+
+  const password = typeof body.auth_password === 'string' ? body.auth_password : '';
+  if (username && password) return { mode: 'password', username, password };
+  return null;
+}
+
+const CHILD_AUTH_REQUIRED_MESSAGE =
+  'This action must authenticate as the RU sub-user. Rentals United requires the sub-user\'s own API keys (AccessKey + SecretKey) — generate them in the RU dashboard under Security settings and save them in Portfolios → RU accounts, then retry.';
 
 function buildFillCompanyDetailsXml(
   creds: RUCredentials,
   company: RUCompanyPayload,
   ownerId: number,
-  childAuth?: { username: string; password: string } | null,
+  childAuth?: ChildAuth | null,
 ): string {
   const optNode = (tag: string, val?: string | number) =>
     val !== undefined && val !== null && String(val).trim() !== '' ? `<${tag}>${escapeXml(String(val))}</${tag}>` : '';
   const locations = (company.location_ids ?? []).map((id) => `      <Location Id="${Number(id)}" />`).join('\n');
   return `<?xml version="1.0" encoding="utf-8"?>
 <Push_FillCompanyDetails_RQ>
-  ${childAuth ? buildChildAuthXml(childAuth.username, childAuth.password) : buildAuthXml(creds)}
+  ${childAuth ? buildChildAuthXml(childAuth) : buildAuthXml(creds)}
   ${childAuth ? '' : `<OwnerID>${ownerId}</OwnerID>`}
+
   <ContactInfo>
     <FirstName>${escapeXml(company.first_name)}</FirstName>
     <LastName>${escapeXml(company.last_name)}</LastName>
