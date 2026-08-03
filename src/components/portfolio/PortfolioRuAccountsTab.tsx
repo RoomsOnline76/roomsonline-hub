@@ -1047,19 +1047,7 @@ export function PortfolioRuAccountsTab() {
                     })()}
 
 
-                    <div className="rounded-md border border-border bg-muted/20 p-3 space-y-2">
-                      <p className="text-xs font-medium flex items-center gap-1.5">
-                        <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
-                        RU company profile
-                      </p>
-                      <p className="text-[10px] text-muted-foreground">
-                        Now captured per property under Edit property → Identity &amp; Location →
-                        Company Information (VAT and manager numbers, time zone, region, business
-                        size and description, the legal representative, and the Rentals United
-                        LocationID). Sent with the next company push; anything left blank falls back
-                        to the property data on file.
-                      </p>
-                    </div>
+
 
 
                     <div className="rounded-md border border-border bg-muted/20 p-3 space-y-2">
