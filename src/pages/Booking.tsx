@@ -219,6 +219,10 @@ const Booking = () => {
   const setAppliedPromotion = (p: { name: string; type: string; discount: number; description?: string; imageUrl?: string } | null) => setAppliedPromotions(p ? [p] : []);
   const [pendingAgeSpecial, setPendingAgeSpecial] = useState<any | null>(null);
   const [ageVerified, setAgeVerified] = useState(false);
+  // Phase 4 — eligible specials the guest must choose between (one-of-N)
+  const [specialOffers, setSpecialOffers] = useState<CheckoutOffer[]>([]);
+  const [selectedSpecialId, setSelectedSpecialId] = useState<string | null>(null);
+  const [appliedSpecialPolicyId, setAppliedSpecialPolicyId] = useState<string | null>(null);
   const hfRoomsRef = useRef<{ id: string; name: string; linked_rolos_id?: string | null }[]>([]);
 
   // Fetch property by ID or slug using public view for anonymous access
