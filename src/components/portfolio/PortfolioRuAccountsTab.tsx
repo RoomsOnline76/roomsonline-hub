@@ -1095,6 +1095,69 @@ export function PortfolioRuAccountsTab() {
         </DialogContent>
       </Dialog>
 
+      <Dialog
+        open={!!archivePrompt}
+        onOpenChange={(o) => {
+          if (!o) {
+            setArchivePrompt(null);
+            setArchivePassword("");
+          }
+        }}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Sub-user password required</DialogTitle>
+            <DialogDescription>
+              Rentals United closes an account only when the request is authenticated as that
+              sub-user. Enter the RU portal password for{" "}
+              <span className="font-mono">{archivePrompt?.email}</span> (OwnerID{" "}
+              {archivePrompt?.ownerId}). It is used for this request only.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1.5">
+            <Label htmlFor="ru-archive-password" className="text-xs">
+              RU portal password
+            </Label>
+            <Input
+              id="ru-archive-password"
+              type="password"
+              autoComplete="off"
+              value={archivePassword}
+              onChange={(e) => setArchivePassword(e.target.value)}
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setArchivePrompt(null);
+                setArchivePassword("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              variant="destructive"
+              disabled={!archivePassword.trim() || !!archiving}
+              onClick={() =>
+                archivePrompt &&
+                archiveCandidate(archivePrompt.ownerId, archivePrompt.email, archivePassword)
+              }
+            >
+              {archiving ? (
+                <Loader2 className="h-3 w-3 animate-spin mr-1" />
+              ) : (
+                <Archive className="h-3 w-3 mr-1" />
+              )}
+              Archive on RU
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+
     </div>
   );
 }
