@@ -76,6 +76,9 @@ export interface RateManagerTabProps {
   setIsDirty: (dirty: boolean) => void;
   /** Navigate the parent form to the Specials tab. */
   onOpenSpecials?: () => void;
+  /** Extra content rendered inside the Policies sub-tab (house rules & stay terms). */
+  policiesExtra?: React.ReactNode;
+
 }
 
 export function RateManagerTab({
