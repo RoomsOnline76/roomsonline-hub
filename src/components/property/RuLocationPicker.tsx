@@ -128,9 +128,16 @@ export function RuLocationPicker({
     });
     setSeeding(false);
     if (error || !data?.success) {
-      toast.error(error?.message || data?.error?.message || "Could not refresh the RU location register");
+      const detail = data?.error?.message || error?.message;
+      const ruStatus = data?.error?.ru_status_id ? ` (RU status ${data.error.ru_status_id})` : "";
+      toast.error(
+        detail
+          ? `RU location register: ${detail}${ruStatus}`
+          : "Could not refresh the RU location register",
+      );
       return;
     }
+
     if (data.endpoint_disabled) {
       toast.warning(
         data.note ||
