@@ -1059,17 +1059,35 @@ export function PortfolioRuAccountsTab() {
                       <p className="text-xs font-mono">OwnerID {u.owner_id}</p>
                       <p className="text-[11px] text-muted-foreground truncate">{u.email}</p>
                     </div>
-                    <Button
-                      size="sm"
-                      variant={isCurrent ? "secondary" : "outline"}
-                      className="h-7 text-xs shrink-0"
-                      disabled={isCurrent || binding === u.owner_id || closing}
-                      onClick={() => bindAccount(u.owner_id, u.email)}
-                    >
-                      {binding === u.owner_id && <Loader2 className="h-3 w-3 animate-spin mr-1" />}
-                      {isCurrent ? "Bound" : "Bind"}
-                    </Button>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <Button
+                        size="sm"
+                        variant={isCurrent ? "secondary" : "outline"}
+                        className="h-7 text-xs"
+                        disabled={isCurrent || binding === u.owner_id || closing || archiving === u.owner_id}
+                        onClick={() => bindAccount(u.owner_id, u.email)}
+                      >
+                        {binding === u.owner_id && <Loader2 className="h-3 w-3 animate-spin mr-1" />}
+                        {isCurrent ? "Bound" : "Bind"}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        className="h-7 text-xs"
+                        disabled={!!archiving || binding === u.owner_id || closing}
+                        onClick={() => archiveCandidate(u.owner_id, u.email)}
+                        title="Close / archive this sub-user on Rentals United"
+                      >
+                        {archiving === u.owner_id ? (
+                          <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                        ) : (
+                          <Archive className="h-3 w-3 mr-1" />
+                        )}
+                        Archive
+                      </Button>
+                    </div>
                   </div>
+
                 );
               })}
             </div>
