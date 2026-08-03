@@ -2964,7 +2964,7 @@ Deno.serve(async (req) => {
           });
           const xml = String(data?.raw_xml ?? "");
           const count = ruAction === "get_availability"
-            ? (xml.match(/>\s*[1-9]\d*\s*</g) ?? []).length
+            ? countRuOpenDays(xml)
             : parseRuPricePoints(xml).filter((p) => p > 0).length;
           const detail = paced_skip ?? error?.message ?? data?.error?.message ?? null;
           results.push({ ruId, ok: !paced_skip && !error && data?.success === true && count > 0, count, detail, xml, paced: paced === true });
