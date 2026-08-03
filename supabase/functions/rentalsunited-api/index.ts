@@ -1197,6 +1197,29 @@ async function resolveChildAuth(body: RequestBody): Promise<ChildAuth | null> {
         Deno.env.get('SUPABASE_URL')!,
         Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
       );
+
+      const decrypt = async (enc: unknown): Promise<string | null> => {
+        if (!enc) return null;
+        const { data: secret } = await admin.rpc('decrypt_sensitive_text', { encrypted_data: enc });
+        const plain = typeof secret === 'string' ? secret : '';
+        if (!plain || plain === '[ENCRYPTED]' || plain === '[DECRYPTION_ERROR]') return null;
+        return plain;
+      };
+
+      // Preferred store: per-OwnerID credentials (never overwritten by another sub-user)
+      let credQuery = admin
+        .from('ru_api_credentials')
+        .select('access_key, secret_enc')
+        .not('access_key', 'is', null)
+        .limit(1);
+      credQuery = ownerId ? credQuery.eq('ru_owner_id', ownerId) : credQuery.eq('login_email', username);
+      const { data: credRow } = await credQuery.maybeSingle();
+      if (credRow?.access_key) {
+        const plain = await decrypt(credRow.secret_enc);
+        if (plain) return { mode: 'keys', access_key: String(credRow.access_key), secret_key: plain };
+      }
+
+      // Legacy store: keys held on the bound ru_owner_accounts row
       let query = admin
         .from('ru_owner_accounts')
         .select('ru_api_access_key, ru_api_secret_enc')
@@ -1205,18 +1228,14 @@ async function resolveChildAuth(body: RequestBody): Promise<ChildAuth | null> {
       query = ownerId ? query.eq('ru_owner_id', ownerId) : query.eq('ru_login_email', username);
       const { data } = await query.maybeSingle();
       if (data?.ru_api_access_key && data?.ru_api_secret_enc) {
-        const { data: secret } = await admin.rpc('decrypt_sensitive_text', {
-          encrypted_data: data.ru_api_secret_enc,
-        });
-        const plain = typeof secret === 'string' ? secret : '';
-        if (plain && plain !== '[ENCRYPTED]' && plain !== '[DECRYPTION_ERROR]') {
-          return { mode: 'keys', access_key: String(data.ru_api_access_key), secret_key: plain };
-        }
+        const plain = await decrypt(data.ru_api_secret_enc);
+        if (plain) return { mode: 'keys', access_key: String(data.ru_api_access_key), secret_key: plain };
       }
     } catch (e) {
       console.warn('[rentalsunited-api] child key lookup failed', e);
     }
   }
+
 
   const password = typeof body.auth_password === 'string' ? body.auth_password : '';
   if (username && password) return { mode: 'password', username, password };
@@ -1275,8 +1294,32 @@ function extractUserAccountId(xml: string): string | null {
   return match?.[1] || null;
 }
 
-function extractUsers(xml: string): { user_account_id: string; email: string; first_name: string; last_name: string; owner_id: string }[] {
-  const results: { user_account_id: string; email: string; first_name: string; last_name: string; owner_id: string }[] = [];
+interface RUListedUser {
+  user_account_id: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  owner_id: string;
+  archived: boolean;
+}
+
+/**
+ * OwnerIDs that must never be offered in the UI again (abandoned test sub-users we
+ * cannot sign into to mint API keys, so they can neither be used nor archived).
+ */
+const RU_SUPPRESSED_OWNER_IDS = new Set(['741769', '741776']);
+
+/** RU renames a closed sub-user's login to `Archived_<email>` / `Archived.<email>`. */
+function isArchivedRuLogin(email: string, ownerId: string, block?: string): boolean {
+  if (RU_SUPPRESSED_OWNER_IDS.has(String(ownerId).trim())) return true;
+  if (/^archived[._-]/i.test(email.trim())) return true;
+  if (block && /<(IsArchived|Archived)>\s*(true|1)\s*<\/(IsArchived|Archived)>/i.test(block)) return true;
+  if (block && /<IsActive>\s*(false|0)\s*<\/IsActive>/i.test(block)) return true;
+  return false;
+}
+
+function extractUsers(xml: string): RUListedUser[] {
+  const results: RUListedUser[] = [];
   // Current RU format: <Owner OwnerID="741761"><FirstName/><SurName/><Email/>...<UserAccountId>0</UserAccountId></Owner>
   const ownerRegex = /<Owner\b[^>]*\bOwnerID\s*=\s*"(\d+)"[^>]*>([\s\S]*?)<\/Owner>/gi;
   let m: RegExpExecArray | null;
@@ -1284,12 +1327,14 @@ function extractUsers(xml: string): { user_account_id: string; email: string; fi
     const ownerId = m[1];
     const block = m[2];
     const val = (tag: string) => block.match(new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`, 'i'))?.[1]?.trim() ?? '';
+    const email = val('Email') || val('UserName');
     results.push({
       user_account_id: val('UserAccountId') || '',
       first_name: val('FirstName'),
       last_name: val('SurName') || val('LastName'),
-      email: val('Email') || val('UserName'),
+      email,
       owner_id: ownerId,
+      archived: isArchivedRuLogin(email, ownerId, block),
     });
   }
   if (results.length > 0) return results;
@@ -1298,16 +1343,20 @@ function extractUsers(xml: string): { user_account_id: string; email: string; fi
   const regex = /<User>[\s\S]*?<UserAccountId>(\d+)<\/UserAccountId>[\s\S]*?<FirstName>(.*?)<\/FirstName>[\s\S]*?<LastName>(.*?)<\/LastName>[\s\S]*?<Email>(.*?)<\/Email>[\s\S]*?(?:<OwnerID>(\d+)<\/OwnerID>)?[\s\S]*?<\/User>/g;
   let match;
   while ((match = regex.exec(xml)) !== null) {
+    const email = match[4]?.trim() || '';
+    const ownerId = match[5] || '';
     results.push({
       user_account_id: match[1],
       first_name: match[2]?.trim() || '',
       last_name: match[3]?.trim() || '',
-      email: match[4]?.trim() || '',
-      owner_id: match[5] || '',
+      email,
+      owner_id: ownerId,
+      archived: isArchivedRuLogin(email, ownerId),
     });
   }
   return results;
 }
+
 
 // ── Action Handlers ──────────────────────────────────────────
 

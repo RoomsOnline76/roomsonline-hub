@@ -153,8 +153,25 @@ Deno.serve(async (req) => {
     <SecretKey>${escapeXml(suppliedSecretKey)}</SecretKey>`;
       authMode = "child_api_keys";
     } else {
-      const storedKey = String(account?.ru_api_access_key ?? "").trim();
-      const storedSecret = await decrypt(account?.ru_api_secret_enc);
+      // Preferred store: keys held per RU OwnerID (never overwritten by another sub-user)
+      let storedKey = "";
+      let storedSecret: string | null = null;
+      const { data: credRow } = await admin
+        .from("ru_api_credentials")
+        .select("access_key, secret_enc")
+        .eq("ru_owner_id", ownerId)
+        .maybeSingle();
+      if (credRow?.access_key) {
+        const plain = await decrypt(credRow.secret_enc);
+        if (plain) {
+          storedKey = String(credRow.access_key);
+          storedSecret = plain;
+        }
+      }
+      if (!storedKey) {
+        storedKey = String(account?.ru_api_access_key ?? "").trim();
+        storedSecret = await decrypt(account?.ru_api_secret_enc);
+      }
       if (storedKey && storedSecret) {
         childAuthXml = `<AccessKey>${escapeXml(storedKey)}</AccessKey>
     <SecretKey>${escapeXml(storedSecret)}</SecretKey>`;
@@ -180,6 +197,7 @@ Deno.serve(async (req) => {
         authMode = "child_user_password";
       }
     }
+
 
     // Resolve RU endpoint (master keys only used to know the endpoint host — never for ArchiveUser auth)
     const envEndpoint = (Deno.env.get("RENTALS_UNITED_ENDPOINT") ?? "").trim();
@@ -251,8 +269,12 @@ Deno.serve(async (req) => {
       }, 422);
     }
 
+    // Archived sub-users can never authenticate again — drop their stored key pair.
+    await admin.from("ru_api_credentials").delete().eq("ru_owner_id", ownerId);
+
     // Clear local bind so Phase 1 can create a fresh sub-user (only if a local row holds this OwnerID)
     let localCleared = false;
+
     if (account?.id && String(account.ru_owner_id ?? "").trim() === ownerId) {
       const localPatch: Record<string, unknown> = {
         ru_owner_id: null,
