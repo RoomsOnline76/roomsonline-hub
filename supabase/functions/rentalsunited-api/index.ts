@@ -1710,8 +1710,8 @@ Deno.serve(async (req) => {
       if (!ownerId) {
         return errorResponse('MISSING_PARAM', 'Rentals United OwnerID could not be resolved. Pass owner_id or set the RU_OWNER_ID secret.');
       }
-      const xml = buildListPropertiesXml(creds, ownerId);
-      const response = await callRentalsUnited(creds, xml);
+      const xml = buildListPropertiesXml(scopedCreds, ownerId);
+      const response = await callRentalsUnited(scopedCreds, xml);
       const { ok, status } = handleRUStatus(response);
       if (!ok) return ruErrorResponse(status);
 
@@ -1722,8 +1722,8 @@ Deno.serve(async (req) => {
     // ── get_property ──
     if (action === 'get_property') {
       if (!ru_property_id) return errorResponse('MISSING_PARAM', 'ru_property_id is required');
-      const xml = buildGetPropertyXml(creds, ru_property_id);
-      const response = await callRentalsUnited(creds, xml);
+      const xml = buildGetPropertyXml(scopedCreds, ru_property_id);
+      const response = await callRentalsUnited(scopedCreds, xml);
       const { ok, status } = handleRUStatus(response);
       if (!ok) return ruErrorResponse(status);
       return jsonResponse({ success: true, raw_xml: response });
@@ -1732,8 +1732,8 @@ Deno.serve(async (req) => {
     // ── get_availability ──
     if (action === 'get_availability') {
       if (!ru_property_id || !date_from || !date_to) return errorResponse('MISSING_PARAM', 'ru_property_id, date_from, date_to are required');
-      const xml = buildGetAvailabilityXml(creds, ru_property_id, date_from, date_to);
-      const response = await callRentalsUnited(creds, xml);
+      const xml = buildGetAvailabilityXml(scopedCreds, ru_property_id, date_from, date_to);
+      const response = await callRentalsUnited(scopedCreds, xml);
       const { ok, status } = handleRUStatus(response);
       if (!ok) return ruErrorResponse(status);
       return jsonResponse({ success: true, raw_xml: response });
@@ -1742,8 +1742,8 @@ Deno.serve(async (req) => {
     // ── get_prices ──
     if (action === 'get_prices') {
       if (!ru_property_id || !date_from || !date_to) return errorResponse('MISSING_PARAM', 'ru_property_id, date_from, date_to are required');
-      const xml = buildGetPricesXml(creds, ru_property_id, date_from, date_to);
-      const response = await callRentalsUnited(creds, xml);
+      const xml = buildGetPricesXml(scopedCreds, ru_property_id, date_from, date_to);
+      const response = await callRentalsUnited(scopedCreds, xml);
       const { ok, status } = handleRUStatus(response);
       if (!ok) return ruErrorResponse(status);
       return jsonResponse({ success: true, raw_xml: response });
@@ -1810,7 +1810,7 @@ Deno.serve(async (req) => {
         return errorResponse('VALIDATION', 'Property must include a resolvable detailed_location_id (>1). Got: ' + p.detailed_location_id);
       }
 
-      const xml = buildPushPropertyXml(creds, ru_property_id, p);
+      const xml = buildPushPropertyXml(scopedCreds, ru_property_id, p);
       const compactRequestXml = compactXml(xml);
       console.log(`[rentalsunited-api] Push XML length: ${compactRequestXml.length}, ru_property_id: ${ru_property_id}, dry_run: ${body.dry_run === true}`);
 
@@ -1836,7 +1836,7 @@ Deno.serve(async (req) => {
       }
 
       console.log(`[rentalsunited-api] XML first 300 chars: ${previewXml(sanitizeXmlForLogs(compactRequestXml), 300)}`);
-      const response = await callRentalsUnited(creds, xml);
+      const response = await callRentalsUnited(scopedCreds, xml);
       console.log(`[rentalsunited-api] RU push response: ${response.substring(0, 500)}`);
       const { ok, status } = handleRUStatus(response);
       if (!ok) {
@@ -1878,6 +1878,7 @@ Deno.serve(async (req) => {
       return jsonResponse({
         success: true,
         message: 'Property pushed successfully',
+        auth_mode: authMode,
         ru_property_id: returnedPropertyId,
         building_id: p.building_id ?? null,
         mapping: {
@@ -1901,11 +1902,11 @@ Deno.serve(async (req) => {
     if (action === 'push_availability') {
       if (!ru_property_id) return errorResponse('MISSING_PARAM', 'ru_property_id is required');
       if (!body.availability || body.availability.length === 0) return errorResponse('MISSING_PARAM', 'availability array is required');
-      const xml = buildPushAvailabilityXml(creds, ru_property_id, body.availability);
-      const response = await callRentalsUnited(creds, xml);
+      const xml = buildPushAvailabilityXml(scopedCreds, ru_property_id, body.availability);
+      const response = await callRentalsUnited(scopedCreds, xml);
       const { ok, status } = handleRUStatus(response);
       if (!ok) return ruErrorResponse(status);
-      return jsonResponse({ success: true, message: 'Availability pushed successfully', raw_xml: response });
+      return jsonResponse({ success: true, message: 'Availability pushed successfully', auth_mode: authMode, raw_xml: response });
     }
 
     // ── push_prices (mandatory) ──
@@ -1918,8 +1919,8 @@ Deno.serve(async (req) => {
         const err = validatePriceEntry(p);
         if (err) return errorResponse('INVALID_PARAM', `Invalid price entry: ${err}`);
       }
-      const xml = buildPushPricesXml(creds, ru_property_id, body.prices);
-      const response = await callRentalsUnited(creds, xml);
+      const xml = buildPushPricesXml(scopedCreds, ru_property_id, body.prices);
+      const response = await callRentalsUnited(scopedCreds, xml);
       const { ok, partial, status, notifs } = parseDiscountResponse(response);
       if (!ok && !partial) {
         // Surface the per-range <Notifs> detail — the bare status message
@@ -1940,6 +1941,7 @@ Deno.serve(async (req) => {
         success: true,
         partial,
         message: partial ? 'Prices pushed with partial errors' : 'Prices pushed successfully',
+        auth_mode: authMode,
         notifs,
         raw_xml: response,
       });
@@ -1953,8 +1955,8 @@ Deno.serve(async (req) => {
         const err = validateFspSeason(s);
         if (err) return errorResponse('INVALID_PARAM', `Invalid FSP season: ${err}`);
       }
-      const xml = buildPushFspPricesXml(creds, ru_property_id, body.fsp_seasons);
-      const response = await callRentalsUnited(creds, xml);
+      const xml = buildPushFspPricesXml(scopedCreds, ru_property_id, body.fsp_seasons);
+      const response = await callRentalsUnited(scopedCreds, xml);
       const { ok, partial, status, notifs } = parseDiscountResponse(response);
       if (!ok && !partial) return ruErrorResponse(status);
       return jsonResponse({
@@ -1979,8 +1981,8 @@ Deno.serve(async (req) => {
     // ── get_long_stay_discounts (verification) ──
     if (action === 'get_long_stay_discounts') {
       if (!ru_property_id) return errorResponse('MISSING_PARAM', 'ru_property_id is required');
-      const xml = buildGetLongStayDiscountsXml(creds, ru_property_id);
-      const response = await callRentalsUnited(creds, xml);
+      const xml = buildGetLongStayDiscountsXml(scopedCreds, ru_property_id);
+      const response = await callRentalsUnited(scopedCreds, xml);
       const { ok, status } = handleRUStatus(response);
       if (!ok) return ruErrorResponse(status);
       return jsonResponse({ success: true, raw_xml: response });
@@ -1989,8 +1991,8 @@ Deno.serve(async (req) => {
     // ── get_last_minute_discounts (verification) ──
     if (action === 'get_last_minute_discounts') {
       if (!ru_property_id) return errorResponse('MISSING_PARAM', 'ru_property_id is required');
-      const xml = buildGetLastMinuteDiscountsXml(creds, ru_property_id);
-      const response = await callRentalsUnited(creds, xml);
+      const xml = buildGetLastMinuteDiscountsXml(scopedCreds, ru_property_id);
+      const response = await callRentalsUnited(scopedCreds, xml);
       const { ok, status } = handleRUStatus(response);
       if (!ok) return ruErrorResponse(status);
       return jsonResponse({ success: true, raw_xml: response });
@@ -2004,14 +2006,15 @@ Deno.serve(async (req) => {
         const err = validateDiscountEntry(d);
         if (err) return errorResponse('INVALID_PARAM', `Invalid long stay discount: ${err}`);
       }
-      const xml = buildPushLongStayDiscountsXml(creds, ru_property_id, body.discounts);
-      const response = await callRentalsUnited(creds, xml);
+      const xml = buildPushLongStayDiscountsXml(scopedCreds, ru_property_id, body.discounts);
+      const response = await callRentalsUnited(scopedCreds, xml);
       const { ok, status, partial, notifs } = parseDiscountResponse(response);
       if (!ok && !partial) return ruErrorResponse(status);
       return jsonResponse({
         success: true,
         partial,
         message: partial ? 'Long stay discounts pushed with partial errors' : 'Long stay discounts pushed successfully',
+        auth_mode: authMode,
         notifs,
         raw_xml: response,
       });
@@ -2025,14 +2028,15 @@ Deno.serve(async (req) => {
         const err = validateDiscountEntry(d);
         if (err) return errorResponse('INVALID_PARAM', `Invalid last minute discount: ${err}`);
       }
-      const xml = buildPushLastMinuteDiscountsXml(creds, ru_property_id, body.discounts);
-      const response = await callRentalsUnited(creds, xml);
+      const xml = buildPushLastMinuteDiscountsXml(scopedCreds, ru_property_id, body.discounts);
+      const response = await callRentalsUnited(scopedCreds, xml);
       const { ok, status, partial, notifs } = parseDiscountResponse(response);
       if (!ok && !partial) return ruErrorResponse(status);
       return jsonResponse({
         success: true,
         partial,
         message: partial ? 'Last minute discounts pushed with partial errors' : 'Last minute discounts pushed successfully',
+        auth_mode: authMode,
         notifs,
         raw_xml: response,
       });
@@ -2043,8 +2047,8 @@ Deno.serve(async (req) => {
       if (!ru_property_id) return errorResponse('MISSING_PARAM', 'ru_property_id is required');
       const isActive = body.metadata?.is_active !== false;
       const isArchived = body.metadata?.is_archived === true;
-      const xml = buildSetPropertyStatusXml(creds, ru_property_id, isActive as boolean, isArchived as boolean);
-      const response = await callRentalsUnited(creds, xml);
+      const xml = buildSetPropertyStatusXml(scopedCreds, ru_property_id, isActive as boolean, isArchived as boolean);
+      const response = await callRentalsUnited(scopedCreds, xml);
       console.log(`[rentalsunited-api] SetStatus response: ${response.substring(0, 500)}`);
       const { ok, status } = handleRUStatus(response);
       if (!ok) return ruErrorResponse(status);
