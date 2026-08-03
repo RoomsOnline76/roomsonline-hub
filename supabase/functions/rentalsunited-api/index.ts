@@ -2262,14 +2262,24 @@ Deno.serve(async (req) => {
     // Child-scoped only (see push_building lock note): the parent envelope would list the
     // master account's buildings and cross-contaminate thewhite-label client's inventory.
     if (action === 'list_buildings') {
-      const childAuth = await resolveChildAuth(body);
+      const { auth: childAuth, reason } = await resolveChildAuthDetailed(body);
+      // 🔒 ADAPTER LOCK — child isolation: Pull_ListBuildings_RQ has no <OwnerID>, so a
+      // master envelope would list OUR buildings. Fail loudly instead of falling back.
+      if (!childAuth) {
+        return jsonResponse({
+          success: false,
+          auth_mode: 'master',
+          error: { code: 'RU_CHILD_AUTH_REQUIRED', message: reason ?? CHILD_AUTH_REQUIRED_MESSAGE },
+        }, 422);
+      }
       const xml = buildListBuildingsXml(creds, childAuth);
       const response = await callRentalsUnited(creds, xml);
       const { ok, status } = handleRUStatus(response);
       if (!ok) return ruErrorResponse(status, buildDiagnostics(sanitizeXmlForLogs(compactXml(xml)), status, 'list_buildings', response));
       const buildings = extractBuildings(response);
-      return jsonResponse({ success: true, buildings, count: buildings.length, raw_xml: response });
+      return jsonResponse({ success: true, auth_mode: childAuthMode(childAuth), buildings, count: buildings.length, raw_xml: response });
     }
+
 
 
 
