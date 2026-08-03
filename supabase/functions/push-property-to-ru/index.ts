@@ -1319,16 +1319,23 @@ async function verifyAvailability(
       report.error = error?.message || data?.error?.message || 'No XML returned';
       return report;
     }
-    // Build expected per-day map from requested ranges
+    // Build expected per-day map from requested ranges, clamped to the read-back window.
+    // Pushed periods can start in the past (seasons authored earlier in the year); RU only
+    // returns the requested window, so unclamped past dates were counted as "returned: null"
+    // mismatches and kept the run from ever being marked verified.
     const expected = new Map<string, { min_stay: number; changeover: number; units: number }>();
     for (const r of requested) {
-      const start = new Date(r.date_from + 'T00:00:00Z');
-      const end = new Date(r.date_to + 'T00:00:00Z');
+      const rangeFrom = r.date_from > windowFrom ? r.date_from : windowFrom;
+      const rangeTo = r.date_to < windowTo ? r.date_to : windowTo;
+      if (rangeFrom > rangeTo) continue;
+      const start = new Date(rangeFrom + 'T00:00:00Z');
+      const end = new Date(rangeTo + 'T00:00:00Z');
       for (let d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
         const iso = d.toISOString().slice(0, 10);
         expected.set(iso, { min_stay: r.min_stay, changeover: r.changeover, units: r.units });
       }
     }
+
     // Parse RU's calendar through the shared parser: RU emits
     // <CalDay Date=".." Units="1"><IsBlocked>..</IsBlocked><MinStay>..</MinStay>..</CalDay>,
     // not the self-closing <CalendarDay .../> this used to look for.
