@@ -372,7 +372,7 @@ async function handlePushInventory(supabase: any, connectionId: string, headers:
 
     await logSync(supabase, connectionId, "push_inventory", result.success ? "success" : "failed", result.recordsProcessed, null, startedAt);
 
-    return new Response(JSON.stringify({ success: true, adapter: adapter.name, ...result }), {
+    return new Response(JSON.stringify({ ...result, success: result.success !== false, adapter: adapter.name }), {
       headers: { ...headers, "Content-Type": "application/json" },
     });
   } catch (err) {
