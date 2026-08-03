@@ -43,6 +43,8 @@ interface RuOwnerAccount {
 interface WlValidationFlags {
   has_zip_code?: boolean;
   has_space?: boolean;
+  has_bathrooms?: boolean;
+  has_toilets?: boolean;
   has_floor?: boolean;
   has_detailed_location_id?: boolean;
   has_payment_methods?: boolean;
@@ -376,6 +378,8 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
         validation.has_street === false && "Street address missing",
         validation.has_zip_code === false && "ZIP / postal code missing",
         validation.has_space === false && "Property size (Space, m²) missing",
+        validation.has_bathrooms === false && "Number of bathrooms missing (mandatory)",
+        validation.has_toilets === false && "Number of toilets missing (mandatory)",
         validation.has_floor === false && "Floor number missing",
         validation.has_detailed_location_id === false && "DetailedLocationID not resolved",
         validation.has_description === false && "Description missing",

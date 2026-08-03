@@ -142,6 +142,8 @@ import {
   type PropertySectionKey,
 } from "@/config/propertySectionOrder";
 import { PropertySectionRail } from "@/components/property/PropertySectionRail";
+import RUAmenityPicker from "@/components/property/RUAmenityPicker";
+import { ROLOS_ONLY_FACILITY_GROUPS } from "@/lib/rolosOnlyFacilities";
 
 
 // Schema factory to handle conditional address validation
@@ -747,6 +749,11 @@ export default function PropertyForm({
   const [adminSubTab, setAdminSubTab] = useState<string>("overview");
   const [selectedFacilities, setSelectedFacilities] = useState<string[]>([]);
   const [selectedBreakfastOptions, setSelectedBreakfastOptions] = useState<string[]>([]);
+  // Property composition — mandatory for Rentals United / channel pushes
+  const [propBedrooms, setPropBedrooms] = useState<number>(0);
+  const [propBathrooms, setPropBathrooms] = useState<number | null>(null);
+  const [propToilets, setPropToilets] = useState<number | null>(null);
+  const [separateKitchen, setSeparateKitchen] = useState(false);
   const [cancellationPolicies, setCancellationPolicies] = useState([
     { forfeit: "10", type: "% of Total", days: "999" },
     { forfeit: "100", type: "% of Total", days: "30" },
@@ -2302,6 +2309,20 @@ export default function PropertyForm({
           setLatitude(data.latitude ? Number(data.latitude) : null);
           setLongitude(data.longitude ? Number(data.longitude) : null);
 
+          // Property composition (mandatory for channel pushes)
+          setPropBedrooms(Number((data as any).bedrooms) || 0);
+          setPropBathrooms(
+            (data as any).bathrooms === null || (data as any).bathrooms === undefined
+              ? null
+              : Number((data as any).bathrooms),
+          );
+          setPropToilets(
+            (data as any).toilets === null || (data as any).toilets === undefined
+              ? null
+              : Number((data as any).toilets),
+          );
+          setSeparateKitchen(!!(data as any).separate_kitchen);
+
           // Load google maps link if available
           if (amenities?.address_details?.google_maps_link) {
             setGoogleMapsLink(amenities.address_details.google_maps_link);
@@ -2915,104 +2936,6 @@ export default function PropertyForm({
     setUploadedImages((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const facilities = {
-    general: [
-      "Wheelchair Accessible",
-      "Non-Smoking Rooms",
-      "Designated Smoking Area",
-      "Garden",
-      "Terrace/Patio",
-      "Fireplace Lounge",
-      "Lift/Elevator",
-    ],
-    businessReception: [
-      "24-Hour Front Desk",
-      "Wake-Up Service",
-      "Safety Deposit Box",
-      "Currency Exchange",
-      "Ticket Service",
-      "Porter/Bell Service",
-      "Express Check-Out",
-      "Concierge Service",
-    ],
-    conferenceEvents: [
-      "Banquet Hall",
-      "Event Space",
-      "Wedding Facilities",
-      "Audio-Visual Equipment",
-      "Projector",
-      "Screen",
-      "Event Catering",
-    ],
-    mealsDining: [
-      "Breakfast Available (Paid)",
-      "Lunch Available",
-      "Dinner Available",
-      "Special Diet Menus on Request",
-      "BBQ/Braai Facilities",
-      "Packed Lunches",
-      "Restaurant",
-      "Bar",
-      "Wine Cellar",
-      "Room Service",
-    ],
-    utilityRoom: [
-      "Backup Power Generator",
-      "Solar Power",
-      "Inverter Power",
-      "Iron & Ironing Board",
-      "In-Room Safe",
-      "Desk/Workspace",
-      "Wardrobe/Closet",
-      "Free WiFi",
-      "Air Conditioning",
-      "Heating",
-      "Laundry Service",
-      "Electric Kettle",
-    ],
-    wellnessFitness: [
-      "Fitness Centre",
-      "Sauna",
-      "Steam Room",
-      "Hot Tub/Jacuzzi",
-      "Yoga Classes",
-      "Spa",
-      "Outdoor Swimming Pool",
-      "Indoor Swimming Pool",
-      "Full Body Massage",
-      "Couples Massage",
-    ],
-    activitiesExperiences: [
-      "Game Drives (Morning)",
-      "Game Drives (Evening)",
-      "Guided Safari Walks",
-      "Bird Watching",
-      "Cycling",
-      "Fishing",
-      "Cultural Tours",
-      "Hiking Trails",
-      "Airport Transfer",
-      "Walking Tours",
-      "Live Music/Performance",
-    ],
-    familyServices: [
-      "Children Play Area",
-      "Kids Meals",
-      "Child-Friendly Activities",
-      "Family Rooms",
-      "Babysitting/Child Services",
-    ],
-    safetySecurity: ["24-Hour Security", "CCTV", "Fire Extinguishers", "First Aid Kit"],
-    languagesSpoken: ["English", "Afrikaans", "Other Languages"],
-    transportParking: [
-      "On-Site Parking",
-      "Free Secure Parking",
-      "Nearby Parking",
-      "Car Hire Assistance",
-      "Airport Shuttle",
-    ],
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -3072,6 +2995,11 @@ export default function PropertyForm({
         is_active: true,
         images: uploadedImages,
         max_guests: 2, // Default value, can be updated later
+        // Composition — required by Rentals United and downstream channels
+        bedrooms: propBedrooms || null,
+        bathrooms: propBathrooms ?? null,
+        toilets: propToilets ?? null,
+        separate_kitchen: separateKitchen,
         price_per_night: 0, // Default value, can be updated later
         // ROL Spec fields (stored as direct columns)
         hero_listing: rolSpecData.hero_listing,
@@ -6187,260 +6115,120 @@ export default function PropertyForm({
                 </CardContent>
               </Card>
 
+              {/* Composition — mandatory for channel distribution */}
               <Card>
                 <CardHeader className="py-2 px-4">
                   <div className="flex items-center justify-between">
-                    <CardTitle className="text-sm">Facilities</CardTitle>
+                    <CardTitle className="text-sm">Composition</CardTitle>
                     <div className="text-xs text-muted-foreground flex items-center gap-1">
                       <Info className="h-3 w-3" />
-                      Checked items will be highlighted on your listing
+                      Bathrooms and toilets are mandatory for Rentals United and OTA distribution
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent className="py-2 px-4">
-                  <div className="columns-2 gap-5 md:columns-3 lg:columns-4">
-                    {/* General */}
-                    <div className="mb-4 break-inside-avoid">
-                      <h3 className="font-semibold mb-1 text-xs text-muted-foreground">General</h3>
-                      <div className="space-y-0.5">
-                        {facilities.general.map((facility) => (
-                          <div key={facility} className="flex items-center space-x-1.5">
-                            <Checkbox
-                              id={facility}
-                              checked={selectedFacilities.includes(facility)}
-                              onCheckedChange={() => toggleFacility(facility)}
-                              className="h-3 w-3"
-                            />
-                            <Label htmlFor={facility} className="cursor-pointer text-xs leading-none">
-                              {facility}
-                            </Label>
-                          </div>
-                        ))}
-                      </div>
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Bedrooms</Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        className="h-7 text-xs"
+                        value={propBedrooms}
+                        onChange={(e) => {
+                          setPropBedrooms(Math.max(0, parseInt(e.target.value) || 0));
+                          setIsDirty(true);
+                        }}
+                      />
+                      <p className="text-[10px] text-muted-foreground">Keep 0 for a studio</p>
                     </div>
-
-                    {/* Business & Reception */}
-                    <div className="mb-4 break-inside-avoid">
-                      <h3 className="font-semibold mb-1 text-xs text-muted-foreground">Business & Reception</h3>
-                      <div className="space-y-0.5">
-                        {facilities.businessReception.map((facility) => (
-                          <div key={facility} className="flex items-center space-x-1.5">
-                            <Checkbox
-                              id={facility}
-                              checked={selectedFacilities.includes(facility)}
-                              onCheckedChange={() => toggleFacility(facility)}
-                              className="h-3 w-3"
-                            />
-                            <Label htmlFor={facility} className="cursor-pointer text-xs leading-none">
-                              {facility}
-                            </Label>
-                          </div>
-                        ))}
-                      </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">
+                        Bathrooms <span className="text-destructive">*</span>
+                      </Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        className={cn("h-7 text-xs", propBathrooms === null && "border-destructive")}
+                        value={propBathrooms ?? ""}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setPropBathrooms(v === "" ? null : Math.max(0, parseInt(v) || 0));
+                          setIsDirty(true);
+                        }}
+                      />
+                      <p className="text-[10px] text-muted-foreground">Or shower rooms</p>
                     </div>
-
-                    {/* Conference & Events */}
-                    <div className="mb-4 break-inside-avoid">
-                      <h3 className="font-semibold mb-1 text-xs text-muted-foreground">Conference & Events</h3>
-                      <div className="space-y-0.5">
-                        {facilities.conferenceEvents.map((facility) => (
-                          <div key={facility} className="flex items-center space-x-1.5">
-                            <Checkbox
-                              id={facility}
-                              checked={selectedFacilities.includes(facility)}
-                              onCheckedChange={() => toggleFacility(facility)}
-                              className="h-3 w-3"
-                            />
-                            <Label htmlFor={facility} className="cursor-pointer text-xs leading-none">
-                              {facility}
-                            </Label>
-                          </div>
-                        ))}
-                      </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">
+                        Toilets <span className="text-destructive">*</span>
+                      </Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        className={cn("h-7 text-xs", propToilets === null && "border-destructive")}
+                        value={propToilets ?? ""}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setPropToilets(v === "" ? null : Math.max(0, parseInt(v) || 0));
+                          setIsDirty(true);
+                        }}
+                      />
+                      <p className="text-[10px] text-muted-foreground">Separate from bathrooms</p>
                     </div>
-
-                    {/* Meals & Dining */}
-                    <div className="mb-4 break-inside-avoid">
-                      <h3 className="font-semibold mb-1 text-xs text-muted-foreground">Meals & Dining</h3>
-                      <div className="space-y-0.5">
-                        {facilities.mealsDining.map((facility) => (
-                          <div key={facility} className="flex items-center space-x-1.5">
-                            <Checkbox
-                              id={facility}
-                              checked={selectedFacilities.includes(facility)}
-                              onCheckedChange={() => toggleFacility(facility)}
-                              className="h-3 w-3"
-                            />
-                            <Label htmlFor={facility} className="cursor-pointer text-xs leading-none">
-                              {facility}
-                            </Label>
-                          </div>
-                        ))}
+                    <div className="space-y-1">
+                      <Label className="text-xs">Separate kitchen</Label>
+                      <div className="flex items-center gap-2 pt-1">
+                        <Switch
+                          id="separate_kitchen"
+                          checked={separateKitchen}
+                          onCheckedChange={(c) => {
+                            setSeparateKitchen(c);
+                            setIsDirty(true);
+                          }}
+                        />
+                        <Label htmlFor="separate_kitchen" className="text-xs cursor-pointer">
+                          {separateKitchen ? "Yes" : "No"}
+                        </Label>
                       </div>
-                    </div>
-
-                    {/* Utility & Room Features */}
-                    <div className="mb-4 break-inside-avoid">
-                      <h3 className="font-semibold mb-1 text-xs text-muted-foreground">Utility & Room Features</h3>
-                      <div className="space-y-0.5">
-                        {facilities.utilityRoom.map((facility) => (
-                          <div key={facility} className="flex items-center space-x-1.5">
-                            <Checkbox
-                              id={facility}
-                              checked={selectedFacilities.includes(facility)}
-                              onCheckedChange={() => toggleFacility(facility)}
-                              className="h-3 w-3"
-                            />
-                            <Label htmlFor={facility} className="cursor-pointer text-xs leading-none">
-                              {facility}
-                            </Label>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Wellness & Fitness */}
-                    <div className="mb-4 break-inside-avoid">
-                      <h3 className="font-semibold mb-1 text-xs text-muted-foreground">Wellness & Fitness</h3>
-                      <div className="space-y-0.5">
-                        {facilities.wellnessFitness.map((facility) => (
-                          <div key={facility} className="flex items-center space-x-1.5">
-                            <Checkbox
-                              id={facility}
-                              checked={selectedFacilities.includes(facility)}
-                              onCheckedChange={() => toggleFacility(facility)}
-                              className="h-3 w-3"
-                            />
-                            <Label htmlFor={facility} className="cursor-pointer text-xs leading-none">
-                              {facility}
-                            </Label>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Activities & Experiences */}
-                    <div className="mb-4 break-inside-avoid">
-                      <h3 className="font-semibold mb-1 text-xs text-muted-foreground">Activities & Experiences</h3>
-                      <div className="space-y-0.5">
-                        {facilities.activitiesExperiences.map((facility) => (
-                          <div key={facility} className="flex items-center space-x-1.5">
-                            <Checkbox
-                              id={facility}
-                              checked={selectedFacilities.includes(facility)}
-                              onCheckedChange={() => toggleFacility(facility)}
-                              className="h-3 w-3"
-                            />
-                            <Label htmlFor={facility} className="cursor-pointer text-xs leading-none">
-                              {facility}
-                            </Label>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Family Services */}
-                    <div className="mb-4 break-inside-avoid">
-                      <h3 className="font-semibold mb-1 text-xs text-muted-foreground">Family Services</h3>
-                      <div className="space-y-0.5">
-                        {facilities.familyServices.map((facility) => (
-                          <div key={facility} className="flex items-center space-x-1.5">
-                            <Checkbox
-                              id={facility}
-                              checked={selectedFacilities.includes(facility)}
-                              onCheckedChange={() => toggleFacility(facility)}
-                              className="h-3 w-3"
-                            />
-                            <Label htmlFor={facility} className="cursor-pointer text-xs leading-none">
-                              {facility}
-                            </Label>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Safety & Security */}
-                    <div className="mb-4 break-inside-avoid">
-                      <h3 className="font-semibold mb-1 text-xs text-muted-foreground">Safety & Security</h3>
-                      <div className="space-y-0.5">
-                        {facilities.safetySecurity.map((facility) => (
-                          <div key={facility} className="flex items-center space-x-1.5">
-                            <Checkbox
-                              id={facility}
-                              checked={selectedFacilities.includes(facility)}
-                              onCheckedChange={() => toggleFacility(facility)}
-                              className="h-3 w-3"
-                            />
-                            <Label htmlFor={facility} className="cursor-pointer text-xs leading-none">
-                              {facility}
-                            </Label>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Languages Spoken */}
-                    <div className="mb-4 break-inside-avoid">
-                      <h3 className="font-semibold mb-1 text-xs text-muted-foreground">Languages Spoken</h3>
-                      <div className="space-y-0.5">
-                        {facilities.languagesSpoken.map((facility) => (
-                          <div key={facility} className="flex items-center space-x-1.5">
-                            <Checkbox
-                              id={facility}
-                              checked={selectedFacilities.includes(facility)}
-                              onCheckedChange={() => toggleFacility(facility)}
-                              className="h-3 w-3"
-                            />
-                            <Label htmlFor={facility} className="cursor-pointer text-xs leading-none">
-                              {facility}
-                            </Label>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Transport & Parking */}
-                    <div className="mb-4 break-inside-avoid">
-                      <h3 className="font-semibold mb-1 text-xs text-muted-foreground">Transport & Parking</h3>
-                      <div className="space-y-0.5">
-                        {facilities.transportParking.map((facility) => (
-                          <div key={facility} className="flex items-center space-x-1.5">
-                            <Checkbox
-                              id={facility}
-                              checked={selectedFacilities.includes(facility)}
-                              onCheckedChange={() => toggleFacility(facility)}
-                              className="h-3 w-3"
-                            />
-                            <Label htmlFor={facility} className="cursor-pointer text-xs leading-none">
-                              {facility}
-                            </Label>
-                          </div>
-                        ))}
-                      </div>
+                      <p className="text-[10px] text-muted-foreground">
+                        Kitchen / cooking area / kitchenette — may be outside the unit
+                      </p>
                     </div>
                   </div>
-
-                  {selectedFacilities.length > 0 && (
-                    <div className="pt-2 mt-2 border-t">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <Label className="text-xs text-muted-foreground">Selected:</Label>
-                        {selectedFacilities.map((facility) => (
-                          <Badge key={facility} variant="secondary" className="text-xs h-5 gap-1">
-                            {facility}
-                            <button
-                              type="button"
-                              onClick={() => toggleFacility(facility)}
-                              className="ml-0.5 hover:text-destructive"
-                            >
-                              <X className="h-2.5 w-2.5" />
-                            </button>
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
+                  {(propBathrooms === null || propToilets === null) && (
+                    <p className="mt-2 text-[11px] text-destructive">
+                      Bathrooms and toilets must be captured before this property can be pushed to
+                      Rentals United or any channel.
+                    </p>
                   )}
                 </CardContent>
               </Card>
+
+              {/* Property Amenities & Facilities — Rentals United aligned */}
+              <Card>
+                <CardHeader className="py-2 px-4">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-sm">Property Amenities &amp; Facilities</CardTitle>
+                    <div className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Info className="h-3 w-3" />
+                      Channel amenities first — the selection is pushed to Rentals United and OTAs
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="py-2 px-4">
+                  <RUAmenityPicker
+                    scope="property"
+                    value={selectedFacilities}
+                    onChange={(next) => {
+                      setSelectedFacilities(next);
+                      setIsDirty(true);
+                    }}
+                    extraGroups={ROLOS_ONLY_FACILITY_GROUPS}
+                  />
+                </CardContent>
+              </Card>
+
 
               {/* Breakfast Options */}
               <Card>

@@ -48,7 +48,8 @@ const normalise = (label: string) => label.toLowerCase().replace(/[^a-z0-9]+/g, 
 export function parseRuAmenityToken(token: unknown): number | null {
   if (typeof token === 'number') return Number.isFinite(token) && token > 0 ? token : null;
   if (typeof token !== 'string') return null;
-  const ruMatch = token.match(/^ru:(\d+)$/i);
+  // `ru:<id>` and `ru:<id>:<count>` (count used for internet, parking, cots, pools…)
+  const ruMatch = token.match(/^ru:(\d+)(?::\d+)?$/i);
   if (ruMatch) {
     const id = parseInt(ruMatch[1], 10);
     return Number.isFinite(id) && id > 0 ? id : null;
@@ -56,24 +57,40 @@ export function parseRuAmenityToken(token: unknown): number | null {
   return LEGACY_LABEL_IDS[normalise(token)] ?? null;
 }
 
+/** Quantity carried on a `ru:<id>:<count>` token (1 when absent). */
+export function parseRuAmenityCount(token: unknown): number {
+  if (typeof token !== 'string') return 1;
+  const m = token.match(/^ru:\d+:(\d+)$/i);
+  const n = m ? parseInt(m[1], 10) : 1;
+  return Number.isFinite(n) && n > 0 ? n : 1;
+}
+
+
 /**
- * Resolve an amenity container (array, or object with list/amenities/features)
- * into unique RU AmenityIDs. Unmappable entries are reported so the readiness
- * scorecard can nudge the owner to re-pick them from the RU catalogue.
+ * Resolve an amenity container (array, or object with list/amenities/features/facilities)
+ * into unique RU AmenityIDs plus their quantities. Unmappable entries are reported so the
+ * readiness scorecard can nudge the owner to re-pick them from the RU catalogue.
+ *
+ * `facilities` is the key property-level selections are stored under in ROLOS
+ * (`properties.amenities.facilities`), so property pushes resolve too.
  */
 export function resolveRuAmenityIds(
   amenitiesData: unknown,
-): { ids: number[]; unmapped: string[] } {
+): { ids: number[]; counts: Record<number, number>; unmapped: string[] } {
+  const obj = amenitiesData as Record<string, unknown> | null;
   const container = Array.isArray(amenitiesData)
     ? amenitiesData
-    : ((amenitiesData as Record<string, unknown> | null)?.list ||
-       (amenitiesData as Record<string, unknown> | null)?.amenities ||
-       (amenitiesData as Record<string, unknown> | null)?.features ||
-       []);
+    : ([] as unknown[]).concat(
+        (Array.isArray(obj?.list) ? obj!.list : []) as unknown[],
+        (Array.isArray(obj?.amenities) ? obj!.amenities : []) as unknown[],
+        (Array.isArray(obj?.features) ? obj!.features : []) as unknown[],
+        (Array.isArray(obj?.facilities) ? obj!.facilities : []) as unknown[],
+      );
   const ids: number[] = [];
+  const counts: Record<number, number> = {};
   const unmapped: string[] = [];
   const seen = new Set<number>();
-  if (!Array.isArray(container)) return { ids, unmapped };
+  if (!Array.isArray(container)) return { ids, counts, unmapped };
   for (const item of container) {
     const raw = typeof item === 'string' || typeof item === 'number'
       ? item
@@ -84,9 +101,15 @@ export function resolveRuAmenityIds(
       if (label) unmapped.push(label);
       continue;
     }
-    if (seen.has(id)) continue;
+    const count = parseRuAmenityCount(raw);
+    if (seen.has(id)) {
+      counts[id] = Math.max(counts[id] || 1, count);
+      continue;
+    }
     seen.add(id);
     ids.push(id);
+    counts[id] = count;
   }
-  return { ids, unmapped };
+  return { ids, counts, unmapped };
+
 }

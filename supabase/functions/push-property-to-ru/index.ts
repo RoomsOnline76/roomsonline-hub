@@ -143,6 +143,8 @@ interface PropertyRow {
   max_guests: number | null;
   bedrooms: number | null;
   bathrooms: number | null;
+  toilets: number | null;
+  separate_kitchen: boolean | null;
   amenities: Record<string, unknown> | null;
   images: unknown[] | null;
   rentalsunited_property_id: string | null;
@@ -185,13 +187,14 @@ function toFiniteNumber(value: unknown): number | null {
 
 function mapAmenities(amenitiesData: Record<string, unknown> | null): { id: number; count: number; padded?: boolean }[] {
   if (!amenitiesData) return [];
-  // Canonical resolution: `ru:<id>` tokens picked in ROLOS, plus legacy free-text
-  // labels resolved through the shared RU dictionary map. No padding — a unit that
-  // falls short of RU's 10-amenity minimum must be fixed by the owner, and the
-  // readiness scorecard reports it.
-  const { ids } = resolveRuAmenityIds(amenitiesData);
-  return ids.map((id) => ({ id, count: 1 }));
+  // Canonical resolution: `ru:<id>` / `ru:<id>:<count>` tokens picked in ROLOS, plus
+  // legacy free-text labels resolved through the shared RU dictionary map. No padding —
+  // a unit that falls short of RU's 10-amenity minimum must be fixed by the owner, and
+  // the readiness scorecard reports it.
+  const { ids, counts } = resolveRuAmenityIds(amenitiesData);
+  return ids.map((id) => ({ id, count: Math.max(1, counts[id] || 1) }));
 }
+
 
 
 interface RuImage {
@@ -424,6 +427,9 @@ function buildValidation(payload: Record<string, any>): Record<string, unknown> 
     // Advisory only (not an RU requirement): full 1-bed-per-guest coverage.
     beds_meet_max_guests: totalBeds >= Math.max(1, maxGuests),
     max_guests: maxGuests,
+    // Composition: RU treats bathrooms and toilets as mandatory.
+    has_bathrooms: (amenities || []).some((a: any) => a?.id === 81 && (a.count || 0) > 0),
+    has_toilets: (amenities || []).some((a: any) => a?.id === 37 && (a.count || 0) > 0),
     has_coordinates: payload.latitude !== 0 && payload.longitude !== 0,
     has_zip_code: !!(payload.zip_code && payload.zip_code !== '0000'),
     has_space: (payload.space || 0) > 0,
@@ -727,15 +733,30 @@ function buildUnitPayload(
   }
   images = images.map((img, index) => ({ ...img, is_main: index === 0, type_id: index === 0 ? 1 : 3 }));
 
-  // Amenities: merge unit + property
+  // Amenities: merge unit + property (property-level facilities are always additive so
+  // the RU-aligned property selection reaches every unit of the listing).
   let unitAmenities = mapAmenities(unit.amenities);
-  if (unitAmenities.length < 10) {
+  {
     const propAmenities = mapAmenities(property.amenities);
     const seenIds = new Set(unitAmenities.map(a => a.id));
     for (const pa of propAmenities) {
       if (!seenIds.has(pa.id)) { unitAmenities.push(pa); seenIds.add(pa.id); }
     }
+    // Composition-derived amenities: RU expects Bathroom (81), WC (37) and Kitchen (101)
+    // to be declared with their quantities. Unit values win, property values are the fallback.
+    const bathroomCount = Number(unit.bathrooms) || Number(property.bathrooms) || 0;
+    const toiletCount = Number(property.toilets) || 0;
+    const pushComposition = (id: number, count: number) => {
+      if (count <= 0) return;
+      const existing = unitAmenities.find(a => a.id === id);
+      if (existing) existing.count = Math.max(existing.count, count);
+      else unitAmenities.push({ id, count });
+    };
+    pushComposition(81, bathroomCount);
+    pushComposition(37, toiletCount);
+    if (property.separate_kitchen) pushComposition(101, 1);
   }
+
 
   // Calculate beds from bed_configuration if available
   let beds = 0;
@@ -1901,7 +1922,7 @@ Deno.serve(async (req) => {
 
     const { data: property, error: propErr } = await supabase
       .from('properties')
-      .select('id, name, description, property_type, address, city, country, postal_code, latitude, longitude, max_guests, bedrooms, bathrooms, amenities, images, rentalsunited_property_id, rentalsunited_building_id, owner_email, external_system, ru_archived')
+      .select('id, name, description, property_type, address, city, country, postal_code, latitude, longitude, max_guests, bedrooms, bathrooms, toilets, separate_kitchen, amenities, images, rentalsunited_property_id, rentalsunited_building_id, owner_email, external_system, ru_archived')
       .eq('id', property_id)
       .single();
 
