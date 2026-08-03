@@ -1231,22 +1231,36 @@ Deno.serve(async (req) => {
       }
 
       const { error: upErr } = await admin.from("ru_owner_accounts").update(update).eq("id", accountId);
-      if (upErr) return json({ success: false, error: { code: "SAVE_FAILED", message: upErr.message } }, 500);
+      if (upErr) {
+        console.error("[ru-cert-portal] bind update failed", upErr);
+        return json({ success: false, error: { code: "SAVE_FAILED", message: upErr.message } }, 500);
+      }
 
-      await admin.from("audit_logs").insert({
-        user_id: user.id,
-        user_email: user.email ?? "unknown",
-        user_role: (roles ?? []).some((r: { role: string }) => r.role === "dev") ? "dev" : "admin",
-        action_type: "other",
-        table_name: "ru_owner_accounts",
-        record_id: account.id,
-        request_origin: "edge_function",
-        edge_function_name: "ru-cert-portal",
-        is_sensitive: true,
-        change_summary: `Bound RU sub-account to OwnerID ${ruOwnerId} (${update.ru_login_email})`,
-      }).then(() => {}, (e) => console.warn("[ru-cert-portal] audit log insert failed", e));
+      try {
+        await admin.from("audit_logs").insert({
+          user_id: user.id,
+          user_email: user.email ?? "unknown",
+          user_role: (roles ?? []).some((r: { role: string }) => r.role === "dev") ? "dev" : "admin",
+          action_type: "other",
+          table_name: "ru_owner_accounts",
+          record_id: account.id,
+          request_origin: "edge_function",
+          edge_function_name: "ru-cert-portal",
+          is_sensitive: true,
+          change_summary: `Bound RU sub-account to OwnerID ${ruOwnerId} (${update.ru_login_email})`,
+        });
+      } catch (e) {
+        console.warn("[ru-cert-portal] audit log insert failed", e instanceof Error ? e.message : e);
+      }
 
-      return json({ success: true, ru_owner_id: ruOwnerId, login_email: update.ru_login_email });
+      console.log(`[ru-cert-portal] bind ok account=${accountId} owner=${ruOwnerId} ru_verified=${verifiedAgainstRu}`);
+      return json({
+        success: true,
+        ru_owner_id: ruOwnerId,
+        login_email: update.ru_login_email,
+        ru_verified: verifiedAgainstRu,
+      });
+
     }
 
 
