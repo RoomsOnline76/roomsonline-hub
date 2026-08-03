@@ -73,31 +73,21 @@ export const ApplyPolicyToPropertiesDialog: React.FC<Props> = ({ open, onOpenCha
     let fail = 0;
     for (const pid of targets) {
       try {
-        if (mode === "copy") {
-          const { error } = await supabase.from("rolos_reservation_policies").insert({
-            property_id: pid,
-            name: sourcePolicy.name,
-            kind: sourcePolicy.kind,
-            rule: sourcePolicy.rule as never,
-            is_default: false,
-            source_policy_id: sourcePolicy.id,
-          } as never);
-          if (error) throw error;
-        } else {
-          // "Link" — create a linked reference row pointing back to source.
-          // Since our schema keeps policies per-property, we implement "link" as an
-          // insert with source_policy_id set and a channel marker so future edits
-          // can propagate. For now we insert a copy tagged as linked.
-          const { error } = await supabase.from("rolos_reservation_policies").insert({
-            property_id: pid,
-            name: `${sourcePolicy.name} (linked)`,
-            kind: sourcePolicy.kind,
-            rule: sourcePolicy.rule as never,
-            is_default: false,
-            source_policy_id: sourcePolicy.id,
-          } as never);
-          if (error) throw error;
-        }
+        const { error } = await supabase.from("rolos_reservation_policies").insert({
+          property_id: pid,
+          name: sourcePolicy.name,
+          description: sourcePolicy.description,
+          kind: sourcePolicy.kind,
+          rule: sourcePolicy.rule as never,
+          is_default: false,
+          is_master: false,
+          scope: "property",
+          source_policy_id: sourcePolicy.id,
+          // "Link" keeps the copy tied to the source so edits can be pushed through.
+          linked_master_id: mode === "link" ? sourcePolicy.id : null,
+        } as never);
+        if (error) throw error;
+
         ok++;
       } catch (e) {
         console.error("apply policy failed for", pid, e);

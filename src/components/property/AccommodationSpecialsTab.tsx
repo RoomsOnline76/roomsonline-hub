@@ -8,9 +8,10 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Trash2, Tag, Package, Percent, DollarSign, Gift } from "lucide-react";
+import { Plus, Trash2, Tag, Package, Percent, DollarSign, Gift, Wand2 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { SpecialWizard } from "@/components/property/specials/SpecialWizard";
 
 interface RoomTypeOption {
   id: string;
@@ -94,6 +95,7 @@ export function AccommodationSpecialsTab({ propertyId, category = "accommodation
   const [saving, setSaving] = useState(false);
   const [draft, setDraft] = useState<Partial<Special> & { name: string }>({ name: "" });
   const [packageItem, setPackageItem] = useState("");
+  const [wizardOpen, setWizardOpen] = useState(false);
 
   const fetchSpecials = useCallback(async () => {
     const { data, error } = await supabase
@@ -235,6 +237,15 @@ export function AccommodationSpecialsTab({ propertyId, category = "accommodation
             <Plus className="h-3 w-3" />
           </Button>
         </div>
+        <Button
+          size="sm"
+          variant="outline"
+          className="w-full h-7 text-xs mb-2"
+          onClick={() => setWizardOpen(true)}
+        >
+          <Wand2 className="h-3 w-3 mr-1" /> Guided wizard
+        </Button>
+
         {specials.length === 0 && (
           <p className="text-xs text-muted-foreground italic">No specials yet</p>
         )}
@@ -527,6 +538,15 @@ export function AccommodationSpecialsTab({ propertyId, category = "accommodation
           </div>
         )}
       </div>
+
+      <SpecialWizard
+        open={wizardOpen}
+        onOpenChange={setWizardOpen}
+        propertyId={propertyId}
+        category={category}
+        roomTypes={roomTypes}
+        onSaved={fetchSpecials}
+      />
     </div>
   );
 }
