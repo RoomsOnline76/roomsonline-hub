@@ -98,6 +98,8 @@ interface Props {
 
   banking: CompanyBankingFields;
   onBankingChange: (key: keyof CompanyBankingFields, value: string | boolean) => void;
+  /** Optional action rendered at the top of the card body (e.g. copy to portfolio). */
+  headerAction?: React.ReactNode;
 }
 
 /** RU nationality/country fields are LocationIDs with LocationTypeID = 2. */
@@ -221,6 +223,7 @@ export function CompanyInformationCard({
 
   banking,
   onBankingChange,
+  headerAction,
 }: Props) {
   const setField = useCallback(
     (key: keyof RuCompanyProfile, raw: string, numeric = false) => {
@@ -397,6 +400,7 @@ export function CompanyInformationCard({
         </CollapsibleTrigger>
         <CollapsibleContent>
           <CardContent className="space-y-4 px-4 py-2">
+            {headerAction && <div className="flex justify-end">{headerAction}</div>}
             {missing.length > 0 && (
               <div className="rounded-md border border-destructive/40 bg-destructive/5 px-2.5 py-2">
                 <p className="text-[11px] font-semibold text-destructive">
