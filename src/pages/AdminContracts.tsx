@@ -1491,7 +1491,8 @@ export default function AdminContracts() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            {/* Contract Scope Selector */}
+            {/* Contract Scope Selector — property scope does not apply to referral agreements */}
+            {!isReferral && (
             <div className="space-y-2">
               <Label>Contract Scope *</Label>
               <div className="grid grid-cols-3 gap-2">
@@ -1519,8 +1520,10 @@ export default function AdminContracts() {
                 ))}
               </div>
             </div>
+            )}
 
-            {sendScope === "single" && (
+            {!isReferral && sendScope === "single" && (
+
             <>
             {/* Property Name Search */}
 
