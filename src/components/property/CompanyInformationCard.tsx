@@ -80,6 +80,7 @@ interface Props {
   propertyCity?: string;
   propertyCountry?: string;
   propertyPostalCode?: string;
+  /** Banking / VAT / registration block merged in from the old Banking Details card. */
 
   banking: CompanyBankingFields;
   onBankingChange: (key: keyof CompanyBankingFields, value: string | boolean) => void;
