@@ -2943,7 +2943,22 @@ Deno.serve(async (req) => {
         const ruIdNum = parseInt(unitRuId || '0', 10);
         if (ruIdNum > 0) {
           console.log(`[push-property-to-ru] Pushing ARI for unit "${unit.name}" (RU ID: ${ruIdNum})`);
-          const ariResult = await pushARI(supabase, ruIdNum, property as PropertyRow, 1, { id: unit.id, name: unit.name, linked_rolos_id: unit.linked_rolos_id, amenities: (unit as any).amenities ?? null }, childAuthPayload, currencyDecision);
+          const unitCtx = { id: unit.id, name: unit.name, linked_rolos_id: unit.linked_rolos_id, amenities: (unit as any).amenities ?? null };
+          let ariResult = await pushARI(supabase, ruIdNum, property as PropertyRow, 1, unitCtx, childAuthPayload, currencyDecision);
+
+          // RU enforces a per-owner sliding-minute window on write methods. During a
+          // multi-unit fan-out a unit can be bounced with a 429 (surfaced as a non-2xx
+          // from rentalsunited-api). Back off once and retry that unit rather than
+          // recording a failure the next cron run would repeat.
+          const paced = (msg?: string) => !!msg && /rate limit|429|sliding minute|too many requests|non-2xx/i.test(msg);
+          if (paced(ariResult.availability_error) || paced(ariResult.prices_error)) {
+            console.warn(`[push-property-to-ru] Unit "${unit.name}" ARI looks rate limited — backing off 15s and retrying once`);
+            await new Promise((r) => setTimeout(r, 15_000));
+            const retryAri = await pushARI(supabase, ruIdNum, property as PropertyRow, 1, unitCtx, childAuthPayload, currencyDecision);
+            if (!retryAri.availability_error && !retryAri.prices_error) ariResult = retryAri;
+            else ariResult = { ...ariResult, ...retryAri, retried_after_rate_limit: true } as typeof ariResult;
+          }
+
           if (ariResult.availability_error) console.error(`[push-property-to-ru] Availability error for "${unit.name}": ${ariResult.availability_error}`);
           if (ariResult.prices_error) console.error(`[push-property-to-ru] Prices error for "${unit.name}": ${ariResult.prices_error}`);
           unitResults.push({
@@ -2966,7 +2981,12 @@ Deno.serve(async (req) => {
             prices_error: 'Skipped — no valid RU property ID',
           });
         }
+
+        // Space consecutive unit writes so the same RU method is not hammered
+        // back-to-back within the owner's sliding-minute window.
+        await new Promise((r) => setTimeout(r, 900));
       }
+
 
       // Building assignment is handled via <BuildingID> in each unit's property push XML — no separate API call needed.
 
