@@ -280,8 +280,11 @@ Deno.serve(async (req) => {
       const latestByMethod = new Map<string, { step: StepRow; run_id: string; at: string }>();
       for (const run of (runs ?? []) as { id: string; started_at: string; steps: StepRow[] }[]) {
         for (const step of run.steps ?? []) {
-          const key = step.ru_method;
-          if (!latestByMethod.has(key)) latestByMethod.set(key, { step, run_id: run.id, at: run.started_at });
+          // A step may cover several RU methods (e.g. "Push_PutAvbUnits_RQ + Push_PutPrices_RQ")
+          // — register it under each method so the milestone matrix picks it up.
+          for (const key of String(step.ru_method ?? "").split("+").map((k) => k.trim()).filter(Boolean)) {
+            if (!latestByMethod.has(key)) latestByMethod.set(key, { step, run_id: run.id, at: run.started_at });
+          }
         }
       }
 
@@ -2313,15 +2316,33 @@ Deno.serve(async (req) => {
       const steps: CertStep[] = [];
       let stepNo = 0;
 
+      /**
+       * RU responses that are not our fault: the sliding-minute rate limit and methods RU has
+       * not enabled for this integration. These are recorded as `skipped` (informational) so
+       * they never count as certification failures.
+       */
+      const softSkipReason = (detail: string): string | null => {
+        if (/rate limit/i.test(detail)) {
+          return "Rentals United rate limit (1 call per sliding minute) — re-run after the cooldown.";
+        }
+        if (/not implemented method/i.test(detail)) {
+          return "Rentals United has not enabled this method for this integration — informational only.";
+        }
+        return null;
+      };
+
       const call = async (
         name: string,
         ruAction: string,
         payload: Record<string, unknown>,
         opts: { mandatory?: boolean; scope?: CertScope; skip?: string; assert?: (data: any) => string | null } = {},
       ) => {
+        const scope: CertScope = opts.scope ?? "account";
+        // Property-scoped checks are omitted entirely from an account-level run — they are
+        // not applicable, so they should not appear in the step list at all.
+        if (scope === "property" && !propertyId) return null;
         stepNo += 1;
         const ru_method = RU_METHOD_BY_ACTION[ruAction] ?? ruAction;
-        const scope: CertScope = opts.scope ?? "account";
         if (opts.skip) {
           steps.push({ step: stepNo, name, ru_method, mandatory: !!opts.mandatory, scope, status: "skipped", duration_ms: 0, detail: opts.skip });
           return null;
@@ -2333,21 +2354,24 @@ Deno.serve(async (req) => {
           });
           const duration = Date.now() - t0;
           if (error) {
-            steps.push({ step: stepNo, name, ru_method, mandatory: !!opts.mandatory, scope, status: "failed", duration_ms: duration, detail: error.message, request: payload });
+            const soft = softSkipReason(error.message ?? "");
+            steps.push({ step: stepNo, name, ru_method, mandatory: !!opts.mandatory, scope, status: soft ? "skipped" : "failed", duration_ms: duration, detail: soft ?? error.message, request: payload });
             return null;
           }
           const ok = data?.success === true || data?.healthy === true;
           const assertFail = ok && opts.assert ? opts.assert(data) : null;
+          const rawDetail = assertFail ?? data?.error?.message ?? data?.message ?? (ok ? "OK" : "Unexpected response");
+          const soft = ok && !assertFail ? null : softSkipReason(String(rawDetail));
           steps.push({
             step: stepNo,
             name,
             ru_method,
             mandatory: !!opts.mandatory,
             scope,
-            status: ok && !assertFail ? "passed" : "failed",
+            status: ok && !assertFail ? "passed" : soft ? "skipped" : "failed",
             duration_ms: duration,
             ru_status_id: data?.ru_status_id ?? data?.error?.ru_status_id ?? null,
-            detail: assertFail ?? data?.error?.message ?? data?.message ?? (ok ? "OK" : "Unexpected response"),
+            detail: soft ?? rawDetail,
             request: payload,
             response_preview: preview(data?.raw_xml ?? data),
           });
@@ -2395,6 +2419,70 @@ Deno.serve(async (req) => {
 
       const PROPERTY_SKIP = "Property-scoped check — select a ROLOS property to run it.";
 
+      // Every RU property ID mapped to this ROLOS property. Multi-unit properties push one RU
+      // property per unit, so ARI read-backs must probe each unit — reading only the parent
+      // RUID returns an empty calendar and looked like a failure.
+      let unitRuIds: number[] = [];
+      if (propertyId) {
+        const { data: unitRows } = await admin
+          .from("hostfully_room_types")
+          .select("rentalsunited_property_id")
+          .eq("property_id", propertyId)
+          .not("rentalsunited_property_id", "is", null);
+        unitRuIds = (unitRows ?? [])
+          .map((u: { rentalsunited_property_id: string | null }) => Number(u.rentalsunited_property_id))
+          .filter((n: number) => Number.isFinite(n) && n > 0);
+        if (unitRuIds.length === 0 && ruPropertyId) unitRuIds = [ruPropertyId];
+      }
+
+      /** Availability / price read-back across every mapped RU unit. */
+      const probeAri = async (name: string, ruAction: "get_availability" | "get_prices") => {
+        if (!propertyId) return;
+        const ru_method = RU_METHOD_BY_ACTION[ruAction] ?? ruAction;
+        stepNo += 1;
+        if (unitRuIds.length === 0) {
+          steps.push({
+            step: stepNo, name, ru_method, mandatory: true, scope: "property",
+            status: "skipped", duration_ms: 0,
+            detail: "No RU property id resolved — push this property to Rentals United first.",
+          });
+          return;
+        }
+        const t0 = Date.now();
+        const from = isoDate(0);
+        const to = isoDate(365);
+        const results = await Promise.all(unitRuIds.map(async (ruId) => {
+          const { data, error } = await admin.functions.invoke("rentalsunited-api", {
+            body: { action: ruAction, ru_property_id: ruId, date_from: from, date_to: to },
+          });
+          const xml = String(data?.raw_xml ?? "");
+          const count = ruAction === "get_availability"
+            ? (xml.match(/>\s*[1-9]\d*\s*</g) ?? []).length
+            : parseRuPricePoints(xml).filter((p) => p > 0).length;
+          const detail = error?.message ?? data?.error?.message ?? null;
+          return { ruId, ok: !error && data?.success === true && count > 0, count, detail, xml };
+        }));
+        const failed = results.filter((r) => !r.ok);
+        const soft = failed.map((r) => softSkipReason(String(r.detail ?? ""))).find(Boolean) ?? null;
+        const unitLabel = ruAction === "get_availability" ? "open day(s)" : "price point(s)";
+        steps.push({
+          step: stepNo,
+          name,
+          ru_method,
+          mandatory: true,
+          scope: "property",
+          status: failed.length === 0 ? "passed" : soft ? "skipped" : "failed",
+          duration_ms: Date.now() - t0,
+          detail: failed.length === 0
+            ? `${results.map((r) => `${r.ruId}: ${r.count} ${unitLabel}`).join(", ")}`
+            : soft ?? `RU unit(s) ${failed.map((r) => r.ruId).join(", ")} returned no ${unitLabel} for the next 365 days${
+              failed[0]?.detail ? ` — ${failed[0].detail}` : ""
+            }`,
+          request: { ru_property_ids: unitRuIds, date_from: from, date_to: to },
+          response_preview: preview(results[0]?.xml ?? null),
+        });
+      };
+
       if (runReadOnly) {
         await call("Credentials & connectivity", "health_check", {}, { mandatory: true, scope: "account" });
         await call("List properties", "list_properties", {}, { mandatory: true, scope: "account" });
@@ -2404,28 +2492,8 @@ Deno.serve(async (req) => {
         const propScoped = ruPropertyId ? undefined : PROPERTY_SKIP;
 
         await call("Get property content", "get_property", { ru_property_id: ruPropertyId }, { mandatory: true, scope: "property", skip: propScoped });
-        await call(
-          "Get availability (365 days)",
-          "get_availability",
-          { ru_property_id: ruPropertyId, date_from: isoDate(0), date_to: isoDate(365) },
-          {
-            mandatory: true,
-            scope: "property",
-            skip: propScoped,
-            assert: (d) => (/<CalendarDay/i.test(String(d?.raw_xml ?? "")) ? null : "No calendar days returned for the next 365 days"),
-          },
-        );
-        await call(
-          "Get prices (365 days)",
-          "get_prices",
-          { ru_property_id: ruPropertyId, date_from: isoDate(0), date_to: isoDate(365) },
-          {
-            mandatory: true,
-            scope: "property",
-            skip: propScoped,
-            assert: (d) => (/<Season/i.test(String(d?.raw_xml ?? "")) ? null : "No price seasons returned for the next 365 days"),
-          },
-        );
+        await probeAri("Get availability (365 days)", "get_availability");
+        await probeAri("Get prices (365 days)", "get_prices");
         await call("List reservations (last 7 days)", "list_reservations", { date_from: isoDate(-7), date_to: isoDate(0) }, { mandatory: true, scope: "account" });
         await call("Get leads (optional)", "get_leads", { date_from: isoDate(-7), date_to: isoDate(0) }, { mandatory: false, scope: "account" });
         await call(
@@ -2447,25 +2515,19 @@ Deno.serve(async (req) => {
 
         await call("List composition rooms", "list_composition_rooms", {}, { mandatory: false, scope: "account" });
         await call("List cities & currencies", "list_cities_and_currencies", {}, { mandatory: false, scope: "account" });
-        await call("Resolve location by coordinates", "get_location_by_coordinates", { latitude: -34.0333, longitude: 21.35 }, { mandatory: false, scope: "account" });
+        await call(
+          "Resolve location by coordinates",
+          "get_location_by_coordinates",
+          { metadata: { latitude: -34.0333, longitude: 21.35 } },
+          { mandatory: false, scope: "account" },
+        );
       }
 
       if (runMandatory) {
         const handlerUrl = `${supabaseUrl}/functions/v1/ru-reservation-handler`;
         await call("Subscribe RLNM handler", "subscribe_notifications", { handler_url: handlerUrl }, { mandatory: true, scope: "account" });
 
-        if (!propertyId) {
-          for (const [name, method] of [
-            ["Push property content", "Push_PutProperty_RQ"],
-            ["Push availability + prices (ARI)", "Push_PutAvbUnits_RQ + Push_PutPrices_RQ"],
-          ] as [string, string][]) {
-            stepNo += 1;
-            steps.push({
-              step: stepNo, name, ru_method: method, mandatory: true, scope: "property",
-              status: "skipped", duration_ms: 0, detail: PROPERTY_SKIP,
-            });
-          }
-        } else {
+        if (propertyId) {
           // Content + ARI push via the property pipeline (keeps payload mapping in one place)
           for (const [name, fnBody, method] of [
             ["Push property content", { property_id: propertyId }, "Push_PutProperty_RQ"],
@@ -2487,18 +2549,8 @@ Deno.serve(async (req) => {
 
           // Read-back verification
           await call("Verify content read-back", "get_property", { ru_property_id: ruPropertyId }, { mandatory: true, scope: "property", skip: noProp });
-          await call(
-            "Verify availability read-back",
-            "get_availability",
-            { ru_property_id: ruPropertyId, date_from: isoDate(0), date_to: isoDate(365) },
-            { mandatory: true, scope: "property", skip: noProp },
-          );
-          await call(
-            "Verify prices read-back",
-            "get_prices",
-            { ru_property_id: ruPropertyId, date_from: isoDate(0), date_to: isoDate(365) },
-            { mandatory: true, scope: "property", skip: noProp },
-          );
+          await probeAri("Verify availability read-back", "get_availability");
+          await probeAri("Verify prices read-back", "get_prices");
         }
       }
 

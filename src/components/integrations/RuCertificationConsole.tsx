@@ -43,7 +43,7 @@ interface UserMgmtState {
   updated_at?: string | null;
   guest_communication?: string;
   endpoints?: RuUserEndpoint[];
-  users?: { id?: string; email?: string; name?: string; owner_id?: string; user_account_id?: string }[];
+  users?: { id?: string; email?: string; name?: string; owner_id?: string; user_account_id?: string; archived?: boolean }[];
   probe?: unknown;
 }
 
@@ -357,6 +357,7 @@ export function RuCertificationConsole({ properties }: { properties: PropertyLit
 
   const [userMgmt, setUserMgmt] = useState<UserMgmtState | null>(null);
   const [userMgmtLoading, setUserMgmtLoading] = useState(false);
+  const [showArchivedUsers, setShowArchivedUsers] = useState(false);
   const [savingFlag, setSavingFlag] = useState(false);
   const [userDraft, setUserDraft] = useState({ first_name: "", last_name: "", email: "", password: "" });
   const [creatingUser, setCreatingUser] = useState(false);
@@ -368,6 +369,30 @@ export function RuCertificationConsole({ properties }: { properties: PropertyLit
   const [pgSending, setPgSending] = useState(false);
 
   const activeSuite = useMemo(() => SUITES.find((s) => s.value === suite) ?? SUITES[0], [suite]);
+
+  /**
+   * Throwaway sandbox logins that Rentals United will not let us archive. They are never used
+   * for real inventory, so they are always hidden from the sub-user list.
+   */
+  const isHiddenTestLogin = (email?: string) => {
+    const e = (email ?? "").toLowerCase();
+    return e === "test-owner@example.com" || e.startsWith("rolo-apitest");
+  };
+
+  const allSubUsers = userMgmt?.users ?? [];
+  const visibleSubUsers = useMemo(
+    () =>
+      allSubUsers.filter(
+        (u) => !isHiddenTestLogin(u.email) && (showArchivedUsers || !u.archived),
+      ),
+    [allSubUsers, showArchivedUsers],
+  );
+  const archivedCount = useMemo(
+    () => allSubUsers.filter((u) => !isHiddenTestLogin(u.email) && u.archived).length,
+    [allSubUsers],
+  );
+
+
 
   const candidateProperties = useMemo(
     // Certification testing is limited to properties explicitly enabled for RU push.
@@ -1206,14 +1231,30 @@ export function RuCertificationConsole({ properties }: { properties: PropertyLit
                 </div>
               )}
 
-              {userMgmt?.users && userMgmt.users.length > 0 && (
+              {allSubUsers.length > 0 && (
                 <div className="rounded-lg border p-3 space-y-2">
-                  <p className="text-sm font-medium">Current RU sub-users (from last probe)</p>
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <p className="text-sm font-medium">Current RU sub-users (from last probe)</p>
+                    {archivedCount > 0 && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={() => setShowArchivedUsers((v) => !v)}
+                      >
+                        {showArchivedUsers ? "Hide" : "View"} archived ({archivedCount})
+                      </Button>
+                    )}
+                  </div>
                   <div className="space-y-1">
-                    {userMgmt.users.map((u, i) => (
+                    {visibleSubUsers.length === 0 && (
+                      <p className="text-xs text-muted-foreground">No active sub-users.</p>
+                    )}
+                    {visibleSubUsers.map((u, i) => (
                       <div key={i} className="flex items-center justify-between gap-2 text-xs border rounded px-2 py-1.5">
                         <span className="font-mono">OwnerID {u.owner_id ?? u.id ?? "?"}</span>
                         <span className="text-muted-foreground truncate">{u.email ?? "—"}</span>
+                        {u.archived && <Badge variant="secondary" className="text-[10px]">Archived</Badge>}
                       </div>
                     ))}
                   </div>
