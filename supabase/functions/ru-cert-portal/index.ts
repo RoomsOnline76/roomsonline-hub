@@ -15,6 +15,7 @@ import { summarizeReadiness, type RuCheck, type RuUnitInput } from "../_shared/r
 import { evaluatePhases, findOwnerAccount, resolvePortfolioId } from "../_shared/ruPhaseGate.ts";
 import { createRateResolver, describeCoverage } from "../_shared/rateResolution.ts";
 import { parseRuPricePoints } from "../_shared/ruPriceParsing.ts";
+import { countRuOpenDays } from "../_shared/ruAvailabilityParsing.ts";
 import {
   RU_EMPLOYEE_RANGES,
   RU_PROPERTY_RANGES,
@@ -574,23 +575,30 @@ Deno.serve(async (req) => {
       } else if (ruIds.length > 0) {
         const from = isoDate(0);
         const to = isoDate(365);
+        // White-label listings live on the owning sub-user account: reading them with the
+        // MASTER credentials returns an empty calendar, which used to be reported as
+        // "no open availability day in the next 365 days" even for fully synced units.
+        const { account: ownerAccount } = await findOwnerAccount(admin, p.id, null, null);
+        const scopedOwnerId = ownerAccount?.ru_owner_id ? Number(ownerAccount.ru_owner_id) : null;
+        const scope = scopedOwnerId && scopedOwnerId > 0 ? { owner_id: scopedOwnerId } : {};
         const unitProbes = await Promise.all(ruIds.map(async (ruId) => {
           const [avbRes, priceRes] = await Promise.all([
             admin.functions.invoke("rentalsunited-api", {
-              body: { action: "get_availability", ru_property_id: ruId, date_from: from, date_to: to },
+              body: { action: "get_availability", ru_property_id: ruId, date_from: from, date_to: to, ...scope },
             }),
             admin.functions.invoke("rentalsunited-api", {
-              body: { action: "get_prices", ru_property_id: ruId, date_from: from, date_to: to },
+              body: { action: "get_prices", ru_property_id: ruId, date_from: from, date_to: to, ...scope },
             }),
           ]);
           const avbXml: string = avbRes.data?.raw_xml ?? "";
           const prices = parseRuPricePoints(priceRes.data?.raw_xml ?? "");
-          const openDays = (avbXml.match(/>\s*[1-9]\d*\s*</g) ?? []).length;
+          const openDays = countRuOpenDays(avbXml);
           return {
             ru_property_id: ruId,
             open_days: openDays,
             price_points: prices.length,
             availability_ok: !!avbRes.data?.success && openDays > 0,
+            availability_error: avbRes.error?.message ?? avbRes.data?.error?.message ?? null,
             prices_ok: !!priceRes.data?.success && prices.length > 0 && prices.every((price) => price > 0),
           };
         }));
@@ -2956,7 +2964,7 @@ Deno.serve(async (req) => {
           });
           const xml = String(data?.raw_xml ?? "");
           const count = ruAction === "get_availability"
-            ? (xml.match(/>\s*[1-9]\d*\s*</g) ?? []).length
+            ? countRuOpenDays(xml)
             : parseRuPricePoints(xml).filter((p) => p > 0).length;
           const detail = paced_skip ?? error?.message ?? data?.error?.message ?? null;
           results.push({ ruId, ok: !paced_skip && !error && data?.success === true && count > 0, count, detail, xml, paced: paced === true });
