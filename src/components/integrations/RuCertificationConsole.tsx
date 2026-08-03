@@ -43,7 +43,7 @@ interface UserMgmtState {
   updated_at?: string | null;
   guest_communication?: string;
   endpoints?: RuUserEndpoint[];
-  users?: { id?: string; email?: string; name?: string; owner_id?: string; user_account_id?: string }[];
+  users?: { id?: string; email?: string; name?: string; owner_id?: string; user_account_id?: string; archived?: boolean }[];
   probe?: unknown;
 }
 
