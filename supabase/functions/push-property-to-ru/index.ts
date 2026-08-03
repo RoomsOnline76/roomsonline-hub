@@ -498,7 +498,7 @@ function buildValidation(payload: Record<string, any>): Record<string, unknown> 
 }
 
 
-function mapPaymentMethods(amenities: Record<string, unknown> | null): number[] {
+function mapPaymentMethods(amenities: Record<string, unknown> | null): { methods: number[]; isDefault: boolean } {
   const methods: number[] = [];
   const seen = new Set<number>();
   const paymentData = amenities?.payment_methods || amenities?.payments;
@@ -509,21 +509,26 @@ function mapPaymentMethods(amenities: Record<string, unknown> | null): number[] 
       if (ruId && !seen.has(ruId)) { seen.add(ruId); methods.push(ruId); }
     }
   }
-  if (methods.length === 0) methods.push(1, 2);
-  return methods;
+  // Nothing authored in the ROLOS UI: keep the payload valid (RU requires >= 1 method)
+  // but flag it so the readiness scorecard reports an unconfirmed default, not a pass.
+  if (methods.length === 0) return { methods: [1, 2], isDefault: true };
+  return { methods, isDefault: false };
 }
 
-function mapCancellationPolicies(amenities: Record<string, unknown> | null): { valid_from: number; valid_to: number; percentage: number }[] {
+function mapCancellationPolicies(amenities: Record<string, unknown> | null): { rules: { valid_from: number; valid_to: number; percentage: number }[]; isDefault: boolean } {
   const policies = amenities?.cancellation_policies;
   if (!Array.isArray(policies) || policies.length === 0) {
-    return [{ valid_from: 0, valid_to: 14, percentage: 100 }, { valid_from: 15, valid_to: 30, percentage: 50 }];
+    return {
+      rules: [{ valid_from: 0, valid_to: 14, percentage: 100 }, { valid_from: 15, valid_to: 30, percentage: 50 }],
+      isDefault: true,
+    };
   }
   const sorted = [...policies]
     .filter((p: any) => p.days != null && p.forfeit != null)
     .map((p: any) => ({ days: Number(p.days), forfeit: Number(p.forfeit) }))
     .filter((p) => Number.isFinite(p.days) && Number.isFinite(p.forfeit) && p.days >= 0)
     .sort((a, b) => a.days - b.days);
-  if (sorted.length === 0) return [{ valid_from: 0, valid_to: 30, percentage: 100 }];
+  if (sorted.length === 0) return { rules: [{ valid_from: 0, valid_to: 30, percentage: 100 }], isDefault: true };
   const rules: { valid_from: number; valid_to: number; percentage: number }[] = [];
   for (let i = 0; i < sorted.length; i++) {
     const policy = sorted[i] as any;
@@ -531,8 +536,10 @@ function mapCancellationPolicies(amenities: Record<string, unknown> | null): { v
     const toDays = policy.days;
     if (fromDays <= toDays) rules.push({ valid_from: fromDays, valid_to: toDays, percentage: policy.forfeit });
   }
-  return rules;
+  if (rules.length === 0) return { rules: [{ valid_from: 0, valid_to: 30, percentage: 100 }], isDefault: true };
+  return { rules, isDefault: false };
 }
+
 
 // ── Currency mapping (RU CurrencyID dictionary) ──────────────
 // Sourced from Pull_ListCurrencies_RQ. ZAR/NAD/BWP added explicitly because they're our
