@@ -1241,7 +1241,13 @@ const CHILD_SCOPED_ACTIONS = new Set([
   'list_properties',
   'order_mcq',
   'push_change_currency',
+  // Reservation / lead pulls are account-scoped: a white-label sub-user's bookings do NOT
+  // appear in the master account's Pull_ListReservations_RQ response.
+  'list_reservations',
+  'get_leads',
+  'subscribe_notifications',
 ]);
+
 
 /**
  * Child-scoped actions where a master-credential fallback is never acceptable once an
@@ -1264,7 +1270,13 @@ const CHILD_AUTH_STRICT_ACTIONS = new Set([
   'get_last_minute_discounts',
   'order_mcq',
   'push_change_currency',
+  // Pulling a sub-user's reservations on master credentials silently returns OUR bookings,
+  // which would look like "no reservations" for the white-label account.
+  'list_reservations',
+  'get_leads',
+  'subscribe_notifications',
 ]);
+
 
 
 /**
@@ -1889,22 +1901,23 @@ Deno.serve(async (req) => {
     // ── list_reservations ──
     if (action === 'list_reservations') {
       if (!date_from || !date_to) return errorResponse('MISSING_PARAM', 'date_from and date_to are required');
-      const xml = buildListReservationsXml(creds, date_from, date_to);
-      const response = await callRentalsUnited(creds, xml);
+      const xml = buildListReservationsXml(scopedCreds, date_from, date_to);
+      const response = await callRentalsUnited(scopedCreds, xml);
       const { ok, status } = handleRUStatus(response);
       if (!ok) return ruErrorResponse(status);
-      return jsonResponse({ success: true, raw_xml: response });
+      return jsonResponse({ success: true, auth_mode: authMode, raw_xml: response });
     }
 
     // ── get_leads (optional) ──
     if (action === 'get_leads') {
       if (!date_from || !date_to) return errorResponse('MISSING_PARAM', 'date_from and date_to are required');
-      const xml = buildGetLeadsXml(creds, date_from, date_to);
-      const response = await callRentalsUnited(creds, xml);
+      const xml = buildGetLeadsXml(scopedCreds, date_from, date_to);
+      const response = await callRentalsUnited(scopedCreds, xml);
       const { ok, status } = handleRUStatus(response);
       if (!ok) return ruErrorResponse(status);
-      return jsonResponse({ success: true, raw_xml: response });
+      return jsonResponse({ success: true, auth_mode: authMode, raw_xml: response });
     }
+
 
     // ── push_property (mandatory) ──
     if (action === 'push_property') {
@@ -2110,12 +2123,15 @@ Deno.serve(async (req) => {
     // ── subscribe_notifications (mandatory RNLM) ──
     if (action === 'subscribe_notifications') {
       if (!body.handler_url) return errorResponse('MISSING_PARAM', 'handler_url is required');
-      const xml = buildSubscribeNotificationsXml(creds, body.handler_url);
-      const response = await callRentalsUnited(creds, xml);
+      // Per-account registration: each white-label sub-user must register the handler with
+      // its OWN credentials, otherwise RU never pushes that sub-user's reservations to us.
+      const xml = buildSubscribeNotificationsXml(scopedCreds, body.handler_url);
+      const response = await callRentalsUnited(scopedCreds, xml);
       const { ok, status } = handleRUStatus(response);
       if (!ok) return ruErrorResponse(status);
-      return jsonResponse({ success: true, message: 'Notification handler registered successfully', raw_xml: response });
+      return jsonResponse({ success: true, auth_mode: authMode, message: 'Notification handler registered successfully', raw_xml: response });
     }
+
 
     // ── get_long_stay_discounts (verification) ──
     if (action === 'get_long_stay_discounts') {
