@@ -1911,6 +1911,8 @@ Deno.serve(async (req) => {
           const am = (pr as any)?.amenities;
           const rcp = am && typeof am === "object" ? (am as Record<string, unknown>).ru_company_profile : null;
           if (rcp && typeof rcp === "object") propertyProfile = rcp as Record<string, unknown>;
+          collectVatAndRegistration(am);
+
           const prLoc = Number((pr as any)?.ru_location_id);
           if (Number.isFinite(prLoc) && prLoc > 1) propertyRuLocationId = prLoc;
           address = (pr as any)?.address ?? undefined;
