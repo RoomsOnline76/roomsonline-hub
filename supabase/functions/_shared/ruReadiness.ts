@@ -154,13 +154,11 @@ export function evaluateUnitChecks(
   add("rooms_have_amenities", "Rooms & beds", "Every room has beds / amenities", v.rooms_have_amenities !== false,
     `${(v.rooms_count ?? 0) - (v.rooms_with_amenities ?? 0)} room block(s) have no bed or amenity entry`,
     "Rooms → Unit → Bed configuration");
-  // RU's 10-amenity minimum applies to the property/unit (checked above via
-  // meets_minimum_amenities). Composition rooms only carry bed entries, so a
-  // per-bedroom amenity count is a quality hint, never a push blocker.
-  add("rooms_meet_min_amenities", "Rooms & beds", `Bedrooms with ≥ ${RU_MIN_AMENITIES} amenities (optional)`,
-    v.rooms_meet_min_amenities !== false,
-    `${v.rooms_below_min_amenities ?? 0} bedroom block(s) carry fewer than ${RU_MIN_AMENITIES} amenities — optional detail, the unit-level minimum is what Rentals United enforces`,
-    "Rooms → Amenities", false);
+  // RU's 10-amenity minimum applies to the property/unit only (checked above via
+  // meets_minimum_amenities). Composition rooms carry bed entries exclusively, so
+  // counting amenities per bedroom block is meaningless and is not reported at all —
+  // it produced a permanent false "amenities < 10" gap on fully-completed units.
+
 
   // RU White-Label minimum: beds must cover >= 50% of CanSleepMax. This is the only
   // mandatory bed rule; 1-bed-per-guest is a quality warning, never a blocker.
