@@ -98,8 +98,6 @@ export function RateManagerTab({
   formData,
   amenities,
   isAdmin,
-  isDev,
-  isFearlessLeader,
   setIsDirty,
   onOpenSpecials,
   policiesExtra,
