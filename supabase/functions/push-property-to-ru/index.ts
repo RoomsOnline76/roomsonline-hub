@@ -1325,10 +1325,11 @@ async function verifyAvailability(
   supabase: any,
   ruPropertyId: number,
   requested: { date_from: string; date_to: string; units: number; min_stay: number; changeover: number }[],
-  windowFrom: string,
+  windowFromRaw: string,
   windowTo: string,
   childAuth: Record<string, unknown> = {},
 ): Promise<AvailabilityVerification> {
+  const windowFrom = verificationStart(windowFromRaw);
   const report: AvailabilityVerification = { checked: false, total_days: 0, matches: 0, mismatches: [] };
   try {
     const { data, error } = await supabase.functions.invoke('rentalsunited-api', {
