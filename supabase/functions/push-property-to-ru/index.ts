@@ -16,6 +16,7 @@ import {
   type DayRate,
   type UnitRateContext,
 } from '../_shared/rateResolution.ts';
+import { parseRuPriceSeasons } from '../_shared/ruPriceParsing.ts';
 
 
 
@@ -870,30 +871,10 @@ async function verifyPrices(
       return report;
     }
     const xml = String(data.raw_xml);
-    // RU returns: <Season DateFrom="..." DateTo="..."><Price>X</Price><ExtraGuestPrice>Y</ExtraGuestPrice></Season>
-    // Some variants use child elements: <Season><DateFrom>...</DateFrom><DateTo>...</DateTo>...</Season>
-    const returnedSeasons: { date_from: string; date_to: string; price: number | null; extra_guest_price: number | null }[] = [];
-    const seasonBlockRegex = /<Season\b([^>]*)>([\s\S]*?)<\/Season>/gi;
-    const attr = (s: string, name: string): string | null => {
-      const m = new RegExp(`${name}="([^"]*)"`, 'i').exec(s);
-      return m ? m[1] : null;
-    };
-    let m: RegExpExecArray | null;
-    while ((m = seasonBlockRegex.exec(xml)) !== null) {
-      const attrs = m[1];
-      const inner = m[2];
-      const df = attr(attrs, 'DateFrom') || (inner.match(/<DateFrom>([\s\S]*?)<\/DateFrom>/i)?.[1]?.trim() ?? null);
-      const dt = attr(attrs, 'DateTo') || (inner.match(/<DateTo>([\s\S]*?)<\/DateTo>/i)?.[1]?.trim() ?? null);
-      if (!df || !dt) continue;
-      const priceMatch = inner.match(/<Price>([\s\S]*?)<\/Price>/i);
-      const extraMatch = inner.match(/<ExtraGuestPrice>([\s\S]*?)<\/ExtraGuestPrice>/i);
-      returnedSeasons.push({
-        date_from: df,
-        date_to: dt,
-        price: priceMatch ? Number(priceMatch[1].trim()) : null,
-        extra_guest_price: extraMatch ? Number(extraMatch[1].trim()) : null,
-      });
-    }
+    const returnedSeasons = parseRuPriceSeasons(xml).filter(
+      (season): season is typeof season & { date_from: string; date_to: string } =>
+        Boolean(season.date_from && season.date_to),
+    );
 
     report.checked = true;
 
