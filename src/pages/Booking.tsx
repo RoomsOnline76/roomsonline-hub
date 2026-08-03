@@ -48,6 +48,9 @@ import { calculateCharges, getChargeTotals } from "@/components/charges/ChargeCa
 import type { ChargeCalculationContext } from "@/components/charges/ChargeCalculator";
 import { formatCancellationPolicy, type CancellationRule } from "@/lib/policyFormatter";
 import { captureCommissionOrigin } from "@/lib/bookingOrigin";
+import { SpecialOfferPicker, type CheckoutOffer } from "@/components/booking/SpecialOfferPicker";
+import { isSpecialEligible, type SpecialRecord } from "@/lib/specialsResolver";
+import { useResolvedCancellationPolicy } from "@/hooks/useResolvedCancellationPolicy";
 import {
   Collapsible,
   CollapsibleContent,
@@ -219,6 +222,10 @@ const Booking = () => {
   const setAppliedPromotion = (p: { name: string; type: string; discount: number; description?: string; imageUrl?: string } | null) => setAppliedPromotions(p ? [p] : []);
   const [pendingAgeSpecial, setPendingAgeSpecial] = useState<any | null>(null);
   const [ageVerified, setAgeVerified] = useState(false);
+  // Phase 4 — eligible specials the guest must choose between (one-of-N)
+  const [specialOffers, setSpecialOffers] = useState<CheckoutOffer[]>([]);
+  const [selectedSpecialId, setSelectedSpecialId] = useState<string | null>(null);
+  const [appliedSpecialPolicyId, setAppliedSpecialPolicyId] = useState<string | null>(null);
   const hfRoomsRef = useRef<{ id: string; name: string; linked_rolos_id?: string | null }[]>([]);
 
   // Fetch property by ID or slug using public view for anonymous access
@@ -249,21 +256,14 @@ const Booking = () => {
   // Fetch property charges (taxes, fees, deposits, surcharges)
   const { data: propertyCharges } = useChargesForBooking(property?.id || null);
 
-  // Cancellation policy (canonical rolos_policies row) — used to render actual terms on checkout
-  const { data: cancellationPolicyRule } = useQuery({
-    queryKey: ["booking-cancellation-policy", property?.id],
-    enabled: !!property?.id,
-    staleTime: 5 * 60 * 1000,
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("rolos_policies" as any)
-        .select("rule")
-        .eq("property_id", property!.id)
-        .eq("policy_type", "cancellation")
-        .maybeSingle();
-      return (data as any)?.rule ?? null;
-    },
-  });
+  // Cancellation policy resolution (Phase 4):
+  // selected special's policy -> rate-plan linked policy -> property master -> legacy row
+  const { data: resolvedPolicy } = useResolvedCancellationPolicy(
+    property?.id,
+    appliedSpecialPolicyId,
+    selectedRateType || null,
+  );
+  const cancellationPolicyRule = resolvedPolicy?.rule ?? null;
 
   // Fetch VAT config from brand config, with amenities fallback
   useEffect(() => {
@@ -1455,6 +1455,8 @@ const Booking = () => {
               hfRoomsRef.current = (hfRoomsFallback || []).map(r => ({ id: r.id, name: r.name, linked_rolos_id: r.linked_rolos_id }));
             }
             let nextPendingAgeSpecial: any | null = null;
+            type Candidate = CheckoutOffer & { stackable: boolean; priority: number };
+            const candidates: Candidate[] = [];
             const accommodationSubtotal = lineItems
               .filter((item) => item.nights > 0 && item.total > 0)
               .reduce((sum, item) => sum + item.total, 0);
@@ -1514,9 +1516,14 @@ const Booking = () => {
                 if (!hasMatchingRoom) continue;
               }
 
-              const todayStr = new Date().toISOString().split('T')[0];
-              if (special.book_from && todayStr < special.book_from) continue;
-              if (special.book_until && todayStr > special.book_until) continue;
+              // Lead time, weekday mask, stay ranges, audience & booking window (Phase 4 resolver)
+              if (!isSpecialEligible(special as SpecialRecord, {
+                checkIn: bookingCheckIn,
+                checkOut: bookingCheckOut,
+                subtotal: basisForSpecial,
+                isSubscriber: false,
+                ageVerified: true, // handled separately below so we can prompt for proof
+              })) continue;
 
               let discount = 0;
               const sType = special.special_type || special.discount_type || '';
@@ -1547,29 +1554,64 @@ const Booking = () => {
                   continue;
                 }
 
-                if (appliedPromos.some((promo) => promo.type === 'special' && promo.name === specialName)) {
-                  continue;
-                }
-
-                appliedPromos.push({
+                candidates.push({
+                  id: String(special.id),
                   name: specialName,
-                  type: 'special',
+                  description: special.description ?? null,
+                  label: pctLabel ? `${pctLabel}% off` : 'Special offer',
+                  dealType: special.deal_type ?? null,
                   discount,
-                  description: special.description,
+                  cancellationPolicyId: special.cancellation_policy_id ?? null,
+                  stackable: special.is_stackable === true,
+                  priority: Number(special.priority ?? 0),
                 });
-                const discountLabel = pctLabel ? `(-${pctLabel}%)` : '';
-                lineItems.push({
-                  description: `🏷️ ${specialName} ${discountLabel}`,
-                  nights: 0,
-                  quantity: 1,
-                  unitPrice: -discount,
-                  total: -discount,
-                });
-                runningTotal -= discount;
               }
             }
 
             setPendingAgeSpecial(nextPendingAgeSpecial);
+
+            // De-duplicate by name (legacy specials can be mirrored per room type)
+            const seenNames = new Set<string>();
+            const unique = candidates.filter((c) => {
+              const key = c.name.toLowerCase();
+              if (seenNames.has(key)) return false;
+              seenNames.add(key);
+              return true;
+            });
+
+            const exclusive = unique
+              .filter((c) => !c.stackable)
+              .sort((a, b) => b.discount - a.discount || b.priority - a.priority);
+            const stackable = unique.filter((c) => c.stackable);
+
+            // Exactly one eligible offer -> auto-apply. Two or more -> guest picks one.
+            const chosen =
+              exclusive.find((c) => c.id === selectedSpecialId) ?? exclusive[0] ?? null;
+
+            const offerList: CheckoutOffer[] = exclusive.map(({ stackable: _s, priority: _p, ...rest }) => rest);
+            setSpecialOffers(offerList);
+            setSelectedSpecialId(chosen ? chosen.id : null);
+            setAppliedSpecialPolicyId(chosen?.cancellationPolicyId ?? null);
+
+            for (const applied of [...(chosen ? [chosen] : []), ...stackable]) {
+              appliedPromos.push({
+                name: applied.name,
+                type: 'special',
+                discount: applied.discount,
+                description: applied.description ?? undefined,
+              });
+              lineItems.push({
+                description: `🏷️ ${applied.name} (${applied.label})`,
+                nights: 0,
+                quantity: 1,
+                unitPrice: -applied.discount,
+                total: -applied.discount,
+              });
+              runningTotal -= applied.discount;
+            }
+          } else {
+            setSpecialOffers([]);
+            setAppliedSpecialPolicyId(null);
           }
         } catch (err) {
           console.warn('[Booking] Failed to fetch specials:', err);
@@ -1590,7 +1632,7 @@ const Booking = () => {
     if (property && rooms.length > 0 && selectedRateType && checkIn && checkOut) {
       calculateCost();
     }
-  }, [property?.id, rooms, selectedRateType, checkIn, checkOut, propertyCharges, ageVerified]);
+  }, [property?.id, rooms, selectedRateType, checkIn, checkOut, propertyCharges, ageVerified, selectedSpecialId]);
 
   // Form validation for required fields
   const isFormValid = guestName.trim().length >= 2 && 
@@ -2027,6 +2069,18 @@ const Booking = () => {
           description: item.description,
           total: item.total,
         })),
+        cancellation_policy: resolvedPolicy?.rule
+          ? {
+              id: resolvedPolicy.id,
+              name: resolvedPolicy.name,
+              source: resolvedPolicy.source,
+              summary: formatCancellationPolicy(
+                resolvedPolicy.rule as CancellationRule,
+                checkIn || undefined,
+                totalCost || undefined,
+              ).summaryText,
+            }
+          : undefined,
         vat: vatConfig.isVat ? {
           rate: vatConfig.rate,
           number: vatConfig.number,
@@ -2741,6 +2795,14 @@ const Booking = () => {
                     </div>
                   )}
 
+                  {/* One-of-N special offer selection (two or more qualifying specials) */}
+                  <SpecialOfferPicker
+                    offers={specialOffers}
+                    selectedId={selectedSpecialId}
+                    onSelect={setSelectedSpecialId}
+                    renderAmount={(amount) => <FormattedPrice amount={amount} />}
+                  />
+
                   {/* Applied promotions banners */}
                   {appliedPromotions.length > 0 && appliedPromotions.map((promo, idx) => (
                     <div key={idx} className="border border-dashed border-border bg-card rounded-lg p-3 mt-2">
@@ -2865,7 +2927,10 @@ const Booking = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                 </svg>
                 <div>
-                  <p className="text-xs font-medium">Cancellation Policy</p>
+                  <p className="text-xs font-medium">
+                    Cancellation Policy
+                    {resolvedPolicy?.name ? ` — ${resolvedPolicy.name}` : ""}
+                  </p>
                   {(() => {
                     const amenityText = ((property as any)?.amenities?.cancellation_policy || "").toString().trim();
                     const rule = cancellationPolicyRule as CancellationRule | null | undefined;
