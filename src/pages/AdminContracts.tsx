@@ -101,6 +101,8 @@ interface OwnerContract {
   override_by: string | null;
   override_reason: string | null;
   created_at: string | null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  metadata?: any;
 }
 
 interface LinkedProperty {
