@@ -98,6 +98,8 @@ interface Props {
 
   banking: CompanyBankingFields;
   onBankingChange: (key: keyof CompanyBankingFields, value: string | boolean) => void;
+  /** Optional action rendered at the top of the card body (e.g. copy to portfolio). */
+  headerAction?: React.ReactNode;
 }
 
 /** RU nationality/country fields are LocationIDs with LocationTypeID = 2. */
