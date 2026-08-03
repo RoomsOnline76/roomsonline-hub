@@ -4,7 +4,7 @@ import { resolveRuOwnerScopes, type RuOwnerScope } from '../_shared/ruOwnerScope
 /**
  * Cron job: Pull reservations from Rentals United every 30 minutes.
  * Safety net alongside RLNM — catches missed push notifications.
- * Queries the last 30 days of reservations via Pull_ListReservations_RQ (RU filters on the
+ * Queries the last 90 days of reservations via Pull_ListReservations_RQ (RU filters on the
  * reservation CREATION date, so a short window silently drops bookings taken earlier).
  * Confirmed reservations also block the booked nights in `property_availability` so the ROL
  * booking engine cannot resell a night a channel already sold; cancellations release them.
@@ -23,7 +23,7 @@ const corsHeaders = {
 /** RU rate limit: one call per method per sliding minute (+1s safety). */
 const METHOD_WINDOW_MS = 61_000;
 /** How far back to ask RU for reservations (RU filters on the reservation creation date). */
-const PULL_WINDOW_DAYS = 30;
+const PULL_WINDOW_DAYS = 90;
 /** Wall-clock budget for the whole run; remaining accounts roll into the next run. */
 const RUN_BUDGET_MS = 6 * 60_000;
 
