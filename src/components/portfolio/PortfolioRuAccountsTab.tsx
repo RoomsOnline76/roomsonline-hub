@@ -301,6 +301,53 @@ export function PortfolioRuAccountsTab() {
     }
   }, [bindFor, accounts, refreshAccounts, hideCredentials]);
 
+  /**
+   * Archive any RU sub-user listed under our master account (Push_ArchiveUser_RQ, child auth).
+   * https://developer.rentalsunited.com/#close-user-account
+   */
+  const archiveCandidate = useCallback(
+    async (ownerId: string, email: string, password?: string) => {
+      if (!password && !window.confirm(
+        `Archive OwnerID ${ownerId} (${email}) on Rentals United?\n\nThis closes the sub-user via Push_ArchiveUser_RQ. Properties are archived and channel connections removed.`,
+      )) return;
+
+      setArchiving(ownerId);
+      try {
+        const { data, error } = await supabase.functions.invoke("ru-close-user", {
+          body: { ru_owner_id: ownerId, login_email: email, ...(password ? { password } : {}) },
+        });
+        if (error || !data?.success) {
+          if (data?.error?.code === "PASSWORD_REQUIRED" || data?.error?.code === "RU_CHILD_LOGIN_REJECTED") {
+            setArchivePrompt({ ownerId, email });
+            setArchivePassword("");
+            toast.warning(data.error.message);
+            return;
+          }
+          toast.error(
+            data?.error?.message ||
+              (error
+                ? await extractFunctionError(error, "Could not archive the RU sub-user")
+                : "Could not archive the RU sub-user"),
+          );
+          return;
+        }
+        toast.success(data.message || `OwnerID ${ownerId} archived on Rentals United`);
+        setArchivePrompt(null);
+        setArchivePassword("");
+        setBindCandidates((prev) => prev.filter((c) => c.owner_id !== ownerId));
+        if (data.local_cleared) {
+          setBindFor(null);
+        }
+        await refreshAccounts();
+      } finally {
+        setArchiving(null);
+      }
+    },
+    [refreshAccounts],
+  );
+
+
+
 
   const openReset = useCallback((accountId: string, email: string) => {
     setResetFor({ id: accountId, email });
