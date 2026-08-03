@@ -1876,19 +1876,19 @@ Deno.serve(async (req) => {
     // parent fallback here.
     if (action === 'push_building') {
       if (!body.building_name) return errorResponse('MISSING_PARAM', 'building_name is required');
-      const childUser = typeof body.auth_username === 'string' ? body.auth_username.trim() : '';
-      const childPass = typeof body.auth_password === 'string' ? body.auth_password : '';
+      const childAuth = await resolveChildAuth(body);
       const bId = body.building_id || 0;
-      if (!childUser || !childPass) {
+      if (!childAuth) {
         return jsonResponse({
           success: false,
           error: {
             code: 'RU_CHILD_AUTH_REQUIRED',
-            message: 'Buildings must be created with the linked RU sub-user login. Save the sub-user password in Portfolios → RU accounts and retry.',
+            message: CHILD_AUTH_REQUIRED_MESSAGE,
           },
         }, 422);
       }
-      const xml = buildPushBuildingXml(creds, bId, body.building_name, body.unit_types, { username: childUser, password: childPass });
+      const xml = buildPushBuildingXml(creds, bId, body.building_name, body.unit_types, childAuth);
+
       const response = await callRentalsUnited(creds, xml);
       const { ok, status } = handleRUStatus(response);
       console.log(`[rentalsunited-api] Push building (auth=child_user_password) ok=${ok} response: ${response.substring(0, 500)}`);
