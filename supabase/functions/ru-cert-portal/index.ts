@@ -16,6 +16,14 @@ import { evaluatePhases, findOwnerAccount, resolvePortfolioId } from "../_shared
 import { createRateResolver, describeCoverage } from "../_shared/rateResolution.ts";
 import { parseRuPricePoints } from "../_shared/ruPriceParsing.ts";
 import {
+  RU_EMPLOYEE_RANGES,
+  RU_PROPERTY_RANGES,
+  RU_YEARS_RANGES,
+  isRangeId,
+  rangeIdForCount,
+  type RuRange,
+} from "../_shared/ruRanges.ts";
+import {
   resolveRuDiscounts,
   validateRuLadder,
   longStayToWire,
