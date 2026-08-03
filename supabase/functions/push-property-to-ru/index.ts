@@ -2293,18 +2293,21 @@ Deno.serve(async (req) => {
     let precomputedGaps: string[] = [];
     try {
       if (isMultiUnit) {
-        precomputedGaps = mandatoryGaps(
-          activeRoomTypes.map(rt => ({
-            name: rt.name,
-            validation: buildValidation(
-              buildUnitPayload(property as PropertyRow, rt, locationId, undefined, currencyId) as Record<string, any>,
-            ) as any,
-          })),
+        const scored = await Promise.all(
+          activeRoomTypes.map(async (rt) => {
+            const payload = buildUnitPayload(property as PropertyRow, rt, locationId, undefined, currencyId) as Record<string, any>;
+            // Probe image dimensions exactly like the dry run does — without this the
+            // sizes stay "unverified" and readiness falsely reports every photo as too small.
+            await applyImageVerification(payload);
+            return { name: rt.name, validation: buildValidation(payload) as any };
+          }),
         );
+        precomputedGaps = mandatoryGaps(scored);
       }
     } catch (e) {
       console.warn('[push-property-to-ru] Readiness pre-scoring failed:', e instanceof Error ? e.message : e);
     }
+
 
     const phaseGate = await evaluatePhases(supabase, property as any, { readinessGaps: precomputedGaps });
 
@@ -2400,14 +2403,9 @@ Deno.serve(async (req) => {
       console.log(`[push-property-to-ru] Multi-unit mode: ${activeRoomTypes.length} units for "${property.name}"`);
 
       // ── Readiness gate: no live push while mandatory WL requirements fail ──
+      // Reuses the image-verified scoring computed for the phase gate above.
       if (!dry_run && !forcePush) {
-        const gatedUnits = activeRoomTypes.map(rt => ({
-          name: rt.name,
-          validation: buildValidation(
-            buildUnitPayload(property as PropertyRow, rt, locationId, undefined, currencyId) as Record<string, any>,
-          ) as any,
-        }));
-        const gaps = mandatoryGaps(gatedUnits);
+        const gaps = precomputedGaps;
         if (gaps.length > 0) {
           return new Response(
             JSON.stringify({
@@ -2422,6 +2420,7 @@ Deno.serve(async (req) => {
           );
         }
       }
+
 
 
 
