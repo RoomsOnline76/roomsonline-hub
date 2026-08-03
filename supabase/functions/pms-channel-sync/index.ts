@@ -103,28 +103,35 @@ const bookingComAdapter: ChannelAdapter = {
   },
 
   async pushRates(connection, ratePlans, mappings) {
-    const rateAmountMessages = ratePlans.map(plan => {
+    // One RateAmountMessage per priced date range (calendar seasons first, rack rate fill).
+    const rateAmountMessages = ratePlans.flatMap(plan => {
       const mapping = mappings.find(m => m.rate_plan_id === plan.id);
-      return {
-        StatusApplicationControl: {
-          RatePlanCode: mapping?.external_rate_id || plan.code || plan.id,
-          InvTypeCode: mapping?.external_room_id || "DEFAULT",
-        },
+      const control = {
+        RatePlanCode: mapping?.external_rate_id || plan.code || plan.id,
+        InvTypeCode: mapping?.external_room_id || "DEFAULT",
+      };
+      const periods = Array.isArray(plan.rate_periods) && plan.rate_periods.length > 0
+        ? plan.rate_periods
+        : [{ date_from: null, date_to: null, price: plan.base_rate }];
+      return periods.map((p: any) => ({
+        StatusApplicationControl: { ...control, Start: p.date_from, End: p.date_to },
         Rates: {
           Rate: {
-            Base: { AmountAfterTax: plan.base_rate, CurrencyCode: "ZAR" },
+            Base: { AmountAfterTax: p.price, CurrencyCode: "ZAR" },
+            ...(p.extra_guest_price ? { AdditionalGuestAmount: p.extra_guest_price } : {}),
           },
         },
-      };
+      }));
     });
 
-    console.log(`[channel-sync] booking_com push_rates: ${rateAmountMessages.length} rate plans`);
+    console.log(`[channel-sync] booking_com push_rates: ${rateAmountMessages.length} dated rate messages across ${ratePlans.length} rate plans`);
     return {
       success: true,
       recordsProcessed: rateAmountMessages.length,
-      details: `ADAPTER_READY — ${rateAmountMessages.length} rate plans built for Booking.com. Live push pending API credentials.`,
+      details: `ADAPTER_READY — ${rateAmountMessages.length} dated rate messages built for Booking.com from ${ratePlans.length} rate plans. Live push pending API credentials.`,
     };
   },
+
 };
 
 // ============================================================================
