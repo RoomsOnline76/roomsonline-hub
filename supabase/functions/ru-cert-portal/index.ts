@@ -3193,17 +3193,25 @@ Deno.serve(async (req) => {
 
       }
 
+      // Stamp the phase on the steps this invocation produced so the console can group a
+      // staged full run by phase.
+      for (let i = priorStepCount; i < steps.length; i++) {
+        (steps[i] as Record<string, unknown>).phase = phaseTag;
+      }
+
       const passed = steps.filter((s) => s.status === "passed").length;
       const failed = steps.filter((s) => s.status === "failed").length;
       // Skipped steps (methods RU has not enabled, rate-limit deferrals, N/A scope) are
       // informational and excluded from the success counter denominator.
       const graded = passed + failed;
 
+      // An intermediate phase leaves the run open: only the last phase closes it, so the
+      // record reflects one certification with a single verdict.
       const { data: finished } = await admin
         .from("ru_cert_runs")
         .update({
-          status: failed === 0 ? "passed" : "failed",
-          finished_at: new Date().toISOString(),
+          status: isFinalPhase ? (failed === 0 ? "passed" : "failed") : "running",
+          finished_at: isFinalPhase ? new Date().toISOString() : null,
           passed,
           failed,
           total: graded,
@@ -3215,7 +3223,8 @@ Deno.serve(async (req) => {
         .select("*")
         .single();
 
-      return json({ success: true, run: finished, property: propertyRow });
+      return json({ success: true, run: finished, property: propertyRow, run_id: run.id, phase: phaseTag });
+
     }
 
     return json({ success: false, error: { code: "UNKNOWN_ACTION", message: `Unknown action: ${action}` } }, 400);
