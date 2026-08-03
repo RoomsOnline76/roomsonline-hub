@@ -749,7 +749,23 @@ function resolveUnitFloor(property: PropertyRow, unit: RoomTypeRow | null): { fl
   const raw = match?.floor;
   const n = typeof raw === 'number' ? raw : raw === null || raw === undefined || raw === '' ? NaN : Number(raw);
   if (Number.isFinite(n)) return { floor: n, isDefault: false };
+  // Fall back to the property-level floor authored in Setup Property → General.
+  const propRaw = (property.amenities as any)?.property_floor;
+  const propN = typeof propRaw === 'number' ? propRaw : propRaw === null || propRaw === undefined || propRaw === '' ? NaN : Number(propRaw);
+  if (Number.isFinite(propN)) return { floor: propN, isDefault: false };
   return { floor: 0, isDefault: true };
+}
+
+/**
+ * RU Space (property size in m²): unit room size → property-level size authored in
+ * Setup Property → General → default 50. The default is flagged so readiness reports it.
+ */
+function resolvePropertySize(property: PropertyRow, unitSize: number | null | undefined): { space: number; isDefault: boolean } {
+  const unitN = Number(unitSize);
+  if (Number.isFinite(unitN) && unitN > 0) return { space: unitN, isDefault: false };
+  const propN = Number((property.amenities as any)?.property_size_sqm);
+  if (Number.isFinite(propN) && propN > 0) return { space: propN, isDefault: false };
+  return { space: 50, isDefault: true };
 }
 
 function buildUnitPayload(
