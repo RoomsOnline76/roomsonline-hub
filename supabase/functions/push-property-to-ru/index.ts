@@ -484,7 +484,9 @@ function buildValidation(payload: Record<string, any>): Record<string, unknown> 
     floor_is_default: payload.floor_is_default === true,
     has_detailed_location_id: (payload.detailed_location_id || 0) > 1,
     has_payment_methods: (payload.payment_methods || []).length >= 1,
+    payment_methods_is_default: payload.payment_methods_is_default === true,
     has_cancellation_policies: (payload.cancellation_policies || []).length >= 1,
+    cancellation_policies_is_default: payload.cancellation_policies_is_default === true,
     has_name: !!(payload.name && String(payload.name).trim().length >= 3),
     has_object_type_id: ((payload.object_type_id ?? payload.property_type_id) || 0) > 0,
     can_sleep_max_ok: maxGuests >= 1,
@@ -498,7 +500,7 @@ function buildValidation(payload: Record<string, any>): Record<string, unknown> 
 }
 
 
-function mapPaymentMethods(amenities: Record<string, unknown> | null): number[] {
+function mapPaymentMethods(amenities: Record<string, unknown> | null): { methods: number[]; isDefault: boolean } {
   const methods: number[] = [];
   const seen = new Set<number>();
   const paymentData = amenities?.payment_methods || amenities?.payments;
@@ -509,21 +511,26 @@ function mapPaymentMethods(amenities: Record<string, unknown> | null): number[] 
       if (ruId && !seen.has(ruId)) { seen.add(ruId); methods.push(ruId); }
     }
   }
-  if (methods.length === 0) methods.push(1, 2);
-  return methods;
+  // Nothing authored in the ROLOS UI: keep the payload valid (RU requires >= 1 method)
+  // but flag it so the readiness scorecard reports an unconfirmed default, not a pass.
+  if (methods.length === 0) return { methods: [1, 2], isDefault: true };
+  return { methods, isDefault: false };
 }
 
-function mapCancellationPolicies(amenities: Record<string, unknown> | null): { valid_from: number; valid_to: number; percentage: number }[] {
+function mapCancellationPolicies(amenities: Record<string, unknown> | null): { rules: { valid_from: number; valid_to: number; percentage: number }[]; isDefault: boolean } {
   const policies = amenities?.cancellation_policies;
   if (!Array.isArray(policies) || policies.length === 0) {
-    return [{ valid_from: 0, valid_to: 14, percentage: 100 }, { valid_from: 15, valid_to: 30, percentage: 50 }];
+    return {
+      rules: [{ valid_from: 0, valid_to: 14, percentage: 100 }, { valid_from: 15, valid_to: 30, percentage: 50 }],
+      isDefault: true,
+    };
   }
   const sorted = [...policies]
     .filter((p: any) => p.days != null && p.forfeit != null)
     .map((p: any) => ({ days: Number(p.days), forfeit: Number(p.forfeit) }))
     .filter((p) => Number.isFinite(p.days) && Number.isFinite(p.forfeit) && p.days >= 0)
     .sort((a, b) => a.days - b.days);
-  if (sorted.length === 0) return [{ valid_from: 0, valid_to: 30, percentage: 100 }];
+  if (sorted.length === 0) return { rules: [{ valid_from: 0, valid_to: 30, percentage: 100 }], isDefault: true };
   const rules: { valid_from: number; valid_to: number; percentage: number }[] = [];
   for (let i = 0; i < sorted.length; i++) {
     const policy = sorted[i] as any;
@@ -531,8 +538,10 @@ function mapCancellationPolicies(amenities: Record<string, unknown> | null): { v
     const toDays = policy.days;
     if (fromDays <= toDays) rules.push({ valid_from: fromDays, valid_to: toDays, percentage: policy.forfeit });
   }
-  return rules;
+  if (rules.length === 0) return { rules: [{ valid_from: 0, valid_to: 30, percentage: 100 }], isDefault: true };
+  return { rules, isDefault: false };
 }
+
 
 // ── Currency mapping (RU CurrencyID dictionary) ──────────────
 // Sourced from Pull_ListCurrencies_RQ. ZAR/NAD/BWP added explicitly because they're our
@@ -740,7 +749,23 @@ function resolveUnitFloor(property: PropertyRow, unit: RoomTypeRow | null): { fl
   const raw = match?.floor;
   const n = typeof raw === 'number' ? raw : raw === null || raw === undefined || raw === '' ? NaN : Number(raw);
   if (Number.isFinite(n)) return { floor: n, isDefault: false };
+  // Fall back to the property-level floor authored in Setup Property → General.
+  const propRaw = (property.amenities as any)?.property_floor;
+  const propN = typeof propRaw === 'number' ? propRaw : propRaw === null || propRaw === undefined || propRaw === '' ? NaN : Number(propRaw);
+  if (Number.isFinite(propN)) return { floor: propN, isDefault: false };
   return { floor: 0, isDefault: true };
+}
+
+/**
+ * RU Space (property size in m²): unit room size → property-level size authored in
+ * Setup Property → General → default 50. The default is flagged so readiness reports it.
+ */
+function resolvePropertySize(property: PropertyRow, unitSize: number | null | undefined): { space: number; isDefault: boolean } {
+  const unitN = Number(unitSize);
+  if (Number.isFinite(unitN) && unitN > 0) return { space: unitN, isDefault: false };
+  const propN = Number((property.amenities as any)?.property_size_sqm);
+  if (Number.isFinite(propN) && propN > 0) return { space: propN, isDefault: false };
+  return { space: 50, isDefault: true };
 }
 
 function buildUnitPayload(
@@ -759,8 +784,9 @@ function buildUnitPayload(
   const street = unit.address_street || property.address || 'Not specified';
   const zipCode = resolveZipCode(unit.address_postal_code, property);
   const maxGuests = unit.max_guests || 2;
-  const space = unit.room_size || 50;
-  const spaceIsDefault = !unit.room_size;
+  const { space, isDefault: spaceIsDefault } = resolvePropertySize(property, unit.room_size);
+  const paymentMethods = mapPaymentMethods(property.amenities);
+  const cancellationPolicies = mapCancellationPolicies(amenities as Record<string, unknown>);
   const { floor: unitFloor, isDefault: unitFloorIsDefault } = resolveUnitFloor(property, unit);
 
   const houseRules = (amenities as any)?.house_rules || {};
@@ -901,11 +927,13 @@ function buildUnitPayload(
     rooms,
     descriptions: [{ language_id: 1, text: descText }],
     images,
-    payment_methods: mapPaymentMethods(property.amenities),
+    payment_methods: paymentMethods.methods,
+    payment_methods_is_default: paymentMethods.isDefault,
     deposit,
     deposit_type_id: depositTypeId,
     cleaning_price: cleaningPrice,
-    cancellation_policies: mapCancellationPolicies(amenities as Record<string, unknown>),
+    cancellation_policies: cancellationPolicies.rules,
+    cancellation_policies_is_default: cancellationPolicies.isDefault,
     security_deposit: securityDeposit,
     arrival_landlord: String((amenities as any)?.contact?.name || property.name || 'RoomsOnline'),
     arrival_email: String((amenities as any)?.contact_email || (amenities as any)?.contact?.email || 'dev@roomsonline.co.za'),
@@ -935,8 +963,9 @@ function buildSinglePropertyPayload(property: PropertyRow, roomTypes: RoomTypeRo
   let maxGuests = property.max_guests || 0;
   if (maxGuests <= 1 && roomTypes.length > 0) maxGuests = roomTypes.reduce((sum, rt) => sum + (rt.max_guests || 2), 0);
   if (maxGuests < 1) maxGuests = 2;
-  const space = primaryRoom?.room_size || 50;
-  const spaceIsDefault = !primaryRoom?.room_size;
+  const { space, isDefault: spaceIsDefault } = resolvePropertySize(property, primaryRoom?.room_size);
+  const paymentMethods = mapPaymentMethods(property.amenities);
+  const cancellationPolicies = mapCancellationPolicies(amenities as Record<string, unknown>);
   const { floor: buildingFloor, isDefault: buildingFloorIsDefault } = resolveUnitFloor(property, primaryRoom);
   const houseRules = (amenities as any)?.house_rules || {};
   const contact = (amenities as any)?.contact || {};
@@ -996,10 +1025,13 @@ function buildSinglePropertyPayload(property: PropertyRow, roomTypes: RoomTypeRo
     latitude: lat, longitude: lng,
     amenities: mapAmenities(property.amenities),
     rooms, descriptions: [{ language_id: 1, text: property.description || property.name || 'Beautiful property' }],
-    images: allImages, payment_methods: mapPaymentMethods(property.amenities),
+    images: allImages,
+    payment_methods: paymentMethods.methods,
+    payment_methods_is_default: paymentMethods.isDefault,
     deposit, deposit_type_id: depositTypeId,
     cleaning_price: cleaningPrice,
-    cancellation_policies: mapCancellationPolicies(amenities as Record<string, unknown>),
+    cancellation_policies: cancellationPolicies.rules,
+    cancellation_policies_is_default: cancellationPolicies.isDefault,
     security_deposit: securityDeposit,
     arrival_landlord: String(contact.name || property.name || 'RoomsOnline'),
     arrival_email: String((amenities as any)?.contact_email || contact.email || 'dev@roomsonline.co.za'),
@@ -2468,7 +2500,9 @@ Deno.serve(async (req) => {
               floor_is_default: units.some(u => (u.validation as any).floor_is_default === true),
               has_detailed_location_id: everyFlag('has_detailed_location_id'),
               has_payment_methods: everyFlag('has_payment_methods'),
+              payment_methods_is_default: units.some(u => (u.validation as any).payment_methods_is_default === true),
               has_cancellation_policies: everyFlag('has_cancellation_policies'),
+              cancellation_policies_is_default: units.some(u => (u.validation as any).cancellation_policies_is_default === true),
               beds_cover_half: everyFlag('beds_cover_half'),
               beds_meet_max_guests: everyFlag('beds_meet_max_guests'),
               rooms_have_amenities: everyFlag('rooms_have_amenities'),

@@ -141,6 +141,8 @@ import { useActivationReadiness } from "@/components/property/QualityGateIndicat
 import { RoomManagerTab } from "@/components/property/RoomManagerTab";
 import { RateManagerTab } from "@/components/property/RateManagerTab";
 import { HouseRulesCard } from "@/components/property/policies/HouseRulesCard";
+import { RuPaymentMethodsPicker } from "@/components/property/RuPaymentMethodsPicker";
+import { RuChannelContentFields } from "@/components/property/RuChannelContentFields";
 
 import { syncPortfolioSeasonDates } from "@/lib/portfolioSeasonSync";
 import { usePMSSync, isPMSFullyIntegrated, getPMSIntegrationLevel, getPMSIcon } from "@/hooks/usePMSSync";
@@ -763,6 +765,11 @@ export default function PropertyForm({
   const [propBathrooms, setPropBathrooms] = useState<number | null>(null);
   const [propToilets, setPropToilets] = useState<number | null>(null);
   const [separateKitchen, setSeparateKitchen] = useState(false);
+  /** Accepted payment methods (RU PaymentMethods) — mandatory channel content. */
+  const [paymentMethods, setPaymentMethods] = useState<string[]>([]);
+  /** Property-level Floor / Space fallbacks for channel pushes. */
+  const [propertyFloor, setPropertyFloor] = useState<number | null>(null);
+  const [propertySizeSqm, setPropertySizeSqm] = useState<number | null>(null);
   const [cancellationPolicies, setCancellationPolicies] = useState([
     { forfeit: "10", type: "% of Total", days: "999" },
     { forfeit: "100", type: "% of Total", days: "30" },
@@ -2665,6 +2672,10 @@ export default function PropertyForm({
           if (amenities?.breakfast_options && Array.isArray(amenities.breakfast_options))
             setSelectedBreakfastOptions(amenities.breakfast_options);
           if (amenities?.cancellation_policies) setCancellationPolicies(amenities.cancellation_policies);
+          if (Array.isArray(amenities?.payment_methods)) setPaymentMethods(amenities.payment_methods as string[]);
+          if (amenities?.property_floor !== undefined && amenities?.property_floor !== null)
+            setPropertyFloor(Number(amenities.property_floor));
+          if (amenities?.property_size_sqm) setPropertySizeSqm(Number(amenities.property_size_sqm));
           if (amenities?.seasons) setSeasons(amenities.seasons);
           if (amenities?.season_rates) setSeasonRates(amenities.season_rates);
           // Note: pms_rate_types is loaded above with transformation
@@ -3136,6 +3147,9 @@ export default function PropertyForm({
           facilities: selectedFacilities,
           breakfast_options: selectedBreakfastOptions,
           cancellation_policies: cancellationPolicies,
+          payment_methods: paymentMethods,
+          property_floor: propertyFloor,
+          property_size_sqm: propertySizeSqm,
           house_rules: {
             items_non_refundable: formData.items_non_refundable,
             smoking_allowed: formData.smoking_allowed,
@@ -5893,6 +5907,20 @@ export default function PropertyForm({
                       )}
                     />
                   </div>
+                  <div className="mt-3 pt-3 border-t border-border">
+                    <RuChannelContentFields
+                      floor={propertyFloor}
+                      onFloorChange={(v) => {
+                        setPropertyFloor(v);
+                        setIsDirty(true);
+                      }}
+                      sizeSqm={propertySizeSqm}
+                      onSizeChange={(v) => {
+                        setPropertySizeSqm(v);
+                        setIsDirty(true);
+                      }}
+                    />
+                  </div>
                 </CardContent>
               </Card>
 
@@ -6969,6 +6997,13 @@ export default function PropertyForm({
               onOpenSpecials={() => setActiveTab("specials")}
               policiesExtra={
                 <form onSubmit={handleSubmit} className="space-y-3">
+                  <RuPaymentMethodsPicker
+                    value={paymentMethods}
+                    onChange={(next) => {
+                      setPaymentMethods(next);
+                      setIsDirty(true);
+                    }}
+                  />
                   <HouseRulesCard
                     formData={formData as any}
                     setFormData={setFormData as any}

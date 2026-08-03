@@ -24,6 +24,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import type { RuReadinessReport } from "@/components/pms/channels/RuReadinessScorecard";
+import { RuChannelContentChecklist } from "@/components/property/RuChannelContentChecklist";
 
 interface PushToRentalsUnitedProps {
   propertyId: string;
@@ -62,6 +63,10 @@ interface WlValidationFlags {
   has_description?: boolean;
   has_main_image?: boolean;
   has_street?: boolean;
+  floor_is_default?: boolean;
+  space_is_default?: boolean;
+  payment_methods_is_default?: boolean;
+  cancellation_policies_is_default?: boolean;
 }
 
 interface UnitValidation {
@@ -395,6 +400,14 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
           `Beds (${validation.total_beds ?? 0}) do not cover every guest (${validation.max_guests ?? 0}) — recommended, not required`,
         validation.amenities_padded === true &&
           `${validation.amenities_padded_count ?? 0} amenity(ies) auto-filled to reach RU's minimum of 10 — confirm or replace`,
+        validation.payment_methods_is_default === true &&
+          "Payment methods fell back to Cash + credit card — confirm in Policies → Accepted payment methods",
+        validation.cancellation_policies_is_default === true &&
+          "Cancellation policy fell back to the standard default — confirm in Policies",
+        validation.floor_is_default === true &&
+          "Floor fell back to 0 (ground) — set it in Info & Facilities → Property Info",
+        validation.space_is_default === true &&
+          "Property size fell back to 50 m² — set it in Info & Facilities → Property Info",
       ].filter(Boolean) as string[])
     : [];
 
@@ -539,6 +552,8 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
               </AlertDescription>
             </Alert>
           )}
+
+          {validation && <RuChannelContentChecklist validation={validation as any} />}
 
           {wlGaps.length > 0 && (
             <Alert>
