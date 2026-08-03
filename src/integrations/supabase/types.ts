@@ -10695,6 +10695,10 @@ export type Database = {
           owner_email: string
           portfolio_id: string | null
           property_id: string | null
+          ru_api_access_key: string | null
+          ru_api_key_label: string | null
+          ru_api_keys_verified_at: string | null
+          ru_api_secret_enc: string | null
           ru_login_email: string | null
           ru_login_password_enc: string | null
           ru_login_url: string | null
@@ -10713,6 +10717,10 @@ export type Database = {
           owner_email: string
           portfolio_id?: string | null
           property_id?: string | null
+          ru_api_access_key?: string | null
+          ru_api_key_label?: string | null
+          ru_api_keys_verified_at?: string | null
+          ru_api_secret_enc?: string | null
           ru_login_email?: string | null
           ru_login_password_enc?: string | null
           ru_login_url?: string | null
@@ -10731,6 +10739,10 @@ export type Database = {
           owner_email?: string
           portfolio_id?: string | null
           property_id?: string | null
+          ru_api_access_key?: string | null
+          ru_api_key_label?: string | null
+          ru_api_keys_verified_at?: string | null
+          ru_api_secret_enc?: string | null
           ru_login_email?: string | null
           ru_login_password_enc?: string | null
           ru_login_url?: string | null
