@@ -2419,6 +2419,12 @@ Deno.serve(async (req) => {
           };
         }
         const now = Date.now();
+        await budgetedWait(lastCallAt ? lastCallAt + MIN_GAP_MS - now : 0);
+        const prevSameMethod = lastMethodCallAt.get(method);
+        if (prevSameMethod) {
+          const remaining = prevSameMethod + METHOD_WINDOW_MS - Date.now();
+          const fullyWaited = await budgetedWait(remaining);
+
 
           if (!fullyWaited) {
             return {
