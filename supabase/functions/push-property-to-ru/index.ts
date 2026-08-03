@@ -427,6 +427,9 @@ function buildValidation(payload: Record<string, any>): Record<string, unknown> 
     // Advisory only (not an RU requirement): full 1-bed-per-guest coverage.
     beds_meet_max_guests: totalBeds >= Math.max(1, maxGuests),
     max_guests: maxGuests,
+    // Composition: RU treats bathrooms and toilets as mandatory.
+    has_bathrooms: (amenities || []).some((a: any) => a?.id === 81 && (a.count || 0) > 0),
+    has_toilets: (amenities || []).some((a: any) => a?.id === 37 && (a.count || 0) > 0),
     has_coordinates: payload.latitude !== 0 && payload.longitude !== 0,
     has_zip_code: !!(payload.zip_code && payload.zip_code !== '0000'),
     has_space: (payload.space || 0) > 0,
