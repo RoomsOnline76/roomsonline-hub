@@ -337,7 +337,31 @@ export function RuCurrencyPanel() {
                           <span className="text-muted-foreground">not yet pushed</span>
                         )}
                       </td>
+                      <td className="px-3 py-2">
+                        {st?.ru_reported_currency_iso ? (
+                          <div className="space-y-0.5">
+                            <Badge
+                              variant={
+                                st.published_currency_iso
+                                && st.ru_reported_currency_iso.toUpperCase() !== st.published_currency_iso.toUpperCase()
+                                  ? "destructive"
+                                  : "default"
+                              }
+                              className="text-[11px]"
+                            >
+                              {st.ru_reported_currency_iso}
+                            </Badge>
+                            <p className="text-[10px] text-muted-foreground">
+                              {st.verified_at ? new Date(st.verified_at).toLocaleString() : ""}
+                              {st.owner_scope ? ` · owner ${st.owner_scope}` : ""}
+                            </p>
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">unverified</span>
+                        )}
+                      </td>
                       <td className="px-3 py-2 font-mono">
+
                         {st?.effective_rate ? Number(st.effective_rate).toFixed(5) : "—"}
                       </td>
                       <td className="px-3 py-2 text-muted-foreground">
