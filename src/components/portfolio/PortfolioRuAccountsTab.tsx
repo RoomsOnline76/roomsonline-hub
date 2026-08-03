@@ -17,7 +17,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { RuCompanyProfileDialog } from "./RuCompanyProfileDialog";
 import {
   Archive,
   Building2,
@@ -178,7 +177,6 @@ export function PortfolioRuAccountsTab() {
   // Unbinding clears the complete RU identity and the portfolio owner email, then prompts the
   // admin to choose the email that Phase 1 must use for the next RU sub-user login.
   // Extra RU company / legal-representative profile fields.
-  const [profileFor, setProfileFor] = useState<{ id: string; email: string; ownerId: string | null } | null>(null);
 
   const [ownerEmailFor, setOwnerEmailFor] = useState<{ portfolioId: string } | null>(null);
   const [ownerEmailChoice, setOwnerEmailChoice] = useState("");
@@ -1050,34 +1048,19 @@ export function PortfolioRuAccountsTab() {
 
 
                     <div className="rounded-md border border-border bg-muted/20 p-3 space-y-2">
-                      <div className="flex items-center justify-between gap-2 flex-wrap">
-                        <p className="text-xs font-medium flex items-center gap-1.5">
-                          <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
-                          RU company profile
-                        </p>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 text-xs"
-                          onClick={() =>
-                            setProfileFor({
-                              id: acc.id,
-                              email: acc.ru_login_email || acc.owner_email,
-                              ownerId: acc.ru_owner_id,
-                            })
-                          }
-                        >
-                          <Building2 className="h-3 w-3" />
-                          <span className="ml-1.5">Edit company profile</span>
-                        </Button>
-                      </div>
+                      <p className="text-xs font-medium flex items-center gap-1.5">
+                        <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
+                        RU company profile
+                      </p>
                       <p className="text-[10px] text-muted-foreground">
-                        Extra Rentals United fields — VAT and manager numbers, time zone, region,
-                        business size and description, plus the legal representative (the only RU
-                        block that accepts a nationality). Sent with the next company push;
-                        anything left blank falls back to the property data on file.
+                        Now captured per property under Edit property → Identity &amp; Location →
+                        Company Information (VAT and manager numbers, time zone, region, business
+                        size and description, the legal representative, and the Rentals United
+                        LocationID). Sent with the next company push; anything left blank falls back
+                        to the property data on file.
                       </p>
                     </div>
+
 
                     <div className="rounded-md border border-border bg-muted/20 p-3 space-y-2">
                       <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -1630,12 +1613,6 @@ export function PortfolioRuAccountsTab() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      <RuCompanyProfileDialog
-        account={profileFor}
-        onClose={() => setProfileFor(null)}
-        onSaved={refreshAccounts}
-      />
 
     </div>
   );
