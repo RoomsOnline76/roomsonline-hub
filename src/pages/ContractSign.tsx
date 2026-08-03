@@ -469,24 +469,30 @@ export default function ContractSign() {
           }
         }
 
-        // Resolve billing-driven commission rates (commercial term → property/portfolio
-        // billing config → global billing defaults → platform constant).
-        const propertyIds = propertiesList.map((p: any) => p.id).filter(Boolean);
-        if (propertyIds.length === 0 && fullProperty?.id) {
-          propertyIds.push(fullProperty.id);
-        }
-        if (propertyIds.length > 0) {
-          const billingResult = await resolveBillingContractVariables(propertyIds);
-          setBillingVars(billingResult);
-          setCommissionText(billingResult.listing_commission_rate);
-          setPmsCommissionText(billingResult.pms_commission_rate);
+        const isReferralContract = contractType === "referral";
+
+        // Referral agreements carry no property linkage, so skip billing resolution entirely.
+        if (!isReferralContract) {
+          // Resolve billing-driven commission rates (commercial term → property/portfolio
+          // billing config → global billing defaults → platform constant).
+          const propertyIds = propertiesList.map((p: any) => p.id).filter(Boolean);
+          if (propertyIds.length === 0 && fullProperty?.id) {
+            propertyIds.push(fullProperty.id);
+          }
+          if (propertyIds.length > 0) {
+            const billingResult = await resolveBillingContractVariables(propertyIds);
+            setBillingVars(billingResult);
+            setCommissionText(billingResult.listing_commission_rate);
+            setPmsCommissionText(billingResult.pms_commission_rate);
+          }
         }
 
         // Referral / sales-rep agreements: pull commission economics from the rep's tier.
         const templateContent: string = data.template_content || "";
-        if (contractType === "referral" || /\{\{(first_year_rate|residual_rate|rep_code)\}\}/.test(templateContent)) {
+        if (isReferralContract || /\{\{(first_year_rate|residual_rate|rep_code)\}\}/.test(templateContent)) {
           try {
             const repResult = await resolveRepContractVariables({
+              id: data.rep_id || undefined,
               email: contractData.sent_to_email || contractData.owner_email,
             });
             if (repResult) setRepVars(repResult.variables);
@@ -494,6 +500,7 @@ export default function ContractSign() {
             console.warn("Failed to resolve rep contract variables", e);
           }
         }
+
         const emailToUse = contractData.sent_to_email || contractData.owner_email;
         if (emailToUse) {
           setSigneeEmail(emailToUse);
