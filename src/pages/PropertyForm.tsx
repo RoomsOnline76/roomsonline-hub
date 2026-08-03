@@ -747,6 +747,11 @@ export default function PropertyForm({
   const [adminSubTab, setAdminSubTab] = useState<string>("overview");
   const [selectedFacilities, setSelectedFacilities] = useState<string[]>([]);
   const [selectedBreakfastOptions, setSelectedBreakfastOptions] = useState<string[]>([]);
+  // Property composition — mandatory for Rentals United / channel pushes
+  const [propBedrooms, setPropBedrooms] = useState<number>(0);
+  const [propBathrooms, setPropBathrooms] = useState<number | null>(null);
+  const [propToilets, setPropToilets] = useState<number | null>(null);
+  const [separateKitchen, setSeparateKitchen] = useState(false);
   const [cancellationPolicies, setCancellationPolicies] = useState([
     { forfeit: "10", type: "% of Total", days: "999" },
     { forfeit: "100", type: "% of Total", days: "30" },
