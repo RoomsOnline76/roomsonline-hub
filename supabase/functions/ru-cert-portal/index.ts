@@ -1848,7 +1848,14 @@ Deno.serve(async (req) => {
             if (rcp && typeof rcp === "object" && Object.keys(rcp as object).length > 0) {
               withProfile.push({ id: row.properties.id as string, profile: rcp as Record<string, unknown> });
             }
+            // VAT / company registration live on the banking block, NOT inside
+            // ru_company_profile — bridge them in so RU stops receiving a blank
+            // VAT number for VAT-registered owners.
+            collectVatAndRegistration(am);
           }
+          // RU's NumberOfProperties is account-wide: count every portfolio member.
+          portfolioPropertyCount = ((members ?? []) as any[]).length || null;
+
           if (withProfile.length > 0) {
             // Selected property last so its values win the merge.
             const ordered = [
