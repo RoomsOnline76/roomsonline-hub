@@ -924,7 +924,7 @@ function buildUnitPayload(
   // Bedrooms: one block per bed_configuration entry (= one physical bedroom)
   if (Array.isArray(unit.bed_configuration) && unit.bed_configuration.length > 0) {
     unit.bed_configuration.forEach((bedEntry: any) => {
-      const ruBedId = resolveBedAmenityId(bedEntry.type).id ?? 98; // default = double bed
+      const ruBedId = resolveBedAmenityId(bedEntry.type).id ?? RU_DEFAULT_BED_ID; // default = double bed (RU id 61)
       rooms.push({
         room_id: RU_BEDROOM_ID,
         amenities: [{ id: ruBedId, count: bedEntry.count || 1 }],
@@ -936,7 +936,7 @@ function buildUnitPayload(
     for (let i = 0; i < bedroomCount; i++) {
       rooms.push({
         room_id: RU_BEDROOM_ID,
-        amenities: [{ id: 98, count: Math.max(1, Math.ceil(maxGuests / bedroomCount / 2)) }],
+        amenities: [{ id: RU_DEFAULT_BED_ID, count: Math.max(1, Math.ceil(maxGuests / bedroomCount / 2)) }],
       });
     }
   }
@@ -1035,12 +1035,12 @@ function buildSinglePropertyPayload(property: PropertyRow, roomTypes: RoomTypeRo
     const bedroomCount = Math.max(1, Number(rt.bedrooms) || 1);
     const bedTotal = Math.max(bedroomCount, Number(rt.beds) || 0, Math.ceil((rt.max_guests || 2) / 2));
     const perRoom = Math.max(1, Math.ceil(bedTotal / bedroomCount));
-    for (let i = 0; i < bedroomCount; i++) rooms.push({ room_id: 257, amenities: [{ id: 98, count: perRoom }] });
+    for (let i = 0; i < bedroomCount; i++) rooms.push({ room_id: 257, amenities: [{ id: RU_DEFAULT_BED_ID, count: perRoom }] });
   }
   if (rooms.length === 0) {
     const bedroomCount = Math.max(1, Number(property.bedrooms) || 1);
     const perRoom = Math.max(1, Math.ceil(Math.max(2, maxGuests) / 2 / bedroomCount));
-    for (let i = 0; i < bedroomCount; i++) rooms.push({ room_id: 257, amenities: [{ id: 98, count: perRoom }] });
+    for (let i = 0; i < bedroomCount; i++) rooms.push({ room_id: 257, amenities: [{ id: RU_DEFAULT_BED_ID, count: perRoom }] });
   }
   // RU minimum: beds must cover >= 50% of CanSleepMax. Top up the first bedroom block
   // when the authored data falls short so a valid payload is never rejected outright;
