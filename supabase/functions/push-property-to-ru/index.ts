@@ -784,8 +784,9 @@ function buildUnitPayload(
   const street = unit.address_street || property.address || 'Not specified';
   const zipCode = resolveZipCode(unit.address_postal_code, property);
   const maxGuests = unit.max_guests || 2;
-  const space = unit.room_size || 50;
-  const spaceIsDefault = !unit.room_size;
+  const { space, isDefault: spaceIsDefault } = resolvePropertySize(property, unit.room_size);
+  const paymentMethods = mapPaymentMethods(property.amenities);
+  const cancellationPolicies = mapCancellationPolicies(amenities as Record<string, unknown>);
   const { floor: unitFloor, isDefault: unitFloorIsDefault } = resolveUnitFloor(property, unit);
 
   const houseRules = (amenities as any)?.house_rules || {};
@@ -926,11 +927,13 @@ function buildUnitPayload(
     rooms,
     descriptions: [{ language_id: 1, text: descText }],
     images,
-    payment_methods: mapPaymentMethods(property.amenities),
+    payment_methods: paymentMethods.methods,
+    payment_methods_is_default: paymentMethods.isDefault,
     deposit,
     deposit_type_id: depositTypeId,
     cleaning_price: cleaningPrice,
-    cancellation_policies: mapCancellationPolicies(amenities as Record<string, unknown>),
+    cancellation_policies: cancellationPolicies.rules,
+    cancellation_policies_is_default: cancellationPolicies.isDefault,
     security_deposit: securityDeposit,
     arrival_landlord: String((amenities as any)?.contact?.name || property.name || 'RoomsOnline'),
     arrival_email: String((amenities as any)?.contact_email || (amenities as any)?.contact?.email || 'dev@roomsonline.co.za'),
@@ -960,8 +963,9 @@ function buildSinglePropertyPayload(property: PropertyRow, roomTypes: RoomTypeRo
   let maxGuests = property.max_guests || 0;
   if (maxGuests <= 1 && roomTypes.length > 0) maxGuests = roomTypes.reduce((sum, rt) => sum + (rt.max_guests || 2), 0);
   if (maxGuests < 1) maxGuests = 2;
-  const space = primaryRoom?.room_size || 50;
-  const spaceIsDefault = !primaryRoom?.room_size;
+  const { space, isDefault: spaceIsDefault } = resolvePropertySize(property, primaryRoom?.room_size);
+  const paymentMethods = mapPaymentMethods(property.amenities);
+  const cancellationPolicies = mapCancellationPolicies(amenities as Record<string, unknown>);
   const { floor: buildingFloor, isDefault: buildingFloorIsDefault } = resolveUnitFloor(property, primaryRoom);
   const houseRules = (amenities as any)?.house_rules || {};
   const contact = (amenities as any)?.contact || {};
@@ -1021,10 +1025,13 @@ function buildSinglePropertyPayload(property: PropertyRow, roomTypes: RoomTypeRo
     latitude: lat, longitude: lng,
     amenities: mapAmenities(property.amenities),
     rooms, descriptions: [{ language_id: 1, text: property.description || property.name || 'Beautiful property' }],
-    images: allImages, payment_methods: mapPaymentMethods(property.amenities),
+    images: allImages,
+    payment_methods: paymentMethods.methods,
+    payment_methods_is_default: paymentMethods.isDefault,
     deposit, deposit_type_id: depositTypeId,
     cleaning_price: cleaningPrice,
-    cancellation_policies: mapCancellationPolicies(amenities as Record<string, unknown>),
+    cancellation_policies: cancellationPolicies.rules,
+    cancellation_policies_is_default: cancellationPolicies.isDefault,
     security_deposit: securityDeposit,
     arrival_landlord: String(contact.name || property.name || 'RoomsOnline'),
     arrival_email: String((amenities as any)?.contact_email || contact.email || 'dev@roomsonline.co.za'),
