@@ -5907,6 +5907,20 @@ export default function PropertyForm({
                       )}
                     />
                   </div>
+                  <div className="mt-3 pt-3 border-t border-border">
+                    <RuChannelContentFields
+                      floor={propertyFloor}
+                      onFloorChange={(v) => {
+                        setPropertyFloor(v);
+                        setIsDirty(true);
+                      }}
+                      sizeSqm={propertySizeSqm}
+                      onSizeChange={(v) => {
+                        setPropertySizeSqm(v);
+                        setIsDirty(true);
+                      }}
+                    />
+                  </div>
                 </CardContent>
               </Card>
 
