@@ -1227,7 +1227,9 @@ Deno.serve(async (req) => {
         update.ru_api_keys_verified_at = null;
         update.ru_login_password_enc = null;
         update.company_details_sent = false;
-        update.company_details_status = null;
+        // NOT NULL column — reset to its default state, never null.
+        update.company_details_status = "pending";
+
       }
 
       const { error: upErr } = await admin.from("ru_owner_accounts").update(update).eq("id", accountId);
