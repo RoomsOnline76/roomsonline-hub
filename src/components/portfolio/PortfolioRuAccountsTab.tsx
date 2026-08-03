@@ -143,6 +143,13 @@ export function PortfolioRuAccountsTab() {
   const [binding, setBinding] = useState<string | null>(null);
   const [closing, setClosing] = useState(false);
 
+  // Archiving a listed RU sub-user (Push_ArchiveUser_RQ, child auth). RU requires the sub-user's
+  // own credentials, so when no password is stored locally the admin is prompted for it.
+  const [archiving, setArchiving] = useState<string | null>(null);
+  const [archivePrompt, setArchivePrompt] = useState<{ ownerId: string; email: string } | null>(null);
+  const [archivePassword, setArchivePassword] = useState("");
+
+
   // Unbinding clears the complete RU identity and the portfolio owner email, then prompts the
   // admin to choose the email that Phase 1 must use for the next RU sub-user login.
   const [ownerEmailFor, setOwnerEmailFor] = useState<{ portfolioId: string } | null>(null);
@@ -293,6 +300,53 @@ export function PortfolioRuAccountsTab() {
       setClosing(false);
     }
   }, [bindFor, accounts, refreshAccounts, hideCredentials]);
+
+  /**
+   * Archive any RU sub-user listed under our master account (Push_ArchiveUser_RQ, child auth).
+   * https://developer.rentalsunited.com/#close-user-account
+   */
+  const archiveCandidate = useCallback(
+    async (ownerId: string, email: string, password?: string) => {
+      if (!password && !window.confirm(
+        `Archive OwnerID ${ownerId} (${email}) on Rentals United?\n\nThis closes the sub-user via Push_ArchiveUser_RQ. Properties are archived and channel connections removed.`,
+      )) return;
+
+      setArchiving(ownerId);
+      try {
+        const { data, error } = await supabase.functions.invoke("ru-close-user", {
+          body: { ru_owner_id: ownerId, login_email: email, ...(password ? { password } : {}) },
+        });
+        if (error || !data?.success) {
+          if (data?.error?.code === "PASSWORD_REQUIRED" || data?.error?.code === "RU_CHILD_LOGIN_REJECTED") {
+            setArchivePrompt({ ownerId, email });
+            setArchivePassword("");
+            toast.warning(data.error.message);
+            return;
+          }
+          toast.error(
+            data?.error?.message ||
+              (error
+                ? await extractFunctionError(error, "Could not archive the RU sub-user")
+                : "Could not archive the RU sub-user"),
+          );
+          return;
+        }
+        toast.success(data.message || `OwnerID ${ownerId} archived on Rentals United`);
+        setArchivePrompt(null);
+        setArchivePassword("");
+        setBindCandidates((prev) => prev.filter((c) => c.owner_id !== ownerId));
+        if (data.local_cleared) {
+          setBindFor(null);
+        }
+        await refreshAccounts();
+      } finally {
+        setArchiving(null);
+      }
+    },
+    [refreshAccounts],
+  );
+
+
 
 
   const openReset = useCallback((accountId: string, email: string) => {
@@ -1005,23 +1059,104 @@ export function PortfolioRuAccountsTab() {
                       <p className="text-xs font-mono">OwnerID {u.owner_id}</p>
                       <p className="text-[11px] text-muted-foreground truncate">{u.email}</p>
                     </div>
-                    <Button
-                      size="sm"
-                      variant={isCurrent ? "secondary" : "outline"}
-                      className="h-7 text-xs shrink-0"
-                      disabled={isCurrent || binding === u.owner_id || closing}
-                      onClick={() => bindAccount(u.owner_id, u.email)}
-                    >
-                      {binding === u.owner_id && <Loader2 className="h-3 w-3 animate-spin mr-1" />}
-                      {isCurrent ? "Bound" : "Bind"}
-                    </Button>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <Button
+                        size="sm"
+                        variant={isCurrent ? "secondary" : "outline"}
+                        className="h-7 text-xs"
+                        disabled={isCurrent || binding === u.owner_id || closing || archiving === u.owner_id}
+                        onClick={() => bindAccount(u.owner_id, u.email)}
+                      >
+                        {binding === u.owner_id && <Loader2 className="h-3 w-3 animate-spin mr-1" />}
+                        {isCurrent ? "Bound" : "Bind"}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        className="h-7 text-xs"
+                        disabled={!!archiving || binding === u.owner_id || closing}
+                        onClick={() => archiveCandidate(u.owner_id, u.email)}
+                        title="Close / archive this sub-user on Rentals United"
+                      >
+                        {archiving === u.owner_id ? (
+                          <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                        ) : (
+                          <Archive className="h-3 w-3 mr-1" />
+                        )}
+                        Archive
+                      </Button>
+                    </div>
                   </div>
+
                 );
               })}
             </div>
           )}
         </DialogContent>
       </Dialog>
+
+      <Dialog
+        open={!!archivePrompt}
+        onOpenChange={(o) => {
+          if (!o) {
+            setArchivePrompt(null);
+            setArchivePassword("");
+          }
+        }}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Sub-user password required</DialogTitle>
+            <DialogDescription>
+              Rentals United closes an account only when the request is authenticated as that
+              sub-user. Enter the RU portal password for{" "}
+              <span className="font-mono">{archivePrompt?.email}</span> (OwnerID{" "}
+              {archivePrompt?.ownerId}). It is used for this request only.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1.5">
+            <Label htmlFor="ru-archive-password" className="text-xs">
+              RU portal password
+            </Label>
+            <Input
+              id="ru-archive-password"
+              type="password"
+              autoComplete="off"
+              value={archivePassword}
+              onChange={(e) => setArchivePassword(e.target.value)}
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setArchivePrompt(null);
+                setArchivePassword("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              variant="destructive"
+              disabled={!archivePassword.trim() || !!archiving}
+              onClick={() =>
+                archivePrompt &&
+                archiveCandidate(archivePrompt.ownerId, archivePrompt.email, archivePassword)
+              }
+            >
+              {archiving ? (
+                <Loader2 className="h-3 w-3 animate-spin mr-1" />
+              ) : (
+                <Archive className="h-3 w-3 mr-1" />
+              )}
+              Archive on RU
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
 
     </div>
   );
