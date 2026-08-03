@@ -1328,43 +1328,14 @@ async function verifyAvailability(
         expected.set(iso, { min_stay: r.min_stay, changeover: r.changeover, units: r.units });
       }
     }
-    // Parse RU response. Format varies; try common patterns:
-    //   <CalendarDay Date="YYYY-MM-DD" IsAvailable="true" MinStay="2" Changeover="3" />
-    //   <DateRange DateFrom="..." DateTo="..." MinStay="..." Changeover="..." />
+    // Parse RU's calendar through the shared parser: RU emits
+    // <CalDay Date=".." Units="1"><IsBlocked>..</IsBlocked><MinStay>..</MinStay>..</CalDay>,
+    // not the self-closing <CalendarDay .../> this used to look for.
     const xml = String(data.raw_xml);
-    const dayRegex = /<CalendarDay\b([^/>]*)\/?>(?:\s*<\/CalendarDay>)?/gi;
-    const rangeRegex = /<DateRange\b([^/>]*)\/?>(?:\s*<\/DateRange>)?/gi;
-    const attr = (s: string, name: string): string | null => {
-      const m = new RegExp(`${name}="([^"]*)"`, 'i').exec(s);
-      return m ? m[1] : null;
-    };
+    const parsedDays = parseRuAvailabilityDays(xml);
     const returnedDays = new Map<string, { min_stay: number | null; changeover: number | null; units: number | null }>();
-    let m: RegExpExecArray | null;
-    while ((m = dayRegex.exec(xml)) !== null) {
-      const a = m[1];
-      const date = attr(a, 'Date');
-      if (!date) continue;
-      returnedDays.set(date, {
-        min_stay: attr(a, 'MinStay') != null ? Number(attr(a, 'MinStay')) : null,
-        changeover: attr(a, 'Changeover') != null ? Number(attr(a, 'Changeover')) : null,
-        units: attr(a, 'Units') != null ? Number(attr(a, 'Units')) : (attr(a, 'IsAvailable') === 'true' ? 1 : 0),
-      });
-    }
-    if (returnedDays.size === 0) {
-      // Try DateRange format
-      while ((m = rangeRegex.exec(xml)) !== null) {
-        const a = m[1];
-        const df = attr(a, 'DateFrom'); const dt = attr(a, 'DateTo');
-        if (!df || !dt) continue;
-        const ms = attr(a, 'MinStay') != null ? Number(attr(a, 'MinStay')) : null;
-        const co = attr(a, 'Changeover') != null ? Number(attr(a, 'Changeover')) : null;
-        const u = attr(a, 'Units') != null ? Number(attr(a, 'Units')) : null;
-        const start = new Date(df + 'T00:00:00Z');
-        const end = new Date(dt + 'T00:00:00Z');
-        for (let d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
-          returnedDays.set(d.toISOString().slice(0, 10), { min_stay: ms, changeover: co, units: u });
-        }
-      }
+    for (const [date, day] of parsedDays) {
+      returnedDays.set(date, { min_stay: day.min_stay, changeover: day.changeover, units: day.units });
     }
 
     report.checked = true;
