@@ -174,7 +174,10 @@ export function RuCurrencyPanel() {
           {cache.count === 0 && (
             <Alert>
               <AlertDescription className="text-xs">
-                The location cache is empty, so currency drift cannot be detected. Refresh it before reconciling.
+                No location currency dictionary is cached. Rentals United does not enable the city/currency
+                dictionary for every integration — when it is unavailable, ROLOS probes each property's location
+                directly (attempting a ZAR switch on push) and only falls back to USD if RU refuses. Reconciling is
+                still safe.
               </AlertDescription>
             </Alert>
           )}
