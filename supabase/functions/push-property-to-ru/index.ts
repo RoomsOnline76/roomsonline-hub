@@ -77,17 +77,49 @@ const PROPERTY_TYPE_MAP: Record<string, number> = {
 };
 
 
-// RU bed-type amenity IDs — must be included in <Room> amenities
+/**
+ * RU bed-type amenity IDs (verified against the live RU amenity dictionary in `ru_amenities`).
+ *
+ * These MUST come from RU's "Bedroom & Beds" group. The previous values (97-101) were guesses
+ * and actually resolve to Living-Area items — RU rendered our bedrooms as "2 x Corridor" and
+ * counted zero beds ("Add sufficient amount of beds").
+ *   61  = double bed          323 = single bed        324 = king size bed
+ *   485 = Queen size bed      440 = Pair of twin beds 444 = Bunk Bed
+ *   237 = sofabed             200 = double sofa bed   624 = Pull-Out Bed
+ *   501 = day bed             515 = Wallbed           833 = Baby cot
+ *   209 = Extra Bed
+ */
+const RU_BED = {
+  single: 323,
+  twin: 323,
+  twinPair: 440,
+  double: 61,
+  queen: 485,
+  king: 324,
+  bunk: 444,
+  sofaBed: 237,
+  doubleSofaBed: 200,
+  pullOut: 624,
+  dayBed: 501,
+  wallBed: 515,
+  cot: 833,
+  extra: 209,
+} as const;
+
+/** Every ID that RU counts as a real sleeping place. */
+const RU_BED_AMENITY_IDS: number[] = Object.values(RU_BED);
+const RU_DEFAULT_BED_ID = RU_BED.double;
+
 const BED_AMENITY_MAP: Record<string, number> = {
-  single: 97,
-  twin: 97,
-  double: 98,
-  queen: 98,
-  king: 99,
-  'king-twin': 99,
-  'sofa-bed': 100,
-  sofa: 100,
-  bunk: 101,
+  single: RU_BED.single,
+  twin: RU_BED.twin,
+  double: RU_BED.double,
+  queen: RU_BED.queen,
+  king: RU_BED.king,
+  'king-twin': RU_BED.king,
+  'sofa-bed': RU_BED.sofaBed,
+  sofa: RU_BED.sofaBed,
+  bunk: RU_BED.bunk,
 };
 
 /**
@@ -111,14 +143,21 @@ export function resolveBedAmenityId(rawLabel: unknown): { id: number | null; nor
   const has = (...needles: string[]) => needles.some((n) => label.includes(n));
 
   // Order matters: the most specific label wins.
-  if (has('bunk', 'loft bunk', 'triple bunk')) return { id: 101, normalized: label };
-  if (has('sofa', 'sleeper couch', 'sleeper-couch', 'couch', 'futon', 'day', 'pull out', 'pull-out'))
-    return { id: 100, normalized: label };
-  if (has('king single', 'king-single', 'super single')) return { id: 97, normalized: label };
-  if (has('king', 'super king', 'emperor')) return { id: 99, normalized: label };
-  if (has('queen', 'double', 'full')) return { id: 98, normalized: label };
-  if (has('single', 'twin', '3/4', '¾', 'three quarter', 'three-quarter', 'cot', 'camp', 'stretcher', 'bunkbed'))
-    return { id: 97, normalized: label };
+  if (has('bunk', 'loft bunk', 'triple bunk')) return { id: RU_BED.bunk, normalized: label };
+  if (has('pull out', 'pull-out', 'trundle')) return { id: RU_BED.pullOut, normalized: label };
+  if (has('murphy', 'wall bed', 'wallbed', 'fold away', 'foldaway')) return { id: RU_BED.wallBed, normalized: label };
+  if (has('day bed', 'daybed')) return { id: RU_BED.dayBed, normalized: label };
+  if (has('double sofa', 'sleeper couch', 'sleeper-couch')) return { id: RU_BED.doubleSofaBed, normalized: label };
+  if (has('sofa', 'couch', 'futon', 'day')) return { id: RU_BED.sofaBed, normalized: label };
+  if (has('cot', 'crib', 'baby')) return { id: RU_BED.cot, normalized: label };
+  if (has('extra', 'rollaway', 'roll away', 'stretcher', 'camp')) return { id: RU_BED.extra, normalized: label };
+  if (has('twin pair', 'pair of twin', '2 singles', 'two singles')) return { id: RU_BED.twinPair, normalized: label };
+  if (has('king single', 'king-single', 'super single')) return { id: RU_BED.single, normalized: label };
+  if (has('king', 'super king', 'emperor')) return { id: RU_BED.king, normalized: label };
+  if (has('queen')) return { id: RU_BED.queen, normalized: label };
+  if (has('double', 'full', 'french')) return { id: RU_BED.double, normalized: label };
+  if (has('single', 'twin', '3/4', '¾', 'three quarter', 'three-quarter'))
+    return { id: RU_BED.single, normalized: label };
 
   const slug = label.replace(/\s+/g, '-');
   const direct = BED_AMENITY_MAP[slug] ?? BED_AMENITY_MAP[label];
@@ -137,11 +176,12 @@ function bedBlocksFromConfiguration(
     const count = Math.max(1, Number(entry?.count) || 1);
     const { id } = resolveBedAmenityId(entry?.type);
     if (id == null && entry?.type) unmapped.push(String(entry.type));
-    rooms.push({ room_id: 257, amenities: [{ id: id ?? 98, count }] });
+    rooms.push({ room_id: 257, amenities: [{ id: id ?? RU_DEFAULT_BED_ID, count }] });
     totalBeds += count;
   }
   return { rooms, totalBeds, unmapped };
 }
+
 
 const PAYMENT_METHOD_MAP: Record<string, number> = {
   cash: 1, visa: 2, mastercard: 3, amex: 4, bank_transfer: 5, paypal: 6,
@@ -442,7 +482,7 @@ function buildValidation(payload: Record<string, any>): Record<string, unknown> 
 
   // Beds: RU requires beds to cover at least 50% of CanSleepMax.
   const totalBeds = rooms.reduce((sum, r) =>
-    sum + (r.amenities || []).filter((a: any) => a.id >= 97 && a.id <= 101)
+    sum + (r.amenities || []).filter((a: any) => RU_BED_AMENITY_IDS.includes(Number(a.id)))
       .reduce((s: number, a: any) => s + (a.count || 1), 0), 0);
 
   const roomsWithAmenities = rooms.filter(r => (r.room_id || 0) > 0 && (r.amenities || []).length > 0).length;
@@ -884,7 +924,7 @@ function buildUnitPayload(
   // Bedrooms: one block per bed_configuration entry (= one physical bedroom)
   if (Array.isArray(unit.bed_configuration) && unit.bed_configuration.length > 0) {
     unit.bed_configuration.forEach((bedEntry: any) => {
-      const ruBedId = resolveBedAmenityId(bedEntry.type).id ?? 98; // default = double bed
+      const ruBedId = resolveBedAmenityId(bedEntry.type).id ?? RU_DEFAULT_BED_ID; // default = double bed (RU id 61)
       rooms.push({
         room_id: RU_BEDROOM_ID,
         amenities: [{ id: ruBedId, count: bedEntry.count || 1 }],
@@ -896,7 +936,7 @@ function buildUnitPayload(
     for (let i = 0; i < bedroomCount; i++) {
       rooms.push({
         room_id: RU_BEDROOM_ID,
-        amenities: [{ id: 98, count: Math.max(1, Math.ceil(maxGuests / bedroomCount / 2)) }],
+        amenities: [{ id: RU_DEFAULT_BED_ID, count: Math.max(1, Math.ceil(maxGuests / bedroomCount / 2)) }],
       });
     }
   }
@@ -995,12 +1035,12 @@ function buildSinglePropertyPayload(property: PropertyRow, roomTypes: RoomTypeRo
     const bedroomCount = Math.max(1, Number(rt.bedrooms) || 1);
     const bedTotal = Math.max(bedroomCount, Number(rt.beds) || 0, Math.ceil((rt.max_guests || 2) / 2));
     const perRoom = Math.max(1, Math.ceil(bedTotal / bedroomCount));
-    for (let i = 0; i < bedroomCount; i++) rooms.push({ room_id: 257, amenities: [{ id: 98, count: perRoom }] });
+    for (let i = 0; i < bedroomCount; i++) rooms.push({ room_id: 257, amenities: [{ id: RU_DEFAULT_BED_ID, count: perRoom }] });
   }
   if (rooms.length === 0) {
     const bedroomCount = Math.max(1, Number(property.bedrooms) || 1);
     const perRoom = Math.max(1, Math.ceil(Math.max(2, maxGuests) / 2 / bedroomCount));
-    for (let i = 0; i < bedroomCount; i++) rooms.push({ room_id: 257, amenities: [{ id: 98, count: perRoom }] });
+    for (let i = 0; i < bedroomCount; i++) rooms.push({ room_id: 257, amenities: [{ id: RU_DEFAULT_BED_ID, count: perRoom }] });
   }
   // RU minimum: beds must cover >= 50% of CanSleepMax. Top up the first bedroom block
   // when the authored data falls short so a valid payload is never rejected outright;
