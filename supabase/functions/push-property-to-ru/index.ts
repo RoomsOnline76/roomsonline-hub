@@ -1752,6 +1752,14 @@ Deno.serve(async (req) => {
   try {
     const reqBody = await req.json();
     const { property_id, dry_run, subscribe_rlnm, standalone_units, only_unit_ids, action } = reqBody;
+    /**
+     * Building containers are OPT-IN only.
+     * Every RU push used to run the building flow (Push_PutBuilding_RQ) first, and RU created a
+     * brand-new building on each call instead of updating ours — 20+ duplicate "Tidal Pools"
+     * buildings in the WL portal. Units are pushed as standalone RU properties, so the container
+     * is unnecessary: only an explicit `use_building: true` request may touch building inventory.
+     */
+    const useBuilding = reqBody.use_building === true;
     /** Admin override: allows a live push even when mandatory WL checks fail. */
     const forcePush = reqBody.force === true;
     const forceLocationIdRaw = reqBody.force_location_id;
@@ -2527,7 +2535,7 @@ Deno.serve(async (req) => {
     }
 
 
-    if (isMultiUnit && !standalone_units && !hasChildKeys && (!childUsername || !childPassword)) {
+    if (isMultiUnit && useBuilding && !hasChildKeys && (!childUsername || !childPassword)) {
       // Push_PutBuilding_RQ has no <OwnerID>: the building lands on whichever account
       // authenticates, so a parent fallback would create it on our master account. Hard stop.
       return new Response(JSON.stringify({ success: false, error: { code: 'RU_CHILD_AUTH_REQUIRED', message: `No Rentals United API keys are stored for OwnerID ${ruOwnerId}. RU requires the sub-user's own AccessKey + SecretKey to create or update its building inventory — generate them in the RU dashboard (Security settings) and save them in Portfolios → RU accounts.` } }), { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
@@ -2653,10 +2661,12 @@ Deno.serve(async (req) => {
       }
 
 
-      // ── STANDALONE UNITS FLOW (no building) ───────────────
+      // ── STANDALONE UNITS FLOW (no building) — DEFAULT ─────
       // Each room type is pushed as an independent RU property without a BuildingID.
       // ObjectTypeID falls back to property_type_id (Chalet=12, Apartment=1, etc.).
-      if (standalone_units) {
+      // No Push_PutBuilding_RQ is issued here, so repeat pushes and cron refreshes can never
+      // create duplicate building containers in the white-label portal.
+      if (!useBuilding) {
         // Optional filter: only_unit_ids restricts the push to specific room_type ids
         const filteredUnits = Array.isArray(only_unit_ids) && only_unit_ids.length > 0
           ? activeRoomTypes.filter(rt => only_unit_ids.includes(rt.id))
