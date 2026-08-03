@@ -223,6 +223,7 @@ export function CompanyInformationCard({
 
   banking,
   onBankingChange,
+  headerAction,
 }: Props) {
   const setField = useCallback(
     (key: keyof RuCompanyProfile, raw: string, numeric = false) => {
