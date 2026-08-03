@@ -1975,16 +1975,46 @@ Deno.serve(async (req) => {
 
     const { account: ownerAccount } = await findOwnerAccount(supabase, property_id, property.owner_email, phaseGate.portfolio_id);
     const childUsername = ownerAccount?.ru_login_email?.trim() ?? '';
-    let childPassword = '';
-    if (ownerAccount?.ru_login_password_enc) {
-      const { data: decrypted } = await supabase.rpc('decrypt_sensitive_text', { encrypted_data: ownerAccount.ru_login_password_enc });
-      childPassword = typeof decrypted === 'string' ? decrypted : '';
+    const decryptSecret = async (enc: unknown): Promise<string> => {
+      if (!enc) return '';
+      const { data } = await supabase.rpc('decrypt_sensitive_text', { encrypted_data: enc });
+      const plain = typeof data === 'string' ? data : '';
+      return plain && plain !== '[ENCRYPTED]' && plain !== '[DECRYPTION_ERROR]' ? plain : '';
+    };
+    const childPassword = await decryptSecret(ownerAccount?.ru_login_password_enc);
+
+    // Since RU's Nov-2025 API-keys rollout, child-scoped writes (buildings) must use the
+    // sub-user's OWN AccessKey/SecretKey. Keys live per RU OwnerID in ru_api_credentials;
+    // the legacy columns on ru_owner_accounts are a fallback only.
+    let childAccessKey = '';
+    let childSecretKey = '';
+    {
+      const { data: credRow } = await supabase
+        .from('ru_api_credentials')
+        .select('access_key, secret_enc')
+        .eq('ru_owner_id', String(ruOwnerId))
+        .maybeSingle();
+      if (credRow?.access_key) {
+        const plain = await decryptSecret(credRow.secret_enc);
+        if (plain) { childAccessKey = String(credRow.access_key); childSecretKey = plain; }
+      }
+      if (!childAccessKey && ownerAccount?.ru_api_access_key) {
+        const plain = await decryptSecret((ownerAccount as Record<string, unknown>).ru_api_secret_enc);
+        if (plain) { childAccessKey = String(ownerAccount.ru_api_access_key); childSecretKey = plain; }
+      }
     }
-    if (isMultiUnit && !standalone_units && (!childUsername || !childPassword)) {
+    const hasChildKeys = Boolean(childAccessKey && childSecretKey);
+    /** Child auth for building calls: API keys first, legacy portal password only if no keys. */
+    const childAuthPayload: Record<string, unknown> = hasChildKeys
+      ? { owner_id: ruOwnerId, auth_access_key: childAccessKey, auth_secret_key: childSecretKey }
+      : { owner_id: ruOwnerId, auth_username: childUsername, auth_password: childPassword };
+
+    if (isMultiUnit && !standalone_units && !hasChildKeys && (!childUsername || !childPassword)) {
       // Push_PutBuilding_RQ has no <OwnerID>: the building lands on whichever account
       // authenticates, so a parent fallback would create it on our master account. Hard stop.
-      return new Response(JSON.stringify({ success: false, error: { code: 'RU_CHILD_AUTH_REQUIRED', message: 'The linked RU sub-user credentials are required to create or update its building inventory (RU creates buildings on the authenticating account).' } }), { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      return new Response(JSON.stringify({ success: false, error: { code: 'RU_CHILD_AUTH_REQUIRED', message: `No Rentals United API keys are stored for OwnerID ${ruOwnerId}. RU requires the sub-user's own AccessKey + SecretKey to create or update its building inventory — generate them in the RU dashboard (Security settings) and save them in Portfolios → RU accounts.` } }), { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
+
 
 
     if (!dry_run && !phaseGate.ready_for_push) {
