@@ -2325,11 +2325,17 @@ Deno.serve(async (req) => {
         if (/rate limit/i.test(detail)) {
           return "Rentals United rate limit (1 call per sliding minute) — re-run after the cooldown.";
         }
-        if (/not implemented method/i.test(detail)) {
+        if (
+          /not implemented method/i.test(detail) ||
+          /method (is )?not (implemented|enabled|available|supported)/i.test(detail) ||
+          /not enabled for (this|your) (integration|account|user)/i.test(detail) ||
+          /no (access|permission) to (this )?method/i.test(detail)
+        ) {
           return "Rentals United has not enabled this method for this integration — informational only.";
         }
         return null;
       };
+
 
       /**
        * ── Rate-limit pacing ─────────────────────────────────────────────────────────
