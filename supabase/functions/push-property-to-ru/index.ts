@@ -1201,9 +1201,10 @@ async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRo
             status: priceVerification.error ? 'error' : (priceVerification.mismatches.length === 0 && priceVerification.missing_dates.length === 0 ? 'success' : 'partial'),
             message: priceVerification.error
               ? `Price verification error: ${priceVerification.error}`
-              : `${priceVerification.matches}/${priceVerification.total_seasons} seasons matched, ${priceVerification.mismatches.length} mismatches, ${priceVerification.missing_dates.length} missing dates`,
-            request_data: { ru_property_id: ruPropertyId, unit_id: unit?.id ?? null, seasons: priceEntries.length, sample: priceEntries.slice(0, 3) },
+              : `${priceVerification.matches}/${priceVerification.total_seasons} seasons matched, ${priceVerification.mismatches.length} mismatches, ${priceVerification.missing_dates.length} missing dates (${result.price_coverage?.summary ?? 'coverage unknown'})`,
+            request_data: { ru_property_id: ruPropertyId, unit_id: unit?.id ?? null, seasons: priceEntries.length, sample: priceEntries.slice(0, 3), rate_coverage: result.price_coverage ?? null },
             response_data: { verification: { ...priceVerification, missing_dates: priceVerification.missing_dates.slice(0, 50) } },
+
           });
         } catch (logErr) {
           console.warn(`[pushARI] Failed to persist price verification log:`, logErr);
