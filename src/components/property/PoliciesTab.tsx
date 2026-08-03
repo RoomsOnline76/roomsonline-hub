@@ -11,6 +11,8 @@ import { ApplyPolicyToPropertiesDialog } from "@/components/property/ApplyPolicy
 import { MasterPolicyPanel } from "@/components/property/policies/MasterPolicyPanel";
 import { PolicyLibraryTable, type PolicyMetric } from "@/components/property/policies/PolicyLibraryTable";
 import { PortfolioPolicyLibrary } from "@/components/property/policies/PortfolioPolicyLibrary";
+import { FormSection } from "@/components/property/form/DenseForm";
+
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
