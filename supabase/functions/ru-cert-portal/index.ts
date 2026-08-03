@@ -2847,9 +2847,13 @@ Deno.serve(async (req) => {
         }
       };
 
-      const runReadOnly = suite === "read_only" || suite === "full";
-      const runMandatory = suite === "mandatory" || suite === "full";
-      const runDiscounts = suite === "discounts" || suite === "full";
+      // A staged full run passes `phase`; a single-suite run keeps its historic behaviour.
+      const activePhase = phase ?? (suite === "full" ? null : suite);
+      const runReadOnly = activePhase ? activePhase === "read_only" : suite === "read_only" || suite === "full";
+      const runMandatory = activePhase ? activePhase === "mandatory" : suite === "mandatory" || suite === "full";
+      const runDiscounts = activePhase ? activePhase === "discounts" : suite === "discounts" || suite === "full";
+      const phaseTag = activePhase ?? suite;
+
 
       const noProp = ruPropertyId ? undefined : "No RU property id resolved — select a property that has been pushed to RU.";
 
