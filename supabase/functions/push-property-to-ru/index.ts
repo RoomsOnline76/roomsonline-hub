@@ -1231,14 +1231,28 @@ interface PriceVerification {
   error?: string;
 }
 
+/**
+ * Rentals United never serves the current day in calendar/price pull responses (the day is
+ * already "in progress"), so read-back comparison must start tomorrow. Comparing from today
+ * produced a permanent single-day mismatch that stopped runs being marked verified.
+ */
+function verificationStart(windowFrom: string): string {
+  const tomorrow = new Date();
+  tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+  const iso = tomorrow.toISOString().slice(0, 10);
+  return windowFrom > iso ? windowFrom : iso;
+}
+
 async function verifyPrices(
   supabase: any,
   ruPropertyId: number,
   requested: { date_from: string; date_to: string; price: number; extra_guest_price?: number }[],
-  windowFrom: string,
+  windowFromRaw: string,
   windowTo: string,
   childAuth: Record<string, unknown> = {},
 ): Promise<PriceVerification> {
+  const windowFrom = verificationStart(windowFromRaw);
+
   const report: PriceVerification = { checked: false, total_seasons: requested.length, matches: 0, mismatches: [], missing_dates: [] };
   try {
     const { data, error } = await supabase.functions.invoke('rentalsunited-api', {
