@@ -1239,7 +1239,33 @@ const CHILD_SCOPED_ACTIONS = new Set([
   'get_long_stay_discounts',
   'get_last_minute_discounts',
   'list_properties',
+  'order_mcq',
+  'push_change_currency',
 ]);
+
+/**
+ * Child-scoped actions where a master-credential fallback is never acceptable once an
+ * OwnerID is supplied: RU rejects them with "You are not the owner of the apartment"
+ * (or silently applies the write to OUR master account). When the sub-user's own keys
+ * cannot be resolved we fail loudly instead of calling RU as the master account.
+ */
+const CHILD_AUTH_STRICT_ACTIONS = new Set([
+  'push_property',
+  'push_availability',
+  'push_prices',
+  'push_prices_fsp',
+  'push_long_stay_discounts',
+  'push_last_minute_discounts',
+  'set_property_status',
+  'get_property',
+  'get_availability',
+  'get_prices',
+  'get_long_stay_discounts',
+  'get_last_minute_discounts',
+  'order_mcq',
+  'push_change_currency',
+]);
+
 
 /**
  * Resolve the credentials to use for a child-scoped RU call.
