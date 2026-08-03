@@ -17,6 +17,15 @@ import {
   type UnitRateContext,
 } from '../_shared/rateResolution.ts';
 import { parseRuPriceSeasons } from '../_shared/ruPriceParsing.ts';
+import {
+  resolveRuDiscounts,
+  validateRuLadder,
+  longStayToWire,
+  lastMinuteToWire,
+  describeTierSources,
+  diffRuDiscountEcho,
+  type RuDiscountWire,
+} from '../_shared/ruDiscounts.ts';
 
 
 
@@ -1198,118 +1207,43 @@ async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRo
 }
 
 // ── Discount Push Helper ─────────────────────────────────────
-
-interface SpecialRow {
-  id: string;
-  name: string;
-  special_type: string;
-  discount_percent: number | null;
-  min_stay: number | null;
-  max_stay: number | null;
-  book_from: string | null;
-  book_until: string | null;
-  valid_from: string | null;
-  valid_to: string | null;
-  is_active: boolean | null;
-  applicable_room_ids: string[] | null;
-}
-
-// ── Step 8: Discount validation + verification ──────────────────────────
-
-type LongStayTier = { date_from: string; date_to: string; nights_from: number; nights_to: number; percentage: number };
-type LastMinuteTier = { date_from: string; date_to: string; days_to_arrival_from: number; days_to_arrival_to: number; percentage: number };
-
-function validateDiscountTiers(
-  tiers: Array<{ percentage: number; nights_from?: number; days_to_arrival_from?: number }>,
-  kind: 'long_stay' | 'last_minute',
-): { ok: boolean; errors: string[] } {
-  const errors: string[] = [];
-  const seenKeys = new Set<string>();
-  for (const t of tiers) {
-    if (!Number.isFinite(t.percentage) || t.percentage <= 0 || t.percentage > 100) {
-      errors.push(`${kind}: percentage out of range (0,100]: ${t.percentage}`);
-    }
-    const key = kind === 'long_stay' ? `n:${t.nights_from}` : `d:${t.days_to_arrival_from}`;
-    if (seenKeys.has(key)) errors.push(`${kind}: duplicate tier key ${key}`);
-    seenKeys.add(key);
-  }
-  return { ok: errors.length === 0, errors };
-}
-
-function parseRuDiscountResponse(rawXml: string, attrFrom: string, attrTo: string): Array<Record<string, string>> {
-  const out: Array<Record<string, string>> = [];
-  const re = /<Discount\s+([^/>]+)\/?>/g;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(rawXml)) !== null) {
-    const attrs: Record<string, string> = {};
-    const attrRe = /(\w+)="([^"]*)"/g;
-    let am: RegExpExecArray | null;
-    while ((am = attrRe.exec(m[1])) !== null) attrs[am[1]] = am[2];
-    out.push(attrs);
-  }
-  return out;
-}
+// Tiers are resolved by the shared ladder resolver (_shared/ruDiscounts.ts) so
+// the certification suite pushes exactly what production pushes.
 
 async function verifyDiscounts(
   supabase: any,
   ruPropertyId: number,
-  longStayRequested: LongStayTier[],
-  lastMinuteRequested: LastMinuteTier[],
+  longStayRequested: RuDiscountWire[],
+  lastMinuteRequested: RuDiscountWire[],
 ): Promise<{ long_stay: any; last_minute: any }> {
   const report: { long_stay: any; last_minute: any } = { long_stay: null, last_minute: null };
 
-  // Long stay
-  try {
-    const { data, error } = await supabase.functions.invoke('rentalsunited-api', {
-      body: { action: 'get_long_stay_discounts', ru_property_id: ruPropertyId },
-    });
-    if (error || !data?.success) {
-      report.long_stay = { error: error?.message || data?.error?.message || 'pull failed', requested: longStayRequested.length, returned: 0, matches: 0, mismatches: [] };
-    } else {
-      const returned = parseRuDiscountResponse(data.raw_xml || '', 'NightsFrom', 'NightsTo');
-      const mismatches: any[] = [];
-      let matches = 0;
-      for (const req of longStayRequested) {
-        const hit = returned.find(r =>
-          r.DateFrom === req.date_from && r.DateTo === req.date_to &&
-          Number(r.NightsFrom) === req.nights_from &&
-          Math.abs(Number(r.Percentage) - req.percentage) < 0.01,
-        );
-        if (hit) matches++;
-        else mismatches.push({ requested: req, found: null });
+  const pull = async (
+    action: 'get_long_stay_discounts' | 'get_last_minute_discounts',
+    element: 'LongStay' | 'LastMinute',
+    requested: RuDiscountWire[],
+  ) => {
+    try {
+      const { data, error } = await supabase.functions.invoke('rentalsunited-api', {
+        body: { action, ru_property_id: ruPropertyId },
+      });
+      if (error || !data?.success) {
+        return {
+          error: error?.message || data?.error?.message || 'pull failed',
+          requested: requested.length,
+          returned: 0,
+          matches: 0,
+          mismatches: [],
+        };
       }
-      report.long_stay = { requested: longStayRequested.length, returned: returned.length, matches, mismatches };
+      return diffRuDiscountEcho(data.raw_xml || '', element, requested);
+    } catch (e) {
+      return { error: e instanceof Error ? e.message : String(e), requested: requested.length };
     }
-  } catch (e) {
-    report.long_stay = { error: e instanceof Error ? e.message : String(e), requested: longStayRequested.length };
-  }
+  };
 
-  // Last minute
-  try {
-    const { data, error } = await supabase.functions.invoke('rentalsunited-api', {
-      body: { action: 'get_last_minute_discounts', ru_property_id: ruPropertyId },
-    });
-    if (error || !data?.success) {
-      report.last_minute = { error: error?.message || data?.error?.message || 'pull failed', requested: lastMinuteRequested.length, returned: 0, matches: 0, mismatches: [] };
-    } else {
-      const returned = parseRuDiscountResponse(data.raw_xml || '', 'DaysToArrivalFrom', 'DaysToArrivalTo');
-      const mismatches: any[] = [];
-      let matches = 0;
-      for (const req of lastMinuteRequested) {
-        const hit = returned.find(r =>
-          r.DateFrom === req.date_from && r.DateTo === req.date_to &&
-          Number(r.DaysToArrivalFrom) === req.days_to_arrival_from &&
-          Math.abs(Number(r.Percentage) - req.percentage) < 0.01,
-        );
-        if (hit) matches++;
-        else mismatches.push({ requested: req, found: null });
-      }
-      report.last_minute = { requested: lastMinuteRequested.length, returned: returned.length, matches, mismatches };
-    }
-  } catch (e) {
-    report.last_minute = { error: e instanceof Error ? e.message : String(e), requested: lastMinuteRequested.length };
-  }
-
+  report.long_stay = await pull('get_long_stay_discounts', 'LongStay', longStayRequested);
+  report.last_minute = await pull('get_last_minute_discounts', 'LastMinute', lastMinuteRequested);
   return report;
 }
 
@@ -1322,71 +1256,26 @@ async function pushDiscounts(
     long_stay_discounts_pushed: number;
     last_minute_discounts_pushed: number;
     discount_errors: string[];
+    discount_warnings: string[];
+    discounts_unmapped: Array<{ id: string; name: string; reason: string }>;
     discounts_skipped: boolean;
     discounts_verification: Record<string, any>;
   } = {
     long_stay_discounts_pushed: 0,
     last_minute_discounts_pushed: 0,
     discount_errors: [],
+    discount_warnings: [],
+    discounts_unmapped: [],
     discounts_skipped: false,
     discounts_verification: {},
   };
 
-  const { data: specials, error: specErr } = await supabase
-    .from('property_specials')
-    .select('id, name, special_type, discount_percent, min_stay, max_stay, book_from, book_until, valid_from, valid_to, is_active, applicable_room_ids')
-    .eq('property_id', propertyId)
-    .eq('is_active', true)
-    .eq('special_type', 'discount')
-    .gt('discount_percent', 0);
+  // Property-wide ladder — used to detect the "nothing configured" case.
+  const overall = await resolveRuDiscounts(supabase, propertyId);
+  result.discount_warnings.push(...overall.warnings);
+  result.discounts_unmapped = overall.unmapped;
 
-  if (specErr) {
-    result.discount_errors.push(`Failed to load specials: ${specErr.message}`);
-    return result;
-  }
-
-  const today = new Date();
-  const todayStr = today.toISOString().slice(0, 10);
-  const oneYearStr = new Date(today.getFullYear() + 1, today.getMonth(), today.getDate()).toISOString().slice(0, 10);
-
-  // RU-specific discount rules authored in ROLOS (Phase 3) — these are the canonical
-  // source for Push_PutLongStayDiscounts_RQ / Push_PutLastMinuteDiscounts_RQ and are
-  // merged with any percentage specials configured on the property.
-  const { data: ruRules, error: ruRulesErr } = await supabase
-    .from('ru_discounts')
-    .select('discount_type, threshold, discount_percent, date_from, date_to')
-    .eq('property_id', propertyId)
-    .eq('is_active', true)
-    .order('threshold');
-
-  if (ruRulesErr) {
-    result.discount_errors.push(`Failed to load RU discount rules: ${ruRulesErr.message}`);
-  }
-
-  const ruLongStay: LongStayTier[] = (ruRules ?? [])
-    .filter((r: any) => r.discount_type === 'long_stay')
-    .map((r: any) => ({
-      date_from: r.date_from || todayStr,
-      date_to: r.date_to || oneYearStr,
-      nights_from: Number(r.threshold),
-      nights_to: 999,
-      percentage: Number(r.discount_percent),
-    }));
-
-  const ruLastMinute: LastMinuteTier[] = (ruRules ?? [])
-    .filter((r: any) => r.discount_type === 'last_minute')
-    .map((r: any) => ({
-      date_from: r.date_from || todayStr,
-      date_to: r.date_to || oneYearStr,
-      days_to_arrival_from: 0,
-      days_to_arrival_to: Number(r.threshold),
-      percentage: Number(r.discount_percent),
-    }));
-
-  const hasRuRules = ruLongStay.length > 0 || ruLastMinute.length > 0;
-
-  if ((!specials || specials.length === 0) && !hasRuRules) {
-    // 8.3 — Empty: skip RU calls, log to sync_logs
+  if (overall.longStay.length === 0 && overall.lastMinute.length === 0) {
     result.discounts_skipped = true;
     console.log(`[push-property-to-ru] No active discount rules for property ${propertyId} — skipping RU discount endpoints`);
     try {
@@ -1395,7 +1284,11 @@ async function pushDiscounts(
         sync_type: 'discounts_verification',
         status: 'skipped',
         message: 'No active discount rules configured; skipped Push_PutLongStayDiscounts_RQ and Push_PutLastMinuteDiscounts_RQ',
-        metadata: { ru_property_ids: ruPropertyIds.map(r => r.ruId) },
+        metadata: {
+          ru_property_ids: ruPropertyIds.map(r => r.ruId),
+          unmapped: overall.unmapped,
+          warnings: overall.warnings,
+        },
       });
     } catch (logErr) {
       console.warn(`[push-property-to-ru] Failed to log discount-skip:`, logErr);
@@ -1403,79 +1296,23 @@ async function pushDiscounts(
     return result;
   }
 
-  console.log(`[push-property-to-ru] Discounts for ${propertyId}: ${specials?.length ?? 0} specials + ${ruLongStay.length + ruLastMinute.length} RU rules`);
+  console.log(
+    `[push-property-to-ru] Discounts for ${propertyId}: ${describeTierSources(overall.longStay)} long stay, ${describeTierSources(overall.lastMinute)} last minute`,
+  );
 
   for (const { ruId, roomTypeId } of ruPropertyIds) {
     if (ruId <= 0) continue;
 
-    const applicableSpecials = (specials ?? []).filter((s: SpecialRow) => {
-      if (!s.applicable_room_ids || s.applicable_room_ids.length === 0) return true;
-      if (!roomTypeId) return true;
-      return s.applicable_room_ids.includes(roomTypeId);
-    });
+    // Per-unit resolution so room-scoped specials only reach their own RU unit.
+    const ladder = await resolveRuDiscounts(supabase, propertyId, { roomTypeId: roomTypeId ?? null });
+    const validation = validateRuLadder(ladder);
+    if (!validation.ok) result.discount_errors.push(...validation.errors.map(e => `RU ${ruId}: ${e}`));
 
-    const longStayDiscounts: LongStayTier[] = [...ruLongStay];
-    const lastMinuteDiscounts: LastMinuteTier[] = [...ruLastMinute];
-
-    for (const special of applicableSpecials as SpecialRow[]) {
-      const dateFrom = special.valid_from || todayStr;
-      const dateTo = special.valid_to || oneYearStr;
-      const pct = special.discount_percent!;
-
-      if ((special.min_stay || 0) > 0) {
-        longStayDiscounts.push({
-          date_from: dateFrom,
-          date_to: dateTo,
-          nights_from: special.min_stay!,
-          nights_to: special.max_stay || 999,
-          percentage: pct,
-        });
-      } else if (special.book_from || special.book_until) {
-        const bookFrom = special.book_from ? new Date(special.book_from) : today;
-        const bookUntil = special.book_until ? new Date(special.book_until) : new Date(dateTo);
-        const arrivalDate = new Date(dateFrom);
-        const daysToArrivalFrom = Math.max(0, Math.floor((arrivalDate.getTime() - bookUntil.getTime()) / 86400000));
-        const daysToArrivalTo = Math.max(daysToArrivalFrom + 1, Math.floor((arrivalDate.getTime() - bookFrom.getTime()) / 86400000));
-
-        lastMinuteDiscounts.push({
-          date_from: dateFrom,
-          date_to: dateTo,
-          days_to_arrival_from: daysToArrivalFrom,
-          days_to_arrival_to: Math.min(daysToArrivalTo, 365),
-          percentage: pct,
-        });
-      }
-    }
-
-    // Sort tiers ascending so RU sees a consistent ladder
-    longStayDiscounts.sort((a, b) => a.nights_from - b.nights_from);
-    lastMinuteDiscounts.sort((a, b) => a.days_to_arrival_from - b.days_to_arrival_from);
-
-    // 8.3 — Local validation
-    const lsValidation = validateDiscountTiers(longStayDiscounts, 'long_stay');
-    const lmValidation = validateDiscountTiers(lastMinuteDiscounts, 'last_minute');
-    if (!lsValidation.ok) result.discount_errors.push(...lsValidation.errors.map(e => `RU ${ruId}: ${e}`));
-    if (!lmValidation.ok) result.discount_errors.push(...lmValidation.errors.map(e => `RU ${ruId}: ${e}`));
-
-    // Wire-format mapping — rentalsunited-api validates RUDiscountEntry
-    // ({ date_from, date_to, nights_from, nights_to, discount_percentage }).
-    const lsWire = longStayDiscounts.map(d => ({
-      date_from: d.date_from,
-      date_to: d.date_to,
-      nights_from: d.nights_from,
-      nights_to: d.nights_to,
-      discount_percentage: d.percentage,
-    }));
-    const lmWire = lastMinuteDiscounts.map(d => ({
-      date_from: d.date_from,
-      date_to: d.date_to,
-      nights_from: d.days_to_arrival_from,
-      nights_to: d.days_to_arrival_to,
-      discount_percentage: d.percentage,
-    }));
+    const lsWire = longStayToWire(ladder.longStay);
+    const lmWire = lastMinuteToWire(ladder.lastMinute);
 
     // 8.1 — Push long stay
-    if (longStayDiscounts.length > 0 && lsValidation.ok) {
+    if (lsWire.length > 0 && validation.ok) {
       try {
         const { data: lsResult, error: lsErr } = await supabase.functions.invoke('rentalsunited-api', {
           body: { action: 'push_long_stay_discounts', ru_property_id: ruId, discounts: lsWire },
@@ -1483,8 +1320,8 @@ async function pushDiscounts(
         if (lsErr || !lsResult?.success) {
           result.discount_errors.push(`Long stay (RU ${ruId}): ${lsErr?.message || lsResult?.error?.message || 'Unknown error'}`);
         } else {
-          result.long_stay_discounts_pushed += longStayDiscounts.length;
-          console.log(`[push-property-to-ru] Pushed ${longStayDiscounts.length} long stay discounts to RU ${ruId}`);
+          result.long_stay_discounts_pushed += lsWire.length;
+          console.log(`[push-property-to-ru] Pushed ${lsWire.length} long stay discounts to RU ${ruId}`);
         }
       } catch (e) {
         result.discount_errors.push(`Long stay (RU ${ruId}): ${e instanceof Error ? e.message : 'Unknown'}`);
@@ -1492,7 +1329,7 @@ async function pushDiscounts(
     }
 
     // 8.2 — Push last minute
-    if (lastMinuteDiscounts.length > 0 && lmValidation.ok) {
+    if (lmWire.length > 0 && validation.ok) {
       try {
         const { data: lmResult, error: lmErr } = await supabase.functions.invoke('rentalsunited-api', {
           body: { action: 'push_last_minute_discounts', ru_property_id: ruId, discounts: lmWire },
@@ -1500,8 +1337,8 @@ async function pushDiscounts(
         if (lmErr || !lmResult?.success) {
           result.discount_errors.push(`Last minute (RU ${ruId}): ${lmErr?.message || lmResult?.error?.message || 'Unknown error'}`);
         } else {
-          result.last_minute_discounts_pushed += lastMinuteDiscounts.length;
-          console.log(`[push-property-to-ru] Pushed ${lastMinuteDiscounts.length} last minute discounts to RU ${ruId}`);
+          result.last_minute_discounts_pushed += lmWire.length;
+          console.log(`[push-property-to-ru] Pushed ${lmWire.length} last minute discounts to RU ${ruId}`);
         }
       } catch (e) {
         result.discount_errors.push(`Last minute (RU ${ruId}): ${e instanceof Error ? e.message : 'Unknown'}`);
@@ -1509,7 +1346,7 @@ async function pushDiscounts(
     }
 
     // Verify (8.x) — diff requested vs returned
-    const verification = await verifyDiscounts(supabase, ruId, longStayDiscounts, lastMinuteDiscounts);
+    const verification = await verifyDiscounts(supabase, ruId, lsWire, lmWire);
     result.discounts_verification[`ru_${ruId}`] = verification;
     console.log(`[push-property-to-ru] Discount verification RU ${ruId}: long_stay matches=${verification.long_stay?.matches ?? 'n/a'}, last_minute matches=${verification.last_minute?.matches ?? 'n/a'}`);
 
@@ -1518,11 +1355,13 @@ async function pushDiscounts(
         property_id: propertyId,
         sync_type: 'discounts_verification',
         status: result.discount_errors.length === 0 ? 'success' : 'partial',
-        message: `RU ${ruId}: long_stay ${verification.long_stay?.matches ?? 0}/${longStayDiscounts.length}, last_minute ${verification.last_minute?.matches ?? 0}/${lastMinuteDiscounts.length}`,
+        message: `RU ${ruId}: long_stay ${verification.long_stay?.matches ?? 0}/${lsWire.length}, last_minute ${verification.last_minute?.matches ?? 0}/${lmWire.length}`,
         metadata: {
           ru_property_id: ruId,
-          requested: { long_stay: longStayDiscounts, last_minute: lastMinuteDiscounts },
+          requested: { long_stay: ladder.longStay, last_minute: ladder.lastMinute },
           verification,
+          warnings: ladder.warnings,
+          unmapped: ladder.unmapped,
           errors: result.discount_errors,
         },
       });

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import {
   RefreshCw, CheckCircle2, XCircle, MinusCircle, PlayCircle, ShieldCheck,
-  Clock, Percent, Users, ChevronRight, Plus, Trash2, Send,
+  Clock, Percent, Users, ChevronRight, Plus, Trash2, Send, AlertTriangle,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -133,6 +133,37 @@ interface DiscountRow {
   date_from: string | null;
   date_to: string | null;
   is_active: boolean;
+}
+
+/** Derived ladder returned by the cert portal's `discount_ladder` action. */
+interface LadderLongStay {
+  date_from: string;
+  date_to: string;
+  nights_from: number;
+  nights_to: number | null;
+  percentage: number;
+  source: "manual" | "special";
+  source_label: string;
+}
+interface LadderLastMinute {
+  date_from: string;
+  date_to: string;
+  days_to_arrival_from: number;
+  days_to_arrival_to: number | null;
+  percentage: number;
+  source: "manual" | "special";
+  source_label: string;
+}
+interface DiscountLadder {
+  longStay: LadderLongStay[];
+  lastMinute: LadderLastMinute[];
+  warnings: string[];
+  unmapped: { id: string; name: string; reason: string }[];
+}
+interface LadderResponse {
+  ladder: DiscountLadder;
+  validation: { ok: boolean; errors: string[] };
+  summary: { long_stay: string; last_minute: string };
 }
 
 const SUITES: { value: string; label: string; requiresProperty: boolean; coverage: string }[] = [
@@ -352,6 +383,8 @@ export function RuCertificationConsole({ properties }: { properties: PropertyLit
 
 
   const [discounts, setDiscounts] = useState<DiscountRow[]>([]);
+  const [ladder, setLadder] = useState<LadderResponse | null>(null);
+  const [ladderLoading, setLadderLoading] = useState(false);
   const [discountsLoading, setDiscountsLoading] = useState(false);
   const [draft, setDraft] = useState({ discount_type: "long_stay", threshold: "7", discount_percent: "10", date_from: "", date_to: "" });
 
@@ -556,7 +589,16 @@ export function RuCertificationConsole({ properties }: { properties: PropertyLit
     setDiscountsLoading(false);
   }, [propertyId]);
 
-  useEffect(() => { loadDiscounts(); }, [loadDiscounts]);
+  /** Derived ladder = manual rules + long-stay / last-minute / advance-purchase specials. */
+  const loadLadder = useCallback(async () => {
+    if (propertyId === "none") { setLadder(null); return; }
+    setLadderLoading(true);
+    const res = await callPortal<LadderResponse>("discount_ladder", { property_id: propertyId });
+    setLadder(res ?? null);
+    setLadderLoading(false);
+  }, [propertyId]);
+
+  useEffect(() => { loadDiscounts(); loadLadder(); }, [loadDiscounts, loadLadder]);
 
   const runSuite = async () => {
     if (cooling) {
@@ -638,7 +680,7 @@ export function RuCertificationConsole({ properties }: { properties: PropertyLit
       is_active: true,
     });
     if (error) toast.error(error.message);
-    else { toast.success("Discount rule added"); loadDiscounts(); }
+    else { toast.success("Discount rule added"); loadDiscounts(); loadLadder(); }
   };
 
   const toggleDiscount = async (row: DiscountRow, next: boolean) => {
@@ -1033,6 +1075,114 @@ export function RuCertificationConsole({ properties }: { properties: PropertyLit
                       </TableBody>
                     </Table>
                   )}
+
+                  {/* Derived ladder — exactly what a push sends to Rentals United */}
+                  <div className="space-y-2 border-t pt-4">
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
+                        <h4 className="text-sm font-medium">Derived ladder sent to Rentals United</h4>
+                        <p className="text-xs text-muted-foreground">
+                          Manual rules above merged with the property's Long stay, Last minute and Advance purchase
+                          specials. Certification pushes and verifies this exact ladder.
+                        </p>
+                      </div>
+                      <Button variant="ghost" size="sm" onClick={loadLadder} disabled={ladderLoading} className="gap-1.5">
+                        <RefreshCw className={`h-4 w-4 ${ladderLoading ? "animate-spin" : ""}`} />Refresh
+                      </Button>
+                    </div>
+
+                    {ladderLoading && <Skeleton className="h-24 w-full" />}
+
+                    {!ladderLoading && ladder && (
+                      <>
+                        {!ladder.validation.ok && (
+                          <Alert variant="destructive">
+                            <AlertTriangle className="h-4 w-4" />
+                            <AlertTitle>Ladder cannot be pushed</AlertTitle>
+                            <AlertDescription className="text-xs">
+                              <ul className="list-disc pl-4 space-y-0.5">
+                                {ladder.validation.errors.map((e, i) => <li key={i}>{e}</li>)}
+                              </ul>
+                            </AlertDescription>
+                          </Alert>
+                        )}
+                        {ladder.ladder.warnings.length > 0 && (
+                          <Alert>
+                            <AlertTriangle className="h-4 w-4" />
+                            <AlertTitle className="text-sm">Warnings</AlertTitle>
+                            <AlertDescription className="text-xs">
+                              <ul className="list-disc pl-4 space-y-0.5">
+                                {ladder.ladder.warnings.map((w, i) => <li key={i}>{w}</li>)}
+                              </ul>
+                            </AlertDescription>
+                          </Alert>
+                        )}
+
+                        <div className="text-xs text-muted-foreground">
+                          Long stay: {ladder.summary.long_stay} · Last minute: {ladder.summary.last_minute}
+                        </div>
+
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Type</TableHead>
+                              <TableHead>Trigger</TableHead>
+                              <TableHead>Discount</TableHead>
+                              <TableHead>Window</TableHead>
+                              <TableHead>Source</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {ladder.ladder.longStay.map((t, i) => (
+                              <TableRow key={`ls-${i}`}>
+                                <TableCell><Badge variant="outline">Long stay</Badge></TableCell>
+                                <TableCell>{t.nights_from}{t.nights_to ? `–${t.nights_to}` : "+"} nights</TableCell>
+                                <TableCell>{t.percentage}%</TableCell>
+                                <TableCell className="text-xs text-muted-foreground">{t.date_from} → {t.date_to}</TableCell>
+                                <TableCell className="text-xs">
+                                  <Badge variant={t.source === "special" ? "secondary" : "outline"} className="text-[10px]">
+                                    {t.source_label}
+                                  </Badge>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                            {ladder.ladder.lastMinute.map((t, i) => (
+                              <TableRow key={`lm-${i}`}>
+                                <TableCell><Badge variant="outline">Last minute</Badge></TableCell>
+                                <TableCell>
+                                  {t.days_to_arrival_from}
+                                  {t.days_to_arrival_to != null ? `–${t.days_to_arrival_to}` : "+"} days out
+                                </TableCell>
+                                <TableCell>{t.percentage}%</TableCell>
+                                <TableCell className="text-xs text-muted-foreground">{t.date_from} → {t.date_to}</TableCell>
+                                <TableCell className="text-xs">
+                                  <Badge variant={t.source === "special" ? "secondary" : "outline"} className="text-[10px]">
+                                    {t.source_label}
+                                  </Badge>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                            {ladder.ladder.longStay.length === 0 && ladder.ladder.lastMinute.length === 0 && (
+                              <TableRow>
+                                <TableCell colSpan={5} className="text-center text-muted-foreground py-6">
+                                  Nothing to push — no active manual rules or eligible specials.
+                                </TableCell>
+                              </TableRow>
+                            )}
+                          </TableBody>
+                        </Table>
+
+                        {ladder.ladder.unmapped.length > 0 && (
+                          <div className="text-xs text-muted-foreground space-y-1">
+                            <p className="font-medium text-foreground">Specials not mapped to Rentals United</p>
+                            <ul className="list-disc pl-4 space-y-0.5">
+                              {ladder.ladder.unmapped.map((u) => <li key={u.id}>{u.name} — {u.reason}</li>)}
+                            </ul>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
                 </>
               )}
             </CardContent>
