@@ -225,7 +225,49 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
     setSavingUnitRuId(false);
   };
 
+  /**
+   * A push returns the RUID in its response, but pushes fired outside this panel
+   * (or a lost response) leave the local RU ID blank. This re-reads the RU property
+   * list for the bound sub-user and captures the real RUIDs by name.
+   */
+  const resolveRuIds = async () => {
+    setResolvingIds(true);
+    try {
+      const { data, error: fnErr } = await supabase.functions.invoke("ru-cert-portal", {
+        body: { action: "resolve_ru_property_ids", property_id: propertyId },
+      });
+      if (fnErr) throw new Error(await extractFunctionError(fnErr, "Could not read the Rentals United property list"));
+      if (!data?.success) throw new Error(data?.error?.message ?? "Could not read the Rentals United property list");
+
+      const matched: { scope: string; name: string; ru_property_id: string }[] = data.matched ?? [];
+      const propMatch = matched.find((m) => m.scope === "property");
+      if (propMatch) setRuPropertyId(propMatch.ru_property_id);
+      else if (data.rentalsunited_property_id) setRuPropertyId(String(data.rentalsunited_property_id));
+
+      setUnits((prev) =>
+        prev.map((u) => {
+          const hit = matched.find((m) => m.scope === "unit" && m.name === u.name);
+          return hit ? { ...u, ru_property_id: hit.ru_property_id } : u;
+        }),
+      );
+
+      const unmatched: string[] = data.unmatched ?? [];
+      if (matched.length === 0) {
+        toast.warning(`No matching listings found on the Rentals United account (${data.remote_count ?? 0} listings scanned)`);
+      } else {
+        toast.success(
+          `Captured ${matched.length} Rentals United ID${matched.length === 1 ? "" : "s"}${unmatched.length ? ` — ${unmatched.length} still unmatched` : ""}`,
+        );
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to capture the Rentals United ID");
+    } finally {
+      setResolvingIds(false);
+    }
+  };
+
   const runDryRun = async () => {
+
     setDryRunning(true);
     setError(null);
     setDiagnostics(null);
