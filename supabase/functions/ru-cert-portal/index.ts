@@ -2519,10 +2519,21 @@ Deno.serve(async (req) => {
     if (action === "run_suite") {
       const suite: string = body.suite ?? "read_only";
       const propertyId: string | null = body.property_id ?? null;
+      /**
+       * A "full" certification is executed as three staged invocations so each phase gets
+       * its own request lifetime and its own wait budget — one invocation cannot hold the
+       * read-only sweep plus both pushes plus the discount ladder inside the runtime's
+       * 150s ceiling. `phase` selects the stage; `run_id` appends to an existing record.
+       */
+      const phase: string | null = body.phase ?? null;
+      const continuingRunId: string | null = body.run_id ?? null;
+      const isFinalPhase: boolean = body.final !== false;
 
       // ── Rate-limit guard: RU tolerates ~1 call per sliding minute, and a suite fires
       // several. Refuse a new run while the previous one is inside the cooldown window.
-      {
+      // Staged phases of one run are exempt: they are a continuation, not a new run.
+      if (!continuingRunId) {
+
         const { data: lastRun } = await admin
           .from("ru_cert_runs")
           .select("started_at")
