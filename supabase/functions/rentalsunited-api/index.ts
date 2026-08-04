@@ -34,7 +34,11 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
  * - push_availability: Push_PutAvbUnits_RQ
  * - push_prices: Push_PutPrices_RQ (standard <Season> with optional EGPS/LOSS)
  * - push_prices_fsp: Push_PutPrices_RQ (Full Stay Pricing matrix)
- * - subscribe_notifications: LNM_PutHandlerUrl_RQ
+ * - subscribe_notifications: LNM_PutHandlerUrl_RQ (RLNM — reservations)
+ * - put_lnm_subscriptions: Push_PutLiveNotificationMechanismSubscriptions_RQ (LNM — content/ARI)
+ * - list_lnm_subscriptions: Pull_ListLiveNotificationMechanismSubscriptions_RQ
+ * - list_lnm_change_types: Pull_ListLiveNotificationMechanismChangeTypes_RQ
+
  * - push_long_stay_discounts: Push_PutLongStayDiscounts_RQ
  * - push_last_minute_discounts: Push_PutLastMinuteDiscounts_RQ
  * - create_user: Push_CreateUser_RQ
