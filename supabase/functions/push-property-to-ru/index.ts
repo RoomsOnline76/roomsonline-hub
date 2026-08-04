@@ -21,9 +21,12 @@ import {
   createRateResolver,
   compressToPeriods,
   describeCoverage,
+  normalizePriceWindow,
+  findPeriodOverlaps,
   type DayRate,
   type UnitRateContext,
 } from '../_shared/rateResolution.ts';
+
 import { parseRuPriceSeasons } from '../_shared/ruPriceParsing.ts';
 import { parseRuAvailabilityDays } from '../_shared/ruAvailabilityParsing.ts';
 import {
