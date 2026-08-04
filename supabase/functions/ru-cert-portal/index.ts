@@ -192,6 +192,8 @@ const RU_METHOD_BY_ACTION: Record<string, string> = {
   get_prices: "Pull_ListPropertyPrices_RQ",
   list_reservations: "Pull_ListReservations_RQ",
   get_leads: "Pull_GetLeads_RQ",
+  reject_request: "Push_RejectRequest_RQ",
+  cancel_reservation: "Push_CancelReservation_RQ",
   list_buildings: "Pull_ListOwnerBuildings_RQ",
   list_composition_rooms: "Pull_ListCompositionRooms_RQ",
   list_cities_and_currencies: "Pull_ListCurrencies_RQ",
@@ -3085,7 +3087,24 @@ Deno.serve(async (req) => {
         await probeAri("Get availability (365 days)", "get_availability");
         await probeAri("Get prices (365 days)", "get_prices");
         await call("List reservations (last 7 days)", "list_reservations", { date_from: isoDate(-7), date_to: isoDate(0) }, { mandatory: true, scope: "account" });
-        await call("Get leads (optional)", "get_leads", { date_from: isoDate(-7), date_to: isoDate(0) }, { mandatory: false, scope: "account" });
+        // Leads are mandatory: RU requires an integration to pull enquiries and hold the
+        // dates. The lifecycle step below proves the 3-day hold / 14-day withdrawal policy.
+        await call(
+          "Get leads (Pull_GetLeads_RQ)",
+          "get_leads",
+          { date_from: isoDate(-14), date_to: isoDate(0) },
+          {
+            mandatory: true,
+            scope: "account",
+            assert: (data) => {
+              const xml: string = data?.raw_xml ?? "";
+              if (!xml) return "RU returned no leads payload";
+              return null;
+            },
+            successDetail: "Leads pulled — each becomes a 3-day hold on the ROL'OS calendar",
+          },
+        );
+        await runLeadLifecycleStep();
         await call(
           "List owner buildings",
           "list_buildings",
