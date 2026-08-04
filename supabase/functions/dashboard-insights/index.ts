@@ -141,13 +141,13 @@ ${dashboardData.propertyBreakdown?.slice(0, 5).map((p: any) =>
         });
       }
       if (response.status === 402) {
-        return new Response(JSON.stringify({ error: "AI credits exhausted. Please add credits to your workspace." }), {
+        return new Response(JSON.stringify({ error: "TOBI is temporarily unavailable — credits exhausted." }), {
           status: 402,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
       
-      throw new Error(`xAI API error: ${response.status}`);
+      throw new Error(`TOBI service error: ${response.status}`);
     }
 
     const data = await response.json();

@@ -47,7 +47,7 @@ const milestones = [
   { year: "2021", event: "Multi-property portfolio management launched" },
   { year: "2022", event: "ROL'OS API v1 released — opening the platform to developers" },
   { year: "2023", event: "WordPress plugin and embeddable booking widgets shipped" },
-  { year: "2024", event: "TOBI AI assistant introduced across the platform" },
+  { year: "2024", event: "TOBI assistant introduced across the platform" },
   { year: "2025", event: "ROL'OS Connect portal launched — the front door to our ecosystem" },
   { year: "2026", event: "API v2, expanded PMS integrations, and growing across Southern Africa" },
 ];

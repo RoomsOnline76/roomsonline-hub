@@ -125,13 +125,13 @@ serve(async (req) => {
       }
       if (response.status === 402) {
         return new Response(
-          JSON.stringify({ error: "AI credits exhausted. Please add credits to continue." }),
+          JSON.stringify({ error: "TOBI is temporarily unavailable — credits exhausted." }),
           { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
       const errorText = await response.text();
       console.error("xAI API error:", response.status, errorText);
-      throw new Error(`xAI API error: ${response.status}`);
+      throw new Error(`TOBI service error: ${response.status}`);
     }
 
     const aiResponse = await response.json();

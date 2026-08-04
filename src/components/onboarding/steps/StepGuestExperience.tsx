@@ -62,7 +62,7 @@ export function StepGuestExperience({
         updateField("description", data.enhanced);
         toast({
           title: "Description enhanced",
-          description: "Your description has been improved with AI"
+          description: "Your description has been improved by TOBI"
         });
       }
     } catch (error) {

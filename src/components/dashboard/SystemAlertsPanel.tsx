@@ -180,7 +180,7 @@ export function SystemAlertsPanel({
               <RefreshCw className="h-3.5 w-3.5" />
             </Button>
           </div>
-          <CardDescription>AI-detected anomalies requiring attention</CardDescription>
+          <CardDescription>TOBI-detected anomalies requiring attention</CardDescription>
         </CardHeader>
       )}
       <CardContent className="space-y-3">

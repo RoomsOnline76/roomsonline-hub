@@ -92,7 +92,7 @@ export default function AiAmenityDialog({
       });
       if (error) throw error;
       const payload = data as SuggestResult;
-      if (!payload?.success) throw new Error(payload?.error || "AI check failed");
+      if (!payload?.success) throw new Error(payload?.error || "TOBI check failed");
 
       setResult(payload);
       setSelectedProperty(
@@ -111,7 +111,7 @@ export default function AiAmenityDialog({
         ),
       );
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "AI amenity check failed");
+      toast.error(err instanceof Error ? err.message : "TOBI amenity check failed");
     } finally {
       setLoading(false);
     }
@@ -197,10 +197,10 @@ export default function AiAmenityDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-base">
             <Sparkles className="h-4 w-4 text-primary" />
-            AI amenity &amp; facility check
+            TOBI amenity &amp; facility check
           </DialogTitle>
           <DialogDescription className="text-xs">
-            Grok reviews the property website and the ROLOS record for this property and its units, then
+            TOBI reviews the property website and the ROLOS record for this property and its units, then
             proposes matching channel amenities. Nothing is saved until you approve the selection.
           </DialogDescription>
         </DialogHeader>
@@ -223,7 +223,7 @@ export default function AiAmenityDialog({
                 </>
               ) : (
                 <>
-                  <Sparkles className="h-3.5 w-3.5 mr-1.5" /> Run AI check
+                  <Sparkles className="h-3.5 w-3.5 mr-1.5" /> Run TOBI check
                 </>
               )}
             </Button>

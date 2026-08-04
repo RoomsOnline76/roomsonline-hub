@@ -24,7 +24,7 @@ interface InsightPanelProps {
 }
 
 export function InsightPanel({
-  title = "AI Insights",
+  title = "TOBI Insights",
   description = "Ask questions about your data",
   placeholder = "Ask a question...",
   onAnalyze,
@@ -66,7 +66,7 @@ export function InsightPanel({
             className={cn("gap-2", triggerClassName)}
           >
             <Sparkles className="h-4 w-4" />
-            AI Assist
+            TOBI Assist
           </Button>
         )}
       </SheetTrigger>
@@ -146,7 +146,7 @@ export function InsightPanel({
         {/* Footer attribution */}
         <div className="pt-3 border-t mt-auto">
           <p className="text-[10px] text-muted-foreground/50 text-center">
-            Powered by Grok
+            Powered by TOBI
           </p>
         </div>
       </SheetContent>

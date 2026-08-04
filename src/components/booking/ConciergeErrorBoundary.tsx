@@ -50,7 +50,7 @@ export class ConciergeErrorBoundary extends Component<Props, State> {
             {this.props.fallbackMessage || "Something went wrong"}
           </h3>
           <p className="text-xs text-muted-foreground mb-4 max-w-xs">
-            The AI concierge encountered an issue. You can try again or use manual booking.
+            TOBI encountered an issue. You can try again or use manual booking.
           </p>
           <div className="flex gap-2">
             <Button 

@@ -845,7 +845,7 @@ export default function AdminPortfolios() {
             </Label>
             <p className="text-[10px] text-muted-foreground">
               Pin one or more properties as "Featured Pick" on the portfolio page. If multiple are pinned, one is
-              randomly shown. Leave empty for AI-selected.
+              randomly shown. Leave empty for TOBI-selected.
             </p>
             <div className="space-y-1 max-h-32 overflow-y-auto rounded-md border border-border p-2 bg-muted/20">
               {selectedProps.map((pid) => {

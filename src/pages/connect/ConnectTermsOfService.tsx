@@ -31,7 +31,7 @@ If you are entering into these terms on behalf of a company or other legal entit
           "Booking engine — embeddable widgets, Smart Book buttons, and hosted booking pages",
           "WordPress plugin — Gutenberg blocks and admin dashboard for property websites",
           "PMS integration layer — synchronisation with third-party property management systems (Hostfully, Benson, Rentals United)",
-          "TOBI assistant — AI-powered support and sales assistant",
+          "TOBI assistant — support and sales assistant",
           "Analytics and reporting — occupancy, revenue, and operational dashboards",
         ],
       },

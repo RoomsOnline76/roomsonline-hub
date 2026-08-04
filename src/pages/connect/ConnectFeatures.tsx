@@ -77,7 +77,7 @@ const DEMO_SCREENS = [
   { title: "Reservation Calendar", desc: "Drag-and-drop bookings, colour-coded statuses, room availability at a glance.", icon: CalendarCheck },
   { title: "Housekeeping Board", desc: "Digital task management, room priorities, staff assignments — no more paper lists.", icon: ClipboardList },
   { title: "Guest Folio", desc: "Charges, payments, adjustments. Professional invoices in one click.", icon: CreditCard },
-  { title: "TOBI AI Chat", desc: "Ask TOBI anything — night audits, revenue insights, booking help, 24/7.", icon: Cat },
+  { title: "TOBI Chat", desc: "Ask TOBI anything — night audits, revenue insights, booking help, 24/7.", icon: Cat },
 ];
 
 export default function ConnectFeatures() {

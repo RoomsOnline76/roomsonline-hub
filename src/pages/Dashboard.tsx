@@ -1762,9 +1762,9 @@ const Dashboard = () => {
               if (response.status === 429) {
                 toast.error("Rate limit exceeded. Please try again later.");
               } else if (response.status === 402) {
-                toast.error("AI credits exhausted. Please add credits to your workspace.");
+                toast.error("TOBI is temporarily unavailable — credits exhausted.");
               } else {
-                toast.error(data.error || "Failed to get AI insight");
+                toast.error(data.error || "Failed to get TOBI insight");
               }
               return null;
             }
@@ -1773,7 +1773,7 @@ const Dashboard = () => {
             return data.insight;
           } catch (error) {
             console.error("AI insight error:", error);
-            toast.error("Failed to get AI insight");
+            toast.error("Failed to get TOBI insight");
             return null;
           }
         }}

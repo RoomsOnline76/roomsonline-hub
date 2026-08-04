@@ -241,7 +241,7 @@ export function ROLSpecTab({ data, onChange, propertyContext, onDirty }: ROLSpec
     if (!propertyContext.name) {
       toast({
         title: "Property name required",
-        description: "Please enter a property name before using AI assistance",
+        description: "Please enter a property name before using TOBI assistance",
         variant: "destructive"
       });
       return;
@@ -294,14 +294,14 @@ export function ROLSpecTab({ data, onChange, propertyContext, onDirty }: ROLSpec
         } else {
           toast({
             title: "No empty fields",
-            description: "AI only fills empty fields. Clear a field to regenerate its content."
+            description: "TOBI only fills empty fields. Clear a field to regenerate its content."
           });
         }
       }
     } catch (error) {
       console.error("AI assist error:", error);
       toast({
-        title: "AI generation failed",
+        title: "TOBI generation failed",
         description: "Could not generate content. Please try again later.",
         variant: "destructive"
       });
@@ -540,7 +540,7 @@ export function ROLSpecTab({ data, onChange, propertyContext, onDirty }: ROLSpec
             </CardHeader>
             <CardContent className="py-3 px-4">
               <p className="text-xs text-muted-foreground mb-3">
-                Use AI to generate content for empty editorial fields below. 
+                Use TOBI to generate content for empty editorial fields below. 
                 The assistant uses the complete property listing (location, facilities, rooms, policies) as context.
               </p>
               <Button

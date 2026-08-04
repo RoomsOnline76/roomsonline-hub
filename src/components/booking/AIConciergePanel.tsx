@@ -110,7 +110,7 @@ export function AIConciergePanel({
     {
       id: 'welcome',
       type: 'assistant',
-      content: "Hi! 👋 I'm **TOBI**, your AI travel concierge. Tell me your dates, number of guests, room preference, or budget — and I'll find the perfect stay for you!",
+      content: "Hi! 👋 I'm **TOBI**, your travel concierge. Tell me your dates, number of guests, room preference, or budget — and I'll find the perfect stay for you!",
       timestamp: new Date(),
     },
   ]);
