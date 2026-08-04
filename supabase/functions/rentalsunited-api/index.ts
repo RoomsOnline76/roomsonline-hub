@@ -989,6 +989,55 @@ function buildListLnmChangeTypesXml(creds: RUCredentials): string {
 </Pull_ListLiveNotificationMechanismChangeTypes_RQ>`;
 }
 
+/**
+ * Pull_ListSalesChannels_RQ — the sales channels (OTAs) available to this channel-manager
+ * account. The ChannelID returned here is what CM_LNM_* methods (content quality check)
+ * require, so this is how a channel such as LekkeSlaap is resolved to its numeric ID.
+ */
+function buildListSalesChannelsXml(creds: RUCredentials): string {
+  return `<?xml version="1.0" encoding="utf-8"?>
+<Pull_ListSalesChannels_RQ>
+  ${buildAuthXml(creds)}
+</Pull_ListSalesChannels_RQ>`;
+}
+
+export interface RUSalesChannel {
+  channel_id: number;
+  company_name: string;
+  reservation_creator_name: string | null;
+  configuration_complete: boolean | null;
+  raw_flags: Record<string, string>;
+}
+
+/** Parse Pull_ListSalesChannels_RS into a flat channel list. */
+function parseSalesChannels(xml: string): RUSalesChannel[] {
+  const channels: RUSalesChannel[] = [];
+  const blocks = xml.match(/<Channel\b[^>]*>[\s\S]*?<\/Channel>/g) ?? [];
+  for (const block of blocks) {
+    const pick = (tag: string): string | null => {
+      const m = block.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`, 'i'));
+      return m ? m[1].trim() : null;
+    };
+    const id = Number(pick('ChannelID') ?? 0);
+    if (!Number.isFinite(id) || id <= 0) continue;
+    const flags: Record<string, string> = {};
+    for (const m of block.matchAll(/<(\w+)[^>]*>([^<>]*)<\/\1>/g)) {
+      flags[m[1]] = m[2].trim();
+    }
+    const complete = pick('YourConfigurationComplete');
+    channels.push({
+      channel_id: id,
+      company_name: pick('CompanyName') ?? '',
+      reservation_creator_name: pick('ReservationCreatorName'),
+      configuration_complete: complete == null ? null : /^(true|1|yes)$/i.test(complete),
+      raw_flags: flags,
+    });
+  }
+  return channels;
+}
+
+
+
 
 function validateDiscountEntry(d: RUDiscountEntry): string | null {
   if (!d.date_from || !d.date_to) return 'date_from and date_to are required';
