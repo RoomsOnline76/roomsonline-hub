@@ -480,8 +480,8 @@ const RU_ENDPOINT_REGISTRY: {
 // Refresh cadences mandated by RU (hours)
 const CADENCE_RULES = [
   { key: "PutProperty", label: "Property content refresh", ru_method: "Push_PutProperty_RQ", max_age_hours: 168, actions: ["weekly_content_refresh", "PutProperty", "push_property"] },
-  { key: "PutAvbUnits", label: "Availability refresh", ru_method: "Push_PutAvbUnits_RQ", max_age_hours: 24, actions: ["refresh_ari", "PutAvbUnits", "push_availability"] },
-  { key: "PutPrices", label: "Pricing refresh", ru_method: "Push_PutPrices_RQ", max_age_hours: 24, actions: ["refresh_ari", "PutPrices", "push_prices"] },
+  { key: "PutAvbUnits", label: "Availability refresh", ru_method: "Push_PutAvbUnits_RQ", max_age_hours: 24, actions: ["refresh_ari", "PutAvbUnits", "push_availability", "availability_playground", "duplicate_range_test"] },
+  { key: "PutPrices", label: "Pricing refresh", ru_method: "Push_PutPrices_RQ", max_age_hours: 24, actions: ["refresh_ari", "PutPrices", "push_prices", "pricing_playground", "pricing_duplicate_test"] },
   { key: "ListReservations", label: "Reservation pull", ru_method: "Pull_ListReservations_RQ", max_age_hours: 1, actions: ["pull_reservations", "ListReservations"] },
   { key: "PutHandlerUrl", label: "RLNM handler subscription", ru_method: "LNM_PutHandlerUrl_RQ", max_age_hours: 24, actions: ["weekly_content_refresh", "PutHandlerUrl", "RLNM"] },
   { key: "PutLnmSubscriptions", label: "LNM subscriptions (content + ARI)", ru_method: "Push_PutLiveNotificationMechanismSubscriptions_RQ", max_age_hours: 24, actions: ["PutLnmSubscriptions", "LNM"] },
@@ -511,8 +511,8 @@ const MILESTONE_SYNC_ACTIONS: Record<string, string[]> = {
   "Pull_ListReservations_RQ": ["pull_reservations"],
   "Pull_GetLeads_RQ": ["lead_lifecycle", "pull_reservations"],
   "Push_PutProperty_RQ": ["inventory_push", "weekly_content_refresh"],
-  "Push_PutAvbUnits_RQ": ["refresh_ari"],
-  "Push_PutPrices_RQ": ["refresh_ari"],
+  "Push_PutAvbUnits_RQ": ["refresh_ari", "availability_playground", "duplicate_range_test"],
+  "Push_PutPrices_RQ": ["refresh_ari", "pricing_playground", "pricing_duplicate_test"],
   "Pull_ListSalesChannels_RQ": ["resolve_sales_channel", "list_sales_channels"],
 };
 
