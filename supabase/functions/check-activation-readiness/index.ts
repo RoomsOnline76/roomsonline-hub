@@ -769,7 +769,8 @@ function checkRoomsConfigured(amenities: Record<string, unknown>): QualityCheckR
   };
 }
 
-function checkPoliciesComplete(amenities: Record<string, unknown>): QualityCheckResult {
+/** Check-in / check-out times — nice-to-have, matches the client registry key. */
+function checkCheckTimes(amenities: Record<string, unknown>): QualityCheckResult {
   // The property form writes check-in/out times into amenities.house_rules.*;
   // older records kept them at the top level. Resolve both shapes.
   const houseRules = (amenities.house_rules ?? {}) as Record<string, unknown>;
@@ -783,24 +784,61 @@ function checkPoliciesComplete(amenities: Record<string, unknown>): QualityCheck
   const hasCheckIn = pick('check_in_from', 'check_in_time');
   const hasCheckOut = pick('check_out_to', 'check_out_until', 'check_out_time', 'check_out_from');
 
-  
   if (!hasCheckIn || !hasCheckOut) {
     return {
-      id: 'policies',
-      name: 'Policies Complete',
+      id: 'check_times',
+      name: 'Check-in / check-out times',
       passed: false,
       message: 'Missing check-in/check-out times',
-      fix: 'Set check-in and check-out times',
-      field: 'amenities.check_in_time',
+      fix: 'Set check-in and check-out times under House Rules',
+      field: 'amenities.house_rules.check_in_from',
       severity: 'warning'
     };
   }
 
   return {
-    id: 'policies',
-    name: 'Policies Complete',
+    id: 'check_times',
+    name: 'Check-in / check-out times',
     passed: true,
-    message: 'Check-in/check-out policies set',
+    message: 'Check-in/check-out times set',
     severity: 'warning'
   };
+}
+
+/**
+ * Master cancellation policy. Truth lives in `rolos_reservation_policies`
+ * (a row flagged is_master) or an explicit "no cancellation policy" decision;
+ * the amenities keys are legacy mirrors.
+ */
+function checkPoliciesComplete(
+  property: any,
+  amenities: Record<string, unknown>,
+  policyRows: Array<{ is_master?: boolean | null }>,
+): QualityCheckResult {
+  const hasMasterRow = Array.isArray(policyRows) && policyRows.some((p) => p?.is_master);
+  const explicitNone = property?.cancellation_master_mode === 'none';
+  const legacy =
+    String(amenities.master_cancellation_policy_id ?? '').trim().length > 0 ||
+    String(amenities.cancellation_policy ?? '').trim().length > 0;
+
+  if (!hasMasterRow && !explicitNone && !legacy) {
+    return {
+      id: 'policies',
+      name: 'Master cancellation policy',
+      passed: false,
+      message: 'No master cancellation policy set',
+      fix: 'Pick a policy from the library, or explicitly select "None"',
+      field: 'master_policy',
+      severity: 'blocker'
+    };
+  }
+
+  return {
+    id: 'policies',
+    name: 'Master cancellation policy',
+    passed: true,
+    message: explicitNone ? 'Explicitly set to no cancellation policy' : 'Master policy set',
+    severity: 'blocker'
+  };
+
 }
