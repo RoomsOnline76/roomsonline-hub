@@ -195,12 +195,32 @@ serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Fetch all active properties that need editorial content
-    const { data: properties, error: fetchError } = await supabase
+    // Optional scope: run for specific properties (single-property run from the ROL Spec tab)
+    let requestBody: Record<string, unknown> = {};
+    try {
+      requestBody = (await req.json()) ?? {};
+    } catch {
+      requestBody = {};
+    }
+    const scopedIds: string[] = Array.isArray(requestBody.property_ids)
+      ? (requestBody.property_ids as string[]).filter((id) => typeof id === "string")
+      : typeof requestBody.property_id === "string"
+        ? [requestBody.property_id as string]
+        : [];
+    const overwrite = requestBody.overwrite === true;
+
+    // Fetch properties needing editorial content
+    let query = supabase
       .from("properties")
-      .select("id, slug, name, property_type, description, city, country, address, amenities, editorial_rating, why_we_chose_this_place, who_this_suits, what_its_really_like, why_this_place_matters, who_its_not_for")
-      .eq("is_active", true)
-      .is("why_we_chose_this_place", null);
+      .select("id, slug, name, property_type, description, city, country, address, amenities, editorial_rating, why_we_chose_this_place, who_this_suits, what_its_really_like, why_this_place_matters, who_its_not_for");
+
+    if (scopedIds.length > 0) {
+      query = query.in("id", scopedIds);
+    } else {
+      query = query.eq("is_active", true).is("why_we_chose_this_place", null);
+    }
+
+    const { data: properties, error: fetchError } = await query;
 
     if (fetchError) {
       throw new Error(`Failed to fetch properties: ${fetchError.message}`);
@@ -212,14 +232,19 @@ serve(async (req) => {
 
     console.log(`Found ${properties.length} properties to process`);
 
-    const results: { slug: string; success: boolean; error?: string }[] = [];
+    const results: {
+      slug: string;
+      success: boolean;
+      error?: string;
+      content?: Record<string, string>;
+    }[] = [];
 
     // Process each property sequentially to avoid rate limits
     for (const property of properties) {
       console.log(`Processing: ${property.slug}`);
       
       // Check if content already exists
-      if (property.why_we_chose_this_place && property.who_this_suits) {
+      if (!overwrite && property.why_we_chose_this_place && property.who_this_suits) {
         console.log(`Skipping ${property.slug} - already has content`);
         results.push({ slug: property.slug, success: true, error: "Already has content" });
         continue;
@@ -251,7 +276,7 @@ serve(async (req) => {
         results.push({ slug: property.slug, success: false, error: updateError.message });
       } else {
         console.log(`Successfully updated ${property.slug}`);
-        results.push({ slug: property.slug, success: true });
+        results.push({ slug: property.slug, success: true, content });
       }
 
       // Small delay between requests to avoid rate limiting
