@@ -20,13 +20,33 @@ const EMBED_HEIGHT = "h-[calc(100vh-12rem)]";
  * brand custom properties handed to the client follow the property palette.
  */
 export function RuWhiteLabelEmbed({ propertyId }: { propertyId: string | null | undefined }) {
-  const { tokens, isLoading, isUnavailable, reason, subUserVerified, message, refetch } =
+  const { tokens, isLoading, isFetching, isUnavailable, reason, subUserVerified, message, refetch } =
     useRuWhiteLabelTokens(propertyId);
   const brand = usePMSBrand();
   const { isAdmin, isDev, isFearlessLeader } = useAuth();
   const isStaff = isAdmin || isDev || isFearlessLeader;
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [scriptFailed, setScriptFailed] = useState(false);
+
+  /**
+   * Manual retry: re-run the token request and tell the owner what came back, so the
+   * button always visibly does something even when the answer is unchanged.
+   */
+  const handleRetry = async () => {
+    setScriptFailed(false);
+    const result = await refetch();
+    const fresh = result.data;
+    if (fresh?.available && fresh.access_token) {
+      toast({ title: "Channel Manager connected", description: "Loading your channels now." });
+    } else {
+      toast({
+        title: "Still finalising",
+        description:
+          "The Channel Manager session isn't ready yet. Your Rentals United connection is unaffected — please try again shortly.",
+      });
+    }
+  };
+
 
   /**
    * Brand custom properties exposed on the embed container. They cover the naming
