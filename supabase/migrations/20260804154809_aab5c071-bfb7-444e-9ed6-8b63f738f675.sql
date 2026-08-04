@@ -1,0 +1,2 @@
+ALTER TABLE public.property_contact_details DROP CONSTRAINT IF EXISTS property_contact_details_role_check;
+ALTER TABLE public.property_contact_details ADD CONSTRAINT property_contact_details_role_check CHECK (role = ANY (ARRAY['reception','reservations','landlord','emergency','after_hours','manager','concierge','other']));

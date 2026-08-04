@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { usePropertyFieldRequirements } from "@/hooks/usePropertyFieldRequirements";
 import { focusRequirementField } from "@/lib/requirementFocus";
 import { RequirementLegend } from "@/components/property/RequirementLegend";
@@ -2037,6 +2038,7 @@ export default function PropertyForm({
 
   // --- Field-level readiness highlighting (pink = mandatory, blue = nice-to-have).
   // When embedded in the ROLOS hub, that shell owns the painting/legend/stepper.
+  const queryClient = useQueryClient();
   const requirementBodyRef = useRef<HTMLDivElement>(null);
   const {
     outstandingInSection: requirementOutstandingInSection,
@@ -3629,6 +3631,10 @@ export default function PropertyForm({
       if (!isEditMode && savedProperty?.slug) {
         navigate(`/admin/properties/${savedProperty.slug}`, { replace: true });
       }
+
+      // Readiness (score badge, checksheet, field borders, stepper) must reflect
+      // the values we just saved without a page refresh.
+      void queryClient.invalidateQueries({ queryKey: ["property-readiness"] });
 
       toast({
         title: "Success",
