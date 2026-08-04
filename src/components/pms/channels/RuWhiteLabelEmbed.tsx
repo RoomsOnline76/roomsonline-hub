@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { useRuWhiteLabelTokens } from "@/hooks/useRuWhiteLabelTokens";
 import { usePMSBrand } from "@/contexts/PMSBrandContext";
 import { useAuth } from "@/hooks/useAuth";
+import { toast } from "@/hooks/use-toast";
+
 
 const EMBED_HEIGHT = "h-[calc(100vh-12rem)]";
 
@@ -20,13 +22,33 @@ const EMBED_HEIGHT = "h-[calc(100vh-12rem)]";
  * brand custom properties handed to the client follow the property palette.
  */
 export function RuWhiteLabelEmbed({ propertyId }: { propertyId: string | null | undefined }) {
-  const { tokens, isLoading, isUnavailable, reason, subUserVerified, message, refetch } =
+  const { tokens, isLoading, isFetching, isUnavailable, reason, subUserVerified, message, refetch } =
     useRuWhiteLabelTokens(propertyId);
   const brand = usePMSBrand();
   const { isAdmin, isDev, isFearlessLeader } = useAuth();
   const isStaff = isAdmin || isDev || isFearlessLeader;
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [scriptFailed, setScriptFailed] = useState(false);
+
+  /**
+   * Manual retry: re-run the token request and tell the owner what came back, so the
+   * button always visibly does something even when the answer is unchanged.
+   */
+  const handleRetry = async () => {
+    setScriptFailed(false);
+    const result = await refetch();
+    const fresh = result.data;
+    if (fresh?.available && fresh.access_token) {
+      toast({ title: "Channel Manager connected", description: "Loading your channels now." });
+    } else {
+      toast({
+        title: "Still finalising",
+        description:
+          "The Channel Manager session isn't ready yet. Your Rentals United connection is unaffected — please try again shortly.",
+      });
+    }
+  };
+
 
   /**
    * Brand custom properties exposed on the embed container. They cover the naming
@@ -130,10 +152,11 @@ export function RuWhiteLabelEmbed({ propertyId }: { propertyId: string | null | 
           {body && <p className="text-sm text-muted-foreground">{body}</p>}
           {isStaff && message && <p className="text-xs text-muted-foreground">{message}</p>}
           <div className="flex flex-wrap items-center justify-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => refetch()}>
-              <RefreshCw className="mr-2 h-4 w-4" />
-              Retry
+            <Button variant="outline" size="sm" onClick={handleRetry} disabled={isFetching}>
+              <RefreshCw className={`mr-2 h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
+              {isFetching ? "Retrying…" : "Retry"}
             </Button>
+
             {isStaff && propertyId && (
               <Button variant="ghost" size="sm" asChild>
                 <Link to={`/admin/properties/${propertyId}?tab=integrations`}>

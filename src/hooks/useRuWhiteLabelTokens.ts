@@ -57,11 +57,15 @@ export function useRuWhiteLabelTokens(propertyId: string | null | undefined) {
   return {
     tokens,
     isLoading: query.isLoading,
+    /** True while a manual retry (or background refresh) is in flight. */
+    isFetching: query.isFetching,
     isUnavailable: !query.isLoading && !query.isError && !tokens,
     reason: data?.reason ?? (query.isError ? "request_failed" : null),
     subUserVerified: data?.sub_user_verified === true,
     message: data?.message ?? (query.error instanceof Error ? query.error.message : null),
-    refetch: query.refetch,
+    /** Always re-hits the edge function, even when the cached answer is still fresh. */
+    refetch: () => query.refetch({ cancelRefetch: true }),
   };
 }
+
 
