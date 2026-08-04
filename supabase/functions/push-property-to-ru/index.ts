@@ -911,8 +911,9 @@ function buildUnitPayload(
     }
     // Composition-derived amenities: RU expects Bathroom (81), WC (37) and Kitchen (101)
     // to be declared with their quantities. Unit values win, property values are the fallback.
-    const bathroomCount = Number(unit.bathrooms) || Number(property.bathrooms) || 0;
-    const toiletCount = Number(property.toilets) || 0;
+    const comp = resolveUnitComposition(property, unit);
+    const bathroomCount = comp.bathrooms;
+    const toiletCount = comp.toilets;
     const pushComposition = (id: number, count: number) => {
       if (count <= 0) return;
       const existing = unitAmenities.find(a => a.id === id);
@@ -921,7 +922,8 @@ function buildUnitPayload(
     };
     pushComposition(81, bathroomCount);
     pushComposition(37, toiletCount);
-    if (property.separate_kitchen) pushComposition(101, 1);
+    if (comp.separateKitchen) pushComposition(101, 1);
+
   }
 
 
