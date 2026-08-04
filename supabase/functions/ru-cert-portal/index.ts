@@ -404,19 +404,24 @@ const RU_ENDPOINT_REGISTRY: {
   { rolos_via_cert: true, key: "create_user", area: "account", label: "Create white-label sub-user", ru_method: "Push_PutOwner_RQ", direction: "push", mandatory: true, implemented: true,
     rolos_surface: "RU console → user management", rolos_stream: "Onboarding P1 — sub-user provisioning", rolos_wired: true, sync_actions: ["create_user", "ensure_owner_account"], note: "White-label isolation" },
   { rolos_via_cert: true, key: "company_details", area: "account", label: "Push company details", ru_method: "Push_PutCompanyDetails_RQ", direction: "push", mandatory: true, implemented: true,
-    rolos_surface: "Edit property → Company information", rolos_stream: "Onboarding P2 — company profile", rolos_wired: true, sync_actions: ["fill_company_details", "ensure_company_details"], note: "Strict UTC±HH:MM timezone" },
+    cert_methods: ["Push_FillCompanyDetails_RQ", "Push_PutOwnerDetails_RQ"],
+    rolos_surface: "Edit property → Company information", rolos_stream: "Onboarding P2 — company profile", rolos_wired: true, sync_actions: ["fill_company_details", "ensure_company_details", "ensure_owner_account", "push_company_details"], note: "Strict UTC±HH:MM timezone" },
   { rolos_via_cert: true, key: "locations", area: "account", label: "Location register", ru_method: "Pull_ListLocations_RQ", direction: "pull", mandatory: false, implemented: true,
-    rolos_surface: "Edit property → Company information → refresh register", rolos_stream: "Onboarding P2 — address mapping", rolos_wired: true, sync_actions: ["refresh_locations", "pull_locations"], note: "Builds the RU LocationID register" },
+    cert_methods: ["Pull_GetLocationByCoordinates_RQ", "Pull_ListLocationsBySearchString_RQ", "Pull_ListCities_RQ"],
+    rolos_surface: "Edit property → Company information → refresh register", rolos_stream: "Onboarding P2 — address mapping", rolos_wired: true, sync_actions: ["refresh_locations", "pull_locations", "refresh_ru_locations"], note: "Builds the RU LocationID register" },
   { rolos_via_cert: true, key: "currency", area: "account", label: "Property currency", ru_method: "Push_ChangeCurrency_RQ", direction: "push", mandatory: true, implemented: true,
-    rolos_surface: "RU console → Currency panel", rolos_stream: "Onboarding P2 — pricing currency", rolos_wired: true, sync_actions: ["change_currency", "verify_ru_currency"], note: "ZAR primary, USD fallback conversion" },
+    rolos_surface: "RU console → Currency panel", rolos_stream: "Onboarding P2 — pricing currency", rolos_wired: true, sync_actions: ["change_currency", "verify_ru_currency", "inventory_push"], note: "ZAR primary, USD fallback conversion" },
 
   // ── content ──
   { key: "push_property", area: "content", label: "Push property content", ru_method: "Push_PutProperty_RQ", direction: "push", mandatory: true, implemented: true,
     rolos_surface: "Edit property → push to RU / weekly cron", rolos_stream: "Onboarding P3 — content publish", rolos_wired: true, sync_actions: ["inventory_push", "weekly_content_refresh"], max_age_hours: 168, note: "Create + update, photos, amenities, composition" },
   { rolos_via_cert: true, key: "get_property", area: "content", label: "Get property content (read-back)", ru_method: "Pull_GetProperty_RQ", direction: "pull", mandatory: true, implemented: true,
-    rolos_surface: "RU console → readiness / verification", rolos_stream: "Onboarding P3 — publish verification", rolos_wired: true, sync_actions: ["verify_property"], note: "Read-back verification" },
+    cert_methods: ["Pull_ListCompositionRooms_RQ"],
+    rolos_surface: "RU console → readiness / verification", rolos_stream: "Onboarding P3 — publish verification", rolos_wired: true, sync_actions: ["verify_property", "property_readiness"], note: "Read-back verification" },
   { rolos_via_cert: true, key: "buildings", area: "content", label: "Buildings", ru_method: "Pull_ListBuildings_RQ", direction: "pull", mandatory: false, implemented: true,
-    rolos_surface: "RU console → Buildings panel", rolos_stream: "Onboarding P3 — multi-unit structure", rolos_wired: true, sync_actions: ["list_buildings", "get_building"], note: "Read-only — ROL'OS never creates buildings" },
+    cert_methods: ["Pull_ListOwnerBuildings_RQ", "Pull_GetBuilding_RQ"],
+    rolos_surface: "RU console → Buildings panel", rolos_stream: "Onboarding P3 — multi-unit structure", rolos_wired: true, sync_actions: ["list_buildings", "get_building", "pull_buildings"], note: "Read-only — ROL'OS never creates buildings" },
+
 
   // ── ari ──
   { key: "push_availability", area: "ari", label: "Push availability", ru_method: "Push_PutAvbUnits_RQ", direction: "push", mandatory: true, implemented: true,
