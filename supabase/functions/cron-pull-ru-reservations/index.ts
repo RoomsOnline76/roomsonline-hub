@@ -107,8 +107,17 @@ Deno.serve(async (req) => {
 
       console.log(`[cron-pull-ru] Polling ${scope.label}: reservations ${dateFrom} → ${dateTo}`);
       const { data: ruResult, error: ruErr } = await supabase.functions.invoke('rentalsunited-api', {
-        body: { action: 'list_reservations', date_from: dateFrom, date_to: dateTo, ...scope.payload },
+        body: {
+          action: 'list_reservations',
+          date_from: dateFrom,
+          date_to: dateTo,
+          // 1 Confirmed · 2 Cancelled · 4 Request (pending) · 6 Approved · 7 Rejected · 8 Expired.
+          // RU omits pending requests unless the statuses are named explicitly.
+          statuses: [1, 2, 4, 6, 7, 8],
+          ...scope.payload,
+        },
       });
+
 
       if (ruErr || !ruResult?.success) {
         const msg = ruErr?.message || ruResult?.error?.message || 'Unknown error';
@@ -350,11 +359,13 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        // RU status: 1 = confirmed, 2 = modified, 4 = cancelled.
-        // Anything else is an unconfirmed request — it must still block the dates as a hold.
-        const isCancelled = r.statusId === '4';
-        const isConfirmed = r.statusId === '1' || r.statusId === '2';
+        // RU status IDs: 1 Confirmed · 2 Cancelled · 4 Request (pending) · 6 Approved ·
+        // 7 Rejected · 8 Expired. Confirmed/Approved become real bookings, Cancelled/
+        // Rejected/Expired release the dates, and a Request holds them provisionally.
+        const isCancelled = r.statusId === '2' || r.statusId === '7' || r.statusId === '8';
+        const isConfirmed = r.statusId === '1' || r.statusId === '6';
         const isRequest = !isCancelled && !isConfirmed;
+
 
         // Resolve RU property ID to internal property / displayed unit
         const unit = await resolveUnit(r.ruPropertyId);
