@@ -24,9 +24,29 @@ export const PortfolioPolicyLibrary: React.FC<Props> = ({
   onActivate,
 }) => {
   const [open, setOpen] = useState(false);
-  const available = portfolioPolicies.filter(
-    (sp) => !ownPolicies.some((p) => p.source_policy_id === sp.id || p.name === sp.name),
-  );
+
+  /**
+   * Every sibling policy stays listed — copies made earlier are shown with a
+   * status chip instead of disappearing, so the library never reads as "(0)"
+   * right after a portfolio copy.
+   */
+  const entries = portfolioPolicies.map((sp) => {
+    const mine = ownPolicies.find((p) => p.source_policy_id === sp.id || p.name === sp.name);
+    const status: "linked" | "active" | "available" = !mine
+      ? "available"
+      : mine.linked_master_id
+        ? "linked"
+        : "active";
+    return { sp, status };
+  });
+  const availableCount = entries.filter((e) => e.status === "available").length;
+  const onCount = entries.length - availableCount;
+
+  const chip: Record<string, string> = {
+    available: "border-border/60 text-muted-foreground",
+    active: "border-success/50 text-success",
+    linked: "border-primary/50 text-primary",
+  };
 
   return (
     <Collapsible open={open} onOpenChange={setOpen} className="rounded-md border">
@@ -34,7 +54,9 @@ export const PortfolioPolicyLibrary: React.FC<Props> = ({
         <div className="min-w-0">
           <p className="text-xs font-medium">
             Portfolio policies{" "}
-            <span className="font-normal text-muted-foreground">({available.length} available)</span>
+            <span className="font-normal text-muted-foreground">
+              ({availableCount} available{onCount > 0 ? `, ${onCount} already on this property` : ""})
+            </span>
           </p>
           <p className="text-[11px] leading-tight text-muted-foreground">
             Activate a policy from a sibling property — as an independent copy or linked to the original.
@@ -45,17 +67,23 @@ export const PortfolioPolicyLibrary: React.FC<Props> = ({
       <CollapsibleContent>
         <div className="space-y-1.5 border-t px-3 py-2">
           {loading && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
-          {!loading && available.length === 0 && (
-            <p className="text-[11px] text-muted-foreground">No further policies available from sibling properties.</p>
+          {!loading && entries.length === 0 && (
+            <p className="text-[11px] text-muted-foreground">No policies found on sibling properties.</p>
           )}
-          {available.map((sp) => (
+          {entries.map(({ sp, status }) => (
             <div
               key={sp.id}
               className="flex items-center justify-between gap-2 rounded-md border border-border/60 bg-muted/20 px-2.5 py-1.5"
             >
               <div className="min-w-0">
-                <div className="text-xs font-medium truncate">
-                  {sp.name} <span className="font-normal text-muted-foreground">— {siblingName(sp.property_id)}</span>
+                <div className="text-xs font-medium truncate flex items-center gap-1.5">
+                  <span className="truncate">
+                    {sp.name}{" "}
+                    <span className="font-normal text-muted-foreground">— {siblingName(sp.property_id)}</span>
+                  </span>
+                  <span className={`shrink-0 rounded border px-1 text-[10px] capitalize ${chip[status]}`}>
+                    {status === "available" ? "available" : status === "linked" ? "linked here" : "on this property"}
+                  </span>
                 </div>
                 <p className="text-[11px] leading-tight text-muted-foreground truncate">{shortPolicyLabel(sp.rule)}</p>
               </div>
@@ -64,7 +92,7 @@ export const PortfolioPolicyLibrary: React.FC<Props> = ({
                   variant="outline"
                   size="sm"
                   className="h-7 text-xs"
-                  disabled={activatingId === sp.id}
+                  disabled={activatingId === sp.id || status !== "available"}
                   onClick={() => onActivate(sp, "copy")}
                 >
                   Copy
@@ -73,7 +101,7 @@ export const PortfolioPolicyLibrary: React.FC<Props> = ({
                   variant="ghost"
                   size="sm"
                   className="h-7 text-xs"
-                  disabled={activatingId === sp.id}
+                  disabled={activatingId === sp.id || status !== "available"}
                   onClick={() => onActivate(sp, "link")}
                 >
                   Link
@@ -86,3 +114,4 @@ export const PortfolioPolicyLibrary: React.FC<Props> = ({
     </Collapsible>
   );
 };
+
