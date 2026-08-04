@@ -220,10 +220,17 @@ export function RuLnmPanel() {
               Rentals United account. Each sub-user must be subscribed under its own API keys.
             </p>
           </div>
-          <Button onClick={refreshAll} disabled={refreshingAll} className="gap-1.5">
-            {refreshingAll ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-            Refresh all accounts
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" onClick={listChangeTypes} disabled={loadingChangeTypes} className="gap-1.5">
+              {loadingChangeTypes ? <Loader2 className="h-4 w-4 animate-spin" /> : <ListTree className="h-4 w-4" />}
+              List LNM change types
+            </Button>
+            <Button onClick={refreshAll} disabled={refreshingAll} className="gap-1.5">
+              {refreshingAll ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              Refresh all accounts
+            </Button>
+          </div>
+
         </CardHeader>
         <CardContent className="space-y-3">
           {loading ? (
