@@ -179,7 +179,7 @@ async function mintFromKeys(
   console.warn(`[ru-whitelabel-token] Key exchange unavailable: ${attempts.join(' | ')}`);
   return {
     error:
-      'White Label token pair not yet available from the channel provider. The ROL'OS connection is unaffected; sign-in will be retried automatically.',
+      "White Label token pair not yet available from the channel provider. The ROL'OS connection is unaffected; sign-in will be retried automatically.",
   };
 }
 
