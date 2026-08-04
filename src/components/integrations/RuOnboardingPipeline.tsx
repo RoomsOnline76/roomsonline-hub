@@ -378,6 +378,21 @@ export function RuOnboardingPipeline({ propertyId, readOnly = false, standalone 
                     {statusBadge(phase.status)}
                   </div>
                   <p className="mt-1 text-sm text-muted-foreground">{PHASE_HINT[phase.key]}</p>
+                  {phase.key === "p4_verify" && (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {salesChannel ? (
+                        <>
+                          Sales channel: <span className="font-medium text-foreground">
+                            {salesChannel.company_name || MCQ_CHANNEL_NAME}
+                          </span>{" "}
+                          · ChannelID <span className="font-medium text-foreground">{salesChannel.channel_id}</span>
+                          {` (${salesChannel.scope} scope)`}
+                        </>
+                      ) : (
+                        <>No sales ChannelID linked yet — pull it from Rentals United before ordering the quality check.</>
+                      )}
+                    </p>
+                  )}
                   {(phase.key === "p3_push" || phase.key === "p4_verify") && phase.detail?.ru_owner_id != null && (
                     <p className="mt-1 text-xs text-muted-foreground">
                       Linked RU OwnerID: <span className="font-medium text-foreground">{String(phase.detail.ru_owner_id)}</span>
