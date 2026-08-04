@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ChannelLogo, getChannelLabel } from "./ChannelLogo";
-import { MoreHorizontal, Plug, Pause, Play, Unplug, RefreshCw } from "lucide-react";
+import { MoreHorizontal, Plug, Pause, Play, Unplug, RefreshCw, CheckCircle2, AlertTriangle } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
 const CHANNEL_DESCRIPTIONS: Record<string, string> = {
