@@ -512,8 +512,11 @@ const RUNNABLE_JOBS = new Set(EXPECTED_JOBS.map((j) => j.fn));
  */
 const MILESTONE_SYNC_ACTIONS: Record<string, string[]> = {
   "LNM_PutHandlerUrl_RQ": ["PutHandlerUrl", "RLNM"],
-  "Push_PutLiveNotificationMechanismSubscriptions_RQ": ["PutLnmSubscriptions"],
-  "Pull_ListLiveNotificationMechanismSubscriptions_RQ": ["ListLnmSubscriptions"],
+  "Push_PutLiveNotificationMechanismSubscriptions_RQ": ["PutLnmSubscriptions", "lnm_duplicate_test"],
+  "Pull_ListLiveNotificationMechanismSubscriptions_RQ": ["ListLnmSubscriptions", "lnm_duplicate_test"],
+  "Push_PutLiveNotificationMechanismSubscriptions_RQ (idempotency)": ["lnm_duplicate_test"],
+  "CM_LNM_OrderMinimumContentQualityCheck_RQ (idempotency)": ["mcq_duplicate_test"],
+
   "Pull_ListReservations_RQ": ["pull_reservations"],
   "Pull_GetLeads_RQ": ["lead_lifecycle", "pull_reservations"],
   "Push_PutProperty_RQ": ["inventory_push", "weekly_content_refresh"],
