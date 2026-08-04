@@ -3205,6 +3205,78 @@ Deno.serve(async (req) => {
         const handlerUrl = `${supabaseUrl}/functions/v1/ru-reservation-handler`;
         await call("Subscribe RLNM handler", "subscribe_notifications", { handler_url: handlerUrl }, { mandatory: true, scope: "account" });
 
+        // ── LNM (content + ARI change notifications) ──────────────────────────────
+        // Separate from RLNM: LNM tells channels that content, availability or prices
+        // changed. Registered per account, so the sub-user's OwnerID is what RU must
+        // observe when a white-label property is under certification.
+        const lnmUrlBase = `${supabaseUrl}/functions/v1/ru-lnm-handler`;
+        const lnmObservedOwners: string[] = [];
+        if (certOwnerId) {
+          lnmObservedOwners.push(String(certOwnerId));
+        } else {
+          const masterOwnerId = (Deno.env.get("RU_MASTER_OWNER_ID") ?? Deno.env.get("RU_OWNER_ID") ?? "").trim();
+          if (/^\d+$/.test(masterOwnerId)) lnmObservedOwners.push(masterOwnerId);
+          const { data: ownerRows } = await admin
+            .from("ru_owner_accounts")
+            .select("ru_owner_id")
+            .not("ru_owner_id", "is", null);
+          for (const r of (ownerRows ?? []) as { ru_owner_id: string }[]) {
+            const id = String(r.ru_owner_id).trim();
+            if (/^\d+$/.test(id) && !lnmObservedOwners.includes(id)) lnmObservedOwners.push(id);
+          }
+        }
+
+        const lnmDesired = {
+          change_types: DEFAULT_LNM_CHANGE_TYPES,
+          observed_owners: lnmObservedOwners,
+          url_base: lnmUrlBase,
+        };
+
+        await call(
+          "Subscribe LNM (content + ARI)",
+          "put_lnm_subscriptions",
+          {
+            url_base: lnmUrlBase,
+            change_types: DEFAULT_LNM_CHANGE_TYPES,
+            observed_owners: lnmObservedOwners,
+            ...(certOwnerId ? { owner_id: certOwnerId } : {}),
+          },
+          {
+            mandatory: true,
+            scope: "account",
+            skip: lnmObservedOwners.length === 0
+              ? "No RU OwnerID available to observe — link a sub-user account or configure the master OwnerID."
+              : certOwnerId && !certOwnerHasKeys
+                ? `No API keys stored for OwnerID ${certOwnerId} — subscriptions must be registered under the sub-user's own keys.`
+                : undefined,
+            successDetail: `Subscribed ${DEFAULT_LNM_CHANGE_TYPES.length} change types for OwnerID(s) ${lnmObservedOwners.join(", ")}`,
+          },
+        );
+
+        await call(
+          "Verify LNM subscriptions",
+          "list_lnm_subscriptions",
+          { ...(certOwnerId ? { owner_id: certOwnerId } : {}) },
+          {
+            mandatory: true,
+            scope: "account",
+            skip: lnmObservedOwners.length === 0
+              ? "No LNM subscription expected — nothing to read back."
+              : undefined,
+            assert: (d) => {
+              const actual = d?.subscriptions ?? parseLnmSubscriptions(String(d?.raw_xml ?? ""));
+              const drift = diffLnmSubscriptions(actual, lnmDesired);
+              if (drift.in_sync) return null;
+              const parts: string[] = [];
+              if (!drift.url_matches) parts.push(`UrlBase at RU is ${actual?.url_base ?? "(none)"} — expected ${lnmUrlBase}`);
+              if (drift.missing_change_types.length) parts.push(`missing change types: ${drift.missing_change_types.join(", ")}`);
+              if (drift.missing_owners.length) parts.push(`missing observed owners: ${drift.missing_owners.join(", ")}`);
+              return `LNM subscription drift — ${parts.join("; ")}`;
+            },
+            successDetail: "RU confirms our LNM subscription (URL, change types and observed owners all match)",
+          },
+        );
+
         if (propertyId) {
           // Content + ARI push via the property pipeline (keeps payload mapping in one place)
           for (const [name, fnBody, method] of [
