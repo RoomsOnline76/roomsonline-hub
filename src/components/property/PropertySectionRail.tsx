@@ -9,6 +9,8 @@ interface PropertySectionRailProps {
   onSelect: (key: string) => void;
   /** Section keys that currently have activation blockers */
   blockerKeys?: Set<string>;
+  /** Outstanding readiness-field counts per section key (pink/blue badges) */
+  requirementCounts?: Record<string, { mandatory: number; recommended: number }>;
   /** Collapsed (icon-only) mode */
   collapsed?: boolean;
   /** When provided, renders the collapse/expand toggle */
@@ -25,6 +27,7 @@ export const PropertySectionRail: React.FC<PropertySectionRailProps> = ({
   activeKey,
   onSelect,
   blockerKeys,
+  requirementCounts,
   collapsed = false,
   onToggleCollapsed,
   className,
@@ -71,6 +74,7 @@ export const PropertySectionRail: React.FC<PropertySectionRailProps> = ({
               const Icon = s.icon;
               const active = activeKey === s.key;
               const hasBlocker = blockerKeys?.has(s.key);
+              const counts = requirementCounts?.[s.key];
               return (
                 <button
                   key={s.key}
@@ -91,6 +95,26 @@ export const PropertySectionRail: React.FC<PropertySectionRailProps> = ({
                       className={cn("h-3.5 w-3.5 shrink-0", active ? "text-primary" : "text-muted-foreground")}
                     />
                     <span className={cn("font-medium", collapsed && "lg:hidden")}>{s.label}</span>
+                    {counts && (counts.mandatory > 0 || counts.recommended > 0) && (
+                      <span className={cn("ml-auto flex items-center gap-1", collapsed && "lg:hidden")}>
+                        {counts.mandatory > 0 && (
+                          <span
+                            title={`${counts.mandatory} mandatory field(s) outstanding`}
+                            className="pf-req-count-mandatory rounded border px-1 text-[9px] font-semibold leading-4"
+                          >
+                            {counts.mandatory}
+                          </span>
+                        )}
+                        {counts.recommended > 0 && (
+                          <span
+                            title={`${counts.recommended} nice-to-have field(s) outstanding`}
+                            className="pf-req-count-recommended rounded border px-1 text-[9px] font-semibold leading-4"
+                          >
+                            {counts.recommended}
+                          </span>
+                        )}
+                      </span>
+                    )}
                   </div>
                   <p
                     className={cn(

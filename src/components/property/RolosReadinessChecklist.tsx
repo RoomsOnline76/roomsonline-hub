@@ -17,6 +17,8 @@ import {
   Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { CHECK_TO_FIELD_KEYS } from "@/config/propertyFieldRequirements";
+import { focusRequirementField } from "@/lib/requirementFocus";
 
 export interface ReadinessCheck {
   id: string;
@@ -89,8 +91,11 @@ export function RolosReadinessChecklist({
     (check: ReadinessCheck) => {
       const section = check.section;
       if (!section) return;
+      const focusKey = CHECK_TO_FIELD_KEYS[check.id]?.[0];
       if (check.surface === "admin") {
-        navigate(`/admin/properties/${propertyId}?tab=${section}`);
+        navigate(
+          `/admin/properties/${propertyId}?tab=${section}${focusKey ? `&focus=${focusKey}` : ""}`,
+        );
         return;
       }
       if (onNavigateSection) {
@@ -100,10 +105,15 @@ export function RolosReadinessChecklist({
           (prev) => {
             const next = new URLSearchParams(prev);
             next.set("section", section);
+            if (focusKey) next.set("focus", focusKey);
             return next;
           },
           { replace: true },
         );
+      }
+      if (focusKey) {
+        // Give the section a beat to mount, then scroll + pulse the exact field.
+        window.setTimeout(() => focusRequirementField(focusKey), 350);
       }
     },
     [navigate, onNavigateSection, propertyId, setSearchParams],

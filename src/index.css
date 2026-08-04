@@ -799,3 +799,90 @@ button {
   text-transform: uppercase;
   color: hsl(var(--muted-foreground));
 }
+
+/* =============================================
+   FIELD-LEVEL READINESS HIGHLIGHTING
+   Pink  = mandatory (blocks activation)
+   Blue  = counted nice-to-have
+   Outstanding fields are bold; satisfied fields
+   soften to a thin faded outline.
+   ============================================= */
+:root {
+  --req-mandatory: 328 82% 51%;   /* brand pink #E91E8C */
+  --req-recommended: 224 87% 53%; /* #1F54EF */
+}
+.dark {
+  --req-mandatory: 328 82% 62%;
+  --req-recommended: 224 90% 66%;
+}
+
+.pf-req-field {
+  transition: box-shadow 150ms ease, border-color 150ms ease;
+  border-radius: calc(var(--radius) - 2px);
+}
+
+.pf-req-mandatory {
+  border-color: hsl(var(--req-mandatory)) !important;
+  box-shadow: 0 0 0 1px hsl(var(--req-mandatory) / 0.55);
+}
+.pf-req-recommended {
+  border-color: hsl(var(--req-recommended)) !important;
+  box-shadow: 0 0 0 1px hsl(var(--req-recommended) / 0.5);
+}
+
+/* Wrapper targets (divs marked with data-field) get a visible outline instead */
+div.pf-req-mandatory,
+div.pf-req-recommended {
+  border-width: 1px;
+  border-style: solid;
+  padding: 0.375rem;
+}
+
+/* Completed — keep the colour cue, drop the shout */
+.pf-req-satisfied.pf-req-mandatory {
+  border-color: hsl(var(--req-mandatory) / 0.3) !important;
+  box-shadow: none;
+}
+.pf-req-satisfied.pf-req-recommended {
+  border-color: hsl(var(--req-recommended) / 0.28) !important;
+  box-shadow: none;
+}
+
+/* Pulse when the checksheet or the stepper walks you to a field */
+@keyframes pf-req-pulse {
+  0%, 100% { box-shadow: 0 0 0 1px hsl(var(--req-pulse-color) / 0.6); }
+  50% { box-shadow: 0 0 0 5px hsl(var(--req-pulse-color) / 0.28); }
+}
+.pf-req-pulse {
+  animation: pf-req-pulse 700ms ease-in-out 3;
+  scroll-margin-top: 6rem;
+}
+.pf-req-pulse.pf-req-mandatory { --req-pulse-color: var(--req-mandatory); }
+.pf-req-pulse.pf-req-recommended { --req-pulse-color: var(--req-recommended); }
+
+/* Legend swatches */
+.pf-req-legend-dot {
+  display: inline-block;
+  height: 0.625rem;
+  width: 0.625rem;
+  border-radius: 9999px;
+  border: 2px solid transparent;
+}
+.pf-req-legend-mandatory { border-color: hsl(var(--req-mandatory)); }
+.pf-req-legend-recommended { border-color: hsl(var(--req-recommended)); }
+
+/* Stepper bar */
+.pf-req-stepper {
+  border-color: hsl(var(--req-mandatory) / 0.4);
+  background-color: hsl(var(--req-mandatory) / 0.06);
+}
+
+/* Rail badges */
+.pf-req-count-mandatory {
+  color: hsl(var(--req-mandatory));
+  border-color: hsl(var(--req-mandatory) / 0.5);
+}
+.pf-req-count-recommended {
+  color: hsl(var(--req-recommended));
+  border-color: hsl(var(--req-recommended) / 0.5);
+}
