@@ -12580,6 +12580,7 @@ export type Database = {
         Args: { _token: string }
         Returns: boolean
       }
+      consume_onboarding_token: { Args: { _token: string }; Returns: boolean }
       decrypt_sensitive_text: {
         Args: { encrypted_data: string }
         Returns: string
@@ -12720,6 +12721,16 @@ export type Database = {
       user_can_access_property_via_portfolio: {
         Args: { _property_id: string }
         Returns: boolean
+      }
+      validate_onboarding_token: {
+        Args: { _token: string }
+        Returns: {
+          expires_at: string
+          id: string
+          owner_email: string
+          property_id: string
+          used_at: string
+        }[]
       }
       waive_subscription_charge: {
         Args: { _charge_id: string; _note?: string }

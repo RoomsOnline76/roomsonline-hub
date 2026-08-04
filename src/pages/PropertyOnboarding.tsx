@@ -49,11 +49,13 @@ export default function PropertyOnboarding() {
       }
 
       try {
-        const { data, error: fetchError } = await supabase
-          .from("property_onboarding_tokens")
-          .select("id, property_id, owner_email, expires_at, used_at")
-          .eq("token", token)
-          .single();
+        // Server-side lookup: the invitation row is only ever returned for the
+        // exact token in the link — the table itself is not publicly readable.
+        const { data: rows, error: fetchError } = await supabase.rpc(
+          "validate_onboarding_token",
+          { _token: token },
+        );
+        const data = Array.isArray(rows) ? rows[0] : null;
 
         if (fetchError || !data) {
           setError({
@@ -63,6 +65,7 @@ export default function PropertyOnboarding() {
           setIsLoading(false);
           return;
         }
+
 
         // Check if expired
         if (new Date(data.expires_at) < new Date()) {
@@ -120,14 +123,13 @@ export default function PropertyOnboarding() {
   }, [user, tokenData]);
 
   const handleComplete = async () => {
-    if (tokenData) {
-      await supabase
-        .from("property_onboarding_tokens")
-        .update({ used_at: new Date().toISOString() })
-        .eq("id", tokenData.id);
+    if (token) {
+      // Only the signed-in owner the invitation was issued to can close it out.
+      await supabase.rpc("consume_onboarding_token", { _token: token });
     }
     navigate("/dashboard/reports");
   };
+
 
   const handleClose = () => {
     navigate("/dashboard/reports");

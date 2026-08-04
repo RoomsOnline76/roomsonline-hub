@@ -89,9 +89,22 @@ Deno.serve(async (req) => {
     const dateTo = formatDate(now);
     const dateFrom = formatDate(windowStart);
 
-    const scopes = await resolveRuOwnerScopes(supabase, 'pull_reservations');
+    // Sub-users ONLY. Every ROL'OS listing lives on a white-label sub-account, so
+    // the master account never holds reservations or leads — polling it just burns
+    // a sliding-minute slot and files an empty, always-failing run.
+    const scopes = await resolveRuOwnerScopes(supabase, 'pull_reservations', { includeMaster: false });
     const covered: string[] = [];
     const deferred: string[] = [];
+
+    if (scopes.length === 0) {
+      const msg = 'No Rentals United sub-accounts with API keys — nothing to poll.';
+      console.warn(`[cron-pull-ru] ${msg}`);
+      return new Response(JSON.stringify({ success: true, summary, accounts_polled: [], accounts_deferred: [], note: msg }), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
 
     for (let i = 0; i < scopes.length; i++) {
       const scope = scopes[i];
@@ -154,7 +167,7 @@ Deno.serve(async (req) => {
     });
   } catch (error) {
     console.error('[cron-pull-ru] Fatal error:', error);
-    await logCadence(false, String(error), { ownerId: null, label: 'master', payload: {} });
+    await logCadence(false, String(error), { ownerId: null, label: 'cron', payload: {} });
     return new Response(JSON.stringify({ success: false, error: String(error), summary }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

@@ -27,11 +27,19 @@ export const MASTER_SCOPE: RuOwnerScope = { ownerId: null, label: 'master', payl
  * refreshed sub-user goes first. RU allows one call per method per sliding
  * minute, so a run with a wall-clock budget cannot always reach every account;
  * ordering by staleness makes consecutive runs cover them all in rotation.
+ *
+ * Pass `includeMaster: false` for guest-data methods (reservations, leads):
+ * all ROL'OS inventory lives on white-label sub-users, so the master account
+ * has no reservations and calling it only burns a rate-limit slot and logs a
+ * meaningless empty run.
  */
 export async function resolveRuOwnerScopes(
   admin: SupabaseClient,
   cadenceAction: string,
+  options: { includeMaster?: boolean } = {},
 ): Promise<RuOwnerScope[]> {
+  const includeMaster = options.includeMaster !== false;
+
   const { data: accounts } = await admin
     .from('ru_owner_accounts')
     .select('ru_owner_id, owner_email, ru_login_email, ru_api_access_key')
@@ -91,7 +99,7 @@ export async function resolveRuOwnerScopes(
     );
   }
 
-  return [MASTER_SCOPE, ...children];
+  return includeMaster ? [MASTER_SCOPE, ...children] : children;
 }
 
 /** Sub-users lacking API keys — surfaced so a run can report them as gaps. */
