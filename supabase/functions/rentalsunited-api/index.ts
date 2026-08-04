@@ -2507,6 +2507,35 @@ Deno.serve(async (req) => {
 
     }
 
+    // ── list_sales_channels (Pull_ListSalesChannels_RQ) ──
+    // Sales channels belong to the channel-manager (master) account, so this read always
+    // runs on master credentials. Pass channel_name to get a best-match resolution back
+    // (e.g. "LekkeSlaap" / "Lekke Slaap" / "lekkeslaap").
+    if (action === 'list_sales_channels') {
+      const xml = buildListSalesChannelsXml(creds);
+      const response = await callRentalsUnited(creds, xml);
+      const { ok, status } = handleRUStatus(response);
+      if (!ok) return ruErrorResponse(status);
+      const channels = parseSalesChannels(response);
+      const wanted = String(body.channel_name ?? '').replace(/[^a-z0-9]/gi, '').toLowerCase();
+      const norm = (s: string) => s.replace(/[^a-z0-9]/gi, '').toLowerCase();
+      const matched = wanted
+        ? channels.find((c) => norm(c.company_name) === wanted)
+          ?? channels.find((c) => norm(c.company_name).includes(wanted) || wanted.includes(norm(c.company_name)))
+          ?? null
+        : null;
+      return jsonResponse({
+        success: true,
+        auth_mode: 'master_channel_manager',
+        channels,
+        channel_count: channels.length,
+        matched,
+        raw_xml: response,
+      });
+    }
+
+
+
 
     // ── get_long_stay_discounts (verification) ──
     if (action === 'get_long_stay_discounts') {
