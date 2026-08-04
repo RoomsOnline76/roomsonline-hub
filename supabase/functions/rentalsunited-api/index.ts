@@ -237,7 +237,12 @@ interface RequestBody {
   // Reservation / request lifecycle
   reservation_id?: string | number;
   reject_reason?: string;
+  // Live Notification Mechanism (LNM) subscriptions
+  url_base?: string;
+  change_types?: string[];
+  observed_owners?: (string | number)[];
 }
+
 
 
 // ── XML Helpers ──────────────────────────────────────────────
