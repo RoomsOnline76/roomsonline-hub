@@ -12453,6 +12453,39 @@ export type Database = {
         }
         Relationships: []
       }
+      public_pricing_defaults: {
+        Row: {
+          branding_addon_monthly_fee: number | null
+          byo_gateway_monthly_fee: number | null
+          default_commission_rate: number | null
+          pricelabs_monthly_fee: number | null
+          strategy: string | null
+          tier_pricing_json: Json | null
+          white_label_monthly_fee: number | null
+          widget_flat_commission_rate: number | null
+        }
+        Insert: {
+          branding_addon_monthly_fee?: number | null
+          byo_gateway_monthly_fee?: number | null
+          default_commission_rate?: number | null
+          pricelabs_monthly_fee?: number | null
+          strategy?: string | null
+          tier_pricing_json?: Json | null
+          white_label_monthly_fee?: number | null
+          widget_flat_commission_rate?: number | null
+        }
+        Update: {
+          branding_addon_monthly_fee?: number | null
+          byo_gateway_monthly_fee?: number | null
+          default_commission_rate?: number | null
+          pricelabs_monthly_fee?: number | null
+          strategy?: string | null
+          tier_pricing_json?: Json | null
+          white_label_monthly_fee?: number | null
+          widget_flat_commission_rate?: number | null
+        }
+        Relationships: []
+      }
       public_properties: {
         Row: {
           address: string | null
