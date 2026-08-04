@@ -82,6 +82,55 @@ function json(body: unknown, status = 200): Response {
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 }
+/** Stable alias so the request handler can shadow `json` to add coverage logging. */
+const jsonResponse = json;
+
+/**
+ * Console actions that actually touch a Rentals United endpoint. Every one of these is
+ * written to `ru_sync_runs` so the Coverage tab can evidence real usage — without this,
+ * work done from the RU console (buildings pull, company push, currency flip, ARI push …)
+ * left no trace and the matrix reported "never used".
+ */
+const LOGGED_PORTAL_ACTIONS = new Set<string>([
+  "verify_api_keys",
+  "create_api_key",
+  "resolve_ru_property_ids",
+  "list_ru_candidates",
+  "bind_ru_account",
+  "create_user",
+  "fill_company_details",
+  "ensure_owner_account",
+  "ensure_company_details",
+  "resolve_sales_channel",
+  "order_mcq",
+  "discount_ladder",
+  "property_readiness",
+  "wl_readiness",
+]);
+
+async function logPortalAction(
+  admin: ReturnType<typeof createClient>,
+  action: string,
+  propertyId: string | null,
+  payload: unknown,
+  elapsedMs: number,
+): Promise<void> {
+  if (!LOGGED_PORTAL_ACTIONS.has(action)) return;
+  const p = (payload ?? {}) as { success?: boolean; error?: { message?: string } };
+  try {
+    await admin.from("ru_sync_runs").insert({
+      action,
+      property_id: propertyId,
+      success: p.success === true,
+      error_message: p.success === true ? null : (p.error?.message ?? null),
+      elapsed_ms: elapsedMs,
+      details: { source: "ru_console" },
+    });
+  } catch (e) {
+    console.warn("[ru-cert-portal] coverage log failed", e);
+  }
+}
+
 
 function isoDate(offsetDays: number): string {
   const d = new Date();
@@ -341,8 +390,11 @@ const RU_ENDPOINT_REGISTRY: {
   /** Surface is an admin console action — certification-run success is its usage evidence. */
   rolos_via_cert?: boolean;
   sync_actions: string[];
+  /** Extra RU method names a certification step may have recorded for this endpoint. */
+  cert_methods?: string[];
   max_age_hours?: number;
   note: string;
+
 }[] = [
   // ── account ──
   { rolos_via_cert: true, key: "auth", area: "account", label: "Connectivity / auth", ru_method: "Pull_ListProp_RQ (health)", direction: "pull", mandatory: true, implemented: true,
@@ -352,25 +404,31 @@ const RU_ENDPOINT_REGISTRY: {
   { rolos_via_cert: true, key: "create_user", area: "account", label: "Create white-label sub-user", ru_method: "Push_PutOwner_RQ", direction: "push", mandatory: true, implemented: true,
     rolos_surface: "RU console → user management", rolos_stream: "Onboarding P1 — sub-user provisioning", rolos_wired: true, sync_actions: ["create_user", "ensure_owner_account"], note: "White-label isolation" },
   { rolos_via_cert: true, key: "company_details", area: "account", label: "Push company details", ru_method: "Push_PutCompanyDetails_RQ", direction: "push", mandatory: true, implemented: true,
-    rolos_surface: "Edit property → Company information", rolos_stream: "Onboarding P2 — company profile", rolos_wired: true, sync_actions: ["fill_company_details", "ensure_company_details"], note: "Strict UTC±HH:MM timezone" },
+    cert_methods: ["Push_FillCompanyDetails_RQ", "Push_PutOwnerDetails_RQ"],
+    rolos_surface: "Edit property → Company information", rolos_stream: "Onboarding P2 — company profile", rolos_wired: true, sync_actions: ["fill_company_details", "ensure_company_details", "ensure_owner_account", "push_company_details"], note: "Strict UTC±HH:MM timezone" },
   { rolos_via_cert: true, key: "locations", area: "account", label: "Location register", ru_method: "Pull_ListLocations_RQ", direction: "pull", mandatory: false, implemented: true,
-    rolos_surface: "Edit property → Company information → refresh register", rolos_stream: "Onboarding P2 — address mapping", rolos_wired: true, sync_actions: ["refresh_locations", "pull_locations"], note: "Builds the RU LocationID register" },
+    cert_methods: ["Pull_GetLocationByCoordinates_RQ", "Pull_ListLocationsBySearchString_RQ", "Pull_ListCities_RQ"],
+    rolos_surface: "Edit property → Company information → refresh register", rolos_stream: "Onboarding P2 — address mapping", rolos_wired: true, sync_actions: ["refresh_locations", "pull_locations", "refresh_ru_locations"], note: "Builds the RU LocationID register" },
   { rolos_via_cert: true, key: "currency", area: "account", label: "Property currency", ru_method: "Push_ChangeCurrency_RQ", direction: "push", mandatory: true, implemented: true,
-    rolos_surface: "RU console → Currency panel", rolos_stream: "Onboarding P2 — pricing currency", rolos_wired: true, sync_actions: ["change_currency", "verify_ru_currency"], note: "ZAR primary, USD fallback conversion" },
+    rolos_surface: "RU console → Currency panel", rolos_stream: "Onboarding P2 — pricing currency", rolos_wired: true, sync_actions: ["change_currency", "verify_ru_currency", "inventory_push"], note: "ZAR primary, USD fallback conversion" },
 
   // ── content ──
   { key: "push_property", area: "content", label: "Push property content", ru_method: "Push_PutProperty_RQ", direction: "push", mandatory: true, implemented: true,
     rolos_surface: "Edit property → push to RU / weekly cron", rolos_stream: "Onboarding P3 — content publish", rolos_wired: true, sync_actions: ["inventory_push", "weekly_content_refresh"], max_age_hours: 168, note: "Create + update, photos, amenities, composition" },
   { rolos_via_cert: true, key: "get_property", area: "content", label: "Get property content (read-back)", ru_method: "Pull_GetProperty_RQ", direction: "pull", mandatory: true, implemented: true,
-    rolos_surface: "RU console → readiness / verification", rolos_stream: "Onboarding P3 — publish verification", rolos_wired: true, sync_actions: ["verify_property"], note: "Read-back verification" },
+    cert_methods: ["Pull_ListCompositionRooms_RQ"],
+    rolos_surface: "RU console → readiness / verification", rolos_stream: "Onboarding P3 — publish verification", rolos_wired: true, sync_actions: ["verify_property", "property_readiness"], note: "Read-back verification" },
   { rolos_via_cert: true, key: "buildings", area: "content", label: "Buildings", ru_method: "Pull_ListBuildings_RQ", direction: "pull", mandatory: false, implemented: true,
-    rolos_surface: "RU console → Buildings panel", rolos_stream: "Onboarding P3 — multi-unit structure", rolos_wired: true, sync_actions: ["list_buildings", "get_building"], note: "Read-only — ROL'OS never creates buildings" },
+    cert_methods: ["Pull_ListOwnerBuildings_RQ", "Pull_GetBuilding_RQ"],
+    rolos_surface: "RU console → Buildings panel", rolos_stream: "Onboarding P3 — multi-unit structure", rolos_wired: true, sync_actions: ["list_buildings", "get_building", "pull_buildings"], note: "Read-only — ROL'OS never creates buildings" },
+
 
   // ── ari ──
   { key: "push_availability", area: "ari", label: "Push availability", ru_method: "Push_PutAvbUnits_RQ", direction: "push", mandatory: true, implemented: true,
-    rolos_surface: "Calendar / ARI refresh cron (6h)", rolos_stream: "Onboarding P4 — live ARI", rolos_wired: true, sync_actions: ["refresh_ari", "push_availability"], max_age_hours: 24, note: "Excludes confirmed RU reservation dates" },
+    rolos_surface: "Calendar / ARI refresh cron (6h)", rolos_stream: "Onboarding P4 — live ARI", rolos_wired: true, sync_actions: ["refresh_ari", "push_availability", "inventory_push"], max_age_hours: 24, note: "Excludes confirmed RU reservation dates" },
   { key: "push_prices", area: "ari", label: "Push prices", ru_method: "Push_PutPrices_RQ", direction: "push", mandatory: true, implemented: true,
-    rolos_surface: "Rate manager / ARI refresh cron", rolos_stream: "Onboarding P4 — live ARI", rolos_wired: true, sync_actions: ["refresh_ari", "push_prices"], max_age_hours: 24, note: "Seasonal calendar first, rack-rate fallback" },
+    rolos_surface: "Rate manager / ARI refresh cron", rolos_stream: "Onboarding P4 — live ARI", rolos_wired: true, sync_actions: ["refresh_ari", "push_prices", "inventory_push"], max_age_hours: 24, note: "Seasonal calendar first, rack-rate fallback" },
+
   { rolos_via_cert: true, key: "get_availability", area: "ari", label: "Get availability (365d)", ru_method: "Pull_ListPropertyAvailabilityCalendar_RQ", direction: "pull", mandatory: true, implemented: true,
     rolos_surface: "RU console → ARI read-back", rolos_stream: "Onboarding P4 — ARI verification", rolos_wired: true, sync_actions: ["verify_availability"], note: "CalDay/Units parsing" },
   { rolos_via_cert: true, key: "get_prices", area: "ari", label: "Get prices (365d)", ru_method: "Pull_ListPropertyPrices_RQ", direction: "pull", mandatory: true, implemented: true,
@@ -501,7 +559,18 @@ Deno.serve(async (req) => {
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
   const admin = createClient(supabaseUrl, serviceKey);
 
+  // Coverage evidence: every RU-touching console action is logged to ru_sync_runs.
+  // `json` is shadowed here so the log write happens on whichever branch responds.
+  const startedAtMs = Date.now();
+  let logActionName = "";
+  let logPropertyId: string | null = null;
+  const json = (payload: unknown, status = 200): Response => {
+    void logPortalAction(admin, logActionName, logPropertyId, payload, Date.now() - startedAtMs);
+    return jsonResponse(payload, status);
+  };
+
   try {
+
     // ── Auth: admin / dev / fearless_leader only ──
     const authHeader = req.headers.get("Authorization") ?? "";
     if (!authHeader) return json({ success: false, error: { code: "UNAUTHORIZED", message: "Missing Authorization header" } }, 401);
@@ -518,6 +587,9 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const action: string = body.action ?? "";
+    logActionName = action;
+    logPropertyId = typeof body.property_id === "string" ? body.property_id : null;
+
 
     // Property-scoped users (ROLOS owners / staff) may read the readiness
     // scorecard for a property they can access — everything else is admin-only.
@@ -626,14 +698,20 @@ Deno.serve(async (req) => {
         .limit(25);
 
       type StepRow = { name: string; ru_method: string; status: StepStatus; ru_status_id?: string | null; detail?: string };
+      // Cert steps label methods loosely ("Pull_ListProp_RQ (health)", "A + B",
+      // "Pull_ListOwnerBuildings_RQ"), so match on a normalised key plus registry aliases.
+      const normMethod = (m: string) => m.replace(/\([^)]*\)/g, "").replace(/[\s_]+/g, "").trim().toLowerCase();
       const latestByMethod = new Map<string, { step: StepRow; run_id: string; at: string }>();
       for (const run of (certRuns ?? []) as { id: string; started_at: string; steps: StepRow[] }[]) {
         for (const step of run.steps ?? []) {
-          for (const key of String(step.ru_method ?? "").split("+").map((k) => k.trim()).filter(Boolean)) {
+          for (const raw of String(step.ru_method ?? "").split("+").map((k) => k.trim()).filter(Boolean)) {
+            const key = normMethod(raw);
+            if (!key || key === "—") continue;
             if (!latestByMethod.has(key)) latestByMethod.set(key, { step, run_id: run.id, at: run.started_at });
           }
         }
       }
+
 
       const { data: syncRows } = await admin
         .from("ru_sync_runs")
@@ -654,7 +732,13 @@ Deno.serve(async (req) => {
 
       const now = Date.now();
       const rows = RU_ENDPOINT_REGISTRY.map((e) => {
-        const cert = latestByMethod.get(e.ru_method);
+        let cert: { step: StepRow; run_id: string; at: string } | undefined;
+        for (const candidate of [e.ru_method, ...(e.cert_methods ?? [])]) {
+          const hit = latestByMethod.get(normMethod(candidate));
+          if (!hit) continue;
+          if (!cert || new Date(hit.at).getTime() > new Date(cert.at).getTime()) cert = hit;
+        }
+
         let status: "passed" | "failed" | "skipped" | "never_run" = "never_run";
         let detail: string | null = null;
         let lastRunAt: string | null = null;
