@@ -1234,6 +1234,362 @@ Deno.serve(async (req) => {
     }
 
     /**
+     * ── lnm_status: read-only LNM + MCQ health for ONE property.
+     *
+     * Feeds the status chips on the property editor. Read-back only — no push — so opening
+     * the editor never consumes a Push_* slot in RU's one-call-per-method-per-minute budget.
+     */
+    if (action === "lnm_status") {
+      const propertyId: string = body.property_id ?? "";
+      if (!propertyId) {
+        return json({ success: false, error: { code: "BAD_REQUEST", message: "property_id is required" } }, 400);
+      }
+      const { data: prop } = await admin
+        .from("properties")
+        .select("id, name, owner_email, rentalsunited_property_id")
+        .eq("id", propertyId)
+        .maybeSingle();
+      if (!prop) {
+        return json({ success: false, error: { code: "NOT_FOUND", message: "Property not found" } }, 404);
+      }
+
+      const portfolioId = await resolvePortfolioId(admin, propertyId);
+      const { account } = await findOwnerAccount(admin, propertyId, (prop as any).owner_email ?? null, portfolioId);
+      const ruOwnerId = String((account as any)?.ru_owner_id ?? "").trim() || null;
+
+      // Sub-user calls need the sub-account's OWN keys — without them the account is an
+      // unmonitored gap rather than a failure.
+      let hasKeys = !!(account as any)?.ru_api_access_key;
+      if (ruOwnerId && !hasKeys) {
+        const { data: credRow } = await admin
+          .from("ru_api_credentials")
+          .select("access_key")
+          .eq("ru_owner_id", ruOwnerId)
+          .maybeSingle();
+        hasKeys = !!credRow?.access_key;
+      }
+
+      const urlBase = `${supabaseUrl}/functions/v1/ru-lnm-handler`;
+      const masterOwnerId = (Deno.env.get("RU_MASTER_OWNER_ID") ?? Deno.env.get("RU_OWNER_ID") ?? "").trim();
+      const observedOwner = ruOwnerId ?? (/^\d+$/.test(masterOwnerId) ? masterOwnerId : null);
+      const desired = {
+        change_types: DEFAULT_LNM_CHANGE_TYPES,
+        observed_owners: observedOwner ? [observedOwner] : [],
+        url_base: urlBase,
+      };
+
+      // Cadence: newest successful subscribe / read-back for this account.
+      const freshness = async (actions: string[]) => {
+        const { data } = await admin
+          .from("ru_sync_runs")
+          .select("created_at")
+          .in("action", actions)
+          .eq("success", true)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        return (data as { created_at?: string } | null)?.created_at ?? null;
+      };
+      const lastSubscribed = await freshness(["PutLnmSubscriptions", "put_lnm_subscriptions", "lnm_duplicate_test"]);
+      const lastReadBack = await freshness(["ListLnmSubscriptions", "list_lnm_subscriptions"]);
+      const lastNotification = await freshness(["LNM_Notification"]);
+
+      const hoursSince = (iso: string | null) =>
+        iso ? Math.round(((Date.now() - new Date(iso).getTime()) / 3_600_000) * 10) / 10 : null;
+
+      let subscriptions: Record<string, unknown> | null = null;
+      let drift: Record<string, unknown> | null = null;
+      let readError: string | null = null;
+      let state: "ok" | "stale" | "drift" | "unsubscribed" | "unmonitored" = "unmonitored";
+
+      if (!observedOwner) {
+        readError = "No RU OwnerID available — link a sub-user account or configure the master OwnerID.";
+      } else if (!hasKeys && ruOwnerId) {
+        readError = `No API keys stored for OwnerID ${ruOwnerId} — subscriptions must be registered under the sub-user's own keys.`;
+      } else {
+        const { data: listData, error: listErr } = await admin.functions.invoke("rentalsunited-api", {
+          body: { action: "list_lnm_subscriptions", ...(ruOwnerId ? { owner_id: Number(ruOwnerId) } : {}) },
+        });
+        if (listErr || listData?.success !== true) {
+          readError = listErr?.message ?? listData?.error?.message ?? "Rentals United did not return the subscriptions";
+          state = "unsubscribed";
+        } else {
+          const actual = (listData?.subscriptions ?? parseLnmSubscriptions(String(listData?.raw_xml ?? ""))) as any;
+          subscriptions = actual;
+          const d = diffLnmSubscriptions(actual, desired);
+          drift = d as unknown as Record<string, unknown>;
+          const age = hoursSince(lastSubscribed);
+          if (!actual?.url_base && (actual?.change_types ?? []).length === 0) state = "unsubscribed";
+          else if (!d.in_sync) state = "drift";
+          else if (age == null || age > 24) state = "stale";
+          else state = "ok";
+        }
+      }
+
+      // Newest quality-check order for this property.
+      const { data: mcq } = await admin
+        .from("ru_mcq_orders")
+        .select("id, ordered_at, status, ru_property_id, ru_status_id, response_preview")
+        .eq("property_id", propertyId)
+        .order("ordered_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      let mcqBlocker: string | null = null;
+      const mcqRaw = String((mcq as any)?.response_preview ?? "");
+      if (/subscribe to lnm/i.test(mcqRaw)) mcqBlocker = "RU status 280 — the account must hold an LNM subscription that includes PropertyMCQEligibilityCheck.";
+      else if (/unexpected error/i.test(mcqRaw) || String((mcq as any)?.ru_status_id ?? "") === "17") {
+        mcqBlocker = "RU status 17 — RU-side fault. Escalate with the ResponseID in the evidence JSON.";
+      }
+      const mcqResponseId = /<ResponseID>([^<]+)</i.exec(mcqRaw)?.[1] ?? null;
+
+      return json({
+        success: true,
+        property: { id: prop.id, name: prop.name, ru_property_id: (prop as any).rentalsunited_property_id ?? null },
+        account: { ru_owner_id: ruOwnerId, has_keys: hasKeys, scope: (account as any)?.scope ?? null },
+        lnm: {
+          state,
+          desired,
+          actual: subscriptions,
+          drift,
+          read_error: readError,
+          mcq_change_type_present: Array.isArray((subscriptions as any)?.change_types)
+            ? (subscriptions as any).change_types.some((t: string) => String(t).toLowerCase() === "propertymcqeligibilitycheck")
+            : false,
+          last_subscribed_at: lastSubscribed,
+          last_subscribed_hours: hoursSince(lastSubscribed),
+          last_read_back_at: lastReadBack,
+          last_notification_at: lastNotification,
+        },
+        mcq: mcq
+          ? {
+              id: (mcq as any).id,
+              status: (mcq as any).status,
+              ordered_at: (mcq as any).ordered_at,
+              ru_property_id: (mcq as any).ru_property_id,
+              ru_status_id: (mcq as any).ru_status_id,
+              blocker: mcqBlocker,
+              ru_response_id: mcqResponseId,
+            }
+          : null,
+      });
+    }
+
+    /**
+     * ── lnm_duplicate_test: subscribe TWICE, read back once.
+     *
+     * RU must stay idempotent: one UrlBase, each change type once, each observed owner
+     * once. Duplicated entries or a drifted URL are the failure we are proving against.
+     */
+    if (action === "lnm_duplicate_test") {
+      const propertyId: string | null = body.property_id ?? null;
+      const requestedOwnerId = body.owner_id ? Number(body.owner_id) : null;
+      let ruOwnerId: number | null = requestedOwnerId;
+      if (!ruOwnerId && propertyId) {
+        const { account } = await findOwnerAccount(admin, propertyId, null, null);
+        const id = Number((account as any)?.ru_owner_id ?? 0);
+        ruOwnerId = Number.isFinite(id) && id > 0 ? id : null;
+      }
+      const masterOwnerId = (Deno.env.get("RU_MASTER_OWNER_ID") ?? Deno.env.get("RU_OWNER_ID") ?? "").trim();
+      const observedOwners = ruOwnerId
+        ? [String(ruOwnerId)]
+        : /^\d+$/.test(masterOwnerId)
+          ? [masterOwnerId]
+          : [];
+      if (observedOwners.length === 0) {
+        return json({
+          success: false,
+          error: { code: "RU_NO_OWNER_ID", message: "No RU OwnerID available to observe — link a sub-user account or configure the master OwnerID." },
+        }, 422);
+      }
+
+      const urlBase = `${supabaseUrl}/functions/v1/ru-lnm-handler`;
+      const desired = { change_types: DEFAULT_LNM_CHANGE_TYPES, observed_owners: observedOwners, url_base: urlBase };
+      const scope = ruOwnerId ? { owner_id: ruOwnerId } : {};
+
+      const passes: Record<string, unknown>[] = [];
+      for (let i = 0; i < 2; i++) {
+        const { data, error } = await admin.functions.invoke("rentalsunited-api", {
+          body: {
+            action: "put_lnm_subscriptions",
+            url_base: urlBase,
+            change_types: DEFAULT_LNM_CHANGE_TYPES,
+            observed_owners: observedOwners,
+            ...scope,
+          },
+        });
+        passes.push({
+          pass: i + 1,
+          success: !error && data?.success === true,
+          error: error?.message ?? data?.error?.message ?? null,
+          raw: preview(data?.raw_xml ?? null, 1500),
+        });
+        // RU allows one call per METHOD per sliding minute — pace the second pass.
+        if (i === 0) await new Promise((r) => setTimeout(r, 61_000));
+      }
+
+      const { data: listData, error: listErr } = await admin.functions.invoke("rentalsunited-api", {
+        body: { action: "list_lnm_subscriptions", ...scope },
+      });
+      const actual = (listData?.subscriptions ?? parseLnmSubscriptions(String(listData?.raw_xml ?? ""))) as any;
+      const dup = (arr: unknown[]) => {
+        const seen = new Set<string>();
+        const out: string[] = [];
+        for (const v of arr ?? []) {
+          const k = String(v).trim().toLowerCase();
+          if (seen.has(k)) out.push(String(v));
+          else seen.add(k);
+        }
+        return out;
+      };
+      const duplicateChangeTypes = dup(actual?.change_types ?? []);
+      const duplicateOwners = dup(actual?.observed_owners ?? []);
+      const urlCount = (String(listData?.raw_xml ?? "").match(/<UrlBase>/gi) || []).length;
+      const drift = diffLnmSubscriptions(actual ?? { change_types: [], observed_owners: [], url_base: null }, desired);
+      const readOk = !listErr && listData?.success === true;
+      const passed =
+        passes.every((p) => p.success) &&
+        readOk &&
+        drift.in_sync &&
+        duplicateChangeTypes.length === 0 &&
+        duplicateOwners.length === 0 &&
+        urlCount <= 1;
+
+      try {
+        await admin.from("ru_sync_runs").insert({
+          batch_id: crypto.randomUUID(),
+          property_id: propertyId,
+          action: "lnm_duplicate_test",
+          success: passed,
+          error_code: passed ? null : "RU_LNM_DUPLICATE_SUBSCRIPTION",
+          error_message: passed
+            ? null
+            : [
+                !readOk ? "read-back failed" : null,
+                duplicateChangeTypes.length ? `duplicate change types: ${duplicateChangeTypes.join(", ")}` : null,
+                duplicateOwners.length ? `duplicate observed owners: ${duplicateOwners.join(", ")}` : null,
+                urlCount > 1 ? `${urlCount} UrlBase entries at RU` : null,
+                !drift.in_sync ? "subscription drift" : null,
+              ].filter(Boolean).join("; "),
+          elapsed_ms: 0,
+          details: { ru_owner_id: ruOwnerId, desired, passes, actual, drift, duplicate_change_types: duplicateChangeTypes, duplicate_owners: duplicateOwners, url_base_count: urlCount },
+        });
+      } catch (_e) { /* evidence only */ }
+
+      return json({
+        success: true,
+        action,
+        ru_owner_id: ruOwnerId,
+        desired,
+        passes,
+        readback: {
+          read_ok: readOk,
+          read_error: listErr?.message ?? listData?.error?.message ?? null,
+          actual,
+          drift,
+          duplicate_change_types: duplicateChangeTypes,
+          duplicate_owners: duplicateOwners,
+          url_base_count: urlCount,
+        },
+        passed,
+      });
+    }
+
+    /**
+     * ── mcq_duplicate_test: order the content quality check twice for one listing.
+     *
+     * RU must not open conflicting parallel orders. A second status 280 is a fail (the
+     * subscription prerequisite is not holding); status 17 is reported as an RU-side fault.
+     */
+    if (action === "mcq_duplicate_test") {
+      const propertyId: string = body.property_id ?? "";
+      if (!propertyId) {
+        return json({ success: false, error: { code: "BAD_REQUEST", message: "property_id is required" } }, 400);
+      }
+      const { data: prop } = await admin
+        .from("properties")
+        .select("id, name, rentalsunited_property_id")
+        .eq("id", propertyId)
+        .maybeSingle();
+      if (!prop) {
+        return json({ success: false, error: { code: "NOT_FOUND", message: "Property not found" } }, 404);
+      }
+
+      // MCQ is ordered per RU listing — use the first unit listing, else the property listing.
+      const { data: units } = await admin
+        .from("hostfully_room_types")
+        .select("name, rentalsunited_property_id")
+        .eq("property_id", propertyId)
+        .not("rentalsunited_property_id", "is", null)
+        .limit(1);
+      const targetRuId = Number(
+        (units ?? [])[0]?.rentalsunited_property_id ?? (prop as any).rentalsunited_property_id ?? 0,
+      );
+      if (!Number.isFinite(targetRuId) || targetRuId <= 0) {
+        return json({
+          success: false,
+          error: { code: "RU_NOT_LISTED", message: "This property has no Rentals United listing to order the quality check against." },
+        }, 422);
+      }
+
+      const { account: mcqAccount } = await findOwnerAccount(admin, propertyId, null, null);
+      const mcqOwnerId = Number((mcqAccount as any)?.ru_owner_id ?? 0);
+      const scope = mcqOwnerId > 0 ? { owner_id: mcqOwnerId } : {};
+      const channel = body.channel_id ? { channel_id: body.channel_id } : {};
+
+      const orders: Record<string, unknown>[] = [];
+      for (let i = 0; i < 2; i++) {
+        const { data, error } = await admin.functions.invoke("rentalsunited-api", {
+          body: { action: "order_mcq", ru_property_id: targetRuId, property_id: propertyId, ...scope, ...channel },
+        });
+        const raw = String(data?.raw_xml ?? data?.error?.message ?? error?.message ?? "");
+        const ok = !error && data?.success === true;
+        orders.push({
+          pass: i + 1,
+          success: ok,
+          ru_status_id: data?.ru_status_id ?? data?.error?.ru_status_id ?? null,
+          lnm_not_subscribed: /subscribe to lnm/i.test(raw),
+          ru_internal_error: /unexpected error/i.test(raw),
+          ru_response_id: /<ResponseID>([^<]+)</i.exec(raw)?.[1] ?? null,
+          error: ok ? null : (error?.message ?? data?.error?.message ?? "Rentals United rejected the quality check order"),
+          raw: preview(raw, 1500),
+        });
+        if (i === 0) await new Promise((r) => setTimeout(r, 61_000));
+      }
+
+      const lnmMissing = orders.some((o) => o.lnm_not_subscribed === true);
+      const ruInternal = orders.some((o) => o.ru_internal_error === true);
+      const passed = orders.every((o) => o.success === true);
+
+      try {
+        await admin.from("ru_sync_runs").insert({
+          batch_id: crypto.randomUUID(),
+          property_id: propertyId,
+          action: "mcq_duplicate_test",
+          success: passed,
+          error_code: passed ? null : lnmMissing ? "RU_LNM_NOT_SUBSCRIBED" : ruInternal ? "RU_MCQ_INTERNAL_ERROR" : "RU_MCQ_FAILED",
+          error_message: passed ? null : orders.filter((o) => !o.success).map((o) => `pass ${o.pass}: ${o.error}`).join("; "),
+          elapsed_ms: 0,
+          ru_property_id: String(targetRuId),
+          details: { ru_owner_id: mcqOwnerId || null, orders },
+        });
+      } catch (_e) { /* evidence only */ }
+
+      return json({
+        success: true,
+        action,
+        property: { id: prop.id, name: prop.name },
+        ru_property_id: targetRuId,
+        ru_owner_id: mcqOwnerId || null,
+        orders,
+        lnm_not_subscribed: lnmMissing,
+        ru_internal_error: ruInternal,
+        passed,
+      });
+    }
+
+
+    /**
      * ── availability_playground: certification evidence for the rolling 365-day window.
      *
      * Pushes availability + pricing only (action refresh_ari — never Push_PutProperty_RQ),
