@@ -2944,6 +2944,61 @@ Deno.serve(async (req) => {
         }
       };
 
+      /**
+       * Lead hold lifecycle: proves that pulled RU enquiries hold the dates for 3 days,
+       * release them afterwards, and are withdrawn at RU (Push_RejectRequest_RQ, falling
+       * back to Push_CancelReservation_RQ) when arrival is inside 14 days.
+       */
+      const runLeadLifecycleStep = async () => {
+        stepNo += 1;
+        const t0 = Date.now();
+        const name = "Lead hold lifecycle (3-day hold / 14-day withdrawal)";
+        const ru_method = "Push_RejectRequest_RQ (fallback Push_CancelReservation_RQ)";
+        try {
+          const { data, error } = await admin.functions.invoke("ru-lead-lifecycle", { body: {} });
+          const duration = Date.now() - t0;
+          if (error || data?.success !== true) {
+            steps.push({
+              step: stepNo,
+              name,
+              ru_method,
+              mandatory: true,
+              scope: "account" as CertScope,
+              status: "failed",
+              duration_ms: duration,
+              detail: error?.message ?? data?.error ?? "Lead lifecycle worker failed",
+            });
+            return;
+          }
+          const s = data.summary ?? {};
+          const failed = Number(s.reject_failed ?? 0) > 0;
+          steps.push({
+            step: stepNo,
+            name,
+            ru_method,
+            mandatory: true,
+            scope: "account" as CertScope,
+            status: failed ? "failed" : "passed",
+            duration_ms: duration,
+            detail: `${s.examined ?? 0} held lead(s) examined · ${s.released ?? 0} hold(s) released after 3 days · ${s.rejected ?? 0} withdrawn at RU within 14 days of arrival${failed ? ` · ${s.reject_failed} withdrawal(s) failed` : ""}`,
+            response_preview: preview(data),
+          });
+        } catch (e) {
+          steps.push({
+            step: stepNo,
+            name,
+            ru_method,
+            mandatory: true,
+            scope: "account" as CertScope,
+            status: "failed",
+            duration_ms: Date.now() - t0,
+            detail: e instanceof Error ? e.message : "Unknown error",
+          });
+        }
+      };
+
+
+
       // A staged full run passes `phase`; a single-suite run keeps its historic behaviour.
       const activePhase = phase ?? (suite === "full" ? null : suite);
       const runReadOnly = activePhase ? activePhase === "read_only" : suite === "read_only" || suite === "full";
