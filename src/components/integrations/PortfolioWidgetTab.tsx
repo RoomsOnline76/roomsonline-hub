@@ -228,14 +228,14 @@ export function PortfolioWidgetTab({ property }: PortfolioWidgetTabProps) {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Sparkles className="h-4 w-4 text-primary" />
-                <Label className="text-xs font-medium">AI Recommendations</Label>
+                <Label className="text-xs font-medium">TOBI Recommendations</Label>
               </div>
               <Switch checked={aiEnabled} onCheckedChange={setAiEnabled} />
             </div>
             {aiEnabled && (
               <>
                 <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">AI Theme Guidance</Label>
+                  <Label className="text-xs text-muted-foreground">TOBI Theme Guidance</Label>
                   <Input
                     value={aiTheme}
                     onChange={(e) => setAiTheme(e.target.value)}
@@ -277,7 +277,7 @@ export function PortfolioWidgetTab({ property }: PortfolioWidgetTabProps) {
                   }}
                 >
                   <RefreshCw className={`h-3.5 w-3.5 ${refreshingAi ? "animate-spin" : ""}`} />
-                  Refresh AI Suggestions
+                  Refresh TOBI Suggestions
                 </Button>
               </>
             )}

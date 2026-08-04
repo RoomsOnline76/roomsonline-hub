@@ -92,7 +92,7 @@ export default function AiAmenityDialog({
       });
       if (error) throw error;
       const payload = data as SuggestResult;
-      if (!payload?.success) throw new Error(payload?.error || "AI check failed");
+      if (!payload?.success) throw new Error(payload?.error || "TOBI check failed");
 
       setResult(payload);
       setSelectedProperty(
@@ -111,7 +111,7 @@ export default function AiAmenityDialog({
         ),
       );
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "AI amenity check failed");
+      toast.error(err instanceof Error ? err.message : "TOBI amenity check failed");
     } finally {
       setLoading(false);
     }
@@ -223,7 +223,7 @@ export default function AiAmenityDialog({
                 </>
               ) : (
                 <>
-                  <Sparkles className="h-3.5 w-3.5 mr-1.5" /> Run AI check
+                  <Sparkles className="h-3.5 w-3.5 mr-1.5" /> Run TOBI check
                 </>
               )}
             </Button>

@@ -200,7 +200,7 @@ export function LocalExperiencesManager({
       queryClient.invalidateQueries({ queryKey: ['local-experiences', propertyId] });
       toast({ 
         title: 'Experiences generated!', 
-        description: `Added ${data.count || 5} AI-curated experiences.`
+        description: `Added ${data.count || 5} TOBI-curated experiences.`
       });
     } catch (error: any) {
       toast({ 
@@ -243,7 +243,7 @@ export function LocalExperiencesManager({
             ) : (
               <Sparkles className="h-4 w-4 mr-2" />
             )}
-            Generate with AI
+            Generate with TOBI
           </Button>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
@@ -287,7 +287,7 @@ export function LocalExperiencesManager({
               ) : (
                 <Sparkles className="h-4 w-4 mr-2" />
               )}
-              Auto-generate with AI
+              Auto-generate with TOBI
             </Button>
           </CardContent>
         </Card>
@@ -322,7 +322,7 @@ export function LocalExperiencesManager({
                         {experience.source === 'ai_generated' && (
                           <Badge variant="secondary" className="text-xs">
                             <Sparkles className="h-3 w-3 mr-1" />
-                            AI
+                            TOBI
                           </Badge>
                         )}
                       </div>

@@ -347,7 +347,7 @@ export function ROLRevenuePulse() {
       </TabsContent>
 
       <InsightPanelTrigger
-        title="Revenue Pulse AI"
+        title="Revenue Pulse — TOBI"
         description="Ask questions about revenue, commissions, channels, or property performance."
         placeholder="e.g., What's driving our revenue this month?"
         onAnalyze={async (prompt) => {
