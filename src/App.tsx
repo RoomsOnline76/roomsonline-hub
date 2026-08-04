@@ -364,6 +364,7 @@ const App = () => (
                         <Route path="/admin/test-booking-benson" element={<ProtectedRoute requireDev><TestBookingBenson /></ProtectedRoute>} />
                         <Route path="/admin/billing-defaults" element={<ProtectedRoute requireDevOrFearless><AdminBillingDefaults /></ProtectedRoute>} />
                         <Route path="/admin/system/api-configurator" element={<ProtectedRoute requireDevOrFearless><AdminApiConfigurator /></ProtectedRoute>} />
+                        <Route path="/admin/system/tobi-tools" element={<ProtectedRoute requireDevOrFearless><AdminTobiTools /></ProtectedRoute>} />
                         <Route path="/docs/api" element={<ProtectedRoute requireDevOrFearless><ApiDocsViewer /></ProtectedRoute>} />
                         <Route path="/nb" element={<ProtectedRoute requireDev><NB /></ProtectedRoute>} />
 
