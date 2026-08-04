@@ -1,32 +1,10 @@
 import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { ArrowRight, Gauge, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-interface QualityCheckResult {
-  id: string;
-  name: string;
-  passed: boolean;
-  severity: "blocker" | "warning" | "info";
-}
-
-interface ActivationReadinessResponse {
-  passed: boolean;
-  score: number;
-  mandatory_score?: number;
-  mandatory_passed?: number;
-  mandatory_total?: number;
-  recommended_score?: number;
-  recommended_passed?: number;
-  recommended_total?: number;
-  blockers: QualityCheckResult[];
-  warnings: QualityCheckResult[];
-  checks: QualityCheckResult[];
-}
+import { usePropertyReadiness } from "@/hooks/usePropertyReadiness";
 
 interface RolosReadinessScoreBadgeProps {
   propertyId: string;
@@ -35,32 +13,29 @@ interface RolosReadinessScoreBadgeProps {
 
 /**
  * Readiness score surfaced inside the Offerings frame for ROL'OS-managed properties.
- * Clicking through opens the ROL'OS property setup wizard for the same property so the
- * remaining setup can be completed and reviewed in one place.
+ * Reads the unified readiness model, so the percentages here always match the
+ * "N of M outstanding" field-highlighting counters and the setup checksheet.
  */
 export function RolosReadinessScoreBadge({ propertyId, className }: RolosReadinessScoreBadgeProps) {
   const navigate = useNavigate();
-
-  const { data, isLoading } = useQuery({
-    queryKey: ["activation-readiness", propertyId],
-    queryFn: async () => {
-      const { data, error } = await supabase.functions.invoke("check-activation-readiness", {
-        body: { property_id: propertyId },
-      });
-      if (error) throw error;
-      return data as ActivationReadinessResponse;
-    },
-    enabled: !!propertyId,
-    staleTime: 30_000,
-    refetchOnWindowFocus: false,
-  });
+  const {
+    isLoading,
+    hasData,
+    passed,
+    mandatoryScore,
+    mandatoryPassed,
+    mandatoryTotal,
+    mandatoryOutstanding,
+    recommendedScore,
+    recommendedPassed,
+    recommendedTotal,
+  } = usePropertyReadiness(propertyId);
 
   const tone = useMemo(() => {
-    const score = data?.mandatory_score ?? data?.score ?? 0;
-    if (data?.passed || score >= 90) return "text-emerald-600";
-    if (score >= 60) return "text-amber-600";
+    if (passed) return "text-emerald-600";
+    if (mandatoryScore >= 60) return "text-amber-600";
     return "text-destructive";
-  }, [data?.passed, data?.score]);
+  }, [mandatoryScore, passed]);
 
   if (isLoading) {
     return (
@@ -70,9 +45,7 @@ export function RolosReadinessScoreBadge({ propertyId, className }: RolosReadine
     );
   }
 
-  if (!data) return null;
-
-  const blockers = data.blockers?.length ?? 0;
+  if (!hasData) return null;
 
   return (
     <button
@@ -85,18 +58,18 @@ export function RolosReadinessScoreBadge({ propertyId, className }: RolosReadine
       title="Open ROL'OS property setup to continue and review"
     >
       <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2 min-w-0">
+        <div className="flex items-center gap-2 min-w-0 flex-wrap">
           <Gauge className={cn("h-4 w-4", tone)} />
           <span className="text-xs font-medium">Readiness score to be pushed</span>
           <Badge variant="secondary" className={cn("text-[10px]", tone)}>
-            Mandatory {data.mandatory_score ?? data.score}%
+            Mandatory {mandatoryScore}% · {mandatoryPassed}/{mandatoryTotal}
           </Badge>
           <Badge variant="outline" className="text-[10px]">
-            Nice to have {data.recommended_score ?? 100}%
+            Nice to have {recommendedScore}% · {recommendedPassed}/{recommendedTotal}
           </Badge>
-          {blockers > 0 && (
+          {mandatoryOutstanding > 0 && (
             <Badge variant="outline" className="text-[10px] text-destructive border-destructive/40">
-              {blockers} blocker{blockers === 1 ? "" : "s"}
+              {mandatoryOutstanding} outstanding
             </Badge>
           )}
         </div>
@@ -106,9 +79,11 @@ export function RolosReadinessScoreBadge({ propertyId, className }: RolosReadine
         </span>
       </div>
       <div className="mt-2 space-y-1">
-        <Progress value={data.mandatory_score ?? data.score} className="h-1.5" />
-        <Progress value={data.recommended_score ?? 100} className="h-1" />
+        <Progress value={mandatoryScore} className="h-1.5" />
+        <Progress value={recommendedScore} className="h-1" />
       </div>
     </button>
   );
 }
+
+export default RolosReadinessScoreBadge;

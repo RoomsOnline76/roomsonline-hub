@@ -47,9 +47,32 @@ const CHECK_ROUTES: Record<string, { section: string; label: string; surface: 'r
   contact: { section: 'contacts', label: 'Contacts', surface: 'rolos' },
   rooms: { section: 'rooms', label: 'Rooms', surface: 'rolos' },
   policies: { section: 'rates', label: 'Rates & Pricing → Policies', surface: 'rolos' },
+  check_times: { section: 'rates', label: 'Rates & Pricing → House Rules', surface: 'rolos' },
+
   rentalsunited_geo: { section: 'general', label: 'Identity & Location', surface: 'admin' },
   rentalsunited_location_currency: { section: 'integrations', label: 'Integrations → Rentals United', surface: 'admin' },
 };
+
+/**
+ * Stable tier per check id. A check must never flip between mandatory and
+ * nice-to-have depending on which branch it returns, otherwise the score totals
+ * shift between properties and stop matching the field-level highlighting.
+ */
+const CHECK_TIERS: Record<string, 'mandatory' | 'recommended'> = {
+  contract: 'mandatory',
+  content: 'mandatory',
+  media: 'mandatory',
+  commercial: 'recommended',
+  pms: 'mandatory',
+  location: 'mandatory',
+  contact: 'mandatory',
+  rooms: 'mandatory',
+  policies: 'mandatory',
+  check_times: 'recommended',
+  rentalsunited_geo: 'mandatory',
+  rentalsunited_location_currency: 'mandatory',
+};
+
 
 
 Deno.serve(async (req) => {
@@ -125,8 +148,14 @@ Deno.serve(async (req) => {
       checks.push(roomsCheck);
     }
 
-    // ============= CHECK 9: Policies Complete =============
-    const policiesCheck = checkPoliciesComplete(amenities);
+    // ============= CHECK 9: Policies (master cancellation policy) =============
+    const { data: policyRows } = await supabase
+      .from('rolos_reservation_policies')
+      .select('id, is_master, is_default')
+      .eq('property_id', property_id);
+    const policiesCheck = checkPoliciesComplete(property, amenities, policyRows ?? []);
+    checks.push(checkCheckTimes(amenities));
+
     checks.push(policiesCheck);
 
     // ============= CHECK 10: Rentals United distribution (country + currency) =============
@@ -175,7 +204,7 @@ Deno.serve(async (req) => {
     // Annotate every check with its tier (mandatory vs nice-to-have) and the UI
     // destination where the shortfall is fixed, so the setup checksheet can deep-link.
     for (const c of checks) {
-      c.tier = c.severity === 'blocker' ? 'mandatory' : 'recommended';
+      c.tier = CHECK_TIERS[c.id] ?? (c.severity === 'blocker' ? 'mandatory' : 'recommended');
       const route = CHECK_ROUTES[c.id];
       if (route) {
         c.section = route.section;
@@ -742,7 +771,8 @@ function checkRoomsConfigured(amenities: Record<string, unknown>): QualityCheckR
   };
 }
 
-function checkPoliciesComplete(amenities: Record<string, unknown>): QualityCheckResult {
+/** Check-in / check-out times — nice-to-have, matches the client registry key. */
+function checkCheckTimes(amenities: Record<string, unknown>): QualityCheckResult {
   // The property form writes check-in/out times into amenities.house_rules.*;
   // older records kept them at the top level. Resolve both shapes.
   const houseRules = (amenities.house_rules ?? {}) as Record<string, unknown>;
@@ -756,24 +786,61 @@ function checkPoliciesComplete(amenities: Record<string, unknown>): QualityCheck
   const hasCheckIn = pick('check_in_from', 'check_in_time');
   const hasCheckOut = pick('check_out_to', 'check_out_until', 'check_out_time', 'check_out_from');
 
-  
   if (!hasCheckIn || !hasCheckOut) {
     return {
-      id: 'policies',
-      name: 'Policies Complete',
+      id: 'check_times',
+      name: 'Check-in / check-out times',
       passed: false,
       message: 'Missing check-in/check-out times',
-      fix: 'Set check-in and check-out times',
-      field: 'amenities.check_in_time',
+      fix: 'Set check-in and check-out times under House Rules',
+      field: 'amenities.house_rules.check_in_from',
       severity: 'warning'
     };
   }
 
   return {
-    id: 'policies',
-    name: 'Policies Complete',
+    id: 'check_times',
+    name: 'Check-in / check-out times',
     passed: true,
-    message: 'Check-in/check-out policies set',
+    message: 'Check-in/check-out times set',
     severity: 'warning'
   };
+}
+
+/**
+ * Master cancellation policy. Truth lives in `rolos_reservation_policies`
+ * (a row flagged is_master) or an explicit "no cancellation policy" decision;
+ * the amenities keys are legacy mirrors.
+ */
+function checkPoliciesComplete(
+  property: any,
+  amenities: Record<string, unknown>,
+  policyRows: Array<{ is_master?: boolean | null }>,
+): QualityCheckResult {
+  const hasMasterRow = Array.isArray(policyRows) && policyRows.some((p) => p?.is_master);
+  const explicitNone = property?.cancellation_master_mode === 'none';
+  const legacy =
+    String(amenities.master_cancellation_policy_id ?? '').trim().length > 0 ||
+    String(amenities.cancellation_policy ?? '').trim().length > 0;
+
+  if (!hasMasterRow && !explicitNone && !legacy) {
+    return {
+      id: 'policies',
+      name: 'Master cancellation policy',
+      passed: false,
+      message: 'No master cancellation policy set',
+      fix: 'Pick a policy from the library, or explicitly select "None"',
+      field: 'master_policy',
+      severity: 'blocker'
+    };
+  }
+
+  return {
+    id: 'policies',
+    name: 'Master cancellation policy',
+    passed: true,
+    message: explicitNone ? 'Explicitly set to no cancellation policy' : 'Master policy set',
+    severity: 'blocker'
+  };
+
 }

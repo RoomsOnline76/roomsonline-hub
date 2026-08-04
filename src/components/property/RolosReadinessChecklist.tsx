@@ -1,7 +1,5 @@
 import { useCallback, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,35 +15,9 @@ import {
   Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { CHECK_TO_FIELD_KEYS } from "@/config/propertyFieldRequirements";
+import { getSectionLabel } from "@/config/propertySectionOrder";
 import { focusRequirementField } from "@/lib/requirementFocus";
-
-export interface ReadinessCheck {
-  id: string;
-  name: string;
-  passed: boolean;
-  message?: string;
-  fix?: string;
-  severity: "blocker" | "warning" | "info";
-  tier?: "mandatory" | "recommended";
-  section?: string;
-  section_label?: string;
-  surface?: "rolos" | "admin";
-}
-
-export interface ReadinessResponse {
-  passed: boolean;
-  score: number;
-  mandatory_score?: number;
-  mandatory_total?: number;
-  mandatory_passed?: number;
-  recommended_score?: number;
-  recommended_total?: number;
-  recommended_passed?: number;
-  blockers: ReadinessCheck[];
-  warnings: ReadinessCheck[];
-  checks: ReadinessCheck[];
-}
+import { usePropertyReadiness, type ReadinessItem } from "@/hooks/usePropertyReadiness";
 
 interface RolosReadinessChecklistProps {
   propertyId: string;
@@ -54,6 +26,9 @@ interface RolosReadinessChecklistProps {
   className?: string;
 }
 
+/** Sections that only exist in the admin property editor. */
+const ADMIN_ONLY_SECTIONS = new Set(["admin", "integrations", "branding", "rol-spec"]);
+
 function toneFor(score: number) {
   if (score >= 100) return "text-emerald-600";
   if (score >= 70) return "text-amber-600";
@@ -61,9 +36,10 @@ function toneFor(score: number) {
 }
 
 /**
- * ROL'OS readiness checksheet: scores mandatory (activation-blocking) and
- * nice-to-have requirements separately and deep-links each shortfall to the
- * exact section where it is fixed.
+ * ROL'OS readiness checksheet: renders the unified readiness model (the same
+ * items that drive the score badge and the pink/blue field borders), split into
+ * mandatory (activation-blocking) and nice-to-have, each deep-linking to the
+ * exact field that fixes it.
  */
 export function RolosReadinessChecklist({
   propertyId,
@@ -72,27 +48,28 @@ export function RolosReadinessChecklist({
 }: RolosReadinessChecklistProps) {
   const navigate = useNavigate();
   const [, setSearchParams] = useSearchParams();
-
-  const { data, isLoading, isFetching, refetch } = useQuery({
-    queryKey: ["activation-readiness", propertyId],
-    queryFn: async () => {
-      const { data, error } = await supabase.functions.invoke("check-activation-readiness", {
-        body: { property_id: propertyId },
-      });
-      if (error) throw error;
-      return data as ReadinessResponse;
-    },
-    enabled: !!propertyId,
-    staleTime: 30_000,
-    refetchOnWindowFocus: false,
-  });
+  const {
+    items,
+    isLoading,
+    isFetching,
+    hasData,
+    passed,
+    mandatoryScore,
+    mandatoryPassed,
+    mandatoryTotal,
+    recommendedScore,
+    recommendedPassed,
+    recommendedTotal,
+    refresh,
+  } = usePropertyReadiness(propertyId);
 
   const goToFix = useCallback(
-    (check: ReadinessCheck) => {
-      const section = check.section;
+    (item: ReadinessItem) => {
+      const section = item.section;
       if (!section) return;
-      const focusKey = CHECK_TO_FIELD_KEYS[check.id]?.[0];
-      if (check.surface === "admin") {
+      const focusKey = item.paintable ? item.key : undefined;
+      const isAdmin = item.surface === "admin" || ADMIN_ONLY_SECTIONS.has(section);
+      if (isAdmin) {
         navigate(
           `/admin/properties/${propertyId}?tab=${section}${focusKey ? `&focus=${focusKey}` : ""}`,
         );
@@ -120,12 +97,13 @@ export function RolosReadinessChecklist({
   );
 
   const groups = useMemo(() => {
-    const checks = data?.checks ?? [];
+    const sortItems = (list: ReadinessItem[]) =>
+      [...list].sort((a, b) => Number(a.satisfied) - Number(b.satisfied));
     return {
-      mandatory: checks.filter((c) => (c.tier ?? (c.severity === "blocker" ? "mandatory" : "recommended")) === "mandatory"),
-      recommended: checks.filter((c) => (c.tier ?? (c.severity === "blocker" ? "mandatory" : "recommended")) === "recommended"),
+      mandatory: sortItems(items.filter((i) => i.tier === "mandatory")),
+      recommended: sortItems(items.filter((i) => i.tier === "recommended")),
     };
-  }, [data?.checks]);
+  }, [items]);
 
   if (isLoading) {
     return (
@@ -137,39 +115,39 @@ export function RolosReadinessChecklist({
     );
   }
 
-  if (!data) return null;
+  if (!hasData) return null;
 
-  const mandatoryScore = data.mandatory_score ?? (data.passed ? 100 : 0);
-  const recommendedScore = data.recommended_score ?? 100;
-
-  const renderRow = (check: ReadinessCheck) => {
-    const clickable = !check.passed && !!check.section;
+  const renderRow = (item: ReadinessItem) => {
+    const clickable = !item.satisfied && !!item.section;
+    const sectionLabel = item.sectionLabel ?? getSectionLabel(item.section) ?? "Open section";
     return (
       <li
-        key={`${check.tier}-${check.id}`}
+        key={`${item.tier}-${item.key}`}
         className={cn(
           "flex items-start justify-between gap-3 rounded-md border px-3 py-2",
-          check.passed ? "border-border/60" : "border-destructive/30 bg-destructive/5",
+          item.satisfied ? "border-border/60" : "border-destructive/30 bg-destructive/5",
         )}
       >
         <div className="flex min-w-0 items-start gap-2">
-          {check.passed ? (
+          {item.satisfied ? (
             <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
           ) : (
             <AlertTriangle
               className={cn(
                 "mt-0.5 h-4 w-4 shrink-0",
-                check.tier === "mandatory" ? "text-destructive" : "text-amber-600",
+                item.tier === "mandatory" ? "text-destructive" : "text-amber-600",
               )}
             />
           )}
           <div className="min-w-0">
-            <p className="text-xs font-medium">{check.name}</p>
-            {check.message && (
-              <p className="text-[11px] leading-tight text-muted-foreground">{check.message}</p>
+            <p className="text-xs font-medium">{item.label}</p>
+            {item.message && (
+              <p className="text-[11px] leading-tight text-muted-foreground">{item.message}</p>
             )}
-            {!check.passed && check.fix && (
-              <p className="text-[11px] leading-tight text-muted-foreground">Fix: {check.fix}</p>
+            {!item.satisfied && (item.fix || item.hint) && (
+              <p className="text-[11px] leading-tight text-muted-foreground">
+                Fix: {item.fix ?? item.hint}
+              </p>
             )}
           </div>
         </div>
@@ -179,10 +157,10 @@ export function RolosReadinessChecklist({
             size="sm"
             variant="outline"
             className="h-7 shrink-0 gap-1 text-[11px]"
-            onClick={() => goToFix(check)}
+            onClick={() => goToFix(item)}
           >
-            {check.section_label ?? "Open section"}
-            {check.surface === "admin" ? (
+            {sectionLabel}
+            {item.surface === "admin" || ADMIN_ONLY_SECTIONS.has(item.section) ? (
               <ExternalLink className="h-3 w-3" />
             ) : (
               <ArrowRight className="h-3 w-3" />
@@ -205,7 +183,7 @@ export function RolosReadinessChecklist({
             size="sm"
             variant="ghost"
             className="h-7 gap-1 text-[11px]"
-            onClick={() => refetch()}
+            onClick={refresh}
             disabled={isFetching}
           >
             <RefreshCw className={cn("h-3 w-3", isFetching && "animate-spin")} /> Re-check
@@ -216,7 +194,7 @@ export function RolosReadinessChecklist({
             <div className="flex items-center justify-between text-[11px]">
               <span className="font-medium">Mandatory</span>
               <span className={cn("font-semibold", toneFor(mandatoryScore))}>
-                {mandatoryScore}% · {data.mandatory_passed ?? 0}/{data.mandatory_total ?? 0}
+                {mandatoryScore}% · {mandatoryPassed}/{mandatoryTotal}
               </span>
             </div>
             <Progress value={mandatoryScore} className="mt-1 h-1.5" />
@@ -230,7 +208,7 @@ export function RolosReadinessChecklist({
                 <Sparkles className="h-3 w-3" /> Nice to have
               </span>
               <span className={cn("font-semibold", toneFor(recommendedScore))}>
-                {recommendedScore}% · {data.recommended_passed ?? 0}/{data.recommended_total ?? 0}
+                {recommendedScore}% · {recommendedPassed}/{recommendedTotal}
               </span>
             </div>
             <Progress value={recommendedScore} className="mt-1 h-1.5" />
@@ -246,7 +224,7 @@ export function RolosReadinessChecklist({
             <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
               Mandatory requirements
             </p>
-            {data.passed && (
+            {passed && (
               <Badge variant="secondary" className="text-[10px] text-emerald-600">
                 All clear
               </Badge>
