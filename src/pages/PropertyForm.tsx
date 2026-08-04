@@ -6022,17 +6022,18 @@ export default function PropertyForm({
                 </CardContent>
               </Card>
 
-              {/* Composition — mandatory for channel distribution */}
+              {/* Composition — property-wide fallback for channel distribution */}
               <Card>
                 <CardHeader className="py-2 px-4">
                   <div className="flex items-center justify-between">
-                    <CardTitle className="text-sm">Composition</CardTitle>
+                    <CardTitle className="text-sm">Composition (property-wide fallback)</CardTitle>
                     <div className="text-xs text-muted-foreground flex items-center gap-1">
                       <Info className="h-3 w-3" />
-                      Bathrooms and toilets are mandatory for Rentals United and OTA distribution
+                      Unit values in the Rooms tab take priority — these are used only where a unit has none
                     </div>
                   </div>
                 </CardHeader>
+
                 <CardContent className="py-2 px-4">
                   <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                     <div className="space-y-1">
