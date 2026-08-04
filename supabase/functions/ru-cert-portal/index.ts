@@ -327,26 +327,39 @@ const MILESTONE_SYNC_ACTIONS: Record<string, string[]> = {
  *  leaves the record stuck on "running" forever. Close out anything idle past this window. */
 const STALE_RUN_MINUTES = 20;
 
-async function reapStaleRuns(admin: SupabaseClient): Promise<void> {
+async function reapStaleRuns(admin: ReturnType<typeof createClient>): Promise<void> {
   const cutoff = new Date(Date.now() - STALE_RUN_MINUTES * 60000).toISOString();
   const { data: stale } = await admin
     .from("ru_cert_runs")
-    .select("id, passed, failed, total, started_at, notes")
+    .select("id, passed, failed, total, steps")
     .is("finished_at", null)
     .lt("started_at", cutoff)
     .limit(50);
-  for (const run of (stale ?? []) as { id: string; passed: number; failed: number; total: number; notes?: string | null }[]) {
-    const note = "Phase orchestration did not report back (browser closed or phase aborted) — finalised automatically from recorded steps.";
+  for (const run of (stale ?? []) as { id: string; passed: number; failed: number; total: number; steps: unknown[] }[]) {
+    const steps = Array.isArray(run.steps) ? [...run.steps] : [];
+    steps.push({
+      step: steps.length + 1,
+      name: "Run finalised automatically",
+      ru_method: "—",
+      mandatory: false,
+      scope: "account",
+      status: "skipped",
+      duration_ms: 0,
+      detail:
+        `No phase reported back within ${STALE_RUN_MINUTES} minutes (browser closed or a later phase was started as its own run). ` +
+        "Status below reflects the steps that were recorded.",
+    });
     await admin
       .from("ru_cert_runs")
       .update({
         status: (run.failed ?? 0) > 0 ? "failed" : "passed",
         finished_at: new Date().toISOString(),
-        notes: run.notes ? `${run.notes}\n${note}` : note,
+        steps,
       })
       .eq("id", run.id);
   }
 }
+
 
 
 
