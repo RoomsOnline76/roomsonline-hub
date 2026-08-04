@@ -28,3 +28,14 @@ practice the admin-pasted pair is the working source; the mint path stays as a
 forward-compatible fallback. The script endpoint itself returns 403 for an invalid token.
 Tokens are never logged and are not persisted in the browser (`gcTime: 0`).
 The existing Channel Manager billing lock still short-circuits the page.
+
+Update 2026-08 (gating, states, branding):
+- Page is gated **strictly**: `channel_manager_enabled === true` required (unset/null ⇒ locked card).
+- Below the embed: "Don't see your channel manager? Let's talk — we'll bring it on board." (`/contact`).
+- The embed obeys the property ROL'OS branding / white-label toggle: when `usePMSBrand().brandEnabled`,
+  brand custom props (`--ru-brand-*`, `--primary-color`, `--secondary-color`, `--accent-color`, `--text-color`)
+  and the frame border/text colour follow the property palette.
+- Never tell a connected owner to "complete RU sub-user setup". `ru-whitelabel-token` reads the canonical
+  sub-user key store `ru_api_credentials` (+ `ru_owner_accounts.ru_api_access_key`) and returns
+  `sub_user_verified: true` with reason `awaiting_wl_token`; the UI then says the account is connected and
+  the Channel Manager sign-in is being finalised. Diagnostic message text is shown to staff roles only.
