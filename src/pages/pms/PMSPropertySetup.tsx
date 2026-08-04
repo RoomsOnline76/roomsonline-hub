@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 import PropertyForm from "@/pages/PropertyForm";
@@ -8,7 +8,15 @@ import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { PropertySectionRail } from "@/components/property/PropertySectionRail";
 import { RolosReadinessChecklist } from "@/components/property/RolosReadinessChecklist";
-import { buildSectionGroups, type PropertySectionKey } from "@/config/propertySectionOrder";
+import { RequirementLegend } from "@/components/property/RequirementLegend";
+import { RequirementStepper } from "@/components/property/RequirementStepper";
+import { usePropertyFieldRequirements } from "@/hooks/usePropertyFieldRequirements";
+import { focusRequirementField } from "@/lib/requirementFocus";
+import {
+  buildSectionGroups,
+  getSectionLabel,
+  type PropertySectionKey,
+} from "@/config/propertySectionOrder";
 
 
 /**
@@ -118,6 +126,42 @@ export default function PMSPropertySetup() {
     [setSearchParams],
   );
 
+  // --- Field-level readiness highlighting (pink = mandatory, blue = nice-to-have)
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const {
+    outstandingInSection,
+    outstandingBySection,
+    mandatoryOutstanding,
+    mandatoryTotal,
+    recommendedOutstanding,
+    recommendedTotal,
+  } = usePropertyFieldRequirements({
+    propertyId,
+    section: activeTab,
+    containerRef: bodyRef,
+  });
+
+  const requirementCounts = useMemo(
+    () =>
+      Object.fromEntries(
+        Object.entries(outstandingBySection).map(([k, v]) => [
+          k,
+          { mandatory: v.mandatory, recommended: v.recommended },
+        ]),
+      ),
+    [outstandingBySection],
+  );
+
+  // Deep links from the checksheet carry ?focus=<fieldKey>
+  const focusParam = searchParams.get("focus");
+  useEffect(() => {
+    if (!focusParam) return;
+    const t = window.setTimeout(() => focusRequirementField(focusParam), 450);
+    return () => window.clearTimeout(t);
+  }, [focusParam, activeTab]);
+
+
+
   if (!propertyId) {
     return (
       <div className="p-6">
@@ -168,7 +212,20 @@ export default function PMSPropertySetup() {
         />
       )}
 
-
+      <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
+        <RequirementLegend
+          className="flex-1"
+          mandatoryOutstanding={mandatoryOutstanding}
+          mandatoryTotal={mandatoryTotal}
+          recommendedOutstanding={recommendedOutstanding}
+          recommendedTotal={recommendedTotal}
+        />
+        <RequirementStepper
+          className="lg:max-w-[55%]"
+          outstanding={outstandingInSection}
+          sectionLabel={getSectionLabel(activeTab)}
+        />
+      </div>
 
       <div
         className={
@@ -180,12 +237,13 @@ export default function PMSPropertySetup() {
           groups={SECTION_GROUPS}
           activeKey={activeTab}
           onSelect={(key) => handleSelectTab(key as TabKey)}
+          requirementCounts={requirementCounts}
           collapsed={railCollapsed}
           onToggleCollapsed={toggleRailCollapsed}
         />
 
 
-        <div className="min-w-0 overflow-hidden rounded-lg border bg-background">
+        <div ref={bodyRef} className="min-w-0 overflow-hidden rounded-lg border bg-background">
           {activeTab === "contacts" ? (
             <PropertyContactDetails propertyId={propertyId} />
           ) : (

@@ -1,4 +1,8 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { usePropertyFieldRequirements } from "@/hooks/usePropertyFieldRequirements";
+import { focusRequirementField } from "@/lib/requirementFocus";
+import { RequirementLegend } from "@/components/property/RequirementLegend";
+import { RequirementStepper } from "@/components/property/RequirementStepper";
 import { PromoCodesTab } from "@/components/property/PromoCodesTab";
 import { CompanyInformationCard, type RuCompanyProfile } from "@/components/property/CompanyInformationCard";
 import { PropertyRuOwnerPanel } from "@/components/property/PropertyRuOwnerPanel";
@@ -2031,6 +2035,43 @@ export default function PropertyForm({
     }
   }, [activeTab, embedded, requestedInitialTab]);
 
+  // --- Field-level readiness highlighting (pink = mandatory, blue = nice-to-have).
+  // When embedded in the ROLOS hub, that shell owns the painting/legend/stepper.
+  const requirementBodyRef = useRef<HTMLDivElement>(null);
+  const {
+    outstandingInSection: requirementOutstandingInSection,
+    outstandingBySection: requirementOutstandingBySection,
+    mandatoryOutstanding: requirementMandatoryOutstanding,
+    mandatoryTotal: requirementMandatoryTotal,
+    recommendedOutstanding: requirementRecommendedOutstanding,
+    recommendedTotal: requirementRecommendedTotal,
+  } = usePropertyFieldRequirements({
+    propertyId,
+    section: activeTab,
+    containerRef: requirementBodyRef,
+    paint: !embedded,
+  });
+
+  const requirementCounts = useMemo(
+    () =>
+      Object.fromEntries(
+        Object.entries(requirementOutstandingBySection).map(([k, v]) => [
+          k,
+          { mandatory: v.mandatory, recommended: v.recommended },
+        ]),
+      ),
+    [requirementOutstandingBySection],
+  );
+
+  // Deep links from the readiness checksheet carry ?focus=<fieldKey>
+  const requirementFocusParam = searchParams.get("focus");
+  useEffect(() => {
+    if (embedded || !requirementFocusParam) return;
+    const t = window.setTimeout(() => focusRequirementField(requirementFocusParam), 500);
+    return () => window.clearTimeout(t);
+  }, [embedded, requirementFocusParam, activeTab]);
+
+
   // Quality gate blocker awareness
   const { data: activationReadiness } = useActivationReadiness(propertyId || "");
 
@@ -3926,6 +3967,23 @@ export default function PropertyForm({
           </Alert>
         )}
 
+        {!embedded && (
+          <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
+            <RequirementLegend
+              className="flex-1"
+              mandatoryOutstanding={requirementMandatoryOutstanding}
+              mandatoryTotal={requirementMandatoryTotal}
+              recommendedOutstanding={requirementRecommendedOutstanding}
+              recommendedTotal={requirementRecommendedTotal}
+            />
+            <RequirementStepper
+              className="lg:max-w-[55%]"
+              outstanding={requirementOutstandingInSection}
+              sectionLabel={getSectionLabel(activeTab)}
+            />
+          </div>
+        )}
+
         <div
           className={
             embedded
@@ -3942,10 +4000,12 @@ export default function PropertyForm({
               activeKey={activeTab}
               onSelect={setActiveTab}
               blockerKeys={tabsWithBlockers}
+              requirementCounts={requirementCounts}
               collapsed={railCollapsed}
               onToggleCollapsed={toggleRailCollapsed}
             />
           )}
+
 
         <Tabs
           value={activeTab}
