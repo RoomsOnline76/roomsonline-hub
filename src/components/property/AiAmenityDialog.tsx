@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import { Loader2, Sparkles, Globe, Check } from "lucide-react";
+import { Loader2, Sparkles, Globe, Check, Camera } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -22,6 +22,8 @@ interface Suggestion {
   id: number;
   name: string;
   confidence: "high" | "medium" | "low" | string;
+  /** Where the supporting evidence came from. */
+  evidence?: "image" | "website" | "record" | string;
   reason: string;
 }
 
@@ -36,6 +38,9 @@ interface SuggestResult {
   used_website: boolean;
   website_url: string | null;
   summary: string;
+  used_images?: boolean;
+  images_analysed?: number;
+  visual_features?: string[];
   property: Suggestion[];
   units: UnitSuggestion[];
   error?: string;
@@ -51,6 +56,13 @@ interface AiAmenityDialogProps {
   /** Called with the merged property facility list when the user accepts. */
   onApplyProperty: (next: string[]) => void;
 }
+
+const EvidenceBadge = ({ evidence }: { evidence?: string }) =>
+  evidence === "image" ? (
+    <Badge variant="outline" className="text-[10px] gap-1 border-primary/30 text-primary">
+      <Camera className="h-2.5 w-2.5" /> seen in photos
+    </Badge>
+  ) : null;
 
 const confidenceTone = (confidence: string) =>
   confidence === "high"
@@ -200,7 +212,7 @@ export default function AiAmenityDialog({
             TOBI amenity &amp; facility check
           </DialogTitle>
           <DialogDescription className="text-xs">
-            TOBI reviews the property website and the ROLOS record for this property and its units, then
+            TOBI reviews the property website, the property photos and the ROLOS record for this property and its units, then
             proposes matching channel amenities. Nothing is saved until you approve the selection.
           </DialogDescription>
         </DialogHeader>
@@ -213,7 +225,7 @@ export default function AiAmenityDialog({
                   <Globe className="h-3 w-3" /> {websiteUrl}
                 </span>
               ) : (
-                "No property website captured — the check will use ROLOS data only."
+                "No property website captured — the check will use the ROLOS record and the property photos."
               )}
             </p>
             <Button size="sm" className="h-8 text-xs" onClick={runCheck} disabled={loading}>
@@ -234,9 +246,17 @@ export default function AiAmenityDialog({
           <div className="space-y-3">
             <div className="flex items-center justify-between gap-3">
               <p className="text-xs text-muted-foreground">{result.summary}</p>
-              <Badge variant="outline" className="text-[10px] shrink-0">
-                {result.used_website ? "Website reviewed" : "ROLOS data only"}
-              </Badge>
+              <div className="flex shrink-0 items-center gap-1.5">
+                <Badge variant="outline" className="text-[10px]">
+                  {result.used_website ? "Website reviewed" : "ROLOS data only"}
+                </Badge>
+                {result.used_images && (
+                  <Badge variant="outline" className="text-[10px] gap-1">
+                    <Camera className="h-2.5 w-2.5" />
+                    {result.images_analysed ?? 0} photo{(result.images_analysed ?? 0) === 1 ? "" : "s"} analysed
+                  </Badge>
+                )}
+              </div>
             </div>
 
             <ScrollArea className="h-[420px] pr-3">
@@ -267,6 +287,7 @@ export default function AiAmenityDialog({
                             {s.name}
                             <span className="ml-2 text-[10px] text-muted-foreground">{s.reason}</span>
                           </Label>
+                          <EvidenceBadge evidence={s.evidence} />
                           {already ? (
                             <Badge variant="outline" className="text-[10px] gap-1">
                               <Check className="h-2.5 w-2.5" /> selected
@@ -307,6 +328,7 @@ export default function AiAmenityDialog({
                             {a.name}
                             <span className="ml-2 text-[10px] text-muted-foreground">{a.reason}</span>
                           </Label>
+                          <EvidenceBadge evidence={a.evidence} />
                           <Badge
                             variant="outline"
                             className={`text-[10px] ${confidenceTone(a.confidence)}`}
