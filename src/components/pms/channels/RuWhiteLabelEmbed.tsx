@@ -153,7 +153,7 @@ export function RuWhiteLabelEmbed({ propertyId }: { propertyId: string | null | 
             <Radio className="h-6 w-6 text-primary" />
           </div>
           <p className="text-sm font-medium text-foreground">{title}</p>
-          {body && <p className="text-sm text-muted-foreground">{body}</p>}
+          {body && <div className="space-y-2 text-sm text-muted-foreground">{body}</div>}
           {isStaff && message && <p className="text-xs text-muted-foreground">{message}</p>}
           <div className="flex flex-wrap items-center justify-center gap-2">
             <Button variant="outline" size="sm" onClick={handleRetry} disabled={isFetching}>
