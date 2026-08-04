@@ -18,6 +18,10 @@ import { ALL_CHANNELS } from "@/components/pms/channels/ChannelLogo";
 import { RuReadinessScorecard } from "@/components/pms/channels/RuReadinessScorecard";
 import { RuOnboardingPipeline } from "@/components/integrations/RuOnboardingPipeline";
 import { RuCurrencyNotice } from "@/components/pms/channels/RuCurrencyNotice";
+import { ChannelReadinessDialog } from "@/components/pms/channels/ChannelReadinessDialog";
+import { CHANNEL_REGISTRY } from "@/config/channelRegistry";
+import { useChannelReadiness } from "@/hooks/useChannelReadiness";
+
 
 import {
   useChannelConnections,
