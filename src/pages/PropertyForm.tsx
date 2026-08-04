@@ -761,6 +761,7 @@ export default function PropertyForm({
   const [isTestProperty, setIsTestProperty] = useState(false);
   const [adminSubTab, setAdminSubTab] = useState<string>("overview");
   const [selectedFacilities, setSelectedFacilities] = useState<string[]>([]);
+  const [aiAmenityOpen, setAiAmenityOpen] = useState(false);
   const [selectedBreakfastOptions, setSelectedBreakfastOptions] = useState<string[]>([]);
   // Property composition — mandatory for Rentals United / channel pushes
   const [propBedrooms, setPropBedrooms] = useState<number>(0);
