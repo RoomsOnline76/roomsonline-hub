@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import {
   RefreshCw, CheckCircle2, XCircle, MinusCircle, PlayCircle, ShieldCheck,
-  Clock, Percent, Users, ChevronRight, Plus, Trash2, Send, AlertTriangle, ListChecks,
+  Clock, Percent, Users, ChevronRight, Plus, Trash2, Send, AlertTriangle, ListChecks, CalendarRange,
 } from "lucide-react";
 import { RuCoverageTab } from "./RuCoverageTab";
 
