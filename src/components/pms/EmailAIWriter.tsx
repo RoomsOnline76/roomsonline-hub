@@ -43,9 +43,9 @@ export function EmailAIWriter({ open, onOpenChange, propertyId, triggerEvent, on
       if (result?.subject && result?.body_html) {
         onGenerated(result.subject, result.body_html);
         onOpenChange(false);
-        toast.success("AI content generated — review and edit as needed");
+        toast.success("TOBI content generated — review and edit as needed");
       } else {
-        toast.error("AI did not return valid content");
+        toast.error("TOBI did not return valid content");
       }
     } catch (e: unknown) {
       toast.error((e as Error).message || "Failed to generate content");
@@ -58,7 +58,7 @@ export function EmailAIWriter({ open, onOpenChange, propertyId, triggerEvent, on
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-primary" />
-            Generate with AI
+            Generate with TOBI
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
@@ -83,7 +83,7 @@ export function EmailAIWriter({ open, onOpenChange, propertyId, triggerEvent, on
             />
           </div>
           <p className="text-xs text-muted-foreground">
-            The AI will use your property details, branding, and the selected trigger event to generate a personalised email template with placeholders.
+            TOBI will use your property details, branding, and the selected trigger event to generate a personalised email template with placeholders.
           </p>
         </div>
         <DialogFooter>

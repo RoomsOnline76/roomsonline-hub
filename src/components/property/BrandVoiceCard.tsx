@@ -94,7 +94,7 @@ export function BrandVoiceCard({ propertyId }: BrandVoiceCardProps) {
       <CardHeader className="py-3 px-4">
         <CardTitle className="text-sm flex items-center gap-2">
           <Sparkles className="h-4 w-4 text-primary" />
-          AI Voice & Tone
+          TOBI Voice &amp; Tone
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4 px-4 pb-4">
@@ -103,16 +103,16 @@ export function BrandVoiceCard({ propertyId }: BrandVoiceCardProps) {
           <Textarea
             value={brandVoice}
             onChange={(e) => setBrandVoice(e.target.value)}
-            placeholder="Describe this property's personality for AI-generated content, e.g. 'Warm, coastal, family-friendly. A relaxed beach getaway.'"
+            placeholder="Describe this property's personality for TOBI-generated content, e.g. 'Warm, coastal, family-friendly. A relaxed beach getaway.'"
             rows={3}
             className="text-xs"
           />
           <p className="text-xs text-muted-foreground">
-            Used by the AI to generate emails, descriptions, and guest communications in this property's style.
+            Used by TOBI to generate emails, descriptions, and guest communications in this property's style.
           </p>
         </div>
         <div className="space-y-2">
-          <Label className="text-xs">AI Email Tone</Label>
+          <Label className="text-xs">TOBI Email Tone</Label>
           <Select value={aiTone} onValueChange={setAiTone}>
             <SelectTrigger className="h-9 text-xs">
               <SelectValue />

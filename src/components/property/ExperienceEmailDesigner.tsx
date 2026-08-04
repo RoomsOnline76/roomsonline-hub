@@ -145,7 +145,7 @@ export function ExperienceEmailDesigner({ propertyId }: ExperienceEmailDesignerP
         <CardHeader className="py-2 px-4 flex flex-row items-center justify-between">
           <CardTitle className="text-sm flex items-center gap-2">
             <Sparkles className="h-4 w-4 text-primary" />
-            AI Email Templates
+            TOBI Email Templates
           </CardTitle>
           <Button size="sm" className="h-7 text-xs gap-1" onClick={openNew}>
             <Plus className="h-3 w-3" /> New Template
@@ -153,7 +153,7 @@ export function ExperienceEmailDesigner({ propertyId }: ExperienceEmailDesignerP
         </CardHeader>
         <CardContent className="px-4 pb-4 space-y-3">
           {templates.length === 0 ? (
-            <p className="text-xs text-muted-foreground">No templates yet. Create one or use the AI writer to get started.</p>
+            <p className="text-xs text-muted-foreground">No templates yet. Create one or use the TOBI writer to get started.</p>
           ) : (
             Object.entries(grouped).map(([trigger, tpls]) => {
               const triggerLabel = TRIGGER_EVENTS.find(e => e.value === trigger)?.label || trigger;
@@ -224,7 +224,7 @@ export function ExperienceEmailDesigner({ propertyId }: ExperienceEmailDesignerP
               <Label className="text-xs">Active</Label>
               <div className="ml-auto">
                 <Button type="button" size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => setAiWriterOpen(true)}>
-                  <Sparkles className="h-3 w-3" /> AI Writer
+                  <Sparkles className="h-3 w-3" /> TOBI Writer
                 </Button>
               </div>
             </div>

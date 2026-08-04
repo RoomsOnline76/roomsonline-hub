@@ -156,7 +156,7 @@ export function SmartRoomInput({ onRoomParsed, propertyContext, className }: Sma
             )}
           </Button>
           <span className="text-xs text-muted-foreground">
-            AI will extract room details automatically
+            TOBI will extract room details automatically
           </span>
         </div>
       </div>
