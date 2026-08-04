@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { useRuWhiteLabelTokens } from "@/hooks/useRuWhiteLabelTokens";
 import { usePMSBrand } from "@/contexts/PMSBrandContext";
 import { useAuth } from "@/hooks/useAuth";
+import { toast } from "@/hooks/use-toast";
+
 
 const EMBED_HEIGHT = "h-[calc(100vh-12rem)]";
 
