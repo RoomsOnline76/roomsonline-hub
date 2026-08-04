@@ -1061,13 +1061,27 @@ export default function PMSDashboard() {
   const effectiveDepartures: BookingRow[] = portfolioAggregate ? portfolioAggregate.departures : (todayDepartures as BookingRow[]);
 
   const hasBookingOnDate = useCallback((date: Date): boolean => {
-    if (!isPortfolioMode) return false;
     const dateStr = format(date, "yyyy-MM-dd");
+    if (!isPortfolioMode) {
+      return (bookings as BookingRow[]).some((booking) => bookingTouchesDate(booking, dateStr));
+    }
     for (const [, propertyDataForDate] of portfolioDataByProperty) {
       if (propertyDataForDate.bookings.some((booking) => bookingTouchesDate(booking, dateStr))) return true;
     }
     return false;
-  }, [isPortfolioMode, portfolioDataByProperty]);
+  }, [isPortfolioMode, portfolioDataByProperty, bookings]);
+
+  const visibleDates = useMemo(
+    () => (showOnlyBookedDays ? dates.filter(hasBookingOnDate) : dates),
+    [showOnlyBookedDays, dates, hasBookingOnDate]
+  );
+
+  const visibleWeekChunks = useMemo(
+    () => (showOnlyBookedDays
+      ? weekChunks.map((weekDates) => weekDates.filter(hasBookingOnDate)).filter((weekDates) => weekDates.length > 0)
+      : weekChunks),
+    [showOnlyBookedDays, weekChunks, hasBookingOnDate]
+  );
 
   const getPortfolioBookingCountForDates = useCallback((targetDates: Date[]): number => {
     if (!isPortfolioMode || targetDates.length === 0) return 0;
