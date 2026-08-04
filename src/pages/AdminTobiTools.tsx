@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,7 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, Sparkles, ImageIcon, Code2, PenSquare } from "lucide-react";
+import { ArrowLeft, Loader2, Sparkles, ImageIcon, Code2, PenSquare } from "lucide-react";
 import { toast } from "sonner";
 
 interface PropertyOption {
@@ -31,7 +32,26 @@ const INTEGRATION_TYPES = [
   { value: "wordpress", label: "WordPress shortcode" },
 ];
 
+/** Pull the JSON error body out of a FunctionsHttpError so failures name themselves. */
+const readFunctionError = async (error: unknown): Promise<string | null> => {
+  const response = (error as { context?: Response })?.context;
+  if (!response || typeof response.text !== "function") return null;
+  try {
+    const text = await response.text();
+    if (!text) return null;
+    try {
+      const parsed = JSON.parse(text) as { error?: string; message?: string };
+      return parsed.error || parsed.message || text.slice(0, 300);
+    } catch {
+      return text.slice(0, 300);
+    }
+  } catch {
+    return null;
+  }
+};
+
 const AdminTobiTools = () => {
+  const navigate = useNavigate();
   const [properties, setProperties] = useState<PropertyOption[]>([]);
   const [loadingProperties, setLoadingProperties] = useState(true);
   const [propertyId, setPropertyId] = useState<string>("");
@@ -70,7 +90,14 @@ const AdminTobiTools = () => {
     setRunning(tool);
     try {
       const { data, error } = await supabase.functions.invoke(fn, { body });
-      if (error) throw error;
+      if (error) {
+        // supabase.functions.invoke only reports "non-2xx"; read the body for the real reason.
+        const detail = await readFunctionError(error);
+        throw new Error(detail || error.message);
+      }
+      if (data && typeof data === "object" && "error" in (data as Record<string, unknown>)) {
+        throw new Error(String((data as Record<string, unknown>).error));
+      }
       setResults((prev) => ({ ...prev, [tool]: data }));
       toast.success("TOBI finished the run");
     } catch (err) {
@@ -154,6 +181,14 @@ const AdminTobiTools = () => {
     <div className="container mx-auto max-w-5xl space-y-6 p-4 md:p-6">
       <header className="space-y-2">
         <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Go back"
+            onClick={() => navigate("/admin")}
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
           <Sparkles className="h-5 w-5 text-primary" />
           <h1 className="text-2xl font-semibold tracking-tight">TOBI Utilities</h1>
           <Badge variant="secondary">Admin</Badge>
@@ -193,17 +228,18 @@ const AdminTobiTools = () => {
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-base">
-            <PenSquare className="h-4 w-4" /> Bulk editorial generation
+            <PenSquare className="h-4 w-4" /> Editorial backfill (all properties)
           </CardTitle>
           <CardDescription>
-            Writes the five editorial fields for every active property still missing them. Runs
-            sequentially and skips properties that already have copy.
+            Estate-wide backfill: writes the five editorial fields for every active property still
+            missing them, skipping any that already have copy. To run TOBI editorial for a single
+            property, use the ROL Spec tab in Edit Property.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <Button onClick={runBulkEditorial} disabled={running !== null}>
             {running === "editorial" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Run bulk editorial
+            Run editorial backfill
           </Button>
           {renderResult("editorial")}
         </CardContent>
