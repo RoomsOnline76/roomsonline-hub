@@ -331,9 +331,69 @@ export async function createRateResolver(
 
 }
 
+export interface PriceWindowNormalisation {
+  days: DayRate[];
+  unpriced_dates: string[];
+  duplicate_dates_resolved: number;
+  expected_days: number;
+}
+
+/**
+ * Normalise a resolved day-rate set for an outbound channel push.
+ * - drops days outside [from, to]
+ * - de-duplicates by date (last authored day wins)
+ * - sorts ascending
+ * - reports every date inside the window that has no price
+ */
+export function normalizePriceWindow(days: DayRate[], from: string, to: string): PriceWindowNormalisation {
+  const perDate = new Map<string, DayRate>();
+  let duplicates = 0;
+  for (const d of days) {
+    if (!d?.date || d.date < from || d.date > to) continue;
+    if (perDate.has(d.date)) duplicates++;
+    perDate.set(d.date, d);
+  }
+  const window = eachDate(from, to);
+  const unpriced: string[] = [];
+  for (const date of window) {
+    const d = perDate.get(date);
+    if (!d || !Number.isFinite(d.price) || d.price <= 0) unpriced.push(date);
+  }
+  const normalised = window
+    .map((date) => perDate.get(date))
+    .filter((d): d is DayRate => !!d && Number.isFinite(d.price) && d.price > 0);
+  return {
+    days: normalised,
+    unpriced_dates: unpriced,
+    duplicate_dates_resolved: duplicates,
+    expected_days: window.length,
+  };
+}
+
+/** Assert compressed periods are strictly ascending and non-overlapping. Returns offending pairs. */
+export function findPeriodOverlaps(periods: RatePeriod[]): { a: string; b: string }[] {
+  const sorted = [...periods].sort((x, y) => x.date_from.localeCompare(y.date_from));
+  const bad: { a: string; b: string }[] = [];
+  for (let i = 1; i < sorted.length; i++) {
+    const prev = sorted[i - 1];
+    const cur = sorted[i];
+    if (cur.date_from <= prev.date_to) {
+      bad.push({ a: `${prev.date_from}..${prev.date_to}`, b: `${cur.date_from}..${cur.date_to}` });
+    }
+  }
+  return bad;
+}
+
 /** Compress consecutive days with identical pricing into date ranges (RU Season blocks etc.). */
 export function compressToPeriods(days: DayRate[]): RatePeriod[] {
-  const sorted = [...days].sort((a, b) => a.date.localeCompare(b.date));
+  // De-duplicate by date first (last authored wins) so a duplicated date can never
+  // produce two overlapping outbound Season ranges.
+  const perDate = new Map<string, DayRate>();
+  for (const d of days) {
+    if (!d?.date) continue;
+    perDate.set(d.date, d);
+  }
+  const sorted = [...perDate.values()].sort((a, b) => a.date.localeCompare(b.date));
   const periods: RatePeriod[] = [];
   for (const day of sorted) {
     const last = periods[periods.length - 1];
@@ -357,6 +417,7 @@ export function compressToPeriods(days: DayRate[]): RatePeriod[] {
   }
   return periods;
 }
+
 
 /** Human summary for readiness panels and sync logs. */
 export function describeCoverage(expectedDays: number, cov: RateCoverage): string {
