@@ -75,6 +75,8 @@ export default function PMSPropertySetup() {
   })();
 
   const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
+  const [showChecksheet, setShowChecksheet] = useState(true);
+
   const [railCollapsed, setRailCollapsed] = useState<boolean>(() => {
     try {
       return localStorage.getItem("property-rail-collapsed") === "1";
