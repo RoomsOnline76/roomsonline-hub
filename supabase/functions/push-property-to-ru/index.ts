@@ -1575,7 +1575,7 @@ async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRo
   const amenities = (property.amenities || {}) as Record<string, any>;
   const seasons = amenities.seasons as any[] | undefined;
   const seasonRates = amenities.season_rates as Record<string, any> | undefined;
-  const result: { availability_reserved_days?: number; availability_pushed?: boolean; prices_pushed?: boolean; availability_error?: string; prices_error?: string; availability_verification?: AvailabilityVerification; prices_verification?: PriceVerification; price_coverage?: Record<string, any>; currency?: Record<string, any> } = {};
+  const result: { availability_reserved_days?: number; availability_pushed?: boolean; prices_pushed?: boolean; availability_error?: string; prices_error?: string; availability_verification?: AvailabilityVerification; prices_verification?: PriceVerification; price_coverage?: Record<string, any>; availability_coverage?: Record<string, any>; currency?: Record<string, any> } = {};
 
   const today = new Date();
   const todayStr = today.toISOString().slice(0, 10);
@@ -1583,34 +1583,40 @@ async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRo
   oneYearLater.setFullYear(oneYearLater.getFullYear() + 1);
   const oneYearStr = oneYearLater.toISOString().slice(0, 10);
 
-  type PeriodEntry = { from: string; to: string; minStay: number; seasonId: string };
-  const allPeriods: PeriodEntry[] = [];
+  const authoredPeriods: AvailabilityPeriod[] = [];
   if (Array.isArray(seasons)) {
     for (const season of seasons) {
       const periods = season.periods || [{ from: season.from, to: season.to }];
       for (const period of periods) {
-        if (period.from && period.to) allPeriods.push({ from: period.from, to: period.to, minStay: season.minStay || 1, seasonId: String(season.id) });
+        if (period.from && period.to) authoredPeriods.push({ from: period.from, to: period.to, minStay: season.minStay || 1, seasonId: String(season.id) });
       }
     }
   }
-  allPeriods.sort((a, b) => a.from.localeCompare(b.from));
+  authoredPeriods.sort((a, b) => a.from.localeCompare(b.from));
 
-  let latestEnd = todayStr;
-  for (const p of allPeriods) { if (p.to > latestEnd) latestEnd = p.to; }
-  if (latestEnd < oneYearStr) {
-    const nextDay = new Date(latestEnd); nextDay.setDate(nextDay.getDate() + 1);
-    const fillerFrom = nextDay.toISOString().slice(0, 10);
-    if (fillerFrom <= oneYearStr) allPeriods.push({ from: fillerFrom, to: oneYearStr, minStay: 1, seasonId: '__filler__' });
-  }
+  // RU requires a complete, non-overlapping rolling 365-day window: clamp to [today, +365],
+  // resolve overlaps day-by-day and fill every gap (not just the tail after the last season).
+  const { periods: allPeriods, coverage: availCoverage } = normalizeAvailabilityWindow(
+    authoredPeriods,
+    todayStr,
+    oneYearStr,
+  );
+  const expectedWindowDays = Math.round((Date.parse(oneYearStr) - Date.parse(todayStr)) / 86400000) + 1;
+  result.availability_coverage = {
+    window: { from: todayStr, to: oneYearStr },
+    expected_days: expectedWindowDays,
+    days_covered: availCoverage.days_total,
+    missing_days: Math.max(0, expectedWindowDays - availCoverage.days_total),
+    days_from_seasons: availCoverage.days_from_seasons,
+    days_filled: availCoverage.days_filled,
+    overlaps_resolved: availCoverage.overlaps_resolved,
+    summary: `${availCoverage.days_total}/${expectedWindowDays} days covered (${availCoverage.days_from_seasons} from seasons, ${availCoverage.days_filled} filled, ${availCoverage.overlaps_resolved} overlapping day(s) resolved)`,
+  };
+  console.log(`[pushARI] RU ${ruPropertyId} availability window: ${result.availability_coverage.summary}`);
 
   // Resolve changeover rules (per-day-of-week or default)
   const changeoverConfig = resolveChangeoverRules(unit, amenities);
 
-  // Ensure at least 1 available day over the next 365 days
-  if (allPeriods.length === 0) {
-    allPeriods.push({ from: todayStr, to: oneYearStr, minStay: 1, seasonId: '__fallback__' });
-    console.log(`[pushARI] No seasons found — pushing fallback availability for ${todayStr} to ${oneYearStr}`);
-  }
 
   {
     try {
