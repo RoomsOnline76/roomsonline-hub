@@ -329,7 +329,12 @@ export async function modifyRuStay(
       arrival_time: modify.arrival_time ?? null,
     },
     ...auth,
+  }, {
+    propertyId: booking.property_id,
+    ruPropertyId,
+    details: { booking_id: booking.id, reservation_id: String(booking.external_reservation_id) },
   });
+
 
   return result.ok
     ? { ok: true, method: 'modify_stay' }
