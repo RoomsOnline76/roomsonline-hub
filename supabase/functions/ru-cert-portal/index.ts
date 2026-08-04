@@ -523,6 +523,8 @@ const MILESTONE_SYNC_ACTIONS: Record<string, string[]> = {
   "Pull_ListLiveNotificationMechanismSubscriptions_RQ": ["ListLnmSubscriptions", "lnm_duplicate_test"],
   "Push_PutLiveNotificationMechanismSubscriptions_RQ (idempotency)": ["lnm_duplicate_test"],
   "CM_LNM_OrderMinimumContentQualityCheck_RQ (idempotency)": ["mcq_duplicate_test"],
+  "Pull_ListReservations_RQ / RLNM (idempotency)": ["reservation_idempotency_test", "rlnm_replay_test"],
+  "Reservation Creator → sales channel": ["creator_mapping_check", "pull_reservations"],
 
   "Pull_ListReservations_RQ": ["pull_reservations"],
   "Pull_GetLeads_RQ": ["lead_lifecycle", "pull_reservations"],
