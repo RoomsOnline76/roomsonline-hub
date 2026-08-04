@@ -83,12 +83,17 @@ export function usePropertyReadiness(propertyId?: string | null) {
     queryKey: ["property-readiness", propertyId],
     queryFn: async () => {
       if (!propertyId) return null;
-      const [{ data: property, error }, { data: policyRows }, backend] = await Promise.all([
+      const [{ data: property, error }, { data: policyRows }, { data: contactRows }, backend] = await Promise.all([
         supabase.from("properties").select("*").eq("id", propertyId).maybeSingle(),
         // Master policy truth lives in the policy library, not in amenities.
         supabase
           .from("rolos_reservation_policies")
           .select("id, is_master, is_default")
+          .eq("property_id", propertyId),
+        // Public contact details live in their own table, not in amenities.
+        supabase
+          .from("property_contact_details")
+          .select("role, name, email, phone")
           .eq("property_id", propertyId),
         supabase.functions
           .invoke("check-activation-readiness", { body: { property_id: propertyId } })
@@ -100,6 +105,7 @@ export function usePropertyReadiness(propertyId?: string | null) {
       const subject = {
         ...(property as Record<string, unknown>),
         policy_rows: policyRows ?? [],
+        contact_rows: contactRows ?? [],
       } as RequirementSubject;
       return { subject, backend };
     },

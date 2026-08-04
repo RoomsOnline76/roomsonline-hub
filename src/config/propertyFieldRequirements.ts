@@ -58,6 +58,23 @@ export interface FieldRequirement {
 const str = (v: unknown): string => (typeof v === "string" ? v.trim() : v == null ? "" : String(v).trim());
 const filled = (v: unknown): boolean => str(v).length > 0;
 
+type ContactRow = { role?: string | null; name?: string | null; email?: string | null; phone?: string | null };
+
+const contactRows = (subject: RequirementSubject): ContactRow[] =>
+  Array.isArray(subject.contact_rows) ? (subject.contact_rows as ContactRow[]) : [];
+
+/** True when any saved contact row (optionally of the given roles) has the field filled. */
+const contactHas = (
+  subject: RequirementSubject,
+  field: "email" | "phone",
+  roles?: string[],
+): boolean =>
+  contactRows(subject).some((row) => {
+    if (roles && roles.length > 0 && !roles.includes(String(row.role ?? ""))) return false;
+    const value = row[field];
+    return typeof value === "string" && value.trim().length > 0;
+  });
+
 const amenity = (subject: RequirementSubject, path: string): unknown => {
   let cursor: unknown = subject.amenities ?? {};
   for (const part of path.split(".")) {
@@ -237,7 +254,8 @@ export const PROPERTY_FIELD_REQUIREMENTS: FieldRequirement[] = [
       filled(amenity(s, "reservations_email")) ||
       filled(amenity(s, "contact_email")) ||
       filled(amenity(s, "public_email")) ||
-      filled(s.contact_email),
+      filled(s.contact_email) ||
+      contactHas(s, "email"),
   },
   {
     key: "contact_phone",
@@ -249,7 +267,8 @@ export const PROPERTY_FIELD_REQUIREMENTS: FieldRequirement[] = [
       filled(amenity(s, "reception_phone")) ||
       filled(amenity(s, "telephone")) ||
       filled(amenity(s, "public_phone")) ||
-      filled(s.telephone),
+      filled(s.telephone) ||
+      contactHas(s, "phone"),
   },
   {
     key: "emergency_contact",
@@ -258,7 +277,9 @@ export const PROPERTY_FIELD_REQUIREMENTS: FieldRequirement[] = [
     section: "contacts",
     target: ['[data-field="amenities.emergency_phone"]', '[data-field="emergency_contact"]'],
     isSatisfied: (s) =>
-      filled(amenity(s, "emergency_phone")) || filled(amenity(s, "emergency_contact")),
+      filled(amenity(s, "emergency_phone")) ||
+      filled(amenity(s, "emergency_contact")) ||
+      contactHas(s, "phone", ["emergency", "after_hours"]),
   },
 
   /* ---------- Facilities ---------- */
