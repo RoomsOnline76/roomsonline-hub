@@ -518,6 +518,10 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Shifted dates change both the old and new nights: refresh the RU window now.
+    await queueRuAriDelta(supabase, booking.property_id, "booking_modified");
+
+
     // S10: Send modification email
     try {
       await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-booking-email`, {
