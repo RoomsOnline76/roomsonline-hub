@@ -61,7 +61,7 @@ export function EmbedConciergeChat({
     {
       id: "welcome",
       role: "assistant",
-      content: `Hi! 👋 I'm **TOBI**, your AI travel concierge for ${propertyName}. Tell me your dates, number of guests, room preference, or budget — and I'll find the perfect stay for you!`,
+      content: `Hi! 👋 I'm **TOBI**, your travel concierge for ${propertyName}. Tell me your dates, number of guests, room preference, or budget — and I'll find the perfect stay for you!`,
     },
   ]);
   const [input, setInput] = useState("");
@@ -159,7 +159,7 @@ export function EmbedConciergeChat({
             <div className="flex items-center justify-between px-4 py-3 border-b" style={{ background: brandColor, color: fontColor }}>
               <div className="flex items-center gap-2">
                 <Sparkles className="h-4 w-4" />
-                <span className="font-semibold text-sm">TOBI — AI Concierge</span>
+                <span className="font-semibold text-sm">TOBI Concierge</span>
               </div>
               <button onClick={() => setIsOpen(false)} className="p-1 rounded-full hover:bg-white/20 transition-colors">
                 <X className="h-4 w-4" />

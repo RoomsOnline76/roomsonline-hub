@@ -18,7 +18,7 @@ const TIER_FEATURES_XS = [
   "Revenue management & analytics",
   "Folio & billing system",
   "Housekeeping board",
-  "TOBI AI assistant",
+  "TOBI assistant",
   "Night audit automation",
   "Email support",
 ];
@@ -125,7 +125,7 @@ export default function ConnectPricing() {
     { item: "Channel Manager add-on", typical: "R 2,000 – R 4,000/mo", rolos: "Included from 10+ rooms" },
     { item: "API access", typical: "R 1,500 – R 3,000/mo", rolos: "Included on 51+ rooms tier" },
     { item: "Revenue management", typical: "R 1,000 – R 2,500/mo", rolos: "Included on every tier" },
-    { item: "AI assistant / chatbot", typical: "R 800 – R 2,000/mo", rolos: "Included (TOBI)" },
+    { item: "Assistant / chatbot", typical: "R 800 – R 2,000/mo", rolos: "Included (TOBI)" },
     { item: "White-label branding", typical: "Enterprise tier only", rolos: "Available as an add-on" },
     { item: "Booking widget / WBE (commission-only)", typical: "5–15% + setup fees", rolos: `From ${widgetPctLabel} · negotiable` },
   ];
@@ -294,7 +294,7 @@ export default function ConnectPricing() {
               "Folio & billing system",
               "Housekeeping board",
               "Night audit automation",
-              "TOBI AI assistant",
+              "TOBI assistant",
               "Portfolio analytics dashboard",
               "Phone app for iPhone & Android",
               "Payfast (SA only — conditions apply)",

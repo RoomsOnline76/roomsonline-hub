@@ -44,7 +44,7 @@ export function AISearchProvider({ children }: { children: ReactNode }) {
         console.error('AI search error:', error);
         toast({
           title: 'Search failed',
-          description: error.message || 'Unable to complete AI search. Please try again.',
+          description: error.message || 'Unable to complete TOBI search. Please try again.',
           variant: 'destructive',
         });
         setState(prev => ({

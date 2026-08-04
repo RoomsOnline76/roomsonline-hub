@@ -16,7 +16,7 @@ const fadeUp = {
 const STATS = [
   { value: "60-Day", label: "Free Trial" },
   { value: "R 0", label: "Setup Fee" },
-  { value: "24/7", label: "AI Assistant" },
+  { value: "24/7", label: "TOBI Assistant" },
   { value: "Flexible", label: "Negotiable Plans" },
 ];
 
@@ -41,7 +41,7 @@ const SOLUTIONS = [
 const COMPARISON = [
   { feature: "Rooms & Reservations", rolos: true, others: true, othersNote: "" },
   { feature: "Channel Manager (OTAs)", rolos: true, others: false, othersNote: "R 2,000+/mo extra" },
-  { feature: "AI Assistant (TOBI)", rolos: true, others: false, othersNote: "Not available" },
+  { feature: "TOBI Assistant", rolos: true, others: false, othersNote: "Not available" },
   { feature: "REST API (50+ actions)", rolos: true, others: false, othersNote: "R 1,500+/mo extra" },
   { feature: "WordPress Plugin", rolos: true, others: false, othersNote: "Not available" },
   { feature: "White-Label Branding", rolos: true, others: false, othersNote: "Enterprise only" },
@@ -223,7 +223,7 @@ export default function ConnectHome() {
               <Cat className="w-10 h-10 text-primary" />
             </div>
             <div className="flex-1 text-center md:text-left">
-              <h2 className="text-xl sm:text-2xl md:text-3xl font-bold mb-2">Meet TOBI — Your 24/7 AI Operations Manager</h2>
+              <h2 className="text-xl sm:text-2xl md:text-3xl font-bold mb-2">Meet TOBI — Your 24/7 Operations Manager</h2>
               <p className="text-muted-foreground mb-4 max-w-xl" style={{ textWrap: "pretty" } as React.CSSProperties}>
                 TOBI handles night audits, answers guest queries, generates revenue insights, assists with bookings,
                 and never takes a day off. It's like hiring a full-time operations manager — included free with every plan.

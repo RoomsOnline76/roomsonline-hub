@@ -196,7 +196,7 @@ export function ScenarioGenerator({ onRunCreated }: ScenarioGeneratorProps) {
             ) : (
               <>
                 <Sparkles className="h-4 w-4 mr-2" />
-                Generate Scenarios with AI
+                Generate Scenarios with TOBI
               </>
             )}
           </Button>
