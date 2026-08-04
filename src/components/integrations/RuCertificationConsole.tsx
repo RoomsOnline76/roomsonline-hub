@@ -5,6 +5,7 @@ import {
   Clock, Percent, Users, ChevronRight, Plus, Trash2, Send, AlertTriangle, ListChecks, CalendarRange,
 } from "lucide-react";
 import { RuCoverageTab } from "./RuCoverageTab";
+import { RuAvailabilityPlayground } from "./RuAvailabilityPlayground";
 
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
