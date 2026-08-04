@@ -819,24 +819,27 @@ button {
 .pf-req-field {
   transition: box-shadow 150ms ease, border-color 150ms ease;
   border-radius: calc(var(--radius) - 2px);
+  position: relative;
 }
 
+/* Outstanding: 2px ring that survives any component's own border colour */
 .pf-req-mandatory {
   border-color: hsl(var(--req-mandatory)) !important;
-  box-shadow: 0 0 0 1px hsl(var(--req-mandatory) / 0.55);
+  box-shadow: 0 0 0 2px hsl(var(--req-mandatory)) !important;
 }
 .pf-req-recommended {
   border-color: hsl(var(--req-recommended)) !important;
-  box-shadow: 0 0 0 1px hsl(var(--req-recommended) / 0.5);
+  box-shadow: 0 0 0 2px hsl(var(--req-recommended)) !important;
 }
 
-/* Wrapper targets (divs marked with data-field) get a visible outline instead */
-div.pf-req-mandatory,
-div.pf-req-recommended {
-  border-width: 1px;
+/* Wrapper targets (divs / cards marked with data-field) get a solid outline */
+.pf-req-mandatory:not(input):not(textarea):not(select),
+.pf-req-recommended:not(input):not(textarea):not(select) {
+  border-width: 2px;
   border-style: solid;
   padding: 0.375rem;
 }
+
 
 /* Completed — keep the colour cue, drop the shout */
 .pf-req-satisfied.pf-req-mandatory {
