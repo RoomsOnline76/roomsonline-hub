@@ -224,6 +224,7 @@ const RU_METHOD_BY_ACTION: Record<string, string> = {
   get_long_stay_discounts: "Pull_ListLongStayDiscounts_RQ",
   get_last_minute_discounts: "Pull_ListLastMinuteDiscounts_RQ",
   list_users: "Pull_ListMyUsers_RQ",
+  list_sales_channels: "Pull_ListSalesChannels_RQ",
 };
 
 /**
@@ -291,6 +292,7 @@ const CERT_MILESTONES: { key: string; label: string; ru_method: string; mandator
   { key: "lnm_subscribe", label: "Subscribe LNM (content + ARI)", ru_method: "Push_PutLiveNotificationMechanismSubscriptions_RQ", mandatory: true, scope: "account", note: "Content / availability / price change webhooks" },
   { key: "lnm_verify", label: "Verify LNM subscriptions", ru_method: "Pull_ListLiveNotificationMechanismSubscriptions_RQ", mandatory: true, scope: "account", note: "Read-back — detects silent subscription drift" },
   { key: "lnm_change_types", label: "List LNM change types", ru_method: "Pull_ListLiveNotificationMechanismChangeTypes_RQ", mandatory: false, scope: "account", note: "Dictionary read" },
+  { key: "sales_channels", label: "Pull sales channels (ChannelID)", ru_method: "Pull_ListSalesChannels_RQ", mandatory: true, scope: "account", note: "Resolves the LekkeSlaap ChannelID used by the content quality check" },
   { key: "reservations", label: "Pull reservations", ru_method: "Pull_ListReservations_RQ", mandatory: true, scope: "account", note: "" },
   { key: "leads", label: "Pull leads", ru_method: "Pull_GetLeads_RQ", mandatory: false, scope: "account", note: "Optional" },
   { key: "long_stay", label: "Long-stay discounts", ru_method: "Push_PutLongStayDiscounts_RQ", mandatory: false, scope: "property", note: "Optional but recommended" },
@@ -394,6 +396,8 @@ const RU_ENDPOINT_REGISTRY: {
     rolos_surface: "Live notifications panel (dictionary)", rolos_stream: "Reference data", rolos_wired: true, sync_actions: ["ListLnmChangeTypes"], note: "Dictionary read" },
   { key: "lnm_inbound", area: "notifications", label: "Inbound notification handler", ru_method: "LNM notification (inbound)", direction: "webhook", mandatory: true, implemented: true,
     rolos_surface: "ru-lnm-handler → MCQ orders / refresh", rolos_stream: "Inbound webhooks", rolos_wired: true, sync_actions: ["LNM_Notification"], note: "Routes PropertyMCQEligibilityCheck" },
+  { key: "sales_channels", area: "notifications", label: "List sales channels", ru_method: "Pull_ListSalesChannels_RQ", direction: "pull", mandatory: true, implemented: true,
+    rolos_surface: "RU console → Phase 4 channel ID", rolos_stream: "Onboarding P4 — channel readiness", rolos_wired: true, sync_actions: ["resolve_sales_channel", "list_sales_channels"], max_age_hours: 720, note: "Resolves LekkeSlaap ChannelID for MCQ" },
   { rolos_via_cert: true, key: "mcq", area: "notifications", label: "Order content quality check", ru_method: "CM_LNM_OrderMinimumContentQualityCheck_RQ", direction: "push", mandatory: false, implemented: true,
     rolos_surface: "RU console → Phase 4 quality check", rolos_stream: "Onboarding P4 — channel readiness", rolos_wired: true, sync_actions: ["order_mcq"], note: "Requires LNM subscription + ChannelID" },
 ];
@@ -435,6 +439,7 @@ const MILESTONE_SYNC_ACTIONS: Record<string, string[]> = {
   "Push_PutProperty_RQ": ["inventory_push", "weekly_content_refresh"],
   "Push_PutAvbUnits_RQ": ["refresh_ari"],
   "Push_PutPrices_RQ": ["refresh_ari"],
+  "Pull_ListSalesChannels_RQ": ["resolve_sales_channel", "list_sales_channels"],
 };
 
 /** Cert runs are orchestrated in phases from the browser; a closed tab or a failed phase
