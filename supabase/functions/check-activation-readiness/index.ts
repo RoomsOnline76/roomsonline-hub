@@ -202,7 +202,7 @@ Deno.serve(async (req) => {
     // Annotate every check with its tier (mandatory vs nice-to-have) and the UI
     // destination where the shortfall is fixed, so the setup checksheet can deep-link.
     for (const c of checks) {
-      c.tier = c.severity === 'blocker' ? 'mandatory' : 'recommended';
+      c.tier = CHECK_TIERS[c.id] ?? (c.severity === 'blocker' ? 'mandatory' : 'recommended');
       const route = CHECK_ROUTES[c.id];
       if (route) {
         c.section = route.section;
