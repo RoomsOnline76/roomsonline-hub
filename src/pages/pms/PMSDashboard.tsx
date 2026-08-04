@@ -1753,7 +1753,6 @@ export default function PMSDashboard() {
                     </div>
                   )}
                   {weekChunks.map((weekDates, weekIdx) => {
-                    const weekKeys = weekDates.map((date) => format(date, "yyyy-MM-dd"));
                     // Per-property visible days/rows inside this week
                     const weekPropViews = (portfolioProperties || []).map((prop) => {
                       const propData = portfolioDataByProperty.get(prop.id);
@@ -1780,7 +1779,6 @@ export default function PMSDashboard() {
                     const weekKey = getWeekKey(weekDates);
                     const isWeekCollapsed = collapsedWeeks.has(weekKey);
                     const bookingCount = getPortfolioBookingCountForDates(visibleWeekDates);
-                    void weekKeys;
 
 
                     return (
