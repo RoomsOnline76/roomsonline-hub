@@ -11,6 +11,10 @@ import { COUNTRY_OPTIONS } from "@/lib/countries";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
+import { RuLocationPicker } from "@/components/property/RuLocationPicker";
+
+/** RU nationality/country fields use LocationTypeID = 2 (see CompanyInformationCard). */
+const RU_COUNTRY_TYPE_FILTER = [2];
 
 export function StepLocation({
   propertyData,
@@ -28,11 +32,18 @@ export function StepLocation({
 
   const hasCoordinates = propertyData.latitude && propertyData.longitude;
 
-  // Property info object for surroundings (matches PropertyForm structure)
+  // Property info object for surroundings (matches PropertyForm / GeneralTab structure)
   const propertyInfo = getAmenityValue<Record<string, string>>("property_info", {});
+  const restaurantsCafes = propertyInfo?.restaurants_cafes || "";
   const restaurantsCafesDistance = propertyInfo?.restaurants_cafes_distance || "";
+  const publicTransport = propertyInfo?.public_transport || "";
   const publicTransportDistance = propertyInfo?.public_transport_distance || "";
+  const closestAirport = propertyInfo?.closest_airport || "";
   const closestAirportDistance = propertyInfo?.closest_airport_distance || "";
+
+  // RU LocationID + region (company push)
+  const ruLocationId = getAmenityValue<number | null>("ru_location_id", null);
+  const region = getAmenityValue<string>("region", "");
 
   // Helper to update property_info fields
   const updatePropertyInfo = (field: string, value: string) => {
@@ -93,7 +104,7 @@ export function StepLocation({
     <div className="space-y-6">
       <p className="text-muted-foreground">
         Enter your property's address. We'll use this to show your location on the map 
-        and help guests find you.
+        and help guests find you. The RU LocationID is required for channel distribution.
       </p>
 
       {/* Street Address */}
@@ -135,7 +146,7 @@ export function StepLocation({
           />
         </div>
 
-        {/* Country */}
+        {/* Country (display label) */}
         <div className="space-y-2">
           <Label htmlFor="country" className="flex items-center gap-2">
             Country *
@@ -185,6 +196,39 @@ export function StepLocation({
             </PopoverContent>
           </Popover>
         </div>
+      </div>
+
+      {/* Region / province — used by companyProfile.region for RU */}
+      <div className="space-y-2">
+        <Label htmlFor="region">Region / Province *</Label>
+        <Input
+          id="region"
+          value={region}
+          onChange={(e) => updateField("amenities.region", e.target.value)}
+          placeholder="e.g., Western Cape"
+        />
+        <p className="text-xs text-muted-foreground">
+          Full province or state name as registered (not an abbreviation).
+        </p>
+      </div>
+
+      {/* RU LocationID — genuine LocationID for property + company push */}
+      <div className="space-y-2 rounded-lg border border-border bg-muted/30 p-3">
+        <Label className="flex items-center gap-1.5">
+          <MapPin className="h-3.5 w-3.5 text-primary" />
+          Rentals United Location *
+        </Label>
+        <RuLocationPicker
+          value={ruLocationId}
+          onChange={(id) => updateField("amenities.ru_location_id", id)}
+          typeFilter={RU_COUNTRY_TYPE_FILTER}
+          initialQuery={propertyData.city || propertyData.country || ""}
+          placeholder="Search RU locations (country / region / city)…"
+          allowRefresh={false}
+        />
+        <p className="text-xs text-muted-foreground">
+          Attaches a real RU LocationID. RU owns the currency on the LocationID — this selection decides which currency the property is locked into for channels.
+        </p>
       </div>
 
       {/* Geocode button and coordinates */}
@@ -245,45 +289,78 @@ export function StepLocation({
         )}
       </div>
 
-      {/* Surroundings Section */}
+      {/* Surroundings Section — dense name + distance pairs (matches GeneralTab) */}
       <div className="space-y-4 pt-4 border-t">
         <div className="flex items-center gap-2">
           <Building2 className="h-5 w-5 text-primary" />
           <h3 className="font-semibold">Surroundings</h3>
         </div>
         <p className="text-sm text-muted-foreground">
-          Approximate distance to nearby amenities and transport.
+          Name and approximate distance to nearby amenities and transport.
         </p>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="restaurants_cafes_distance">Restaurants/Cafés Distance</Label>
-            <Input
-              id="restaurants_cafes_distance"
-              value={restaurantsCafesDistance}
-              onChange={(e) => updatePropertyInfo("restaurants_cafes_distance", e.target.value)}
-              placeholder="e.g., 0.5 km"
-            />
+        <div className="space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="restaurants_cafes">Restaurants & Cafés</Label>
+              <Input
+                id="restaurants_cafes"
+                value={restaurantsCafes}
+                onChange={(e) => updatePropertyInfo("restaurants_cafes", e.target.value)}
+                placeholder="e.g., Waterfront restaurants"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="restaurants_cafes_distance">Distance</Label>
+              <Input
+                id="restaurants_cafes_distance"
+                value={restaurantsCafesDistance}
+                onChange={(e) => updatePropertyInfo("restaurants_cafes_distance", e.target.value)}
+                placeholder="e.g., 0.5 km"
+              />
+            </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="public_transport_distance">Public Transport Distance</Label>
-            <Input
-              id="public_transport_distance"
-              value={publicTransportDistance}
-              onChange={(e) => updatePropertyInfo("public_transport_distance", e.target.value)}
-              placeholder="e.g., 1.2 km"
-            />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="public_transport">Public Transport</Label>
+              <Input
+                id="public_transport"
+                value={publicTransport}
+                onChange={(e) => updatePropertyInfo("public_transport", e.target.value)}
+                placeholder="e.g., MyCiTi bus stop"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="public_transport_distance">Distance</Label>
+              <Input
+                id="public_transport_distance"
+                value={publicTransportDistance}
+                onChange={(e) => updatePropertyInfo("public_transport_distance", e.target.value)}
+                placeholder="e.g., 1.2 km"
+              />
+            </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="closest_airport_distance">Closest Airport Distance</Label>
-            <Input
-              id="closest_airport_distance"
-              value={closestAirportDistance}
-              onChange={(e) => updatePropertyInfo("closest_airport_distance", e.target.value)}
-              placeholder="e.g., 45 km"
-            />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="closest_airport">Closest Airport</Label>
+              <Input
+                id="closest_airport"
+                value={closestAirport}
+                onChange={(e) => updatePropertyInfo("closest_airport", e.target.value)}
+                placeholder="e.g., Cape Town International"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="closest_airport_distance">Distance</Label>
+              <Input
+                id="closest_airport_distance"
+                value={closestAirportDistance}
+                onChange={(e) => updatePropertyInfo("closest_airport_distance", e.target.value)}
+                placeholder="e.g., 45 km"
+              />
+            </div>
           </div>
         </div>
       </div>
