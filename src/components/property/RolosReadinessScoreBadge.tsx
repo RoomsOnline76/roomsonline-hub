@@ -17,6 +17,12 @@ interface QualityCheckResult {
 interface ActivationReadinessResponse {
   passed: boolean;
   score: number;
+  mandatory_score?: number;
+  mandatory_passed?: number;
+  mandatory_total?: number;
+  recommended_score?: number;
+  recommended_passed?: number;
+  recommended_total?: number;
   blockers: QualityCheckResult[];
   warnings: QualityCheckResult[];
   checks: QualityCheckResult[];
@@ -50,7 +56,7 @@ export function RolosReadinessScoreBadge({ propertyId, className }: RolosReadine
   });
 
   const tone = useMemo(() => {
-    const score = data?.score ?? 0;
+    const score = data?.mandatory_score ?? data?.score ?? 0;
     if (data?.passed || score >= 90) return "text-emerald-600";
     if (score >= 60) return "text-amber-600";
     return "text-destructive";
@@ -83,7 +89,10 @@ export function RolosReadinessScoreBadge({ propertyId, className }: RolosReadine
           <Gauge className={cn("h-4 w-4", tone)} />
           <span className="text-xs font-medium">Readiness score to be pushed</span>
           <Badge variant="secondary" className={cn("text-[10px]", tone)}>
-            {data.score}%
+            Mandatory {data.mandatory_score ?? data.score}%
+          </Badge>
+          <Badge variant="outline" className="text-[10px]">
+            Nice to have {data.recommended_score ?? 100}%
           </Badge>
           {blockers > 0 && (
             <Badge variant="outline" className="text-[10px] text-destructive border-destructive/40">
@@ -96,7 +105,10 @@ export function RolosReadinessScoreBadge({ propertyId, className }: RolosReadine
           <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
         </span>
       </div>
-      <Progress value={data.score} className="h-1.5 mt-2" />
+      <div className="mt-2 space-y-1">
+        <Progress value={data.mandatory_score ?? data.score} className="h-1.5" />
+        <Progress value={data.recommended_score ?? 100} className="h-1" />
+      </div>
     </button>
   );
 }
