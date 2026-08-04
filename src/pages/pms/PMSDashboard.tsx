@@ -2427,7 +2427,7 @@ function MonthRoomTypeRows({ rt, weekDates, typeRooms, bookings, getRateForDate,
                     const isStart = b.check_in_date === dateStr;
                     const isEnd = addDays(parseISO(b.check_out_date), -1).toISOString().slice(0, 10) === dateStr;
                     return (
-                      <button key={b.id} onClick={() => onSelectBooking(b)} onDoubleClick={() => onSelectBooking(b, "folio")} className={cn(
+                      <button key={b.id} title={getBookingBarTitle(b)} onClick={() => onSelectBooking(b)} onDoubleClick={() => onSelectBooking(b, "folio")} className={cn(
                         "absolute inset-y-0.5 border flex items-center px-1 overflow-hidden cursor-pointer hover:opacity-80 z-[1]",
                         colors.bg, colors.border,
                         isStart ? "left-0.5 rounded-l-sm" : "left-0",
@@ -2482,6 +2482,7 @@ function MonthRoomTypeRows({ rt, weekDates, typeRooms, bookings, getRateForDate,
                       <button
                         key={b.id}
                         onClick={() => onSelectBooking(b)}
+                        title={getBookingBarTitle(b)}
                         onDoubleClick={() => onSelectBooking(b, "folio")}
                         title={`${b.guest_name} · ${b.check_in_date} → ${b.check_out_date} · ${b.status} — click to open, double-click for folio`}
                         className={cn("absolute inset-y-0.5 inset-x-0.5 rounded-sm border flex items-center gap-1 px-1 overflow-hidden cursor-pointer hover:opacity-90", colors.bg, colors.border)}
@@ -2537,7 +2538,7 @@ function MonthRoomRow({ room, dates, bookings, onSelectBooking }: {
               const isStart = b.check_in_date === dateStr;
               const isEnd = addDays(parseISO(b.check_out_date), -1).toISOString().slice(0, 10) === dateStr;
               return (
-                <button key={b.id} onClick={() => onSelectBooking(b)} onDoubleClick={() => onSelectBooking(b, "folio")} className={cn(
+                <button key={b.id} title={getBookingBarTitle(b)} onClick={() => onSelectBooking(b)} onDoubleClick={() => onSelectBooking(b, "folio")} className={cn(
                   "absolute inset-y-0.5 border flex items-center px-1 overflow-hidden cursor-pointer hover:opacity-80 z-[1]",
                   colors.bg, colors.border,
                   isStart ? "left-0.5 rounded-l-sm" : "left-0",
@@ -2643,7 +2644,7 @@ function RoomTypeSection({ rt, dates, roomsByType, bookings, getRateForDate, get
                     const isStart = b.check_in_date === dateStr;
                     const isEnd = addDays(parseISO(b.check_out_date), -1).toISOString().slice(0, 10) === dateStr;
                     return (
-                      <button key={b.id} onClick={() => onSelectBooking(b)} onDoubleClick={() => onSelectBooking(b, "folio")} className={cn(
+                      <button key={b.id} title={getBookingBarTitle(b)} onClick={() => onSelectBooking(b)} onDoubleClick={() => onSelectBooking(b, "folio")} className={cn(
                         "absolute inset-y-0.5 border flex items-center px-1 overflow-hidden cursor-pointer hover:opacity-80 z-[1]",
                         colors.bg, colors.border,
                         isStart ? "left-0.5 rounded-l-sm" : "left-0",
@@ -2705,7 +2706,7 @@ function WeekRoomRow({ room, dates, bookings, onSelectBooking }: {
               const isStart = b.check_in_date === dateStr;
               const isEnd = addDays(parseISO(b.check_out_date), -1).toISOString().slice(0, 10) === dateStr;
               return (
-                <button key={b.id} onClick={() => onSelectBooking(b)} onDoubleClick={() => onSelectBooking(b, "folio")} className={cn(
+                <button key={b.id} title={getBookingBarTitle(b)} onClick={() => onSelectBooking(b)} onDoubleClick={() => onSelectBooking(b, "folio")} className={cn(
                   "absolute inset-y-0.5 border flex items-center px-1 overflow-hidden cursor-pointer hover:opacity-80 z-[1]",
                   colors.bg, colors.border,
                   isStart ? "left-0.5 rounded-l-sm" : "left-0",
