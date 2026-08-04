@@ -2682,19 +2682,11 @@ Deno.serve(async (req) => {
       const firstName = parts[0] || "Property";
       const lastName = parts.slice(1).join(" ") || "Owner";
 
-      // RU password policy: 12+ chars incl. upper, lower, digit and special.
-      // RU's documented special-character set is exactly: . - _ $ * ( ) # @ ! % /
-      const pick = (set: string, n: number) => {
-        const bytes = new Uint8Array(n);
-        crypto.getRandomValues(bytes);
-        return Array.from(bytes).map((b) => set[b % set.length]).join("");
-      };
-      const password = (
-        pick("ABCDEFGHJKLMNPQRSTUVWXYZ", 4) +
-        pick("abcdefghijkmnpqrstuvwxyz", 5) +
-        pick("23456789", 3) +
-        pick(".-_$*()#@!%/", 2)
-      );
+      // Every ROLOS-created RU sub-account uses one shared operator password so the
+      // admin can always sign in to the RU dashboard (Security settings) to mint the
+      // first API key pair. RU policy: 12+ chars incl. upper, lower, digit and special.
+      const password = RU_SUB_USER_PASSWORD;
+
 
 
 
