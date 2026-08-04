@@ -18,21 +18,36 @@ const CLASSES = [
   "pf-req-pulse",
 ] as const;
 
-/** Resolve the element a requirement points at, within an optional root. */
+const isVisible = (el: HTMLElement): boolean =>
+  !!(el.offsetParent || el.getClientRects().length) &&
+  getComputedStyle(el).visibility !== "hidden";
+
+/**
+ * Resolve the element a requirement points at, within an optional root.
+ * Visible matches win over hidden ones, so a duplicated id (e.g. `#name`
+ * present in two tabs) never sends the user to an invisible control.
+ */
 export function resolveRequirementElement(
   targets: string[],
   root: ParentNode = document,
 ): HTMLElement | null {
+  let hiddenFallback: HTMLElement | null = null;
   for (const selector of targets) {
     try {
-      const el = root.querySelector<HTMLElement>(selector);
-      if (el) return el;
+      const matches = Array.from(root.querySelectorAll<HTMLElement>(selector));
+      for (const el of matches) {
+        if (isVisible(el)) return el;
+        hiddenFallback ??= el;
+      }
     } catch {
       /* invalid selector — skip */
     }
   }
-  return null;
+  return hiddenFallback;
 }
+
+/** Registry selectors per requirement key, published by the decorator. */
+const targetIndex = new Map<string, string[]>();
 
 /**
  * The element that should carry the border. For a Radix select trigger or an
@@ -42,6 +57,28 @@ export function resolveRequirementElement(
 function markTarget(el: HTMLElement): HTMLElement {
   return el;
 }
+
+/**
+ * Expand any collapsed ancestor (accordion item, collapsible, closed details)
+ * so a hidden target can actually be shown.
+ */
+function revealAncestors(el: HTMLElement): void {
+  let node: HTMLElement | null = el;
+  while (node && node !== document.body) {
+    const details = node.closest("details");
+    if (details && !details.open) details.open = true;
+    if (node.getAttribute("data-state") === "closed") {
+      const id = node.getAttribute("id");
+      const trigger =
+        (id && document.querySelector<HTMLElement>(`[aria-controls="${id}"]`)) ||
+        node.previousElementSibling?.querySelector<HTMLElement>("button") ||
+        (node.previousElementSibling as HTMLElement | null);
+      if (trigger && typeof trigger.click === "function") trigger.click();
+    }
+    node = node.parentElement;
+  }
+}
+
 
 /** Remove every requirement class/attribute inside root. */
 export function clearRequirementDecoration(root: ParentNode = document) {
@@ -58,6 +95,9 @@ export function decorateRequirements(statuses: RequirementStatus[], root: Parent
   const seen = new Set<HTMLElement>();
 
   for (const status of statuses) {
+    // Remember the selectors so "Show me" can find the field even when it is
+    // not decorated yet (tab still painting, or block collapsed).
+    targetIndex.set(status.key, status.target);
     const found = resolveRequirementElement(status.target, root);
     if (!found) continue;
     const el = markTarget(found);
@@ -86,10 +126,18 @@ export function decorateRequirements(statuses: RequirementStatus[], root: Parent
 
 /**
  * Scroll a requirement field into view and pulse its border so it is
- * impossible to miss. Retries briefly while the tab paints.
+ * impossible to miss. Retries briefly while the tab paints, then falls back to
+ * the registry selectors (and finally to any visible ancestor) so "Show me"
+ * always lands somewhere useful.
  */
 export function focusRequirementField(key: string, attempt = 0): void {
-  const el = document.querySelector<HTMLElement>(`[${REQ_ATTR}="${key}"]`);
+  let el = document.querySelector<HTMLElement>(`[${REQ_ATTR}="${key}"]`);
+
+  if (!el) {
+    const targets = targetIndex.get(key);
+    if (targets) el = resolveRequirementElement(targets);
+  }
+
   if (!el) {
     if (attempt < 12) {
       window.setTimeout(() => focusRequirementField(key, attempt + 1), 250);
@@ -97,15 +145,29 @@ export function focusRequirementField(key: string, attempt = 0): void {
     return;
   }
 
-  el.scrollIntoView({ behavior: "smooth", block: "center" });
-  el.classList.remove("pf-req-pulse");
+  if (!isVisible(el)) {
+    revealAncestors(el);
+    if (!isVisible(el) && attempt < 8) {
+      window.setTimeout(() => focusRequirementField(key, attempt + 1), 250);
+      return;
+    }
+  }
+
+  // If the exact control is still hidden, pulse the nearest visible ancestor.
+  let paint: HTMLElement = el;
+  while (!isVisible(paint) && paint.parentElement) paint = paint.parentElement;
+
+  if (!paint.classList.contains("pf-req-field")) paint.classList.add("pf-req-field");
+  paint.scrollIntoView({ behavior: "smooth", block: "center" });
+  paint.classList.remove("pf-req-pulse");
   // Force a reflow so re-adding the class restarts the animation.
-  void el.offsetWidth;
-  el.classList.add("pf-req-pulse");
-  window.setTimeout(() => el.classList.remove("pf-req-pulse"), 2400);
+  void paint.offsetWidth;
+  paint.classList.add("pf-req-pulse");
+  window.setTimeout(() => paint.classList.remove("pf-req-pulse"), 2400);
 
   const focusable = el.matches("input, textarea, select, button")
     ? el
     : el.querySelector<HTMLElement>("input, textarea, select, button, [tabindex]");
-  focusable?.focus({ preventScroll: true });
+  if (focusable && isVisible(focusable)) focusable.focus({ preventScroll: true });
 }
+

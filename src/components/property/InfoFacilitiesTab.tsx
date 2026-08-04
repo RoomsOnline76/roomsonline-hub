@@ -73,12 +73,13 @@ export function InfoFacilitiesTab(props: InfoFacilitiesTabProps) {
           <CardTitle className="text-sm flex items-center justify-between">
             <div className="flex items-center gap-3">
               <span>Property Info</span>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2" data-field="star_rating">
                 <Label className="text-xs text-muted-foreground">Stars</Label>
                 <div className={cn("inline-block", getPMSFieldClass("star_rating", selectedPMS), isFieldPopulatedByPMS("star_rating", selectedPMS) && "opacity-60 pointer-events-none")}>
                   <StarRating rating={starRating} onRatingChange={isFieldPopulatedByPMS("star_rating", selectedPMS) ? () => {} : setStarRating} />
                 </div>
               </div>
+
             </div>
             {selectedPMS && !isRolProperty && (
               <TooltipProvider><Tooltip><TooltipTrigger asChild>
@@ -119,8 +120,9 @@ export function InfoFacilitiesTab(props: InfoFacilitiesTabProps) {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader className="py-2 px-4"><CardTitle className="text-sm">Facilities & Amenities</CardTitle></CardHeader>
+      <Card data-field="facilities">
+        <CardHeader className="py-2 px-4"><CardTitle className="text-sm">Facilities &amp; Amenities</CardTitle></CardHeader>
+
         <CardContent className="py-2 px-4">
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {Object.entries(FACILITIES).map(([key, items]) => (

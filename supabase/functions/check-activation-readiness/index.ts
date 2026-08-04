@@ -743,8 +743,19 @@ function checkRoomsConfigured(amenities: Record<string, unknown>): QualityCheckR
 }
 
 function checkPoliciesComplete(amenities: Record<string, unknown>): QualityCheckResult {
-  const hasCheckIn = amenities.check_in_from || amenities.check_in_time;
-  const hasCheckOut = amenities.check_out_until || amenities.check_out_time;
+  // The property form writes check-in/out times into amenities.house_rules.*;
+  // older records kept them at the top level. Resolve both shapes.
+  const houseRules = (amenities.house_rules ?? {}) as Record<string, unknown>;
+  const pick = (...keys: string[]): unknown => {
+    for (const k of keys) {
+      const v = houseRules[k] ?? amenities[k];
+      if (typeof v === 'string' ? v.trim().length > 0 : v != null) return v;
+    }
+    return undefined;
+  };
+  const hasCheckIn = pick('check_in_from', 'check_in_time');
+  const hasCheckOut = pick('check_out_to', 'check_out_until', 'check_out_time', 'check_out_from');
+
   
   if (!hasCheckIn || !hasCheckOut) {
     return {

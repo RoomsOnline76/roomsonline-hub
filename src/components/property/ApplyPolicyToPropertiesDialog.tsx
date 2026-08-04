@@ -33,9 +33,13 @@ export const ApplyPolicyToPropertiesDialog: React.FC<Props> = ({ open, onOpenCha
   const [properties, setProperties] = useState<PropertyOption[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [mode, setMode] = useState<"copy" | "link">("copy");
+  /** Copies land inert unless the operator promotes them on the target property. */
+  const [setAsMaster, setSetAsMaster] = useState(true);
+  const [setAsDefault, setSetAsDefault] = useState(true);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
   const [applying, setApplying] = useState(false);
+
 
   useEffect(() => {
     if (!open) return;
@@ -73,14 +77,23 @@ export const ApplyPolicyToPropertiesDialog: React.FC<Props> = ({ open, onOpenCha
     let fail = 0;
     for (const pid of targets) {
       try {
+        if (setAsDefault) {
+          // Only one default per property.
+          await supabase
+            .from("rolos_reservation_policies")
+            .update({ is_default: false } as never)
+            .eq("property_id", pid)
+            .eq("is_default", true);
+        }
         const { error } = await supabase.from("rolos_reservation_policies").insert({
           property_id: pid,
           name: sourcePolicy.name,
           description: sourcePolicy.description,
           kind: sourcePolicy.kind,
           rule: sourcePolicy.rule as never,
-          is_default: false,
-          is_master: false,
+          is_default: setAsDefault,
+          // The DB trigger clears any previous master on the target property.
+          is_master: setAsMaster,
           scope: "property",
           source_policy_id: sourcePolicy.id,
           // "Link" keeps the copy tied to the source so edits can be pushed through.
@@ -88,12 +101,20 @@ export const ApplyPolicyToPropertiesDialog: React.FC<Props> = ({ open, onOpenCha
         } as never);
         if (error) throw error;
 
+        if (setAsMaster) {
+          await supabase
+            .from("properties")
+            .update({ cancellation_master_mode: "policy" } as never)
+            .eq("id", pid);
+        }
+
         ok++;
       } catch (e) {
         console.error("apply policy failed for", pid, e);
         fail++;
       }
     }
+
     setApplying(false);
     if (ok) toast.success(`Applied to ${ok} propert${ok === 1 ? "y" : "ies"}${fail ? ` (${fail} failed)` : ""}`);
     if (fail && !ok) toast.error(`Failed to apply to ${fail} properties`);
@@ -135,6 +156,22 @@ export const ApplyPolicyToPropertiesDialog: React.FC<Props> = ({ open, onOpenCha
               </label>
             </RadioGroup>
           </div>
+
+          <div className="space-y-1.5 rounded-md border bg-muted/20 p-2">
+            <Label className="text-xs font-medium">On each target property</Label>
+            <label className="flex items-center gap-2 text-xs cursor-pointer">
+              <Checkbox checked={setAsMaster} onCheckedChange={(c) => setSetAsMaster(!!c)} />
+              <span>Set as master policy (global fallback)</span>
+            </label>
+            <label className="flex items-center gap-2 text-xs cursor-pointer">
+              <Checkbox checked={setAsDefault} onCheckedChange={(c) => setSetAsDefault(!!c)} />
+              <span>Set as default (checkout and channel push)</span>
+            </label>
+            <p className="text-[11px] text-muted-foreground">
+              Leave both off to place the policy in each library without activating it.
+            </p>
+          </div>
+
 
           <div className="space-y-2 flex-1 overflow-hidden flex flex-col">
             <Label className="text-xs font-medium">Target properties</Label>

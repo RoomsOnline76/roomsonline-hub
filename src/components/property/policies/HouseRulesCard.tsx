@@ -141,9 +141,10 @@ export const HouseRulesCard: React.FC<HouseRulesCardProps> = ({
             </CardContent>
           </Card>
 
-          <Card>
+          <Card data-field="check_in_from">
             <CardHeader className="py-1.5 px-3">
               <CardTitle className="text-xs">Check-in</CardTitle>
+
             </CardHeader>
             <CardContent className="py-1.5 px-3 space-y-1">
               <div className="flex items-center gap-1">

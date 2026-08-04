@@ -6310,8 +6310,9 @@ export default function PropertyForm({
           </TabsContent>
 
           <TabsContent value="images">
-            <Card>
+            <Card data-field="images">
               <CardHeader className="py-2 px-4 flex-row items-center justify-between gap-2">
+
                 <CardTitle className="text-sm">Property Images</CardTitle>
                 <div className="flex items-center gap-2">
                   {(() => {
@@ -7181,8 +7182,9 @@ export default function PropertyForm({
           </TabsContent>
 
           {/* Room Information Tab */}
-          <TabsContent value="rooms" className="space-y-0">
+          <TabsContent value="rooms" className="space-y-0" data-field="rooms">
             <RoomManagerTab
+
               propertyId={propertyId}
               propertySlug={propertySlug}
               routeId={id}
