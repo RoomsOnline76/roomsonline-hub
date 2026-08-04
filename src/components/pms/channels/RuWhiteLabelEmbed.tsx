@@ -129,9 +129,13 @@ export function RuWhiteLabelEmbed({ propertyId }: { propertyId: string | null | 
       title = "This property isn't linked to a Rentals United account yet.";
       body = "Once the account link is in place the Channel Manager appears here automatically.";
     } else if (reason === "awaiting_wl_token" || subUserVerified) {
-      title = "Your Rentals United account is connected.";
-      body =
-        "The Channel Manager sign-in is being finalised — this is not a setup problem on your side. Nothing further is needed from you.";
+      title = "Your ROL'OS account is connected.";
+      body = (
+        <>
+          <p>The Channel Manager sign-in is being finalised — this is not a setup problem on your side. Nothing further is needed from you.</p>
+          <p>Your ROL'OS connection is fine — the Channel Manager sign-in still needs to be finalised by TOBI.</p>
+        </>
+      );
     } else if (reason === "login_failed" || reason === "request_failed") {
       title = "Channel Manager sign-in did not complete.";
       body = "We could not establish a Channel Manager session just now. Please retry in a moment.";
