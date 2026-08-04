@@ -425,9 +425,10 @@ const RU_ENDPOINT_REGISTRY: {
 
   // ── ari ──
   { key: "push_availability", area: "ari", label: "Push availability", ru_method: "Push_PutAvbUnits_RQ", direction: "push", mandatory: true, implemented: true,
-    rolos_surface: "Calendar / ARI refresh cron (6h)", rolos_stream: "Onboarding P4 — live ARI", rolos_wired: true, sync_actions: ["refresh_ari", "push_availability"], max_age_hours: 24, note: "Excludes confirmed RU reservation dates" },
+    rolos_surface: "Calendar / ARI refresh cron (6h)", rolos_stream: "Onboarding P4 — live ARI", rolos_wired: true, sync_actions: ["refresh_ari", "push_availability", "inventory_push"], max_age_hours: 24, note: "Excludes confirmed RU reservation dates" },
   { key: "push_prices", area: "ari", label: "Push prices", ru_method: "Push_PutPrices_RQ", direction: "push", mandatory: true, implemented: true,
-    rolos_surface: "Rate manager / ARI refresh cron", rolos_stream: "Onboarding P4 — live ARI", rolos_wired: true, sync_actions: ["refresh_ari", "push_prices"], max_age_hours: 24, note: "Seasonal calendar first, rack-rate fallback" },
+    rolos_surface: "Rate manager / ARI refresh cron", rolos_stream: "Onboarding P4 — live ARI", rolos_wired: true, sync_actions: ["refresh_ari", "push_prices", "inventory_push"], max_age_hours: 24, note: "Seasonal calendar first, rack-rate fallback" },
+
   { rolos_via_cert: true, key: "get_availability", area: "ari", label: "Get availability (365d)", ru_method: "Pull_ListPropertyAvailabilityCalendar_RQ", direction: "pull", mandatory: true, implemented: true,
     rolos_surface: "RU console → ARI read-back", rolos_stream: "Onboarding P4 — ARI verification", rolos_wired: true, sync_actions: ["verify_availability"], note: "CalDay/Units parsing" },
   { rolos_via_cert: true, key: "get_prices", area: "ari", label: "Get prices (365d)", ru_method: "Pull_ListPropertyPrices_RQ", direction: "pull", mandatory: true, implemented: true,
