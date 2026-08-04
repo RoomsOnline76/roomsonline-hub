@@ -2080,14 +2080,20 @@ Deno.serve(async (req) => {
 
 
     // ── list_reservations ──
+    // Statuses default to Confirmed + Cancelled + Request + Approved so pending requests
+    // shown in the RU multicalendar are actually returned. Callers may override.
     if (action === 'list_reservations') {
       if (!date_from || !date_to) return errorResponse('MISSING_PARAM', 'date_from and date_to are required');
-      const xml = buildListReservationsXml(scopedCreds, date_from, date_to);
+      const requestedStatuses = Array.isArray(body.statuses)
+        ? (body.statuses as unknown[]).map((s) => Number(s)).filter((s) => Number.isFinite(s) && s > 0)
+        : RU_DEFAULT_RESERVATION_STATUSES;
+      const xml = buildListReservationsXml(scopedCreds, date_from, date_to, requestedStatuses);
       const response = await callRentalsUnited(scopedCreds, xml);
       const { ok, status } = handleRUStatus(response);
       if (!ok) return ruErrorResponse(status);
-      return jsonResponse({ success: true, auth_mode: authMode, raw_xml: response });
+      return jsonResponse({ success: true, auth_mode: authMode, statuses: requestedStatuses, raw_xml: response });
     }
+
 
     // ── get_leads (optional) ──
     if (action === 'get_leads') {
