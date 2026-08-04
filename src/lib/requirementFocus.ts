@@ -95,6 +95,9 @@ export function decorateRequirements(statuses: RequirementStatus[], root: Parent
   const seen = new Set<HTMLElement>();
 
   for (const status of statuses) {
+    // Remember the selectors so "Show me" can find the field even when it is
+    // not decorated yet (tab still painting, or block collapsed).
+    targetIndex.set(status.key, status.target);
     const found = resolveRequirementElement(status.target, root);
     if (!found) continue;
     const el = markTarget(found);
@@ -123,10 +126,18 @@ export function decorateRequirements(statuses: RequirementStatus[], root: Parent
 
 /**
  * Scroll a requirement field into view and pulse its border so it is
- * impossible to miss. Retries briefly while the tab paints.
+ * impossible to miss. Retries briefly while the tab paints, then falls back to
+ * the registry selectors (and finally to any visible ancestor) so "Show me"
+ * always lands somewhere useful.
  */
 export function focusRequirementField(key: string, attempt = 0): void {
-  const el = document.querySelector<HTMLElement>(`[${REQ_ATTR}="${key}"]`);
+  let el = document.querySelector<HTMLElement>(`[${REQ_ATTR}="${key}"]`);
+
+  if (!el) {
+    const targets = targetIndex.get(key);
+    if (targets) el = resolveRequirementElement(targets);
+  }
+
   if (!el) {
     if (attempt < 12) {
       window.setTimeout(() => focusRequirementField(key, attempt + 1), 250);
@@ -134,15 +145,29 @@ export function focusRequirementField(key: string, attempt = 0): void {
     return;
   }
 
-  el.scrollIntoView({ behavior: "smooth", block: "center" });
-  el.classList.remove("pf-req-pulse");
+  if (!isVisible(el)) {
+    revealAncestors(el);
+    if (!isVisible(el) && attempt < 8) {
+      window.setTimeout(() => focusRequirementField(key, attempt + 1), 250);
+      return;
+    }
+  }
+
+  // If the exact control is still hidden, pulse the nearest visible ancestor.
+  let paint: HTMLElement = el;
+  while (!isVisible(paint) && paint.parentElement) paint = paint.parentElement;
+
+  if (!paint.classList.contains("pf-req-field")) paint.classList.add("pf-req-field");
+  paint.scrollIntoView({ behavior: "smooth", block: "center" });
+  paint.classList.remove("pf-req-pulse");
   // Force a reflow so re-adding the class restarts the animation.
-  void el.offsetWidth;
-  el.classList.add("pf-req-pulse");
-  window.setTimeout(() => el.classList.remove("pf-req-pulse"), 2400);
+  void paint.offsetWidth;
+  paint.classList.add("pf-req-pulse");
+  window.setTimeout(() => paint.classList.remove("pf-req-pulse"), 2400);
 
   const focusable = el.matches("input, textarea, select, button")
     ? el
     : el.querySelector<HTMLElement>("input, textarea, select, button, [tabindex]");
-  focusable?.focus({ preventScroll: true });
+  if (focusable && isVisible(focusable)) focusable.focus({ preventScroll: true });
 }
+
