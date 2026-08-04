@@ -4085,6 +4085,16 @@ export default function PropertyForm({
                     </>
                   )}
 
+                  {["roomsonline", "rolos", "rol_os", "rolos_pms"].includes(
+                    (selectedPMS ?? "").trim().toLowerCase(),
+                  ) &&
+                    propertyId && (
+                      <div className="mb-3">
+                        <RolosReadinessScoreBadge propertyId={propertyId} />
+                      </div>
+                    )}
+
+
                   {/* WETU Pin ID — always visible regardless of PMS */}
                   <div className="flex items-center gap-2 mt-1 mb-3 flex-wrap">
                     <Label htmlFor="wetu_id" className="text-xs whitespace-nowrap">
