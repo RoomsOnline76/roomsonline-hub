@@ -1,17 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import {
-  countOutstandingBySection,
-  evaluateRequirements,
-  type RequirementStatus,
-  type RequirementSubject,
-  type SectionRequirementCounts,
-} from "@/config/propertyFieldRequirements";
+import { useEffect, useMemo, useRef } from "react";
+import type { RequirementStatus, SectionRequirementCounts } from "@/config/propertyFieldRequirements";
 import {
   clearRequirementDecoration,
   decorateRequirements,
 } from "@/lib/requirementFocus";
+import { usePropertyReadiness } from "@/hooks/usePropertyReadiness";
 
 interface UsePropertyFieldRequirementsOptions {
   propertyId?: string | null;
@@ -24,9 +17,12 @@ interface UsePropertyFieldRequirementsOptions {
 }
 
 /**
- * Fetches the property row, evaluates the field-level readiness registry, and
- * paints pink (mandatory) / blue (recommended) borders on the matching controls
- * of the active section. Outstanding fields stay bold; satisfied fields mute.
+ * Thin view over the unified readiness model (`usePropertyReadiness`): filters to
+ * the paintable field requirements and paints pink (mandatory) / blue
+ * (recommended) borders on the controls of the active section.
+ *
+ * Counts returned here are the SAME totals the readiness score badge and the
+ * checksheet render, so the score and the highlighting can never disagree.
  */
 export function usePropertyFieldRequirements({
   propertyId,
@@ -34,31 +30,14 @@ export function usePropertyFieldRequirements({
   containerRef,
   paint = true,
 }: UsePropertyFieldRequirementsOptions) {
-  const { data: subject, refetch } = useQuery({
-    queryKey: ["property-field-requirements", propertyId],
-    queryFn: async (): Promise<RequirementSubject | null> => {
-      if (!propertyId) return null;
-      const [{ data, error }, { data: policyRows }] = await Promise.all([
-        supabase.from("properties").select("*").eq("id", propertyId).maybeSingle(),
-        // Master policy truth lives in the policy library, not in amenities.
-        supabase
-          .from("rolos_reservation_policies")
-          .select("id, is_master, is_default")
-          .eq("property_id", propertyId),
-      ]);
-      if (error) throw error;
-      if (!data) return null;
-      return { ...(data as Record<string, unknown>), policy_rows: policyRows ?? [] } as RequirementSubject;
-    },
-    enabled: !!propertyId,
-    staleTime: 15_000,
-    refetchOnWindowFocus: false,
-  });
-
+  const readiness = usePropertyReadiness(propertyId);
 
   const statuses: RequirementStatus[] = useMemo(
-    () => (subject ? evaluateRequirements(subject) : []),
-    [subject],
+    () =>
+      readiness.items
+        .filter((i) => i.paintable && i.requirement)
+        .map((i) => i.requirement as RequirementStatus),
+    [readiness.items],
   );
 
   const sectionStatuses = useMemo(
@@ -66,26 +45,10 @@ export function usePropertyFieldRequirements({
     [section, statuses],
   );
 
-  const outstandingBySection: Record<string, SectionRequirementCounts> = useMemo(
-    () => countOutstandingBySection(statuses),
-    [statuses],
-  );
-
   const outstandingInSection = useMemo(
     () => sectionStatuses.filter((s) => !s.satisfied),
     [sectionStatuses],
   );
-
-  const totals = useMemo(() => {
-    const mandatory = statuses.filter((s) => s.tier === "mandatory");
-    const recommended = statuses.filter((s) => s.tier === "recommended");
-    return {
-      mandatoryTotal: mandatory.length,
-      mandatoryOutstanding: mandatory.filter((s) => !s.satisfied).length,
-      recommendedTotal: recommended.length,
-      recommendedOutstanding: recommended.filter((s) => !s.satisfied).length,
-    };
-  }, [statuses]);
 
   // Paint + keep painting as the tab body renders lazily.
   const timers = useRef<number[]>([]);
@@ -115,18 +78,20 @@ export function usePropertyFieldRequirements({
     };
   }, [containerRef, paint, sectionStatuses]);
 
-  const refresh = useCallback(() => {
-    void refetch();
-  }, [refetch]);
+  const outstandingBySection: Record<string, SectionRequirementCounts> =
+    readiness.outstandingBySection;
 
   return {
-    subject,
+    subject: readiness.subject,
     statuses,
     sectionStatuses,
     outstandingInSection,
     outstandingBySection,
-    refresh,
-    ...totals,
+    refresh: readiness.refresh,
+    mandatoryTotal: readiness.mandatoryTotal,
+    mandatoryOutstanding: readiness.mandatoryOutstanding,
+    recommendedTotal: readiness.recommendedTotal,
+    recommendedOutstanding: readiness.recommendedOutstanding,
   };
 }
 
