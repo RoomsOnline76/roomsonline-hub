@@ -285,14 +285,19 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
         }),
       );
 
+      // The resolver writes the links server-side — re-read them so the badges match the DB.
+      await reloadStoredRuIds();
+
       const unmatched: string[] = data.unmatched ?? [];
+      const acct = data.ru_owner_label ?? (data.ru_owner_id ? `OwnerID ${data.ru_owner_id}` : "sub-account");
       if (matched.length === 0) {
-        toast.warning(`No matching listings found on the Rentals United account (${data.remote_count ?? 0} listings scanned)`);
+        toast.warning(`No matching listings on ${acct} (${data.remote_count ?? 0} listing(s) scanned)`);
       } else {
         toast.success(
-          `Captured ${matched.length} Rentals United ID${matched.length === 1 ? "" : "s"}${unmatched.length ? ` — ${unmatched.length} still unmatched` : ""}`,
+          `Linked ${matched.length} Rentals United ID${matched.length === 1 ? "" : "s"} from ${acct}${unmatched.length ? ` — ${unmatched.length} still unmatched` : ""}`,
         );
       }
+
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to capture the Rentals United ID");
     } finally {
