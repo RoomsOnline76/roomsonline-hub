@@ -479,7 +479,30 @@ function buildGetLeadsXml(creds: RUCredentials, dateFrom: string, dateTo: string
 </Pull_GetLeads_RQ>`;
 }
 
+/**
+ * Decline / withdraw an unconfirmed RU request. `Push_RejectRequest_RQ` is RU's preferred
+ * method; `Push_CancelReservation_RQ` remains for backwards compatibility with older
+ * integrations where reject is not enabled.
+ */
+function buildRejectRequestXml(creds: RUCredentials, reservationId: string, reason: string): string {
+  return `<?xml version="1.0" encoding="utf-8"?>
+<Push_RejectRequest_RQ>
+  ${buildAuthXml(creds)}
+  <ReservationID>${escapeXml(reservationId)}</ReservationID>${reason ? `
+  <Comments>${escapeXml(reason)}</Comments>` : ''}
+</Push_RejectRequest_RQ>`;
+}
+
+function buildCancelReservationXml(creds: RUCredentials, reservationId: string): string {
+  return `<?xml version="1.0" encoding="utf-8"?>
+<Push_CancelReservation_RQ>
+  ${buildAuthXml(creds)}
+  <ReservationID>${escapeXml(reservationId)}</ReservationID>
+</Push_CancelReservation_RQ>`;
+}
+
 // ── Push XML Builders ────────────────────────────────────────
+
 
 function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RUPropertyPayload): string {
   const buildOptionalNode = (tag: string, value?: string | null) => {
