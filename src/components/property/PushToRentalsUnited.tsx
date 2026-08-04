@@ -530,13 +530,23 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
                 {ruOwnerLabel ?? `OwnerID ${ruOwnerAccount?.ru_owner_id}`}
               </Badge>
             )}
+            {identityGate.gated && (
+              <Badge variant="outline" className="text-[10px] h-5 gap-1 border-amber-500/60 text-amber-600">
+                <AlertTriangle className="h-3 w-3" />
+                Sub-account keys required
+              </Badge>
+            )}
             <Button
               variant="outline"
               size="sm"
               className="h-7 text-xs gap-1"
               onClick={resolveRuIds}
-              disabled={resolvingIds || loading || dryRunning}
-              title="Read the Rentals United listing IDs for this property's sub-user account and store them here"
+              disabled={resolvingIds || loading || dryRunning || identityGate.gated}
+              title={
+                identityGate.gated
+                  ? identityGate.reason ?? "Link the RU sub-account and capture its API keys on the Identity tab first"
+                  : "Read the Rentals United listing IDs for this property's sub-user account and store them here"
+              }
             >
               {resolvingIds ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
               {resolvingIds ? "Fetching..." : "Fetch RU IDs"}
@@ -549,12 +559,33 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
               size="sm"
               className="h-7 text-xs gap-1"
               onClick={pushToRU}
-              disabled={loading || dryRunning || readiness?.blocked === true || (validation !== null && !isReady)}
-              title={readiness?.blocked ? "Complete the RU readiness checklist below before syncing" : undefined}
+              disabled={
+                loading ||
+                dryRunning ||
+                identityGate.gated ||
+                readiness?.blocked === true ||
+                (validation !== null && !isReady)
+              }
+              title={
+                identityGate.gated
+                  ? identityGate.reason ?? "Link the RU sub-account and capture its API keys on the Identity tab first"
+                  : readiness?.blocked
+                    ? "Complete the RU readiness checklist below before syncing"
+                    : undefined
+              }
             >
               {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
-              {loading ? "Pushing..." : readiness?.blocked ? "Sync blocked" : isMultiUnit ? "Push Building + Units" : "Push to RU"}
+              {loading
+                ? "Pushing..."
+                : identityGate.gated
+                  ? "Keys required"
+                  : readiness?.blocked
+                    ? "Sync blocked"
+                    : isMultiUnit
+                      ? "Push Building + Units"
+                      : "Push to RU"}
             </Button>
+
           </div>
         </div>
       </CardHeader>
