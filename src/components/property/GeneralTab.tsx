@@ -581,8 +581,9 @@ export function GeneralTab(props: GeneralTabProps) {
                     <SelectContent>{["ZAR","USD","EUR","GBP","BWP","MZN","NAD","KES","TZS","MUR","SCR"].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
-                <div className="flex flex-col gap-1">
-                  <Label htmlFor="owner_email" className="text-xs">Owner</Label>
+                 <div className="flex flex-col gap-1" data-field="owner_email">
+                   <Label htmlFor="owner_email" className="text-xs">Owner</Label>
+
                   <Popover open={ownerSearchOpen} onOpenChange={setOwnerSearchOpen}>
                     <PopoverTrigger asChild>
                       <Button variant="outline" role="combobox" aria-expanded={ownerSearchOpen} className="h-7 text-xs justify-between w-full font-normal">
@@ -750,8 +751,9 @@ export function GeneralTab(props: GeneralTabProps) {
                   </div>
                 </div>
               )}
-              <div className={cn("grid gap-3 mt-3", noStreetAddress ? "grid-cols-1" : "grid-cols-2 md:grid-cols-4")}>
+              <div className={cn("grid gap-3 mt-3", noStreetAddress ? "grid-cols-1" : "grid-cols-2 md:grid-cols-4")} data-field="geo">
                 <div className="flex flex-col gap-1">
+
                   <Label htmlFor="latitude_input" className="text-xs flex items-center gap-1"><MapPin className="h-3 w-3 text-primary" />Latitude</Label>
                   <Input id="latitude_input" type="number" step="any" value={latitude ?? ""} onChange={(e) => { setLatitude(e.target.value ? parseFloat(e.target.value) : null); setIsDirty(true); }} placeholder="-34.0522" className="h-7 text-xs font-mono" />
                 </div>
@@ -855,8 +857,9 @@ export function GeneralTab(props: GeneralTabProps) {
                 { id: "bank_name", label: "Bank" },
                 { id: "branch_code", label: "Branch" },
               ].map(f => (
-                <div key={f.id} className="flex flex-col gap-1"><Label htmlFor={f.id} className="text-xs">{f.label}</Label><Input id={f.id} value={(formData as any)[f.id]} onChange={(e) => handleInputChange(f.id, e.target.value)} placeholder={f.label} className="h-7 text-xs" /></div>
+                <div key={f.id} className="flex flex-col gap-1" data-field={f.id === "property_registration" ? "property_registration" : f.id === "bank_name" ? "banking" : undefined}><Label htmlFor={f.id} className="text-xs">{f.label}</Label><Input id={f.id} value={(formData as any)[f.id]} onChange={(e) => handleInputChange(f.id, e.target.value)} placeholder={f.label} className="h-7 text-xs" /></div>
               ))}
+
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               {[
