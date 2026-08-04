@@ -77,6 +77,7 @@ const AdminPreFlight = lazy(() => import("./pages/AdminPreFlight"));
 const AdminReviewQueue = lazy(() => import("./pages/AdminReviewQueue"));
 const AdminPortfolios = lazy(() => import("./pages/admin/AdminPortfolios"));
 const AdminBillingDefaults = lazy(() => import("./pages/AdminBillingDefaults"));
+const AdminTobiTools = lazy(() => import("./pages/AdminTobiTools"));
 const AdminSalesReps = lazy(() => import("./pages/AdminSalesReps"));
 const AdminCommissionReports = lazy(() => import("./pages/AdminCommissionReports"));
 const AdminIntegrations = lazy(() => import("./pages/AdminIntegrations"));
