@@ -35,6 +35,8 @@ import {
   diffRuDiscountEcho,
   type RuDiscountLadder,
 } from "../_shared/ruDiscounts.ts";
+import { parseRuReservation } from "../_shared/ruReservationParsing.ts";
+import { ingestRuReservation, resolveRuChannelCreator } from "../_shared/ruReservationIngest.ts";
 
 
 
