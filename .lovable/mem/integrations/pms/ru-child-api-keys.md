@@ -33,3 +33,11 @@ Key management actions:
 The FIRST pair cannot be minted via API for a fresh sub-user — the admin generates it in the RU
 dashboard (Security settings, https://new.rentalsunited.com/My/SecuritySettings) while signed in as
 the sub-user, and captures it in Portfolios → RU accounts.
+
+Per-property surface (ROL'OS PMS only): `src/components/property/PropertyRuOwnerPanel.tsx` on the
+Identity tab of edit/setup property. It calls `ru-cert-portal` action `property_ru_identity`, which
+returns the linked OwnerID, key state (last 4 + label + verified_at), portfolio siblings sharing the
+identity, sub-account creation readiness checks, and `push_gated`/`gate_reason`. Creation reuses
+`ensure_owner_account`. All ROL'OS sub-accounts are created with the shared operator password
+`SLPafrica247*` (constant `RU_SUB_USER_PASSWORD`) so an admin can sign in as the sub-user to mint the
+first key pair. `PushToRentalsUnited` disables Fetch IDs / Push while `push_gated` is true.
