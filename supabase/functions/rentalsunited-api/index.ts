@@ -1776,6 +1776,10 @@ Deno.serve(async (req) => {
             push_availability: true,
             push_prices: true,
             subscribe_notifications: true,
+            put_lnm_subscriptions: true,
+            list_lnm_subscriptions: true,
+            list_lnm_change_types: true,
+
             push_long_stay_discounts: true,
             push_last_minute_discounts: true,
             create_user: true,
