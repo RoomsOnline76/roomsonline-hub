@@ -207,6 +207,130 @@ Deno.serve(async (req) => {
     }
   }
 
+  /** First matching block for a tag (RU nests StayInfo / CustomerInfo). */
+  function extractBlock(xml: string, tag: string): string {
+    const m = xml.match(new RegExp(`<${tag}[^>]*>[\\s\\S]*?</${tag}>`, 'i'));
+    return m ? m[0] : '';
+  }
+
+  /**
+   * Resolve an RU PropertyID to the property + the room type the ROLOS dashboard renders.
+   * The RU mapping lives on `hostfully_room_types`, but ROL'OS-native properties draw their
+   * calendar rows from `rolos_room_types`; without this name-based hop the imported booking
+   * never matches a displayed unit.
+   */
+  async function resolveUnit(ruPropertyId: string | null): Promise<{
+    propertyId: string | null;
+    roomTypeId: string | null;
+    mappingRoomTypeId: string | null;
+    unitName: string | null;
+  }> {
+    if (!ruPropertyId) return { propertyId: null, roomTypeId: null, mappingRoomTypeId: null, unitName: null };
+
+    const { data: mapping } = await supabase
+      .from('hostfully_room_types')
+      .select('id, name, property_id')
+      .eq('rentalsunited_property_id', ruPropertyId)
+      .order('is_active', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (mapping?.property_id) {
+      let canonicalId: string | null = null;
+      if (mapping.name) {
+        const { data: canonical } = await supabase
+          .from('rolos_room_types')
+          .select('id, name')
+          .eq('property_id', mapping.property_id);
+        canonicalId = (canonical || []).find(
+          (rt) => (rt.name || '').trim().toLowerCase() === (mapping.name || '').trim().toLowerCase(),
+        )?.id ?? null;
+      }
+      return {
+        propertyId: mapping.property_id,
+        roomTypeId: canonicalId || mapping.id,
+        mappingRoomTypeId: mapping.id,
+        unitName: mapping.name ?? null,
+      };
+    }
+
+    const { data: prop } = await supabase
+      .from('properties')
+      .select('id')
+      .eq('rentalsunited_property_id', ruPropertyId)
+      .limit(1)
+      .maybeSingle();
+    return { propertyId: prop?.id ?? null, roomTypeId: null, mappingRoomTypeId: null, unitName: null };
+  }
+
+  /** Parse one RU <Reservation> block into the ROL'OS booking shape. */
+  function parseReservation(block: string) {
+    const stay = extractBlock(block, 'StayInfo') || block;
+    const customer = extractBlock(block, 'CustomerInfo') || block;
+    const costs = extractBlock(stay, 'Costs');
+
+    const firstName = extractTag(customer, 'Name') || extractTag(customer, 'FirstName') || '';
+    const lastName = extractTag(customer, 'SurName') || extractTag(customer, 'LastName') || '';
+    const guestName = `${firstName} ${lastName}`.trim();
+
+    const nightly = [...stay.matchAll(/<DayPrices\s+Date="([^"]+)"[^>]*>([\s\S]*?)<\/DayPrices>/gi)].map((m) => ({
+      date: m[1],
+      price: parseFloat(extractTag(m[2], 'Price') || extractTag(m[2], 'Rent') || '0'),
+    }));
+
+    const total = parseFloat(extractTag(costs, 'ClientPrice') || extractTag(costs, 'RUPrice') || extractTag(block, 'RUPrice') || '0');
+    const alreadyPaid = parseFloat(extractTag(costs, 'AlreadyPaid') || '0');
+
+    return {
+      ruReservationId: extractTag(block, 'ReservationID'),
+      statusId: extractTag(block, 'StatusID') || extractTag(block, 'Status'),
+      ruPropertyId: extractTag(stay, 'PropertyID') || extractTag(block, 'PropID') || extractTag(block, 'PropertyID'),
+      dateFrom: extractTag(stay, 'DateFrom'),
+      dateTo: extractTag(stay, 'DateTo'),
+      arrivalTime: extractTag(stay, 'ArrivalTime'),
+      numGuests: parseInt(extractTag(stay, 'NumberOfGuests') || '1', 10),
+      units: parseInt(extractTag(stay, 'Units') || '1', 10),
+      guestName: guestName || 'RU Guest',
+      guestEmail: extractTag(customer, 'Email') || 'ru-poll@rentalsunited.com',
+      guestPhone: extractTag(customer, 'MobilePhone') || extractTag(customer, 'Phone') || null,
+      countryId: extractTag(customer, 'CountryID') || null,
+      address: extractTag(customer, 'Address') || null,
+      zipCode: extractTag(customer, 'ZipCode') || null,
+      comments: extractTag(stay, 'Comments') || extractTag(block, 'Comments') || null,
+      resapaId: extractTag(stay, 'ResapaID') || null,
+      creator: extractTag(block, 'Creator') || null,
+      createdDate: extractTag(block, 'CreatedDate') || extractTag(block, 'LastMod') || null,
+      total,
+      alreadyPaid,
+      nightly,
+    };
+  }
+
+  type ParsedReservation = ReturnType<typeof parseReservation>;
+
+  /** Channel metadata kept in `modification_notes` (no dedicated columns exist). */
+  function buildChannelNotes(r: ParsedReservation, extra: Record<string, unknown> = {}) {
+    return {
+      channel: 'rentals_united',
+      ru_reservation_id: r.ruReservationId,
+      ru_property_id: r.ruPropertyId,
+      ru_status_id: r.statusId,
+      resapa_id: r.resapaId,
+      creator: r.creator,
+      created_date: r.createdDate,
+      arrival_time: r.arrivalTime,
+      units: r.units,
+      country_id: r.countryId,
+      address: r.address,
+      zip_code: r.zipCode,
+      guest_comments: r.comments,
+      amount_already_paid: r.alreadyPaid,
+      nightly_prices: r.nightly,
+      synced_at: new Date().toISOString(),
+      ...extra,
+    };
+  }
+
   /** Parse + upsert every <Reservation> block returned for one RU account. */
   async function processReservations(rawXml: string, scope: RuOwnerScope) {
     // Extract all <Reservation> blocks
@@ -217,18 +341,8 @@ Deno.serve(async (req) => {
 
     for (const block of reservationBlocks) {
       try {
-        const ruReservationId = extractTag(block, 'ReservationID');
-        const statusId = extractTag(block, 'StatusID') || extractTag(block, 'Status');
-        const ruPropertyId = extractTag(block, 'PropID') || extractTag(block, 'PropertyID');
-        const dateFromRes = extractTag(block, 'DateFrom');
-        const dateToRes = extractTag(block, 'DateTo');
-        const guestFirstName = extractTag(block, 'FirstName') || extractTag(block, 'GuestName') || '';
-        const guestLastName = extractTag(block, 'LastName') || extractTag(block, 'GuestSurname') || '';
-        const guestName = `${guestFirstName} ${guestLastName}`.trim() || 'RU Guest';
-        const guestEmail = extractTag(block, 'Email') || 'ru-poll@rentalsunited.com';
-        const guestPhone = extractTag(block, 'Phone') || null;
-        const numGuests = parseInt(extractTag(block, 'NumberOfGuests') || '1', 10);
-        const ruPrice = parseFloat(extractTag(block, 'RUPrice') || '0');
+        const r = parseReservation(block);
+        const ruReservationId = r.ruReservationId;
 
         if (!ruReservationId) {
           console.warn('[cron-pull-ru] Skipping reservation without ID');
@@ -236,49 +350,25 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        // Determine status: 1=confirmed, 2=modified, 4=cancelled
-        const isCancelled = statusId === '4';
-        const isConfirmed = statusId === '1' || statusId === '2';
+        // RU status: 1 = confirmed, 2 = modified, 4 = cancelled.
+        // Anything else is an unconfirmed request — it must still block the dates as a hold.
+        const isCancelled = r.statusId === '4';
+        const isConfirmed = r.statusId === '1' || r.statusId === '2';
+        const isRequest = !isCancelled && !isConfirmed;
 
-        if (!isConfirmed && !isCancelled) {
-          console.log(`[cron-pull-ru] Skipping reservation ${ruReservationId} with status ${statusId}`);
-          summary.skipped++;
-          continue;
-        }
-
-        // Resolve RU property ID to internal property/room type
-        let propertyId: string | null = null;
-        let roomTypeId: string | null = null;
-        if (ruPropertyId) {
-          const { data: roomType } = await supabase
-            .from('hostfully_room_types')
-            .select('property_id, id')
-            .eq('rentalsunited_property_id', ruPropertyId)
-            .limit(1)
-            .maybeSingle();
-
-          if (roomType?.property_id) {
-            propertyId = roomType.property_id;
-            roomTypeId = roomType.id;
-          } else {
-            const { data: prop } = await supabase
-              .from('properties')
-              .select('id')
-              .eq('rentalsunited_property_id', ruPropertyId)
-              .limit(1)
-              .maybeSingle();
-            if (prop?.id) propertyId = prop.id;
-          }
-        }
+        // Resolve RU property ID to internal property / displayed unit
+        const unit = await resolveUnit(r.ruPropertyId);
+        const propertyId = unit.propertyId;
+        const roomTypeId = unit.roomTypeId;
 
         if (!propertyId) {
-          console.warn(`[cron-pull-ru] No matching property for RU PropID ${ruPropertyId}, reservation ${ruReservationId}`);
+          console.warn(`[cron-pull-ru] No matching property for RU PropID ${r.ruPropertyId}, reservation ${ruReservationId}`);
           summary.unmatched++;
           // Still log to ru_notifications
           await supabase.from('ru_notifications').insert({
-            event_type: `poll_${isCancelled ? 'reservation_cancelled' : 'reservation_confirmed'}`,
+            event_type: `poll_${isCancelled ? 'reservation_cancelled' : isRequest ? 'reservation_request' : 'reservation_confirmed'}`,
             ru_reservation_id: ruReservationId,
-            ru_property_id: ruPropertyId,
+            ru_property_id: r.ruPropertyId,
             property_id: null,
             raw_xml: block,
             processed: false,
@@ -286,14 +376,27 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        // Check if booking already exists
+        // Check if booking already exists (a request that later confirms keeps the same RU id)
         const { data: existing } = await supabase
           .from('bookings')
-          .select('id, status')
+          .select('id, status, integration_type')
           .eq('external_reservation_id', ruReservationId)
-          .eq('integration_type', 'rentalsunited')
+          .in('integration_type', ['rentalsunited', 'rentalsunited_lead'])
           .limit(1)
           .maybeSingle();
+
+        const guestFields: Record<string, unknown> = {
+          guest_name: r.guestName,
+          guest_email: r.guestEmail,
+          guest_phone: r.guestPhone,
+          adults: r.numGuests || 1,
+          total_price: r.total || 0,
+          modification_notes: buildChannelNotes(r),
+        };
+        if (r.comments) guestFields.special_requests = r.comments;
+        if (roomTypeId) guestFields.room_type_id = roomTypeId;
+        if (r.dateFrom) guestFields.check_in_date = r.dateFrom;
+        if (r.dateTo) guestFields.check_out_date = r.dateTo;
 
         if (isCancelled) {
           if (existing && existing.status !== 'cancelled') {
@@ -302,60 +405,89 @@ Deno.serve(async (req) => {
               .update({ status: 'cancelled', cancellation_reason: 'Cancelled via Rentals United (poll sync)' })
               .eq('id', existing.id);
             summary.cancelled++;
-            if (dateFromRes && dateToRes) {
-              await applyAvailabilityBlock(propertyId, roomTypeId, dateFromRes, dateToRes, false);
+            if (r.dateFrom && r.dateTo) {
+              await applyAvailabilityBlock(propertyId, unit.mappingRoomTypeId, r.dateFrom, r.dateTo, false);
             }
             console.log(`[cron-pull-ru] ✅ Cancelled booking for RU reservation ${ruReservationId}`);
           } else {
             summary.skipped++;
           }
+        } else if (isRequest) {
+          // Unconfirmed request → provisional booking holding the dates for LEAD_HOLD_DAYS.
+          const leadCreatedAt = r.createdDate ? new Date(r.createdDate.replace(' ', 'T') + 'Z') : new Date();
+          const holdExpiresAt = new Date(leadCreatedAt.getTime() + LEAD_HOLD_DAYS * 86_400_000);
+
+          if (!r.dateFrom || !r.dateTo) {
+            summary.skipped++;
+            continue;
+          }
+
+          if (existing) {
+            await supabase.from('bookings').update(guestFields).eq('id', existing.id);
+            summary.updated++;
+          } else {
+            const { error: reqErr } = await supabase.from('bookings').insert({
+              ...guestFields,
+              property_id: propertyId,
+              status: 'pending',
+              booking_channel: 'rentals_united',
+              integration_type: 'rentalsunited_lead',
+              external_reservation_id: ruReservationId,
+              payment_status: 'pending',
+              lead_created_at: leadCreatedAt.toISOString(),
+              hold_expires_at: holdExpiresAt.toISOString(),
+              special_requests:
+                `Rentals United request — dates held until ${holdExpiresAt.toISOString().slice(0, 10)}` +
+                (r.comments ? ` · ${r.comments}` : ''),
+            });
+            if (reqErr) {
+              console.error(`[cron-pull-ru] Request booking insert failed for ${ruReservationId}: ${reqErr.message}`);
+              summary.failed++;
+            } else {
+              summary.leads_held++;
+              if (holdExpiresAt.getTime() > Date.now()) {
+                await applyAvailabilityBlock(propertyId, unit.mappingRoomTypeId, r.dateFrom, r.dateTo, true);
+              }
+              console.log(`[cron-pull-ru] ✅ Held RU request ${ruReservationId} until ${holdExpiresAt.toISOString()}`);
+            }
+          }
         } else if (isConfirmed) {
           if (existing) {
-            // Update existing booking with latest data
-            const updateData: Record<string, unknown> = {};
-            if (dateFromRes) updateData.check_in_date = dateFromRes;
-            if (dateToRes) updateData.check_out_date = dateToRes;
-            if (guestName !== 'RU Guest') updateData.guest_name = guestName;
-            if (guestEmail !== 'ru-poll@rentalsunited.com') updateData.guest_email = guestEmail;
-            if (guestPhone) updateData.guest_phone = guestPhone;
-            if (numGuests > 0) updateData.adults = numGuests;
-            if (ruPrice > 0) updateData.total_price = ruPrice;
-            if (existing.status === 'cancelled') updateData.status = 'confirmed';
-
-            if (Object.keys(updateData).length > 0) {
-              await supabase.from('bookings').update(updateData).eq('id', existing.id);
-              summary.updated++;
-              if (dateFromRes && dateToRes) {
-                await applyAvailabilityBlock(propertyId, roomTypeId, dateFromRes, dateToRes, true);
-              }
-              console.log(`[cron-pull-ru] ✅ Updated booking for RU reservation ${ruReservationId}`);
-            } else {
-              summary.skipped++;
+            const updateData: Record<string, unknown> = { ...guestFields };
+            // A request that has now been confirmed graduates to a real booking.
+            updateData.status = 'confirmed';
+            updateData.integration_type = 'rentalsunited';
+            updateData.hold_expires_at = null;
+            updateData.hold_released_at = null;
+            if (r.alreadyPaid > 0) {
+              updateData.payment_status = 'paid_externally';
+              updateData.paid_at = new Date().toISOString();
             }
+
+            await supabase.from('bookings').update(updateData).eq('id', existing.id);
+            summary.updated++;
+            if (r.dateFrom && r.dateTo) {
+              await applyAvailabilityBlock(propertyId, unit.mappingRoomTypeId, r.dateFrom, r.dateTo, true);
+            }
+            console.log(`[cron-pull-ru] ✅ Updated booking for RU reservation ${ruReservationId}`);
           } else {
             // Create new booking
-            if (!dateFromRes || !dateToRes) {
+            if (!r.dateFrom || !r.dateTo) {
               console.warn(`[cron-pull-ru] Skipping reservation ${ruReservationId} — missing dates`);
               summary.skipped++;
               continue;
             }
 
             const bookingData: Record<string, unknown> = {
+              ...guestFields,
               property_id: propertyId,
-              guest_name: guestName,
-              guest_email: guestEmail,
-              guest_phone: guestPhone,
-              check_in_date: dateFromRes,
-              check_out_date: dateToRes,
-              adults: numGuests || 1,
-              total_price: ruPrice || 0,
               status: 'confirmed',
               booking_channel: 'rentals_united',
               integration_type: 'rentalsunited',
               external_reservation_id: ruReservationId,
-              payment_status: 'paid_externally',
+              payment_status: r.alreadyPaid > 0 ? 'paid_externally' : 'pending',
             };
-            if (roomTypeId) bookingData.room_type_id = roomTypeId;
+            if (r.alreadyPaid > 0) bookingData.paid_at = new Date().toISOString();
 
             const { error: bookingErr } = await supabase.from('bookings').insert(bookingData);
             if (bookingErr) {
@@ -363,7 +495,7 @@ Deno.serve(async (req) => {
               summary.failed++;
             } else {
               summary.created++;
-              await applyAvailabilityBlock(propertyId, roomTypeId, dateFromRes, dateToRes, true);
+              await applyAvailabilityBlock(propertyId, unit.mappingRoomTypeId, r.dateFrom, r.dateTo, true);
               console.log(`[cron-pull-ru] ✅ Created booking for RU reservation ${ruReservationId}`);
             }
           }
@@ -371,9 +503,9 @@ Deno.serve(async (req) => {
 
         // Log to ru_notifications
         await supabase.from('ru_notifications').insert({
-          event_type: `poll_${isCancelled ? 'reservation_cancelled' : 'reservation_confirmed'}`,
+          event_type: `poll_${isCancelled ? 'reservation_cancelled' : isRequest ? 'reservation_request' : 'reservation_confirmed'}`,
           ru_reservation_id: ruReservationId,
-          ru_property_id: ruPropertyId,
+          ru_property_id: r.ruPropertyId,
           property_id: propertyId,
           raw_xml: block,
           processed: true,
@@ -386,6 +518,7 @@ Deno.serve(async (req) => {
     }
 
   }
+
 
   /**
    * Pull_GetLeads_RQ is also account-scoped, so it fans out the same way.
@@ -418,55 +551,47 @@ Deno.serve(async (req) => {
         }
 
         const leadsXml: string = leadsResult.raw_xml || '';
-        const leadBlocks = extractAllBlocks(leadsXml, 'Lead');
+        // RU has answered with several envelopes over time (<Lead>, <LeadInfo>, <Reservation>).
+        let leadBlocks = extractAllBlocks(leadsXml, 'Lead');
+        if (leadBlocks.length === 0) leadBlocks = extractAllBlocks(leadsXml, 'LeadInfo');
+        if (leadBlocks.length === 0) leadBlocks = extractAllBlocks(leadsXml, 'Reservation');
         summary.leads_found += leadBlocks.length;
         console.log(`[cron-pull-ru] ${scope.label}: found ${leadBlocks.length} lead(s)`);
+        if (leadBlocks.length === 0) {
+          // Keep the raw answer so an empty result can be told apart from a parse miss.
+          console.log(`[cron-pull-ru] ${scope.label} leads raw answer: ${leadsXml.slice(0, 800)}`);
+          await supabase.from('ru_notifications').insert({
+            event_type: 'poll_leads_empty',
+            ru_reservation_id: null,
+            ru_property_id: null,
+            property_id: null,
+            raw_xml: leadsXml.slice(0, 20000),
+            processed: true,
+          }).then(() => {}, () => {});
+        }
 
         for (const leadBlock of leadBlocks) {
           try {
-            const leadId = extractTag(leadBlock, 'LeadID') || extractTag(leadBlock, 'ReservationID');
+            const parsed = parseReservation(leadBlock);
+            const leadId = extractTag(leadBlock, 'LeadID') || parsed.ruReservationId;
             if (!leadId) continue;
 
-            const ruPropertyId = extractTag(leadBlock, 'PropID') || extractTag(leadBlock, 'PropertyID');
-            const guestFirstName = extractTag(leadBlock, 'FirstName') || extractTag(leadBlock, 'GuestName') || '';
-            const guestLastName = extractTag(leadBlock, 'LastName') || extractTag(leadBlock, 'GuestSurname') || '';
-            const guestName = `${guestFirstName} ${guestLastName}`.trim() || 'RU Lead';
-            const guestEmail = extractTag(leadBlock, 'Email') || 'ru-lead@rentalsunited.com';
-            const guestPhone = extractTag(leadBlock, 'Phone') || null;
-            const leadFrom = extractTag(leadBlock, 'DateFrom');
-            const leadTo = extractTag(leadBlock, 'DateTo');
-            const numGuests = parseInt(extractTag(leadBlock, 'NumberOfGuests') || '1', 10);
-            const leadPrice = parseFloat(extractTag(leadBlock, 'RUPrice') || extractTag(leadBlock, 'Price') || '0');
+            const ruPropertyId = parsed.ruPropertyId;
+            const guestName = parsed.guestName === 'RU Guest' ? 'RU Lead' : parsed.guestName;
+            const leadFrom = parsed.dateFrom;
+            const leadTo = parsed.dateTo;
             const createdRaw =
+              parsed.createdDate ||
               extractTag(leadBlock, 'DateCreated') ||
               extractTag(leadBlock, 'CreationDate') ||
               extractTag(leadBlock, 'DateRequested');
-            const leadCreatedAt = createdRaw ? new Date(createdRaw.replace(' ', 'T')) : new Date();
+            const leadCreatedAt = createdRaw ? new Date(createdRaw.replace(' ', 'T') + 'Z') : new Date();
             const holdExpiresAt = new Date(leadCreatedAt.getTime() + LEAD_HOLD_DAYS * 86_400_000);
 
-            // Resolve property + unit
-            let propertyId: string | null = null;
-            let roomTypeId: string | null = null;
-            if (ruPropertyId) {
-              const { data: roomType } = await supabase
-                .from('hostfully_room_types')
-                .select('property_id, id')
-                .eq('rentalsunited_property_id', ruPropertyId)
-                .limit(1)
-                .maybeSingle();
-              if (roomType?.property_id) {
-                propertyId = roomType.property_id;
-                roomTypeId = roomType.id;
-              } else {
-                const { data: prop } = await supabase
-                  .from('properties')
-                  .select('id')
-                  .eq('rentalsunited_property_id', ruPropertyId)
-                  .limit(1)
-                  .maybeSingle();
-                if (prop?.id) propertyId = prop.id;
-              }
-            }
+            // Resolve property + displayed unit
+            const unit = await resolveUnit(ruPropertyId);
+            const propertyId = unit.propertyId;
+            const roomTypeId = unit.roomTypeId;
 
             // A lead becomes a provisional (pending) booking that holds the dates for
             // LEAD_HOLD_DAYS. ru-lead-lifecycle releases or rejects it afterwards.
@@ -475,7 +600,7 @@ Deno.serve(async (req) => {
                 .from('bookings')
                 .select('id, status, hold_released_at')
                 .eq('external_reservation_id', leadId)
-                .eq('integration_type', 'rentalsunited_lead')
+                .in('integration_type', ['rentalsunited_lead', 'rentalsunited'])
                 .limit(1)
                 .maybeSingle();
 
@@ -483,12 +608,12 @@ Deno.serve(async (req) => {
                 const leadBooking: Record<string, unknown> = {
                   property_id: propertyId,
                   guest_name: guestName,
-                  guest_email: guestEmail,
-                  guest_phone: guestPhone,
+                  guest_email: parsed.guestEmail === 'ru-poll@rentalsunited.com' ? 'ru-lead@rentalsunited.com' : parsed.guestEmail,
+                  guest_phone: parsed.guestPhone,
                   check_in_date: leadFrom,
                   check_out_date: leadTo,
-                  adults: numGuests || 1,
-                  total_price: leadPrice || 0,
+                  adults: parsed.numGuests || 1,
+                  total_price: parsed.total || 0,
                   status: 'pending',
                   booking_channel: 'rentals_united',
                   integration_type: 'rentalsunited_lead',
@@ -496,7 +621,10 @@ Deno.serve(async (req) => {
                   payment_status: 'pending',
                   lead_created_at: leadCreatedAt.toISOString(),
                   hold_expires_at: holdExpiresAt.toISOString(),
-                  special_requests: `Rentals United enquiry — dates held until ${holdExpiresAt.toISOString().slice(0, 10)}`,
+                  modification_notes: buildChannelNotes(parsed, { lead: true, ru_lead_id: leadId }),
+                  special_requests:
+                    `Rentals United enquiry — dates held until ${holdExpiresAt.toISOString().slice(0, 10)}` +
+                    (parsed.comments ? ` · ${parsed.comments}` : ''),
                 };
                 if (roomTypeId) leadBooking.room_type_id = roomTypeId;
 
@@ -506,7 +634,7 @@ Deno.serve(async (req) => {
                 } else {
                   summary.leads_held++;
                   if (holdExpiresAt.getTime() > Date.now()) {
-                    await applyAvailabilityBlock(propertyId, roomTypeId, leadFrom, leadTo, true);
+                    await applyAvailabilityBlock(propertyId, unit.mappingRoomTypeId, leadFrom, leadTo, true);
                   }
                   console.log(`[cron-pull-ru] ✅ Held lead ${leadId} (${guestName}) until ${holdExpiresAt.toISOString()}`);
                 }
@@ -514,6 +642,7 @@ Deno.serve(async (req) => {
             } else if (propertyId) {
               console.warn(`[cron-pull-ru] Lead ${leadId} has no usable stay dates — logged only`);
             }
+
 
             // Deduplicate the notification log only (the booking upsert above is idempotent)
             const { data: existingNotif } = await supabase
@@ -534,7 +663,7 @@ Deno.serve(async (req) => {
                 processed: true,
               });
               summary.leads_logged++;
-              console.log(`[cron-pull-ru] ✅ Logged lead ${leadId} from ${guestName} (${guestEmail})`);
+              console.log(`[cron-pull-ru] ✅ Logged lead ${leadId} from ${guestName} (${parsed.guestEmail})`);
             }
           } catch (leadErr) {
             console.error(`[cron-pull-ru] Error processing lead:`, leadErr);

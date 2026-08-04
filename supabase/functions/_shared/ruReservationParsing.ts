@@ -1,0 +1,219 @@
+/**
+ * Shared Rentals United reservation/lead XML parsing + write helpers.
+ *
+ * RU delivers guest and stay data nested inside <CustomerInfo> / <StayInfo> blocks
+ * (and <StayInfos> wrappers), never as flat tags — parsing the envelope shallowly
+ * yields the "RU Guest" placeholder records with no dates or unit.
+ */
+
+// deno-lint-ignore no-explicit-any
+type Db = any;
+
+export function extractTag(xml: string, tag: string): string | null {
+  const match = xml.match(new RegExp(`<${tag}>([^<]*)</${tag}>`, 'i'));
+  return match ? match[1].trim() : null;
+}
+
+export function extractAllBlocks(xml: string, tag: string): string[] {
+  return xml.match(new RegExp(`<${tag}[^>]*>[\\s\\S]*?</${tag}>`, 'gi')) || [];
+}
+
+export function extractBlock(xml: string, tag: string): string {
+  const m = xml.match(new RegExp(`<${tag}[^>]*>[\\s\\S]*?</${tag}>`, 'i'));
+  return m ? m[0] : '';
+}
+
+export interface ParsedRuReservation {
+  ruReservationId: string | null;
+  statusId: string | null;
+  ruPropertyId: string | null;
+  dateFrom: string | null;
+  dateTo: string | null;
+  arrivalTime: string | null;
+  numGuests: number;
+  units: number;
+  guestName: string;
+  guestEmail: string;
+  guestPhone: string | null;
+  countryId: string | null;
+  address: string | null;
+  zipCode: string | null;
+  comments: string | null;
+  resapaId: string | null;
+  creator: string | null;
+  createdDate: string | null;
+  total: number;
+  alreadyPaid: number;
+  nightly: Array<{ date: string; price: number }>;
+}
+
+/** Parse one RU <Reservation> block into the ROL'OS booking shape. */
+export function parseRuReservation(block: string): ParsedRuReservation {
+  const stay = extractBlock(block, 'StayInfo') || extractBlock(block, 'StayInfos') || block;
+  const customer = extractBlock(block, 'CustomerInfo') || block;
+  const costs = extractBlock(stay, 'Costs');
+
+  const firstName = extractTag(customer, 'Name') || extractTag(customer, 'FirstName') || '';
+  const lastName = extractTag(customer, 'SurName') || extractTag(customer, 'LastName') || '';
+  const guestName = `${firstName} ${lastName}`.trim();
+
+  const nightly = [...stay.matchAll(/<DayPrices\s+Date="([^"]+)"[^>]*>([\s\S]*?)<\/DayPrices>/gi)].map((m) => ({
+    date: m[1],
+    price: parseFloat(extractTag(m[2], 'Price') || extractTag(m[2], 'Rent') || '0'),
+  }));
+
+  const total = parseFloat(
+    extractTag(costs, 'ClientPrice') || extractTag(costs, 'RUPrice') || extractTag(block, 'RUPrice') || '0',
+  );
+
+  return {
+    ruReservationId: extractTag(block, 'ReservationID') || extractTag(block, 'LeadID'),
+    statusId: extractTag(block, 'StatusID') || extractTag(block, 'ReservationStatusID') || extractTag(block, 'Status'),
+    ruPropertyId: extractTag(stay, 'PropertyID') || extractTag(block, 'PropID') || extractTag(block, 'PropertyID'),
+    dateFrom: extractTag(stay, 'DateFrom'),
+    dateTo: extractTag(stay, 'DateTo'),
+    arrivalTime: extractTag(stay, 'ArrivalTime'),
+    numGuests: parseInt(extractTag(stay, 'NumberOfGuests') || '1', 10),
+    units: parseInt(extractTag(stay, 'Units') || '1', 10),
+    guestName: guestName || 'RU Guest',
+    guestEmail: extractTag(customer, 'Email') || 'ru-notification@rentalsunited.com',
+    guestPhone: extractTag(customer, 'MobilePhone') || extractTag(customer, 'Phone') || null,
+    countryId: extractTag(customer, 'CountryID') || null,
+    address: extractTag(customer, 'Address') || null,
+    zipCode: extractTag(customer, 'ZipCode') || null,
+    comments: extractTag(stay, 'Comments') || extractTag(block, 'Comments') || null,
+    resapaId: extractTag(stay, 'ResapaID') || null,
+    creator: extractTag(block, 'Creator') || null,
+    createdDate: extractTag(block, 'CreatedDate') || extractTag(block, 'LastMod') || null,
+    total,
+    alreadyPaid: parseFloat(extractTag(costs, 'AlreadyPaid') || '0'),
+    nightly,
+  };
+}
+
+/** Channel metadata kept in `modification_notes` (no dedicated columns exist). */
+export function buildRuChannelNotes(r: ParsedRuReservation, extra: Record<string, unknown> = {}) {
+  return {
+    channel: 'rentals_united',
+    ru_reservation_id: r.ruReservationId,
+    ru_property_id: r.ruPropertyId,
+    ru_status_id: r.statusId,
+    resapa_id: r.resapaId,
+    creator: r.creator,
+    created_date: r.createdDate,
+    arrival_time: r.arrivalTime,
+    units: r.units,
+    country_id: r.countryId,
+    address: r.address,
+    zip_code: r.zipCode,
+    guest_comments: r.comments,
+    amount_already_paid: r.alreadyPaid,
+    nightly_prices: r.nightly,
+    synced_at: new Date().toISOString(),
+    ...extra,
+  };
+}
+
+export interface ResolvedRuUnit {
+  propertyId: string | null;
+  /** Canonical `rolos_room_types` id the ROL'OS calendar renders. */
+  roomTypeId: string | null;
+  /** `hostfully_room_types` id carrying the RU mapping (used for availability rows). */
+  mappingRoomTypeId: string | null;
+  unitName: string | null;
+}
+
+/**
+ * Resolve an RU PropertyID to the property + the room type the ROL'OS dashboard renders.
+ * The RU mapping lives on `hostfully_room_types`, but ROL'OS-native properties draw their
+ * calendar rows from `rolos_room_types`; without this name-based hop the imported booking
+ * never matches a displayed unit.
+ */
+export async function resolveRuUnit(supabase: Db, ruPropertyId: string | null): Promise<ResolvedRuUnit> {
+  const empty: ResolvedRuUnit = { propertyId: null, roomTypeId: null, mappingRoomTypeId: null, unitName: null };
+  if (!ruPropertyId) return empty;
+
+  const { data: mapping } = await supabase
+    .from('hostfully_room_types')
+    .select('id, name, property_id')
+    .eq('rentalsunited_property_id', ruPropertyId)
+    .order('is_active', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (mapping?.property_id) {
+    let canonicalId: string | null = null;
+    if (mapping.name) {
+      const { data: canonical } = await supabase
+        .from('rolos_room_types')
+        .select('id, name')
+        .eq('property_id', mapping.property_id);
+      canonicalId = (canonical || []).find(
+        (rt: { name: string | null }) =>
+          (rt.name || '').trim().toLowerCase() === (mapping.name || '').trim().toLowerCase(),
+      )?.id ?? null;
+    }
+    return {
+      propertyId: mapping.property_id,
+      roomTypeId: canonicalId || mapping.id,
+      mappingRoomTypeId: mapping.id,
+      unitName: mapping.name ?? null,
+    };
+  }
+
+  const { data: prop } = await supabase
+    .from('properties')
+    .select('id')
+    .eq('rentalsunited_property_id', ruPropertyId)
+    .limit(1)
+    .maybeSingle();
+  return { ...empty, propertyId: prop?.id ?? null };
+}
+
+/** Block (or release) the booked nights so the ROL booking engine cannot resell them. */
+export async function applyRuAvailabilityBlock(
+  supabase: Db,
+  propertyId: string,
+  mappingRoomTypeId: string | null,
+  checkIn: string,
+  checkOut: string,
+  block: boolean,
+  logPrefix = '[ru]',
+) {
+  try {
+    let roomName: string | null = null;
+    if (mappingRoomTypeId) {
+      const { data: rt } = await supabase
+        .from('hostfully_room_types')
+        .select('name')
+        .eq('id', mappingRoomTypeId)
+        .maybeSingle();
+      roomName = rt?.name ?? null;
+    }
+    if (!roomName) {
+      console.warn(`${logPrefix} No unit name resolved — skipping availability ${block ? 'block' : 'release'}`);
+      return;
+    }
+
+    const dates: string[] = [];
+    for (let d = new Date(`${checkIn}T00:00:00Z`); d < new Date(`${checkOut}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + 1)) {
+      dates.push(d.toISOString().slice(0, 10));
+    }
+    if (dates.length === 0) return;
+
+    const { error } = await supabase.from('property_availability').upsert(
+      dates.map((date) => ({
+        property_id: propertyId,
+        room_type: roomName,
+        date,
+        external_system: 'manual',
+        available_units: block ? 0 : 1,
+        is_stop_sell: block,
+      })),
+      { onConflict: 'property_id,room_type,date,external_system', ignoreDuplicates: false },
+    );
+    if (error) console.error(`${logPrefix} Availability ${block ? 'block' : 'release'} failed: ${error.message}`);
+  } catch (e) {
+    console.error(`${logPrefix} Availability sync error:`, e);
+  }
+}

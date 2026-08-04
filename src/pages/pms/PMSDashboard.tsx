@@ -215,6 +215,81 @@ function normalizeRoomsToCanonicalRoomTypes<T extends Room>(
   });
 }
 
+/**
+ * Channel-imported bookings (Rentals United, public booking engine) carry a foreign
+ * room-type id (`hostfully_room_types`). Rewrite it to the canonical `rolos_room_types`
+ * id with the same name so every calendar row matcher can see them.
+ */
+function remapBookingsToCanonicalRoomTypes<T extends { room_type_id?: string | null }>(
+  bookingList: T[],
+  foreignRoomTypes: Array<{ id: string; name: string | null }>,
+  canonicalRoomTypes: Array<Pick<RoomType, "id" | "name" | "linked_overview_id">>,
+): T[] {
+  if (!bookingList.length || canonicalRoomTypes.length === 0) return bookingList;
+
+  const canonicalIds = new Set(canonicalRoomTypes.map((rt) => rt.id));
+  const canonicalIdByName = new Map(
+    canonicalRoomTypes
+      .map((rt) => [normalizeRoomTypeName(rt.name), rt.id] as const)
+      .filter(([name]) => Boolean(name)),
+  );
+  const canonicalIdByOverview = new Map(
+    canonicalRoomTypes
+      .filter((rt) => rt.linked_overview_id)
+      .map((rt) => [rt.linked_overview_id as string, rt.id] as const),
+  );
+  const foreignNameById = new Map(foreignRoomTypes.map((rt) => [rt.id, normalizeRoomTypeName(rt.name)]));
+
+  return bookingList.map((booking) => {
+    const typeId = booking.room_type_id;
+    if (!typeId || canonicalIds.has(typeId)) return booking;
+
+    const viaOverview = canonicalIdByOverview.get(typeId);
+    const foreignName = foreignNameById.get(typeId);
+    const canonicalId = viaOverview || (foreignName ? canonicalIdByName.get(foreignName) : undefined);
+    return canonicalId ? { ...booking, room_type_id: canonicalId } : booking;
+  });
+}
+
+/** Hold / auto-withdrawal summary for a channel enquiry (blank for normal bookings). */
+function getHoldSummary(
+  booking: Pick<BookingRow, "status" | "integration_type" | "hold_expires_at" | "hold_released_at" | "check_in_date">,
+): { label: string; detail: string } | null {
+  if (!isChannelLead(booking) || booking.status !== "pending") return null;
+
+  const withdrawalDue = format(addDays(parseISO(booking.check_in_date), -14), "d MMM yyyy");
+
+  if (booking.hold_released_at) {
+    return {
+      label: "Hold expired",
+      detail: `Dates released ${format(parseISO(booking.hold_released_at), "d MMM HH:mm")} · auto-withdrawn from ${withdrawalDue}`,
+    };
+  }
+  if (!booking.hold_expires_at) {
+    return { label: "Enquiry", detail: `Auto-withdrawal from ${withdrawalDue}` };
+  }
+
+  const expires = parseISO(booking.hold_expires_at);
+  const hoursLeft = Math.round((expires.getTime() - Date.now()) / 3_600_000);
+  const remaining = hoursLeft <= 0
+    ? "hold lapsed"
+    : hoursLeft < 24
+      ? `${hoursLeft}h left`
+      : `${Math.floor(hoursLeft / 24)}d ${hoursLeft % 24}h left`;
+
+  return {
+    label: `Hold ${remaining}`,
+    detail: `Hold expires ${format(expires, "d MMM HH:mm")} · auto-withdrawal from ${withdrawalDue}`,
+  };
+}
+
+/** Native title text for a calendar bar, including hold countdowns for enquiries. */
+function getBookingBarTitle(booking: BookingRow): string {
+  const hold = getHoldSummary(booking);
+  const base = `${booking.guest_name} · ${booking.check_in_date} → ${booking.check_out_date}`;
+  return hold ? `${base}\n${hold.label} — ${hold.detail}` : base;
+}
+
 const STATUS_COLORS: Record<string, { bg: string; text: string; border: string }> = {
   confirmed: { bg: "bg-blue-500/20", text: "text-info dark:text-blue-300", border: "border-blue-500/40" },
   pending: { bg: "bg-amber-500/20", text: "text-warning dark:text-amber-300", border: "border-amber-500/40" },
@@ -515,7 +590,12 @@ export default function PMSDashboard() {
   const bookingsLoading = bookingsInfinite.isLoading;
 
   const bookings: BookingRow[] = useMemo(
-    () => autoAssignBookings(bookingsRaw, rooms, roomTypes, [...aliasRoomTypes, ...roomTypeNamesForRooms]) as BookingRow[],
+    () => autoAssignBookings(
+      remapBookingsToCanonicalRoomTypes(bookingsRaw, [...aliasRoomTypes, ...roomTypeNamesForRooms], roomTypes),
+      rooms,
+      roomTypes,
+      [...aliasRoomTypes, ...roomTypeNamesForRooms],
+    ) as BookingRow[],
     [bookingsRaw, rooms, roomTypes, aliasRoomTypes, roomTypeNamesForRooms]
   );
 
@@ -881,7 +961,12 @@ export default function PMSDashboard() {
         ...portfolioAliasRoomTypes.filter(t => t.property_id === prop.id),
         ...propRoomTypesRaw.map(rt => ({ id: rt.id, name: rt.name, property_id: prop.id })),
       ];
-      const propBookings = autoAssignBookings(propBookingsRaw, propRooms, propRoomTypes, propAliasTypes) as BookingRow[];
+      const propBookings = autoAssignBookings(
+        remapBookingsToCanonicalRoomTypes(propBookingsRaw, propAliasTypes, propRoomTypes),
+        propRooms,
+        propRoomTypes,
+        propAliasTypes,
+      ) as BookingRow[];
 
       const propOverrides = portfolioOverridesRaw.filter(o => (o as any).property_id === prop.id);
 
@@ -2342,7 +2427,7 @@ function MonthRoomTypeRows({ rt, weekDates, typeRooms, bookings, getRateForDate,
                     const isStart = b.check_in_date === dateStr;
                     const isEnd = addDays(parseISO(b.check_out_date), -1).toISOString().slice(0, 10) === dateStr;
                     return (
-                      <button key={b.id} onClick={() => onSelectBooking(b)} onDoubleClick={() => onSelectBooking(b, "folio")} className={cn(
+                      <button key={b.id} title={getBookingBarTitle(b)} onClick={() => onSelectBooking(b)} onDoubleClick={() => onSelectBooking(b, "folio")} className={cn(
                         "absolute inset-y-0.5 border flex items-center px-1 overflow-hidden cursor-pointer hover:opacity-80 z-[1]",
                         colors.bg, colors.border,
                         isStart ? "left-0.5 rounded-l-sm" : "left-0",
@@ -2398,7 +2483,7 @@ function MonthRoomTypeRows({ rt, weekDates, typeRooms, bookings, getRateForDate,
                         key={b.id}
                         onClick={() => onSelectBooking(b)}
                         onDoubleClick={() => onSelectBooking(b, "folio")}
-                        title={`${b.guest_name} · ${b.check_in_date} → ${b.check_out_date} · ${b.status} — click to open, double-click for folio`}
+                        title={`${getBookingBarTitle(b)} · ${b.status} — click to open, double-click for folio`}
                         className={cn("absolute inset-y-0.5 inset-x-0.5 rounded-sm border flex items-center gap-1 px-1 overflow-hidden cursor-pointer hover:opacity-90", colors.bg, colors.border)}
                       >
                         {isStart && (
@@ -2452,7 +2537,7 @@ function MonthRoomRow({ room, dates, bookings, onSelectBooking }: {
               const isStart = b.check_in_date === dateStr;
               const isEnd = addDays(parseISO(b.check_out_date), -1).toISOString().slice(0, 10) === dateStr;
               return (
-                <button key={b.id} onClick={() => onSelectBooking(b)} onDoubleClick={() => onSelectBooking(b, "folio")} className={cn(
+                <button key={b.id} title={getBookingBarTitle(b)} onClick={() => onSelectBooking(b)} onDoubleClick={() => onSelectBooking(b, "folio")} className={cn(
                   "absolute inset-y-0.5 border flex items-center px-1 overflow-hidden cursor-pointer hover:opacity-80 z-[1]",
                   colors.bg, colors.border,
                   isStart ? "left-0.5 rounded-l-sm" : "left-0",
@@ -2558,7 +2643,7 @@ function RoomTypeSection({ rt, dates, roomsByType, bookings, getRateForDate, get
                     const isStart = b.check_in_date === dateStr;
                     const isEnd = addDays(parseISO(b.check_out_date), -1).toISOString().slice(0, 10) === dateStr;
                     return (
-                      <button key={b.id} onClick={() => onSelectBooking(b)} onDoubleClick={() => onSelectBooking(b, "folio")} className={cn(
+                      <button key={b.id} title={getBookingBarTitle(b)} onClick={() => onSelectBooking(b)} onDoubleClick={() => onSelectBooking(b, "folio")} className={cn(
                         "absolute inset-y-0.5 border flex items-center px-1 overflow-hidden cursor-pointer hover:opacity-80 z-[1]",
                         colors.bg, colors.border,
                         isStart ? "left-0.5 rounded-l-sm" : "left-0",
@@ -2620,7 +2705,7 @@ function WeekRoomRow({ room, dates, bookings, onSelectBooking }: {
               const isStart = b.check_in_date === dateStr;
               const isEnd = addDays(parseISO(b.check_out_date), -1).toISOString().slice(0, 10) === dateStr;
               return (
-                <button key={b.id} onClick={() => onSelectBooking(b)} onDoubleClick={() => onSelectBooking(b, "folio")} className={cn(
+                <button key={b.id} title={getBookingBarTitle(b)} onClick={() => onSelectBooking(b)} onDoubleClick={() => onSelectBooking(b, "folio")} className={cn(
                   "absolute inset-y-0.5 border flex items-center px-1 overflow-hidden cursor-pointer hover:opacity-80 z-[1]",
                   colors.bg, colors.border,
                   isStart ? "left-0.5 rounded-l-sm" : "left-0",
@@ -2808,6 +2893,20 @@ function BookingDetail({
           </div>
         );
       }
+    }
+
+    // Channel enquiry (e.g. Rentals United lead): show hold expiry + auto-withdrawal dates.
+    const hold = getHoldSummary(b);
+    if (hold) {
+      btns.push(
+        <div key="hold-notice" className="w-full rounded-md border border-violet-500/40 bg-violet-500/10 p-2 text-xs flex items-start gap-2">
+          <Clock className="h-4 w-4 shrink-0 text-primary" />
+          <span>
+            <span className="font-medium">{hold.label}</span>
+            <span className="block text-muted-foreground">{hold.detail}</span>
+          </span>
+        </div>
+      );
     }
 
     if (b.status === "pending") {
