@@ -2817,8 +2817,31 @@ Deno.serve(async (req) => {
     }
 
 
+    // ── reject_request (preferred way to decline / cancel an unpaid RU request) ──
+    if (action === 'reject_request') {
+      const reservationId = body.reservation_id != null ? String(body.reservation_id).trim() : '';
+      if (!reservationId) return errorResponse('MISSING_PARAM', 'reservation_id is required');
+      const xml = buildRejectRequestXml(scopedCreds, reservationId, body.reject_reason ?? '');
+      const response = await callRentalsUnited(scopedCreds, xml);
+      const { ok, status } = handleRUStatus(response);
+      if (!ok) return ruErrorResponse(status);
+      return jsonResponse({ success: true, auth_mode: authMode, raw_xml: response });
+    }
+
+    // ── cancel_reservation (backwards-compatible fallback for reject_request) ──
+    if (action === 'cancel_reservation') {
+      const reservationId = body.reservation_id != null ? String(body.reservation_id).trim() : '';
+      if (!reservationId) return errorResponse('MISSING_PARAM', 'reservation_id is required');
+      const xml = buildCancelReservationXml(scopedCreds, reservationId);
+      const response = await callRentalsUnited(scopedCreds, xml);
+      const { ok, status } = handleRUStatus(response);
+      if (!ok) return ruErrorResponse(status);
+      return jsonResponse({ success: true, auth_mode: authMode, raw_xml: response });
+    }
+
     // Unknown action
     return errorResponse('UNKNOWN_ACTION', `Action "${action}" is not supported`);
+
 
   } catch (error) {
     console.error('[rentalsunited-api] Error:', error);
