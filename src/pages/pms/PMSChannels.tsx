@@ -18,6 +18,10 @@ import { ALL_CHANNELS } from "@/components/pms/channels/ChannelLogo";
 import { RuReadinessScorecard } from "@/components/pms/channels/RuReadinessScorecard";
 import { RuOnboardingPipeline } from "@/components/integrations/RuOnboardingPipeline";
 import { RuCurrencyNotice } from "@/components/pms/channels/RuCurrencyNotice";
+import { ChannelReadinessDialog } from "@/components/pms/channels/ChannelReadinessDialog";
+import { CHANNEL_REGISTRY } from "@/config/channelRegistry";
+import { useChannelReadiness } from "@/hooks/useChannelReadiness";
+
 
 import {
   useChannelConnections,
@@ -48,6 +52,11 @@ export default function PMSChannels() {
   const triggerSync = useTriggerSync(propertyId);
 
   const [connectDialog, setConnectDialog] = useState<string | null>(null);
+  const [readinessDialog, setReadinessDialog] = useState<string | null>(null);
+
+  // Single readiness source (RU content scorer) shared by every gated channel card.
+  const { readiness, isLoading: readinessLoading } = useChannelReadiness(propertyId);
+
 
   // Billing entitlement — when admin switches Channel Manager billing off, the
   // module is locked and every listing is archived at Rentals United.
@@ -143,7 +152,8 @@ export default function PMSChannels() {
           {/* Tab 1: Connections */}
           <TabsContent value="connections">
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {["booking_com", "expedia", "lekkeslaap", "airbnb", "vrbo", "google_hotels"].map((ch) => {
+              {CHANNEL_REGISTRY.map((entry) => {
+                const ch = entry.key;
                 const conn = connectionMap.get(ch) as any;
                 const isConnected = !!conn && conn.status !== "disconnected";
                 const enriched = conn
@@ -153,6 +163,7 @@ export default function PMSChannels() {
                       rate_mapping_count: rateCountByConn.get(conn.id) ?? 0,
                     }
                   : undefined;
+                const gated = entry.requires_ru_listing;
                 return (
                   <ChannelCard
                     key={ch}
@@ -160,6 +171,11 @@ export default function PMSChannels() {
                     connection={enriched}
                     isConnected={isConnected}
                     readOnly={readOnly}
+                    requiresReadiness={gated}
+                    readinessScore={gated ? readiness.score : undefined}
+                    readinessOutstanding={gated ? readiness.outstanding : undefined}
+                    readinessLoading={gated ? readinessLoading : undefined}
+                    onReadinessClick={gated ? () => setReadinessDialog(ch) : undefined}
                     onConnect={() => setConnectDialog(ch)}
                     onPause={conn ? () => updateStatus.mutate({ connectionId: conn.id, status: "paused" }) : undefined}
                     onResume={conn ? () => updateStatus.mutate({ connectionId: conn.id, status: "active" }) : undefined}
@@ -169,6 +185,7 @@ export default function PMSChannels() {
                 );
               })}
             </div>
+
             <p className="text-sm text-muted-foreground mt-4">
               Don't see your channel manager? Let's talk — we'll bring it on board.
             </p>
@@ -237,6 +254,18 @@ export default function PMSChannels() {
           }}
         />
       )}
+
+      {/* Readiness breakdown with deep links to each outstanding field */}
+      {readinessDialog && propertyId && (
+        <ChannelReadinessDialog
+          open={!!readinessDialog}
+          onOpenChange={(open) => !open && setReadinessDialog(null)}
+          channelName={readinessDialog}
+          propertyId={propertyId}
+          readiness={readiness}
+        />
+      )}
     </>
+
   );
 }

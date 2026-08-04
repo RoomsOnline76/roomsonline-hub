@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ChannelLogo, getChannelLabel } from "./ChannelLogo";
-import { MoreHorizontal, Plug, Pause, Play, Unplug, RefreshCw } from "lucide-react";
+import { MoreHorizontal, Plug, Pause, Play, Unplug, RefreshCw, CheckCircle2, AlertTriangle } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
 const CHANNEL_DESCRIPTIONS: Record<string, string> = {
@@ -44,6 +44,11 @@ export function ChannelCard({
   onSync,
   isConnected,
   readOnly,
+  readinessScore,
+  readinessOutstanding,
+  readinessLoading,
+  onReadinessClick,
+  requiresReadiness,
 }: {
   connection?: ChannelConnection;
   channelName?: string;
@@ -54,10 +59,23 @@ export function ChannelCard({
   onSync?: () => void;
   isConnected: boolean;
   readOnly?: boolean;
+  /** Mandatory-readiness percentage for distribution (0-100). */
+  readinessScore?: number;
+  /** Number of outstanding mandatory requirements. */
+  readinessOutstanding?: number;
+  readinessLoading?: boolean;
+  /** Opens the readiness breakdown with deep links to each missing field. */
+  onReadinessClick?: () => void;
+  /** When true, the channel cannot be connected until readiness is 100%. */
+  requiresReadiness?: boolean;
 }) {
   const channelName = connection?.channel_name || channelNameProp || "";
   const status = connection?.status ?? "disconnected";
   const badge = STATUS_BADGES[status] ?? STATUS_BADGES.disconnected;
+  const hasReadiness = typeof readinessScore === "number";
+  const ready = hasReadiness ? (readinessOutstanding ?? 0) === 0 : true;
+  const blockConnect = !!requiresReadiness && hasReadiness && !ready;
+
 
   return (
     <Card className="hover:shadow-md transition-shadow">
@@ -92,7 +110,33 @@ export function ChannelCard({
                 {CHANNEL_DESCRIPTIONS[channelName] ?? "Not connected"}
               </p>
             )}
+
+            {hasReadiness && (
+              <button
+                type="button"
+                onClick={onReadinessClick}
+                disabled={!onReadinessClick}
+                className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-border px-2 py-0.5 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-muted disabled:cursor-default"
+                title={
+                  ready
+                    ? "Ready to connect"
+                    : `${readinessOutstanding} outstanding — click to see and fix each one`
+                }
+              >
+                {ready ? (
+                  <CheckCircle2 className="h-3 w-3 text-primary" />
+                ) : (
+                  <AlertTriangle className="h-3 w-3 text-destructive" />
+                )}
+                {readinessLoading
+                  ? "Checking readiness…"
+                  : ready
+                    ? "Ready to connect · 100%"
+                    : `${readinessOutstanding} outstanding · ${readinessScore}% ready`}
+              </button>
+            )}
           </div>
+
 
           {!readOnly && (
             <div className="shrink-0">
@@ -126,11 +170,16 @@ export function ChannelCard({
                     )}
                   </DropdownMenuContent>
                 </DropdownMenu>
+              ) : blockConnect ? (
+                <Button size="sm" variant="outline" onClick={onReadinessClick}>
+                  <AlertTriangle className="h-4 w-4 mr-1.5" /> Complete setup
+                </Button>
               ) : (
                 <Button size="sm" onClick={onConnect}>
                   <Plug className="h-4 w-4 mr-1.5" /> Connect
                 </Button>
               )}
+
             </div>
           )}
         </div>
