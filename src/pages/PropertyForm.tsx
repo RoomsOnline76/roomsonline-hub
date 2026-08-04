@@ -6106,10 +6106,11 @@ export default function PropertyForm({
                   </div>
                   {(propBathrooms === null || propToilets === null) && (
                     <p className="mt-2 text-[11px] text-destructive">
-                      Bathrooms and toilets must be captured before this property can be pushed to
-                      Rentals United or any channel.
+                      Bathrooms and toilets are mandatory for Rentals United and OTA distribution.
+                      Capture them per unit in the Rooms tab, or here as the property-wide fallback.
                     </p>
                   )}
+
                 </CardContent>
               </Card>
 
