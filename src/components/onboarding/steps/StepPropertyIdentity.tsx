@@ -1,6 +1,6 @@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
@@ -9,9 +9,14 @@ import { AlertTriangle, ChevronDown, Building2, Sparkles, Briefcase, Globe, X } 
 import { PROPERTY_TYPES, OnboardingOfferings } from "@/config/onboardingFieldSchema";
 import { StepProps } from "./types";
 import { cn } from "@/lib/utils";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { VISIBLE_PMS_SYSTEMS } from "@/lib/pmsSystemsConfig";
 import { Badge } from "@/components/ui/badge";
+import {
+  RU_TIME_ZONES,
+  RU_TIME_ZONE_GROUPS,
+  normalizeRuTimeZone,
+} from "@/lib/ruTimeZones";
 
 // Separate PMS vs Channel Manager systems
 const PMS_OPTIONS = VISIBLE_PMS_SYSTEMS.filter(s => !s.isInternal && !['siteminder', 'rentalsunited'].includes(s.key));
@@ -54,7 +59,7 @@ export function StepPropertyIdentity({
   const [openSections, setOpenSections] = useState({
     basics: true,
     offerings: true,
-    business: false,
+    business: true, // open by default — contains RU-critical company fields
     online: false
   });
 
@@ -87,11 +92,18 @@ export function StepPropertyIdentity({
     updateField("amenities.channel_manager", updated[0] ? VISIBLE_PMS_SYSTEMS.find(s => s.key === updated[0])?.name || "" : "");
   };
 
-  // Business Registration
+  // Business Registration + RU company fields
   const registeredBusinessName = getAmenityValue<string>("registered_business_name", "");
   const registrationNumber = getAmenityValue<string>("registration_number", "");
   const vatNumber = getAmenityValue<string>("vat_number", "");
   const postalAddress = getAmenityValue<string>("postal_address", "");
+  const keyRepresentative = getAmenityValue<string>("key_representative", "");
+  const mobileNumber = getAmenityValue<string>("mobile_number", "");
+  const rawTimeZone = getAmenityValue<string>("time_zone", "");
+  const normalizedTimeZone = useMemo(() => {
+    const offset = normalizeRuTimeZone(rawTimeZone);
+    return RU_TIME_ZONES.some((z) => z.value === offset) ? offset : "";
+  }, [rawTimeZone]);
 
   // Offerings
   const offerings = getAmenityValue<OnboardingOfferings>("offerings", {
@@ -237,25 +249,46 @@ export function StepPropertyIdentity({
         </CollapsibleContent>
       </Collapsible>
 
-      {/* Business Details */}
+      {/* Business Details — dense, includes RU-critical company fields */}
       <Collapsible open={openSections.business} onOpenChange={() => toggleSection("business")}>
         <CollapsibleTrigger className="flex items-center justify-between w-full p-3 rounded-lg border hover:bg-muted/50 transition-colors">
           <div className="flex items-center gap-2">
             <Briefcase className="h-4 w-4 text-primary" />
-            <span className="font-medium">Business Details</span>
-            <span className="text-xs text-muted-foreground">(Optional)</span>
+            <span className="font-medium">Business & Company</span>
+            <span className="text-xs text-muted-foreground">(required for channels)</span>
           </div>
           <ChevronDown className={cn("h-4 w-4 transition-transform", openSections.business && "rotate-180")} />
         </CollapsibleTrigger>
         <CollapsibleContent className="pt-3 space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="registered_business_name">Registered Business Name</Label>
+            <Label htmlFor="registered_business_name">Registered Business Name *</Label>
             <Input
               id="registered_business_name"
               value={registeredBusinessName}
               onChange={(e) => updateField("amenities.registered_business_name", e.target.value)}
               placeholder="e.g., Coral Tree Cottages (Pty) Ltd"
             />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="key_representative">Key Representative *</Label>
+              <Input
+                id="key_representative"
+                value={keyRepresentative}
+                onChange={(e) => updateField("amenities.key_representative", e.target.value)}
+                placeholder="e.g., John Smith"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="mobile_number">Mobile Number *</Label>
+              <Input
+                id="mobile_number"
+                value={mobileNumber}
+                onChange={(e) => updateField("amenities.mobile_number", e.target.value)}
+                placeholder="e.g., +27 82 123 4567"
+              />
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -278,6 +311,41 @@ export function StepPropertyIdentity({
                 placeholder="e.g., 4123456789"
               />
             </div>
+          </div>
+
+          {/* RU TimeZone — exact UTC±HH:MM required by Push_FillCompanyDetails_RQ */}
+          <div className="space-y-2">
+            <Label htmlFor="time_zone">Time Zone *</Label>
+            <Select
+              value={normalizedTimeZone}
+              onValueChange={(v) => updateField("amenities.time_zone", v)}
+            >
+              <SelectTrigger id="time_zone">
+                <SelectValue placeholder="Select time zone (UTC±HH:MM)" />
+              </SelectTrigger>
+              <SelectContent className="max-h-72">
+                {RU_TIME_ZONE_GROUPS.map((group) => (
+                  <SelectGroup key={group}>
+                    <SelectLabel className="text-[10px] uppercase tracking-wide">
+                      {group}
+                    </SelectLabel>
+                    {RU_TIME_ZONES.filter((z) => z.group === group).map((z) => (
+                      <SelectItem key={z.value} value={z.value}>
+                        ({z.offset}) {z.label}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Rentals United requires the exact format UTC±HH:MM (South Africa: UTC+02:00).
+            </p>
+            {rawTimeZone && !normalizedTimeZone && (
+              <p className="text-xs text-destructive">
+                Stored value “{rawTimeZone}” is not a valid RU time zone — pick one above.
+              </p>
+            )}
           </div>
 
           <div className="space-y-2">
