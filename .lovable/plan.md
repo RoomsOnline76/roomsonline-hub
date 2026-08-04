@@ -36,9 +36,6 @@ Confirmed gaps:
 - New `duplicate_range_test`: push the same range twice and push two deliberately overlapping ranges, asserting RU ends in one consistent state (no duplicated days, no conflicting MinStay).
 - Surface both in `RuCertificationConsole.tsx`, feeding the milestone tracker and the JSON/PDF evidence export.
 
-## Open question
-
-The uploaded screenshot shows a clipped "3 Availabl…" chip. I could not find that string in the channel-manager or sync-tracker components, so tell me which screen it is on and I will add a small UI phase to fix the truncation.
 
 ## Technical notes
 - No edits to locked adapter regions in `.lovable/ADAPTER_LOCKS.md` without explicit approval in the same turn.
