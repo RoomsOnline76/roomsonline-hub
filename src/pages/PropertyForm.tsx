@@ -3638,6 +3638,23 @@ export default function PropertyForm({
       // the values we just saved without a page refresh.
       void queryClient.invalidateQueries({ queryKey: ["property-readiness"] });
 
+      // Portfolio commons: when the portfolio has auto-share enabled, propagate the
+      // shared data sets (entity, banking, contacts, house rules, locale, RU defaults)
+      // both ways without overwriting anything already captured.
+      if (savedPropertyId) {
+        void runAutoShare(savedPropertyId)
+          .then((result) => {
+            if (result && result.updatedGroups.length > 0) {
+              toast({
+                title: "Portfolio commons synced",
+                description: `${result.updatedGroups.length} shared data set${result.updatedGroups.length === 1 ? "" : "s"} aligned across the portfolio.`,
+              });
+              void queryClient.invalidateQueries({ queryKey: ["property-readiness"] });
+            }
+          })
+          .catch((commonsError) => console.error("Portfolio commons auto-share failed:", commonsError));
+      }
+
       toast({
         title: "Success",
         description: isEditMode ? "Property updated successfully" : "Property created successfully",
