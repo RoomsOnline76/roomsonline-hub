@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { AI_MODELS } from "../_shared/aiModels.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -77,7 +78,7 @@ Deno.serve(async (req) => {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            model: "google/gemini-2.5-pro",
+            model: AI_MODELS.image_validation,
             messages: [
               {
                 role: "system",

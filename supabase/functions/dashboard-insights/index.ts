@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
+import { AI_MODELS, AI_GATEWAY_URL } from "../_shared/aiModels.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -29,10 +30,10 @@ serve(async (req) => {
     }
     
     const { prompt, dashboardData } = validationResult.data;
-    const XAI_API_KEY = Deno.env.get("XAI_API_KEY");
+    const XAI_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     
     if (!XAI_API_KEY) {
-      throw new Error("XAI_API_KEY is not configured");
+      throw new Error("LOVABLE_API_KEY is not configured");
     }
 
     console.log("Processing dashboard insights request:", { prompt, dataKeys: Object.keys(dashboardData || {}) });
@@ -114,14 +115,14 @@ ${dashboardData.propertyBreakdown?.slice(0, 5).map((p: any) =>
 
     userPrompt += `\n\nUser Question: ${prompt}\n\nProvide a concise analytical insight addressing the user's question. Use markdown formatting.`;
 
-    const response = await fetch("https://api.x.ai/v1/chat/completions", {
+    const response = await fetch(AI_GATEWAY_URL, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${XAI_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "grok-3-mini-fast",
+        model: AI_MODELS.dashboard_insights,
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },

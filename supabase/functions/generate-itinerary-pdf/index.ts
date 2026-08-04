@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { findDiningExperience } from "../_shared/delight-engine.ts";
+import { AI_MODELS } from "../_shared/aiModels.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -244,7 +245,7 @@ Only return the poem, no explanations or titles.`;
         "Authorization": `Bearer ${lovableApiKey}`,
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: AI_MODELS.itinerary_narrative,
         messages: [{ role: "user", content: prompt }],
         max_tokens: 200,
         temperature: 0.8,

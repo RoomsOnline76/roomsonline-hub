@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { AI_MODELS, AI_GATEWAY_URL } from "../_shared/aiModels.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -109,10 +110,10 @@ async function generateDiningWithXAI(
   property: PropertyContext, 
   diningTier: DiningTier
 ): Promise<Experience | null> {
-  const xaiApiKey = Deno.env.get("XAI_API_KEY");
+  const xaiApiKey = Deno.env.get("LOVABLE_API_KEY");
   
   if (!xaiApiKey) {
-    console.log("XAI_API_KEY not configured, skipping xAI dining generation");
+    console.log("LOVABLE_API_KEY not configured, skipping xAI dining generation");
     return null;
   }
   
@@ -121,14 +122,14 @@ async function generateDiningWithXAI(
   try {
     console.log(`Calling xAI Grok for ${diningTier} dining recommendation...`);
     
-    const response = await fetch("https://api.x.ai/v1/chat/completions", {
+    const response = await fetch(AI_GATEWAY_URL, {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${xaiApiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "grok-3-latest",
+        model: AI_MODELS.experience_curation,
         messages: [
           {
             role: "system",
@@ -261,7 +262,7 @@ Include actual place names when possible.${coordinateInfo}`;
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+        model: AI_MODELS.experience_curation,
         messages: [
           {
             role: "system",
@@ -373,7 +374,7 @@ async function generateDiningWithLovableAI(
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+        model: AI_MODELS.experience_curation,
         messages: [
           {
             role: "system",
