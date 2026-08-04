@@ -1606,15 +1606,14 @@ export default function PMSDashboard() {
                     className="h-7 text-xs px-2"
                   >Month</Button>
                 </div>
-                {isPortfolioMode && (
-                  <Button
-                    variant={showOnlyBookedDays ? "default" : "outline"}
-                    onClick={() => setShowOnlyBookedDays((value) => !value)}
-                    className="h-7 text-xs px-2"
-                  >
-                    <EyeOff className="h-3 w-3 mr-1" />Booked days
-                  </Button>
-                )}
+                <Button
+                  variant={showOnlyBookedDays ? "default" : "outline"}
+                  onClick={() => setShowOnlyBookedDays((value) => !value)}
+                  className="h-7 text-xs px-2"
+                  title={showOnlyBookedDays ? "Showing only booked days" : "Show only booked days"}
+                >
+                  <EyeOff className="h-3 w-3 mr-1" />Booked days
+                </Button>
               </div>
             </div>
 
