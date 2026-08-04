@@ -1798,14 +1798,12 @@ export default function PMSDashboard() {
                           {bookingCount} booking{bookingCount === 1 ? "" : "s"}
                         </Badge>
                         <Badge variant="outline" className="text-[10px]">
-                          {(portfolioProperties || []).length} properties
+                          {weekPropViews.length} propert{weekPropViews.length === 1 ? "y" : "ies"}
                         </Badge>
                       </button>
                       {!isWeekCollapsed && (
                       <div className="space-y-4 pl-2">
-                        {(portfolioProperties || []).map(prop => {
-                          const propData = portfolioDataByProperty.get(prop.id);
-                          if (!propData || propData.roomTypes.length === 0) return null;
+                        {weekPropViews.map(({ prop, propData, propDates, propRoomTypes }) => {
                           const propGetRate = (rtId: string, date: Date) => getPortfolioRateForDate(prop.id, rtId, date);
                           const propGetSuffix = () => '';
                           const propGetRestriction = (rtName: string, date: Date) =>
@@ -1819,13 +1817,14 @@ export default function PMSDashboard() {
                                 <Building2 className="h-3.5 w-3.5 text-primary shrink-0" />
                                 <h3 className="text-xs font-semibold text-foreground">{prop.name}</h3>
                                 <Badge variant="outline" className="text-[10px]">
-                                  {propData.roomTypes.length} types · {displayedRoomCount} rooms
+                                  {propRoomTypes.length} types · {displayedRoomCount} rooms
                                 </Badge>
                               </div>
                               <WeekCalendarGrid
-                                dates={visibleWeekDates}
-                                roomTypes={propData.roomTypes}
+                                dates={propDates}
+                                roomTypes={propRoomTypes}
                                 roomsByType={propData.roomsByType}
+
                                 bookings={propData.bookings}
                                 rooms={propData.rooms}
                                 overrideMap={propData.overrideMap}
