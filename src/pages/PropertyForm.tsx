@@ -5298,7 +5298,12 @@ export default function PropertyForm({
 
                 {/* RU owner sub-account: identity link + API key capture (ROL'OS PMS only) */}
                 {isEditMode && propertyId && (
-                  <PropertyRuOwnerPanel propertyId={propertyId} pmsSystem={selectedPMS} readOnly={!isAdminUser} />
+                  <PropertyRuOwnerPanel
+                    propertyId={propertyId}
+                    pmsSystem={selectedPMS}
+                    readOnly={!(isAdmin || isDev || isFearlessLeader)}
+                  />
+
                 )}
 
                 {/* Company Information — contract variables + banking + Rentals United profile */}
