@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useRuWhiteLabelTokens } from "@/hooks/useRuWhiteLabelTokens";
 import { usePMSBrand } from "@/contexts/PMSBrandContext";
 import { useAuth } from "@/hooks/useAuth";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 
 
 const EMBED_HEIGHT = "h-[calc(100vh-12rem)]";
@@ -22,7 +22,7 @@ const EMBED_HEIGHT = "h-[calc(100vh-12rem)]";
  * brand custom properties handed to the client follow the property palette.
  */
 export function RuWhiteLabelEmbed({ propertyId }: { propertyId: string | null | undefined }) {
-  const { tokens, isLoading, isFetching, isUnavailable, reason, subUserVerified, message, refetch } =
+  const { tokens, isLoading, isFetching, isUnavailable, reason, subUserVerified, refetch } =
     useRuWhiteLabelTokens(propertyId);
   const brand = usePMSBrand();
   const { isAdmin, isDev, isFearlessLeader } = useAuth();
@@ -39,12 +39,13 @@ export function RuWhiteLabelEmbed({ propertyId }: { propertyId: string | null | 
     const result = await refetch();
     const fresh = result.data;
     if (fresh?.available && fresh.access_token) {
-      toast({ title: "Channel Manager connected", description: "Loading your channels now." });
+      toast.success("ROL'OS Channel Manager connected", {
+        description: "Loading your channels now.",
+      });
     } else {
-      toast({
-        title: "Still finalising",
+      toast("ROL'OS sign-in is still being finalised", {
         description:
-          "The Channel Manager session isn't ready yet. Your Rentals United connection is unaffected — please try again shortly.",
+          "Your ROL'OS connection is fine. TOBI will keep finalising the Channel Manager sign-in automatically.",
       });
     }
   };
@@ -124,9 +125,9 @@ export function RuWhiteLabelEmbed({ propertyId }: { propertyId: string | null | 
 
     if (scriptFailed) {
       title = "Channel Manager could not be loaded.";
-      body = "The Rentals United White Label client did not load. Check your connection and try again.";
+      body = "The ROL'OS Channel Manager did not load. Check your connection and try again.";
     } else if (reason === "no_owner_account") {
-      title = "This property isn't linked to a Rentals United account yet.";
+      title = "This property isn't linked to a ROL'OS Channel Manager account yet.";
       body = "Once the account link is in place the Channel Manager appears here automatically.";
     } else if (reason === "awaiting_wl_token" || subUserVerified) {
       title = "Your ROL'OS account is connected.";
@@ -154,7 +155,6 @@ export function RuWhiteLabelEmbed({ propertyId }: { propertyId: string | null | 
           </div>
           <p className="text-sm font-medium text-foreground">{title}</p>
           {body && <div className="space-y-2 text-sm text-muted-foreground">{body}</div>}
-          {isStaff && message && <p className="text-xs text-muted-foreground">{message}</p>}
           <div className="flex flex-wrap items-center justify-center gap-2">
             <Button variant="outline" size="sm" onClick={handleRetry} disabled={isFetching}>
               <RefreshCw className={`mr-2 h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
