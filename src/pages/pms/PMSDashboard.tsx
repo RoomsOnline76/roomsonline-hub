@@ -2482,9 +2482,8 @@ function MonthRoomTypeRows({ rt, weekDates, typeRooms, bookings, getRateForDate,
                       <button
                         key={b.id}
                         onClick={() => onSelectBooking(b)}
-                        title={getBookingBarTitle(b)}
                         onDoubleClick={() => onSelectBooking(b, "folio")}
-                        title={`${b.guest_name} · ${b.check_in_date} → ${b.check_out_date} · ${b.status} — click to open, double-click for folio`}
+                        title={`${getBookingBarTitle(b)} · ${b.status} — click to open, double-click for folio`}
                         className={cn("absolute inset-y-0.5 inset-x-0.5 rounded-sm border flex items-center gap-1 px-1 overflow-hidden cursor-pointer hover:opacity-90", colors.bg, colors.border)}
                       >
                         {isStart && (
