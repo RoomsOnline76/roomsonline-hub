@@ -94,6 +94,43 @@ Deno.serve(async (req) => {
           method: req.method,
         },
       });
+
+      // PropertyMCQEligibilityCheck carries the asynchronous result of
+      // CM_LNM_OrderMinimumContentQualityCheck_RQ. Close out the matching order so the
+      // certification console shows pass/fail instead of a permanent "ordered".
+      if (changeType === 'PropertyMCQEligibilityCheck' && ruPropertyId) {
+        const successFlag = String(payload.Success ?? payload.success ?? '').trim().toLowerCase();
+        const resultText = String(payload.Result ?? payload.result ?? '').trim() || null;
+        const passed = successFlag === 'true' || successFlag === '1';
+        const { data: order } = await admin
+          .from('ru_mcq_orders')
+          .select('id, response_preview')
+          .eq('ru_property_id', Number(ruPropertyId))
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (order?.id) {
+          await admin
+            .from('ru_mcq_orders')
+            .update({
+              status: passed ? 'passed' : 'failed',
+              ru_status_id: resultText,
+              response_preview: {
+                ...(typeof order.response_preview === 'object' && order.response_preview !== null
+                  ? order.response_preview
+                  : {}),
+                mcq_notification: {
+                  change_id: changeId,
+                  success: passed,
+                  result: resultText,
+                  received_at: new Date().toISOString(),
+                },
+              },
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', order.id);
+        }
+      }
     } catch (err) {
       console.error('[ru-lnm-handler] log failed', err);
     }
