@@ -123,14 +123,13 @@ export default function PropertyOnboarding() {
   }, [user, tokenData]);
 
   const handleComplete = async () => {
-    if (tokenData) {
-      await supabase
-        .from("property_onboarding_tokens")
-        .update({ used_at: new Date().toISOString() })
-        .eq("id", tokenData.id);
+    if (token) {
+      // Only the signed-in owner the invitation was issued to can close it out.
+      await supabase.rpc("consume_onboarding_token", { _token: token });
     }
     navigate("/dashboard/reports");
   };
+
 
   const handleClose = () => {
     navigate("/dashboard/reports");
