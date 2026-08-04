@@ -170,11 +170,16 @@ export function ChannelCard({
                     )}
                   </DropdownMenuContent>
                 </DropdownMenu>
+              ) : blockConnect ? (
+                <Button size="sm" variant="outline" onClick={onReadinessClick}>
+                  <AlertTriangle className="h-4 w-4 mr-1.5" /> Complete setup
+                </Button>
               ) : (
                 <Button size="sm" onClick={onConnect}>
                   <Plug className="h-4 w-4 mr-1.5" /> Connect
                 </Button>
               )}
+
             </div>
           )}
         </div>
