@@ -146,7 +146,27 @@ export default function PMSPropertySetup() {
             live here — same tables the admin editor and book. OTA read.
           </p>
         </div>
+        <Button
+          type="button"
+          size="sm"
+          variant={showChecksheet ? "secondary" : "outline"}
+          className="h-7 text-[11px]"
+          onClick={() => setShowChecksheet((v) => !v)}
+        >
+          {showChecksheet ? "Hide" : "Show"} readiness checksheet
+        </Button>
       </header>
+
+      {showChecksheet && (
+        <RolosReadinessChecklist
+          propertyId={propertyId}
+          onNavigateSection={(section) => {
+            if (VALID_TABS.has(section as TabKey)) handleSelectTab(section as TabKey);
+          }}
+        />
+      )}
+
+
 
       <div
         className={
