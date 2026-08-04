@@ -68,6 +68,7 @@ Deno.serve(async (req) => {
         const { data } = await admin
           .from('pms_mappings')
           .select('property_id')
+          .eq('system_type', 'rentals_united')
           .eq('external_id', ruPropertyId)
           .limit(1)
           .maybeSingle();
@@ -81,6 +82,7 @@ Deno.serve(async (req) => {
         error_message: known ? null : `Unrecognised LNM change type: ${changeType || '(none)'}`,
         elapsed_ms: 0,
         property_id: propertyUuid,
+        ru_property_id: ruPropertyId,
         details: {
           scope: 'lnm_webhook',
           change_id: changeId,
