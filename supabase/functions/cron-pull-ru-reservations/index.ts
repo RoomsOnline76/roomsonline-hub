@@ -24,6 +24,8 @@ const corsHeaders = {
 const METHOD_WINDOW_MS = 61_000;
 /** How far back to ask RU for reservations (RU filters on the reservation creation date). */
 const PULL_WINDOW_DAYS = 90;
+/** How long an unconfirmed RU lead holds the dates before availability is released. */
+const LEAD_HOLD_DAYS = 3;
 /** Wall-clock budget for the whole run; remaining accounts roll into the next run. */
 const RUN_BUDGET_MS = 6 * 60_000;
 
@@ -51,7 +53,7 @@ Deno.serve(async (req) => {
   const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
   const supabase = createClient(supabaseUrl, supabaseKey);
 
-  const summary = { total: 0, created: 0, updated: 0, cancelled: 0, skipped: 0, failed: 0, unmatched: 0, leads_found: 0, leads_logged: 0 };
+  const summary = { total: 0, created: 0, updated: 0, cancelled: 0, skipped: 0, failed: 0, unmatched: 0, leads_found: 0, leads_logged: 0, leads_held: 0 };
   const cronStartedAt = Date.now();
   const deadline = cronStartedAt + RUN_BUDGET_MS;
 
