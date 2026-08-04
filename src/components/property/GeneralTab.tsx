@@ -726,8 +726,9 @@ export function GeneralTab(props: GeneralTabProps) {
                     <Label htmlFor="city" className="text-xs">City *</Label>
                     <Input id="city" value={formData.city} onChange={(e) => handleInputChange("city", e.target.value)} placeholder="City" required={!noStreetAddress} disabled={isFieldPopulatedByPMS("city", selectedPMS)} className={cn("h-7 text-xs", getPMSFieldClass("city", selectedPMS), isFieldPopulatedByPMS("city", selectedPMS) && "cursor-not-allowed")} />
                   </div>
-                  <div className="flex flex-col gap-1">
+                  <div className="flex flex-col gap-1" data-field="country">
                     <Label htmlFor="country" className="text-xs">Country *</Label>
+
                     <Popover open={countryOpen} onOpenChange={setCountryOpen}>
                       <PopoverTrigger asChild>
                         <Button variant="outline" role="combobox" aria-expanded={countryOpen} className={cn("h-7 text-xs w-full justify-between font-normal", getPMSFieldClass("country", selectedPMS))} disabled={isFieldPopulatedByPMS("country", selectedPMS)}>
