@@ -698,14 +698,20 @@ Deno.serve(async (req) => {
         .limit(25);
 
       type StepRow = { name: string; ru_method: string; status: StepStatus; ru_status_id?: string | null; detail?: string };
+      // Cert steps label methods loosely ("Pull_ListProp_RQ (health)", "A + B",
+      // "Pull_ListOwnerBuildings_RQ"), so match on a normalised key plus registry aliases.
+      const normMethod = (m: string) => m.replace(/\([^)]*\)/g, "").replace(/[\s_]+/g, "").trim().toLowerCase();
       const latestByMethod = new Map<string, { step: StepRow; run_id: string; at: string }>();
       for (const run of (certRuns ?? []) as { id: string; started_at: string; steps: StepRow[] }[]) {
         for (const step of run.steps ?? []) {
-          for (const key of String(step.ru_method ?? "").split("+").map((k) => k.trim()).filter(Boolean)) {
+          for (const raw of String(step.ru_method ?? "").split("+").map((k) => k.trim()).filter(Boolean)) {
+            const key = normMethod(raw);
+            if (!key || key === "—") continue;
             if (!latestByMethod.has(key)) latestByMethod.set(key, { step, run_id: run.id, at: run.started_at });
           }
         }
       }
+
 
       const { data: syncRows } = await admin
         .from("ru_sync_runs")
