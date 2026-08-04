@@ -464,8 +464,12 @@ export function PropertyRuOwnerPanel({ propertyId, pmsSystem, readOnly = false }
               )}
 
             </div>
+
+            <Separator />
+            <RuWhiteLabelTokenFields propertyId={propertyId} readOnly={readOnly} />
           </>
         )}
+
 
         {/* Shared identity */}
         {linked && (identity?.siblings.length ?? 0) > 0 && (
