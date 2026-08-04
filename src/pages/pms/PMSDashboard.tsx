@@ -238,6 +238,36 @@ function bookingTouchesDate(booking: Pick<BookingRow, "check_in_date" | "check_o
     && !["cancelled", "no_show"].includes(booking.status);
 }
 
+function bookingMatchesRoomType(booking: BookingRow, roomType: RoomType, typeRooms: Room[]): boolean {
+  if (booking.room_type_id && (booking.room_type_id === roomType.id || booking.room_type_id === roomType.linked_overview_id)) return true;
+  if (booking.rolos_room_ids?.some((roomId) => typeRooms.some((room) => room.id === roomId))) return true;
+  // Unassigned bookings can't be tied to a type — never hide them.
+  if (!booking.room_type_id && !(booking.rolos_room_ids?.length)) return true;
+  return false;
+}
+
+/** Restrict a candidate date range + room types to what a property actually has booked. */
+function filterToBookedView(
+  candidateDates: Date[],
+  bookingList: BookingRow[],
+  roomTypeList: RoomType[],
+  roomsByTypeMap: Map<string, Room[]>,
+): { visibleDates: Date[]; visibleRoomTypes: RoomType[] } {
+  const liveBookings = bookingList.filter((booking) => !["cancelled", "no_show"].includes(booking.status));
+  const visibleDates = candidateDates.filter((date) => {
+    const dateStr = format(date, "yyyy-MM-dd");
+    return liveBookings.some((booking) => bookingTouchesDate(booking, dateStr));
+  });
+  const dateKeys = visibleDates.map((date) => format(date, "yyyy-MM-dd"));
+  const activeBookings = liveBookings.filter((booking) => dateKeys.some((dateKey) => bookingTouchesDate(booking, dateKey)));
+  const visibleRoomTypes = roomTypeList.filter((roomType) =>
+    activeBookings.some((booking) => bookingMatchesRoomType(booking, roomType, roomsByTypeMap.get(roomType.id) || []))
+  );
+  return { visibleDates, visibleRoomTypes };
+}
+
+
+
 export default function PMSDashboard() {
   const { propertyId, properties, portfolioProperties, portfolioName, loading: propLoading, switchProperty, showPortfolioToggle } = usePmsPropertyId();
   // If selected property is in a portfolio, scope dropdown to portfolio members
