@@ -2735,25 +2735,53 @@ Deno.serve(async (req) => {
 
 
     // ── order_mcq: CM_LNM_OrderMinimumContentQualityCheck_RQ (Phase 4.3) ──
+    // CM_* methods belong to the Channel Management scope. Sub-user listings are normally
+    // quality-checked as the sub-user (scopedCreds), otherwise RU answers "You are not the
+    // owner of the apartment". When RU rejects that path with a channel-side error
+    // (280 "Subscribe to LNM first", 17 "Unexpected error") we retry ONCE as the master
+    // channel-manager account, which observes the sub-user via its LNM subscription.
     if (action === 'order_mcq') {
       const ruPropertyId = Number(body.ru_property_id);
       if (!ruPropertyId) return errorResponse('MISSING_PARAM', 'ru_property_id is required');
-      // Sub-user listings must be quality-checked as the sub-user (scopedCreds), otherwise
-      // RU answers "You are not the owner of the apartment".
-      const xml = `<?xml version="1.0" encoding="utf-8"?>\n<CM_LNM_OrderMinimumContentQualityCheck_RQ>${buildAuthXml(scopedCreds)}<PropertyID>${ruPropertyId}</PropertyID></CM_LNM_OrderMinimumContentQualityCheck_RQ>`;
-      const response = await callRentalsUnited(scopedCreds, xml);
-      console.log(`[rentalsunited-api] OrderMCQ (auth=${authMode}) response: ${response.substring(0, 500)}`);
-      const { ok, status } = handleRUStatus(response);
-      if (!ok) return ruErrorResponse(status, buildDiagnostics(compactXml(xml), status, 'order_mcq', response));
+      const CM_RETRY_STATUSES = new Set(['17', '280']);
+      const forcedScope = String(body.auth_scope ?? '').trim().toLowerCase();
+
+      const attempt = async (useMaster: boolean) => {
+        const attemptCreds = useMaster ? creds : scopedCreds;
+        const xml = `<?xml version="1.0" encoding="utf-8"?>\n<CM_LNM_OrderMinimumContentQualityCheck_RQ>${buildAuthXml(attemptCreds)}<PropertyID>${ruPropertyId}</PropertyID></CM_LNM_OrderMinimumContentQualityCheck_RQ>`;
+        const response = await callRentalsUnited(attemptCreds, xml);
+        const { ok, status } = handleRUStatus(response);
+        console.log(
+          `[rentalsunited-api] OrderMCQ (auth=${useMaster ? 'master_channel_manager' : authMode}) ok=${ok} status=${status?.id ?? 'n/a'} response: ${response.substring(0, 500)}`,
+        );
+        return { ok, status, xml, response };
+      };
+
+      const masterOnly = forcedScope === 'master';
+      let attemptAuth = masterOnly ? 'master_channel_manager' : authMode;
+      let result = await attempt(masterOnly);
+
+      if (!result.ok && !masterOnly && forcedScope !== 'child' && CM_RETRY_STATUSES.has(String(result.status?.id ?? ''))) {
+        attemptAuth = 'master_channel_manager';
+        result = await attempt(true);
+      }
+
+      if (!result.ok) {
+        return ruErrorResponse(
+          result.status,
+          buildDiagnostics(compactXml(result.xml), result.status, 'order_mcq', result.response),
+        );
+      }
       return jsonResponse({
         success: true,
-        auth_mode: authMode,
+        auth_mode: attemptAuth,
         ru_property_id: ruPropertyId,
-        ru_status_id: status?.id ?? null,
+        ru_status_id: result.status?.id ?? null,
         message: 'Minimum Content Quality check ordered',
-        raw_xml: response,
+        raw_xml: result.response,
       });
     }
+
 
 
     // ── get_location_by_name ──
