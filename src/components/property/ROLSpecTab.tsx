@@ -123,6 +123,7 @@ export function ROLSpecTab({ data, onChange, propertyContext, onDirty }: ROLSpec
   const { toast } = useToast();
   const [activeSubTab, setActiveSubTab] = useState("details");
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isRunningBulk, setIsRunningBulk] = useState(false);
   const [isUploadingVideo, setIsUploadingVideo] = useState(false);
   const [isEnriching, setIsEnriching] = useState(false);
 
@@ -234,6 +235,64 @@ export function ROLSpecTab({ data, onChange, propertyContext, onDirty }: ROLSpec
       });
     } finally {
       setIsUploadingVideo(false);
+    }
+  };
+
+  /**
+   * Full TOBI editorial run for this property, using the same generator as the
+   * estate-wide backfill. Overwrites all five fields so the copy stays consistent.
+   */
+  const handleRunEditorial = async () => {
+    if (!propertyContext.property_id) {
+      toast({
+        title: "Save the property first",
+        description: "TOBI editorial needs a saved property to run against.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsRunningBulk(true);
+    try {
+      const { data: response, error } = await supabase.functions.invoke("bulk-editorial-generate", {
+        body: {
+          property_id: propertyContext.property_id,
+          overwrite: true,
+        },
+      });
+      if (error) throw error;
+
+      const entry = (response?.results ?? []).find(
+        (r: { success?: boolean; content?: Record<string, string> }) => r?.content,
+      );
+      const content = entry?.content as Record<string, string> | undefined;
+
+      if (!content) {
+        const failure = (response?.results ?? []).find((r: { error?: string }) => r?.error);
+        throw new Error(failure?.error || "TOBI did not return editorial content");
+      }
+
+      onChange({
+        ...data,
+        why_we_chose_this_place: content.why_we_chose_this_place ?? data.why_we_chose_this_place,
+        who_this_suits: content.who_this_suits ?? data.who_this_suits,
+        what_its_really_like: content.what_its_really_like ?? data.what_its_really_like,
+        why_this_place_matters: content.why_this_place_matters ?? data.why_this_place_matters,
+        who_its_not_for: content.who_its_not_for ?? data.who_its_not_for,
+      });
+      onDirty();
+      toast({
+        title: "Editorial rewritten",
+        description: "TOBI regenerated all five editorial fields. Review, then save.",
+      });
+    } catch (err) {
+      toast({
+        title: "TOBI editorial run failed",
+        description: err instanceof Error ? err.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsRunningBulk(false);
     }
   };
 
@@ -543,24 +602,48 @@ export function ROLSpecTab({ data, onChange, propertyContext, onDirty }: ROLSpec
                 Use TOBI to generate content for empty editorial fields below. 
                 The assistant uses the complete property listing (location, facilities, rooms, policies) as context.
               </p>
-              <Button
-                type="button"
-                onClick={handleAIAssist}
-                disabled={isGenerating}
-                className="bg-primary hover:bg-primary/90"
-              >
-                {isGenerating ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Generating...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="mr-2 h-4 w-4" />
-                    Generate Editorial Content
-                  </>
-                )}
-              </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  onClick={handleAIAssist}
+                  disabled={isGenerating || isRunningBulk}
+                  className="bg-primary hover:bg-primary/90"
+                >
+                  {isGenerating ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="mr-2 h-4 w-4" />
+                      Generate Editorial Content
+                    </>
+                  )}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleRunEditorial}
+                  disabled={isGenerating || isRunningBulk || !propertyContext.property_id}
+                >
+                  {isRunningBulk ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Running TOBI editorial...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="mr-2 h-4 w-4" />
+                      Run TOBI editorial (rewrite all)
+                    </>
+                  )}
+                </Button>
+              </div>
+              <p className="mt-2 text-[11px] text-muted-foreground">
+                "Generate" only fills empty fields. "Run TOBI editorial" rewrites all five fields for
+                this property — nothing is saved until you save the form.
+              </p>
             </CardContent>
           </Card>
 
