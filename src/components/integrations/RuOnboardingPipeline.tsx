@@ -25,7 +25,11 @@ import {
   UploadCloud,
   UserPlus,
   BadgeCheck,
+  Radio,
 } from "lucide-react";
+
+/** Channel the content quality check is ordered against (RU CM_LNM_* ChannelID). */
+const MCQ_CHANNEL_NAME = "LekkeSlaap";
 
 type PhaseKey = "p1_subuser" | "p2_readiness" | "p3_push" | "p4_verify";
 type PhaseStatus = "passed" | "blocked" | "pending";
@@ -54,6 +58,13 @@ interface LastMcq {
   ordered_at: string;
   status: string;
   ru_status_id: string | null;
+}
+
+interface SalesChannel {
+  channel_id: number;
+  company_name: string | null;
+  scope: "property" | "account";
+  updated_at: string | null;
 }
 
 interface Props {
@@ -89,6 +100,8 @@ const statusBadge = (status: PhaseStatus) => {
 export function RuOnboardingPipeline({ propertyId, readOnly = false, standalone = true }: Props) {
   const [gate, setGate] = useState<Gate | null>(null);
   const [lastMcq, setLastMcq] = useState<LastMcq | null>(null);
+  const [salesChannel, setSalesChannel] = useState<SalesChannel | null>(null);
+  const [resolvingChannel, setResolvingChannel] = useState(false);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState<PhaseKey | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -115,6 +128,7 @@ export function RuOnboardingPipeline({ propertyId, readOnly = false, standalone 
     } else {
       setGate(data.gate as Gate);
       setLastMcq((data.last_mcq ?? null) as LastMcq | null);
+      setSalesChannel((data.sales_channel ?? null) as SalesChannel | null);
     }
     setLoading(false);
   }, [propertyId]);
@@ -176,6 +190,26 @@ export function RuOnboardingPipeline({ propertyId, readOnly = false, standalone 
     [runAction, propertyId],
   );
 
+
+  /** Pull_ListSalesChannels_RQ → store the LekkeSlaap ChannelID for this property. */
+  const resolveChannel = useCallback(async () => {
+    setResolvingChannel(true);
+    const { data, error: fnError } = await supabase.functions.invoke("ru-cert-portal", {
+      body: { action: "resolve_sales_channel", property_id: propertyId, channel_name: MCQ_CHANNEL_NAME },
+    });
+    setResolvingChannel(false);
+    if (fnError || !data?.success) {
+      toast.error(
+        fnError
+          ? await extractFunctionError(fnError, "Could not pull the Rentals United sales channels")
+          : data?.error?.message ?? "Could not resolve the ChannelID",
+        { duration: 12000 },
+      );
+    } else {
+      toast.success(`${MCQ_CHANNEL_NAME} ChannelID ${data.channel?.channel_id} linked to this property`);
+    }
+    await load();
+  }, [propertyId, load]);
 
   const pushToRu = useCallback(async () => {
     setBusy("p3_push");
@@ -266,17 +300,36 @@ export function RuOnboardingPipeline({ propertyId, readOnly = false, standalone 
 
     if (phase.key === "p4_verify" && phase.status === "passed") {
       return (
-        <Button
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <Button
+            size="sm"
+            variant={salesChannel ? "ghost" : "secondary"}
+            disabled={resolvingChannel || busy !== null}
+            onClick={resolveChannel}
+          >
+            {resolvingChannel ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Radio className="mr-2 h-4 w-4" />}
+            {salesChannel ? "Re-pull ChannelID" : `Resolve ${MCQ_CHANNEL_NAME} ChannelID`}
+          </Button>
+          <Button
           size="sm"
           variant="outline"
           disabled={busy !== null}
           onClick={() =>
-            runAction("p4_verify", { action: "order_mcq", property_id: propertyId }, "Content quality check ordered")
+            runAction(
+              "p4_verify",
+              {
+                action: "order_mcq",
+                property_id: propertyId,
+                ...(salesChannel ? { channel_id: salesChannel.channel_id } : {}),
+              },
+              "Content quality check ordered",
+            )
           }
         >
           {spinner ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BadgeCheck className="mr-2 h-4 w-4" />}
-          Order quality check
-        </Button>
+            Order quality check
+          </Button>
+        </div>
       );
     }
 
@@ -325,6 +378,21 @@ export function RuOnboardingPipeline({ propertyId, readOnly = false, standalone 
                     {statusBadge(phase.status)}
                   </div>
                   <p className="mt-1 text-sm text-muted-foreground">{PHASE_HINT[phase.key]}</p>
+                  {phase.key === "p4_verify" && (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {salesChannel ? (
+                        <>
+                          Sales channel: <span className="font-medium text-foreground">
+                            {salesChannel.company_name || MCQ_CHANNEL_NAME}
+                          </span>{" "}
+                          · ChannelID <span className="font-medium text-foreground">{salesChannel.channel_id}</span>
+                          {` (${salesChannel.scope} scope)`}
+                        </>
+                      ) : (
+                        <>No sales ChannelID linked yet — pull it from Rentals United before ordering the quality check.</>
+                      )}
+                    </p>
+                  )}
                   {(phase.key === "p3_push" || phase.key === "p4_verify") && phase.detail?.ru_owner_id != null && (
                     <p className="mt-1 text-xs text-muted-foreground">
                       Linked RU OwnerID: <span className="font-medium text-foreground">{String(phase.detail.ru_owner_id)}</span>

@@ -197,6 +197,17 @@ async function resolveOwnerLocationIds(
 
 
 
+/**
+ * Default sales channel the content quality check is ordered against. RU's CM_LNM_*
+ * methods need a numeric ChannelID, which is resolved from Pull_ListSalesChannels_RQ by
+ * matching CompanyName (variants such as "LekkeSlaap" / "Lekke Slaap" all normalise here).
+ */
+const LEKKESLAAP_CHANNEL_NAME = "LekkeSlaap";
+
+/** ru_platform_settings key holding the resolved ChannelID (property-scoped or account-wide). */
+const channelSettingKey = (propertyId?: string | null) =>
+  propertyId ? `ru_channel_id:${propertyId}` : "ru_channel_id";
+
 // ── RU method catalogue ───────────────────────────────────────
 const RU_METHOD_BY_ACTION: Record<string, string> = {
   health_check: "Pull_ListProp_RQ (health)",
@@ -224,6 +235,7 @@ const RU_METHOD_BY_ACTION: Record<string, string> = {
   get_long_stay_discounts: "Pull_ListLongStayDiscounts_RQ",
   get_last_minute_discounts: "Pull_ListLastMinuteDiscounts_RQ",
   list_users: "Pull_ListMyUsers_RQ",
+  list_sales_channels: "Pull_ListSalesChannels_RQ",
 };
 
 /**
@@ -291,6 +303,7 @@ const CERT_MILESTONES: { key: string; label: string; ru_method: string; mandator
   { key: "lnm_subscribe", label: "Subscribe LNM (content + ARI)", ru_method: "Push_PutLiveNotificationMechanismSubscriptions_RQ", mandatory: true, scope: "account", note: "Content / availability / price change webhooks" },
   { key: "lnm_verify", label: "Verify LNM subscriptions", ru_method: "Pull_ListLiveNotificationMechanismSubscriptions_RQ", mandatory: true, scope: "account", note: "Read-back — detects silent subscription drift" },
   { key: "lnm_change_types", label: "List LNM change types", ru_method: "Pull_ListLiveNotificationMechanismChangeTypes_RQ", mandatory: false, scope: "account", note: "Dictionary read" },
+  { key: "sales_channels", label: "Pull sales channels (ChannelID)", ru_method: "Pull_ListSalesChannels_RQ", mandatory: true, scope: "account", note: "Resolves the LekkeSlaap ChannelID used by the content quality check" },
   { key: "reservations", label: "Pull reservations", ru_method: "Pull_ListReservations_RQ", mandatory: true, scope: "account", note: "" },
   { key: "leads", label: "Pull leads", ru_method: "Pull_GetLeads_RQ", mandatory: false, scope: "account", note: "Optional" },
   { key: "long_stay", label: "Long-stay discounts", ru_method: "Push_PutLongStayDiscounts_RQ", mandatory: false, scope: "property", note: "Optional but recommended" },
@@ -394,6 +407,8 @@ const RU_ENDPOINT_REGISTRY: {
     rolos_surface: "Live notifications panel (dictionary)", rolos_stream: "Reference data", rolos_wired: true, sync_actions: ["ListLnmChangeTypes"], note: "Dictionary read" },
   { key: "lnm_inbound", area: "notifications", label: "Inbound notification handler", ru_method: "LNM notification (inbound)", direction: "webhook", mandatory: true, implemented: true,
     rolos_surface: "ru-lnm-handler → MCQ orders / refresh", rolos_stream: "Inbound webhooks", rolos_wired: true, sync_actions: ["LNM_Notification"], note: "Routes PropertyMCQEligibilityCheck" },
+  { key: "sales_channels", area: "notifications", label: "List sales channels", ru_method: "Pull_ListSalesChannels_RQ", direction: "pull", mandatory: true, implemented: true,
+    rolos_surface: "RU console → Phase 4 channel ID", rolos_stream: "Onboarding P4 — channel readiness", rolos_wired: true, sync_actions: ["resolve_sales_channel", "list_sales_channels"], max_age_hours: 720, note: "Resolves LekkeSlaap ChannelID for MCQ" },
   { rolos_via_cert: true, key: "mcq", area: "notifications", label: "Order content quality check", ru_method: "CM_LNM_OrderMinimumContentQualityCheck_RQ", direction: "push", mandatory: false, implemented: true,
     rolos_surface: "RU console → Phase 4 quality check", rolos_stream: "Onboarding P4 — channel readiness", rolos_wired: true, sync_actions: ["order_mcq"], note: "Requires LNM subscription + ChannelID" },
 ];
@@ -435,6 +450,7 @@ const MILESTONE_SYNC_ACTIONS: Record<string, string[]> = {
   "Push_PutProperty_RQ": ["inventory_push", "weekly_content_refresh"],
   "Push_PutAvbUnits_RQ": ["refresh_ari"],
   "Push_PutPrices_RQ": ["refresh_ari"],
+  "Pull_ListSalesChannels_RQ": ["resolve_sales_channel", "list_sales_channels"],
 };
 
 /** Cert runs are orchestrated in phases from the browser; a closed tab or a failed phase
@@ -2186,7 +2202,33 @@ Deno.serve(async (req) => {
         .limit(1)
         .maybeSingle();
 
-      return json({ success: true, gate, readiness, last_mcq: mcq ?? null });
+      // Phase 4 needs a sales ChannelID for the content quality check — surface whatever
+      // is stored for this property (or the account-wide default) so the UI can prompt.
+      const { data: channelRows } = await admin
+        .from("ru_platform_settings")
+        .select("key, value, updated_at")
+        .in("key", [channelSettingKey(propertyId), channelSettingKey(null)]);
+      let salesChannel: Record<string, unknown> | null = null;
+      for (const key of [channelSettingKey(propertyId), channelSettingKey(null)]) {
+        const row = (channelRows ?? []).find((r: { key: string }) => r.key === key);
+        if (!row) continue;
+        const raw = row.value as Record<string, unknown> | number | string | null;
+        const channelId = Number(
+          typeof raw === "object" && raw !== null ? (raw as { channel_id?: unknown }).channel_id ?? 0 : raw ?? 0,
+        );
+        if (channelId > 0) {
+          salesChannel = {
+            channel_id: channelId,
+            company_name:
+              typeof raw === "object" && raw !== null ? (raw as { company_name?: string }).company_name ?? null : null,
+            scope: key.includes(":") ? "property" : "account",
+            updated_at: row.updated_at ?? null,
+          };
+          break;
+        }
+      }
+
+      return json({ success: true, gate, readiness, last_mcq: mcq ?? null, sales_channel: salesChannel });
     }
 
     // ── ensure_owner_account: Phase 1 sub-user (portfolio-first) ──
@@ -3006,6 +3048,79 @@ Deno.serve(async (req) => {
 
     }
 
+    // ── resolve_sales_channel: Phase 4 ChannelID (Pull_ListSalesChannels_RQ) ──
+    // The content quality check is ordered per sales channel, so the numeric ChannelID for
+    // the channel (default: LekkeSlaap) is pulled from RU and stored for the property.
+    if (action === "resolve_sales_channel") {
+      const propertyId: string | null = body.property_id ?? null;
+      const channelName: string = String(body.channel_name ?? LEKKESLAAP_CHANNEL_NAME).trim() || LEKKESLAAP_CHANNEL_NAME;
+      const startedAt = Date.now();
+
+      const { data: result, error: fnError } = await admin.functions.invoke("rentalsunited-api", {
+        body: { action: "list_sales_channels", channel_name: channelName, property_id: propertyId },
+      });
+      const ok = !fnError && (result as any)?.success === true;
+      const channels = (((result as any)?.channels ?? []) as Array<{
+        channel_id: number;
+        company_name: string;
+        reservation_creator_name: string | null;
+        configuration_complete: boolean | null;
+      }>);
+      const matched = ((result as any)?.matched ?? null) as { channel_id: number; company_name: string } | null;
+
+      const logRun = async (success: boolean, errorCode: string | null, errorMessage: string | null, details: Record<string, unknown>) => {
+        await admin.from("ru_sync_runs").insert({
+          batch_id: crypto.randomUUID(),
+          action: "resolve_sales_channel",
+          property_id: propertyId,
+          success,
+          error_code: errorCode,
+          error_message: errorMessage,
+          elapsed_ms: Date.now() - startedAt,
+          details,
+        });
+      };
+
+      if (!ok) {
+        const message = fnError?.message ?? (result as any)?.error?.message ?? "Rentals United rejected Pull_ListSalesChannels_RQ";
+        await logRun(false, (result as any)?.error?.code ?? "RU_ERROR", message, { channel_name: channelName });
+        return json({ success: false, error: { code: "RU_SALES_CHANNELS_FAILED", message } }, 502);
+      }
+
+      if (!matched) {
+        const message = `Rentals United returned ${channels.length} sales channel(s) but none matching "${channelName}". Ask Rentals United to connect the channel to this account.`;
+        await logRun(true, "CHANNEL_NOT_FOUND", message, { channel_name: channelName, channel_count: channels.length });
+        return json({
+          success: false,
+          error: { code: "CHANNEL_NOT_FOUND", message },
+          channels,
+        }, 404);
+      }
+
+      // Store property-scoped when we know the property, and seed the account-wide default.
+      const stamp = new Date().toISOString();
+      const value = { channel_id: matched.channel_id, company_name: matched.company_name, resolved_at: stamp };
+      const rows = [
+        { key: channelSettingKey(propertyId), value, updated_by: user.id, updated_at: stamp },
+      ];
+      if (propertyId) rows.push({ key: channelSettingKey(null), value, updated_by: user.id, updated_at: stamp });
+      await admin.from("ru_platform_settings").upsert(rows, { onConflict: "key" });
+
+      await logRun(true, null, null, {
+        channel_name: channelName,
+        channel_id: matched.channel_id,
+        company_name: matched.company_name,
+        channel_count: channels.length,
+      });
+
+      return json({
+        success: true,
+        channel: { ...matched, scope: propertyId ? "property" : "account" },
+        channels,
+        channel_count: channels.length,
+      });
+    }
+
     // ── order_mcq: Phase 4.3 Minimum Content Quality check ──
     if (action === "order_mcq") {
       const propertyId: string = body.property_id ?? "";
@@ -3732,6 +3847,16 @@ Deno.serve(async (req) => {
           },
         );
 
+        await call(
+          "Pull sales channels (ChannelID)",
+          "list_sales_channels",
+          { channel_name: LEKKESLAAP_CHANNEL_NAME },
+          {
+            mandatory: true,
+            scope: "account",
+            successDetail: "Sales channel list read — LekkeSlaap ChannelID resolvable for the content quality check",
+          },
+        );
         await call("List LNM change types", "list_lnm_change_types", {}, {
           mandatory: false,
           scope: "account",

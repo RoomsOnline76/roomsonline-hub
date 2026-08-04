@@ -38,6 +38,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
  * - put_lnm_subscriptions: Push_PutLiveNotificationMechanismSubscriptions_RQ (LNM — content/ARI)
  * - list_lnm_subscriptions: Pull_ListLiveNotificationMechanismSubscriptions_RQ
  * - list_lnm_change_types: Pull_ListLiveNotificationMechanismChangeTypes_RQ
+ * - list_sales_channels: Pull_ListSalesChannels_RQ
 
  * - push_long_stay_discounts: Push_PutLongStayDiscounts_RQ
  * - push_last_minute_discounts: Push_PutLastMinuteDiscounts_RQ
@@ -279,6 +280,12 @@ interface RequestBody {
   url_base?: string;
   change_types?: string[];
   observed_owners?: (string | number)[];
+  /** Sales channel scoping (CM_LNM_* methods). */
+  channel_id?: number | string;
+  /** Free-text sales-channel name to resolve against Pull_ListSalesChannels_RQ. */
+  channel_name?: string;
+  /** Force an auth scope ('master') for account-level reads. */
+  auth_scope?: string;
 }
 
 
@@ -984,6 +991,55 @@ function buildListLnmChangeTypesXml(creds: RUCredentials): string {
   ${buildAuthXml(creds)}
 </Pull_ListLiveNotificationMechanismChangeTypes_RQ>`;
 }
+
+/**
+ * Pull_ListSalesChannels_RQ — the sales channels (OTAs) available to this channel-manager
+ * account. The ChannelID returned here is what CM_LNM_* methods (content quality check)
+ * require, so this is how a channel such as LekkeSlaap is resolved to its numeric ID.
+ */
+function buildListSalesChannelsXml(creds: RUCredentials): string {
+  return `<?xml version="1.0" encoding="utf-8"?>
+<Pull_ListSalesChannels_RQ>
+  ${buildAuthXml(creds)}
+</Pull_ListSalesChannels_RQ>`;
+}
+
+export interface RUSalesChannel {
+  channel_id: number;
+  company_name: string;
+  reservation_creator_name: string | null;
+  configuration_complete: boolean | null;
+  raw_flags: Record<string, string>;
+}
+
+/** Parse Pull_ListSalesChannels_RS into a flat channel list. */
+function parseSalesChannels(xml: string): RUSalesChannel[] {
+  const channels: RUSalesChannel[] = [];
+  const blocks = xml.match(/<Channel\b[^>]*>[\s\S]*?<\/Channel>/g) ?? [];
+  for (const block of blocks) {
+    const pick = (tag: string): string | null => {
+      const m = block.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`, 'i'));
+      return m ? m[1].trim() : null;
+    };
+    const id = Number(pick('ChannelID') ?? 0);
+    if (!Number.isFinite(id) || id <= 0) continue;
+    const flags: Record<string, string> = {};
+    for (const m of block.matchAll(/<(\w+)[^>]*>([^<>]*)<\/\1>/g)) {
+      flags[m[1]] = m[2].trim();
+    }
+    const complete = pick('YourConfigurationComplete');
+    channels.push({
+      channel_id: id,
+      company_name: pick('CompanyName') ?? '',
+      reservation_creator_name: pick('ReservationCreatorName'),
+      configuration_complete: complete == null ? null : /^(true|1|yes)$/i.test(complete),
+      raw_flags: flags,
+    });
+  }
+  return channels;
+}
+
+
 
 
 function validateDiscountEntry(d: RUDiscountEntry): string | null {
@@ -1885,6 +1941,7 @@ Deno.serve(async (req) => {
             put_lnm_subscriptions: true,
             list_lnm_subscriptions: true,
             list_lnm_change_types: true,
+            list_sales_channels: true,
 
             push_long_stay_discounts: true,
             push_last_minute_discounts: true,
@@ -2453,6 +2510,35 @@ Deno.serve(async (req) => {
       return jsonResponse({ success: true, auth_mode: authMode, change_types: parseLnmChangeTypes(response), raw_xml: response });
 
     }
+
+    // ── list_sales_channels (Pull_ListSalesChannels_RQ) ──
+    // Sales channels belong to the channel-manager (master) account, so this read always
+    // runs on master credentials. Pass channel_name to get a best-match resolution back
+    // (e.g. "LekkeSlaap" / "Lekke Slaap" / "lekkeslaap").
+    if (action === 'list_sales_channels') {
+      const xml = buildListSalesChannelsXml(creds);
+      const response = await callRentalsUnited(creds, xml);
+      const { ok, status } = handleRUStatus(response);
+      if (!ok) return ruErrorResponse(status);
+      const channels = parseSalesChannels(response);
+      const wanted = String(body.channel_name ?? '').replace(/[^a-z0-9]/gi, '').toLowerCase();
+      const norm = (s: string) => s.replace(/[^a-z0-9]/gi, '').toLowerCase();
+      const matched = wanted
+        ? channels.find((c) => norm(c.company_name) === wanted)
+          ?? channels.find((c) => norm(c.company_name).includes(wanted) || wanted.includes(norm(c.company_name)))
+          ?? null
+        : null;
+      return jsonResponse({
+        success: true,
+        auth_mode: 'master_channel_manager',
+        channels,
+        channel_count: channels.length,
+        matched,
+        raw_xml: response,
+      });
+    }
+
+
 
 
     // ── get_long_stay_discounts (verification) ──
