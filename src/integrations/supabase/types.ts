@@ -10620,6 +10620,42 @@ export type Database = {
           },
         ]
       }
+      ru_channel_creators: {
+        Row: {
+          channel_key: string
+          channel_label: string
+          created_at: string
+          creator_username: string
+          id: string
+          is_active: boolean
+          notes: string | null
+          ru_channel_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          channel_key: string
+          channel_label: string
+          created_at?: string
+          creator_username: string
+          id?: string
+          is_active?: boolean
+          notes?: string | null
+          ru_channel_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          channel_key?: string
+          channel_label?: string
+          created_at?: string
+          creator_username?: string
+          id?: string
+          is_active?: boolean
+          notes?: string | null
+          ru_channel_id?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       ru_currency_state: {
         Row: {
           authored_currency_iso: string | null
