@@ -811,6 +811,49 @@ function resolvePropertySize(property: PropertyRow, unitSize: number | null | un
   return { space: 50, isDefault: true };
 }
 
+/**
+ * RU composition (bathrooms / toilets / separate kitchen) is authored per unit in the
+ * Rooms tab. Unit values win; the property-wide Composition card is only the fallback.
+ * Unit toilets / separate kitchen live in properties.amenities.room_types[] (same entry
+ * that carries `floor`), matched back to the pushed unit by pms id / id / name.
+ */
+function resolveUnitComposition(
+  property: PropertyRow,
+  unit: RoomTypeRow | null,
+): { bathrooms: number; toilets: number; separateKitchen: boolean } {
+  const list = ((property.amenities as any)?.room_types || []) as any[];
+  const norm = (v: unknown) => String(v ?? '').trim().toLowerCase();
+  let match: any = null;
+  if (Array.isArray(list) && list.length > 0) {
+    if (unit) {
+      match = list.find((rt) =>
+        (rt?.pmsRoomId && norm(rt.pmsRoomId) === norm(unit.id)) ||
+        (rt?.id && norm(rt.id) === norm(unit.id)) ||
+        (rt?.name && norm(rt.name) === norm(unit.name))
+      ) || null;
+    }
+    if (!match && list.length === 1) match = list[0];
+  }
+
+  const num = (v: unknown) => {
+    const n = typeof v === 'number' ? v : v === null || v === undefined || v === '' ? NaN : Number(v);
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  };
+
+  const bathrooms =
+    num(unit?.bathrooms) || num(match?.bathrooms) || num(property.bathrooms);
+  const toilets =
+    num(match?.toilets) || num((match as any)?.separateToilets) || num(property.toilets);
+  const separateKitchen =
+    match?.separateKitchen === true || match?.separate_kitchen === true
+      ? true
+      : property.separate_kitchen === true;
+
+  return { bathrooms, toilets, separateKitchen };
+}
+
+
+
 function buildUnitPayload(
   property: PropertyRow,
   unit: RoomTypeRow,
@@ -868,8 +911,9 @@ function buildUnitPayload(
     }
     // Composition-derived amenities: RU expects Bathroom (81), WC (37) and Kitchen (101)
     // to be declared with their quantities. Unit values win, property values are the fallback.
-    const bathroomCount = Number(unit.bathrooms) || Number(property.bathrooms) || 0;
-    const toiletCount = Number(property.toilets) || 0;
+    const comp = resolveUnitComposition(property, unit);
+    const bathroomCount = comp.bathrooms;
+    const toiletCount = comp.toilets;
     const pushComposition = (id: number, count: number) => {
       if (count <= 0) return;
       const existing = unitAmenities.find(a => a.id === id);
@@ -878,7 +922,8 @@ function buildUnitPayload(
     };
     pushComposition(81, bathroomCount);
     pushComposition(37, toiletCount);
-    if (property.separate_kitchen) pushComposition(101, 1);
+    if (comp.separateKitchen) pushComposition(101, 1);
+
   }
 
 
@@ -1066,7 +1111,23 @@ function buildSinglePropertyPayload(property: PropertyRow, roomTypes: RoomTypeRo
     owner_id: 0, no_of_units: 1, floor: buildingFloor, floor_is_default: buildingFloorIsDefault, space, space_is_default: spaceIsDefault, street,
     detailed_location_id: locationId, zip_code: zipCode,
     latitude: lat, longitude: lng,
-    amenities: mapAmenities(property.amenities),
+    amenities: (() => {
+      // Single-listing path: composition falls back to the property-wide values,
+      // but the primary room type's own bathrooms / toilets / kitchen win when set.
+      const list = mapAmenities(property.amenities);
+      const comp = resolveUnitComposition(property, primaryRoom);
+      const push = (id: number, count: number) => {
+        if (count <= 0) return;
+        const existing = list.find((a: any) => a.id === id);
+        if (existing) existing.count = Math.max(existing.count, count);
+        else list.push({ id, count } as any);
+      };
+      push(81, comp.bathrooms);
+      push(37, comp.toilets);
+      if (comp.separateKitchen) push(101, 1);
+      return list;
+    })(),
+
     rooms, descriptions: [{ language_id: 1, text: property.description || property.name || 'Beautiful property' }],
     images: allImages,
     payment_methods: paymentMethods.methods,

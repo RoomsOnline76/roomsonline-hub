@@ -106,6 +106,9 @@ export function RoomManagerTab({
       roomSize: 0,
       floor: 0,
       bathrooms: 1,
+      toilets: null as number | null,
+      separateKitchen: false,
+
       maxPeople: 2,
       maxAdults: 2,
       maxChildren: 0,
@@ -767,6 +770,47 @@ export function RoomManagerTab({
                       onChange={(e) => updateRoomTypeField(selectedRoomType, "bathrooms", parseInt(e.target.value) || 0)}
                     />
                   </div>
+                  <div className="space-y-1">
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Label className="text-xs whitespace-nowrap cursor-help underline decoration-dotted">Toilets</Label>
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs text-xs">
+                          Separate WCs in this unit (mandatory for Rentals United). Leave blank to fall back to the
+                          property-wide value in the Composition card.
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                    <Input type="number" min={0} className="h-7 w-full text-xs" placeholder="—"
+                      value={(() => { const t = roomTypes.find((r) => r.id === selectedRoomType)?.toilets; return t === null || t === undefined ? "" : String(t); })()}
+                      onChange={(e) => updateRoomTypeField(selectedRoomType, "toilets", e.target.value === "" ? null : parseInt(e.target.value) || 0)}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Label className="text-xs whitespace-nowrap cursor-help underline decoration-dotted">Kitchen</Label>
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs text-xs">
+                          Tick when this unit has its own separate kitchen (not a kitchenette in the living area).
+                          Unticked falls back to the property-wide setting.
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                    <div className="flex h-7 items-center gap-1.5">
+                      <Checkbox
+                        id={`sep-kitchen-${selectedRoomType}`}
+                        checked={!!roomTypes.find((r) => r.id === selectedRoomType)?.separateKitchen}
+                        onCheckedChange={(v) => updateRoomTypeField(selectedRoomType, "separateKitchen", !!v)}
+                      />
+                      <Label htmlFor={`sep-kitchen-${selectedRoomType}`} className="text-[10px] cursor-pointer">
+                        Separate
+                      </Label>
+                    </div>
+                  </div>
+
                   <div className="space-y-1">
                     <Label className="text-xs whitespace-nowrap flex items-center gap-0.5">
                       Max
