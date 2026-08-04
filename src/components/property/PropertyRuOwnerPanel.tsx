@@ -236,6 +236,11 @@ export function PropertyRuOwnerPanel({ propertyId, pmsSystem, readOnly = false }
           </Alert>
         )}
 
+        {/* Live notification (LNM) + content quality (MCQ) health — read-only */}
+        {linked && <RuLnmStatusChips propertyId={propertyId} />}
+
+
+
         {/* Linked identity summary */}
         {linked && (
           <div className="grid gap-2 sm:grid-cols-2 text-xs">
