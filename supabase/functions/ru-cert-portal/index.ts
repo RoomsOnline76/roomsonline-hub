@@ -578,6 +578,9 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const action: string = body.action ?? "";
+    logActionName = action;
+    logPropertyId = typeof body.property_id === "string" ? body.property_id : null;
+
 
     // Property-scoped users (ROLOS owners / staff) may read the readiness
     // scorecard for a property they can access — everything else is admin-only.
