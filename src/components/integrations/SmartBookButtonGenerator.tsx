@@ -8,6 +8,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CodeSnippetBlock } from "./CodeSnippetBlock";
+import { TobiInstallInstructions } from "./TobiInstallInstructions";
 import { Sparkles, Globe, Code2, Puzzle, LayoutTemplate, Eye, MousePointerClick, CalendarDays, Monitor, Layers, Building2, Home } from "lucide-react";
 
 import { EntryPointSelector, buildEntryUrl, type EntryPointOptions } from "./EntryPointSelector";
@@ -613,6 +614,13 @@ add_shortcode('rolos_button', 'rolos_book_button_shortcode');
                 language={platform === "wordpress" && solutionType === "button" ? "php" : "html"}
                 title={`${SOLUTIONS.find((s) => s.value === solutionType)?.label} Code`}
               />
+              <div className="mt-3">
+                <TobiInstallInstructions
+                  propertyId={property.id}
+                  integrationType={solutionType === "widget" ? "widget" : "direct"}
+                  snippet={generatedCode}
+                />
+              </div>
             </CardContent>
           </Card>
         </div>

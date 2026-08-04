@@ -5,6 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { CheckCircle2, Blocks, LayoutGrid, Calendar, ImageIcon, ExternalLink, ChevronDown, ChevronUp } from "lucide-react";
 import { CodeSnippetBlock } from "@/components/integrations/CodeSnippetBlock";
+import { TobiInstallInstructions } from "@/components/integrations/TobiInstallInstructions";
 import { WidgetPreviewFrame } from "@/components/integrations/WidgetPreviewFrame";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -165,6 +166,12 @@ export function ElementorTab({ property }: ElementorTabProps) {
             </div>
 
             <CodeSnippetBlock code={bwShortcode} language="html" title="Booking Widget Shortcode" />
+
+            <TobiInstallInstructions
+              propertyId={property.id}
+              integrationType="elementor"
+              snippet={bwShortcode}
+            />
 
             <Button variant="outline" size="sm" asChild>
               <a href={embedUrl} target="_blank" rel="noopener noreferrer" className="gap-1.5">

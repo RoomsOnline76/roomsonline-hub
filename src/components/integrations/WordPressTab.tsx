@@ -1,5 +1,6 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CodeSnippetBlock } from "./CodeSnippetBlock";
+import { TobiInstallInstructions } from "./TobiInstallInstructions";
 import { IntegrationToggle } from "./IntegrationToggle";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -348,6 +349,13 @@ export function WordPressTab({ property, showPushUpdate = false }: WordPressTabP
             <div>
               <div className="text-xs font-medium mb-1 text-muted-foreground">A. Canonical — ROL'OS pink</div>
               <CodeSnippetBlock code={canonicalShortcode} language="html" title="Canonical shortcode" />
+              <div className="mt-2">
+                <TobiInstallInstructions
+                  propertyId={property.id}
+                  integrationType="wordpress"
+                  snippet={canonicalShortcode}
+                />
+              </div>
             </div>
             {wlShortcode ? (
               <div>
