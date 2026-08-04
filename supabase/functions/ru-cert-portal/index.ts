@@ -357,6 +357,9 @@ const CERT_MILESTONES: { key: string; label: string; ru_method: string; mandator
   { key: "lnm_subscribe", label: "Subscribe LNM (content + ARI)", ru_method: "Push_PutLiveNotificationMechanismSubscriptions_RQ", mandatory: true, scope: "account", note: "Content / availability / price change webhooks" },
   { key: "lnm_verify", label: "Verify LNM subscriptions", ru_method: "Pull_ListLiveNotificationMechanismSubscriptions_RQ", mandatory: true, scope: "account", note: "Read-back — detects silent subscription drift" },
   { key: "lnm_change_types", label: "List LNM change types", ru_method: "Pull_ListLiveNotificationMechanismChangeTypes_RQ", mandatory: false, scope: "account", note: "Dictionary read" },
+  { key: "lnm_duplicate", label: "LNM duplicate-subscription test", ru_method: "Push_PutLiveNotificationMechanismSubscriptions_RQ (idempotency)", mandatory: false, scope: "account", note: "Subscribe twice — RU must hold exactly one record" },
+  { key: "mcq_duplicate", label: "MCQ duplicate-order test", ru_method: "CM_LNM_OrderMinimumContentQualityCheck_RQ (idempotency)", mandatory: false, scope: "property", note: "Order twice — no conflicting parallel orders" },
+
   { key: "sales_channels", label: "Pull sales channels (ChannelID)", ru_method: "Pull_ListSalesChannels_RQ", mandatory: true, scope: "account", note: "Resolves the LekkeSlaap ChannelID used by the content quality check" },
   { key: "reservations", label: "Pull reservations", ru_method: "Pull_ListReservations_RQ", mandatory: true, scope: "account", note: "" },
   { key: "leads", label: "Pull leads", ru_method: "Pull_GetLeads_RQ", mandatory: false, scope: "account", note: "Optional" },
