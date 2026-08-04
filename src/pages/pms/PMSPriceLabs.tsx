@@ -273,7 +273,7 @@ export function PriceLabsPanel({ propertyId, loading: propLoading = false, embed
           <div>
             <h1 className="text-2xl font-semibold">PriceLabs Revenue Management</h1>
             <p className="text-sm text-muted-foreground">
-              AI-driven dynamic pricing suggestions for {property?.name}. Suggestions never change your rates automatically — click Apply to promote.
+              TOBI-driven dynamic pricing suggestions for {property?.name}. Suggestions never change your rates automatically — click Apply to promote.
             </p>
           </div>
         </div>
