@@ -234,7 +234,11 @@ interface RequestBody {
   // API key management
   key_label?: string;
   target_access_key?: string;
+  // Reservation / request lifecycle
+  reservation_id?: string | number;
+  reject_reason?: string;
 }
+
 
 // ── XML Helpers ──────────────────────────────────────────────
 
