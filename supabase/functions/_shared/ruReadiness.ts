@@ -51,7 +51,9 @@ export interface RuUnitValidation {
   floor_is_default?: boolean;
   has_detailed_location_id?: boolean;
   has_payment_methods?: boolean;
+  payment_methods_is_default?: boolean;
   has_cancellation_policies?: boolean;
+  cancellation_policies_is_default?: boolean;
   beds_meet_max_guests?: boolean;
   beds_cover_half?: boolean;
   total_beds?: number;
@@ -136,9 +138,9 @@ export function evaluateUnitChecks(
   // Space / floor are advisory: RU accepts an estimate, but we report when the
   // value being sent is our default rather than real property data.
   add("has_space", "Content", "Property size (Space)", !!v.has_space && v.space_is_default !== true,
-    "Size in m² is not set — sending the default estimate of 50 m²", "Rooms → Unit → Size", false);
+    "Size in m² is not set — sending the default estimate of 50 m²", "Property → General → Size (or Rooms → Unit → Size)", false);
   add("has_floor", "Content", "Floor number", v.has_floor !== false && v.floor_is_default !== true,
-    "Floor number is not set — sending the default (ground floor)", "Rooms → Unit → Floor", false);
+    "Floor number is not set — sending the default (ground floor)", "Property → General → Floor (or Rooms → Unit → Floor)", false);
   add("meets_minimum_amenities", "Content", `Amenities (≥ ${RU_MIN_AMENITIES})`, !!v.meets_minimum_amenities,
     `Only ${v.amenities_count ?? 0} amenities mapped — Rentals United requires ${RU_MIN_AMENITIES}`,
     "Property → Amenities");
@@ -194,10 +196,23 @@ export function evaluateUnitChecks(
     "Latitude / longitude are missing", "Property → General → Map location");
 
   // ── Policies & payments ──
-  add("has_payment_methods", "Policies & payments", "At least 1 payment method", !!v.has_payment_methods,
-    "No payment method configured", "Property → Policies → Payment methods");
-  add("has_cancellation_policies", "Policies & payments", "At least 1 cancellation policy", !!v.has_cancellation_policies,
-    "No cancellation policy configured", "Property → Policies → Cancellation");
+  // Presence of at least one method/policy keeps the payload valid for RU.
+  // When the value is our silent default the check is advisory so the scorecard
+  // shows amber ("unconfirmed") instead of green — same pattern as space/floor.
+  add("has_payment_methods", "Policies & payments", "At least 1 payment method",
+    !!v.has_payment_methods && v.payment_methods_is_default !== true,
+    v.payment_methods_is_default === true
+      ? "Payment methods are the unconfirmed default (Cash + Credit card) — confirm what guests can actually use"
+      : "No payment method configured",
+    "Property → Policies → Payment methods",
+    false);
+  add("has_cancellation_policies", "Policies & payments", "At least 1 cancellation policy",
+    !!v.has_cancellation_policies && v.cancellation_policies_is_default !== true,
+    v.cancellation_policies_is_default === true
+      ? "Cancellation policy is the unconfirmed default (100% / 50%) — confirm the real terms"
+      : "No cancellation policy configured",
+    "Property → Policies → Cancellation",
+    false);
 
   return checks;
 }
