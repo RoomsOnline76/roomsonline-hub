@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { isRuBooking, modifyRuStay } from "../_shared/ruBookingSync.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -18,8 +19,13 @@ interface ModifyRequest {
     rooms?: any[];
     special_requests?: string;
     note?: string;
+    /** Operator-set totals (also pushed to RU as ClientPrice / AlreadyPaid). */
+    total_price?: number;
+    already_paid?: number;
+    arrival_time?: string;
   };
 }
+
 
 // Calculate number of nights between two date strings
 function countNights(checkIn: string, checkOut: string): number {
@@ -375,7 +381,65 @@ Deno.serve(async (req) => {
       console.log("Recalculated ROL price:", newTotalPrice, "from old:", booking.total_price);
     }
 
+    // S6b: Rentals United bookings must be accepted by RU before we touch the local record.
+    // RU only allows Push_ModifyStay_RQ on confirmed reservations.
+    let ruModified = false;
+    if (isRuBooking(booking)) {
+      const guests =
+        (modifications.adults ?? booking.adults ?? 0) +
+        (modifications.children ?? booking.children ?? 0) +
+        (modifications.teens ?? booking.teens ?? 0);
+
+      const ruResult = await modifyRuStay(supabase, booking, {
+        date_from: modifications.check_in_date ?? null,
+        date_to: modifications.check_out_date ?? null,
+        number_of_guests: guests > 0 ? guests : null,
+        client_price: modifications.total_price ?? newTotalPrice ?? null,
+        already_paid: modifications.already_paid ?? null,
+        arrival_time: modifications.arrival_time ?? null,
+      });
+
+      if (!ruResult.ok) {
+        await supabase.from("booking_sync_status").upsert(
+          {
+            booking_id,
+            external_system: "rentalsunited",
+            sync_status: "failed",
+            last_action: "modify",
+            last_action_at: new Date().toISOString(),
+            error_message: ruResult.message,
+            last_error_message: ruResult.message,
+          },
+          { onConflict: "booking_id,external_system" }
+        );
+
+        return new Response(
+          JSON.stringify({
+            code: ruResult.code || "RU_ERROR",
+            message: ruResult.message ||
+              "Rentals United rejected the modification — the booking was left unchanged.",
+          }),
+          { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      ruModified = true;
+      await supabase.from("booking_sync_status").upsert(
+        {
+          booking_id,
+          external_system: "rentalsunited",
+          sync_status: "synced",
+          last_action: "modify",
+          last_action_at: new Date().toISOString(),
+          error_message: null,
+          last_error_message: null,
+        },
+        { onConflict: "booking_id,external_system" }
+      );
+    }
+
     // S7: Update availability blockout when dates change
+
     const datesChanged = modifications.check_in_date || modifications.check_out_date;
     if (datesChanged) {
       const newCheckIn = modifications.check_in_date || booking.check_in_date;
@@ -413,10 +477,13 @@ Deno.serve(async (req) => {
     if (modifications.rooms) updateData.rooms = modifications.rooms;
     if (modifications.special_requests !== undefined) updateData.special_requests = modifications.special_requests;
 
-    // Update total_price if recalculated
-    if (newTotalPrice !== null) {
+    // Update total_price if recalculated or explicitly set by the operator
+    if (modifications.total_price !== undefined) {
+      updateData.total_price = modifications.total_price;
+    } else if (newTotalPrice !== null) {
       updateData.total_price = newTotalPrice;
     }
+
 
     const { error: updateError } = await supabase
       .from("bookings")
@@ -484,11 +551,15 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: true,
-        message: "Booking modified successfully",
+        message: ruModified
+          ? "Booking modified and pushed to Rentals United"
+          : "Booking modified successfully",
         booking_id,
-        new_total_price: newTotalPrice ?? booking.total_price,
+        ru_modified: ruModified,
+        new_total_price: updateData.total_price ?? booking.total_price,
         old_total_price: booking.total_price,
       }),
+
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {

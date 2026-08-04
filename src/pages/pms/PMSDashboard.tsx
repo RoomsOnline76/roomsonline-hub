@@ -30,8 +30,11 @@ import { BulkLeadDaysAdvanceDialog } from "@/components/BulkLeadDaysAdvanceDialo
 import { BulkLeadDaysPostDialog } from "@/components/BulkLeadDaysPostDialog";
 import { BookingFolioTab } from "@/components/pms/BookingFolioTab";
 import { CheckoutConfirmationDialog } from "@/components/pms/CheckoutConfirmationDialog";
+import { BookingCancelDialog } from "@/components/pms/BookingCancelDialog";
+import { BookingModifyDialog } from "@/components/pms/BookingModifyDialog";
 import { BookingInvoice } from "@/components/pms/BookingInvoice";
 import { BookingNotesTab } from "@/components/pms/BookingNotesTab";
+
 import { callPmsApi } from "@/hooks/usePmsApi";
 import {
   ChevronLeft,
@@ -2755,6 +2758,11 @@ function BookingDetail({
   const [reassignPrice, setReassignPrice] = useState("");
   // Checkout confirmation state
   const [showCheckoutConfirm, setShowCheckoutConfirm] = useState(false);
+  // Cancel / modify dialogs — these route through the edge functions so channel-sourced
+  // bookings (Rentals United) are withdrawn or amended at the channel first.
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [showModifyDialog, setShowModifyDialog] = useState(false);
+
   const [form, setForm] = useState({
     guest_name: booking.guest_name,
     guest_email: booking.guest_email,
@@ -2876,6 +2884,12 @@ function BookingDetail({
   const assignedRooms = rooms.filter(r => b.rolos_room_ids?.includes(r.id));
   const availableRooms = rooms.filter(r => r.status === "available");
   const guestId = b.rolos_guest_id || null;
+  // Rentals United bookings must be cancelled/modified at the channel first.
+  const isRuSourced =
+    (b.booking_channel || "").toLowerCase() === "rentals_united" ||
+    (b.integration_type || "").toLowerCase().startsWith("rentalsunited");
+  const isRuLeadBooking = (b.integration_type || "").toLowerCase() === "rentalsunited_lead";
+
 
   // Lifecycle buttons based on status
   const renderLifecycleActions = () => {
@@ -2917,8 +2931,11 @@ function BookingDetail({
         <Button key="checkin" size="sm" variant="secondary" onClick={() => handleLifecycleAction("check_in")} disabled={!!actionLoading}>
           <LogIn className="h-3 w-3 mr-1" />{loading("check_in") ? "..." : "Check In Now"}
         </Button>,
-        <Button key="cancel" size="sm" variant="destructive" onClick={() => handleLifecycleAction("cancel")} disabled={!!actionLoading}>
-          <XCircle className="h-3 w-3 mr-1" />Cancel
+        <Button key="modify" size="sm" variant="outline" onClick={() => setShowModifyDialog(true)} disabled={!!actionLoading}>
+          <Pencil className="h-3 w-3 mr-1" />Modify
+        </Button>,
+        <Button key="cancel" size="sm" variant="destructive" onClick={() => setShowCancelDialog(true)} disabled={!!actionLoading}>
+          <XCircle className="h-3 w-3 mr-1" />{isRuLeadBooking ? "Reject" : "Cancel"}
         </Button>,
         <Button key="noshow" size="sm" variant="outline" onClick={() => handleLifecycleAction("no_show")} disabled={!!actionLoading}>
           <EyeOff className="h-3 w-3 mr-1" />No Show
@@ -2929,10 +2946,14 @@ function BookingDetail({
         <Button key="checkin" size="sm" onClick={() => handleLifecycleAction("check_in")} disabled={!!actionLoading}>
           <LogIn className="h-3 w-3 mr-1" />{loading("check_in") ? "..." : "Check In"}
         </Button>,
-        <Button key="cancel" size="sm" variant="destructive" onClick={() => handleLifecycleAction("cancel")} disabled={!!actionLoading}>
+        <Button key="modify" size="sm" variant="outline" onClick={() => setShowModifyDialog(true)} disabled={!!actionLoading}>
+          <Pencil className="h-3 w-3 mr-1" />Modify
+        </Button>,
+        <Button key="cancel" size="sm" variant="destructive" onClick={() => setShowCancelDialog(true)} disabled={!!actionLoading}>
           <XCircle className="h-3 w-3 mr-1" />Cancel
         </Button>,
       );
+
     } else if (b.status === "checked_in") {
       btns.push(
         <Button key="checkout" size="sm" onClick={() => setShowCheckoutConfirm(true)} disabled={!!actionLoading}>
@@ -2953,8 +2974,35 @@ function BookingDetail({
             handleLifecycleAction("check_out");
           }}
         />
+        <BookingCancelDialog
+          open={showCancelDialog}
+          onOpenChange={setShowCancelDialog}
+          bookingId={booking.id}
+          guestName={booking.guest_name}
+          isRuBooking={isRuSourced}
+          isRuLead={isRuLeadBooking}
+          onDone={onSaved}
+        />
+        <BookingModifyDialog
+          open={showModifyDialog}
+          onOpenChange={setShowModifyDialog}
+          booking={{
+            id: booking.id,
+            guest_name: booking.guest_name,
+            check_in_date: booking.check_in_date,
+            check_out_date: booking.check_out_date,
+            adults: booking.adults,
+            children: booking.children,
+            teens: booking.teens,
+            infants: booking.infants,
+            total_price: booking.total_price,
+          }}
+          isRuBooking={isRuSourced}
+          onDone={onSaved}
+        />
       </>
     );
+
   };
 
   // Room reassignment dialog
