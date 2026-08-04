@@ -52,6 +52,11 @@ export default function PMSChannels() {
   const triggerSync = useTriggerSync(propertyId);
 
   const [connectDialog, setConnectDialog] = useState<string | null>(null);
+  const [readinessDialog, setReadinessDialog] = useState<string | null>(null);
+
+  // Single readiness source (RU content scorer) shared by every gated channel card.
+  const { readiness, isLoading: readinessLoading } = useChannelReadiness(propertyId);
+
 
   // Billing entitlement — when admin switches Channel Manager billing off, the
   // module is locked and every listing is archived at Rentals United.
