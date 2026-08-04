@@ -523,7 +523,9 @@ Deno.serve(async (req) => {
 
     // ── list_runs ──
     if (action === "list_runs") {
+      await reapStaleRuns(admin);
       const { data, error } = await admin
+
         .from("ru_cert_runs")
         .select("id, started_at, finished_at, status, suite, property_id, ru_property_id, passed, failed, total")
         .order("started_at", { ascending: false })
