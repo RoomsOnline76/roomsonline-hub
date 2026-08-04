@@ -5296,7 +5296,13 @@ export default function PropertyForm({
                   </Card>
                 </div>
 
+                {/* RU owner sub-account: identity link + API key capture (ROL'OS PMS only) */}
+                {isEditMode && propertyId && (
+                  <PropertyRuOwnerPanel propertyId={propertyId} pmsSystem={selectedPMS} readOnly={!isAdminUser} />
+                )}
+
                 {/* Company Information — contract variables + banking + Rentals United profile */}
+
                 {selectedPMS !== "nightsbridge" && (
                   <CompanyInformationCard
                     registeredBusinessName={registeredBusinessName}
