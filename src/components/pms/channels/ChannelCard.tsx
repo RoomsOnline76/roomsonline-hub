@@ -110,7 +110,33 @@ export function ChannelCard({
                 {CHANNEL_DESCRIPTIONS[channelName] ?? "Not connected"}
               </p>
             )}
+
+            {hasReadiness && (
+              <button
+                type="button"
+                onClick={onReadinessClick}
+                disabled={!onReadinessClick}
+                className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-border px-2 py-0.5 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-muted disabled:cursor-default"
+                title={
+                  ready
+                    ? "Ready to connect"
+                    : `${readinessOutstanding} outstanding — click to see and fix each one`
+                }
+              >
+                {ready ? (
+                  <CheckCircle2 className="h-3 w-3 text-primary" />
+                ) : (
+                  <AlertTriangle className="h-3 w-3 text-destructive" />
+                )}
+                {readinessLoading
+                  ? "Checking readiness…"
+                  : ready
+                    ? "Ready to connect · 100%"
+                    : `${readinessOutstanding} outstanding · ${readinessScore}% ready`}
+              </button>
+            )}
           </div>
+
 
           {!readOnly && (
             <div className="shrink-0">
