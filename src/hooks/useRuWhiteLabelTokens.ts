@@ -16,6 +16,7 @@ interface TokenResponse {
   reason?: string | null;
   message?: string | null;
   error?: string | null;
+  diagnostic_code?: string | null;
   /** True when the RU sub-user is connected and verified (setup is NOT the blocker). */
   sub_user_verified?: boolean | null;
 }
@@ -63,6 +64,7 @@ export function useRuWhiteLabelTokens(propertyId: string | null | undefined) {
     reason: data?.reason ?? (query.isError ? "request_failed" : null),
     subUserVerified: data?.sub_user_verified === true,
     message: data?.message ?? (query.error instanceof Error ? query.error.message : null),
+    diagnosticCode: data?.diagnostic_code ?? null,
     /** Always re-hits the edge function, even when the cached answer is still fresh. */
     refetch: () => query.refetch({ cancelRefetch: true }),
   };

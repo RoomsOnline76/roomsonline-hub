@@ -42,10 +42,14 @@ export function RuWhiteLabelEmbed({ propertyId }: { propertyId: string | null | 
       toast.success("ROL'OS Channel Manager connected", {
         description: "Loading your channels now.",
       });
-    } else {
+    } else if (fresh?.reason === "awaiting_wl_token") {
       toast("ROL'OS sign-in is still being finalised", {
         description:
           "Your ROL'OS connection is fine. TOBI will keep finalising the Channel Manager sign-in automatically.",
+      });
+    } else {
+      toast.error("ROL'OS Channel Manager could not reconnect", {
+        description: "Please try again shortly. Your property connection is unaffected.",
       });
     }
   };
@@ -137,7 +141,7 @@ export function RuWhiteLabelEmbed({ propertyId }: { propertyId: string | null | 
           <p>Your ROL'OS connection is fine — the Channel Manager sign-in still needs to be finalised by TOBI.</p>
         </>
       );
-    } else if (reason === "login_failed" || reason === "request_failed") {
+    } else if (reason === "request_failed") {
       title = "Channel Manager sign-in did not complete.";
       body = "We could not establish a Channel Manager session just now. Please retry in a moment.";
     } else {
