@@ -1101,9 +1101,20 @@ export default function PMSDashboard() {
     return false;
   }, [isPortfolioMode, portfolioDataByProperty, bookings]);
 
+  // Single-property: filtered dates + room types (only rows that actually carry a live booking)
+  const singleBookedView = useMemo(
+    () => filterToBookedView(dates, bookings as BookingRow[], roomTypes as RoomType[], roomsByType),
+    [dates, bookings, roomTypes, roomsByType]
+  );
+
   const visibleDates = useMemo(
-    () => (showOnlyBookedDays ? dates.filter(hasBookingOnDate) : dates),
-    [showOnlyBookedDays, dates, hasBookingOnDate]
+    () => (showOnlyBookedDays ? singleBookedView.visibleDates : dates),
+    [showOnlyBookedDays, dates, singleBookedView]
+  );
+
+  const visibleRoomTypes = useMemo(
+    () => (showOnlyBookedDays ? singleBookedView.visibleRoomTypes : (roomTypes as RoomType[])),
+    [showOnlyBookedDays, singleBookedView, roomTypes]
   );
 
   const visibleWeekChunks = useMemo(
@@ -1112,6 +1123,22 @@ export default function PMSDashboard() {
       : weekChunks),
     [showOnlyBookedDays, weekChunks, hasBookingOnDate]
   );
+
+  // Portfolio: per-property booked view keyed by property id (never portfolio-wide dates)
+  const portfolioBookedViewByProperty = useMemo(() => {
+    const map = new Map<string, { visibleDates: Date[]; visibleRoomTypes: RoomType[] }>();
+    if (!isPortfolioMode) return map;
+    for (const [propId, propData] of portfolioDataByProperty) {
+      map.set(propId, filterToBookedView(dates, propData.bookings, propData.roomTypes, propData.roomsByType));
+    }
+    return map;
+  }, [isPortfolioMode, portfolioDataByProperty, dates]);
+
+  const portfolioHasAnyBookedDay = useMemo(
+    () => Array.from(portfolioBookedViewByProperty.values()).some((view) => view.visibleDates.length > 0),
+    [portfolioBookedViewByProperty]
+  );
+
 
   const getPortfolioBookingCountForDates = useCallback((targetDates: Date[]): number => {
     if (!isPortfolioMode || targetDates.length === 0) return 0;
