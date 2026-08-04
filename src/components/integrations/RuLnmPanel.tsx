@@ -47,7 +47,10 @@ interface AccountRow {
   subscriptions?: SubscriptionState;
   error?: string;
   loading?: boolean;
+  dupRunning?: boolean;
+  dupResult?: Record<string, unknown>;
 }
+
 
 interface NotificationRow {
   id: string;
