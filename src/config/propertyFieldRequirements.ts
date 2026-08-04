@@ -67,8 +67,27 @@ const amenity = (subject: RequirementSubject, path: string): unknown => {
   return cursor;
 };
 
+/**
+ * Check-in / check-out times are written by the property form into
+ * `amenities.house_rules.*`; older records keep them at the amenities root.
+ */
+const checkTime = (subject: RequirementSubject, edge: "in" | "out"): unknown => {
+  const keys =
+    edge === "in"
+      ? ["check_in_from", "check_in_time"]
+      : ["check_out_to", "check_out_until", "check_out_time", "check_out_from"];
+  for (const key of keys) {
+    const nested = amenity(subject, `house_rules.${key}`);
+    if (filled(nested)) return nested;
+    const flat = amenity(subject, key);
+    if (filled(flat)) return flat;
+  }
+  return undefined;
+};
+
 const imageList = (subject: RequirementSubject): unknown[] =>
   Array.isArray(subject.images) ? subject.images : [];
+
 
 const isRuDistributed = (subject: RequirementSubject): boolean =>
   filled(subject.rentalsunited_property_id) || filled(subject.rentalsunited_building_id);
@@ -286,18 +305,27 @@ export const PROPERTY_FIELD_REQUIREMENTS: FieldRequirement[] = [
     target: ['[data-field="master_policy"]', "#master_policy"],
     hint: "Pick a policy from the library, or explicitly select “None”.",
     isSatisfied: (s) =>
+      // Truth lives in rolos_reservation_policies (a row flagged is_master) or an
+      // explicit "no cancellation policy" decision. The amenities keys are legacy mirrors.
+      (Array.isArray(s.policy_rows) &&
+        (s.policy_rows as Array<{ is_master?: boolean }>).some((p) => p?.is_master)) ||
+      s.master_policy_mode === "none" ||
       filled(amenity(s, "master_cancellation_policy_id")) ||
-      filled(amenity(s, "cancellation_policy")) ||
-      amenity(s, "master_cancellation_policy_id") === "none",
+      filled(amenity(s, "cancellation_policy")),
   },
   {
     key: "check_times",
     label: "Check-in / check-out times",
     tier: "recommended",
     section: "rates",
-    target: ['[data-field="check_in_from"]', "#check_in_from"],
-    isSatisfied: (s) => filled(amenity(s, "check_in_from")) && filled(amenity(s, "check_out_to")),
+    target: [
+      '[data-field="check_in_from"]',
+      '[data-field="amenities.house_rules.check_in_from"]',
+      "#check_in_from",
+    ],
+    isSatisfied: (s) => filled(checkTime(s, "in")) && filled(checkTime(s, "out")),
   },
+
 
   /* ---------- Integrations / distribution ---------- */
   {
