@@ -152,10 +152,11 @@ export function RuWhiteLabelEmbed({ propertyId }: { propertyId: string | null | 
           {body && <p className="text-sm text-muted-foreground">{body}</p>}
           {isStaff && message && <p className="text-xs text-muted-foreground">{message}</p>}
           <div className="flex flex-wrap items-center justify-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => refetch()}>
-              <RefreshCw className="mr-2 h-4 w-4" />
-              Retry
+            <Button variant="outline" size="sm" onClick={handleRetry} disabled={isFetching}>
+              <RefreshCw className={`mr-2 h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
+              {isFetching ? "Retrying…" : "Retry"}
             </Button>
+
             {isStaff && propertyId && (
               <Button variant="ghost" size="sm" asChild>
                 <Link to={`/admin/properties/${propertyId}?tab=integrations`}>
