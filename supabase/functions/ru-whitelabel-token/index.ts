@@ -179,7 +179,7 @@ async function mintFromKeys(
   console.warn(`[ru-whitelabel-token] Key exchange unavailable: ${attempts.join(' | ')}`);
   return {
     error:
-      "White Label token pair not yet available from the channel provider. The ROL'OS connection is unaffected; sign-in will be retried automatically.",
+      "ROL'OS Channel Manager sign-in is still being finalised by TOBI. The property connection is unaffected.",
   };
 }
 
@@ -419,7 +419,7 @@ Deno.serve(async (req) => {
         sub_user_verified: true,
         message:
           keyExchangeError ??
-          'The Rentals United sub-user is connected and verified, but no White Label Channel Manager token pair has been issued yet.',
+          "The ROL'OS account is connected. Channel Manager sign-in is still being finalised by TOBI.",
       });
     }
 
@@ -427,7 +427,7 @@ Deno.serve(async (req) => {
       success: true,
       available: false,
       reason: 'no_credentials',
-      message: 'No Rentals United sub-user credentials or White Label token pair are stored for this owner.',
+      message: "The ROL'OS Channel Manager connection has not been completed for this owner.",
     });
 
   } catch (error) {
