@@ -390,8 +390,11 @@ const RU_ENDPOINT_REGISTRY: {
   /** Surface is an admin console action — certification-run success is its usage evidence. */
   rolos_via_cert?: boolean;
   sync_actions: string[];
+  /** Extra RU method names a certification step may have recorded for this endpoint. */
+  cert_methods?: string[];
   max_age_hours?: number;
   note: string;
+
 }[] = [
   // ── account ──
   { rolos_via_cert: true, key: "auth", area: "account", label: "Connectivity / auth", ru_method: "Pull_ListProp_RQ (health)", direction: "pull", mandatory: true, implemented: true,
