@@ -2,8 +2,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import {
   RefreshCw, CheckCircle2, XCircle, MinusCircle, PlayCircle, ShieldCheck,
-  Clock, Percent, Users, ChevronRight, Plus, Trash2, Send, AlertTriangle,
+  Clock, Percent, Users, ChevronRight, Plus, Trash2, Send, AlertTriangle, ListChecks,
 } from "lucide-react";
+import { RuCoverageTab } from "./RuCoverageTab";
+
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
