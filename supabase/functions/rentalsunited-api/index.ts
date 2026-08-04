@@ -2766,12 +2766,15 @@ Deno.serve(async (req) => {
       const statusId = () => String(result.status?.id ?? '');
 
       // 280 → register the missing LNM subscription for this identity, then retry once.
-      if (!result.ok && statusId() === '280') {
+      if (!result.ok && statusId() === '280' && ownerId) {
+        const lnmUrlBase = String(
+          body.url_base ?? `${Deno.env.get('SUPABASE_URL') ?? ''}/functions/v1/ru-lnm-handler`,
+        );
         const subXml = buildPutLnmSubscriptionsXml(
           attemptCreds,
           DEFAULT_LNM_CHANGE_TYPES,
-          ownerId ? [String(ownerId)] : [],
-          body.url_base,
+          [String(ownerId)],
+          lnmUrlBase,
         );
         const subResponse = await callRentalsUnited(attemptCreds, subXml);
         const subStatus = handleRUStatus(subResponse);
@@ -2781,6 +2784,7 @@ Deno.serve(async (req) => {
           result = await attempt();
         }
       }
+
 
       // 17 → transient RU fault; one settle-and-retry before escalating.
       if (!result.ok && statusId() === '17') {
