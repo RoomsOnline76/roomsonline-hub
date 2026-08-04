@@ -202,6 +202,9 @@ const RU_METHOD_BY_ACTION: Record<string, string> = {
   push_availability: "Push_PutAvbUnits_RQ",
   push_prices: "Push_PutPrices_RQ",
   subscribe_notifications: "LNM_PutHandlerUrl_RQ",
+  put_lnm_subscriptions: "Push_PutLiveNotificationMechanismSubscriptions_RQ",
+  list_lnm_subscriptions: "Pull_ListLiveNotificationMechanismSubscriptions_RQ",
+  list_lnm_change_types: "Pull_ListLiveNotificationMechanismChangeTypes_RQ",
   push_long_stay_discounts: "Push_PutLongStayDiscounts_RQ",
   push_last_minute_discounts: "Push_PutLastMinuteDiscounts_RQ",
   get_long_stay_discounts: "Pull_ListLongStayDiscounts_RQ",
@@ -229,6 +232,7 @@ const CERT_CHILD_SCOPED_ACTIONS = new Set([
   "push_property",
   "set_property_status",
   "order_mcq",
+  "put_lnm_subscriptions",
   "push_change_currency",
   "list_buildings",
   "get_building",
@@ -269,7 +273,10 @@ const CERT_MILESTONES: { key: string; label: string; ru_method: string; mandator
   { key: "push_property", label: "Push property content", ru_method: "Push_PutProperty_RQ", mandatory: true, scope: "property", note: "Create + update" },
   { key: "push_availability", label: "Push availability", ru_method: "Push_PutAvbUnits_RQ", mandatory: true, scope: "property", note: "" },
   { key: "push_prices", label: "Push prices", ru_method: "Push_PutPrices_RQ", mandatory: true, scope: "property", note: "" },
-  { key: "rlnm", label: "Subscribe RLNM handler", ru_method: "LNM_PutHandlerUrl_RQ", mandatory: true, scope: "account", note: "Live notifications" },
+  { key: "rlnm", label: "Subscribe RLNM handler", ru_method: "LNM_PutHandlerUrl_RQ", mandatory: true, scope: "account", note: "Reservation notifications" },
+  { key: "lnm_subscribe", label: "Subscribe LNM (content + ARI)", ru_method: "Push_PutLiveNotificationMechanismSubscriptions_RQ", mandatory: true, scope: "account", note: "Content / availability / price change webhooks" },
+  { key: "lnm_verify", label: "Verify LNM subscriptions", ru_method: "Pull_ListLiveNotificationMechanismSubscriptions_RQ", mandatory: true, scope: "account", note: "Read-back — detects silent subscription drift" },
+  { key: "lnm_change_types", label: "List LNM change types", ru_method: "Pull_ListLiveNotificationMechanismChangeTypes_RQ", mandatory: false, scope: "account", note: "Dictionary read" },
   { key: "reservations", label: "Pull reservations", ru_method: "Pull_ListReservations_RQ", mandatory: true, scope: "account", note: "" },
   { key: "leads", label: "Pull leads", ru_method: "Pull_GetLeads_RQ", mandatory: false, scope: "account", note: "Optional" },
   { key: "long_stay", label: "Long-stay discounts", ru_method: "Push_PutLongStayDiscounts_RQ", mandatory: false, scope: "property", note: "Optional but recommended" },
@@ -284,6 +291,8 @@ const CADENCE_RULES = [
   { key: "PutPrices", label: "Pricing refresh", ru_method: "Push_PutPrices_RQ", max_age_hours: 24, actions: ["refresh_ari", "PutPrices", "push_prices"] },
   { key: "ListReservations", label: "Reservation pull", ru_method: "Pull_ListReservations_RQ", max_age_hours: 1, actions: ["pull_reservations", "ListReservations"] },
   { key: "PutHandlerUrl", label: "RLNM handler subscription", ru_method: "LNM_PutHandlerUrl_RQ", max_age_hours: 24, actions: ["weekly_content_refresh", "PutHandlerUrl", "RLNM"] },
+  { key: "PutLnmSubscriptions", label: "LNM subscriptions (content + ARI)", ru_method: "Push_PutLiveNotificationMechanismSubscriptions_RQ", max_age_hours: 24, actions: ["PutLnmSubscriptions", "LNM"] },
+  { key: "ListLnmSubscriptions", label: "LNM subscription read-back", ru_method: "Pull_ListLiveNotificationMechanismSubscriptions_RQ", max_age_hours: 24, actions: ["ListLnmSubscriptions"] },
 ];
 
 // pg_cron jobs that must exist for RU cadence compliance
@@ -3177,6 +3186,11 @@ Deno.serve(async (req) => {
           },
         );
 
+        await call("List LNM change types", "list_lnm_change_types", {}, {
+          mandatory: false,
+          scope: "account",
+          successDetail: "RU change-type dictionary read",
+        });
         await call("List composition rooms", "list_composition_rooms", {}, { mandatory: false, scope: "account" });
         await call("List cities & currencies", "list_cities_and_currencies", {}, { mandatory: false, scope: "account" });
         await call(
