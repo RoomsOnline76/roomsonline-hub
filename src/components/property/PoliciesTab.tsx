@@ -137,7 +137,9 @@ export const PoliciesTab: React.FC<PoliciesTabProps> = ({ propertyId, onOpenSpec
         title="Master policy"
         description="The property-wide fallback used whenever a special or rate plan carries no terms of its own."
       >
+        <div data-field="master_policy">
         <MasterPolicyPanel
+
           policies={policies}
           mode={mode}
           saving={saving}
