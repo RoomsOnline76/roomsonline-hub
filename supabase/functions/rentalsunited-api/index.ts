@@ -477,14 +477,37 @@ function normalizeRUDateTime(value: string, endOfDay = false): string {
   return trimmed;
 }
 
-function buildListReservationsXml(creds: RUCredentials, dateFrom: string, dateTo: string): string {
+/**
+ * RU reservation status IDs (as shown in the multicalendar):
+ *   1 Confirmed · 2 Cancelled · 4 Request (pending) · 6 Approved · 7 Rejected · 8 Expired
+ *
+ * ⚠️ Without an explicit <Statuses> block RU defaults to Confirmed + Cancelled only, so
+ * pending requests visible in the RU multicalendar are silently omitted from the pull.
+ */
+export const RU_DEFAULT_RESERVATION_STATUSES = [1, 2, 4, 6];
+
+function buildListReservationsXml(
+  creds: RUCredentials,
+  dateFrom: string,
+  dateTo: string,
+  statuses: number[] = RU_DEFAULT_RESERVATION_STATUSES,
+): string {
+  const wanted = (statuses.length ? statuses : RU_DEFAULT_RESERVATION_STATUSES)
+    .map((s) => Number(s))
+    .filter((s) => Number.isFinite(s) && s > 0);
+  const statusXml = wanted.map((s) => `    <StatusID>${s}</StatusID>`).join('\n');
   return `<?xml version="1.0" encoding="utf-8"?>
 <Pull_ListReservations_RQ>
   ${buildAuthXml(creds)}
   <DateFrom>${normalizeRUDateTime(dateFrom)}</DateFrom>
   <DateTo>${normalizeRUDateTime(dateTo, true)}</DateTo>
+  <LocationID>0</LocationID>
+  <Statuses>
+${statusXml}
+  </Statuses>
 </Pull_ListReservations_RQ>`;
 }
+
 
 function buildGetLeadsXml(creds: RUCredentials, dateFrom: string, dateTo: string): string {
   return `<?xml version="1.0" encoding="utf-8"?>
