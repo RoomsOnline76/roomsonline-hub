@@ -165,7 +165,7 @@ export function RuWhiteLabelEmbed({ propertyId }: { propertyId: string | null | 
               <Button variant="ghost" size="sm" asChild>
                 <Link to={`/admin/properties/${propertyId}?tab=integrations`}>
                   <ExternalLink className="mr-2 h-4 w-4" />
-                  Rentals United owner panel
+                  ROL'OS owner panel
                 </Link>
               </Button>
             )}
