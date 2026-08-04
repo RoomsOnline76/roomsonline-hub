@@ -150,6 +150,11 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
   const [ruOwnerAccount, setRuOwnerAccount] = useState<RuOwnerAccount | null>(null);
   const [autoManaged, setAutoManaged] = useState(false);
   const [ruOwnerLabel, setRuOwnerLabel] = useState<string | null>(null);
+  /** Sub-account identity gate: no OwnerID or no API keys → every RU call is blocked. */
+  const [identityGate, setIdentityGate] = useState<{ gated: boolean; reason: string | null }>({
+    gated: false,
+    reason: null,
+  });
 
   useEffect(() => {
     // Load property RU IDs and owner email
@@ -178,6 +183,21 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
         }
       });
   }, [propertyId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    supabase.functions
+      .invoke("ru-cert-portal", { body: { action: "property_ru_identity", property_id: propertyId } })
+      .then(({ data }) => {
+        if (cancelled || !data?.success) return;
+        setIdentityGate({ gated: data.push_gated === true, reason: data.gate_reason ?? null });
+      })
+      .catch(() => {/* panel on the Identity tab reports the real reason */});
+    return () => {
+      cancelled = true;
+    };
+  }, [propertyId]);
+
 
   /**
    * Buildings are legacy: units are pushed to RU as standalone properties and no push
