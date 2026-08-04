@@ -252,8 +252,49 @@ Deno.serve(async (req) => {
       });
     }
 
-    const loginEmail = (account.ru_login_email || account.owner_email || '').trim();
+    // ── Verified sub-user API keys (canonical store: ru_api_credentials) ──
+    // A verified sub-user means the RU setup IS complete on the owner's side; only the
+    // White Label sign-in may still be outstanding, so never tell them to redo setup.
+    const { data: credRow } = await admin
+      .from('ru_api_credentials')
+      .select('access_key, secret_enc, verified_at, login_email')
+      .eq('ru_owner_id', ownerId)
+      .maybeSingle();
+    const subUserVerified = !!(credRow?.access_key || account.ru_api_access_key);
+    let keyExchangeError: string | null = null;
+
+    if (credRow?.access_key) {
+      const secret = await decryptSecret(admin, credRow.secret_enc);
+      if (secret) {
+        const exchanged = await mintFromKeys(String(credRow.access_key), secret, ownerId);
+        if (!('error' in exchanged)) {
+          const keyExpiry = new Date(Date.now() + exchanged.ttl * 1000).toISOString();
+          await admin
+            .from('ru_owner_accounts')
+            .update({
+              ru_wl_access_token: exchanged.access,
+              ru_wl_refresh_token: exchanged.refresh,
+              ru_wl_token_expires_at: keyExpiry,
+              ru_wl_token_source: 'keys',
+            })
+            .eq('id', account.id);
+          return json({
+            success: true,
+            available: true,
+            owner_id: ownerId,
+            access_token: exchanged.access,
+            refresh_token: exchanged.refresh,
+            expires_at: keyExpiry,
+            source: 'keys',
+          });
+        }
+        keyExchangeError = exchanged.error;
+      }
+    }
+
+    const loginEmail = (account.ru_login_email || credRow?.login_email || account.owner_email || '').trim();
     const password = await decryptSecret(admin, account.ru_login_password_enc);
+
 
     if (loginEmail && password) {
       const minted = await mintFromLogin(loginEmail, password);
