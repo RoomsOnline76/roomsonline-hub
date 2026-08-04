@@ -51,6 +51,27 @@ const CHECK_ROUTES: Record<string, { section: string; label: string; surface: 'r
   rentalsunited_location_currency: { section: 'integrations', label: 'Integrations → Rentals United', surface: 'admin' },
 };
 
+/**
+ * Stable tier per check id. A check must never flip between mandatory and
+ * nice-to-have depending on which branch it returns, otherwise the score totals
+ * shift between properties and stop matching the field-level highlighting.
+ */
+const CHECK_TIERS: Record<string, 'mandatory' | 'recommended'> = {
+  contract: 'mandatory',
+  content: 'mandatory',
+  media: 'mandatory',
+  commercial: 'recommended',
+  pms: 'mandatory',
+  location: 'mandatory',
+  contact: 'mandatory',
+  rooms: 'mandatory',
+  policies: 'mandatory',
+  check_times: 'recommended',
+  rentalsunited_geo: 'mandatory',
+  rentalsunited_location_currency: 'mandatory',
+};
+
+
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
