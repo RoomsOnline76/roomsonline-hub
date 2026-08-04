@@ -293,6 +293,17 @@ export function RuLnmPanel() {
                       <Button size="sm" variant="outline" onClick={() => verify(row)} disabled={row.loading}>
                         {row.loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Read back"}
                       </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-1.5"
+                        onClick={() => runDuplicateTest(row)}
+                        disabled={row.dupRunning || row.loading}
+                        title="Subscribes twice ~61s apart and reads back — proves RU holds exactly one record"
+                      >
+                        {row.dupRunning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Copy className="h-3.5 w-3.5" />}
+                        Duplicate test (~70s)
+                      </Button>
                       <Button size="sm" onClick={() => subscribe(row)} disabled={row.loading} className="gap-1.5">
                         <BellRing className="h-3.5 w-3.5" /> Subscribe
                       </Button>
@@ -300,6 +311,30 @@ export function RuLnmPanel() {
                   </div>
 
                   {row.error && <p className="text-xs text-destructive">{row.error}</p>}
+
+                  {row.dupResult && (
+                    <div className="rounded-md border p-2 space-y-1.5">
+                      <div className="flex items-center gap-2">
+                        <Badge
+                          variant="outline"
+                          className={
+                            row.dupResult.passed
+                              ? "text-success border-success/40 text-[10px]"
+                              : "text-destructive border-destructive/40 text-[10px]"
+                          }
+                        >
+                          {row.dupResult.passed ? "Idempotent" : "Not idempotent"}
+                        </Badge>
+                        <span className="text-xs text-muted-foreground">
+                          Duplicate-subscription test — two pushes, one read-back
+                        </span>
+                      </div>
+                      <pre className="max-h-44 overflow-auto rounded bg-muted p-2 text-[10px] leading-relaxed">
+                        {JSON.stringify(row.dupResult, null, 2)}
+                      </pre>
+                    </div>
+                  )}
+
 
                   {subs && (
                     <div className="space-y-1.5 text-xs text-muted-foreground">
