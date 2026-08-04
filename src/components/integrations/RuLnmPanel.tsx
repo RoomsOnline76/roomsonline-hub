@@ -151,6 +151,28 @@ export function RuLnmPanel() {
     },
     [setRow],
   );
+  const runDuplicateTest = useCallback(
+    async (row: AccountRow) => {
+      setRow(row.ownerId, { dupRunning: true, dupResult: undefined });
+      try {
+        const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
+          body: { action: "lnm_duplicate_test", ...(row.ownerId ? { owner_id: row.ownerId } : {}) },
+        });
+        if (error) throw new Error(error.message);
+        if (data?.success !== true) throw new Error(data?.error?.message ?? "The duplicate-subscription test could not run");
+        setRow(row.ownerId, { dupRunning: false, dupResult: data as Record<string, unknown> });
+        if (data.passed) toast.success(`Idempotent — Rentals United holds exactly one subscription (${row.label})`);
+        else toast.error("Duplicate-subscription test failed", { description: "Rentals United drifted or duplicated entries — see the result below." });
+        await verify(row);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        setRow(row.ownerId, { dupRunning: false, error: msg });
+        toast.error("Duplicate-subscription test failed", { description: msg });
+      }
+    },
+    [setRow, verify],
+  );
+
 
   const subscribe = useCallback(
     async (row: AccountRow) => {
