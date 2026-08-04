@@ -528,12 +528,16 @@ Extract: contact details, location, description, check-in/out times, star rating
       if (status === 429) {
         return new Response(
           JSON.stringify({ success: false, error: "TOBI rate limit exceeded. Please try again later." }),
-...
+          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      if (status === 402) {
+        return new Response(
           JSON.stringify({ success: false, error: "TOBI is temporarily unavailable — credits exhausted." }),
           { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-      throw new Error(`AI request failed with status ${status}`);
+      throw new Error(`TOBI request failed with status ${status}`);
     }
 
     const aiData = await aiResponse.json();
