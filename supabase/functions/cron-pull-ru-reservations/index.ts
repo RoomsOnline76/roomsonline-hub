@@ -663,7 +663,7 @@ Deno.serve(async (req) => {
                 processed: true,
               });
               summary.leads_logged++;
-              console.log(`[cron-pull-ru] ✅ Logged lead ${leadId} from ${guestName} (${guestEmail})`);
+              console.log(`[cron-pull-ru] ✅ Logged lead ${leadId} from ${guestName} (${parsed.guestEmail})`);
             }
           } catch (leadErr) {
             console.error(`[cron-pull-ru] Error processing lead:`, leadErr);
