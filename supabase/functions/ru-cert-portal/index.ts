@@ -550,7 +550,18 @@ Deno.serve(async (req) => {
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
   const admin = createClient(supabaseUrl, serviceKey);
 
+  // Coverage evidence: every RU-touching console action is logged to ru_sync_runs.
+  // `json` is shadowed here so the log write happens on whichever branch responds.
+  const startedAtMs = Date.now();
+  let logActionName = "";
+  let logPropertyId: string | null = null;
+  const json = (payload: unknown, status = 200): Response => {
+    void logPortalAction(admin, logActionName, logPropertyId, payload, Date.now() - startedAtMs);
+    return jsonResponse(payload, status);
+  };
+
   try {
+
     // ── Auth: admin / dev / fearless_leader only ──
     const authHeader = req.headers.get("Authorization") ?? "";
     if (!authHeader) return json({ success: false, error: { code: "UNAUTHORIZED", message: "Missing Authorization header" } }, 401);
