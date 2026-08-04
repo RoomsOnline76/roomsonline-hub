@@ -239,12 +239,14 @@ export async function cancelRuReservation(
   const reservationId = String(booking.external_reservation_id);
   const cancelTypeId = opts.cancelTypeId === 2 ? 2 : 1;
 
+  const logCtx = { propertyId: booking.property_id, details: { booking_id: booking.id, reservation_id: reservationId } };
+
   if (isRuLead(booking)) {
     const rejected = await invokeRu(supabase, 'reject_request', {
       reservation_id: reservationId,
       reject_reason: opts.reason,
       ...auth,
-    });
+    }, logCtx);
     if (rejected.ok) return { ok: true, method: 'reject_request' };
     // Backwards compatibility: some integrations do not have reject enabled.
     const cancelled = await invokeRu(supabase, 'cancel_reservation', {
@@ -252,7 +254,7 @@ export async function cancelRuReservation(
       cancel_type_id: cancelTypeId,
       reject_reason: opts.reason,
       ...auth,
-    });
+    }, logCtx);
     return cancelled.ok
       ? { ok: true, method: 'cancel_reservation' }
       : { ok: false, method: 'cancel_reservation', code: cancelled.code, message: cancelled.message };
@@ -263,11 +265,12 @@ export async function cancelRuReservation(
     cancel_type_id: cancelTypeId,
     reject_reason: opts.reason,
     ...auth,
-  });
+  }, logCtx);
   return result.ok
     ? { ok: true, method: 'cancel_reservation' }
     : { ok: false, method: 'cancel_reservation', code: result.code, message: result.message };
 }
+
 
 /** Push a stay change to RU. Confirmed reservations only. */
 export async function modifyRuStay(
