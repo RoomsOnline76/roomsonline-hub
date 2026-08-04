@@ -11041,6 +11041,10 @@ export type Database = {
           ru_login_url: string | null
           ru_owner_id: string | null
           ru_user_id: string | null
+          ru_wl_access_token: string | null
+          ru_wl_refresh_token: string | null
+          ru_wl_token_expires_at: string | null
+          ru_wl_token_source: string | null
           scope: string
           updated_at: string
         }
@@ -11064,6 +11068,10 @@ export type Database = {
           ru_login_url?: string | null
           ru_owner_id?: string | null
           ru_user_id?: string | null
+          ru_wl_access_token?: string | null
+          ru_wl_refresh_token?: string | null
+          ru_wl_token_expires_at?: string | null
+          ru_wl_token_source?: string | null
           scope?: string
           updated_at?: string
         }
@@ -11087,6 +11095,10 @@ export type Database = {
           ru_login_url?: string | null
           ru_owner_id?: string | null
           ru_user_id?: string | null
+          ru_wl_access_token?: string | null
+          ru_wl_refresh_token?: string | null
+          ru_wl_token_expires_at?: string | null
+          ru_wl_token_source?: string | null
           scope?: string
           updated_at?: string
         }
