@@ -26,6 +26,7 @@ import { RuErrorHandlingTab } from "@/components/integrations/RuErrorHandlingTab
 import { RuOnboardingPipeline } from "@/components/integrations/RuOnboardingPipeline";
 import { RuSyncProgressTracker } from "@/components/integrations/RuSyncProgressTracker";
 import { RuLnmPanel } from "@/components/integrations/RuLnmPanel";
+import { RuCoverageTab } from "@/components/integrations/RuCoverageTab";
 
 
 interface SyncRun {
@@ -228,6 +229,7 @@ export default function AdminRentalsUnited() {
           <TabsTrigger value="errors">Error handling</TabsTrigger>
           <TabsTrigger value="currency">Currency</TabsTrigger>
           <TabsTrigger value="lnm">Live notifications</TabsTrigger>
+          <TabsTrigger value="coverage">Coverage</TabsTrigger>
           <TabsTrigger value="cert">Certification &amp; compliance</TabsTrigger>
         </TabsList>
 
@@ -283,6 +285,10 @@ export default function AdminRentalsUnited() {
 
         <TabsContent value="lnm">
           <RuLnmPanel />
+        </TabsContent>
+
+        <TabsContent value="coverage">
+          <RuCoverageTab />
         </TabsContent>
 
         <TabsContent value="cert">
