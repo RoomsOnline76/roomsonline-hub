@@ -1846,14 +1846,14 @@ export default function PMSDashboard() {
                 </div>
               )
             ) : viewMode === "week" ? (
-              showOnlyBookedDays && visibleDates.length === 0 ? (
+              showOnlyBookedDays && (visibleDates.length === 0 || visibleRoomTypes.length === 0) ? (
                 <div className="flex items-center justify-center py-10 text-sm text-muted-foreground border rounded-lg bg-muted/20">
                   No booked days in this week.
                 </div>
               ) : (
               <WeekCalendarGrid
                 dates={visibleDates}
-                roomTypes={roomTypes}
+                roomTypes={visibleRoomTypes}
                 roomsByType={roomsByType}
                 bookings={bookings}
                 rateSeasons={rateSeasons}
@@ -1868,15 +1868,16 @@ export default function PMSDashboard() {
                 bookingsLoading={bookingsLoading}
               />
               )
-            ) : showOnlyBookedDays && visibleWeekChunks.length === 0 ? (
+            ) : showOnlyBookedDays && (visibleWeekChunks.length === 0 || visibleRoomTypes.length === 0) ? (
               <div className="flex items-center justify-center py-10 text-sm text-muted-foreground border rounded-lg bg-muted/20">
                 No booked days in this month.
               </div>
             ) : (
               <MonthCalendarGrid
                 weekChunks={visibleWeekChunks}
-                roomTypes={roomTypes}
+                roomTypes={visibleRoomTypes}
                 roomsByType={roomsByType}
+
                 bookings={bookings}
                 rooms={rooms}
                 overrideMap={overrideMap}
