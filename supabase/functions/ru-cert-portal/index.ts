@@ -406,6 +406,7 @@ Deno.serve(async (req) => {
 
     // ── milestones: certification matrix built from the most recent runs ──
     if (action === "milestones") {
+      await reapStaleRuns(admin);
       const { data: runs } = await admin
         .from("ru_cert_runs")
         .select("id, started_at, suite, steps")
@@ -424,8 +425,39 @@ Deno.serve(async (req) => {
         }
       }
 
+      // Cron jobs and the Live-notifications panel exercise the same methods outside a cert
+      // run and log to ru_sync_runs — use the newest of those when no cert step covers it.
+      const { data: syncRows } = await admin
+        .from("ru_sync_runs")
+        .select("action, success, error_message, created_at")
+        .gte("created_at", new Date(Date.now() - 14 * 24 * 3600 * 1000).toISOString())
+        .order("created_at", { ascending: false })
+        .limit(3000);
+      const latestSyncByAction = new Map<string, { success: boolean; error_message: string | null; created_at: string }>();
+      for (const row of (syncRows ?? []) as { action: string; success: boolean; error_message: string | null; created_at: string }[]) {
+        if (!latestSyncByAction.has(row.action)) latestSyncByAction.set(row.action, row);
+      }
+
       const milestones = CERT_MILESTONES.map((m) => {
         const hit = latestByMethod.get(m.ru_method);
+        if (!hit) {
+          for (const act of MILESTONE_SYNC_ACTIONS[m.ru_method] ?? []) {
+            const sync = latestSyncByAction.get(act);
+            if (!sync) continue;
+            return {
+              ...m,
+              status: (sync.success ? "passed" : "failed") as StepStatus,
+              partial_success: false,
+              ru_status_id: null,
+              detail: sync.success
+                ? `Verified outside a certification run — scheduled/manual "${act}" succeeded.`
+                : sync.error_message ?? `Scheduled/manual "${act}" failed.`,
+              last_run_at: sync.created_at,
+              run_id: null,
+              source: "sync_log" as const,
+            };
+          }
+        }
         const statusId = hit?.step.ru_status_id ?? null;
         const partial = String(statusId ?? "") === "5";
         return {
@@ -436,6 +468,7 @@ Deno.serve(async (req) => {
           detail: hit?.step.detail ?? null,
           last_run_at: hit?.at ?? null,
           run_id: hit?.run_id ?? null,
+          source: hit ? ("cert_run" as const) : ("none" as const),
         };
       });
 
@@ -451,6 +484,7 @@ Deno.serve(async (req) => {
         },
       });
     }
+
 
     // ── evidence: printable / downloadable bundle for the RU certification call ──
     if (action === "evidence") {
