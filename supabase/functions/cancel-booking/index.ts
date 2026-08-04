@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { cancelRuReservation, isRuBooking, isRuLead } from "../_shared/ruBookingSync.ts";
+import { queueRuAriDelta } from "../_shared/ruAriDelta.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -320,6 +321,10 @@ Deno.serve(async (req) => {
         { onConflict: "booking_id,external_system" }
       );
     }
+
+    // Freed nights must reach RU immediately, not on the next cron tick.
+    await queueRuAriDelta(supabase, booking.property_id, "booking_cancelled");
+
 
     // S9: Send cancellation email
     try {

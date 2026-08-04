@@ -15,7 +15,7 @@ import { summarizeReadiness, type RuCheck, type RuUnitInput } from "../_shared/r
 import { evaluatePhases, findOwnerAccount, resolvePortfolioId } from "../_shared/ruPhaseGate.ts";
 import { createRateResolver, describeCoverage } from "../_shared/rateResolution.ts";
 import { parseRuPricePoints } from "../_shared/ruPriceParsing.ts";
-import { countRuOpenDays } from "../_shared/ruAvailabilityParsing.ts";
+import { countRuOpenDays, parseRuAvailabilityDays } from "../_shared/ruAvailabilityParsing.ts";
 import { DEFAULT_LNM_CHANGE_TYPES, diffLnmSubscriptions, parseLnmSubscriptions } from "../_shared/ruLnm.ts";
 import {
   RU_EMPLOYEE_RANGES,
@@ -1231,6 +1231,130 @@ Deno.serve(async (req) => {
       const report = await scoreProperty(prop, { probe_ari: body.probe_ari !== false });
       return json({ success: true, property: report });
     }
+
+    /**
+     * ── availability_playground: certification evidence for the rolling 365-day window.
+     *
+     * Pushes availability + pricing only (action refresh_ari — never Push_PutProperty_RQ),
+     * then reads the calendar back through Pull_ListPropertyAvailabilityCalendar_RQ and proves,
+     * day by day, that RU holds one entry for every day of [today, today+365].
+     */
+    if (action === "availability_playground" || action === "duplicate_range_test") {
+      const propertyId: string = body.property_id ?? "";
+      if (!propertyId) {
+        return json({ success: false, error: { code: "BAD_REQUEST", message: "property_id is required" } }, 400);
+      }
+      const { data: prop } = await admin
+        .from("properties")
+        .select("id, name, rentalsunited_property_id")
+        .eq("id", propertyId)
+        .maybeSingle();
+      if (!prop) {
+        return json({ success: false, error: { code: "NOT_FOUND", message: "Property not found" } }, 404);
+      }
+
+      // A duplicate-range test intentionally pushes the SAME window twice: RU must end up
+      // idempotent (identical day count, no doubled days, no conflicting MinStay).
+      const passes = action === "duplicate_range_test" ? 2 : 1;
+      const pushes: Record<string, unknown>[] = [];
+      for (let i = 0; i < passes; i++) {
+        const { data: pushData, error: pushErr } = await admin.functions.invoke("push-property-to-ru", {
+          body: { property_id: propertyId, action: "refresh_ari", trigger: `cert_${action}_pass${i + 1}` },
+        });
+        pushes.push({
+          pass: i + 1,
+          success: pushErr ? false : pushData?.success === true,
+          error: pushErr?.message ?? pushData?.error?.message ?? null,
+          targets: (pushData?.targets ?? []).map((t: Record<string, any>) => ({
+            target: t.target,
+            ru_property_id: t.ru_property_id,
+            availability_pushed: t.availability_pushed,
+            availability_error: t.availability_error ?? null,
+            availability_coverage: t.availability_coverage ?? null,
+            price_coverage: t.price_coverage ?? null,
+          })),
+        });
+        if (i + 1 < passes) await new Promise((r) => setTimeout(r, 1500));
+      }
+
+      // Read the calendar back per RU listing and verify full, unique coverage.
+      const from = isoDate(0);
+      const to = isoDate(365);
+      const expectedDays = 366;
+      const { data: units } = await admin
+        .from("hostfully_room_types")
+        .select("name, rentalsunited_property_id")
+        .eq("property_id", propertyId)
+        .not("rentalsunited_property_id", "is", null);
+      const ruIds: { label: string; ru_id: number }[] = (units ?? [])
+        .map((u: any) => ({ label: u.name as string, ru_id: Number(u.rentalsunited_property_id) }))
+        .filter((u) => Number.isFinite(u.ru_id) && u.ru_id > 0);
+      if (ruIds.length === 0 && Number(prop.rentalsunited_property_id) > 0) {
+        ruIds.push({ label: prop.name, ru_id: Number(prop.rentalsunited_property_id) });
+      }
+
+      const { account: ownerAccount } = await findOwnerAccount(admin, propertyId, null, null);
+      const scopedOwnerId = ownerAccount?.ru_owner_id ? Number(ownerAccount.ru_owner_id) : null;
+      const scope = scopedOwnerId && scopedOwnerId > 0 ? { owner_id: scopedOwnerId } : {};
+
+      const readbacks = await Promise.all(ruIds.map(async ({ label, ru_id }) => {
+        const { data: calData, error: calErr } = await admin.functions.invoke("rentalsunited-api", {
+          body: { action: "get_availability", ru_property_id: ru_id, date_from: from, date_to: to, ...scope },
+        });
+        const xml = String(calData?.raw_xml ?? "");
+        const days = parseRuAvailabilityDays(xml);
+        const missing: string[] = [];
+        const conflicting: string[] = [];
+        for (let i = 0; i <= 365; i++) {
+          const iso = isoDate(i);
+          const day = days.get(iso);
+          if (!day) missing.push(iso);
+          else if (day.min_stay != null && day.min_stay < 1) conflicting.push(iso);
+        }
+        // parseRuAvailabilityDays keys by date, so a duplicated day cannot inflate the map —
+        // compare the raw CalDay count against unique dates to expose duplicates.
+        const rawDayCount = (xml.match(/<CalDay\b/gi) || []).length;
+        return {
+          target: label,
+          ru_property_id: ru_id,
+          read_ok: !calErr && calData?.success === true,
+          read_error: calErr?.message ?? calData?.error?.message ?? null,
+          expected_days: expectedDays,
+          days_returned: days.size,
+          raw_day_elements: rawDayCount,
+          duplicate_days: Math.max(0, rawDayCount - days.size),
+          missing_days: missing.length,
+          missing_sample: missing.slice(0, 10),
+          conflicting_min_stay: conflicting.length,
+          open_days: countRuOpenDays(xml),
+          passed: !calErr && calData?.success === true && missing.length === 0 && rawDayCount === days.size,
+        };
+      }));
+
+      const passed = pushes.every((p) => p.success) && readbacks.length > 0 && readbacks.every((r) => r.passed);
+      try {
+        await admin.from("ru_sync_runs").insert({
+          property_id: propertyId,
+          action,
+          success: passed,
+          error_code: passed ? null : "RU_AVAILABILITY_WINDOW_INCOMPLETE",
+          error_message: passed ? null : readbacks.filter((r) => !r.passed).map((r) => `${r.target}: ${r.missing_days} missing, ${r.duplicate_days} duplicate`).join("; "),
+          details: { window: { from, to }, passes, pushes, readbacks },
+        });
+      } catch (_e) { /* evidence only */ }
+
+      return json({
+        success: true,
+        action,
+        property: { id: prop.id, name: prop.name },
+        window: { from, to, expected_days: expectedDays },
+        passes,
+        pushes,
+        readbacks,
+        passed,
+      });
+    }
+
 
     /**
      * ── property_ru_identity: everything the "RU owner sub-account" panel on a

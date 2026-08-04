@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { isRuBooking, modifyRuStay } from "../_shared/ruBookingSync.ts";
+import { queueRuAriDelta } from "../_shared/ruAriDelta.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -517,6 +518,10 @@ Deno.serve(async (req) => {
         { onConflict: "booking_id,external_system" }
       );
     }
+
+    // Shifted dates change both the old and new nights: refresh the RU window now.
+    await queueRuAriDelta(supabase, booking.property_id, "booking_modified");
+
 
     // S10: Send modification email
     try {

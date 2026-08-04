@@ -1,5 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
+import { queueRuAriDelta } from "../_shared/ruAriDelta.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -449,6 +450,10 @@ Deno.serve(async (req) => {
         console.error('Error blocking dates:', blockError);
         // Don't fail the booking if date blocking fails
       }
+
+      // Newly blocked nights must reach RU immediately, not on the next cron tick.
+      await queueRuAriDelta(supabaseClient, property.id, "booking_confirmed");
+
       
       // Send property owner notification email
       const ownerEmail = property.owner_email;

@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
+import { queueRuAriDelta } from "../_shared/ruAriDelta.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -251,6 +252,10 @@ Deno.serve(async (req) => {
         console.error("Availability restore failed (non-critical):", e);
       }
     }
+
+    // Freed nights must reach RU immediately, not on the next cron tick.
+    await queueRuAriDelta(supabase, booking.property_id, "guest_cancelled");
+
 
     // Mark token as used
     await supabase

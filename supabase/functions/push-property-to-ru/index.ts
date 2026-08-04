@@ -1251,6 +1251,80 @@ function resolveChangeoverRules(unit: UnitContext | undefined, propertyAmenities
   return { perDow: null, defaultCode };
 }
 
+type AvailabilityPeriod = { from: string; to: string; minStay: number; seasonId: string };
+
+const isoAddDays = (iso: string, days: number): string => {
+  const d = new Date(iso + 'T00:00:00Z');
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+};
+
+/**
+ * Rentals United requires a *complete* rolling 365-day availability window, and it rejects
+ * (or silently last-writes) overlapping ranges. Authored seasons satisfy neither guarantee:
+ * they can start in the past, leave gaps between each other, and overlap one another.
+ *
+ * This normaliser produces exactly one entry per day of the window, in order:
+ *  - periods clamped to [today, today+365]; fully past periods dropped
+ *  - overlaps resolved day-by-day, later-authored periods winning (RU has no overlap semantics)
+ *  - every remaining gap filled with a default (minStay 1) filler range
+ * Contiguous days sharing the same minStay/origin are recompressed into ranges so the payload
+ * stays small.
+ */
+function normalizeAvailabilityWindow(
+  periods: AvailabilityPeriod[],
+  windowFrom: string,
+  windowTo: string,
+): { periods: AvailabilityPeriod[]; coverage: { days_total: number; days_from_seasons: number; days_filled: number; overlaps_resolved: number } } {
+  const perDay = new Map<string, { minStay: number; seasonId: string }>();
+  let overlaps = 0;
+
+  for (const p of periods) {
+    if (!p.from || !p.to) continue;
+    const from = p.from > windowFrom ? p.from : windowFrom;
+    const to = p.to < windowTo ? p.to : windowTo;
+    if (from > to) continue;
+    for (let d = from; d <= to; d = isoAddDays(d, 1)) {
+      if (perDay.has(d)) overlaps += 1;
+      // Later-authored period wins: seasons are pushed in authoring order.
+      perDay.set(d, { minStay: p.minStay, seasonId: p.seasonId });
+    }
+  }
+
+  const daysFromSeasons = perDay.size;
+  let filled = 0;
+  for (let d = windowFrom; d <= windowTo; d = isoAddDays(d, 1)) {
+    if (!perDay.has(d)) {
+      perDay.set(d, { minStay: 1, seasonId: '__filler__' });
+      filled += 1;
+    }
+  }
+
+  // Recompress contiguous identical days back into ranges.
+  const ordered = [...perDay.keys()].sort();
+  const out: AvailabilityPeriod[] = [];
+  for (const day of ordered) {
+    const v = perDay.get(day)!;
+    const last = out[out.length - 1];
+    if (last && last.minStay === v.minStay && last.seasonId === v.seasonId && isoAddDays(last.to, 1) === day) {
+      last.to = day;
+    } else {
+      out.push({ from: day, to: day, minStay: v.minStay, seasonId: v.seasonId });
+    }
+  }
+
+  return {
+    periods: out,
+    coverage: {
+      days_total: ordered.length,
+      days_from_seasons: daysFromSeasons,
+      days_filled: filled,
+      overlaps_resolved: overlaps,
+    },
+  };
+}
+
+
 function expandAvailability(
   periods: { from: string; to: string; minStay: number }[],
   units: number,
@@ -1501,7 +1575,7 @@ async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRo
   const amenities = (property.amenities || {}) as Record<string, any>;
   const seasons = amenities.seasons as any[] | undefined;
   const seasonRates = amenities.season_rates as Record<string, any> | undefined;
-  const result: { availability_reserved_days?: number; availability_pushed?: boolean; prices_pushed?: boolean; availability_error?: string; prices_error?: string; availability_verification?: AvailabilityVerification; prices_verification?: PriceVerification; price_coverage?: Record<string, any>; currency?: Record<string, any> } = {};
+  const result: { availability_reserved_days?: number; availability_pushed?: boolean; prices_pushed?: boolean; availability_error?: string; prices_error?: string; availability_verification?: AvailabilityVerification; prices_verification?: PriceVerification; price_coverage?: Record<string, any>; availability_coverage?: Record<string, any>; currency?: Record<string, any> } = {};
 
   const today = new Date();
   const todayStr = today.toISOString().slice(0, 10);
@@ -1509,34 +1583,40 @@ async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRo
   oneYearLater.setFullYear(oneYearLater.getFullYear() + 1);
   const oneYearStr = oneYearLater.toISOString().slice(0, 10);
 
-  type PeriodEntry = { from: string; to: string; minStay: number; seasonId: string };
-  const allPeriods: PeriodEntry[] = [];
+  const authoredPeriods: AvailabilityPeriod[] = [];
   if (Array.isArray(seasons)) {
     for (const season of seasons) {
       const periods = season.periods || [{ from: season.from, to: season.to }];
       for (const period of periods) {
-        if (period.from && period.to) allPeriods.push({ from: period.from, to: period.to, minStay: season.minStay || 1, seasonId: String(season.id) });
+        if (period.from && period.to) authoredPeriods.push({ from: period.from, to: period.to, minStay: season.minStay || 1, seasonId: String(season.id) });
       }
     }
   }
-  allPeriods.sort((a, b) => a.from.localeCompare(b.from));
+  authoredPeriods.sort((a, b) => a.from.localeCompare(b.from));
 
-  let latestEnd = todayStr;
-  for (const p of allPeriods) { if (p.to > latestEnd) latestEnd = p.to; }
-  if (latestEnd < oneYearStr) {
-    const nextDay = new Date(latestEnd); nextDay.setDate(nextDay.getDate() + 1);
-    const fillerFrom = nextDay.toISOString().slice(0, 10);
-    if (fillerFrom <= oneYearStr) allPeriods.push({ from: fillerFrom, to: oneYearStr, minStay: 1, seasonId: '__filler__' });
-  }
+  // RU requires a complete, non-overlapping rolling 365-day window: clamp to [today, +365],
+  // resolve overlaps day-by-day and fill every gap (not just the tail after the last season).
+  const { periods: allPeriods, coverage: availCoverage } = normalizeAvailabilityWindow(
+    authoredPeriods,
+    todayStr,
+    oneYearStr,
+  );
+  const expectedWindowDays = Math.round((Date.parse(oneYearStr) - Date.parse(todayStr)) / 86400000) + 1;
+  result.availability_coverage = {
+    window: { from: todayStr, to: oneYearStr },
+    expected_days: expectedWindowDays,
+    days_covered: availCoverage.days_total,
+    missing_days: Math.max(0, expectedWindowDays - availCoverage.days_total),
+    days_from_seasons: availCoverage.days_from_seasons,
+    days_filled: availCoverage.days_filled,
+    overlaps_resolved: availCoverage.overlaps_resolved,
+    summary: `${availCoverage.days_total}/${expectedWindowDays} days covered (${availCoverage.days_from_seasons} from seasons, ${availCoverage.days_filled} filled, ${availCoverage.overlaps_resolved} overlapping day(s) resolved)`,
+  };
+  console.log(`[pushARI] RU ${ruPropertyId} availability window: ${result.availability_coverage.summary}`);
 
   // Resolve changeover rules (per-day-of-week or default)
   const changeoverConfig = resolveChangeoverRules(unit, amenities);
 
-  // Ensure at least 1 available day over the next 365 days
-  if (allPeriods.length === 0) {
-    allPeriods.push({ from: todayStr, to: oneYearStr, minStay: 1, seasonId: '__fallback__' });
-    console.log(`[pushARI] No seasons found — pushing fallback availability for ${todayStr} to ${oneYearStr}`);
-  }
 
   {
     try {
@@ -2616,7 +2696,9 @@ Deno.serve(async (req) => {
     // from a property-scoped sub-account, otherwise the master account.
     let precomputedGaps: string[] = [];
     try {
-      if (isMultiUnit) {
+      // An ARI-only refresh never writes static content, so content scoring is skipped.
+      if (isMultiUnit && action !== 'refresh_ari') {
+
         const scored = await Promise.all(
           activeRoomTypes.map(async (rt) => {
             const payload = buildUnitPayload(property as PropertyRow, rt, locationId, undefined, currencyId) as Record<string, any>;
@@ -2715,6 +2797,75 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ success: false, error: { code: 'RU_CHILD_AUTH_REQUIRED', message: `No Rentals United API keys are stored for OwnerID ${ruOwnerId}. RU requires the sub-user's own AccessKey + SecretKey to create or update its building inventory — generate them in the RU dashboard (Security settings) and save them in Portfolios → RU accounts.` } }), { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
+    // ── ARI-ONLY REFRESH (action: 'refresh_ari') ───────────────────────────
+    // Nightly/event-driven availability + pricing refresh for inventory that is ALREADY listed
+    // at RU. It never calls Push_PutProperty_RQ, so the static-content gate does not apply
+    // (that content is live at RU already) — a content shortfall must never stall ARI. Sub-user
+    // keys and a resolved OwnerID are still mandatory.
+    if (action === 'refresh_ari') {
+      const targets: { label: string; ru_id: number; unit?: UnitContext; units: number }[] = [];
+      if (isMultiUnit) {
+        for (const rt of activeRoomTypes) {
+          const ruId = parseInt(String(rt.rentalsunited_property_id ?? ''), 10);
+          if (ruId > 0) {
+            targets.push({
+              label: rt.name,
+              ru_id: ruId,
+              unit: { id: rt.id, name: rt.name, linked_rolos_id: (rt as any).linked_rolos_id, amenities: (rt as any).amenities ?? null } as UnitContext,
+              units: 1,
+            });
+          }
+        }
+      }
+      if (targets.length === 0) {
+        const parentRuId = parseInt(String(property.rentalsunited_property_id ?? ''), 10);
+        if (parentRuId > 0) {
+          targets.push({ label: property.name, ru_id: parentRuId, units: activeRoomTypes.length || 1 });
+        }
+      }
+
+      if (targets.length === 0) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: {
+              code: 'RU_NOT_LISTED',
+              message: 'This property has no Rentals United PropertyID yet — run a full push before refreshing availability and pricing.',
+            },
+          }),
+          { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
+
+      const ariResults: Record<string, any>[] = [];
+      for (const t of targets) {
+        const r = await pushARI(supabase, t.ru_id, property as PropertyRow, t.units, t.unit, childAuthPayload, currencyDecision);
+        ariResults.push({ target: t.label, ru_property_id: t.ru_id, ...r });
+        if (targets.length > 1) await new Promise((res) => setTimeout(res, 1000));
+      }
+
+      const allOk = ariResults.every((r) => r.availability_pushed === true && !r.availability_error && !r.prices_error);
+      try {
+        await supabase.from('ru_sync_runs').insert({
+          batch_id: crypto.randomUUID(),
+          property_id,
+          action: 'refresh_ari',
+          success: allOk,
+          error_code: allOk ? null : 'RU_ARI_REFRESH_INCOMPLETE',
+          error_message: allOk ? null : ariResults.map((r) => r.availability_error || r.prices_error).filter(Boolean).join('; '),
+          details: {
+            ru_owner_id: ruOwnerId,
+            trigger: typeof reqBody.trigger === 'string' ? reqBody.trigger : 'manual',
+            targets: ariResults,
+          },
+        });
+      } catch (_e) { /* evidence only */ }
+
+      return new Response(
+        JSON.stringify({ success: allOk, action: 'refresh_ari', property_id, targets: ariResults }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
 
 
     if (!dry_run && !phaseGate.ready_for_push) {
