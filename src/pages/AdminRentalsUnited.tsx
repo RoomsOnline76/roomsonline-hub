@@ -25,6 +25,7 @@ import { RuCertificationConsole } from "@/components/integrations/RuCertificatio
 import { RuErrorHandlingTab } from "@/components/integrations/RuErrorHandlingTab";
 import { RuOnboardingPipeline } from "@/components/integrations/RuOnboardingPipeline";
 import { RuSyncProgressTracker } from "@/components/integrations/RuSyncProgressTracker";
+import { RuLnmPanel } from "@/components/integrations/RuLnmPanel";
 
 
 interface SyncRun {
@@ -226,6 +227,7 @@ export default function AdminRentalsUnited() {
           <TabsTrigger value="buildings">Buildings</TabsTrigger>
           <TabsTrigger value="errors">Error handling</TabsTrigger>
           <TabsTrigger value="currency">Currency</TabsTrigger>
+          <TabsTrigger value="lnm">Live notifications</TabsTrigger>
           <TabsTrigger value="cert">Certification &amp; compliance</TabsTrigger>
         </TabsList>
 
@@ -277,6 +279,10 @@ export default function AdminRentalsUnited() {
 
         <TabsContent value="currency">
           <RuCurrencyPanel />
+        </TabsContent>
+
+        <TabsContent value="lnm">
+          <RuLnmPanel />
         </TabsContent>
 
         <TabsContent value="cert">
