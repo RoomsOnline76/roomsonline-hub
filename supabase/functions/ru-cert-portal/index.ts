@@ -197,6 +197,17 @@ async function resolveOwnerLocationIds(
 
 
 
+/**
+ * Default sales channel the content quality check is ordered against. RU's CM_LNM_*
+ * methods need a numeric ChannelID, which is resolved from Pull_ListSalesChannels_RQ by
+ * matching CompanyName (variants such as "LekkeSlaap" / "Lekke Slaap" all normalise here).
+ */
+const LEKKESLAAP_CHANNEL_NAME = "LekkeSlaap";
+
+/** ru_platform_settings key holding the resolved ChannelID (property-scoped or account-wide). */
+const channelSettingKey = (propertyId?: string | null) =>
+  propertyId ? `ru_channel_id:${propertyId}` : "ru_channel_id";
+
 // ── RU method catalogue ───────────────────────────────────────
 const RU_METHOD_BY_ACTION: Record<string, string> = {
   health_check: "Pull_ListProp_RQ (health)",
@@ -2191,7 +2202,33 @@ Deno.serve(async (req) => {
         .limit(1)
         .maybeSingle();
 
-      return json({ success: true, gate, readiness, last_mcq: mcq ?? null });
+      // Phase 4 needs a sales ChannelID for the content quality check — surface whatever
+      // is stored for this property (or the account-wide default) so the UI can prompt.
+      const { data: channelRows } = await admin
+        .from("ru_platform_settings")
+        .select("key, value, updated_at")
+        .in("key", [channelSettingKey(propertyId), channelSettingKey(null)]);
+      let salesChannel: Record<string, unknown> | null = null;
+      for (const key of [channelSettingKey(propertyId), channelSettingKey(null)]) {
+        const row = (channelRows ?? []).find((r: { key: string }) => r.key === key);
+        if (!row) continue;
+        const raw = row.value as Record<string, unknown> | number | string | null;
+        const channelId = Number(
+          typeof raw === "object" && raw !== null ? (raw as { channel_id?: unknown }).channel_id ?? 0 : raw ?? 0,
+        );
+        if (channelId > 0) {
+          salesChannel = {
+            channel_id: channelId,
+            company_name:
+              typeof raw === "object" && raw !== null ? (raw as { company_name?: string }).company_name ?? null : null,
+            scope: key.includes(":") ? "property" : "account",
+            updated_at: row.updated_at ?? null,
+          };
+          break;
+        }
+      }
+
+      return json({ success: true, gate, readiness, last_mcq: mcq ?? null, sales_channel: salesChannel });
     }
 
     // ── ensure_owner_account: Phase 1 sub-user (portfolio-first) ──
@@ -3009,6 +3046,79 @@ Deno.serve(async (req) => {
 
 
 
+    }
+
+    // ── resolve_sales_channel: Phase 4 ChannelID (Pull_ListSalesChannels_RQ) ──
+    // The content quality check is ordered per sales channel, so the numeric ChannelID for
+    // the channel (default: LekkeSlaap) is pulled from RU and stored for the property.
+    if (action === "resolve_sales_channel") {
+      const propertyId: string | null = body.property_id ?? null;
+      const channelName: string = String(body.channel_name ?? LEKKESLAAP_CHANNEL_NAME).trim() || LEKKESLAAP_CHANNEL_NAME;
+      const startedAt = Date.now();
+
+      const { data: result, error: fnError } = await admin.functions.invoke("rentalsunited-api", {
+        body: { action: "list_sales_channels", channel_name: channelName, property_id: propertyId },
+      });
+      const ok = !fnError && (result as any)?.success === true;
+      const channels = (((result as any)?.channels ?? []) as Array<{
+        channel_id: number;
+        company_name: string;
+        reservation_creator_name: string | null;
+        configuration_complete: boolean | null;
+      }>);
+      const matched = ((result as any)?.matched ?? null) as { channel_id: number; company_name: string } | null;
+
+      const logRun = async (success: boolean, errorCode: string | null, errorMessage: string | null, details: Record<string, unknown>) => {
+        await admin.from("ru_sync_runs").insert({
+          batch_id: crypto.randomUUID(),
+          action: "resolve_sales_channel",
+          property_id: propertyId,
+          success,
+          error_code: errorCode,
+          error_message: errorMessage,
+          elapsed_ms: Date.now() - startedAt,
+          details,
+        });
+      };
+
+      if (!ok) {
+        const message = fnError?.message ?? (result as any)?.error?.message ?? "Rentals United rejected Pull_ListSalesChannels_RQ";
+        await logRun(false, (result as any)?.error?.code ?? "RU_ERROR", message, { channel_name: channelName });
+        return json({ success: false, error: { code: "RU_SALES_CHANNELS_FAILED", message } }, 502);
+      }
+
+      if (!matched) {
+        const message = `Rentals United returned ${channels.length} sales channel(s) but none matching "${channelName}". Ask Rentals United to connect the channel to this account.`;
+        await logRun(true, "CHANNEL_NOT_FOUND", message, { channel_name: channelName, channel_count: channels.length });
+        return json({
+          success: false,
+          error: { code: "CHANNEL_NOT_FOUND", message },
+          channels,
+        }, 404);
+      }
+
+      // Store property-scoped when we know the property, and seed the account-wide default.
+      const stamp = new Date().toISOString();
+      const value = { channel_id: matched.channel_id, company_name: matched.company_name, resolved_at: stamp };
+      const rows = [
+        { key: channelSettingKey(propertyId), value, updated_by: user.id, updated_at: stamp },
+      ];
+      if (propertyId) rows.push({ key: channelSettingKey(null), value, updated_by: user.id, updated_at: stamp });
+      await admin.from("ru_platform_settings").upsert(rows, { onConflict: "key" });
+
+      await logRun(true, null, null, {
+        channel_name: channelName,
+        channel_id: matched.channel_id,
+        company_name: matched.company_name,
+        channel_count: channels.length,
+      });
+
+      return json({
+        success: true,
+        channel: { ...matched, scope: propertyId ? "property" : "account" },
+        channels,
+        channel_count: channels.length,
+      });
     }
 
     // ── order_mcq: Phase 4.3 Minimum Content Quality check ──
