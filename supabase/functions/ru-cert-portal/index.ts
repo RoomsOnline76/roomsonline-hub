@@ -1683,10 +1683,24 @@ Deno.serve(async (req) => {
 
       const remote: { id: string; name: string }[] = Array.isArray(listed.properties) ? listed.properties : [];
       const norm = (v: unknown) => String(v ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+      const slug = (v: unknown) => norm(v).replace(/[^a-z0-9]+/g, "");
+      const claimed = new Set<string>();
+      /**
+       * Exact name first, then slug (punctuation/dash noise), then a containment match —
+       * RU listing names often carry a portfolio prefix ("Tidal Pools - Leervis").
+       * Each remote listing can only be claimed once so two units never link to one RUID.
+       */
       const findRemote = (name: string | null) => {
         const key = norm(name);
         if (!key) return null;
-        return remote.find((r) => norm(r.name) === key) ?? null;
+        const free = remote.filter((r) => !claimed.has(r.id));
+        const hit =
+          free.find((r) => norm(r.name) === key) ??
+          free.find((r) => slug(r.name) === slug(key)) ??
+          free.find((r) => slug(r.name).includes(slug(key)) || slug(key).includes(slug(r.name))) ??
+          null;
+        if (hit) claimed.add(hit.id);
+        return hit;
       };
 
       const matched: { scope: "property" | "unit"; name: string; ru_property_id: string }[] = [];
@@ -1724,6 +1738,7 @@ Deno.serve(async (req) => {
       return json({
         success: true,
         ru_owner_id: ownerId,
+        ru_owner_label: `${account?.ru_login_email ?? account?.owner_email ?? "sub-account"} (OwnerID ${ownerId})`,
         rentalsunited_property_id: propertyHit?.id ?? prop.rentalsunited_property_id ?? null,
         matched,
         unmatched,

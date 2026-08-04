@@ -149,6 +149,7 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
 
   const [ruOwnerAccount, setRuOwnerAccount] = useState<RuOwnerAccount | null>(null);
   const [autoManaged, setAutoManaged] = useState(false);
+  const [ruOwnerLabel, setRuOwnerLabel] = useState<string | null>(null);
 
   useEffect(() => {
     // Load property RU IDs and owner email
@@ -245,6 +246,25 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
    * (or a lost response) leave the local RU ID blank. This re-reads the RU property
    * list for the bound sub-user and captures the real RUIDs by name.
    */
+  /** Re-read the stored RU links so the panel reflects what the fetch just wrote. */
+  const reloadStoredRuIds = async () => {
+    const [{ data: prop }, { data: rows }] = await Promise.all([
+      supabase.from("properties").select("rentalsunited_property_id").eq("id", propertyId).maybeSingle(),
+      supabase
+        .from("hostfully_room_types")
+        .select("id, name, rentalsunited_property_id, is_active")
+        .eq("property_id", propertyId),
+    ]);
+    setRuPropertyId(prop?.rentalsunited_property_id ?? null);
+    const active = (rows ?? []).filter((r) => r.is_active !== false);
+    setUnits((prev) =>
+      prev.map((u) => {
+        const hit = active.find((r) => r.id === u.room_type_id);
+        return hit ? { ...u, ru_property_id: hit.rentalsunited_property_id ?? null } : u;
+      }),
+    );
+  };
+
   const resolveRuIds = async () => {
     setResolvingIds(true);
     try {
@@ -253,6 +273,9 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
       });
       if (fnErr) throw new Error(await extractFunctionError(fnErr, "Could not read the Rentals United property list"));
       if (!data?.success) throw new Error(data?.error?.message ?? "Could not read the Rentals United property list");
+
+      if (data.ru_owner_label) setRuOwnerLabel(String(data.ru_owner_label));
+      else if (data.ru_owner_id) setRuOwnerLabel(`OwnerID ${data.ru_owner_id}`);
 
       const matched: { scope: string; name: string; ru_property_id: string }[] = data.matched ?? [];
       const propMatch = matched.find((m) => m.scope === "property");
@@ -266,14 +289,19 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
         }),
       );
 
+      // The resolver writes the links server-side — re-read them so the badges match the DB.
+      await reloadStoredRuIds();
+
       const unmatched: string[] = data.unmatched ?? [];
+      const acct = data.ru_owner_label ?? (data.ru_owner_id ? `OwnerID ${data.ru_owner_id}` : "sub-account");
       if (matched.length === 0) {
-        toast.warning(`No matching listings found on the Rentals United account (${data.remote_count ?? 0} listings scanned)`);
+        toast.warning(`No matching listings on ${acct} (${data.remote_count ?? 0} listing(s) scanned)`);
       } else {
         toast.success(
-          `Captured ${matched.length} Rentals United ID${matched.length === 1 ? "" : "s"}${unmatched.length ? ` — ${unmatched.length} still unmatched` : ""}`,
+          `Linked ${matched.length} Rentals United ID${matched.length === 1 ? "" : "s"} from ${acct}${unmatched.length ? ` — ${unmatched.length} still unmatched` : ""}`,
         );
       }
+
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to capture the Rentals United ID");
     } finally {
@@ -476,6 +504,12 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
             )}
           </div>
           <div className="flex items-center gap-2">
+            {(ruOwnerLabel || ruOwnerAccount?.ru_owner_id) && (
+              <Badge variant="outline" className="text-[10px] h-5 gap-1" title="RU sub-account the IDs are fetched from">
+                <User className="h-3 w-3" />
+                {ruOwnerLabel ?? `OwnerID ${ruOwnerAccount?.ru_owner_id}`}
+              </Badge>
+            )}
             <Button
               variant="outline"
               size="sm"
