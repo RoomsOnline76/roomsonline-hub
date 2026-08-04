@@ -254,7 +254,8 @@ export const PROPERTY_FIELD_REQUIREMENTS: FieldRequirement[] = [
       filled(amenity(s, "reservations_email")) ||
       filled(amenity(s, "contact_email")) ||
       filled(amenity(s, "public_email")) ||
-      filled(s.contact_email),
+      filled(s.contact_email) ||
+      contactHas(s, "email"),
   },
   {
     key: "contact_phone",
@@ -266,7 +267,8 @@ export const PROPERTY_FIELD_REQUIREMENTS: FieldRequirement[] = [
       filled(amenity(s, "reception_phone")) ||
       filled(amenity(s, "telephone")) ||
       filled(amenity(s, "public_phone")) ||
-      filled(s.telephone),
+      filled(s.telephone) ||
+      contactHas(s, "phone"),
   },
   {
     key: "emergency_contact",
@@ -275,7 +277,9 @@ export const PROPERTY_FIELD_REQUIREMENTS: FieldRequirement[] = [
     section: "contacts",
     target: ['[data-field="amenities.emergency_phone"]', '[data-field="emergency_contact"]'],
     isSatisfied: (s) =>
-      filled(amenity(s, "emergency_phone")) || filled(amenity(s, "emergency_contact")),
+      filled(amenity(s, "emergency_phone")) ||
+      filled(amenity(s, "emergency_contact")) ||
+      contactHas(s, "phone", ["emergency", "after_hours"]),
   },
 
   /* ---------- Facilities ---------- */

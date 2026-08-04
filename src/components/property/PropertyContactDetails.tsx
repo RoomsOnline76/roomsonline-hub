@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,6 +39,7 @@ interface Props {
 
 export default function PropertyContactDetails({ propertyId }: Props) {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [contacts, setContacts] = useState<PropertyContact[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -55,6 +57,8 @@ export default function PropertyContactDetails({ propertyId }: Props) {
           toast({ title: "Error loading contacts", description: error.message, variant: "destructive" });
         } else {
           setContacts((data as PropertyContact[]) || []);
+    // Contacts feed the readiness model — refresh score, checksheet and borders.
+    queryClient.invalidateQueries({ queryKey: ["property-readiness"] });
         }
         setLoading(false);
       });
@@ -130,6 +134,8 @@ export default function PropertyContactDetails({ propertyId }: Props) {
     }
 
     setContacts((data as PropertyContact[]) || []);
+    // Contacts feed the readiness model — refresh score, checksheet and borders.
+    queryClient.invalidateQueries({ queryKey: ["property-readiness"] });
     toast({ title: "Contacts saved", description: "Public contact details are now available via the API." });
   };
 
