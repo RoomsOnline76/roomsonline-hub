@@ -49,6 +49,19 @@ type CertScope = "account" | "property";
 /** Minimum seconds between certification runs (RU allows ~1 call per sliding minute). */
 const RUN_COOLDOWN_SECONDS = 60;
 
+/**
+ * Shared operator password for every ROLOS-created RU sub-account. The admin must be able
+ * to sign in as the sub-user in the RU dashboard to mint its first API key pair, so the
+ * password can never be a random value we do not hold. Meets RU policy (12+ chars, upper,
+ * lower, digit and a special character from RU's set).
+ */
+const RU_SUB_USER_PASSWORD = "SLPafrica247*";
+
+/** external_system values that mean "ROL'OS is the PMS" (mirrors src/lib/pmsIdentity.ts). */
+const ROLOS_PMS_VALUES = new Set(["roomsonline", "rolos", "rol_os", "rolos_pms"]);
+
+
+
 interface CertStep {
   step: number;
   name: string;
