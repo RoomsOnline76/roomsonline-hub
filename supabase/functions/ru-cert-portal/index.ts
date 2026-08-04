@@ -2552,7 +2552,15 @@ Deno.serve(async (req) => {
       const mcqOwnerId = Number(mcqOwnerAccount?.ru_owner_id ?? 0);
       const mcqScope = mcqOwnerId > 0 ? { owner_id: mcqOwnerId } : {};
 
-      const mcqResults: Array<{ ru_property_id: string; label: string; ok: boolean; error?: string; ru_status_id?: unknown }> = [];
+      const mcqResults: Array<{
+        ru_property_id: string;
+        label: string;
+        ok: boolean;
+        error?: string;
+        code?: string | null;
+        ru_response_id?: string | null;
+        ru_status_id?: unknown;
+      }> = [];
       for (const target of targets) {
         const { data: result, error: mcqErr } = await admin.functions.invoke("rentalsunited-api", {
           body: { action: "order_mcq", ru_property_id: target.ru_property_id, property_id: propertyId, ...mcqScope },
@@ -2564,11 +2572,20 @@ Deno.serve(async (req) => {
           ru_property_id: target.ru_property_id,
           ordered_by: user.id,
           status: ok ? "ordered" : "failed",
-          ru_status_id: result?.ru_status_id ?? null,
+          ru_status_id: result?.ru_status_id ?? result?.error?.ru_status_id ?? null,
           response_preview: preview(result ?? mcqErr?.message, 3000),
         });
-        mcqResults.push({ ru_property_id: target.ru_property_id, label: target.label, ok, error: errMessage, ru_status_id: result?.ru_status_id ?? null });
+        mcqResults.push({
+          ru_property_id: target.ru_property_id,
+          label: target.label,
+          ok,
+          error: errMessage,
+          code: result?.error?.code ?? null,
+          ru_response_id: result?.error?.ru_response_id ?? null,
+          ru_status_id: result?.ru_status_id ?? result?.error?.ru_status_id ?? null,
+        });
       }
+
 
       const ordered = mcqResults.filter((r) => r.ok);
       if (ordered.length === 0) {
