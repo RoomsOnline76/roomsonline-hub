@@ -811,6 +811,49 @@ function resolvePropertySize(property: PropertyRow, unitSize: number | null | un
   return { space: 50, isDefault: true };
 }
 
+/**
+ * RU composition (bathrooms / toilets / separate kitchen) is authored per unit in the
+ * Rooms tab. Unit values win; the property-wide Composition card is only the fallback.
+ * Unit toilets / separate kitchen live in properties.amenities.room_types[] (same entry
+ * that carries `floor`), matched back to the pushed unit by pms id / id / name.
+ */
+function resolveUnitComposition(
+  property: PropertyRow,
+  unit: RoomTypeRow | null,
+): { bathrooms: number; toilets: number; separateKitchen: boolean } {
+  const list = ((property.amenities as any)?.room_types || []) as any[];
+  const norm = (v: unknown) => String(v ?? '').trim().toLowerCase();
+  let match: any = null;
+  if (Array.isArray(list) && list.length > 0) {
+    if (unit) {
+      match = list.find((rt) =>
+        (rt?.pmsRoomId && norm(rt.pmsRoomId) === norm(unit.id)) ||
+        (rt?.id && norm(rt.id) === norm(unit.id)) ||
+        (rt?.name && norm(rt.name) === norm(unit.name))
+      ) || null;
+    }
+    if (!match && list.length === 1) match = list[0];
+  }
+
+  const num = (v: unknown) => {
+    const n = typeof v === 'number' ? v : v === null || v === undefined || v === '' ? NaN : Number(v);
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  };
+
+  const bathrooms =
+    num(unit?.bathrooms) || num(match?.bathrooms) || num(property.bathrooms);
+  const toilets =
+    num(match?.toilets) || num((match as any)?.separateToilets) || num(property.toilets);
+  const separateKitchen =
+    match?.separateKitchen === true || match?.separate_kitchen === true
+      ? true
+      : property.separate_kitchen === true;
+
+  return { bathrooms, toilets, separateKitchen };
+}
+
+
+
 function buildUnitPayload(
   property: PropertyRow,
   unit: RoomTypeRow,
