@@ -60,7 +60,7 @@ serve(async (req) => {
       supabase
         .from("properties")
         .select(
-          "id, name, property_type, description, short_description, city, country, address, star_rating, property_url, amenities",
+          "id, name, property_type, description, short_description, city, country, address, property_url, amenities",
         )
         .eq("id", property_id)
         .single(),
@@ -98,7 +98,7 @@ serve(async (req) => {
       property: {
         name: property.name,
         type: property.property_type,
-        stars: property.star_rating,
+        stars: (amenitiesJson.star_rating as unknown) ?? null,
         city: property.city,
         country: property.country,
         address: property.address,
