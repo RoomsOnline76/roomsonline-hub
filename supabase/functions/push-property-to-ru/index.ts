@@ -2696,7 +2696,9 @@ Deno.serve(async (req) => {
     // from a property-scoped sub-account, otherwise the master account.
     let precomputedGaps: string[] = [];
     try {
-      if (isMultiUnit) {
+      // An ARI-only refresh never writes static content, so content scoring is skipped.
+      if (isMultiUnit && action !== 'refresh_ari') {
+
         const scored = await Promise.all(
           activeRoomTypes.map(async (rt) => {
             const payload = buildUnitPayload(property as PropertyRow, rt, locationId, undefined, currencyId) as Record<string, any>;
