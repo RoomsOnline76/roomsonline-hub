@@ -810,6 +810,16 @@ export function RuCertificationConsole({ properties }: { properties: PropertyLit
           <RuCoverageTab />
         </TabsContent>
 
+        {/* Availability — rolling 365-day window evidence (Step 3) */}
+        <TabsContent value="availability">
+          <RuAvailabilityPlayground
+            propertyId={propertyId}
+            propertyName={properties.find((p) => p.id === propertyId)?.name}
+          />
+        </TabsContent>
+
+
+
         {/* Milestones — core functional certification matrix */}
         <TabsContent value="milestones">
           <Card>
