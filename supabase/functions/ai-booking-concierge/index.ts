@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { findDiningExperience } from "../_shared/delight-engine.ts";
+import { AI_MODELS, AI_GATEWAY_URL } from "../_shared/aiModels.ts";
 
 // ============================================================================
 // AI BOOKING CONCIERGE — Intelligent Sales Agent
@@ -374,7 +375,7 @@ async function generateAINarrative(
   allRoomDetails: { name: string; rate: number; total: number; description?: string }[],
   conversationHistory?: { role: string; content: string }[]
 ): Promise<string> {
-  const hasAiKey = Deno.env.get("XAI_API_KEY") || Deno.env.get("LOVABLE_API_KEY");
+  const hasAiKey = Deno.env.get("LOVABLE_API_KEY") || Deno.env.get("LOVABLE_API_KEY");
   if (!hasAiKey) {
     console.warn("[Concierge] No AI keys configured — falling back to template");
     return fallbackNarrative(suggestions, context.name);
@@ -430,7 +431,7 @@ ${intent.room_preference ? `Room preference: ${intent.room_preference}` : ''}
 ${suggestions.length > 0 ? `I found ${suggestions.length} available options.` : 'No availability found for the requested dates.'}`;
 
   // Primary: xAI Grok
-  const XAI_API_KEY = Deno.env.get("XAI_API_KEY");
+  const XAI_API_KEY = Deno.env.get("LOVABLE_API_KEY");
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
   
   // Build messages with conversation history for multi-turn context
@@ -453,13 +454,13 @@ ${suggestions.length > 0 ? `I found ${suggestions.length} available options.` : 
 
   try {
     if (XAI_API_KEY) {
-      const resp = await fetch("https://api.x.ai/v1/chat/completions", {
+      const resp = await fetch(AI_GATEWAY_URL, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${XAI_API_KEY}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ model: "grok-3-mini-fast", ...aiPayload }),
+        body: JSON.stringify({ model: AI_MODELS.booking_concierge, ...aiPayload }),
       });
       if (resp.ok) {
         const result = await resp.json();
@@ -698,7 +699,7 @@ RULES:
 5. If the guest mentions "before" — suggest pre-dates; "after" — suggest post-dates
 6. Never repeat properties already mentioned in conversation history`;
 
-  const hasAiKey = Deno.env.get("XAI_API_KEY") || Deno.env.get("LOVABLE_API_KEY");
+  const hasAiKey = Deno.env.get("LOVABLE_API_KEY") || Deno.env.get("LOVABLE_API_KEY");
   let narrativeResponse = journeySuggestions.length > 0
     ? `Here are some amazing options to extend your journey from ${current_stay?.property_name || 'your current stay'}! 🗺️`
     : "I couldn't find other properties in this portfolio right now.";
@@ -714,15 +715,15 @@ RULES:
     }
     aiMessages.push({ role: "user", content: `Guest asked: "${user_query}"` });
 
-    const XAI_API_KEY = Deno.env.get("XAI_API_KEY");
+    const XAI_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     
     try {
       if (XAI_API_KEY) {
-        const resp = await fetch("https://api.x.ai/v1/chat/completions", {
+        const resp = await fetch(AI_GATEWAY_URL, {
           method: "POST",
           headers: { Authorization: `Bearer ${XAI_API_KEY}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ model: "grok-3-mini-fast", messages: aiMessages, max_tokens: 250 }),
+          body: JSON.stringify({ model: AI_MODELS.booking_concierge, messages: aiMessages, max_tokens: 250 }),
         });
         if (resp.ok) {
           const result = await resp.json();

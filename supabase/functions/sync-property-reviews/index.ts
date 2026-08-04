@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { AI_MODELS, AI_GATEWAY_URL } from "../_shared/aiModels.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -27,7 +28,7 @@ serve(async (req) => {
 
     const googleKey = keyMap['GOOGLE_MAPS_API_KEY'] || Deno.env.get('GOOGLE_MAPS_API_KEY') || '';
     const tripadvisorKey = keyMap['TRIPADVISOR_API_KEY'] || Deno.env.get('TRIPADVISOR_API_KEY') || '';
-    const xaiKey = Deno.env.get('XAI_API_KEY') || '';
+    const xaiKey = Deno.env.get("LOVABLE_API_KEY") || '';
 
     console.log('API keys available:', { google: !!googleKey, tripadvisor: !!tripadvisorKey, xai: !!xaiKey });
 
@@ -265,14 +266,14 @@ ${allReviewTexts.slice(0, 8).join('\n')}
 
 ${property.description ? `Property description: ${property.description.substring(0, 300)}` : ''}`;
 
-            const xaiResp = await fetch('https://api.x.ai/v1/chat/completions', {
+            const xaiResp = await fetch(AI_GATEWAY_URL, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${xaiKey}`,
               },
               body: JSON.stringify({
-                model: 'grok-3-mini',
+                model: AI_MODELS.review_sentiment,
                 messages: [{ role: 'user', content: prompt }],
                 max_tokens: 200,
                 temperature: 0.7,

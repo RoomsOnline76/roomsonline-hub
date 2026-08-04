@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { AI_MODELS, AI_GATEWAY_URL } from "../_shared/aiModels.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -34,10 +35,10 @@ serve(async (req) => {
 
   try {
     const { prompt, context } = await req.json();
-    const XAI_API_KEY = Deno.env.get("XAI_API_KEY");
+    const XAI_API_KEY = Deno.env.get("LOVABLE_API_KEY");
 
     if (!XAI_API_KEY) {
-      throw new Error("XAI_API_KEY is not configured");
+      throw new Error("LOVABLE_API_KEY is not configured");
     }
 
     // Build context-aware message
@@ -99,14 +100,14 @@ serve(async (req) => {
       }
     }
 
-    const response = await fetch("https://api.x.ai/v1/chat/completions", {
+    const response = await fetch(AI_GATEWAY_URL, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${XAI_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "grok-3-mini-fast",
+        model: AI_MODELS.revenue_insights,
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: `${prompt}${contextMessage}` },

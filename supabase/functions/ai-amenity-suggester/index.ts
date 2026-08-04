@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.83.0";
+import { AI_MODELS, AI_GATEWAY_URL } from "../_shared/aiModels.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -53,8 +54,8 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    const xaiKey = Deno.env.get("XAI_API_KEY");
-    if (!xaiKey) return json({ success: false, error: "XAI_API_KEY is not configured" }, 500);
+    const xaiKey = Deno.env.get("LOVABLE_API_KEY");
+    if (!xaiKey) return json({ success: false, error: "LOVABLE_API_KEY is not configured" }, 500);
 
     const [propRes, roomsRes, catRes] = await Promise.all([
       supabase
@@ -151,11 +152,11 @@ Respond with JSON only, shape:
  "units":[{"unit_id":"<uuid>","unit_name":"...","amenities":[{"id":123,"name":"...","confidence":"high","reason":"..."}]}],
  "summary":"one sentence"}`;
 
-    const aiResp = await fetch("https://api.x.ai/v1/chat/completions", {
+    const aiResp = await fetch(AI_GATEWAY_URL, {
       method: "POST",
       headers: { Authorization: `Bearer ${xaiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "grok-3-mini",
+        model: AI_MODELS.amenity_mapping,
         temperature: 0.3,
         response_format: { type: "json_object" },
         messages: [
