@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { isRuBooking, modifyRuStay } from "../_shared/ruBookingSync.ts";
+import { queueRuAriDelta } from "../_shared/ruAriDelta.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
