@@ -1356,6 +1356,182 @@ Deno.serve(async (req) => {
       });
     }
 
+    /**
+     * ── pricing_playground / pricing_duplicate_test: certification evidence for the
+     * rolling 365-day PRICE window.
+     *
+     * Pushes ARI (refresh_ari — never Push_PutProperty_RQ), then reads prices back through
+     * Pull_ListPropertyPrices_RQ and proves every night of [today, today+365] carries a real
+     * price with no duplicated or overlapping Season ranges. The duplicate test pushes the
+     * same window twice and asserts RU stays idempotent.
+     */
+    if (action === "pricing_playground" || action === "pricing_duplicate_test") {
+      const propertyId: string = body.property_id ?? "";
+      if (!propertyId) {
+        return json({ success: false, error: { code: "BAD_REQUEST", message: "property_id is required" } }, 400);
+      }
+      const { data: prop } = await admin
+        .from("properties")
+        .select("id, name, rentalsunited_property_id")
+        .eq("id", propertyId)
+        .maybeSingle();
+      if (!prop) {
+        return json({ success: false, error: { code: "NOT_FOUND", message: "Property not found" } }, 404);
+      }
+
+      const passes = action === "pricing_duplicate_test" ? 2 : 1;
+      const pushes: Record<string, unknown>[] = [];
+      for (let i = 0; i < passes; i++) {
+        const { data: pushData, error: pushErr } = await admin.functions.invoke("push-property-to-ru", {
+          body: { property_id: propertyId, action: "refresh_ari", trigger: `cert_${action}_pass${i + 1}` },
+        });
+        pushes.push({
+          pass: i + 1,
+          success: pushErr ? false : pushData?.success === true,
+          error: pushErr?.message ?? pushData?.error?.message ?? null,
+          targets: (pushData?.targets ?? []).map((t: Record<string, any>) => ({
+            target: t.target,
+            ru_property_id: t.ru_property_id,
+            prices_pushed: t.prices_pushed,
+            prices_error: t.prices_error ?? null,
+            price_coverage: t.price_coverage ?? null,
+            prices_verification: t.prices_verification
+              ? {
+                  matches: t.prices_verification.matches,
+                  total_seasons: t.prices_verification.total_seasons,
+                  mismatches: (t.prices_verification.mismatches ?? []).slice(0, 10),
+                  missing_dates: (t.prices_verification.missing_dates ?? []).slice(0, 10),
+                  error: t.prices_verification.error ?? null,
+                }
+              : null,
+            currency: t.currency ?? null,
+          })),
+        });
+        if (i + 1 < passes) await new Promise((r) => setTimeout(r, 1500));
+      }
+
+      const from = isoDate(0);
+      const to = isoDate(365);
+      const expectedDays = 366;
+
+      const { data: units } = await admin
+        .from("hostfully_room_types")
+        .select("name, rentalsunited_property_id")
+        .eq("property_id", propertyId)
+        .not("rentalsunited_property_id", "is", null);
+      const ruIds: { label: string; ru_id: number }[] = (units ?? [])
+        .map((u: any) => ({ label: u.name as string, ru_id: Number(u.rentalsunited_property_id) }))
+        .filter((u) => Number.isFinite(u.ru_id) && u.ru_id > 0);
+      if (ruIds.length === 0 && Number(prop.rentalsunited_property_id) > 0) {
+        ruIds.push({ label: prop.name, ru_id: Number(prop.rentalsunited_property_id) });
+      }
+
+      const { account: ownerAccount } = await findOwnerAccount(admin, propertyId, null, null);
+      const scopedOwnerId = ownerAccount?.ru_owner_id ? Number(ownerAccount.ru_owner_id) : null;
+      const scope = scopedOwnerId && scopedOwnerId > 0 ? { owner_id: scopedOwnerId } : {};
+
+      const readbacks = await Promise.all(ruIds.map(async ({ label, ru_id }) => {
+        const { data: priceData, error: priceErr } = await admin.functions.invoke("rentalsunited-api", {
+          body: { action: "get_prices", ru_property_id: ru_id, date_from: from, date_to: to, ...scope },
+        });
+        const xml = String(priceData?.raw_xml ?? "");
+        const seasons = parseRuPriceSeasons(xml);
+
+        // Per-night map + duplicate/overlap detection straight off the RU response.
+        const perDay = new Map<string, number>();
+        let duplicateDays = 0;
+        for (const s of seasons) {
+          if (!s.date_from || !s.date_to || s.price == null) continue;
+          let cur = s.date_from.slice(0, 10);
+          const end = s.date_to.slice(0, 10);
+          let guard = 0;
+          while (cur <= end && guard++ < 800) {
+            if (cur >= from && cur <= to) {
+              if (perDay.has(cur)) duplicateDays++;
+              perDay.set(cur, s.price);
+            }
+            const d = new Date(`${cur}T00:00:00Z`);
+            d.setUTCDate(d.getUTCDate() + 1);
+            cur = d.toISOString().slice(0, 10);
+          }
+        }
+
+        const unpriced: string[] = [];
+        for (let i = 0; i <= 365; i++) {
+          const iso = isoDate(i);
+          const price = perDay.get(iso);
+          // RU never serves the current day in pull responses — treat day 0 as informational.
+          if (i > 0 && (price == null || !(price > 0))) unpriced.push(iso);
+        }
+
+        // Overlap check on the returned Season ranges themselves.
+        const ranges = seasons
+          .filter((s) => s.date_from && s.date_to)
+          .map((s) => ({ from: s.date_from!.slice(0, 10), to: s.date_to!.slice(0, 10) }))
+          .sort((a, b) => a.from.localeCompare(b.from));
+        const overlaps: string[] = [];
+        for (let i = 1; i < ranges.length; i++) {
+          if (ranges[i].from <= ranges[i - 1].to) {
+            overlaps.push(`${ranges[i - 1].from}..${ranges[i - 1].to} ↔ ${ranges[i].from}..${ranges[i].to}`);
+          }
+        }
+
+        const prices = [...perDay.values()];
+        return {
+          target: label,
+          ru_property_id: ru_id,
+          read_ok: !priceErr && priceData?.success === true,
+          read_error: priceErr?.message ?? priceData?.error?.message ?? null,
+          expected_days: expectedDays,
+          seasons_returned: seasons.length,
+          days_priced: perDay.size,
+          duplicate_days: duplicateDays,
+          overlapping_ranges: overlaps.length,
+          overlap_sample: overlaps.slice(0, 5),
+          unpriced_days: unpriced.length,
+          unpriced_sample: unpriced.slice(0, 10),
+          min_price: prices.length ? Math.min(...prices) : null,
+          max_price: prices.length ? Math.max(...prices) : null,
+          passed:
+            !priceErr &&
+            priceData?.success === true &&
+            unpriced.length === 0 &&
+            duplicateDays === 0 &&
+            overlaps.length === 0,
+        };
+      }));
+
+      const passed = pushes.every((p) => p.success) && readbacks.length > 0 && readbacks.every((r) => r.passed);
+      try {
+        await admin.from("ru_sync_runs").insert({
+          property_id: propertyId,
+          action,
+          success: passed,
+          error_code: passed ? null : "RU_PRICE_WINDOW_INCOMPLETE",
+          error_message: passed
+            ? null
+            : readbacks
+                .filter((r) => !r.passed)
+                .map((r) => `${r.target}: ${r.unpriced_days} unpriced, ${r.duplicate_days} duplicate, ${r.overlapping_ranges} overlapping`)
+                .join("; "),
+          details: { window: { from, to }, passes, pushes, readbacks },
+        });
+      } catch (_e) { /* evidence only */ }
+
+      return json({
+        success: true,
+        action,
+        property: { id: prop.id, name: prop.name },
+        window: { from, to, expected_days: expectedDays },
+        passes,
+        pushes,
+        readbacks,
+        passed,
+      });
+    }
+
+
+
 
     /**
      * ── property_ru_identity: everything the "RU owner sub-account" panel on a
