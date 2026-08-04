@@ -2931,9 +2931,17 @@ function BookingDetail({
         <Button key="checkin" size="sm" variant="secondary" onClick={() => handleLifecycleAction("check_in")} disabled={!!actionLoading}>
           <LogIn className="h-3 w-3 mr-1" />{loading("check_in") ? "..." : "Check In Now"}
         </Button>,
-        <Button key="modify" size="sm" variant="outline" onClick={() => setShowModifyDialog(true)} disabled={!!actionLoading}>
-          <Pencil className="h-3 w-3 mr-1" />Modify
-        </Button>,
+      );
+      // Rentals United refuses Push_ModifyStay_RQ on unconfirmed requests (RU_MODIFY_NOT_ALLOWED),
+      // so only offer Modify when the reservation is not a held channel request.
+      if (!isRuLeadBooking) {
+        btns.push(
+          <Button key="modify" size="sm" variant="outline" onClick={() => setShowModifyDialog(true)} disabled={!!actionLoading}>
+            <Pencil className="h-3 w-3 mr-1" />Modify
+          </Button>,
+        );
+      }
+      btns.push(
         <Button key="cancel" size="sm" variant="destructive" onClick={() => setShowCancelDialog(true)} disabled={!!actionLoading}>
           <XCircle className="h-3 w-3 mr-1" />{isRuLeadBooking ? "Reject" : "Cancel"}
         </Button>,
