@@ -485,6 +485,181 @@ Deno.serve(async (req) => {
       });
     }
 
+    // ── coverage_matrix / coverage_evidence: full RU endpoint + ROLOS wiring compliance ──
+    if (action === "coverage_matrix" || action === "coverage_evidence") {
+      await reapStaleRuns(admin);
+
+      const { data: certRuns } = await admin
+        .from("ru_cert_runs")
+        .select("id, started_at, finished_at, suite, status, passed, failed, total, property_id, ru_property_id, steps")
+        .order("started_at", { ascending: false })
+        .limit(25);
+
+      type StepRow = { name: string; ru_method: string; status: StepStatus; ru_status_id?: string | null; detail?: string };
+      const latestByMethod = new Map<string, { step: StepRow; run_id: string; at: string }>();
+      for (const run of (certRuns ?? []) as { id: string; started_at: string; steps: StepRow[] }[]) {
+        for (const step of run.steps ?? []) {
+          for (const key of String(step.ru_method ?? "").split("+").map((k) => k.trim()).filter(Boolean)) {
+            if (!latestByMethod.has(key)) latestByMethod.set(key, { step, run_id: run.id, at: run.started_at });
+          }
+        }
+      }
+
+      const { data: syncRows } = await admin
+        .from("ru_sync_runs")
+        .select("action, success, error_code, error_message, created_at, property_id, ru_property_id")
+        .gte("created_at", new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString())
+        .order("created_at", { ascending: false })
+        .limit(5000);
+      type SyncRow = {
+        action: string; success: boolean; error_code: string | null; error_message: string | null;
+        created_at: string; property_id: string | null; ru_property_id: string | null;
+      };
+      const latestSyncByAction = new Map<string, SyncRow>();
+      const latestSuccessByAction = new Map<string, SyncRow>();
+      for (const row of (syncRows ?? []) as SyncRow[]) {
+        if (!latestSyncByAction.has(row.action)) latestSyncByAction.set(row.action, row);
+        if (row.success && !latestSuccessByAction.has(row.action)) latestSuccessByAction.set(row.action, row);
+      }
+
+      const now = Date.now();
+      const rows = RU_ENDPOINT_REGISTRY.map((e) => {
+        const cert = latestByMethod.get(e.ru_method);
+        let status: "passed" | "failed" | "skipped" | "never_run" = "never_run";
+        let detail: string | null = null;
+        let lastRunAt: string | null = null;
+        let source: "cert_run" | "sync_log" | "none" = "none";
+        let runId: string | null = null;
+
+        if (cert && cert.step.status !== "skipped") {
+          status = cert.step.status as typeof status;
+          detail = cert.step.detail ?? null;
+          lastRunAt = cert.at;
+          source = "cert_run";
+          runId = cert.run_id;
+        }
+
+        // ROLOS-side evidence: the real product surfaces log to ru_sync_runs.
+        let rolosStatus: "success" | "failed" | "never_used" = "never_used";
+        let rolosLastAt: string | null = null;
+        let rolosDetail: string | null = null;
+        for (const act of e.sync_actions) {
+          const row = latestSyncByAction.get(act);
+          if (!row) continue;
+          if (rolosLastAt && new Date(row.created_at).getTime() <= new Date(rolosLastAt).getTime()) continue;
+          rolosLastAt = row.created_at;
+          rolosStatus = row.success ? "success" : "failed";
+          rolosDetail = row.success ? `ROL'OS action "${act}" succeeded.` : (row.error_message ?? `ROL'OS action "${act}" failed.`);
+        }
+        // A successful ROLOS run also proves the RU endpoint works.
+        if (status !== "passed") {
+          for (const act of e.sync_actions) {
+            const ok = latestSuccessByAction.get(act);
+            if (!ok) continue;
+            if (status === "never_run" || (lastRunAt && new Date(ok.created_at).getTime() > new Date(lastRunAt).getTime())) {
+              status = "passed";
+              detail = `Verified outside a certification run — "${act}" succeeded.`;
+              lastRunAt = ok.created_at;
+              source = "sync_log";
+              runId = null;
+            }
+          }
+        }
+        if (status === "never_run" && rolosStatus === "failed") {
+          status = "failed";
+          detail = rolosDetail;
+          lastRunAt = rolosLastAt;
+          source = "sync_log";
+        }
+
+        const ageHours = lastRunAt ? (now - new Date(lastRunAt).getTime()) / 3600000 : null;
+        const stale = e.max_age_hours != null && ageHours != null && ageHours > e.max_age_hours;
+
+        let rag: "green" | "amber" | "red" | "grey" = "grey";
+        if (status === "passed") rag = stale ? "amber" : "green";
+        else if (status === "failed") rag = "red";
+        else if (!e.implemented) rag = "grey";
+
+        return {
+          key: e.key,
+          area: e.area,
+          label: e.label,
+          ru_method: e.ru_method,
+          direction: e.direction,
+          mandatory: e.mandatory,
+          implemented: e.implemented,
+          status,
+          rag,
+          stale,
+          age_hours: ageHours == null ? null : Math.round(ageHours * 10) / 10,
+          max_age_hours: e.max_age_hours ?? null,
+          detail,
+          last_run_at: lastRunAt,
+          source,
+          run_id: runId,
+          rolos_surface: e.rolos_surface,
+          rolos_stream: e.rolos_stream,
+          rolos_wired: e.rolos_wired,
+          rolos_status: e.rolos_wired ? rolosStatus : "never_used",
+          rolos_last_at: rolosLastAt,
+          rolos_detail: e.rolos_wired ? rolosDetail : "Not wired into a ROL'OS surface yet.",
+          note: e.note,
+        };
+      });
+
+      const implemented = rows.filter((r) => r.implemented);
+      const adapterOk = implemented.filter((r) => r.status === "passed").length;
+      const wired = rows.filter((r) => r.rolos_wired);
+      const rolosOk = wired.filter((r) => r.rolos_status === "success").length;
+      const pct = (a: number, b: number) => (b === 0 ? 0 : Math.round((a / b) * 100));
+
+      const summary = {
+        adapter: {
+          total: implemented.length,
+          passed: adapterOk,
+          failed: implemented.filter((r) => r.status === "failed").length,
+          never_run: implemented.filter((r) => r.status === "never_run").length,
+          stale: implemented.filter((r) => r.stale).length,
+          not_implemented: rows.length - implemented.length,
+          percent: pct(adapterOk, implemented.length),
+        },
+        rolos: {
+          total_surfaces: wired.length,
+          exercised: rolosOk,
+          failed: wired.filter((r) => r.rolos_status === "failed").length,
+          never_used: wired.filter((r) => r.rolos_status === "never_used").length,
+          not_wired: rows.length - wired.length,
+          percent: pct(rolosOk, wired.length),
+        },
+        mandatory: {
+          total: rows.filter((r) => r.mandatory).length,
+          passed: rows.filter((r) => r.mandatory && r.status === "passed").length,
+        },
+        generated_at: new Date().toISOString(),
+      };
+
+      if (action === "coverage_matrix") {
+        return json({ success: true, rows, summary, areas: RU_COVERAGE_AREAS });
+      }
+
+      const mappedActions = new Set(RU_ENDPOINT_REGISTRY.flatMap((e) => e.sync_actions));
+      return json({
+        success: true,
+        evidence: {
+          generated_at: summary.generated_at,
+          integration: "Rentals United — XML API (AccessKey / SecretKey, white-label sub-users)",
+          platform: "ROL'OS PMS",
+          summary,
+          areas: RU_COVERAGE_AREAS,
+          endpoints: rows,
+          cadence_rules: CADENCE_RULES,
+          expected_jobs: EXPECTED_JOBS,
+          certification_runs: certRuns ?? [],
+          sync_log: ((syncRows ?? []) as SyncRow[]).filter((r) => mappedActions.has(r.action)).slice(0, 1500),
+        },
+      });
+    }
+
 
     // ── evidence: printable / downloadable bundle for the RU certification call ──
     if (action === "evidence") {
