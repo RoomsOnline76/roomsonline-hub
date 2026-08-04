@@ -321,6 +321,10 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Freed nights must reach RU immediately, not on the next cron tick.
+    await queueRuAriDelta(supabase, booking.property_id, "booking_cancelled");
+
+
     // S9: Send cancellation email
     try {
       await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-booking-email`, {
