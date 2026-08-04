@@ -2752,12 +2752,22 @@ Deno.serve(async (req) => {
       const attemptCreds = useMaster ? creds : scopedCreds;
       const attemptAuth = useMaster ? 'master_channel_manager' : authMode;
 
+      // 🔒 ChannelID is MANDATORY in the RU schema for CM_LNM_* methods. Omitting it makes RU
+      // answer the generic status 17 ("Unexpected error, contact IT") instead of a field error.
+      const channelId = Number(body.channel_id ?? Deno.env.get('RU_CHANNEL_ID') ?? 0);
+      if (!channelId) {
+        return errorResponse(
+          'MISSING_RU_CHANNEL_ID',
+          'Rentals United requires a ChannelID for the content quality check. Store the Rentals United ChannelID for this integration (RU_CHANNEL_ID) or pass channel_id with the request.',
+        );
+      }
+
       const attempt = async () => {
-        const xml = `<?xml version="1.0" encoding="utf-8"?>\n<CM_LNM_OrderMinimumContentQualityCheck_RQ>${buildAuthXml(attemptCreds)}<PropertyID>${ruPropertyId}</PropertyID></CM_LNM_OrderMinimumContentQualityCheck_RQ>`;
+        const xml = `<?xml version="1.0" encoding="utf-8"?>\n<CM_LNM_OrderMinimumContentQualityCheck_RQ>${buildAuthXml(attemptCreds)}<ChannelID>${channelId}</ChannelID><PropertyID>${ruPropertyId}</PropertyID></CM_LNM_OrderMinimumContentQualityCheck_RQ>`;
         const response = await callRentalsUnited(attemptCreds, xml);
         const { ok, status } = handleRUStatus(response);
         console.log(
-          `[rentalsunited-api] OrderMCQ (auth=${attemptAuth}, ru_property=${ruPropertyId}) ok=${ok} status=${status?.id ?? 'n/a'} response: ${response.substring(0, 500)}`,
+          `[rentalsunited-api] OrderMCQ (auth=${attemptAuth}, channel=${channelId}, ru_property=${ruPropertyId}) ok=${ok} status=${status?.id ?? 'n/a'} response: ${response.substring(0, 500)}`,
         );
         return { ok, status, xml, response };
       };
