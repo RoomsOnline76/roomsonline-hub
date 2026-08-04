@@ -309,7 +309,7 @@ export const PROPERTY_FIELD_REQUIREMENTS: FieldRequirement[] = [
       // explicit "no cancellation policy" decision. The amenities keys are legacy mirrors.
       (Array.isArray(s.policy_rows) &&
         (s.policy_rows as Array<{ is_master?: boolean }>).some((p) => p?.is_master)) ||
-      s.master_policy_mode === "none" ||
+      s.cancellation_master_mode === "none" ||
       filled(amenity(s, "master_cancellation_policy_id")) ||
       filled(amenity(s, "cancellation_policy")),
   },
