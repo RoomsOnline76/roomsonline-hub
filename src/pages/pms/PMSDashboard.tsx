@@ -1697,7 +1697,7 @@ export default function PMSDashboard() {
             {isPortfolioMode ? (
               viewMode === "week" ? (
                 <div className="space-y-6">
-                  {showOnlyBookedDays && dates.filter(hasBookingOnDate).length === 0 && (
+                  {showOnlyBookedDays && !portfolioHasAnyBookedDay && (
                     <div className="flex items-center justify-center py-10 text-sm text-muted-foreground border rounded-lg bg-muted/20">
                       No booked days in this week.
                     </div>
@@ -1705,8 +1705,10 @@ export default function PMSDashboard() {
                   {(portfolioProperties || []).map(prop => {
                     const propData = portfolioDataByProperty.get(prop.id);
                     if (!propData || propData.roomTypes.length === 0) return null;
-                    const portfolioWeekDates = showOnlyBookedDays ? dates.filter(hasBookingOnDate) : dates;
-                    if (portfolioWeekDates.length === 0) return null;
+                    const bookedView = portfolioBookedViewByProperty.get(prop.id);
+                    const portfolioWeekDates = showOnlyBookedDays ? (bookedView?.visibleDates || []) : dates;
+                    const propRoomTypes = showOnlyBookedDays ? (bookedView?.visibleRoomTypes || []) : propData.roomTypes;
+                    if (portfolioWeekDates.length === 0 || propRoomTypes.length === 0) return null;
                     const propGetRate = (rtId: string, date: Date) => getPortfolioRateForDate(prop.id, rtId, date);
                     const propGetSuffix = () => '';
                     const propGetRestriction = (rtName: string, date: Date) =>
@@ -1720,13 +1722,14 @@ export default function PMSDashboard() {
                           <Building2 className="h-4 w-4 text-primary shrink-0" />
                           <h3 className="text-sm font-bold text-foreground">{prop.name}</h3>
                           <Badge variant="outline" className="text-[10px]">
-                            {propData.roomTypes.length} types · {displayedRoomCount} rooms
+                            {propRoomTypes.length} types · {displayedRoomCount} rooms
                           </Badge>
                         </div>
                         <WeekCalendarGrid
                           dates={portfolioWeekDates}
-                          roomTypes={propData.roomTypes}
+                          roomTypes={propRoomTypes}
                           roomsByType={propData.roomsByType}
+
                           bookings={propData.bookings}
                           rooms={propData.rooms}
                           overrideMap={propData.overrideMap}
