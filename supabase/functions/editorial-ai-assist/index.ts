@@ -226,7 +226,7 @@ ${!existingContent?.who_its_not_for ? "5. who_its_not_for: Who should consider o
         });
       }
       if (response.status === 402) {
-        return new Response(JSON.stringify({ error: "Payment required, please add funds to your Lovable AI workspace." }), {
+        return new Response(JSON.stringify({ error: "TOBI is temporarily unavailable — credits exhausted." }), {
           status: 402,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
