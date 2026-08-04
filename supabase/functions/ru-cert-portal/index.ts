@@ -35,6 +35,8 @@ import {
   diffRuDiscountEcho,
   type RuDiscountLadder,
 } from "../_shared/ruDiscounts.ts";
+import { parseRuReservation } from "../_shared/ruReservationParsing.ts";
+import { ingestRuReservation, resolveRuChannelCreator } from "../_shared/ruReservationIngest.ts";
 
 
 
@@ -363,6 +365,8 @@ const CERT_MILESTONES: { key: string; label: string; ru_method: string; mandator
   { key: "sales_channels", label: "Pull sales channels (ChannelID)", ru_method: "Pull_ListSalesChannels_RQ", mandatory: true, scope: "account", note: "Resolves the LekkeSlaap ChannelID used by the content quality check" },
   { key: "reservations", label: "Pull reservations", ru_method: "Pull_ListReservations_RQ", mandatory: true, scope: "account", note: "" },
   { key: "leads", label: "Pull leads", ru_method: "Pull_GetLeads_RQ", mandatory: false, scope: "account", note: "Optional" },
+  { key: "reservation_idempotency", label: "Reservation idempotency test", ru_method: "Pull_ListReservations_RQ / RLNM (idempotency)", mandatory: false, scope: "property", note: "Same reservation ingested twice — exactly one booking" },
+  { key: "creator_mapping", label: "Channel creator mapping", ru_method: "Reservation Creator → sales channel", mandatory: false, scope: "account", note: "Every RU Creator seen on bookings is labelled" },
   { key: "long_stay", label: "Long-stay discounts", ru_method: "Push_PutLongStayDiscounts_RQ", mandatory: false, scope: "property", note: "Optional but recommended" },
   { key: "last_minute", label: "Last-minute discounts", ru_method: "Push_PutLastMinuteDiscounts_RQ", mandatory: false, scope: "property", note: "Optional but recommended" },
 ];
@@ -453,6 +457,10 @@ const RU_ENDPOINT_REGISTRY: {
     rolos_surface: "Reservation poll cron → 3-day hold on calendar", rolos_stream: "Leads inbound", rolos_wired: true, sync_actions: ["pull_reservations", "lead_lifecycle"], max_age_hours: 24, note: "Creates availability hold" },
   { key: "lead_lifecycle", area: "reservations", label: "Lead hold lifecycle", ru_method: "Push_RejectRequest_RQ", direction: "push", mandatory: false, implemented: true,
     rolos_surface: "ru-lead-lifecycle cron (30 min)", rolos_stream: "Leads — hold release & auto-withdraw", rolos_wired: true, sync_actions: ["lead_lifecycle", "reject_request"], max_age_hours: 24, note: "3-day hold, 14-day arrival withdrawal" },
+  { rolos_via_cert: true, key: "reservation_idempotency", area: "reservations", label: "Reservation idempotency / RLNM replay", ru_method: "Pull_ListReservations_RQ / RLNM (idempotency)", direction: "pull", mandatory: false, implemented: true,
+    rolos_surface: "RU console → Reservations panel → Idempotency test", rolos_stream: "Certification evidence", rolos_wired: true, sync_actions: ["reservation_idempotency_test", "rlnm_replay_test"], note: "Shared ingest path: notification + poll produce one booking" },
+  { rolos_via_cert: true, key: "creator_mapping", area: "reservations", label: "Channel creator mapping", ru_method: "Reservation Creator → sales channel", direction: "pull", mandatory: false, implemented: true,
+    rolos_surface: "RU console → Reservations panel → Creator mapping", rolos_stream: "Bookings inbound — channel attribution", rolos_wired: true, sync_actions: ["creator_mapping_check", "pull_reservations"], note: "Maps the RU Creator account to a ROL'OS sales channel" },
 
   // ── lifecycle ──
   { key: "cancel", area: "lifecycle", label: "Cancel reservation", ru_method: "Push_CancelReservation_RQ", direction: "push", mandatory: true, implemented: true,
@@ -519,6 +527,8 @@ const MILESTONE_SYNC_ACTIONS: Record<string, string[]> = {
   "Pull_ListLiveNotificationMechanismSubscriptions_RQ": ["ListLnmSubscriptions", "lnm_duplicate_test"],
   "Push_PutLiveNotificationMechanismSubscriptions_RQ (idempotency)": ["lnm_duplicate_test"],
   "CM_LNM_OrderMinimumContentQualityCheck_RQ (idempotency)": ["mcq_duplicate_test"],
+  "Pull_ListReservations_RQ / RLNM (idempotency)": ["reservation_idempotency_test", "rlnm_replay_test"],
+  "Reservation Creator → sales channel": ["creator_mapping_check", "pull_reservations"],
 
   "Pull_ListReservations_RQ": ["pull_reservations"],
   "Pull_GetLeads_RQ": ["lead_lifecycle", "pull_reservations"],
@@ -1599,6 +1609,212 @@ Deno.serve(async (req) => {
         passed,
       });
     }
+
+
+    /**
+     * ── reservation_idempotency_test: ingest the SAME synthetic RU reservation twice.
+     *
+     * Proves the shared ingestion path (used by both the RLNM handler and the poll cron)
+     * writes exactly one booking: the second pass must report `updated` / `deduped`, never
+     * a second row. Runs on far-future dates, skips availability writes, and deletes the
+     * synthetic booking afterwards so live inventory is never touched.
+     */
+    if (action === "reservation_idempotency_test" || action === "rlnm_replay_test") {
+      const propertyId: string = body.property_id ?? "";
+      if (!propertyId) {
+        return json({ success: false, error: { code: "BAD_REQUEST", message: "property_id is required" } }, 400);
+      }
+
+      const { data: prop } = await admin
+        .from("properties")
+        .select("id, name, rentalsunited_property_id")
+        .eq("id", propertyId)
+        .maybeSingle();
+      if (!prop) {
+        return json({ success: false, error: { code: "NOT_FOUND", message: "Property not found" } }, 404);
+      }
+
+      // Target the first RU-listed unit so the resolver walks the real mapping path.
+      const { data: units } = await admin
+        .from("hostfully_room_types")
+        .select("name, rentalsunited_property_id")
+        .eq("property_id", propertyId)
+        .not("rentalsunited_property_id", "is", null)
+        .limit(1);
+      const ruListingId = String(
+        (units ?? [])[0]?.rentalsunited_property_id ?? (prop as any).rentalsunited_property_id ?? "",
+      );
+      if (!ruListingId) {
+        return json({
+          success: false,
+          error: { code: "RU_NOT_LISTED", message: "This property has no Rentals United listing to test reservation ingestion against." },
+        }, 422);
+      }
+
+      // Far-future dates so a synthetic stay can never collide with a real booking.
+      const start = new Date(Date.now() + 700 * 86_400_000);
+      const end = new Date(start.getTime() + 2 * 86_400_000);
+      const dateFrom = start.toISOString().slice(0, 10);
+      const dateTo = end.toISOString().slice(0, 10);
+      const certReservationId = `CERT-${crypto.randomUUID().slice(0, 8)}`;
+      const replay = action === "rlnm_replay_test";
+
+      const xml = `<Reservation>
+  <ReservationID>${certReservationId}</ReservationID>
+  <StatusID>1</StatusID>
+  <Creator>${replay ? "LekkeSlaap" : "Rentals United"}</Creator>
+  <CreatedDate>${new Date().toISOString().slice(0, 19).replace("T", " ")}</CreatedDate>
+  <StayInfos>
+    <StayInfo>
+      <PropertyID>${ruListingId}</PropertyID>
+      <DateFrom>${dateFrom}</DateFrom>
+      <DateTo>${dateTo}</DateTo>
+      <NumberOfGuests>2</NumberOfGuests>
+      <Comments>ROL'OS certification ${replay ? "RLNM replay" : "idempotency"} test — safe to ignore</Comments>
+      <Costs>
+        <RUPrice>1000</RUPrice>
+        <ClientPrice>1000</ClientPrice>
+        <AlreadyPaid>0</AlreadyPaid>
+      </Costs>
+    </StayInfo>
+  </StayInfos>
+  <CustomerInfo>
+    <Name>ROLOS</Name>
+    <SurName>Certification</SurName>
+    <Email>certification@roomsonline.co.za</Email>
+    <MobilePhone>+27000000000</MobilePhone>
+  </CustomerInfo>
+</Reservation>`;
+
+      const parsed = parseRuReservation(xml);
+      const passes: Record<string, unknown>[] = [];
+      let ingestError: string | null = null;
+
+      for (let i = 0; i < 2; i++) {
+        const result = await ingestRuReservation(admin, parsed, {
+          source: "cert",
+          logPrefix: "[ru-cert][reservation]",
+          skipAvailability: true,
+        });
+        passes.push({
+          pass: i + 1,
+          outcome: result.outcome,
+          deduped: result.deduped,
+          booking_id: result.bookingId,
+          channel_label: result.channelLabel,
+          note: result.note ?? null,
+          error: result.error ?? null,
+        });
+        if (result.outcome === "failed") ingestError = result.error ?? "Ingestion failed";
+      }
+
+      const { data: rows } = await admin
+        .from("bookings")
+        .select("id, status, integration_type, guest_name, check_in_date, check_out_date")
+        .eq("external_reservation_id", certReservationId);
+      const bookingCount = (rows ?? []).length;
+
+      // Cancellation replay: a repeated cancel must stay a single cancelled record.
+      let cancelPass: Record<string, unknown> | null = null;
+      if (replay && bookingCount === 1) {
+        const cancelXml = xml.replace("<StatusID>1</StatusID>", "<StatusID>2</StatusID>");
+        const cancelParsed = parseRuReservation(cancelXml);
+        const first = await ingestRuReservation(admin, cancelParsed, { source: "cert", skipAvailability: true, logPrefix: "[ru-cert][reservation]" });
+        const second = await ingestRuReservation(admin, cancelParsed, { source: "cert", skipAvailability: true, logPrefix: "[ru-cert][reservation]" });
+        cancelPass = { first: first.outcome, second: second.outcome, idempotent: first.outcome === "cancelled" && second.outcome === "skipped" };
+      }
+
+      // Clean up: certification rows never linger in the operator's booking list.
+      await admin.from("bookings").delete().eq("external_reservation_id", certReservationId);
+
+      const passed =
+        !ingestError &&
+        bookingCount === 1 &&
+        passes[0]?.outcome === "created" &&
+        passes[1]?.outcome === "updated" &&
+        passes[1]?.deduped === true &&
+        (!cancelPass || cancelPass.idempotent === true);
+
+      try {
+        await admin.from("ru_sync_runs").insert({
+          batch_id: crypto.randomUUID(),
+          property_id: propertyId,
+          action,
+          success: passed,
+          error_code: passed ? null : bookingCount > 1 ? "RU_RESERVATION_DUPLICATED" : "RU_RESERVATION_INGEST_FAILED",
+          error_message: passed ? null : ingestError ?? `Expected exactly 1 booking, found ${bookingCount}`,
+          elapsed_ms: 0,
+          ru_property_id: ruListingId,
+          details: { ru_reservation_id: certReservationId, passes, cancel_replay: cancelPass, booking_count: bookingCount },
+        });
+      } catch (_e) { /* evidence only */ }
+
+      return json({
+        success: true,
+        action,
+        property: { id: prop.id, name: prop.name },
+        ru_property_id: ruListingId,
+        ru_reservation_id: certReservationId,
+        dates: { from: dateFrom, to: dateTo },
+        passes,
+        cancel_replay: cancelPass,
+        booking_count: bookingCount,
+        passed,
+      });
+    }
+
+
+    /**
+     * ── creator_mapping_check: RU `Creator` (channel account) → ROL'OS sales channel.
+     *
+     * Reports the mapping table plus every creator seen on imported RU bookings so an
+     * unmapped OTA account is visible instead of silently reported as "Rentals United".
+     */
+    if (action === "creator_mapping_check") {
+      const { data: mappings } = await admin
+        .from("ru_channel_creators")
+        .select("creator_username, channel_key, channel_label, ru_channel_id, is_active, notes")
+        .order("channel_label");
+
+      const { data: ruBookings } = await admin
+        .from("bookings")
+        .select("id, external_reservation_id, modification_notes")
+        .in("integration_type", ["rentalsunited", "rentalsunited_lead"])
+        .order("created_at", { ascending: false })
+        .limit(500);
+
+      const seen = new Map<string, number>();
+      for (const b of ruBookings ?? []) {
+        const notes = (b as any).modification_notes ?? {};
+        const creator = String(notes?.creator ?? notes?.ru_creator_channel?.creator ?? "").trim();
+        if (creator) seen.set(creator, (seen.get(creator) ?? 0) + 1);
+      }
+
+      const observed: Record<string, unknown>[] = [];
+      for (const [creator, count] of seen) {
+        const mapping = await resolveRuChannelCreator(admin, creator);
+        observed.push({
+          creator,
+          bookings: count,
+          channel_key: mapping?.channelKey ?? null,
+          channel_label: mapping?.channelLabel ?? null,
+          ru_channel_id: mapping?.ruChannelId ?? null,
+          mapped: Boolean(mapping && mapping.channelKey !== "unmapped"),
+        });
+      }
+
+      const unmapped = observed.filter((o) => o.mapped === false);
+      return json({
+        success: true,
+        action,
+        mappings: mappings ?? [],
+        observed_creators: observed,
+        unmapped_count: unmapped.length,
+        passed: unmapped.length === 0,
+      });
+    }
+
+
 
 
     /**
