@@ -306,6 +306,49 @@ const EXPECTED_JOBS = [
 
 const RUNNABLE_JOBS = new Set(EXPECTED_JOBS.map((j) => j.fn));
 
+/**
+ * Milestones can also be satisfied outside a certification run: the daily cron jobs and the
+ * Live-notifications panel exercise the same RU methods and log to `ru_sync_runs`. Without
+ * this fallback a milestone reads "never run" even though the call succeeded minutes ago —
+ * which is exactly what happened to the LNM rows after they were subscribed from the panel.
+ */
+const MILESTONE_SYNC_ACTIONS: Record<string, string[]> = {
+  "LNM_PutHandlerUrl_RQ": ["PutHandlerUrl", "RLNM"],
+  "Push_PutLiveNotificationMechanismSubscriptions_RQ": ["PutLnmSubscriptions"],
+  "Pull_ListLiveNotificationMechanismSubscriptions_RQ": ["ListLnmSubscriptions"],
+  "Pull_ListReservations_RQ": ["pull_reservations"],
+  "Pull_GetLeads_RQ": ["lead_lifecycle", "pull_reservations"],
+  "Push_PutProperty_RQ": ["inventory_push", "weekly_content_refresh"],
+  "Push_PutAvbUnits_RQ": ["refresh_ari"],
+  "Push_PutPrices_RQ": ["refresh_ari"],
+};
+
+/** Cert runs are orchestrated in phases from the browser; a closed tab or a failed phase
+ *  leaves the record stuck on "running" forever. Close out anything idle past this window. */
+const STALE_RUN_MINUTES = 20;
+
+async function reapStaleRuns(admin: SupabaseClient): Promise<void> {
+  const cutoff = new Date(Date.now() - STALE_RUN_MINUTES * 60000).toISOString();
+  const { data: stale } = await admin
+    .from("ru_cert_runs")
+    .select("id, passed, failed, total, started_at, notes")
+    .is("finished_at", null)
+    .lt("started_at", cutoff)
+    .limit(50);
+  for (const run of (stale ?? []) as { id: string; passed: number; failed: number; total: number; notes?: string | null }[]) {
+    const note = "Phase orchestration did not report back (browser closed or phase aborted) — finalised automatically from recorded steps.";
+    await admin
+      .from("ru_cert_runs")
+      .update({
+        status: (run.failed ?? 0) > 0 ? "failed" : "passed",
+        finished_at: new Date().toISOString(),
+        notes: run.notes ? `${run.notes}\n${note}` : note,
+      })
+      .eq("id", run.id);
+  }
+}
+
+
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
