@@ -157,6 +157,22 @@ export const ApplyPolicyToPropertiesDialog: React.FC<Props> = ({ open, onOpenCha
             </RadioGroup>
           </div>
 
+          <div className="space-y-1.5 rounded-md border bg-muted/20 p-2">
+            <Label className="text-xs font-medium">On each target property</Label>
+            <label className="flex items-center gap-2 text-xs cursor-pointer">
+              <Checkbox checked={setAsMaster} onCheckedChange={(c) => setSetAsMaster(!!c)} />
+              <span>Set as master policy (global fallback)</span>
+            </label>
+            <label className="flex items-center gap-2 text-xs cursor-pointer">
+              <Checkbox checked={setAsDefault} onCheckedChange={(c) => setSetAsDefault(!!c)} />
+              <span>Set as default (checkout and channel push)</span>
+            </label>
+            <p className="text-[11px] text-muted-foreground">
+              Leave both off to place the policy in each library without activating it.
+            </p>
+          </div>
+
+
           <div className="space-y-2 flex-1 overflow-hidden flex flex-col">
             <Label className="text-xs font-medium">Target properties</Label>
             <Input
