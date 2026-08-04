@@ -1251,6 +1251,80 @@ function resolveChangeoverRules(unit: UnitContext | undefined, propertyAmenities
   return { perDow: null, defaultCode };
 }
 
+type AvailabilityPeriod = { from: string; to: string; minStay: number; seasonId: string };
+
+const isoAddDays = (iso: string, days: number): string => {
+  const d = new Date(iso + 'T00:00:00Z');
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+};
+
+/**
+ * Rentals United requires a *complete* rolling 365-day availability window, and it rejects
+ * (or silently last-writes) overlapping ranges. Authored seasons satisfy neither guarantee:
+ * they can start in the past, leave gaps between each other, and overlap one another.
+ *
+ * This normaliser produces exactly one entry per day of the window, in order:
+ *  - periods clamped to [today, today+365]; fully past periods dropped
+ *  - overlaps resolved day-by-day, later-authored periods winning (RU has no overlap semantics)
+ *  - every remaining gap filled with a default (minStay 1) filler range
+ * Contiguous days sharing the same minStay/origin are recompressed into ranges so the payload
+ * stays small.
+ */
+function normalizeAvailabilityWindow(
+  periods: AvailabilityPeriod[],
+  windowFrom: string,
+  windowTo: string,
+): { periods: AvailabilityPeriod[]; coverage: { days_total: number; days_from_seasons: number; days_filled: number; overlaps_resolved: number } } {
+  const perDay = new Map<string, { minStay: number; seasonId: string }>();
+  let overlaps = 0;
+
+  for (const p of periods) {
+    if (!p.from || !p.to) continue;
+    const from = p.from > windowFrom ? p.from : windowFrom;
+    const to = p.to < windowTo ? p.to : windowTo;
+    if (from > to) continue;
+    for (let d = from; d <= to; d = isoAddDays(d, 1)) {
+      if (perDay.has(d)) overlaps += 1;
+      // Later-authored period wins: seasons are pushed in authoring order.
+      perDay.set(d, { minStay: p.minStay, seasonId: p.seasonId });
+    }
+  }
+
+  const daysFromSeasons = perDay.size;
+  let filled = 0;
+  for (let d = windowFrom; d <= windowTo; d = isoAddDays(d, 1)) {
+    if (!perDay.has(d)) {
+      perDay.set(d, { minStay: 1, seasonId: '__filler__' });
+      filled += 1;
+    }
+  }
+
+  // Recompress contiguous identical days back into ranges.
+  const ordered = [...perDay.keys()].sort();
+  const out: AvailabilityPeriod[] = [];
+  for (const day of ordered) {
+    const v = perDay.get(day)!;
+    const last = out[out.length - 1];
+    if (last && last.minStay === v.minStay && last.seasonId === v.seasonId && isoAddDays(last.to, 1) === day) {
+      last.to = day;
+    } else {
+      out.push({ from: day, to: day, minStay: v.minStay, seasonId: v.seasonId });
+    }
+  }
+
+  return {
+    periods: out,
+    coverage: {
+      days_total: ordered.length,
+      days_from_seasons: daysFromSeasons,
+      days_filled: filled,
+      overlaps_resolved: overlaps,
+    },
+  };
+}
+
+
 function expandAvailability(
   periods: { from: string; to: string; minStay: number }[],
   units: number,
