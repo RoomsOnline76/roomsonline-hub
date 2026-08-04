@@ -145,30 +145,77 @@ export async function resolveRuPropertyId(
   return prop?.rentalsunited_property_id ? String(prop.rentalsunited_property_id) : null;
 }
 
+async function logRuSyncRun(
+  supabase: Db,
+  entry: {
+    action: string;
+    propertyId?: string | null;
+    ruPropertyId?: string | null;
+    success: boolean;
+    errorCode?: string | null;
+    errorMessage?: string | null;
+    elapsedMs?: number;
+    details?: Record<string, unknown>;
+  },
+): Promise<void> {
+  try {
+    await supabase.from('ru_sync_runs').insert({
+      batch_id: crypto.randomUUID(),
+      action: entry.action,
+      property_id: entry.propertyId ?? null,
+      ru_property_id: entry.ruPropertyId ?? null,
+      success: entry.success,
+      error_code: entry.errorCode ?? null,
+      error_message: entry.errorMessage ?? null,
+      elapsed_ms: entry.elapsedMs ?? null,
+      details: entry.details ?? {},
+    });
+  } catch (_e) {
+    // Observability must never break the booking lifecycle.
+  }
+}
+
 async function invokeRu(
   supabase: Db,
   action: string,
   payload: Record<string, unknown>,
+  log?: { propertyId?: string | null; ruPropertyId?: string | null; details?: Record<string, unknown> },
 ): Promise<{ ok: boolean; code?: string; message?: string }> {
+  const startedAt = Date.now();
+  const finish = async (result: { ok: boolean; code?: string; message?: string }) => {
+    await logRuSyncRun(supabase, {
+      action,
+      propertyId: log?.propertyId ?? null,
+      ruPropertyId: log?.ruPropertyId ?? null,
+      success: result.ok,
+      errorCode: result.code ?? null,
+      errorMessage: result.message ?? null,
+      elapsedMs: Date.now() - startedAt,
+      details: log?.details ?? {},
+    });
+    return result;
+  };
+
   const { data, error } = await supabase.functions.invoke('rentalsunited-api', {
     body: { action, ...payload },
   });
   if (!error && data?.success) {
     if (data.auth_mode === 'master') {
-      return {
+      return await finish({
         ok: false,
         code: 'RU_MASTER_AUTH_REFUSED',
         message: 'Rentals United answered on master credentials — refused to apply the change.',
-      };
+      });
     }
-    return { ok: true };
+    return await finish({ ok: true });
   }
-  return {
+  return await finish({
     ok: false,
     code: data?.error?.code || 'RU_ERROR',
     message: data?.error?.message || error?.message || 'Unknown Rentals United error',
-  };
+  });
 }
+
 
 /**
  * Cancel (or reject) the reservation at RU. Unconfirmed requests use
