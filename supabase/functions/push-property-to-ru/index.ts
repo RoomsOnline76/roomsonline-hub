@@ -1716,27 +1716,47 @@ async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRo
         dayRates = [...perDate.values()];
       }
 
-      const priceEntries = compressToPeriods(dayRates).map((p) => ({
+      // 4a — normalise the window: clamp, de-duplicate by date, surface unpriced nights.
+      const norm = normalizePriceWindow(dayRates, todayStr, oneYearStr);
+      dayRates = norm.days;
+
+      const compressed = compressToPeriods(dayRates);
+      const overlaps = findPeriodOverlaps(compressed);
+      const priceEntries = compressed.map((p) => ({
         date_from: p.date_from,
         date_to: p.date_to,
         price: p.price,
         extra_guest_price: p.extra_guest_price,
       }));
 
-      const expectedDays = Math.round((Date.parse(oneYearStr) - Date.parse(todayStr)) / 86400000) + 1;
+      const expectedDays = norm.expected_days;
       const cov = resolver.coverage(dayRates);
       result.price_coverage = {
         ...cov,
+        window: { from: todayStr, to: oneYearStr },
         expected_days: expectedDays,
-        unpriced_days: Math.max(0, expectedDays - cov.priced_days),
-        summary: describeCoverage(expectedDays, cov),
+        unpriced_days: norm.unpriced_dates.length,
+        unpriced_dates: norm.unpriced_dates.slice(0, 50),
+        duplicate_dates_resolved: norm.duplicate_dates_resolved,
+        periods: priceEntries.length,
+        overlaps: overlaps.slice(0, 20),
+        summary: `${describeCoverage(expectedDays, cov)}${norm.unpriced_dates.length > 0 ? `, ${norm.unpriced_dates.length} unpriced` : ''}${norm.duplicate_dates_resolved > 0 ? `, ${norm.duplicate_dates_resolved} duplicate day(s) resolved` : ''}`,
       };
       console.log(`[pushARI] RU ${ruPropertyId} pricing: ${result.price_coverage.summary}`);
 
-      // RU requires real pricing for 365 days. Never push a dummy price — a price of 1
-      // passes RU's schema but fails channel content-quality checks (LekkeSlaap, Booking.com).
-      if (priceEntries.length === 0) {
-        result.prices_error = 'RU_NO_REAL_RATES: no calendar rate and no rack rate found for the next 365 days — set seasonal rates in the calendar, or a rate plan base rate in Rate Manager → Rates, before pushing (dummy prices are never sent)';
+      // RU requires real pricing for the full 365-day window. Never push a dummy price — a price
+      // of 1 passes RU's schema but fails channel content-quality checks (LekkeSlaap, Booking.com).
+      // Partial coverage is equally unacceptable: RU simply blocks the unpriced nights from sale.
+      const coverageError = priceEntries.length === 0
+        ? 'RU_NO_REAL_RATES: no calendar rate and no rack rate found for the next 365 days — set seasonal rates in the calendar, or a rate plan base rate in Rate Manager → Rates, before pushing (dummy prices are never sent)'
+        : norm.unpriced_dates.length > 0
+          ? `RU_PRICE_COVERAGE_INCOMPLETE: ${norm.unpriced_dates.length} of ${expectedDays} nights in the next 365 days have no rate (first missing: ${norm.unpriced_dates.slice(0, 5).join(', ')}) — extend the seasonal rates in the admin calendar, or set a rate plan base rate in Rate Manager → Rates, so every night is priced`
+          : overlaps.length > 0
+            ? `RU_PRICE_RANGES_OVERLAP: outbound price ranges overlap (${overlaps.slice(0, 3).map((o) => `${o.a} ↔ ${o.b}`).join('; ')}) — this is a data fault, not a configuration issue`
+            : null;
+
+      if (coverageError) {
+        result.prices_error = coverageError;
         console.error(`[pushARI] Aborting price push for RU property ${ruPropertyId}: ${result.prices_error}`);
         try {
           await supabase.from('sync_logs').insert({
@@ -1745,13 +1765,14 @@ async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRo
             sync_type: 'prices',
             status: 'error',
             message: result.prices_error,
-            request_data: { ru_property_id: ruPropertyId, unit_id: unit?.id ?? null, window: { from: todayStr, to: oneYearStr } },
+            request_data: { ru_property_id: ruPropertyId, unit_id: unit?.id ?? null, window: { from: todayStr, to: oneYearStr }, coverage: result.price_coverage },
           });
         } catch (logErr) {
           console.warn('[pushARI] Failed to persist no-rates log:', logErr);
         }
         return result;
       }
+
 
 
       // ── Currency: publish in the authored currency when RU holds it, otherwise in the
