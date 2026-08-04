@@ -1558,8 +1558,11 @@ async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRo
         for (const [date, day] of parseRuAvailabilityDays(String(calData?.raw_xml ?? ''))) {
           if ((day.reservations ?? 0) > 0) reservedDates.add(date);
         }
-        const retryEntries = availEntries.filter((e: { date_from: string }) => !reservedDates.has(e.date_from));
+        // Reserved days usually sit inside a multi-day range, so the range has to be split —
+        // dropping only entries whose start date is reserved leaves the day in the payload.
+        const retryEntries = excludeDatesFromAvailability(availEntries, reservedDates);
         result.availability_reserved_days = reservedDates.size;
+
         if (reservedDates.size > 0 && retryEntries.length > 0) {
           console.log(`[pushARI] Retrying availability without ${reservedDates.size} reserved day(s) for RU ${ruPropertyId}`);
           const { data: retryResult, error: retryErr } = await supabase.functions.invoke('rentalsunited-api', {
