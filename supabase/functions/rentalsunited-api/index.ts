@@ -2754,13 +2754,63 @@ Deno.serve(async (req) => {
 
       // 🔒 ChannelID is MANDATORY in the RU schema for CM_LNM_* methods. Omitting it makes RU
       // answer the generic status 17 ("Unexpected error, contact IT") instead of a field error.
-      const channelId = Number(body.channel_id ?? Deno.env.get('RU_CHANNEL_ID') ?? 0);
+      //
+      // ChannelID is per-property: it identifies the sales channel the listing is connected to,
+      // so a property is only MCQ-checkable against the channels it has activated. Resolution
+      // order (narrowest wins) — this becomes fully property-driven once the channel API
+      // integration lands and connections are stored per property:
+      //   1. explicit body.channel_id (caller override / cert console)
+      //   2. ru_platform_settings key `ru_channel_id:<property_id>` (property-scoped)
+      //   3. ru_platform_settings key `ru_channel_id` (account-wide default)
+      //   4. RU_CHANNEL_ID env (integration-wide fallback)
+      let channelId = Number(body.channel_id ?? 0);
+      let channelSource = channelId ? 'request' : 'unresolved';
+      const scopedPropertyId = body.property_id ? String(body.property_id) : '';
+      if (!channelId) {
+        try {
+          const settingsClient = createClient(
+            Deno.env.get('SUPABASE_URL')!,
+            Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+          );
+          const keys = scopedPropertyId
+            ? [`ru_channel_id:${scopedPropertyId}`, 'ru_channel_id']
+            : ['ru_channel_id'];
+          const { data: settingRows } = await settingsClient
+            .from('ru_platform_settings')
+            .select('key, value')
+            .in('key', keys);
+          for (const key of keys) {
+            const row = (settingRows ?? []).find((r: { key: string }) => r.key === key);
+            const raw = row?.value as unknown;
+            const candidate = Number(
+              typeof raw === 'object' && raw !== null
+                ? ((raw as { channel_id?: unknown }).channel_id ?? 0)
+                : raw ?? 0,
+            );
+            if (candidate > 0) {
+              channelId = candidate;
+              channelSource = key.includes(':') ? 'property_setting' : 'account_setting';
+              break;
+            }
+          }
+        } catch (settingsErr) {
+          console.warn('[rentalsunited-api] OrderMCQ channel setting lookup failed', settingsErr);
+        }
+      }
+      if (!channelId) {
+        channelId = Number(Deno.env.get('RU_CHANNEL_ID') ?? 0);
+        if (channelId) channelSource = 'env';
+      }
       if (!channelId) {
         return errorResponse(
           'MISSING_RU_CHANNEL_ID',
-          'Rentals United requires a ChannelID for the content quality check. Store the Rentals United ChannelID for this integration (RU_CHANNEL_ID) or pass channel_id with the request.',
+          'Rentals United requires a ChannelID for the content quality check, scoped to a channel this property has activated. Store it per property (ru_platform_settings key ru_channel_id:<property_id>), account-wide (ru_channel_id) or as RU_CHANNEL_ID, or pass channel_id with the request.',
         );
       }
+      console.log(
+        `[rentalsunited-api] OrderMCQ resolved ChannelID=${channelId} (source=${channelSource}, property=${scopedPropertyId || 'n/a'})`,
+      );
+
 
       const attempt = async () => {
         const xml = `<?xml version="1.0" encoding="utf-8"?>\n<CM_LNM_OrderMinimumContentQualityCheck_RQ>${buildAuthXml(attemptCreds)}<ChannelID>${channelId}</ChannelID><PropertyID>${ruPropertyId}</PropertyID></CM_LNM_OrderMinimumContentQualityCheck_RQ>`;
