@@ -2038,6 +2038,7 @@ export default function PropertyForm({
 
   // --- Field-level readiness highlighting (pink = mandatory, blue = nice-to-have).
   // When embedded in the ROLOS hub, that shell owns the painting/legend/stepper.
+  const queryClient = useQueryClient();
   const requirementBodyRef = useRef<HTMLDivElement>(null);
   const {
     outstandingInSection: requirementOutstandingInSection,
