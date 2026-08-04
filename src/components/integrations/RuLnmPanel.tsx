@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-import { AlertCircle, BellRing, CheckCircle2, Loader2, RefreshCw, Radio, ListTree, Info } from "lucide-react";
+import { AlertCircle, BellRing, CheckCircle2, Copy, Loader2, RefreshCw, Radio, ListTree, Info } from "lucide-react";
 
 /**
  * Rentals United Live Notification Mechanism management.
