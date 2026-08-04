@@ -2,6 +2,8 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { PromoCodesTab } from "@/components/property/PromoCodesTab";
 import { CompanyInformationCard, type RuCompanyProfile } from "@/components/property/CompanyInformationCard";
 import { PropertyRuOwnerPanel } from "@/components/property/PropertyRuOwnerPanel";
+import { RolosReadinessScoreBadge } from "@/components/property/RolosReadinessScoreBadge";
+
 
 import { PortfolioIdentityCopy } from "@/components/property/PortfolioIdentityCopy";
 import { HyperGuestSyncReflectionButton } from "@/components/property/HyperGuestSyncReflectionButton";
@@ -4084,6 +4086,16 @@ export default function PropertyForm({
                       <Separator className="my-3" />
                     </>
                   )}
+
+                  {["roomsonline", "rolos", "rol_os", "rolos_pms"].includes(
+                    (selectedPMS ?? "").trim().toLowerCase(),
+                  ) &&
+                    propertyId && (
+                      <div className="mb-3">
+                        <RolosReadinessScoreBadge propertyId={propertyId} />
+                      </div>
+                    )}
+
 
                   {/* WETU Pin ID — always visible regardless of PMS */}
                   <div className="flex items-center gap-2 mt-1 mb-3 flex-wrap">
