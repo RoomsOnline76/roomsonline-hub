@@ -1275,6 +1275,44 @@ function expandAvailability(
   return out;
 }
 
+/**
+ * Remove specific dates from availability entries. Entries are ranges when no per-day
+ * changeover rules apply, so a reserved day usually sits *inside* a range — filtering by
+ * `date_from` alone leaves it in the payload and RU keeps rejecting the whole batch with
+ * "We have confirmed reservation for those dates". Split each range around the excluded
+ * dates instead.
+ */
+function excludeDatesFromAvailability(
+  entries: { date_from: string; date_to: string; units: number; min_stay: number; changeover: number }[],
+  exclude: Set<string>,
+): typeof entries {
+  if (exclude.size === 0) return entries;
+  const out: typeof entries = [];
+  for (const entry of entries) {
+    let segStart: string | null = null;
+    let segEnd: string | null = null;
+    const flush = () => {
+      if (segStart && segEnd) out.push({ ...entry, date_from: segStart, date_to: segEnd });
+      segStart = null;
+      segEnd = null;
+    };
+    const start = new Date(entry.date_from + 'T00:00:00Z');
+    const end = new Date(entry.date_to + 'T00:00:00Z');
+    for (const d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
+      const iso = d.toISOString().slice(0, 10);
+      if (exclude.has(iso)) {
+        flush();
+        continue;
+      }
+      if (!segStart) segStart = iso;
+      segEnd = iso;
+    }
+    flush();
+  }
+  return out;
+}
+
+
 interface AvailabilityVerification {
   checked: boolean;
   total_days: number;
