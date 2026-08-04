@@ -107,8 +107,17 @@ Deno.serve(async (req) => {
 
       console.log(`[cron-pull-ru] Polling ${scope.label}: reservations ${dateFrom} → ${dateTo}`);
       const { data: ruResult, error: ruErr } = await supabase.functions.invoke('rentalsunited-api', {
-        body: { action: 'list_reservations', date_from: dateFrom, date_to: dateTo, ...scope.payload },
+        body: {
+          action: 'list_reservations',
+          date_from: dateFrom,
+          date_to: dateTo,
+          // 1 Confirmed · 2 Cancelled · 4 Request (pending) · 6 Approved · 7 Rejected · 8 Expired.
+          // RU omits pending requests unless the statuses are named explicitly.
+          statuses: [1, 2, 4, 6, 7, 8],
+          ...scope.payload,
+        },
       });
+
 
       if (ruErr || !ruResult?.success) {
         const msg = ruErr?.message || ruResult?.error?.message || 'Unknown error';
