@@ -279,6 +279,10 @@ interface RequestBody {
   url_base?: string;
   change_types?: string[];
   observed_owners?: (string | number)[];
+  /** Sales channel scoping (CM_LNM_* methods). */
+  channel_id?: number | string;
+  /** Force an auth scope ('master') for account-level reads. */
+  auth_scope?: string;
 }
 
 
