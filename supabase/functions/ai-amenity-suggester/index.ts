@@ -42,6 +42,68 @@ async function scrapeWebsite(url: string): Promise<string> {
   }
 }
 
+/**
+ * Best-effort vision pass over the property gallery. Mirrors the detection prompt used by
+ * validate-images-against-data so the amenity scout sees the same visual evidence.
+ */
+async function detectFeaturesFromImages(imageUrls: string[], apiKey: string): Promise<string[]> {
+  if (imageUrls.length === 0) return [];
+  const found = new Set<string>();
+
+  for (const imageUrl of imageUrls.slice(0, 6)) {
+    try {
+      const resp = await fetch(AI_GATEWAY_URL, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: AI_MODELS.image_validation,
+          max_tokens: 500,
+          messages: [
+            {
+              role: "system",
+              content:
+                'You analyse accommodation photos and list amenities, facilities and features you can clearly see. ' +
+                'Reply with JSON only: {"features":[{"feature":"swimming pool","confidence":0.9}]}. ' +
+                "Only include features visible with confidence >= 0.7. Use plain lowercase English phrases.",
+            },
+            {
+              role: "user",
+              content: [
+                { type: "image_url", image_url: { url: imageUrl } },
+                { type: "text", text: "List the amenities and features visible in this photo." },
+              ],
+            },
+          ],
+        }),
+      });
+      if (!resp.ok) {
+        console.error("image feature detection failed", resp.status);
+        continue;
+      }
+      const data = await resp.json();
+      const content = String(data?.choices?.[0]?.message?.content ?? "");
+      const cleaned = content.replace(/```json\n?|\n?```/g, "").trim();
+      const parsed = JSON.parse(cleaned.startsWith("{") ? cleaned : (cleaned.match(/\{[\s\S]*\}/)?.[0] ?? "{}"));
+      for (const f of Array.isArray(parsed?.features) ? parsed.features : []) {
+        const label = typeof f?.feature === "string" ? f.feature.trim().toLowerCase() : "";
+        const confidence = Number(f?.confidence ?? 0);
+        if (label && confidence >= 0.7) found.add(label);
+      }
+    } catch (err) {
+      console.error("image feature detection error", err);
+    }
+  }
+
+  return Array.from(found);
+}
+
+function collectImageUrls(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((img) => (typeof img === "string" ? img : (img as { url?: string })?.url))
+    .filter((url): url is string => typeof url === "string" && url.startsWith("http"));
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -61,13 +123,13 @@ serve(async (req) => {
       supabase
         .from("properties")
         .select(
-          "id, name, property_type, description, short_description, city, country, address, property_url, amenities",
+          "id, name, property_type, description, short_description, city, country, address, property_url, amenities, images",
         )
         .eq("id", property_id)
         .single(),
       supabase
         .from("hostfully_room_types")
-        .select("id, name, description, bedrooms, bathrooms, beds, bed_configuration, amenities")
+        .select("id, name, description, bedrooms, bathrooms, beds, bed_configuration, amenities, images")
         .eq("property_id", property_id)
         .eq("is_active", true),
       supabase
@@ -92,6 +154,12 @@ serve(async (req) => {
 
     const siteUrl = (website_url as string) || (property.property_url as string) || "";
     const scraped = await scrapeWebsite(siteUrl);
+
+    const galleryUrls = [
+      ...collectImageUrls(property.images),
+      ...rooms.flatMap((r) => collectImageUrls(r.images)),
+    ].filter((url, idx, arr) => arr.indexOf(url) === idx);
+    const visualFeatures = await detectFeaturesFromImages(galleryUrls, xaiKey);
 
     const amenitiesJson = (property.amenities || {}) as Record<string, unknown>;
 
@@ -122,13 +190,14 @@ serve(async (req) => {
         existing_amenities: r.amenities ?? [],
       })),
       website_content: scraped || null,
+      features_visible_in_photos: visualFeatures,
     };
 
     const catLine = (rows: CatalogueRow[]) =>
       rows.map((r) => `${r.id}|${r.name}${r.category ? ` (${r.category})` : ""}`).join("\n");
 
     const prompt = `You are an OTA distribution content specialist for South African accommodation.
-Using ONLY the evidence in the DATA block (property record, unit records and scraped website content), decide which amenities/facilities apply.
+Using ONLY the evidence in the DATA block (property record, unit records, scraped website content and DATA.features_visible_in_photos, which lists features detected in the property photos), decide which amenities/facilities apply.
 
 Rules:
 - Never invent amenities that have no support in the evidence. If evidence is only implied by the property type or star rating, mark confidence "low".
@@ -137,6 +206,7 @@ Rules:
 - Return one entry per unit listed in DATA.units (match by the given id).
 - confidence must be one of "high", "medium", "low".
 - reason must be a short phrase (max 12 words) citing the evidence.
+- Set "evidence" to "image" when the support comes from features_visible_in_photos, "website" when it comes from the scraped site, otherwise "record". Anything confirmed in a photo should be at least "medium" confidence.
 
 PROPERTY CATALOGUE (id|name):
 ${catLine(propertyCatalogue)}
@@ -148,8 +218,8 @@ DATA:
 ${JSON.stringify(context)}
 
 Respond with JSON only, shape:
-{"property":[{"id":123,"name":"...","confidence":"high","reason":"..."}],
- "units":[{"unit_id":"<uuid>","unit_name":"...","amenities":[{"id":123,"name":"...","confidence":"high","reason":"..."}]}],
+{"property":[{"id":123,"name":"...","confidence":"high","evidence":"image","reason":"..."}],
+ "units":[{"unit_id":"<uuid>","unit_name":"...","amenities":[{"id":123,"name":"...","confidence":"high","evidence":"record","reason":"..."}]}],
  "summary":"one sentence"}`;
 
     const aiResp = await fetch(AI_GATEWAY_URL, {
@@ -203,10 +273,14 @@ Respond with JSON only, shape:
           const confidence = ["high", "medium", "low"].includes(String(e?.confidence))
             ? String(e.confidence)
             : "medium";
+          const evidence = ["image", "website", "record"].includes(String(e?.evidence))
+            ? String(e.evidence)
+            : "record";
           return {
             id,
             name: nameById.get(id) || String(e?.name ?? id),
             confidence,
+            evidence,
             reason: typeof e?.reason === "string" ? e.reason.slice(0, 120) : "",
           };
         })
@@ -217,6 +291,9 @@ Respond with JSON only, shape:
       success: true,
       used_website: Boolean(scraped),
       website_url: siteUrl || null,
+      used_images: galleryUrls.length > 0,
+      images_analysed: Math.min(galleryUrls.length, 6),
+      visual_features: visualFeatures,
       summary: typeof parsed.summary === "string" ? parsed.summary : "",
       property: normaliseList(parsed.property, propertyIds),
       units: (Array.isArray(parsed.units) ? parsed.units : [])
