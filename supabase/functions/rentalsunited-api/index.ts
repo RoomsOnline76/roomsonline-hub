@@ -208,7 +208,28 @@ interface RUDiscountEntry {
   discount_percentage: number;
 }
 
+/** Current state of an RU reservation, required by Push_ModifyStay_RQ. */
+interface RUStayState {
+  ru_property_id: number | string;
+  date_from: string;
+  date_to: string;
+  res_apa_id?: number | string | null;
+}
+
+/** New state for Push_ModifyStay_RQ. Only supplied fields are emitted. */
+interface RUStayModification {
+  ru_property_id?: number | string | null;
+  date_from?: string | null;
+  date_to?: string | null;
+  number_of_guests?: number | null;
+  client_price?: number | null;
+  already_paid?: number | null;
+  arrival_time?: string | null;
+  use_current_price?: boolean | null;
+}
+
 interface RequestBody {
+
   action: string;
   property_id?: string;
   ru_property_id?: number;
@@ -248,6 +269,12 @@ interface RequestBody {
   // Reservation / request lifecycle
   reservation_id?: string | number;
   reject_reason?: string;
+  /** Push_CancelReservation_RQ CancelTypeID: 1 = property provider, 2 = guest. */
+  cancel_type_id?: number | string;
+  /** Push_ModifyStay_RQ current + new state. */
+  current_stay?: RUStayState;
+  modify_stay?: RUStayModification;
+
   // Live Notification Mechanism (LNM) subscriptions
   url_base?: string;
   change_types?: string[];
@@ -532,13 +559,67 @@ function buildRejectRequestXml(creds: RUCredentials, reservationId: string, reas
 </Push_RejectRequest_RQ>`;
 }
 
-function buildCancelReservationXml(creds: RUCredentials, reservationId: string): string {
+/**
+ * Cancel a confirmed RU reservation. `CancelTypeID` is mandatory:
+ * 1 = cancelled by the property provider (us), 2 = cancelled by the guest.
+ */
+function buildCancelReservationXml(creds: RUCredentials, reservationId: string, cancelTypeId: number): string {
   return `<?xml version="1.0" encoding="utf-8"?>
 <Push_CancelReservation_RQ>
   ${buildAuthXml(creds)}
   <ReservationID>${escapeXml(reservationId)}</ReservationID>
+  <CancelTypeID>${cancelTypeId}</CancelTypeID>
 </Push_CancelReservation_RQ>`;
 }
+
+/**
+ * Push_ModifyStay_RQ — RU requires BOTH the current state and the new state.
+ * Only works on confirmed reservations (StatusID 1).
+ */
+function buildModifyStayXml(
+  creds: RUCredentials,
+  reservationId: string,
+  current: RUStayState,
+  modify: RUStayModification,
+): string {
+  const day = (value: string) => escapeXml(String(value).slice(0, 10));
+  const modifyNodes: string[] = [];
+  const newPropertyId = modify.ru_property_id ?? current.ru_property_id;
+  modifyNodes.push(`<PropertyID>${escapeXml(String(newPropertyId))}</PropertyID>`);
+  modifyNodes.push(`<DateFrom>${day(modify.date_from || current.date_from)}</DateFrom>`);
+  modifyNodes.push(`<DateTo>${day(modify.date_to || current.date_to)}</DateTo>`);
+  if (modify.number_of_guests != null) {
+    modifyNodes.push(`<NumberOfGuests>${Math.max(1, Math.round(Number(modify.number_of_guests)))}</NumberOfGuests>`);
+  }
+  if (modify.client_price != null) {
+    modifyNodes.push(`<ClientPrice>${Number(modify.client_price).toFixed(2)}</ClientPrice>`);
+  }
+  if (modify.already_paid != null) {
+    modifyNodes.push(`<AlreadyPaid>${Number(modify.already_paid).toFixed(2)}</AlreadyPaid>`);
+  }
+  if (modify.arrival_time) {
+    modifyNodes.push(`<ArrivalTime>${escapeXml(String(modify.arrival_time))}</ArrivalTime>`);
+  }
+  if (modify.use_current_price != null) {
+    modifyNodes.push(`<UseCurrentPrice>${modify.use_current_price ? 'true' : 'false'}</UseCurrentPrice>`);
+  }
+
+  return `<?xml version="1.0" encoding="utf-8"?>
+<Push_ModifyStay_RQ>
+  ${buildAuthXml(creds)}
+  <ReservationID>${escapeXml(reservationId)}</ReservationID>
+  <Current>
+    <PropertyID>${escapeXml(String(current.ru_property_id))}</PropertyID>
+    <DateFrom>${day(current.date_from)}</DateFrom>
+    <DateTo>${day(current.date_to)}</DateTo>${current.res_apa_id ? `
+    <ResApaID>${escapeXml(String(current.res_apa_id))}</ResApaID>` : ''}
+  </Current>
+  <Modify>
+    ${modifyNodes.join('\n    ')}
+  </Modify>
+</Push_ModifyStay_RQ>`;
+}
+
 
 // ── Push XML Builders ────────────────────────────────────────
 
@@ -1380,6 +1461,7 @@ const CHILD_SCOPED_ACTIONS = new Set([
   'get_leads',
   'reject_request',
   'cancel_reservation',
+  'modify_stay',
   'subscribe_notifications',
   // LNM subscriptions are per-account: subscribing on master credentials leaves the
   // sub-user's content/ARI changes unnotified.
@@ -1417,6 +1499,7 @@ const CHILD_AUTH_STRICT_ACTIONS = new Set([
   'get_leads',
   'reject_request',
   'cancel_reservation',
+  'modify_stay',
   'subscribe_notifications',
   'put_lnm_subscriptions',
   'list_lnm_subscriptions',
@@ -3140,16 +3223,56 @@ Deno.serve(async (req) => {
       return jsonResponse({ success: true, auth_mode: authMode, raw_xml: response });
     }
 
-    // ── cancel_reservation (backwards-compatible fallback for reject_request) ──
+    // ── cancel_reservation (confirmed reservations; also a reject fallback) ──
     if (action === 'cancel_reservation') {
       const reservationId = body.reservation_id != null ? String(body.reservation_id).trim() : '';
       if (!reservationId) return errorResponse('MISSING_PARAM', 'reservation_id is required');
-      const xml = buildCancelReservationXml(scopedCreds, reservationId);
+      const cancelTypeId = Number(body.cancel_type_id) === 2 ? 2 : 1;
+      const xml = buildCancelReservationXml(scopedCreds, reservationId, cancelTypeId);
       const response = await callRentalsUnited(scopedCreds, xml);
       const { ok, status } = handleRUStatus(response);
-      if (!ok) return ruErrorResponse(status);
+      if (!ok) {
+        // Status 178: the reservation originated in an external system (the sales channel)
+        // and RU cannot cancel it. Non-retryable — the operator must cancel at the channel.
+        if (status.id === '178') {
+          return jsonResponse({
+            success: false,
+            error: {
+              code: 'RU_CANCEL_NOT_ALLOWED',
+              message: status.message ||
+                'This reservation was made in an external system and cannot be cancelled in Rentals United. Please cancel it directly in the sales channel.',
+              ru_status_id: status.id,
+            },
+          });
+        }
+        return ruErrorResponse(status);
+      }
+      return jsonResponse({ success: true, auth_mode: authMode, cancel_type_id: cancelTypeId, raw_xml: response });
+    }
+
+    // ── modify_stay (dates / property / guests / price on a CONFIRMED reservation) ──
+    if (action === 'modify_stay') {
+      const reservationId = body.reservation_id != null ? String(body.reservation_id).trim() : '';
+      if (!reservationId) return errorResponse('MISSING_PARAM', 'reservation_id is required');
+      const current = body.current_stay;
+      if (!current?.ru_property_id || !current?.date_from || !current?.date_to) {
+        return errorResponse(
+          'MISSING_PARAM',
+          'current_stay { ru_property_id, date_from, date_to } is required — RU needs the current state of the stay',
+        );
+      }
+      const modify = body.modify_stay ?? {};
+      const xml = buildModifyStayXml(scopedCreds, reservationId, current, modify);
+      const compactRequestXml = compactXml(xml);
+      const response = await callRentalsUnited(scopedCreds, xml);
+      console.log(`[rentalsunited-api] modify_stay (auth=${authMode}) response: ${response.substring(0, 500)}`);
+      const { ok, status } = handleRUStatus(response);
+      if (!ok) {
+        return ruErrorResponse(status, buildDiagnostics(compactRequestXml, status, 'modify_stay', response));
+      }
       return jsonResponse({ success: true, auth_mode: authMode, raw_xml: response });
     }
+
 
     // Unknown action
     return errorResponse('UNKNOWN_ACTION', `Action "${action}" is not supported`);

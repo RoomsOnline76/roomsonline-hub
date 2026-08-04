@@ -1,0 +1,287 @@
+/**
+ * Shared helpers to push ROL'OS booking cancellations and modifications back to
+ * Rentals United.
+ *
+ * RU-originated bookings live on ROL'OS-native properties (`external_system = 'roomsonline'`),
+ * so they cannot be routed by the property's PMS. They are identified by
+ * `booking_channel = 'rentals_united'` with `integration_type` `rentalsunited`
+ * (confirmed) or `rentalsunited_lead` (unconfirmed request).
+ *
+ * All calls MUST run on the owning sub-user's API keys — RU rejects (or silently
+ * misapplies) reservation writes made with master credentials.
+ */
+import { findOwnerAccount } from './ruPhaseGate.ts';
+
+// deno-lint-ignore no-explicit-any
+type Db = any;
+
+export interface RuBookingRef {
+  id: string;
+  property_id: string;
+  room_type_id?: string | null;
+  external_reservation_id?: string | null;
+  booking_channel?: string | null;
+  integration_type?: string | null;
+  check_in_date: string;
+  check_out_date: string;
+}
+
+export interface RuPushResult {
+  ok: boolean;
+  /** Machine code for the caller to surface: RU_CANCEL_NOT_ALLOWED, RU_ERROR, … */
+  code?: string;
+  message?: string;
+  method?: string;
+}
+
+/** True when this booking came from Rentals United and must be synced back. */
+export function isRuBooking(booking: {
+  booking_channel?: string | null;
+  integration_type?: string | null;
+  external_reservation_id?: string | null;
+}): boolean {
+  if (!booking.external_reservation_id) return false;
+  const channel = (booking.booking_channel || '').toLowerCase();
+  const integration = (booking.integration_type || '').toLowerCase();
+  return channel === 'rentals_united' || integration.startsWith('rentalsunited');
+}
+
+/** True when the booking is still an unconfirmed RU request (StatusID 4). */
+export function isRuLead(booking: { integration_type?: string | null }): boolean {
+  return (booking.integration_type || '').toLowerCase() === 'rentalsunited_lead';
+}
+
+async function decryptSecret(supabase: Db, enc: unknown): Promise<string> {
+  if (!enc) return '';
+  const { data } = await supabase.rpc('decrypt_sensitive_text', { encrypted_data: enc });
+  const plain = typeof data === 'string' ? data : '';
+  return plain && plain !== '[ENCRYPTED]' && plain !== '[DECRYPTION_ERROR]' ? plain : '';
+}
+
+/**
+ * Resolve the sub-user (child) auth payload for the RU account that owns this property.
+ * Order: `ru_api_credentials` keys → legacy keys on `ru_owner_accounts` → legacy password.
+ */
+export async function resolveRuChildAuth(
+  supabase: Db,
+  propertyId: string,
+): Promise<Record<string, unknown> | null> {
+  const { data: property } = await supabase
+    .from('properties')
+    .select('id, owner_email')
+    .eq('id', propertyId)
+    .maybeSingle();
+
+  const { account } = await findOwnerAccount(supabase, propertyId, property?.owner_email ?? null, null);
+  const ownerId = account?.ru_owner_id ? String(account.ru_owner_id).trim() : '';
+  if (!ownerId) return null;
+
+  const { data: credRow } = await supabase
+    .from('ru_api_credentials')
+    .select('access_key, secret_enc')
+    .eq('ru_owner_id', ownerId)
+    .maybeSingle();
+
+  if (credRow?.access_key) {
+    const secret = await decryptSecret(supabase, credRow.secret_enc);
+    if (secret) {
+      return { owner_id: ownerId, auth_access_key: String(credRow.access_key), auth_secret_key: secret };
+    }
+  }
+
+  const record = (account ?? {}) as Record<string, unknown>;
+  if (record.ru_api_access_key) {
+    const secret = await decryptSecret(supabase, record.ru_api_secret_enc);
+    if (secret) {
+      return { owner_id: ownerId, auth_access_key: String(record.ru_api_access_key), auth_secret_key: secret };
+    }
+  }
+
+  const password = await decryptSecret(supabase, record.ru_login_password_enc);
+  if (account?.ru_login_email && password) {
+    return { owner_id: ownerId, auth_username: String(account.ru_login_email).trim(), auth_password: password };
+  }
+  return null;
+}
+
+/** Resolve the RU PropertyID (unit-level where mapped) backing this booking. */
+export async function resolveRuPropertyId(
+  supabase: Db,
+  booking: RuBookingRef,
+): Promise<string | null> {
+  // Unit-level mapping: the booking's canonical room type name → hostfully_room_types row.
+  if (booking.room_type_id) {
+    const { data: direct } = await supabase
+      .from('hostfully_room_types')
+      .select('rentalsunited_property_id')
+      .eq('id', booking.room_type_id)
+      .maybeSingle();
+    if (direct?.rentalsunited_property_id) return String(direct.rentalsunited_property_id);
+
+    const { data: canonical } = await supabase
+      .from('rolos_room_types')
+      .select('name')
+      .eq('id', booking.room_type_id)
+      .maybeSingle();
+    if (canonical?.name) {
+      const { data: units } = await supabase
+        .from('hostfully_room_types')
+        .select('name, rentalsunited_property_id')
+        .eq('property_id', booking.property_id)
+        .not('rentalsunited_property_id', 'is', null);
+      const match = (units || []).find(
+        (u: { name: string | null }) =>
+          (u.name || '').trim().toLowerCase() === String(canonical.name).trim().toLowerCase(),
+      );
+      if (match?.rentalsunited_property_id) return String(match.rentalsunited_property_id);
+    }
+  }
+
+  const { data: prop } = await supabase
+    .from('properties')
+    .select('rentalsunited_property_id')
+    .eq('id', booking.property_id)
+    .maybeSingle();
+  return prop?.rentalsunited_property_id ? String(prop.rentalsunited_property_id) : null;
+}
+
+async function invokeRu(
+  supabase: Db,
+  action: string,
+  payload: Record<string, unknown>,
+): Promise<{ ok: boolean; code?: string; message?: string }> {
+  const { data, error } = await supabase.functions.invoke('rentalsunited-api', {
+    body: { action, ...payload },
+  });
+  if (!error && data?.success) {
+    if (data.auth_mode === 'master') {
+      return {
+        ok: false,
+        code: 'RU_MASTER_AUTH_REFUSED',
+        message: 'Rentals United answered on master credentials — refused to apply the change.',
+      };
+    }
+    return { ok: true };
+  }
+  return {
+    ok: false,
+    code: data?.error?.code || 'RU_ERROR',
+    message: data?.error?.message || error?.message || 'Unknown Rentals United error',
+  };
+}
+
+/**
+ * Cancel (or reject) the reservation at RU. Unconfirmed requests use
+ * `Push_RejectRequest_RQ`; confirmed reservations use `Push_CancelReservation_RQ`
+ * with an explicit CancelTypeID (1 = property provider, 2 = guest).
+ */
+export async function cancelRuReservation(
+  supabase: Db,
+  booking: RuBookingRef,
+  opts: { reason: string; cancelTypeId?: number },
+): Promise<RuPushResult> {
+  const auth = await resolveRuChildAuth(supabase, booking.property_id);
+  if (!auth) {
+    return {
+      ok: false,
+      code: 'RU_AUTH_UNAVAILABLE',
+      message: 'No Rentals United sub-user API keys stored for this property — cannot cancel at the channel.',
+    };
+  }
+
+  const reservationId = String(booking.external_reservation_id);
+  const cancelTypeId = opts.cancelTypeId === 2 ? 2 : 1;
+
+  if (isRuLead(booking)) {
+    const rejected = await invokeRu(supabase, 'reject_request', {
+      reservation_id: reservationId,
+      reject_reason: opts.reason,
+      ...auth,
+    });
+    if (rejected.ok) return { ok: true, method: 'reject_request' };
+    // Backwards compatibility: some integrations do not have reject enabled.
+    const cancelled = await invokeRu(supabase, 'cancel_reservation', {
+      reservation_id: reservationId,
+      cancel_type_id: cancelTypeId,
+      reject_reason: opts.reason,
+      ...auth,
+    });
+    return cancelled.ok
+      ? { ok: true, method: 'cancel_reservation' }
+      : { ok: false, method: 'cancel_reservation', code: cancelled.code, message: cancelled.message };
+  }
+
+  const result = await invokeRu(supabase, 'cancel_reservation', {
+    reservation_id: reservationId,
+    cancel_type_id: cancelTypeId,
+    reject_reason: opts.reason,
+    ...auth,
+  });
+  return result.ok
+    ? { ok: true, method: 'cancel_reservation' }
+    : { ok: false, method: 'cancel_reservation', code: result.code, message: result.message };
+}
+
+/** Push a stay change to RU. Confirmed reservations only. */
+export async function modifyRuStay(
+  supabase: Db,
+  booking: RuBookingRef,
+  modify: {
+    date_from?: string | null;
+    date_to?: string | null;
+    number_of_guests?: number | null;
+    client_price?: number | null;
+    already_paid?: number | null;
+    arrival_time?: string | null;
+  },
+): Promise<RuPushResult> {
+  if (isRuLead(booking)) {
+    return {
+      ok: false,
+      code: 'RU_MODIFY_NOT_ALLOWED',
+      message:
+        'Rentals United only accepts stay modifications on confirmed reservations. Cancel/reject this request instead.',
+    };
+  }
+
+  const auth = await resolveRuChildAuth(supabase, booking.property_id);
+  if (!auth) {
+    return {
+      ok: false,
+      code: 'RU_AUTH_UNAVAILABLE',
+      message: 'No Rentals United sub-user API keys stored for this property — cannot modify at the channel.',
+    };
+  }
+
+  const ruPropertyId = await resolveRuPropertyId(supabase, booking);
+  if (!ruPropertyId) {
+    return {
+      ok: false,
+      code: 'RU_PROPERTY_UNMAPPED',
+      message: 'No Rentals United PropertyID mapped for this unit — push the property to RU first.',
+    };
+  }
+
+  const result = await invokeRu(supabase, 'modify_stay', {
+    reservation_id: String(booking.external_reservation_id),
+    current_stay: {
+      ru_property_id: ruPropertyId,
+      date_from: booking.check_in_date,
+      date_to: booking.check_out_date,
+    },
+    modify_stay: {
+      ru_property_id: ruPropertyId,
+      date_from: modify.date_from ?? booking.check_in_date,
+      date_to: modify.date_to ?? booking.check_out_date,
+      number_of_guests: modify.number_of_guests ?? null,
+      client_price: modify.client_price ?? null,
+      already_paid: modify.already_paid ?? null,
+      arrival_time: modify.arrival_time ?? null,
+    },
+    ...auth,
+  });
+
+  return result.ok
+    ? { ok: true, method: 'modify_stay' }
+    : { ok: false, method: 'modify_stay', code: result.code, message: result.message };
+}

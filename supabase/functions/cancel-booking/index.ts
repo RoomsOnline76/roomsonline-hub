@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { cancelRuReservation, isRuBooking, isRuLead } from "../_shared/ruBookingSync.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -10,7 +11,10 @@ interface CancelRequest {
   booking_id: string;
   reason: string;
   cancel_rooms?: number[]; // Optional: specific room indices to cancel
+  /** RU CancelTypeID: 1 = property provider (default), 2 = guest. */
+  cancel_type_id?: number;
 }
+
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -49,7 +53,8 @@ Deno.serve(async (req) => {
     const user = { id: claimsData.claims.sub };
 
     const body: CancelRequest = await req.json();
-    const { booking_id, reason, cancel_rooms } = body;
+    const { booking_id, reason, cancel_rooms, cancel_type_id } = body;
+
 
     if (!booking_id) {
       return new Response(
@@ -92,6 +97,57 @@ Deno.serve(async (req) => {
     const externalSystem = property?.external_system || "none";
     const isRolNative = property?.is_rol_property || externalSystem === "none";
     const isPartialCancel = cancel_rooms && cancel_rooms.length > 0;
+
+    // S3a: Rentals United bookings live on ROL'OS-native properties, so they are routed by
+    // booking origin, not by the property's PMS. RU must accept the cancel BEFORE we touch
+    // the local record — many channels answer status 178 ("cancel it in the sales channel").
+    let ruMethod: string | null = null;
+    if (isRuBooking(booking)) {
+      const ruResult = await cancelRuReservation(supabase, booking, {
+        reason,
+        cancelTypeId: cancel_type_id,
+      });
+
+      if (!ruResult.ok) {
+        await supabase.from("booking_sync_status").upsert(
+          {
+            booking_id,
+            external_system: "rentalsunited",
+            sync_status: "failed",
+            last_action: "cancel",
+            last_action_at: new Date().toISOString(),
+            error_message: ruResult.message,
+            last_error_message: ruResult.message,
+          },
+          { onConflict: "booking_id,external_system" }
+        );
+
+        return new Response(
+          JSON.stringify({
+            code: ruResult.code || "RU_ERROR",
+            message: ruResult.message ||
+              "Rentals United rejected the cancellation — the booking was left unchanged.",
+          }),
+          { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      ruMethod = ruResult.method ?? null;
+      await supabase.from("booking_sync_status").upsert(
+        {
+          booking_id,
+          external_system: "rentalsunited",
+          sync_status: "synced",
+          last_action: isRuLead(booking) ? "reject" : "cancel",
+          last_action_at: new Date().toISOString(),
+          error_message: null,
+          last_error_message: null,
+        },
+        { onConflict: "booking_id,external_system" }
+      );
+    }
+
+
 
     // For external PMS, attempt to cancel in PMS first
     if (!isRolNative && externalSystem !== "none" && booking.external_reservation_id) {
@@ -291,9 +347,13 @@ Deno.serve(async (req) => {
         success: true,
         message: isPartialCancel
           ? `${cancel_rooms.length} room(s) cancelled successfully`
-          : "Booking cancelled successfully",
+          : ruMethod
+            ? "Booking cancelled and withdrawn at Rentals United"
+            : "Booking cancelled successfully",
         booking_id,
+        ru_method: ruMethod,
       }),
+
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
