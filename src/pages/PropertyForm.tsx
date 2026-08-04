@@ -155,6 +155,7 @@ import {
 } from "@/config/propertySectionOrder";
 import { PropertySectionRail } from "@/components/property/PropertySectionRail";
 import RUAmenityPicker from "@/components/property/RUAmenityPicker";
+import AiAmenityDialog from "@/components/property/AiAmenityDialog";
 import { ROLOS_ONLY_FACILITY_GROUPS } from "@/lib/rolosOnlyFacilities";
 
 
