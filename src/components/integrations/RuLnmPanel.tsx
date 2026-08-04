@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-import { AlertCircle, BellRing, CheckCircle2, Loader2, RefreshCw, Radio } from "lucide-react";
+import { AlertCircle, BellRing, CheckCircle2, Loader2, RefreshCw, Radio, ListTree, Info } from "lucide-react";
 
 /**
  * Rentals United Live Notification Mechanism management.
@@ -58,11 +58,41 @@ interface NotificationRow {
   details: Record<string, unknown> | null;
 }
 
+interface ChangeTypeRow {
+  id?: string | number;
+  name?: string;
+  [key: string]: unknown;
+}
+
 export function RuLnmPanel() {
   const [accounts, setAccounts] = useState<AccountRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshingAll, setRefreshingAll] = useState(false);
   const [notifications, setNotifications] = useState<NotificationRow[]>([]);
+  const [changeTypes, setChangeTypes] = useState<ChangeTypeRow[] | null>(null);
+  const [changeTypesError, setChangeTypesError] = useState<string | null>(null);
+  const [loadingChangeTypes, setLoadingChangeTypes] = useState(false);
+
+  const listChangeTypes = useCallback(async () => {
+    setLoadingChangeTypes(true);
+    setChangeTypesError(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("rentalsunited-api", {
+        body: { action: "list_lnm_change_types" },
+      });
+      if (error) throw new Error(error.message);
+      if (!data?.success) throw new Error(data?.error?.message ?? "RU rejected the read");
+      const rows = (data.change_types ?? []) as ChangeTypeRow[];
+      setChangeTypes(rows);
+      toast.success(`Pulled ${rows.length} LNM change type(s) from Rentals United`);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setChangeTypesError(msg);
+      toast.error("List LNM change types failed", { description: msg });
+    }
+    setLoadingChangeTypes(false);
+  }, []);
+
 
   const loadAccounts = useCallback(async () => {
     setLoading(true);
@@ -190,10 +220,17 @@ export function RuLnmPanel() {
               Rentals United account. Each sub-user must be subscribed under its own API keys.
             </p>
           </div>
-          <Button onClick={refreshAll} disabled={refreshingAll} className="gap-1.5">
-            {refreshingAll ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-            Refresh all accounts
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" onClick={listChangeTypes} disabled={loadingChangeTypes} className="gap-1.5">
+              {loadingChangeTypes ? <Loader2 className="h-4 w-4 animate-spin" /> : <ListTree className="h-4 w-4" />}
+              List LNM change types
+            </Button>
+            <Button onClick={refreshAll} disabled={refreshingAll} className="gap-1.5">
+              {refreshingAll ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              Refresh all accounts
+            </Button>
+          </div>
+
         </CardHeader>
         <CardContent className="space-y-3">
           {loading ? (
@@ -275,6 +312,54 @@ export function RuLnmPanel() {
           )}
         </CardContent>
       </Card>
+
+      {(changeTypes || changeTypesError) && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <ListTree className="h-4 w-4" /> LNM change types (Pull_ListLiveNotificationMechanismChangeTypes_RQ)
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Dictionary read straight from Rentals United — the authoritative list of change types
+              that can be subscribed to.
+            </p>
+          </CardHeader>
+          <CardContent>
+            {changeTypesError ? (
+              <p className="text-sm text-destructive">{changeTypesError}</p>
+            ) : changeTypes && changeTypes.length > 0 ? (
+              <div className="flex flex-wrap gap-1.5">
+                {changeTypes.map((t, i) => (
+                  <Badge key={`${t.id ?? t.name ?? i}`} variant="secondary" className="text-[10px]">
+                    {t.id != null ? `${t.id} · ` : ""}
+                    {t.name ?? JSON.stringify(t)}
+                  </Badge>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">Rentals United returned no change types.</p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      <Card className="border-warning/40">
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Info className="h-4 w-4" /> Minimum content quality check — gated
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">
+            <code className="font-mono">CM_LNM_OrderMinimumContentQualityCheck_RQ</code> cannot be
+            called until the Channel Manager API is fully integrated and deployed. Ordering a quality
+            check before then will be rejected by Rentals United, so the action stays disabled in the
+            onboarding pipeline.
+          </p>
+        </CardContent>
+      </Card>
+
+
 
       <Card>
         <CardHeader>
