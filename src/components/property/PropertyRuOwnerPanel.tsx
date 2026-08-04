@@ -157,6 +157,8 @@ export function PropertyRuOwnerPanel({ propertyId, pmsSystem, readOnly = false }
       toast.success("API keys saved — RU push/pull is now unlocked for this owner");
       setAccessKey("");
       setSecretKey("");
+      setEditingKeys(false);
+
       await load();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not save the API keys");
