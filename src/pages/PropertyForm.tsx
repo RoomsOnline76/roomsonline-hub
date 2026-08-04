@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { usePropertyFieldRequirements } from "@/hooks/usePropertyFieldRequirements";
 import { focusRequirementField } from "@/lib/requirementFocus";
 import { RequirementLegend } from "@/components/property/RequirementLegend";
