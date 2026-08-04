@@ -145,30 +145,77 @@ export async function resolveRuPropertyId(
   return prop?.rentalsunited_property_id ? String(prop.rentalsunited_property_id) : null;
 }
 
+async function logRuSyncRun(
+  supabase: Db,
+  entry: {
+    action: string;
+    propertyId?: string | null;
+    ruPropertyId?: string | null;
+    success: boolean;
+    errorCode?: string | null;
+    errorMessage?: string | null;
+    elapsedMs?: number;
+    details?: Record<string, unknown>;
+  },
+): Promise<void> {
+  try {
+    await supabase.from('ru_sync_runs').insert({
+      batch_id: crypto.randomUUID(),
+      action: entry.action,
+      property_id: entry.propertyId ?? null,
+      ru_property_id: entry.ruPropertyId ?? null,
+      success: entry.success,
+      error_code: entry.errorCode ?? null,
+      error_message: entry.errorMessage ?? null,
+      elapsed_ms: entry.elapsedMs ?? null,
+      details: entry.details ?? {},
+    });
+  } catch (_e) {
+    // Observability must never break the booking lifecycle.
+  }
+}
+
 async function invokeRu(
   supabase: Db,
   action: string,
   payload: Record<string, unknown>,
+  log?: { propertyId?: string | null; ruPropertyId?: string | null; details?: Record<string, unknown> },
 ): Promise<{ ok: boolean; code?: string; message?: string }> {
+  const startedAt = Date.now();
+  const finish = async (result: { ok: boolean; code?: string; message?: string }) => {
+    await logRuSyncRun(supabase, {
+      action,
+      propertyId: log?.propertyId ?? null,
+      ruPropertyId: log?.ruPropertyId ?? null,
+      success: result.ok,
+      errorCode: result.code ?? null,
+      errorMessage: result.message ?? null,
+      elapsedMs: Date.now() - startedAt,
+      details: log?.details ?? {},
+    });
+    return result;
+  };
+
   const { data, error } = await supabase.functions.invoke('rentalsunited-api', {
     body: { action, ...payload },
   });
   if (!error && data?.success) {
     if (data.auth_mode === 'master') {
-      return {
+      return await finish({
         ok: false,
         code: 'RU_MASTER_AUTH_REFUSED',
         message: 'Rentals United answered on master credentials — refused to apply the change.',
-      };
+      });
     }
-    return { ok: true };
+    return await finish({ ok: true });
   }
-  return {
+  return await finish({
     ok: false,
     code: data?.error?.code || 'RU_ERROR',
     message: data?.error?.message || error?.message || 'Unknown Rentals United error',
-  };
+  });
 }
+
 
 /**
  * Cancel (or reject) the reservation at RU. Unconfirmed requests use
@@ -192,12 +239,14 @@ export async function cancelRuReservation(
   const reservationId = String(booking.external_reservation_id);
   const cancelTypeId = opts.cancelTypeId === 2 ? 2 : 1;
 
+  const logCtx = { propertyId: booking.property_id, details: { booking_id: booking.id, reservation_id: reservationId } };
+
   if (isRuLead(booking)) {
     const rejected = await invokeRu(supabase, 'reject_request', {
       reservation_id: reservationId,
       reject_reason: opts.reason,
       ...auth,
-    });
+    }, logCtx);
     if (rejected.ok) return { ok: true, method: 'reject_request' };
     // Backwards compatibility: some integrations do not have reject enabled.
     const cancelled = await invokeRu(supabase, 'cancel_reservation', {
@@ -205,7 +254,7 @@ export async function cancelRuReservation(
       cancel_type_id: cancelTypeId,
       reject_reason: opts.reason,
       ...auth,
-    });
+    }, logCtx);
     return cancelled.ok
       ? { ok: true, method: 'cancel_reservation' }
       : { ok: false, method: 'cancel_reservation', code: cancelled.code, message: cancelled.message };
@@ -216,11 +265,12 @@ export async function cancelRuReservation(
     cancel_type_id: cancelTypeId,
     reject_reason: opts.reason,
     ...auth,
-  });
+  }, logCtx);
   return result.ok
     ? { ok: true, method: 'cancel_reservation' }
     : { ok: false, method: 'cancel_reservation', code: result.code, message: result.message };
 }
+
 
 /** Push a stay change to RU. Confirmed reservations only. */
 export async function modifyRuStay(
@@ -279,7 +329,12 @@ export async function modifyRuStay(
       arrival_time: modify.arrival_time ?? null,
     },
     ...auth,
+  }, {
+    propertyId: booking.property_id,
+    ruPropertyId,
+    details: { booking_id: booking.id, reservation_id: String(booking.external_reservation_id) },
   });
+
 
   return result.ok
     ? { ok: true, method: 'modify_stay' }

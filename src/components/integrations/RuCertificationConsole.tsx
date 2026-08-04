@@ -2,8 +2,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import {
   RefreshCw, CheckCircle2, XCircle, MinusCircle, PlayCircle, ShieldCheck,
-  Clock, Percent, Users, ChevronRight, Plus, Trash2, Send, AlertTriangle,
+  Clock, Percent, Users, ChevronRight, Plus, Trash2, Send, AlertTriangle, ListChecks,
 } from "lucide-react";
+import { RuCoverageTab } from "./RuCoverageTab";
+
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -794,6 +796,7 @@ export function RuCertificationConsole({ properties }: { properties: PropertyLit
           <TabsTrigger value="milestones" className="gap-1.5" onClick={loadMilestones}>
             <CheckCircle2 className="h-3.5 w-3.5" />Milestones
           </TabsTrigger>
+          <TabsTrigger value="coverage" className="gap-1.5"><ListChecks className="h-3.5 w-3.5" />Coverage</TabsTrigger>
           <TabsTrigger value="cadence" className="gap-1.5" onClick={loadCadence}><Clock className="h-3.5 w-3.5" />Refresh compliance</TabsTrigger>
           <TabsTrigger value="discounts" className="gap-1.5"><Percent className="h-3.5 w-3.5" />Discounts</TabsTrigger>
           <TabsTrigger value="readiness" className="gap-1.5"><CheckCircle2 className="h-3.5 w-3.5" />WL readiness</TabsTrigger>
@@ -801,6 +804,10 @@ export function RuCertificationConsole({ properties }: { properties: PropertyLit
             <Users className="h-3.5 w-3.5" />User management
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="coverage">
+          <RuCoverageTab />
+        </TabsContent>
 
         {/* Milestones — core functional certification matrix */}
         <TabsContent value="milestones">
