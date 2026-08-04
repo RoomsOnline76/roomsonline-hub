@@ -38,6 +38,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
  * - put_lnm_subscriptions: Push_PutLiveNotificationMechanismSubscriptions_RQ (LNM — content/ARI)
  * - list_lnm_subscriptions: Pull_ListLiveNotificationMechanismSubscriptions_RQ
  * - list_lnm_change_types: Pull_ListLiveNotificationMechanismChangeTypes_RQ
+ * - list_sales_channels: Pull_ListSalesChannels_RQ
 
  * - push_long_stay_discounts: Push_PutLongStayDiscounts_RQ
  * - push_last_minute_discounts: Push_PutLastMinuteDiscounts_RQ
@@ -281,6 +282,8 @@ interface RequestBody {
   observed_owners?: (string | number)[];
   /** Sales channel scoping (CM_LNM_* methods). */
   channel_id?: number | string;
+  /** Free-text sales-channel name to resolve against Pull_ListSalesChannels_RQ. */
+  channel_name?: string;
   /** Force an auth scope ('master') for account-level reads. */
   auth_scope?: string;
 }
@@ -1938,6 +1941,7 @@ Deno.serve(async (req) => {
             put_lnm_subscriptions: true,
             list_lnm_subscriptions: true,
             list_lnm_change_types: true,
+            list_sales_channels: true,
 
             push_long_stay_discounts: true,
             push_last_minute_discounts: true,
