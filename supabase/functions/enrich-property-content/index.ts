@@ -108,7 +108,7 @@ serve(async (req) => {
     const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
     if (!lovableApiKey) {
       return new Response(
-        JSON.stringify({ success: false, error: "AI not configured" }),
+        JSON.stringify({ success: false, error: "TOBI not configured" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -154,7 +154,7 @@ ${content.substring(0, 8000)}`;
     if (!aiResponse.ok) {
       console.error("AI extraction failed:", aiResponse.status);
       return new Response(
-        JSON.stringify({ success: false, error: "AI extraction failed" }),
+        JSON.stringify({ success: false, error: "TOBI extraction failed" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }

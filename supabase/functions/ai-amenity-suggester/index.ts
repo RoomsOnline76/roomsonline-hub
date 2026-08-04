@@ -173,7 +173,7 @@ Respond with JSON only, shape:
       const text = await aiResp.text();
       console.error("xAI error", aiResp.status, text);
       return json(
-        { success: false, error: `AI request failed (${aiResp.status})`, detail: text.slice(0, 500) },
+        { success: false, error: `TOBI request failed (${aiResp.status})`, detail: text.slice(0, 500) },
         aiResp.status === 429 ? 429 : 502,
       );
     }

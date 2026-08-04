@@ -308,7 +308,7 @@ serve(async (req) => {
     const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
     if (!lovableApiKey) {
       return new Response(
-        JSON.stringify({ success: false, error: "AI service not configured" }),
+        JSON.stringify({ success: false, error: "TOBI service not configured" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -527,13 +527,9 @@ Extract: contact details, location, description, check-in/out times, star rating
       const status = aiResponse.status;
       if (status === 429) {
         return new Response(
-          JSON.stringify({ success: false, error: "AI rate limit exceeded. Please try again later." }),
-          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      if (status === 402) {
-        return new Response(
-          JSON.stringify({ success: false, error: "AI credits exhausted. Please contact support." }),
+          JSON.stringify({ success: false, error: "TOBI rate limit exceeded. Please try again later." }),
+...
+          JSON.stringify({ success: false, error: "TOBI is temporarily unavailable — credits exhausted." }),
           { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }

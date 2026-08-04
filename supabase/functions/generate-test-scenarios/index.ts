@@ -191,13 +191,9 @@ Return ONLY valid JSON array of scenarios.`;
       }
       if (response.status === 402) {
         return new Response(
-          JSON.stringify({ error: "AI credits exhausted. Please add credits to continue." }),
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      
-      return new Response(
-        JSON.stringify({ error: "AI generation failed" }),
+          JSON.stringify({ error: "TOBI is temporarily unavailable — credits exhausted." }),
+...
+        JSON.stringify({ error: "TOBI generation failed" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
