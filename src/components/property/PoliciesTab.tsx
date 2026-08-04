@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Loader2, Plus, Tag } from "lucide-react";
 import { useReservationPolicies, type ReservationPolicy } from "@/hooks/useReservationPolicies";
@@ -12,7 +12,6 @@ import { MasterPolicyPanel } from "@/components/property/policies/MasterPolicyPa
 import { PolicyLibraryTable, type PolicyMetric } from "@/components/property/policies/PolicyLibraryTable";
 import { PortfolioPolicyLibrary } from "@/components/property/policies/PortfolioPolicyLibrary";
 import { FormSection } from "@/components/property/form/DenseForm";
-import { RuPaymentMethodsPicker } from "@/components/property/RuPaymentMethodsPicker";
 
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -49,91 +48,6 @@ export const PoliciesTab: React.FC<PoliciesTabProps> = ({ propertyId, onOpenSpec
   const [applyingFrom, setApplyingFrom] = useState<ReservationPolicy | null>(null);
   const [metrics, setMetrics] = useState<Record<string, PolicyMetric>>({});
   const [activating, setActivating] = useState<string | null>(null);
-
-  // ── Accepted payment methods (amenities.payment_methods) ──────────────
-  // Authorable channel content required by Push_PutProperty_RQ. Stored in the
-  // existing amenities JSONB — no schema migration. When empty the push still
-  // emits Cash + Credit card but readiness flags it as an unconfirmed default.
-  const [paymentMethods, setPaymentMethods] = useState<string[]>([]);
-  const [portfolioPaymentMethods, setPortfolioPaymentMethods] = useState<string[]>([]);
-  const [paymentMethodsLoading, setPaymentMethodsLoading] = useState(true);
-  const [paymentMethodsSaving, setPaymentMethodsSaving] = useState(false);
-
-  const loadPaymentMethods = useCallback(async () => {
-    if (!propertyId) return;
-    setPaymentMethodsLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from("properties")
-        .select("amenities, portfolio_id")
-        .eq("id", propertyId)
-        .maybeSingle();
-      if (error) throw error;
-      const amenities = (data?.amenities ?? {}) as Record<string, unknown>;
-      const authored = amenities.payment_methods;
-      setPaymentMethods(Array.isArray(authored) ? (authored as string[]) : []);
-
-      // Portfolio defaults for the "Use portfolio defaults" affordance.
-      const portfolioId = (data as any)?.portfolio_id as string | null | undefined;
-      if (portfolioId) {
-        const { data: siblingsRows } = await supabase
-          .from("properties")
-          .select("amenities")
-          .eq("portfolio_id", portfolioId)
-          .neq("id", propertyId)
-          .limit(20);
-        const inherited: string[] = [];
-        for (const row of siblingsRows ?? []) {
-          const pm = ((row as any)?.amenities as any)?.payment_methods;
-          if (Array.isArray(pm) && pm.length > 0) {
-            for (const k of pm) if (typeof k === "string" && !inherited.includes(k)) inherited.push(k);
-          }
-        }
-        setPortfolioPaymentMethods(inherited);
-      } else {
-        setPortfolioPaymentMethods([]);
-      }
-    } catch (e) {
-      console.warn("[PoliciesTab] payment methods load failed:", e);
-    } finally {
-      setPaymentMethodsLoading(false);
-    }
-  }, [propertyId]);
-
-  useEffect(() => {
-    void loadPaymentMethods();
-  }, [loadPaymentMethods]);
-
-  const savePaymentMethods = async (next: string[]) => {
-    setPaymentMethods(next);
-    setPaymentMethodsSaving(true);
-    try {
-      const { data: current, error: readErr } = await supabase
-        .from("properties")
-        .select("amenities")
-        .eq("id", propertyId)
-        .maybeSingle();
-      if (readErr) throw readErr;
-      const amenities = { ...((current?.amenities as Record<string, unknown>) ?? {}) };
-      if (next.length === 0) {
-        delete amenities.payment_methods;
-      } else {
-        amenities.payment_methods = next;
-      }
-      const { error: writeErr } = await supabase
-        .from("properties")
-        .update({ amenities })
-        .eq("id", propertyId);
-      if (writeErr) throw writeErr;
-      toast.success(next.length === 0 ? "Payment methods cleared" : "Payment methods saved");
-    } catch (e: any) {
-      toast.error(e?.message || "Could not save payment methods");
-      // Reload to stay in sync with DB on failure.
-      void loadPaymentMethods();
-    } finally {
-      setPaymentMethodsSaving(false);
-    }
-  };
 
   const siblingName = (id: string) => siblings.find((s) => s.id === id)?.name ?? "portfolio";
 
@@ -219,26 +133,6 @@ export const PoliciesTab: React.FC<PoliciesTabProps> = ({ propertyId, onOpenSpec
 
   return (
     <div className="space-y-5">
-      <FormSection
-        title="Accepted payment methods"
-        description="What guests may use to pay at the property. Required by Rentals United and every sales channel behind it."
-      >
-        <div data-field="payment_methods">
-          {paymentMethodsLoading ? (
-            <div className="flex items-center gap-2 py-3 text-xs text-muted-foreground">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading…
-            </div>
-          ) : (
-            <RuPaymentMethodsPicker
-              value={paymentMethods}
-              onChange={(next) => void savePaymentMethods(next)}
-              inheritedValue={portfolioPaymentMethods}
-              disabled={paymentMethodsSaving}
-            />
-          )}
-        </div>
-      </FormSection>
-
       <FormSection
         title="Master policy"
         description="The property-wide fallback used whenever a special or rate plan carries no terms of its own."
@@ -367,3 +261,4 @@ export const PoliciesTab: React.FC<PoliciesTabProps> = ({ propertyId, onOpenSpec
     </div>
   );
 };
+

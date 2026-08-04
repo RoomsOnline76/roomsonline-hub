@@ -35,7 +35,6 @@ import type { WebsiteSyncSuggestion } from "@/components/property/WebsiteSyncMod
 import { WebsiteSyncModal } from "@/components/property/WebsiteSyncModal";
 import { syncFromWebsite } from "@/lib/api/websiteSync";
 import { GooglePlaceSearchDialog } from "@/components/integrations/GooglePlaceSearchDialog";
-import { RuPropertySpaceFloorFields } from "@/components/property/RuPropertySpaceFloorFields";
 
 interface GeneralTabProps {
   // Form state
@@ -339,7 +338,7 @@ export function GeneralTab(props: GeneralTabProps) {
                 Import from WETU
               </Button>
             )}
-            <span className="text-[10px] text-muted-foreground">Available for any property — pulls description, images, amenities & geo from WETU.</span>
+            <span className="text-[10px] text-muted-foreground">Available for any property — pulls description, images, amenities &amp; geo from WETU.</span>
           </div>
           <Separator className="my-3" />
 
@@ -699,15 +698,6 @@ export function GeneralTab(props: GeneralTabProps) {
                   <p className="text-[10px] text-muted-foreground">Scan the website to auto-fill empty fields</p>
                 </div>
               </div>
-
-              {/* RU channel content fallbacks: property-level Floor + Size (m²) */}
-              <RuPropertySpaceFloorFields
-                amenities={formData.amenities}
-                onChange={(next) => {
-                  setFormData((prev: any) => ({ ...prev, amenities: next }));
-                  setIsDirty(true);
-                }}
-              />
             </CardContent>
           </Card>
 
