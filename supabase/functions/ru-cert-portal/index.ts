@@ -2552,7 +2552,15 @@ Deno.serve(async (req) => {
       const mcqOwnerId = Number(mcqOwnerAccount?.ru_owner_id ?? 0);
       const mcqScope = mcqOwnerId > 0 ? { owner_id: mcqOwnerId } : {};
 
-      const mcqResults: Array<{ ru_property_id: string; label: string; ok: boolean; error?: string; ru_status_id?: unknown }> = [];
+      const mcqResults: Array<{
+        ru_property_id: string;
+        label: string;
+        ok: boolean;
+        error?: string;
+        code?: string | null;
+        ru_response_id?: string | null;
+        ru_status_id?: unknown;
+      }> = [];
       for (const target of targets) {
         const { data: result, error: mcqErr } = await admin.functions.invoke("rentalsunited-api", {
           body: { action: "order_mcq", ru_property_id: target.ru_property_id, property_id: propertyId, ...mcqScope },
@@ -2564,30 +2572,44 @@ Deno.serve(async (req) => {
           ru_property_id: target.ru_property_id,
           ordered_by: user.id,
           status: ok ? "ordered" : "failed",
-          ru_status_id: result?.ru_status_id ?? null,
+          ru_status_id: result?.ru_status_id ?? result?.error?.ru_status_id ?? null,
           response_preview: preview(result ?? mcqErr?.message, 3000),
         });
-        mcqResults.push({ ru_property_id: target.ru_property_id, label: target.label, ok, error: errMessage, ru_status_id: result?.ru_status_id ?? null });
+        mcqResults.push({
+          ru_property_id: target.ru_property_id,
+          label: target.label,
+          ok,
+          error: errMessage,
+          code: result?.error?.code ?? null,
+          ru_response_id: result?.error?.ru_response_id ?? null,
+          ru_status_id: result?.ru_status_id ?? result?.error?.ru_status_id ?? null,
+        });
       }
+
 
       const ordered = mcqResults.filter((r) => r.ok);
       if (ordered.length === 0) {
         const firstError = mcqResults[0]?.error ?? "Rentals United rejected the quality check order";
-        // MCQ lives behind RU's LNM (Listing & Numbers Manager) subscription. Without it every
-        // listing is refused with "Subscribe to LNM first" — an account-level prerequisite the
-        // operator must enable with Rentals United, not a content problem on our side.
+        const firstCode = mcqResults[0]?.code ?? null;
+        // MCQ requires an LNM subscription that carries the PropertyMCQEligibilityCheck change
+        // type. `order_mcq` self-heals that, so a lingering "Subscribe to LNM first" means RU
+        // has not enabled the service on the account at all.
         const lnmMissing = /subscribe to lnm/i.test(firstError);
+        // RU status 17 is an RU-side internal fault, not a content problem on our side.
+        const ruInternal = firstCode === "RU_MCQ_INTERNAL_ERROR" || /unexpected error, contact it/i.test(firstError);
+        const code = lnmMissing ? "RU_LNM_NOT_SUBSCRIBED" : ruInternal ? "RU_MCQ_INTERNAL_ERROR" : "RU_MCQ_FAILED";
+        const message = lnmMissing
+          ? "Rentals United has not enabled the LNM (Minimum Content Quality) service on this account, so the quality check cannot be ordered. Ask your Rentals United account manager to subscribe the account to LNM — all content is already pushed and verified."
+          : ruInternal
+            ? `Rentals United returned an internal error (status 17) for the quality check. The LNM subscription is confirmed on this account and all content is pushed, so this needs Rentals United support — quote ResponseID ${mcqResults[0]?.ru_response_id ?? "(see run details)"}.`
+            : firstError;
         return json({
           success: false,
-          error: {
-            code: lnmMissing ? "RU_LNM_NOT_SUBSCRIBED" : "RU_MCQ_FAILED",
-            message: lnmMissing
-              ? "Rentals United has not enabled the LNM (Minimum Content Quality) service on this account, so the quality check cannot be ordered. Ask your Rentals United account manager to subscribe the account to LNM — all content is already pushed and verified."
-              : firstError,
-          },
+          error: { code, message },
           results: mcqResults,
-        }, lnmMissing ? 422 : 502);
+        }, lnmMissing || ruInternal ? 422 : 502);
       }
+
       return json({
         success: true,
         ordered_count: ordered.length,

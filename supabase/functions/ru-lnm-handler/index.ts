@@ -94,6 +94,49 @@ Deno.serve(async (req) => {
           method: req.method,
         },
       });
+
+      // PropertyMCQEligibilityCheck carries the asynchronous result of
+      // CM_LNM_OrderMinimumContentQualityCheck_RQ. Close out the matching order so the
+      // certification console shows pass/fail instead of a permanent "ordered".
+      if (changeType === 'PropertyMCQEligibilityCheck' && ruPropertyId) {
+        const successFlag = String(payload.Success ?? payload.success ?? '').trim().toLowerCase();
+        const resultText = String(payload.Result ?? payload.result ?? '').trim() || null;
+        const passed = successFlag === 'true' || successFlag === '1';
+        const { data: order } = await admin
+          .from('ru_mcq_orders')
+          .select('id, response_preview')
+          .eq('ru_property_id', ruPropertyId)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (order?.id) {
+          // response_preview is a text column holding a JSON document.
+          let existing: Record<string, unknown> = {};
+          try {
+            existing = JSON.parse(String((order as { response_preview?: string }).response_preview ?? '{}'));
+          } catch {
+            existing = {};
+          }
+          await admin
+            .from('ru_mcq_orders')
+            .update({
+              status: passed ? 'passed' : 'failed',
+              ru_status_id: resultText,
+              response_preview: JSON.stringify({
+                ...existing,
+                mcq_notification: {
+                  change_id: changeId,
+                  success: passed,
+                  result: resultText,
+                  received_at: new Date().toISOString(),
+                },
+              }),
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', order.id);
+        }
+
+      }
     } catch (err) {
       console.error('[ru-lnm-handler] log failed', err);
     }
