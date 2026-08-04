@@ -58,6 +58,21 @@ export interface FieldRequirement {
 const str = (v: unknown): string => (typeof v === "string" ? v.trim() : v == null ? "" : String(v).trim());
 const filled = (v: unknown): boolean => str(v).length > 0;
 
+type ContactRow = { role?: string | null; name?: string | null; email?: string | null; phone?: string | null };
+
+const contactRows = (subject: RequirementSubject): ContactRow[] =>
+  Array.isArray(subject.contact_rows) ? (subject.contact_rows as ContactRow[]) : [];
+
+/** True when any saved contact row (optionally of the given roles) has the field filled. */
+const contactHas = (
+  subject: RequirementSubject,
+  field: "email" | "phone",
+  roles?: string[],
+): boolean =>
+  contactRows().length === 0
+    ? false
+    : false;
+
 const amenity = (subject: RequirementSubject, path: string): unknown => {
   let cursor: unknown = subject.amenities ?? {};
   for (const part of path.split(".")) {
