@@ -1,0 +1,90 @@
+// Event-driven Rentals United ARI delta.
+//
+// RU requires availability and pricing to be re-pushed on change, not only on the
+// 24h/6h cron. Any ROLOS event that changes availability (booking confirmed, cancelled,
+// modified, calendar block) calls `queueRuAriDelta`, which:
+//   - skips properties that are not RU-connected,
+//   - debounces per property so a burst of events becomes one push,
+//   - respects RU's per-owner sliding-minute window by never firing more than one delta
+//     per property inside the debounce window,
+//   - delegates the actual push to `push-property-to-ru` (action: 'refresh_ari'), which is
+//     the single owner of the RU push contract.
+//
+// Failures are logged and swallowed: a channel refresh must never break the booking flow.
+
+/** Minimum gap between two deltas for the same property. */
+export const RU_ARI_DELTA_DEBOUNCE_MS = 5 * 60 * 1000;
+
+export interface RuAriDeltaOutcome {
+  queued: boolean;
+  reason?: "not_connected" | "debounced" | "error" | "no_property";
+  error?: string;
+}
+
+async function isRuConnected(supabase: any, propertyId: string): Promise<boolean> {
+  const [{ data: prop }, { data: units }] = await Promise.all([
+    supabase
+      .from("properties")
+      .select("rentalsunited_property_id, ru_push_enabled")
+      .eq("id", propertyId)
+      .maybeSingle(),
+    supabase
+      .from("hostfully_room_types")
+      .select("id")
+      .eq("property_id", propertyId)
+      .not("rentalsunited_property_id", "is", null)
+      .limit(1),
+  ]);
+  if (prop?.ru_push_enabled === false) return false;
+  return Boolean(prop?.rentalsunited_property_id) || (units?.length ?? 0) > 0;
+}
+
+async function recentlyPushed(supabase: any, propertyId: string): Promise<boolean> {
+  const since = new Date(Date.now() - RU_ARI_DELTA_DEBOUNCE_MS).toISOString();
+  const { data } = await supabase
+    .from("ru_sync_runs")
+    .select("id")
+    .eq("property_id", propertyId)
+    .eq("action", "refresh_ari")
+    .gte("created_at", since)
+    .limit(1);
+  return (data?.length ?? 0) > 0;
+}
+
+/**
+ * Fire an ARI delta for one property. Awaiting it is optional — callers in a request path
+ * should not block on the RU round-trip.
+ */
+export async function queueRuAriDelta(
+  supabase: any,
+  propertyId: string | null | undefined,
+  trigger: string,
+): Promise<RuAriDeltaOutcome> {
+  if (!propertyId) return { queued: false, reason: "no_property" };
+  try {
+    if (!(await isRuConnected(supabase, propertyId))) {
+      return { queued: false, reason: "not_connected" };
+    }
+    if (await recentlyPushed(supabase, propertyId)) {
+      console.log(`[ruAriDelta] Debounced ${trigger} delta for property ${propertyId}`);
+      return { queued: false, reason: "debounced" };
+    }
+
+    const { data, error } = await supabase.functions.invoke("push-property-to-ru", {
+      body: { property_id: propertyId, action: "refresh_ari", trigger },
+    });
+    if (error || data?.success === false) {
+      const message = error?.message || data?.error?.message || "ARI delta failed";
+      console.warn(`[ruAriDelta] ${trigger} delta failed for ${propertyId}: ${message}`);
+      return { queued: true, reason: "error", error: message };
+    }
+    console.log(`[ruAriDelta] ${trigger} delta pushed for property ${propertyId}`);
+    return { queued: true };
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    console.warn(`[ruAriDelta] ${trigger} delta threw for ${propertyId}: ${message}`);
+    return { queued: false, reason: "error", error: message };
+  }
+}
+
+export default queueRuAriDelta;
