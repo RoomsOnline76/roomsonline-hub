@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { AI_MODELS } from "../_shared/aiModels.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -83,7 +84,7 @@ IMPORTANT: Each response should be 1-2 sentences only. Be specific to THIS prope
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: AI_MODELS.editorial,
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },

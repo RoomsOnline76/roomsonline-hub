@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { AI_MODELS } from "../_shared/aiModels.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -165,7 +166,7 @@ Respond ONLY with valid JSON, no markdown or explanation.`;
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: AI_MODELS.review_sentiment,
         messages: [
           { role: "system", content: "You are a hospitality review analyst. Extract sentiment insights from guest reviews. Always respond with valid JSON only." },
           { role: "user", content: analysisPrompt }

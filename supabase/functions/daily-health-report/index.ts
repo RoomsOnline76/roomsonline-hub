@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { Resend } from 'https://esm.sh/resend@2.0.0';
+import { AI_MODELS } from "../_shared/aiModels.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -51,7 +52,7 @@ Respond with exactly this JSON format:
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-3-flash-preview',
+        model: AI_MODELS.health_report,
         messages: [
           { role: 'system', content: 'You are a technical operations analyst. Be direct, specific, and actionable. No marketing language.' },
           { role: 'user', content: prompt },

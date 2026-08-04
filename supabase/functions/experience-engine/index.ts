@@ -1,6 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { createSuccessResponse, createErrorResponse } from '../_shared/adapter-contract.ts';
 import { resolveExperienceConfig, callPmsAdapterWithLiveCheck } from '../_shared/experience-helpers.ts';
+import { AI_MODELS } from "../_shared/aiModels.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -589,7 +590,7 @@ Deno.serve(async (req) => {
                 'Content-Type': 'application/json',
               },
               body: JSON.stringify({
-                model: 'google/gemini-3-flash-preview',
+                model: AI_MODELS.experience_engine,
                 messages: [
                   { role: 'system', content: 'You are a property search assistant. Score each property against the query on a 0-100 scale. Only return properties with score > 30.' },
                   { role: 'user', content: `Query: "${query}"\n\nProperties:\n${JSON.stringify(propList)}` },
@@ -689,7 +690,7 @@ Deno.serve(async (req) => {
                 'Content-Type': 'application/json',
               },
               body: JSON.stringify({
-                model: 'google/gemini-3-flash-preview',
+                model: AI_MODELS.experience_engine,
                 messages: [
                   {
                     role: 'system',
