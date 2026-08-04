@@ -128,6 +128,63 @@ async function mintFromLogin(
   return { error: `Rentals United did not return a White Label token pair (${attempts.join('; ')})` };
 }
 
+/** White Label token exchange candidates using the sub-user's API key pair. */
+const RU_KEY_EXCHANGE_ENDPOINTS = [
+  'https://new.rentalsunited.com/api/authorization/token',
+  'https://new.rentalsunited.com/api/authorization/api-key-login',
+  'https://new.rentalsunited.com/api/white-pms/token',
+];
+
+/**
+ * Exchange the verified sub-user AccessKey/SecretKey for a White Label token pair.
+ * Rentals United has not published a programmatic endpoint for this, so every
+ * candidate is tried and any failure is reported back as a reason (never as a
+ * "your setup is incomplete" message).
+ */
+async function mintFromKeys(
+  accessKey: string,
+  secretKey: string,
+  ownerId: string,
+): Promise<{ access: string; refresh: string; ttl: number } | { error: string }> {
+  const attempts: string[] = [];
+  for (const url of RU_KEY_EXCHANGE_ENDPOINTS) {
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ accessKey, secretKey, ownerId }),
+      });
+      const text = await res.text();
+      if (!res.ok) {
+        attempts.push(`HTTP ${res.status}`);
+        continue;
+      }
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        attempts.push('non-JSON response');
+        continue;
+      }
+      const { access, refresh, ttl } = extractTokens(parsed);
+      if (access && refresh) {
+        console.log('[ru-whitelabel-token] Minted White Label tokens from sub-user API keys');
+        return { access, refresh, ttl: ttl ?? DEFAULT_TTL_SECONDS };
+      }
+      attempts.push('no token pair in response');
+    } catch (e) {
+      attempts.push(e instanceof Error ? e.message : 'request failed');
+    }
+  }
+  console.warn(`[ru-whitelabel-token] Key exchange unavailable: ${attempts.join(' | ')}`);
+  return {
+    error:
+      'Rentals United has not issued a White Label token pair for this verified sub-user yet. Your Rentals United connection is fine — the Channel Manager sign-in still needs to be finalised.',
+  };
+}
+
+
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
 
