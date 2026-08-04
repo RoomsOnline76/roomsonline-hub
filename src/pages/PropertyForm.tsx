@@ -5378,6 +5378,13 @@ export default function PropertyForm({
                   </Card>
                 </div>
 
+                {/* Portfolio Commons — central store for data shared by every property in the portfolio */}
+                {isEditMode && propertyId && (
+                  <PortfolioCommonsCard propertyId={propertyId} isDirty={isDirty} />
+                )}
+
+
+
                 {/* RU owner sub-account: identity link + API key capture (ROL'OS PMS only) */}
                 {isEditMode && propertyId && (
                   <PropertyRuOwnerPanel
