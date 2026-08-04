@@ -292,79 +292,35 @@ Deno.serve(async (req) => {
 
         for (const leadBlock of leadBlocks) {
           try {
-            const parsed = parseReservation(leadBlock);
+            const parsed = parseRuReservation(leadBlock);
             const leadId = extractTag(leadBlock, 'LeadID') || parsed.ruReservationId;
             if (!leadId) continue;
 
-            const ruPropertyId = parsed.ruPropertyId;
-            const guestName = parsed.guestName === 'RU Guest' ? 'RU Lead' : parsed.guestName;
-            const leadFrom = parsed.dateFrom;
-            const leadTo = parsed.dateTo;
             const createdRaw =
               parsed.createdDate ||
               extractTag(leadBlock, 'DateCreated') ||
               extractTag(leadBlock, 'CreationDate') ||
               extractTag(leadBlock, 'DateRequested');
-            const leadCreatedAt = createdRaw ? new Date(createdRaw.replace(' ', 'T') + 'Z') : new Date();
-            const holdExpiresAt = new Date(leadCreatedAt.getTime() + LEAD_HOLD_DAYS * 86_400_000);
 
-            // Resolve property + displayed unit
-            const unit = await resolveUnit(ruPropertyId);
-            const propertyId = unit.propertyId;
-            const roomTypeId = unit.roomTypeId;
+            // A lead becomes a provisional (pending) booking holding the dates for
+            // LEAD_HOLD_DAYS; ru-lead-lifecycle releases or rejects it afterwards.
+            const result = await ingestRuReservation(
+              supabase,
+              {
+                ...parsed,
+                ruReservationId: leadId,
+                guestName: parsed.guestName === 'RU Guest' ? 'RU Lead' : parsed.guestName,
+                createdDate: createdRaw,
+              },
+              { source: 'poll', logPrefix: '[cron-pull-ru][lead]', forceRequest: true },
+            );
 
-            // A lead becomes a provisional (pending) booking that holds the dates for
-            // LEAD_HOLD_DAYS. ru-lead-lifecycle releases or rejects it afterwards.
-            if (propertyId && leadFrom && leadTo) {
-              const { data: existingLead } = await supabase
-                .from('bookings')
-                .select('id, status, hold_released_at')
-                .eq('external_reservation_id', leadId)
-                .in('integration_type', ['rentalsunited_lead', 'rentalsunited'])
-                .limit(1)
-                .maybeSingle();
-
-              if (!existingLead) {
-                const leadBooking: Record<string, unknown> = {
-                  property_id: propertyId,
-                  guest_name: guestName,
-                  guest_email: parsed.guestEmail === 'ru-poll@rentalsunited.com' ? 'ru-lead@rentalsunited.com' : parsed.guestEmail,
-                  guest_phone: parsed.guestPhone,
-                  check_in_date: leadFrom,
-                  check_out_date: leadTo,
-                  adults: parsed.numGuests || 1,
-                  total_price: parsed.total || 0,
-                  status: 'pending',
-                  booking_channel: 'rentals_united',
-                  integration_type: 'rentalsunited_lead',
-                  external_reservation_id: leadId,
-                  payment_status: 'pending',
-                  lead_created_at: leadCreatedAt.toISOString(),
-                  hold_expires_at: holdExpiresAt.toISOString(),
-                  modification_notes: buildChannelNotes(parsed, { lead: true, ru_lead_id: leadId }),
-                  special_requests:
-                    `Rentals United enquiry — dates held until ${holdExpiresAt.toISOString().slice(0, 10)}` +
-                    (parsed.comments ? ` · ${parsed.comments}` : ''),
-                };
-                if (roomTypeId) leadBooking.room_type_id = roomTypeId;
-
-                const { error: leadBookingErr } = await supabase.from('bookings').insert(leadBooking);
-                if (leadBookingErr) {
-                  console.error(`[cron-pull-ru] Lead booking insert failed for ${leadId}: ${leadBookingErr.message}`);
-                } else {
-                  summary.leads_held++;
-                  if (holdExpiresAt.getTime() > Date.now()) {
-                    await applyAvailabilityBlock(propertyId, unit.mappingRoomTypeId, leadFrom, leadTo, true);
-                  }
-                  console.log(`[cron-pull-ru] ✅ Held lead ${leadId} (${guestName}) until ${holdExpiresAt.toISOString()}`);
-                }
-              }
-            } else if (propertyId) {
-              console.warn(`[cron-pull-ru] Lead ${leadId} has no usable stay dates — logged only`);
+            if (result.outcome === 'held') summary.leads_held++;
+            else if (result.outcome === 'unmatched' || result.outcome === 'skipped') {
+              console.warn(`[cron-pull-ru] Lead ${leadId} not held: ${result.note ?? result.outcome}`);
             }
 
-
-            // Deduplicate the notification log only (the booking upsert above is idempotent)
+            // Deduplicate the notification log only (the booking ingest above is idempotent)
             const { data: existingNotif } = await supabase
               .from('ru_notifications')
               .select('id')
@@ -377,18 +333,19 @@ Deno.serve(async (req) => {
               await supabase.from('ru_notifications').insert({
                 event_type: 'poll_lead',
                 ru_reservation_id: leadId,
-                ru_property_id: ruPropertyId,
-                property_id: propertyId,
+                ru_property_id: parsed.ruPropertyId,
+                property_id: result.propertyId,
                 raw_xml: leadBlock,
                 processed: true,
               });
               summary.leads_logged++;
-              console.log(`[cron-pull-ru] ✅ Logged lead ${leadId} from ${guestName} (${parsed.guestEmail})`);
+              console.log(`[cron-pull-ru] ✅ Logged lead ${leadId} from ${parsed.guestName} (${parsed.guestEmail})`);
             }
           } catch (leadErr) {
             console.error(`[cron-pull-ru] Error processing lead:`, leadErr);
           }
         }
+
 
       } catch (leadsError) {
         console.warn(`[cron-pull-ru] Leads polling error (non-fatal) for ${scope.label}:`, leadsError);
