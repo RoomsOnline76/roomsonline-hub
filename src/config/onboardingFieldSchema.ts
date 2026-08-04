@@ -8,9 +8,10 @@
  * 
  * REORGANIZED: 12 steps → 9 steps for streamlined UX
  * ENHANCED: Intent-aware step filtering and completion states
+ * RU DENSITY: time_zone (UTC±HH:MM), ru_location_id, key company fields
  */
 
-export const WIZARD_VERSION = "2.1";
+export const WIZARD_VERSION = "2.2";
 
 export const PROPERTY_TYPES = [
   "apartment",
@@ -127,7 +128,7 @@ export const WIZARD_SECTIONS: WizardSection[] = [
     weight: 20,
     icon: "Building2",
     estimatedMinutes: 5,
-    whyItMatters: "This establishes your property's brand presence and helps guests find you.",
+    whyItMatters: "This establishes your property's brand presence and helps guests find you. Business details (time zone, key rep) are required for channel distribution.",
     requiredFor: ['accommodation', 'venue', 'hybrid', 'experience']
   },
   {
@@ -143,11 +144,11 @@ export const WIZARD_SECTIONS: WizardSection[] = [
   {
     id: "location",
     title: "Location",
-    description: "Property address and surroundings",
+    description: "Property address, RU location & surroundings",
     weight: 15,
     icon: "MapPin",
-    estimatedMinutes: 3,
-    whyItMatters: "Accurate location helps guests find you and enables map-based search.",
+    estimatedMinutes: 4,
+    whyItMatters: "Accurate location helps guests find you. The RU LocationID locks the property into the correct channel currency.",
     requiredFor: ['accommodation', 'venue', 'hybrid', 'experience']
   },
   {
@@ -392,6 +393,13 @@ export const CRITICAL_FIELDS: FieldDefinition[] = [
   { key: 'country', label: 'Country', section: 'location', impact: 'critical', requiredFor: ['accommodation', 'venue', 'hybrid', 'experience'] },
   { key: 'amenities.telephone', label: 'Contact Phone', section: 'contact_details', impact: 'critical', requiredFor: ['accommodation', 'venue', 'hybrid', 'experience'] },
   { key: 'amenities.contact_email', label: 'Contact Email', section: 'contact_details', impact: 'critical', requiredFor: ['accommodation', 'venue', 'hybrid', 'experience'] },
+  // RU company-push critical (maximum density after wizard)
+  { key: 'amenities.time_zone', label: 'Time Zone', section: 'property_identity', impact: 'critical', requiredFor: ['accommodation', 'venue', 'hybrid', 'experience'] },
+  { key: 'amenities.ru_location_id', label: 'RU Location', section: 'location', impact: 'critical', requiredFor: ['accommodation', 'venue', 'hybrid', 'experience'] },
+  { key: 'amenities.registered_business_name', label: 'Registered Business Name', section: 'property_identity', impact: 'critical', requiredFor: ['accommodation', 'venue', 'hybrid', 'experience'] },
+  { key: 'amenities.key_representative', label: 'Key Representative', section: 'property_identity', impact: 'critical', requiredFor: ['accommodation', 'venue', 'hybrid', 'experience'] },
+  { key: 'amenities.mobile_number', label: 'Mobile Number', section: 'property_identity', impact: 'critical', requiredFor: ['accommodation', 'venue', 'hybrid', 'experience'] },
+  { key: 'amenities.region', label: 'Region / Province', section: 'location', impact: 'critical', requiredFor: ['accommodation', 'venue', 'hybrid', 'experience'] },
 ];
 
 export const HIGH_IMPACT_FIELDS: FieldDefinition[] = [
