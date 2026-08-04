@@ -489,9 +489,10 @@ const CADENCE_RULES = [
   { key: "PutPrices", label: "Pricing refresh", ru_method: "Push_PutPrices_RQ", max_age_hours: 24, actions: ["refresh_ari", "PutPrices", "push_prices", "pricing_playground", "pricing_duplicate_test"] },
   { key: "ListReservations", label: "Reservation pull", ru_method: "Pull_ListReservations_RQ", max_age_hours: 1, actions: ["pull_reservations", "ListReservations"] },
   { key: "PutHandlerUrl", label: "RLNM handler subscription", ru_method: "LNM_PutHandlerUrl_RQ", max_age_hours: 24, actions: ["weekly_content_refresh", "PutHandlerUrl", "RLNM"] },
-  { key: "PutLnmSubscriptions", label: "LNM subscriptions (content + ARI)", ru_method: "Push_PutLiveNotificationMechanismSubscriptions_RQ", max_age_hours: 24, actions: ["PutLnmSubscriptions", "LNM"] },
-  { key: "ListLnmSubscriptions", label: "LNM subscription read-back", ru_method: "Pull_ListLiveNotificationMechanismSubscriptions_RQ", max_age_hours: 24, actions: ["ListLnmSubscriptions"] },
+  { key: "PutLnmSubscriptions", label: "LNM subscriptions (content + ARI)", ru_method: "Push_PutLiveNotificationMechanismSubscriptions_RQ", max_age_hours: 24, actions: ["PutLnmSubscriptions", "LNM", "lnm_duplicate_test"] },
+  { key: "ListLnmSubscriptions", label: "LNM subscription read-back", ru_method: "Pull_ListLiveNotificationMechanismSubscriptions_RQ", max_age_hours: 24, actions: ["ListLnmSubscriptions", "lnm_duplicate_test"] },
 ];
+
 
 // pg_cron jobs that must exist for RU cadence compliance
 const EXPECTED_JOBS = [
