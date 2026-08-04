@@ -1384,6 +1384,9 @@ const CHILD_AUTH_STRICT_ACTIONS = new Set([
   'reject_request',
   'cancel_reservation',
   'subscribe_notifications',
+  'put_lnm_subscriptions',
+  'list_lnm_subscriptions',
+
 ]);
 
 
