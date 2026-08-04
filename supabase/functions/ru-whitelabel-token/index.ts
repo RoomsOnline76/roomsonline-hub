@@ -179,7 +179,7 @@ async function mintFromKeys(
   console.warn(`[ru-whitelabel-token] Key exchange unavailable: ${attempts.join(' | ')}`);
   return {
     error:
-      'Rentals United has not issued a White Label token pair for this verified sub-user yet. Your Rentals United connection is fine — the Channel Manager sign-in still needs to be finalised.',
+      "White Label token pair not yet available from the channel provider. The ROL'OS connection is unaffected; sign-in will be retried automatically.",
   };
 }
 
