@@ -16,6 +16,7 @@ import { evaluatePhases, findOwnerAccount, resolvePortfolioId } from "../_shared
 import { createRateResolver, describeCoverage } from "../_shared/rateResolution.ts";
 import { parseRuPricePoints } from "../_shared/ruPriceParsing.ts";
 import { countRuOpenDays } from "../_shared/ruAvailabilityParsing.ts";
+import { DEFAULT_LNM_CHANGE_TYPES, diffLnmSubscriptions, parseLnmSubscriptions } from "../_shared/ruLnm.ts";
 import {
   RU_EMPLOYEE_RANGES,
   RU_PROPERTY_RANGES,
@@ -202,6 +203,9 @@ const RU_METHOD_BY_ACTION: Record<string, string> = {
   push_availability: "Push_PutAvbUnits_RQ",
   push_prices: "Push_PutPrices_RQ",
   subscribe_notifications: "LNM_PutHandlerUrl_RQ",
+  put_lnm_subscriptions: "Push_PutLiveNotificationMechanismSubscriptions_RQ",
+  list_lnm_subscriptions: "Pull_ListLiveNotificationMechanismSubscriptions_RQ",
+  list_lnm_change_types: "Pull_ListLiveNotificationMechanismChangeTypes_RQ",
   push_long_stay_discounts: "Push_PutLongStayDiscounts_RQ",
   push_last_minute_discounts: "Push_PutLastMinuteDiscounts_RQ",
   get_long_stay_discounts: "Pull_ListLongStayDiscounts_RQ",
@@ -229,6 +233,7 @@ const CERT_CHILD_SCOPED_ACTIONS = new Set([
   "push_property",
   "set_property_status",
   "order_mcq",
+  "put_lnm_subscriptions",
   "push_change_currency",
   "list_buildings",
   "get_building",
@@ -269,7 +274,10 @@ const CERT_MILESTONES: { key: string; label: string; ru_method: string; mandator
   { key: "push_property", label: "Push property content", ru_method: "Push_PutProperty_RQ", mandatory: true, scope: "property", note: "Create + update" },
   { key: "push_availability", label: "Push availability", ru_method: "Push_PutAvbUnits_RQ", mandatory: true, scope: "property", note: "" },
   { key: "push_prices", label: "Push prices", ru_method: "Push_PutPrices_RQ", mandatory: true, scope: "property", note: "" },
-  { key: "rlnm", label: "Subscribe RLNM handler", ru_method: "LNM_PutHandlerUrl_RQ", mandatory: true, scope: "account", note: "Live notifications" },
+  { key: "rlnm", label: "Subscribe RLNM handler", ru_method: "LNM_PutHandlerUrl_RQ", mandatory: true, scope: "account", note: "Reservation notifications" },
+  { key: "lnm_subscribe", label: "Subscribe LNM (content + ARI)", ru_method: "Push_PutLiveNotificationMechanismSubscriptions_RQ", mandatory: true, scope: "account", note: "Content / availability / price change webhooks" },
+  { key: "lnm_verify", label: "Verify LNM subscriptions", ru_method: "Pull_ListLiveNotificationMechanismSubscriptions_RQ", mandatory: true, scope: "account", note: "Read-back — detects silent subscription drift" },
+  { key: "lnm_change_types", label: "List LNM change types", ru_method: "Pull_ListLiveNotificationMechanismChangeTypes_RQ", mandatory: false, scope: "account", note: "Dictionary read" },
   { key: "reservations", label: "Pull reservations", ru_method: "Pull_ListReservations_RQ", mandatory: true, scope: "account", note: "" },
   { key: "leads", label: "Pull leads", ru_method: "Pull_GetLeads_RQ", mandatory: false, scope: "account", note: "Optional" },
   { key: "long_stay", label: "Long-stay discounts", ru_method: "Push_PutLongStayDiscounts_RQ", mandatory: false, scope: "property", note: "Optional but recommended" },
@@ -284,6 +292,8 @@ const CADENCE_RULES = [
   { key: "PutPrices", label: "Pricing refresh", ru_method: "Push_PutPrices_RQ", max_age_hours: 24, actions: ["refresh_ari", "PutPrices", "push_prices"] },
   { key: "ListReservations", label: "Reservation pull", ru_method: "Pull_ListReservations_RQ", max_age_hours: 1, actions: ["pull_reservations", "ListReservations"] },
   { key: "PutHandlerUrl", label: "RLNM handler subscription", ru_method: "LNM_PutHandlerUrl_RQ", max_age_hours: 24, actions: ["weekly_content_refresh", "PutHandlerUrl", "RLNM"] },
+  { key: "PutLnmSubscriptions", label: "LNM subscriptions (content + ARI)", ru_method: "Push_PutLiveNotificationMechanismSubscriptions_RQ", max_age_hours: 24, actions: ["PutLnmSubscriptions", "LNM"] },
+  { key: "ListLnmSubscriptions", label: "LNM subscription read-back", ru_method: "Pull_ListLiveNotificationMechanismSubscriptions_RQ", max_age_hours: 24, actions: ["ListLnmSubscriptions"] },
 ];
 
 // pg_cron jobs that must exist for RU cadence compliance
@@ -291,7 +301,7 @@ const EXPECTED_JOBS = [
   { jobname: "ru-content-weekly", schedule: "0 2 * * 1", fn: "cron-push-all-properties-to-ru", label: "Weekly property content push" },
   { jobname: "ru-ari-refresh", schedule: "0 */6 * * *", fn: "cron-refresh-ru-ari", label: "ARI refresh (every 6h)" },
   { jobname: "ru-reservations-poll", schedule: "*/30 * * * *", fn: "cron-pull-ru-reservations", label: "Reservation poll (every 30 min)" },
-  { jobname: "ru-rlnm-daily", schedule: "0 1 * * *", fn: "cron-ru-rlnm-refresh", label: "RLNM handler re-subscribe (daily)" },
+  { jobname: "ru-rlnm-daily", schedule: "0 1 * * *", fn: "cron-ru-rlnm-refresh", label: "RLNM + LNM subscriptions re-subscribe (daily)" },
 ];
 
 const RUNNABLE_JOBS = new Set(EXPECTED_JOBS.map((j) => j.fn));
@@ -3177,6 +3187,11 @@ Deno.serve(async (req) => {
           },
         );
 
+        await call("List LNM change types", "list_lnm_change_types", {}, {
+          mandatory: false,
+          scope: "account",
+          successDetail: "RU change-type dictionary read",
+        });
         await call("List composition rooms", "list_composition_rooms", {}, { mandatory: false, scope: "account" });
         await call("List cities & currencies", "list_cities_and_currencies", {}, { mandatory: false, scope: "account" });
         await call(
@@ -3190,6 +3205,78 @@ Deno.serve(async (req) => {
       if (runMandatory) {
         const handlerUrl = `${supabaseUrl}/functions/v1/ru-reservation-handler`;
         await call("Subscribe RLNM handler", "subscribe_notifications", { handler_url: handlerUrl }, { mandatory: true, scope: "account" });
+
+        // ── LNM (content + ARI change notifications) ──────────────────────────────
+        // Separate from RLNM: LNM tells channels that content, availability or prices
+        // changed. Registered per account, so the sub-user's OwnerID is what RU must
+        // observe when a white-label property is under certification.
+        const lnmUrlBase = `${supabaseUrl}/functions/v1/ru-lnm-handler`;
+        const lnmObservedOwners: string[] = [];
+        if (certOwnerId) {
+          lnmObservedOwners.push(String(certOwnerId));
+        } else {
+          const masterOwnerId = (Deno.env.get("RU_MASTER_OWNER_ID") ?? Deno.env.get("RU_OWNER_ID") ?? "").trim();
+          if (/^\d+$/.test(masterOwnerId)) lnmObservedOwners.push(masterOwnerId);
+          const { data: ownerRows } = await admin
+            .from("ru_owner_accounts")
+            .select("ru_owner_id")
+            .not("ru_owner_id", "is", null);
+          for (const r of (ownerRows ?? []) as { ru_owner_id: string }[]) {
+            const id = String(r.ru_owner_id).trim();
+            if (/^\d+$/.test(id) && !lnmObservedOwners.includes(id)) lnmObservedOwners.push(id);
+          }
+        }
+
+        const lnmDesired = {
+          change_types: DEFAULT_LNM_CHANGE_TYPES,
+          observed_owners: lnmObservedOwners,
+          url_base: lnmUrlBase,
+        };
+
+        await call(
+          "Subscribe LNM (content + ARI)",
+          "put_lnm_subscriptions",
+          {
+            url_base: lnmUrlBase,
+            change_types: DEFAULT_LNM_CHANGE_TYPES,
+            observed_owners: lnmObservedOwners,
+            ...(certOwnerId ? { owner_id: certOwnerId } : {}),
+          },
+          {
+            mandatory: true,
+            scope: "account",
+            skip: lnmObservedOwners.length === 0
+              ? "No RU OwnerID available to observe — link a sub-user account or configure the master OwnerID."
+              : certOwnerId && !certOwnerHasKeys
+                ? `No API keys stored for OwnerID ${certOwnerId} — subscriptions must be registered under the sub-user's own keys.`
+                : undefined,
+            successDetail: `Subscribed ${DEFAULT_LNM_CHANGE_TYPES.length} change types for OwnerID(s) ${lnmObservedOwners.join(", ")}`,
+          },
+        );
+
+        await call(
+          "Verify LNM subscriptions",
+          "list_lnm_subscriptions",
+          { ...(certOwnerId ? { owner_id: certOwnerId } : {}) },
+          {
+            mandatory: true,
+            scope: "account",
+            skip: lnmObservedOwners.length === 0
+              ? "No LNM subscription expected — nothing to read back."
+              : undefined,
+            assert: (d) => {
+              const actual = d?.subscriptions ?? parseLnmSubscriptions(String(d?.raw_xml ?? ""));
+              const drift = diffLnmSubscriptions(actual, lnmDesired);
+              if (drift.in_sync) return null;
+              const parts: string[] = [];
+              if (!drift.url_matches) parts.push(`UrlBase at RU is ${actual?.url_base ?? "(none)"} — expected ${lnmUrlBase}`);
+              if (drift.missing_change_types.length) parts.push(`missing change types: ${drift.missing_change_types.join(", ")}`);
+              if (drift.missing_owners.length) parts.push(`missing observed owners: ${drift.missing_owners.join(", ")}`);
+              return `LNM subscription drift — ${parts.join("; ")}`;
+            },
+            successDetail: "RU confirms our LNM subscription (URL, change types and observed owners all match)",
+          },
+        );
 
         if (propertyId) {
           // Content + ARI push via the property pipeline (keeps payload mapping in one place)

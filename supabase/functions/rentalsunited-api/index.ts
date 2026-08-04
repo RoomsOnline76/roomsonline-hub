@@ -7,7 +7,14 @@ import {
   rangeIdForCount,
   type RuRange,
 } from '../_shared/ruRanges.ts';
+import {
+  DEFAULT_LNM_CHANGE_TYPES,
+  KNOWN_LNM_CHANGE_TYPE_IDS,
+  parseLnmChangeTypes,
+  parseLnmSubscriptions,
+} from '../_shared/ruLnm.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
 
 /**
  * Rentals United XML API Adapter
@@ -27,7 +34,11 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
  * - push_availability: Push_PutAvbUnits_RQ
  * - push_prices: Push_PutPrices_RQ (standard <Season> with optional EGPS/LOSS)
  * - push_prices_fsp: Push_PutPrices_RQ (Full Stay Pricing matrix)
- * - subscribe_notifications: LNM_PutHandlerUrl_RQ
+ * - subscribe_notifications: LNM_PutHandlerUrl_RQ (RLNM — reservations)
+ * - put_lnm_subscriptions: Push_PutLiveNotificationMechanismSubscriptions_RQ (LNM — content/ARI)
+ * - list_lnm_subscriptions: Pull_ListLiveNotificationMechanismSubscriptions_RQ
+ * - list_lnm_change_types: Pull_ListLiveNotificationMechanismChangeTypes_RQ
+
  * - push_long_stay_discounts: Push_PutLongStayDiscounts_RQ
  * - push_last_minute_discounts: Push_PutLastMinuteDiscounts_RQ
  * - create_user: Push_CreateUser_RQ
@@ -237,7 +248,12 @@ interface RequestBody {
   // Reservation / request lifecycle
   reservation_id?: string | number;
   reject_reason?: string;
+  // Live Notification Mechanism (LNM) subscriptions
+  url_base?: string;
+  change_types?: string[];
+  observed_owners?: (string | number)[];
 }
+
 
 
 // ── XML Helpers ──────────────────────────────────────────────
@@ -826,6 +842,46 @@ function buildSubscribeNotificationsXml(creds: RUCredentials, handlerUrl: string
 </LNM_PutHandlerUrl_RQ>`;
 }
 
+/**
+ * Push_PutLiveNotificationMechanismSubscriptions_RQ — content/ARI change webhooks.
+ * Element order is fixed by RU's XSD: ChangeTypes → ObservedOwners → UrlBase.
+ */
+function buildPutLnmSubscriptionsXml(
+  creds: RUCredentials,
+  changeTypes: string[],
+  observedOwners: string[],
+  urlBase: string,
+): string {
+  const types = changeTypes.map((t) => `    <Type>${escapeXml(t)}</Type>`).join('\n');
+  const owners = observedOwners.map((o) => `    <Owner>${escapeXml(String(o))}</Owner>`).join('\n');
+  return `<?xml version="1.0" encoding="utf-8"?>
+<Push_PutLiveNotificationMechanismSubscriptions_RQ>
+  ${buildAuthXml(creds)}
+  <ChangeTypes>
+${types}
+  </ChangeTypes>
+  <ObservedOwners>
+${owners}
+  </ObservedOwners>
+  <UrlBase>${escapeXml(urlBase)}</UrlBase>
+</Push_PutLiveNotificationMechanismSubscriptions_RQ>`;
+}
+
+function buildListLnmSubscriptionsXml(creds: RUCredentials): string {
+  return `<?xml version="1.0" encoding="utf-8"?>
+<Pull_ListLiveNotificationMechanismSubscriptions_RQ>
+  ${buildAuthXml(creds)}
+</Pull_ListLiveNotificationMechanismSubscriptions_RQ>`;
+}
+
+function buildListLnmChangeTypesXml(creds: RUCredentials): string {
+  return `<?xml version="1.0" encoding="utf-8"?>
+<Pull_ListLiveNotificationMechanismChangeTypes_RQ>
+  ${buildAuthXml(creds)}
+</Pull_ListLiveNotificationMechanismChangeTypes_RQ>`;
+}
+
+
 function validateDiscountEntry(d: RUDiscountEntry): string | null {
   if (!d.date_from || !d.date_to) return 'date_from and date_to are required';
   if (d.date_from > d.date_to) return `DateFrom (${d.date_from}) must be <= DateTo (${d.date_to})`;
@@ -1302,6 +1358,12 @@ const CHILD_SCOPED_ACTIONS = new Set([
   'reject_request',
   'cancel_reservation',
   'subscribe_notifications',
+  // LNM subscriptions are per-account: subscribing on master credentials leaves the
+  // sub-user's content/ARI changes unnotified.
+  'put_lnm_subscriptions',
+  'list_lnm_subscriptions',
+  'list_lnm_change_types',
+
 ]);
 
 
@@ -1333,6 +1395,9 @@ const CHILD_AUTH_STRICT_ACTIONS = new Set([
   'reject_request',
   'cancel_reservation',
   'subscribe_notifications',
+  'put_lnm_subscriptions',
+  'list_lnm_subscriptions',
+
 ]);
 
 
@@ -1711,6 +1776,10 @@ Deno.serve(async (req) => {
             push_availability: true,
             push_prices: true,
             subscribe_notifications: true,
+            put_lnm_subscriptions: true,
+            list_lnm_subscriptions: true,
+            list_lnm_change_types: true,
+
             push_long_stay_discounts: true,
             push_last_minute_discounts: true,
             create_user: true,
@@ -2219,6 +2288,58 @@ Deno.serve(async (req) => {
       const { ok, status } = handleRUStatus(response);
       if (!ok) return ruErrorResponse(status);
       return jsonResponse({ success: true, auth_mode: authMode, message: 'Notification handler registered successfully', raw_xml: response });
+    }
+
+    // ── put_lnm_subscriptions (LNM content/ARI webhooks) ──
+    if (action === 'put_lnm_subscriptions') {
+      if (!body.url_base) return errorResponse('MISSING_PARAM', 'url_base is required');
+      const changeTypes = (body.change_types?.length ? body.change_types : DEFAULT_LNM_CHANGE_TYPES)
+        .map((t) => String(t).trim())
+        .filter(Boolean);
+      const unknown = changeTypes.filter((t) => !KNOWN_LNM_CHANGE_TYPE_IDS.has(t));
+      if (unknown.length) {
+        return errorResponse('INVALID_PARAM', `Unknown LNM change type(s): ${unknown.join(', ')}`);
+      }
+      const observedOwners = (body.observed_owners ?? [])
+        .map((o) => String(o).trim())
+        .filter((o) => /^\d+$/.test(o));
+      if (observedOwners.length === 0) {
+        return errorResponse(
+          'MISSING_PARAM',
+          'observed_owners is required — RU needs at least one OwnerID to observe for this account',
+        );
+      }
+      const xml = buildPutLnmSubscriptionsXml(scopedCreds, changeTypes, observedOwners, body.url_base);
+      const response = await callRentalsUnited(scopedCreds, xml);
+      const { ok, status } = handleRUStatus(response);
+      if (!ok) return ruErrorResponse(status);
+      return jsonResponse({
+        success: true,
+        auth_mode: authMode,
+        message: `LNM subscriptions registered for ${changeTypes.length} change type(s) across ${observedOwners.length} owner(s)`,
+        subscribed: { change_types: changeTypes, observed_owners: observedOwners, url_base: body.url_base },
+        raw_xml: response,
+      });
+    }
+
+    // ── list_lnm_subscriptions (read-back verification) ──
+    if (action === 'list_lnm_subscriptions') {
+      const xml = buildListLnmSubscriptionsXml(scopedCreds);
+      const response = await callRentalsUnited(scopedCreds, xml);
+      const { ok, status } = handleRUStatus(response);
+      if (!ok) return ruErrorResponse(status);
+      const subscriptions = parseLnmSubscriptions(response);
+      return jsonResponse({ success: true, auth_mode: authMode, subscriptions, raw_xml: response });
+    }
+
+    // ── list_lnm_change_types (dictionary) ──
+    if (action === 'list_lnm_change_types') {
+      const xml = buildListLnmChangeTypesXml(scopedCreds);
+      const response = await callRentalsUnited(scopedCreds, xml);
+      const { ok, status } = handleRUStatus(response);
+      if (!ok) return ruErrorResponse(status);
+      return jsonResponse({ success: true, auth_mode: authMode, change_types: parseLnmChangeTypes(response), raw_xml: response });
+
     }
 
 
