@@ -354,12 +354,25 @@ Deno.serve(async (req) => {
       });
     }
 
+    if (subUserVerified) {
+      return json({
+        success: true,
+        available: false,
+        reason: 'awaiting_wl_token',
+        sub_user_verified: true,
+        message:
+          keyExchangeError ??
+          'The Rentals United sub-user is connected and verified, but no White Label Channel Manager token pair has been issued yet.',
+      });
+    }
+
     return json({
       success: true,
       available: false,
       reason: 'no_credentials',
-      message: 'No Rentals United sub-user login or White Label token pair is stored for this owner.',
+      message: 'No Rentals United sub-user credentials or White Label token pair are stored for this owner.',
     });
+
   } catch (error) {
     console.error('[ru-whitelabel-token] Error:', error);
     return json({ error: error instanceof Error ? error.message : 'Unexpected error' }, 500);
