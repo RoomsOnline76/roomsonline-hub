@@ -831,6 +831,46 @@ function buildSubscribeNotificationsXml(creds: RUCredentials, handlerUrl: string
 </LNM_PutHandlerUrl_RQ>`;
 }
 
+/**
+ * Push_PutLiveNotificationMechanismSubscriptions_RQ — content/ARI change webhooks.
+ * Element order is fixed by RU's XSD: ChangeTypes → ObservedOwners → UrlBase.
+ */
+function buildPutLnmSubscriptionsXml(
+  creds: RUCredentials,
+  changeTypes: string[],
+  observedOwners: string[],
+  urlBase: string,
+): string {
+  const types = changeTypes.map((t) => `    <Type>${escapeXml(t)}</Type>`).join('\n');
+  const owners = observedOwners.map((o) => `    <Owner>${escapeXml(String(o))}</Owner>`).join('\n');
+  return `<?xml version="1.0" encoding="utf-8"?>
+<Push_PutLiveNotificationMechanismSubscriptions_RQ>
+  ${buildAuthXml(creds)}
+  <ChangeTypes>
+${types}
+  </ChangeTypes>
+  <ObservedOwners>
+${owners}
+  </ObservedOwners>
+  <UrlBase>${escapeXml(urlBase)}</UrlBase>
+</Push_PutLiveNotificationMechanismSubscriptions_RQ>`;
+}
+
+function buildListLnmSubscriptionsXml(creds: RUCredentials): string {
+  return `<?xml version="1.0" encoding="utf-8"?>
+<Pull_ListLiveNotificationMechanismSubscriptions_RQ>
+  ${buildAuthXml(creds)}
+</Pull_ListLiveNotificationMechanismSubscriptions_RQ>`;
+}
+
+function buildListLnmChangeTypesXml(creds: RUCredentials): string {
+  return `<?xml version="1.0" encoding="utf-8"?>
+<Pull_ListLiveNotificationMechanismChangeTypes_RQ>
+  ${buildAuthXml(creds)}
+</Pull_ListLiveNotificationMechanismChangeTypes_RQ>`;
+}
+
+
 function validateDiscountEntry(d: RUDiscountEntry): string | null {
   if (!d.date_from || !d.date_to) return 'date_from and date_to are required';
   if (d.date_from > d.date_to) return `DateFrom (${d.date_from}) must be <= DateTo (${d.date_to})`;
