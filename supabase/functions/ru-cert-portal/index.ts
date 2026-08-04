@@ -365,6 +365,8 @@ const CERT_MILESTONES: { key: string; label: string; ru_method: string; mandator
   { key: "sales_channels", label: "Pull sales channels (ChannelID)", ru_method: "Pull_ListSalesChannels_RQ", mandatory: true, scope: "account", note: "Resolves the LekkeSlaap ChannelID used by the content quality check" },
   { key: "reservations", label: "Pull reservations", ru_method: "Pull_ListReservations_RQ", mandatory: true, scope: "account", note: "" },
   { key: "leads", label: "Pull leads", ru_method: "Pull_GetLeads_RQ", mandatory: false, scope: "account", note: "Optional" },
+  { key: "reservation_idempotency", label: "Reservation idempotency test", ru_method: "Pull_ListReservations_RQ / RLNM (idempotency)", mandatory: false, scope: "property", note: "Same reservation ingested twice — exactly one booking" },
+  { key: "creator_mapping", label: "Channel creator mapping", ru_method: "Reservation Creator → sales channel", mandatory: false, scope: "account", note: "Every RU Creator seen on bookings is labelled" },
   { key: "long_stay", label: "Long-stay discounts", ru_method: "Push_PutLongStayDiscounts_RQ", mandatory: false, scope: "property", note: "Optional but recommended" },
   { key: "last_minute", label: "Last-minute discounts", ru_method: "Push_PutLastMinuteDiscounts_RQ", mandatory: false, scope: "property", note: "Optional but recommended" },
 ];
