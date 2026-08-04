@@ -3737,6 +3737,16 @@ Deno.serve(async (req) => {
           },
         );
 
+        await call(
+          "Pull sales channels (ChannelID)",
+          "list_sales_channels",
+          { channel_name: LEKKESLAAP_CHANNEL_NAME },
+          {
+            mandatory: true,
+            scope: "account",
+            successDetail: "Sales channel list read — LekkeSlaap ChannelID resolvable for the content quality check",
+          },
+        );
         await call("List LNM change types", "list_lnm_change_types", {}, {
           mandatory: false,
           scope: "account",
