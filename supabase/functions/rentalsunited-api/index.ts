@@ -2275,6 +2275,58 @@ Deno.serve(async (req) => {
       return jsonResponse({ success: true, auth_mode: authMode, message: 'Notification handler registered successfully', raw_xml: response });
     }
 
+    // ── put_lnm_subscriptions (LNM content/ARI webhooks) ──
+    if (action === 'put_lnm_subscriptions') {
+      if (!body.url_base) return errorResponse('MISSING_PARAM', 'url_base is required');
+      const changeTypes = (body.change_types?.length ? body.change_types : DEFAULT_LNM_CHANGE_TYPES)
+        .map((t) => String(t).trim())
+        .filter(Boolean);
+      const unknown = changeTypes.filter((t) => !KNOWN_LNM_CHANGE_TYPE_IDS.has(t));
+      if (unknown.length) {
+        return errorResponse('INVALID_PARAM', `Unknown LNM change type(s): ${unknown.join(', ')}`);
+      }
+      const observedOwners = (body.observed_owners ?? [])
+        .map((o) => String(o).trim())
+        .filter((o) => /^\d+$/.test(o));
+      if (observedOwners.length === 0) {
+        return errorResponse(
+          'MISSING_PARAM',
+          'observed_owners is required — RU needs at least one OwnerID to observe for this account',
+        );
+      }
+      const xml = buildPutLnmSubscriptionsXml(scopedCreds, changeTypes, observedOwners, body.url_base);
+      const response = await callRentalsUnited(scopedCreds, xml);
+      const { ok, status } = handleRUStatus(response);
+      if (!ok) return ruErrorResponse(status);
+      return jsonResponse({
+        success: true,
+        auth_mode: authMode,
+        message: `LNM subscriptions registered for ${changeTypes.length} change type(s) across ${observedOwners.length} owner(s)`,
+        subscribed: { change_types: changeTypes, observed_owners: observedOwners, url_base: body.url_base },
+        raw_xml: response,
+      });
+    }
+
+    // ── list_lnm_subscriptions (read-back verification) ──
+    if (action === 'list_lnm_subscriptions') {
+      const xml = buildListLnmSubscriptionsXml(scopedCreds);
+      const response = await callRentalsUnited(scopedCreds, xml);
+      const { ok, status } = handleRUStatus(response);
+      if (!ok) return ruErrorResponse(status);
+      const subscriptions = parseLnmSubscriptions(response);
+      return jsonResponse({ success: true, auth_mode: authMode, subscriptions, raw_xml: response });
+    }
+
+    // ── list_lnm_change_types (dictionary) ──
+    if (action === 'list_lnm_change_types') {
+      const xml = buildListLnmChangeTypesXml(scopedCreds);
+      const response = await callRentalsUnited(scopedCreds, xml);
+      const { ok, status } = handleRUStatus(response);
+      if (!ok) return ruErrorResponse(status);
+      return jsonResponse({ success: true, auth_mode: authMode, change_types: parseLnmChangeTypes(response), raw_xml: response });
+
+    }
+
 
     // ── get_long_stay_discounts (verification) ──
     if (action === 'get_long_stay_discounts') {
