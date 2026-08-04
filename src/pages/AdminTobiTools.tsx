@@ -13,7 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, Loader2, Sparkles, ImageIcon, Code2, PenSquare } from "lucide-react";
+import { ArrowLeft, Loader2, Sparkles, ImageIcon, PenSquare } from "lucide-react";
 import { toast } from "sonner";
 
 interface PropertyOption {
@@ -22,15 +22,7 @@ interface PropertyOption {
   slug: string | null;
 }
 
-type ToolKey = "editorial" | "images" | "assets";
-
-const INTEGRATION_TYPES = [
-  { value: "direct", label: "Direct booking link" },
-  { value: "widget", label: "Booking widget" },
-  { value: "booking_bar", label: "Booking bar" },
-  { value: "full_embed", label: "Full embed" },
-  { value: "wordpress", label: "WordPress shortcode" },
-];
+type ToolKey = "editorial" | "images";
 
 /** Pull the JSON error body out of a FunctionsHttpError so failures name themselves. */
 const readFunctionError = async (error: unknown): Promise<string | null> => {
@@ -55,7 +47,6 @@ const AdminTobiTools = () => {
   const [properties, setProperties] = useState<PropertyOption[]>([]);
   const [loadingProperties, setLoadingProperties] = useState(true);
   const [propertyId, setPropertyId] = useState<string>("");
-  const [integrationType, setIntegrationType] = useState<string>("direct");
   const [running, setRunning] = useState<ToolKey | null>(null);
   const [results, setResults] = useState<Partial<Record<ToolKey, unknown>>>({});
 
@@ -156,17 +147,6 @@ const AdminTobiTools = () => {
     }
   };
 
-  const runIntegrationAssets = () => {
-    if (!propertyId) {
-      toast.error("Select a property first");
-      return;
-    }
-    return invoke("assets", "generate-integration-assets", {
-      property_id: propertyId,
-      integration_type: integrationType,
-    });
-  };
-
   const renderResult = (tool: ToolKey) => {
     const result = results[tool];
     if (!result) return null;
@@ -265,38 +245,6 @@ const AdminTobiTools = () => {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Code2 className="h-4 w-4" /> Integration asset generator
-          </CardTitle>
-          <CardDescription>
-            Produces the embed snippet, preview URL and install instructions for a property.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label>Integration type</Label>
-            <Select value={integrationType} onValueChange={setIntegrationType}>
-              <SelectTrigger className="max-w-md">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {INTEGRATION_TYPES.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <Button onClick={runIntegrationAssets} disabled={running !== null || !propertyId}>
-            {running === "assets" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Generate assets
-          </Button>
-          {renderResult("assets")}
-        </CardContent>
-      </Card>
     </div>
   );
 };

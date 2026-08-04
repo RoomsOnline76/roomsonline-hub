@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CodeSnippetBlock } from "./CodeSnippetBlock";
+import { TobiInstallInstructions } from "./TobiInstallInstructions";
 import { IntegrationToggle } from "./IntegrationToggle";
 import { WidgetPreviewFrame } from "./WidgetPreviewFrame";
 import { Globe, AlertCircle, Eye, EyeOff, ExternalLink, ShieldCheck } from "lucide-react";
@@ -114,6 +115,12 @@ export function FullEmbedTab({ property }: FullEmbedTabProps) {
         )}
 
         <CodeSnippetBlock code={snippet} language="html" title="Full Embed iframe" />
+
+        <TobiInstallInstructions
+          propertyId={property.id}
+          integrationType="full_embed"
+          snippet={snippet}
+        />
 
         <div className="bg-muted/50 rounded-lg p-4 text-sm text-muted-foreground">
           <h5 className="font-medium text-foreground mb-1">How to install</h5>

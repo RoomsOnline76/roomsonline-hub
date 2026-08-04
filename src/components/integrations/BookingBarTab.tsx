@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CodeSnippetBlock } from "./CodeSnippetBlock";
+import { TobiInstallInstructions } from "./TobiInstallInstructions";
 import { IntegrationToggle } from "./IntegrationToggle";
 import { WidgetPreviewFrame } from "./WidgetPreviewFrame";
 import { LayoutTemplate, AlertCircle, Eye, EyeOff, ShieldCheck } from "lucide-react";
@@ -274,6 +275,12 @@ export function BookingBarTab({ property }: BookingBarTabProps) {
         )}
 
         <CodeSnippetBlock code={snippet} language="html" title="Floating Bar with Expanding Calendar" />
+
+        <TobiInstallInstructions
+          propertyId={property.id}
+          integrationType="booking_bar"
+          snippet={snippet}
+        />
 
         <div className="bg-muted/50 rounded-lg p-4 text-sm text-muted-foreground">
           <h5 className="font-medium text-foreground mb-1">How to install</h5>

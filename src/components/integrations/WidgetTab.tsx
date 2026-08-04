@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CodeSnippetBlock } from "./CodeSnippetBlock";
+import { TobiInstallInstructions } from "./TobiInstallInstructions";
 import { IntegrationToggle } from "./IntegrationToggle";
 import { WidgetPreviewFrame } from "./WidgetPreviewFrame";
 import { Code2, AlertCircle, Zap, Eye, EyeOff, ExternalLink, ShieldCheck } from "lucide-react";
@@ -146,6 +147,12 @@ export function WidgetTab({ property }: WidgetTabProps) {
           <h4 className="text-sm font-medium mb-2">Advanced (with event listeners)</h4>
           <CodeSnippetBlock code={rolEmbedAdvancedSnippet} language="html" title="Advanced Widget" />
         </div>
+
+        <TobiInstallInstructions
+          propertyId={property.id}
+          integrationType="widget"
+          snippet={rolEmbedSnippet}
+        />
 
         <details className="group">
           <summary className="text-sm font-medium cursor-pointer text-muted-foreground hover:text-foreground transition-colors">

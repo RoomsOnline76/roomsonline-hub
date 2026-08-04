@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CodeSnippetBlock } from "./CodeSnippetBlock";
+import { TobiInstallInstructions } from "./TobiInstallInstructions";
 import { IntegrationToggle } from "./IntegrationToggle";
 import { WidgetPreviewFrame } from "./WidgetPreviewFrame";
 import { Link2, ExternalLink, Info, ShieldCheck } from "lucide-react";
@@ -178,6 +179,12 @@ export function DirectLinkTab({ property }: DirectLinkTabProps) {
           <h4 className="text-sm font-medium mb-2">HTML Button</h4>
           <CodeSnippetBlock code={htmlSnippet} language="html" title="Embed as Button" />
         </div>
+
+        <TobiInstallInstructions
+          propertyId={property.id}
+          integrationType="direct"
+          snippet={htmlSnippet}
+        />
 
         <div className="flex items-center gap-2 pt-2">
           <Button variant="outline" size="sm" asChild>
