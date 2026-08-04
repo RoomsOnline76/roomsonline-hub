@@ -18,21 +18,36 @@ const CLASSES = [
   "pf-req-pulse",
 ] as const;
 
-/** Resolve the element a requirement points at, within an optional root. */
+const isVisible = (el: HTMLElement): boolean =>
+  !!(el.offsetParent || el.getClientRects().length) &&
+  getComputedStyle(el).visibility !== "hidden";
+
+/**
+ * Resolve the element a requirement points at, within an optional root.
+ * Visible matches win over hidden ones, so a duplicated id (e.g. `#name`
+ * present in two tabs) never sends the user to an invisible control.
+ */
 export function resolveRequirementElement(
   targets: string[],
   root: ParentNode = document,
 ): HTMLElement | null {
+  let hiddenFallback: HTMLElement | null = null;
   for (const selector of targets) {
     try {
-      const el = root.querySelector<HTMLElement>(selector);
-      if (el) return el;
+      const matches = Array.from(root.querySelectorAll<HTMLElement>(selector));
+      for (const el of matches) {
+        if (isVisible(el)) return el;
+        hiddenFallback ??= el;
+      }
     } catch {
       /* invalid selector — skip */
     }
   }
-  return null;
+  return hiddenFallback;
 }
+
+/** Registry selectors per requirement key, published by the decorator. */
+const targetIndex = new Map<string, string[]>();
 
 /**
  * The element that should carry the border. For a Radix select trigger or an
@@ -42,6 +57,28 @@ export function resolveRequirementElement(
 function markTarget(el: HTMLElement): HTMLElement {
   return el;
 }
+
+/**
+ * Expand any collapsed ancestor (accordion item, collapsible, closed details)
+ * so a hidden target can actually be shown.
+ */
+function revealAncestors(el: HTMLElement): void {
+  let node: HTMLElement | null = el;
+  while (node && node !== document.body) {
+    const details = node.closest("details");
+    if (details && !details.open) details.open = true;
+    if (node.getAttribute("data-state") === "closed") {
+      const id = node.getAttribute("id");
+      const trigger =
+        (id && document.querySelector<HTMLElement>(`[aria-controls="${id}"]`)) ||
+        node.previousElementSibling?.querySelector<HTMLElement>("button") ||
+        (node.previousElementSibling as HTMLElement | null);
+      if (trigger && typeof trigger.click === "function") trigger.click();
+    }
+    node = node.parentElement;
+  }
+}
+
 
 /** Remove every requirement class/attribute inside root. */
 export function clearRequirementDecoration(root: ParentNode = document) {
