@@ -313,7 +313,8 @@ export function RuOnboardingPipeline({ propertyId, readOnly = false, standalone 
           <Button
           size="sm"
           variant="outline"
-          disabled={busy !== null}
+          disabled
+          title="CM_LNM_OrderMinimumContentQualityCheck_RQ is unavailable until the Channel Manager API is fully integrated and deployed."
           onClick={() =>
             runAction(
               "p4_verify",
@@ -327,8 +328,9 @@ export function RuOnboardingPipeline({ propertyId, readOnly = false, standalone 
           }
         >
           {spinner ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BadgeCheck className="mr-2 h-4 w-4" />}
-            Order quality check
+            Order quality check (CM API pending)
           </Button>
+
         </div>
       );
     }
