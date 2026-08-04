@@ -104,14 +104,24 @@ export default function PropertyContactDetails({ propertyId }: Props) {
   const saveAll = async () => {
     setSaving(true);
     const rows = contacts.map((c, i) => ({
-      ...c,
+      id: c.id,
+      property_id: propertyId,
+      role: c.role,
+      name: c.name || null,
+      email: c.email || null,
+      phone: c.phone || null,
+      hours: c.hours || null,
+      is_public: c.is_public,
       sort_order: i,
     }));
 
-    // Upsert all rows
-    const { error } = await supabase
+    // Whitelist writable fields so mixed existing/new batches never send a
+    // null created_at for newly added contacts.
+    const { data, error } = await supabase
       .from("property_contact_details")
-      .upsert(rows, { onConflict: "id" });
+      .upsert(rows, { onConflict: "id" })
+      .select("*")
+      .order("sort_order", { ascending: true });
 
     setSaving(false);
     if (error) {
@@ -119,6 +129,7 @@ export default function PropertyContactDetails({ propertyId }: Props) {
       return;
     }
 
+    setContacts((data as PropertyContact[]) || []);
     toast({ title: "Contacts saved", description: "Public contact details are now available via the API." });
   };
 
