@@ -38,18 +38,23 @@ export function usePropertyFieldRequirements({
     queryKey: ["property-field-requirements", propertyId],
     queryFn: async (): Promise<RequirementSubject | null> => {
       if (!propertyId) return null;
-      const { data, error } = await supabase
-        .from("properties")
-        .select("*")
-        .eq("id", propertyId)
-        .maybeSingle();
+      const [{ data, error }, { data: policyRows }] = await Promise.all([
+        supabase.from("properties").select("*").eq("id", propertyId).maybeSingle(),
+        // Master policy truth lives in the policy library, not in amenities.
+        supabase
+          .from("rolos_reservation_policies")
+          .select("id, is_master, is_default")
+          .eq("property_id", propertyId),
+      ]);
       if (error) throw error;
-      return (data ?? null) as RequirementSubject | null;
+      if (!data) return null;
+      return { ...(data as Record<string, unknown>), policy_rows: policyRows ?? [] } as RequirementSubject;
     },
     enabled: !!propertyId,
     staleTime: 15_000,
     refetchOnWindowFocus: false,
   });
+
 
   const statuses: RequirementStatus[] = useMemo(
     () => (subject ? evaluateRequirements(subject) : []),
