@@ -2896,6 +2896,20 @@ function BookingDetail({
       }
     }
 
+    // Channel enquiry (e.g. Rentals United lead): show hold expiry + auto-withdrawal dates.
+    const hold = getHoldSummary(b);
+    if (hold) {
+      btns.push(
+        <div key="hold-notice" className="w-full rounded-md border border-violet-500/40 bg-violet-500/10 p-2 text-xs flex items-start gap-2">
+          <Clock className="h-4 w-4 shrink-0 text-primary" />
+          <span>
+            <span className="font-medium">{hold.label}</span>
+            <span className="block text-muted-foreground">{hold.detail}</span>
+          </span>
+        </div>
+      );
+    }
+
     if (b.status === "pending") {
       btns.push(
         <Button key="pay" size="sm" onClick={() => handleLifecycleAction("mark_paid")} disabled={!!actionLoading}>
