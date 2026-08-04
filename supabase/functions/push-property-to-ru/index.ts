@@ -2795,6 +2795,75 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ success: false, error: { code: 'RU_CHILD_AUTH_REQUIRED', message: `No Rentals United API keys are stored for OwnerID ${ruOwnerId}. RU requires the sub-user's own AccessKey + SecretKey to create or update its building inventory — generate them in the RU dashboard (Security settings) and save them in Portfolios → RU accounts.` } }), { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
+    // ── ARI-ONLY REFRESH (action: 'refresh_ari') ───────────────────────────
+    // Nightly/event-driven availability + pricing refresh for inventory that is ALREADY listed
+    // at RU. It never calls Push_PutProperty_RQ, so the static-content gate does not apply
+    // (that content is live at RU already) — a content shortfall must never stall ARI. Sub-user
+    // keys and a resolved OwnerID are still mandatory.
+    if (action === 'refresh_ari') {
+      const targets: { label: string; ru_id: number; unit?: UnitContext; units: number }[] = [];
+      if (isMultiUnit) {
+        for (const rt of activeRoomTypes) {
+          const ruId = parseInt(String(rt.rentalsunited_property_id ?? ''), 10);
+          if (ruId > 0) {
+            targets.push({
+              label: rt.name,
+              ru_id: ruId,
+              unit: { id: rt.id, name: rt.name, linked_rolos_id: (rt as any).linked_rolos_id, amenities: (rt as any).amenities ?? null } as UnitContext,
+              units: 1,
+            });
+          }
+        }
+      }
+      if (targets.length === 0) {
+        const parentRuId = parseInt(String(property.rentalsunited_property_id ?? ''), 10);
+        if (parentRuId > 0) {
+          targets.push({ label: property.name, ru_id: parentRuId, units: activeRoomTypes.length || 1 });
+        }
+      }
+
+      if (targets.length === 0) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: {
+              code: 'RU_NOT_LISTED',
+              message: 'This property has no Rentals United PropertyID yet — run a full push before refreshing availability and pricing.',
+            },
+          }),
+          { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
+
+      const ariResults: Record<string, any>[] = [];
+      for (const t of targets) {
+        const r = await pushARI(supabase, t.ru_id, property as PropertyRow, t.units, t.unit, childAuthPayload, currencyDecision);
+        ariResults.push({ target: t.label, ru_property_id: t.ru_id, ...r });
+        if (targets.length > 1) await new Promise((res) => setTimeout(res, 1000));
+      }
+
+      const allOk = ariResults.every((r) => r.availability_pushed === true && !r.availability_error && !r.prices_error);
+      try {
+        await supabase.from('ru_sync_runs').insert({
+          batch_id: crypto.randomUUID(),
+          property_id,
+          action: 'refresh_ari',
+          success: allOk,
+          error_code: allOk ? null : 'RU_ARI_REFRESH_INCOMPLETE',
+          error_message: allOk ? null : ariResults.map((r) => r.availability_error || r.prices_error).filter(Boolean).join('; '),
+          details: {
+            ru_owner_id: ruOwnerId,
+            trigger: typeof reqBody.trigger === 'string' ? reqBody.trigger : 'manual',
+            targets: ariResults,
+          },
+        });
+      } catch (_e) { /* evidence only */ }
+
+      return new Response(
+        JSON.stringify({ success: allOk, action: 'refresh_ari', property_id, targets: ariResults }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
 
 
     if (!dry_run && !phaseGate.ready_for_push) {
