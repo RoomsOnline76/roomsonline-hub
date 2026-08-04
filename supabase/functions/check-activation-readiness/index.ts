@@ -146,8 +146,14 @@ Deno.serve(async (req) => {
       checks.push(roomsCheck);
     }
 
-    // ============= CHECK 9: Policies Complete =============
-    const policiesCheck = checkPoliciesComplete(amenities);
+    // ============= CHECK 9: Policies (master cancellation policy) =============
+    const { data: policyRows } = await supabase
+      .from('rolos_reservation_policies')
+      .select('id, is_master, is_default')
+      .eq('property_id', property_id);
+    const policiesCheck = checkPoliciesComplete(property, amenities, policyRows ?? []);
+    checks.push(checkCheckTimes(amenities));
+
     checks.push(policiesCheck);
 
     // ============= CHECK 10: Rentals United distribution (country + currency) =============
