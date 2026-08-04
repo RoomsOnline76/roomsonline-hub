@@ -2769,9 +2769,9 @@ Deno.serve(async (req) => {
       if (!result.ok && statusId() === '280') {
         const subXml = buildPutLnmSubscriptionsXml(
           attemptCreds,
-          LNM_CHANGE_TYPES,
+          DEFAULT_LNM_CHANGE_TYPES,
           ownerId ? [String(ownerId)] : [],
-          resolveLnmUrlBase(body),
+          body.url_base,
         );
         const subResponse = await callRentalsUnited(attemptCreds, subXml);
         const subStatus = handleRUStatus(subResponse);
