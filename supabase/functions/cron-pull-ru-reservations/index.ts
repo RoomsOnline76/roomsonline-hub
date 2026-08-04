@@ -167,7 +167,7 @@ Deno.serve(async (req) => {
     });
   } catch (error) {
     console.error('[cron-pull-ru] Fatal error:', error);
-    await logCadence(false, String(error), { ownerId: null, label: 'master', payload: {} });
+    await logCadence(false, String(error), { ownerId: null, label: 'cron', payload: {} });
     return new Response(JSON.stringify({ success: false, error: String(error), summary }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
