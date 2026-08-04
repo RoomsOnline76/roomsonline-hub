@@ -13,15 +13,44 @@ interface QualityCheckResult {
   fix?: string;
   field?: string;
   severity: 'blocker' | 'warning' | 'info';
+  /** Mandatory = blocks activation. Recommended = nice-to-have quality lift. */
+  tier?: 'mandatory' | 'recommended';
+  /** Deep-link target: which property section to open to fix the shortfall */
+  section?: string;
+  section_label?: string;
+  /** Where the section lives: ROLOS property setup hub or the admin property editor */
+  surface?: 'rolos' | 'admin';
 }
 
 interface ActivationReadinessResponse {
   passed: boolean;
   score: number;
+  mandatory_score: number;
+  mandatory_total: number;
+  mandatory_passed: number;
+  recommended_score: number;
+  recommended_total: number;
+  recommended_passed: number;
   blockers: QualityCheckResult[];
   warnings: QualityCheckResult[];
   checks: QualityCheckResult[];
 }
+
+/** Check id → where the user fixes it */
+const CHECK_ROUTES: Record<string, { section: string; label: string; surface: 'rolos' | 'admin' }> = {
+  contract: { section: 'admin', label: 'Admin · Contracts', surface: 'admin' },
+  content: { section: 'general', label: 'Identity & Location', surface: 'admin' },
+  media: { section: 'images', label: 'Media', surface: 'rolos' },
+  commercial: { section: 'general', label: 'Identity & Location → Banking', surface: 'admin' },
+  pms: { section: 'integrations', label: 'Integrations', surface: 'admin' },
+  location: { section: 'general', label: 'Identity & Location', surface: 'admin' },
+  contact: { section: 'contacts', label: 'Contacts', surface: 'rolos' },
+  rooms: { section: 'rooms', label: 'Rooms', surface: 'rolos' },
+  policies: { section: 'rates', label: 'Rates & Pricing → Policies', surface: 'rolos' },
+  rentalsunited_geo: { section: 'general', label: 'Identity & Location', surface: 'admin' },
+  rentalsunited_location_currency: { section: 'integrations', label: 'Integrations → Rentals United', surface: 'admin' },
+};
+
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
