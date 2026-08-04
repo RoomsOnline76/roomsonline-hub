@@ -151,6 +151,8 @@ export const PoliciesTab: React.FC<PoliciesTabProps> = ({ propertyId, onOpenSpec
           }}
           onCreate={openCreate}
         />
+        </div>
+
       </FormSection>
 
       <FormSection
