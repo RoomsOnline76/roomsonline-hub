@@ -69,9 +69,11 @@ const contactHas = (
   field: "email" | "phone",
   roles?: string[],
 ): boolean =>
-  contactRows().length === 0
-    ? false
-    : false;
+  contactRows(subject).some((row) => {
+    if (roles && roles.length > 0 && !roles.includes(String(row.role ?? ""))) return false;
+    const value = row[field];
+    return typeof value === "string" && value.trim().length > 0;
+  });
 
 const amenity = (subject: RequirementSubject, path: string): unknown => {
   let cursor: unknown = subject.amenities ?? {};
