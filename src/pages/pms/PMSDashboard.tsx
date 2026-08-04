@@ -238,6 +238,36 @@ function bookingTouchesDate(booking: Pick<BookingRow, "check_in_date" | "check_o
     && !["cancelled", "no_show"].includes(booking.status);
 }
 
+function bookingMatchesRoomType(booking: BookingRow, roomType: RoomType, typeRooms: Room[]): boolean {
+  if (booking.room_type_id && (booking.room_type_id === roomType.id || booking.room_type_id === roomType.linked_overview_id)) return true;
+  if (booking.rolos_room_ids?.some((roomId) => typeRooms.some((room) => room.id === roomId))) return true;
+  // Unassigned bookings can't be tied to a type — never hide them.
+  if (!booking.room_type_id && !(booking.rolos_room_ids?.length)) return true;
+  return false;
+}
+
+/** Restrict a candidate date range + room types to what a property actually has booked. */
+function filterToBookedView(
+  candidateDates: Date[],
+  bookingList: BookingRow[],
+  roomTypeList: RoomType[],
+  roomsByTypeMap: Map<string, Room[]>,
+): { visibleDates: Date[]; visibleRoomTypes: RoomType[] } {
+  const liveBookings = bookingList.filter((booking) => !["cancelled", "no_show"].includes(booking.status));
+  const visibleDates = candidateDates.filter((date) => {
+    const dateStr = format(date, "yyyy-MM-dd");
+    return liveBookings.some((booking) => bookingTouchesDate(booking, dateStr));
+  });
+  const dateKeys = visibleDates.map((date) => format(date, "yyyy-MM-dd"));
+  const activeBookings = liveBookings.filter((booking) => dateKeys.some((dateKey) => bookingTouchesDate(booking, dateKey)));
+  const visibleRoomTypes = roomTypeList.filter((roomType) =>
+    activeBookings.some((booking) => bookingMatchesRoomType(booking, roomType, roomsByTypeMap.get(roomType.id) || []))
+  );
+  return { visibleDates, visibleRoomTypes };
+}
+
+
+
 export default function PMSDashboard() {
   const { propertyId, properties, portfolioProperties, portfolioName, loading: propLoading, switchProperty, showPortfolioToggle } = usePmsPropertyId();
   // If selected property is in a portfolio, scope dropdown to portfolio members
@@ -1071,9 +1101,20 @@ export default function PMSDashboard() {
     return false;
   }, [isPortfolioMode, portfolioDataByProperty, bookings]);
 
+  // Single-property: filtered dates + room types (only rows that actually carry a live booking)
+  const singleBookedView = useMemo(
+    () => filterToBookedView(dates, bookings as BookingRow[], roomTypes as RoomType[], roomsByType),
+    [dates, bookings, roomTypes, roomsByType]
+  );
+
   const visibleDates = useMemo(
-    () => (showOnlyBookedDays ? dates.filter(hasBookingOnDate) : dates),
-    [showOnlyBookedDays, dates, hasBookingOnDate]
+    () => (showOnlyBookedDays ? singleBookedView.visibleDates : dates),
+    [showOnlyBookedDays, dates, singleBookedView]
+  );
+
+  const visibleRoomTypes = useMemo(
+    () => (showOnlyBookedDays ? singleBookedView.visibleRoomTypes : (roomTypes as RoomType[])),
+    [showOnlyBookedDays, singleBookedView, roomTypes]
   );
 
   const visibleWeekChunks = useMemo(
@@ -1082,6 +1123,22 @@ export default function PMSDashboard() {
       : weekChunks),
     [showOnlyBookedDays, weekChunks, hasBookingOnDate]
   );
+
+  // Portfolio: per-property booked view keyed by property id (never portfolio-wide dates)
+  const portfolioBookedViewByProperty = useMemo(() => {
+    const map = new Map<string, { visibleDates: Date[]; visibleRoomTypes: RoomType[] }>();
+    if (!isPortfolioMode) return map;
+    for (const [propId, propData] of portfolioDataByProperty) {
+      map.set(propId, filterToBookedView(dates, propData.bookings, propData.roomTypes, propData.roomsByType));
+    }
+    return map;
+  }, [isPortfolioMode, portfolioDataByProperty, dates]);
+
+  const portfolioHasAnyBookedDay = useMemo(
+    () => Array.from(portfolioBookedViewByProperty.values()).some((view) => view.visibleDates.length > 0),
+    [portfolioBookedViewByProperty]
+  );
+
 
   const getPortfolioBookingCountForDates = useCallback((targetDates: Date[]): number => {
     if (!isPortfolioMode || targetDates.length === 0) return 0;
@@ -1640,7 +1697,7 @@ export default function PMSDashboard() {
             {isPortfolioMode ? (
               viewMode === "week" ? (
                 <div className="space-y-6">
-                  {showOnlyBookedDays && dates.filter(hasBookingOnDate).length === 0 && (
+                  {showOnlyBookedDays && !portfolioHasAnyBookedDay && (
                     <div className="flex items-center justify-center py-10 text-sm text-muted-foreground border rounded-lg bg-muted/20">
                       No booked days in this week.
                     </div>
@@ -1648,8 +1705,10 @@ export default function PMSDashboard() {
                   {(portfolioProperties || []).map(prop => {
                     const propData = portfolioDataByProperty.get(prop.id);
                     if (!propData || propData.roomTypes.length === 0) return null;
-                    const portfolioWeekDates = showOnlyBookedDays ? dates.filter(hasBookingOnDate) : dates;
-                    if (portfolioWeekDates.length === 0) return null;
+                    const bookedView = portfolioBookedViewByProperty.get(prop.id);
+                    const portfolioWeekDates = showOnlyBookedDays ? (bookedView?.visibleDates || []) : dates;
+                    const propRoomTypes = showOnlyBookedDays ? (bookedView?.visibleRoomTypes || []) : propData.roomTypes;
+                    if (portfolioWeekDates.length === 0 || propRoomTypes.length === 0) return null;
                     const propGetRate = (rtId: string, date: Date) => getPortfolioRateForDate(prop.id, rtId, date);
                     const propGetSuffix = () => '';
                     const propGetRestriction = (rtName: string, date: Date) =>
@@ -1663,13 +1722,14 @@ export default function PMSDashboard() {
                           <Building2 className="h-4 w-4 text-primary shrink-0" />
                           <h3 className="text-sm font-bold text-foreground">{prop.name}</h3>
                           <Badge variant="outline" className="text-[10px]">
-                            {propData.roomTypes.length} types · {displayedRoomCount} rooms
+                            {propRoomTypes.length} types · {displayedRoomCount} rooms
                           </Badge>
                         </div>
                         <WeekCalendarGrid
                           dates={portfolioWeekDates}
-                          roomTypes={propData.roomTypes}
+                          roomTypes={propRoomTypes}
                           roomsByType={propData.roomsByType}
+
                           bookings={propData.bookings}
                           rooms={propData.rooms}
                           overrideMap={propData.overrideMap}
@@ -1687,13 +1747,31 @@ export default function PMSDashboard() {
               ) : (
                 // Portfolio + month view: group by WEEK across all properties
                 <div className="space-y-8">
-                  {showOnlyBookedDays && !weekChunks.some((weekDates) => weekDates.some(hasBookingOnDate)) && (
+                  {showOnlyBookedDays && !portfolioHasAnyBookedDay && (
                     <div className="flex items-center justify-center py-10 text-sm text-muted-foreground border rounded-lg bg-muted/20">
                       No booked days in this month.
                     </div>
                   )}
                   {weekChunks.map((weekDates, weekIdx) => {
-                    const visibleWeekDates = showOnlyBookedDays ? weekDates.filter(hasBookingOnDate) : weekDates;
+                    // Per-property visible days/rows inside this week
+                    const weekPropViews = (portfolioProperties || []).map((prop) => {
+                      const propData = portfolioDataByProperty.get(prop.id);
+                      if (!propData || propData.roomTypes.length === 0) return null;
+                      if (!showOnlyBookedDays) {
+                        return { prop, propData, propDates: weekDates, propRoomTypes: propData.roomTypes };
+                      }
+                      const bookedView = portfolioBookedViewByProperty.get(prop.id);
+                      const bookedKeys = new Set((bookedView?.visibleDates || []).map((date) => format(date, "yyyy-MM-dd")));
+                      const propDates = weekDates.filter((date) => bookedKeys.has(format(date, "yyyy-MM-dd")));
+                      const propRoomTypes = bookedView?.visibleRoomTypes || [];
+                      if (propDates.length === 0 || propRoomTypes.length === 0) return null;
+                      return { prop, propData, propDates, propRoomTypes };
+                    }).filter((entry): entry is NonNullable<typeof entry> => entry !== null);
+
+                    if (weekPropViews.length === 0) return null;
+                    const visibleWeekDates = showOnlyBookedDays
+                      ? weekDates.filter((date) => weekPropViews.some((entry) => entry.propDates.some((d) => +d === +date)))
+                      : weekDates;
                     if (visibleWeekDates.length === 0) return null;
                     const firstVisibleDate = visibleWeekDates[0];
                     const lastVisibleDate = visibleWeekDates[visibleWeekDates.length - 1];
@@ -1701,6 +1779,7 @@ export default function PMSDashboard() {
                     const weekKey = getWeekKey(weekDates);
                     const isWeekCollapsed = collapsedWeeks.has(weekKey);
                     const bookingCount = getPortfolioBookingCountForDates(visibleWeekDates);
+
 
                     return (
                     <div key={weekKey} className="space-y-3">
@@ -1719,14 +1798,12 @@ export default function PMSDashboard() {
                           {bookingCount} booking{bookingCount === 1 ? "" : "s"}
                         </Badge>
                         <Badge variant="outline" className="text-[10px]">
-                          {(portfolioProperties || []).length} properties
+                          {weekPropViews.length} propert{weekPropViews.length === 1 ? "y" : "ies"}
                         </Badge>
                       </button>
                       {!isWeekCollapsed && (
                       <div className="space-y-4 pl-2">
-                        {(portfolioProperties || []).map(prop => {
-                          const propData = portfolioDataByProperty.get(prop.id);
-                          if (!propData || propData.roomTypes.length === 0) return null;
+                        {weekPropViews.map(({ prop, propData, propDates, propRoomTypes }) => {
                           const propGetRate = (rtId: string, date: Date) => getPortfolioRateForDate(prop.id, rtId, date);
                           const propGetSuffix = () => '';
                           const propGetRestriction = (rtName: string, date: Date) =>
@@ -1740,13 +1817,14 @@ export default function PMSDashboard() {
                                 <Building2 className="h-3.5 w-3.5 text-primary shrink-0" />
                                 <h3 className="text-xs font-semibold text-foreground">{prop.name}</h3>
                                 <Badge variant="outline" className="text-[10px]">
-                                  {propData.roomTypes.length} types · {displayedRoomCount} rooms
+                                  {propRoomTypes.length} types · {displayedRoomCount} rooms
                                 </Badge>
                               </div>
                               <WeekCalendarGrid
-                                dates={visibleWeekDates}
-                                roomTypes={propData.roomTypes}
+                                dates={propDates}
+                                roomTypes={propRoomTypes}
                                 roomsByType={propData.roomsByType}
+
                                 bookings={propData.bookings}
                                 rooms={propData.rooms}
                                 overrideMap={propData.overrideMap}
@@ -1768,14 +1846,14 @@ export default function PMSDashboard() {
                 </div>
               )
             ) : viewMode === "week" ? (
-              showOnlyBookedDays && visibleDates.length === 0 ? (
+              showOnlyBookedDays && (visibleDates.length === 0 || visibleRoomTypes.length === 0) ? (
                 <div className="flex items-center justify-center py-10 text-sm text-muted-foreground border rounded-lg bg-muted/20">
                   No booked days in this week.
                 </div>
               ) : (
               <WeekCalendarGrid
                 dates={visibleDates}
-                roomTypes={roomTypes}
+                roomTypes={visibleRoomTypes}
                 roomsByType={roomsByType}
                 bookings={bookings}
                 rateSeasons={rateSeasons}
@@ -1790,15 +1868,16 @@ export default function PMSDashboard() {
                 bookingsLoading={bookingsLoading}
               />
               )
-            ) : showOnlyBookedDays && visibleWeekChunks.length === 0 ? (
+            ) : showOnlyBookedDays && (visibleWeekChunks.length === 0 || visibleRoomTypes.length === 0) ? (
               <div className="flex items-center justify-center py-10 text-sm text-muted-foreground border rounded-lg bg-muted/20">
                 No booked days in this month.
               </div>
             ) : (
               <MonthCalendarGrid
                 weekChunks={visibleWeekChunks}
-                roomTypes={roomTypes}
+                roomTypes={visibleRoomTypes}
                 roomsByType={roomsByType}
+
                 bookings={bookings}
                 rooms={rooms}
                 overrideMap={overrideMap}
