@@ -1,13 +1,10 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { loadCurrencyState, revertAmount } from '../_shared/ruCurrency.ts';
 import {
-  applyRuAvailabilityBlock,
-  buildRuChannelNotes,
   extractAllBlocks,
   parseRuReservation,
   resolveRuUnit,
-  type ParsedRuReservation,
 } from '../_shared/ruReservationParsing.ts';
+import { ingestRuReservation } from '../_shared/ruReservationIngest.ts';
 
 /**
  * RU Reservation Live Notification Mechanism (RLNM) Handler
@@ -17,8 +14,11 @@ import {
  * - Unconfirmed reservations (leads) → creates a `pending` hold booking (3-day hold)
  * - Cancelled reservations  → cancels the booking and releases the nights
  *
- * RU nests guest and stay data inside <CustomerInfo> / <StayInfo>; the shared parser is
- * used so the notification path and the polling cron produce identical booking records.
+ * All writes go through the shared `ingestRuReservation` helper, which is also used by
+ * `cron-pull-ru-reservations`. That makes the notification path and the polling path
+ * byte-for-byte identical and idempotent: replaying the same notification, or a
+ * notification racing a poll, converges on an update instead of a duplicate booking.
+ *
  * When RU sends an envelope with an empty <StayInfos /> (no dates or PropertyID), the
  * notification is logged and a reconciliation pull is triggered instead of writing a
  * half-populated booking.
@@ -28,9 +28,6 @@ const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
-
-/** How long an unconfirmed RU lead holds the dates before availability is released. */
-const LEAD_HOLD_DAYS = 3;
 
 type NotificationKind = 'reservation_confirmed' | 'reservation_cancelled' | 'reservation_request';
 
@@ -94,10 +91,6 @@ Deno.serve(async (req) => {
         .maybeSingle();
       const notificationId = notification?.id as string | undefined;
 
-      const markProcessed = async () => {
-        if (notificationId) await supabase.from('ru_notifications').update({ processed: true }).eq('id', notificationId);
-      };
-
       // RU sometimes notifies with an empty <StayInfos /> — nothing to write yet.
       if (!propertyId || !r.dateFrom || !r.dateTo) {
         console.warn(
@@ -107,124 +100,21 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      const existingQuery = await supabase
-        .from('bookings')
-        .select('id, status')
-        .eq('external_reservation_id', r.ruReservationId)
-        .in('integration_type', ['rentalsunited', 'rentalsunited_lead'])
-        .limit(1)
-        .maybeSingle();
-      const existing = existingQuery.data as { id: string; status: string } | null;
+      const result = await ingestRuReservation(supabase, r, {
+        source: 'rlnm',
+        logPrefix: '[ru-reservation-handler]',
+        forceRequest: kind === 'reservation_request',
+        unit,
+      });
 
-      if (kind === 'reservation_cancelled') {
-        if (existing && existing.status !== 'cancelled') {
-          await supabase
-            .from('bookings')
-            .update({ status: 'cancelled', cancellation_reason: 'Cancelled via Rentals United' })
-            .eq('id', existing.id);
-          await applyRuAvailabilityBlock(supabase, propertyId, unit.mappingRoomTypeId, r.dateFrom, r.dateTo, false, '[ru-reservation-handler]');
-          console.log(`[ru-reservation-handler] ✅ Cancelled booking for RU reservation ${r.ruReservationId}`);
-        }
-        await markProcessed();
-        continue;
+      if (result.outcome === 'failed') {
+        console.error(`[ru-reservation-handler] Ingest failed for ${r.ruReservationId}: ${result.error}`);
+      } else if (notificationId) {
+        await supabase
+          .from('ru_notifications')
+          .update({ processed: true })
+          .eq('id', notificationId);
       }
-
-      // ── Currency: convert an inbound published amount back to the authored currency. ──
-      let bookedAmount = r.total || 0;
-      let currencyMeta: Record<string, unknown> | null = null;
-      try {
-        const ccyState = await loadCurrencyState(supabase, propertyId);
-        if (ccyState?.conversion_in_force && Number(ccyState.effective_rate) > 0 && bookedAmount > 0) {
-          const original = bookedAmount;
-          bookedAmount = revertAmount(original, Number(ccyState.effective_rate));
-          currencyMeta = {
-            ru_currency_conversion: {
-              published_currency: ccyState.published_currency_iso,
-              published_amount: original,
-              authored_currency: ccyState.authored_currency_iso,
-              authored_amount: bookedAmount,
-              fx_rate: ccyState.fx_rate,
-              margin_pct: ccyState.margin_pct,
-              effective_rate: ccyState.effective_rate,
-            },
-          };
-        }
-      } catch (e) {
-        console.warn('[ru-reservation-handler] Currency state lookup failed:', e instanceof Error ? e.message : e);
-      }
-
-      const guestFields: Record<string, unknown> = {
-        guest_name: r.guestName,
-        guest_email: r.guestEmail,
-        guest_phone: r.guestPhone,
-        adults: r.numGuests || 1,
-        total_price: bookedAmount,
-        check_in_date: r.dateFrom,
-        check_out_date: r.dateTo,
-        modification_notes: buildRuChannelNotes(r, currencyMeta ?? {}),
-      };
-      if (unit.roomTypeId) guestFields.room_type_id = unit.roomTypeId;
-      if (r.comments) guestFields.special_requests = r.comments;
-
-      if (kind === 'reservation_request') {
-        const leadCreatedAt = r.createdDate ? new Date(r.createdDate.replace(' ', 'T') + 'Z') : new Date();
-        const holdExpiresAt = new Date(leadCreatedAt.getTime() + LEAD_HOLD_DAYS * 86_400_000);
-
-        if (existing) {
-          await supabase.from('bookings').update(guestFields).eq('id', existing.id);
-        } else {
-          const { error: reqErr } = await supabase.from('bookings').insert({
-            ...guestFields,
-            property_id: propertyId,
-            status: 'pending',
-            booking_channel: 'rentals_united',
-            integration_type: 'rentalsunited_lead',
-            external_reservation_id: r.ruReservationId,
-            payment_status: 'pending',
-            lead_created_at: leadCreatedAt.toISOString(),
-            hold_expires_at: holdExpiresAt.toISOString(),
-            special_requests:
-              `Rentals United request — dates held until ${holdExpiresAt.toISOString().slice(0, 10)}` +
-              (r.comments ? ` · ${r.comments}` : ''),
-          });
-          if (reqErr) {
-            console.error(`[ru-reservation-handler] Request insert failed for ${r.ruReservationId}: ${reqErr.message}`);
-          } else if (holdExpiresAt.getTime() > Date.now()) {
-            await applyRuAvailabilityBlock(supabase, propertyId, unit.mappingRoomTypeId, r.dateFrom, r.dateTo, true, '[ru-reservation-handler]');
-            console.log(`[ru-reservation-handler] ✅ Held RU request ${r.ruReservationId} until ${holdExpiresAt.toISOString()}`);
-          }
-        }
-        await markProcessed();
-        continue;
-      }
-
-      // ── Confirmed ──
-      const confirmedFields: Record<string, unknown> = {
-        ...guestFields,
-        status: 'confirmed',
-        integration_type: 'rentalsunited',
-        hold_expires_at: null,
-        hold_released_at: null,
-        payment_status: r.alreadyPaid > 0 ? 'paid_externally' : 'pending',
-      };
-      if (r.alreadyPaid > 0) confirmedFields.paid_at = new Date().toISOString();
-
-      if (existing) {
-        await supabase.from('bookings').update(confirmedFields).eq('id', existing.id);
-        console.log(`[ru-reservation-handler] ✅ Updated booking for RU reservation ${r.ruReservationId}`);
-      } else {
-        const { error: bookingErr } = await supabase.from('bookings').insert({
-          ...confirmedFields,
-          property_id: propertyId,
-          booking_channel: 'rentals_united',
-          external_reservation_id: r.ruReservationId,
-          ...(currencyMeta ? { ai_metadata: currencyMeta } : {}),
-        });
-        if (bookingErr) console.error(`[ru-reservation-handler] Failed to create booking: ${bookingErr.message}`);
-        else console.log(`[ru-reservation-handler] ✅ Booking created for RU reservation ${r.ruReservationId}`);
-      }
-      await applyRuAvailabilityBlock(supabase, propertyId, unit.mappingRoomTypeId, r.dateFrom, r.dateTo, true, '[ru-reservation-handler]');
-      await markProcessed();
     }
 
     // A notification without stay data only tells us "something changed" — pull the
