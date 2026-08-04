@@ -324,104 +324,132 @@ export function PropertyRuOwnerPanel({ propertyId, pmsSystem, readOnly = false }
                 )}
               </div>
 
-              <ol className="text-xs text-muted-foreground space-y-1 list-decimal pl-4">
-                <li>
-                  Sign in to Rentals United as the sub-user{" "}
-                  <span className="font-medium text-foreground">
-                    {account?.ru_login_email ?? account?.owner_email ?? "—"}
-                  </span>
-                  {identity?.sub_user_password_hint && (
-                    <>
-                      {" "}using the ROL'OS operator password{" "}
-                      <button
-                        type="button"
-                        className="underline underline-offset-2 font-medium text-foreground"
-                        onClick={() => {
-                          void navigator.clipboard.writeText(identity.sub_user_password_hint ?? "");
-                          toast.success("Password copied");
-                        }}
+              {showKeyEntry ? (
+                <>
+                  <ol className="text-xs text-muted-foreground space-y-1 list-decimal pl-4">
+                    <li>
+                      Sign in to Rentals United as the sub-user{" "}
+                      <span className="font-medium text-foreground">
+                        {account?.ru_login_email ?? account?.owner_email ?? "—"}
+                      </span>
+                      {identity?.sub_user_password_hint && (
+                        <>
+                          {" "}using the ROL'OS operator password{" "}
+                          <button
+                            type="button"
+                            className="underline underline-offset-2 font-medium text-foreground"
+                            onClick={() => {
+                              void navigator.clipboard.writeText(identity.sub_user_password_hint ?? "");
+                              toast.success("Password copied");
+                            }}
+                          >
+                            (copy <Copy className="inline h-3 w-3" />)
+                          </button>
+                        </>
+                      )}
+                      .
+                    </li>
+                    <li>
+                      Open{" "}
+                      <a
+                        href={RU_SECURITY_SETTINGS_URL}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="underline underline-offset-2 inline-flex items-center gap-1 text-foreground"
                       >
-                        (copy <Copy className="inline h-3 w-3" />)
-                      </button>
-                    </>
+                        Security settings <ExternalLink className="h-3 w-3" />
+                      </a>{" "}
+                      and generate an API key with scope <span className="font-medium text-foreground">XmlApi</span>.
+                    </li>
+                    <li>Paste the AccessKey and SecretKey below and save. The secret is stored encrypted and never shown again.</li>
+                  </ol>
+
+                  {!readOnly && (
+                    <div className="grid gap-2 sm:grid-cols-3">
+                      <div className="space-y-1">
+                        <Label htmlFor="ru_access_key" className="text-xs">AccessKey</Label>
+                        <Input
+                          id="ru_access_key"
+                          value={accessKey}
+                          onChange={(e) => setAccessKey(e.target.value)}
+                          placeholder="RU AccessKey"
+                          className="h-7 text-xs"
+                          autoComplete="off"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="ru_secret_key" className="text-xs">SecretKey</Label>
+                        <Input
+                          id="ru_secret_key"
+                          type="password"
+                          value={secretKey}
+                          onChange={(e) => setSecretKey(e.target.value)}
+                          placeholder="RU SecretKey"
+                          className="h-7 text-xs"
+                          autoComplete="off"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="ru_key_label" className="text-xs">Label</Label>
+                        <Input
+                          id="ru_key_label"
+                          value={keyLabel}
+                          onChange={(e) => setKeyLabel(e.target.value)}
+                          className="h-7 text-xs"
+                        />
+                      </div>
+                    </div>
                   )}
-                  .
-                </li>
-                <li>
-                  Open{" "}
-                  <a
-                    href={RU_SECURITY_SETTINGS_URL}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="underline underline-offset-2 inline-flex items-center gap-1 text-foreground"
-                  >
-                    Security settings <ExternalLink className="h-3 w-3" />
-                  </a>{" "}
-                  and generate an API key with scope <span className="font-medium text-foreground">XmlApi</span>.
-                </li>
-                <li>Paste the AccessKey and SecretKey below and save. The secret is stored encrypted and never shown again.</li>
-              </ol>
 
-              {!readOnly && (
-                <div className="grid gap-2 sm:grid-cols-3">
-                  <div className="space-y-1">
-                    <Label htmlFor="ru_access_key" className="text-xs">AccessKey</Label>
-                    <Input
-                      id="ru_access_key"
-                      value={accessKey}
-                      onChange={(e) => setAccessKey(e.target.value)}
-                      placeholder="RU AccessKey"
-                      className="h-7 text-xs"
-                      autoComplete="off"
-                    />
+                  {!readOnly && (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button
+                        size="sm"
+                        className="gap-1.5"
+                        onClick={() => void saveKeys()}
+                        disabled={savingKeys || !accessKey.trim() || !secretKey.trim()}
+                      >
+                        {savingKeys ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <KeyRound className="h-3.5 w-3.5" />}
+                        Save keys
+                      </Button>
+                      {identity?.keys_captured && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            setEditingKeys(false);
+                            setAccessKey("");
+                            setSecretKey("");
+                          }}
+                          disabled={savingKeys}
+                        >
+                          Cancel
+                        </Button>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-1.5"
+                        onClick={() => void verifyKeys()}
+                        disabled={verifying || !identity?.keys_captured}
+                      >
+                        {verifying ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />}
+                        Verify with RU
+                      </Button>
+                    </div>
+                  )}
+                </>
+              ) : (
+                !readOnly && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setEditingKeys(true)}>
+                      <KeyRound className="h-3.5 w-3.5" />
+                      Update keys
+                    </Button>
                   </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="ru_secret_key" className="text-xs">SecretKey</Label>
-                    <Input
-                      id="ru_secret_key"
-                      type="password"
-                      value={secretKey}
-                      onChange={(e) => setSecretKey(e.target.value)}
-                      placeholder="RU SecretKey"
-                      className="h-7 text-xs"
-                      autoComplete="off"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="ru_key_label" className="text-xs">Label</Label>
-                    <Input
-                      id="ru_key_label"
-                      value={keyLabel}
-                      onChange={(e) => setKeyLabel(e.target.value)}
-                      className="h-7 text-xs"
-                    />
-                  </div>
-                </div>
+                )
               )}
 
-              {!readOnly && (
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button
-                    size="sm"
-                    className="gap-1.5"
-                    onClick={() => void saveKeys()}
-                    disabled={savingKeys || !accessKey.trim() || !secretKey.trim()}
-                  >
-                    {savingKeys ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <KeyRound className="h-3.5 w-3.5" />}
-                    Save keys
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="gap-1.5"
-                    onClick={() => void verifyKeys()}
-                    disabled={verifying || !identity?.keys_captured}
-                  >
-                    {verifying ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />}
-                    Verify with RU
-                  </Button>
-                </div>
-              )}
             </div>
           </>
         )}
