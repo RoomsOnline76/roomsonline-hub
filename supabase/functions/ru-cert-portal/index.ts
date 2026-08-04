@@ -82,6 +82,55 @@ function json(body: unknown, status = 200): Response {
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 }
+/** Stable alias so the request handler can shadow `json` to add coverage logging. */
+const jsonResponse = json;
+
+/**
+ * Console actions that actually touch a Rentals United endpoint. Every one of these is
+ * written to `ru_sync_runs` so the Coverage tab can evidence real usage — without this,
+ * work done from the RU console (buildings pull, company push, currency flip, ARI push …)
+ * left no trace and the matrix reported "never used".
+ */
+const LOGGED_PORTAL_ACTIONS = new Set<string>([
+  "verify_api_keys",
+  "create_api_key",
+  "resolve_ru_property_ids",
+  "list_ru_candidates",
+  "bind_ru_account",
+  "create_user",
+  "fill_company_details",
+  "ensure_owner_account",
+  "ensure_company_details",
+  "resolve_sales_channel",
+  "order_mcq",
+  "discount_ladder",
+  "property_readiness",
+  "wl_readiness",
+]);
+
+async function logPortalAction(
+  admin: ReturnType<typeof createClient>,
+  action: string,
+  propertyId: string | null,
+  payload: unknown,
+  elapsedMs: number,
+): Promise<void> {
+  if (!LOGGED_PORTAL_ACTIONS.has(action)) return;
+  const p = (payload ?? {}) as { success?: boolean; error?: { message?: string } };
+  try {
+    await admin.from("ru_sync_runs").insert({
+      action,
+      property_id: propertyId,
+      success: p.success === true,
+      error_message: p.success === true ? null : (p.error?.message ?? null),
+      elapsed_ms: elapsedMs,
+      details: { source: "ru_console" },
+    });
+  } catch (e) {
+    console.warn("[ru-cert-portal] coverage log failed", e);
+  }
+}
+
 
 function isoDate(offsetDays: number): string {
   const d = new Date();
