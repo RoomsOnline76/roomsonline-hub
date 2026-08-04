@@ -99,7 +99,7 @@ export async function resolveRuOwnerScopes(
     );
   }
 
-  return [MASTER_SCOPE, ...children];
+  return includeMaster ? [MASTER_SCOPE, ...children] : children;
 }
 
 /** Sub-users lacking API keys — surfaced so a run can report them as gaps. */
