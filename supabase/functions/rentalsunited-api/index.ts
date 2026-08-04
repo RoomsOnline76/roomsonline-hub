@@ -2735,38 +2735,76 @@ Deno.serve(async (req) => {
 
 
     // ── order_mcq: CM_LNM_OrderMinimumContentQualityCheck_RQ (Phase 4.3) ──
-    // CM_* methods belong to the Channel Management scope. Sub-user listings are normally
-    // quality-checked as the sub-user (scopedCreds), otherwise RU answers "You are not the
-    // owner of the apartment". When RU rejects that path with a channel-side error
-    // (280 "Subscribe to LNM first", 17 "Unexpected error") we retry ONCE as the master
-    // channel-manager account, which observes the sub-user via its LNM subscription.
+    // 🔒 Auth rule (verified against RU 2026-08-04):
+    //   • Sub-user (child) credentials are the ONLY identity that can order MCQ for a
+    //     white-label listing. Master channel-manager keys answer 56 "Property does not
+    //     exist" because the sub-user's inventory is not in the master's own portfolio.
+    //   • The account ordering the check must first hold an LNM subscription including the
+    //     PropertyMCQEligibilityCheck change type, otherwise RU answers 280
+    //     "Subscribe to LNM first". We self-heal that once, then retry.
+    //   • RU status 17 ("Unexpected error, contact IT") is an RU-side fault: it is retried
+    //     once after a short settle, then surfaced with the RU ResponseID for escalation.
     if (action === 'order_mcq') {
       const ruPropertyId = Number(body.ru_property_id);
       if (!ruPropertyId) return errorResponse('MISSING_PARAM', 'ru_property_id is required');
-      const CM_RETRY_STATUSES = new Set(['17', '280']);
       const forcedScope = String(body.auth_scope ?? '').trim().toLowerCase();
+      const useMaster = forcedScope === 'master';
+      const attemptCreds = useMaster ? creds : scopedCreds;
+      const attemptAuth = useMaster ? 'master_channel_manager' : authMode;
 
-      const attempt = async (useMaster: boolean) => {
-        const attemptCreds = useMaster ? creds : scopedCreds;
+      const attempt = async () => {
         const xml = `<?xml version="1.0" encoding="utf-8"?>\n<CM_LNM_OrderMinimumContentQualityCheck_RQ>${buildAuthXml(attemptCreds)}<PropertyID>${ruPropertyId}</PropertyID></CM_LNM_OrderMinimumContentQualityCheck_RQ>`;
         const response = await callRentalsUnited(attemptCreds, xml);
         const { ok, status } = handleRUStatus(response);
         console.log(
-          `[rentalsunited-api] OrderMCQ (auth=${useMaster ? 'master_channel_manager' : authMode}) ok=${ok} status=${status?.id ?? 'n/a'} response: ${response.substring(0, 500)}`,
+          `[rentalsunited-api] OrderMCQ (auth=${attemptAuth}, ru_property=${ruPropertyId}) ok=${ok} status=${status?.id ?? 'n/a'} response: ${response.substring(0, 500)}`,
         );
         return { ok, status, xml, response };
       };
 
-      const masterOnly = forcedScope === 'master';
-      let attemptAuth = masterOnly ? 'master_channel_manager' : authMode;
-      let result = await attempt(masterOnly);
+      let result = await attempt();
+      const statusId = () => String(result.status?.id ?? '');
 
-      if (!result.ok && !masterOnly && forcedScope !== 'child' && CM_RETRY_STATUSES.has(String(result.status?.id ?? ''))) {
-        attemptAuth = 'master_channel_manager';
-        result = await attempt(true);
+      // 280 → register the missing LNM subscription for this identity, then retry once.
+      if (!result.ok && statusId() === '280') {
+        const subXml = buildPutLnmSubscriptionsXml(
+          attemptCreds,
+          LNM_CHANGE_TYPES,
+          ownerId ? [String(ownerId)] : [],
+          resolveLnmUrlBase(body),
+        );
+        const subResponse = await callRentalsUnited(attemptCreds, subXml);
+        const subStatus = handleRUStatus(subResponse);
+        console.log(`[rentalsunited-api] OrderMCQ auto-subscribed LNM ok=${subStatus.ok} status=${subStatus.status?.id ?? 'n/a'}`);
+        if (subStatus.ok) {
+          await new Promise((r) => setTimeout(r, 2000));
+          result = await attempt();
+        }
+      }
+
+      // 17 → transient RU fault; one settle-and-retry before escalating.
+      if (!result.ok && statusId() === '17') {
+        await new Promise((r) => setTimeout(r, 5000));
+        result = await attempt();
       }
 
       if (!result.ok) {
+        const responseId = result.response.match(/<ResponseID>([^<]+)<\/ResponseID>/i)?.[1] ?? null;
+        if (statusId() === '17') {
+          return jsonResponse({
+            success: false,
+            error: {
+              code: 'RU_MCQ_INTERNAL_ERROR',
+              message:
+                'Rentals United returned status 17 (internal error) for the content quality check. The LNM subscription is confirmed on this account, so this needs RU support with the ResponseID below.',
+              ru_status_id: '17',
+              ru_response_id: responseId,
+              auth_mode: attemptAuth,
+              ru_property_id: ruPropertyId,
+            },
+            diagnostics: buildDiagnostics(compactXml(result.xml), result.status, 'order_mcq', result.response),
+          }, 200);
+        }
         return ruErrorResponse(
           result.status,
           buildDiagnostics(compactXml(result.xml), result.status, 'order_mcq', result.response),
@@ -2781,6 +2819,7 @@ Deno.serve(async (req) => {
         raw_xml: result.response,
       });
     }
+
 
 
 
