@@ -77,14 +77,23 @@ export const ApplyPolicyToPropertiesDialog: React.FC<Props> = ({ open, onOpenCha
     let fail = 0;
     for (const pid of targets) {
       try {
+        if (setAsDefault) {
+          // Only one default per property.
+          await supabase
+            .from("rolos_reservation_policies")
+            .update({ is_default: false } as never)
+            .eq("property_id", pid)
+            .eq("is_default", true);
+        }
         const { error } = await supabase.from("rolos_reservation_policies").insert({
           property_id: pid,
           name: sourcePolicy.name,
           description: sourcePolicy.description,
           kind: sourcePolicy.kind,
           rule: sourcePolicy.rule as never,
-          is_default: false,
-          is_master: false,
+          is_default: setAsDefault,
+          // The DB trigger clears any previous master on the target property.
+          is_master: setAsMaster,
           scope: "property",
           source_policy_id: sourcePolicy.id,
           // "Link" keeps the copy tied to the source so edits can be pushed through.
@@ -92,12 +101,20 @@ export const ApplyPolicyToPropertiesDialog: React.FC<Props> = ({ open, onOpenCha
         } as never);
         if (error) throw error;
 
+        if (setAsMaster) {
+          await supabase
+            .from("properties")
+            .update({ cancellation_master_mode: "policy" } as never)
+            .eq("id", pid);
+        }
+
         ok++;
       } catch (e) {
         console.error("apply policy failed for", pid, e);
         fail++;
       }
     }
+
     setApplying(false);
     if (ok) toast.success(`Applied to ${ok} propert${ok === 1 ? "y" : "ies"}${fail ? ` (${fail} failed)` : ""}`);
     if (fail && !ok) toast.error(`Failed to apply to ${fail} properties`);
