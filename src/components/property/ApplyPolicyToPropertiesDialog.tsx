@@ -33,9 +33,13 @@ export const ApplyPolicyToPropertiesDialog: React.FC<Props> = ({ open, onOpenCha
   const [properties, setProperties] = useState<PropertyOption[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [mode, setMode] = useState<"copy" | "link">("copy");
+  /** Copies land inert unless the operator promotes them on the target property. */
+  const [setAsMaster, setSetAsMaster] = useState(true);
+  const [setAsDefault, setSetAsDefault] = useState(true);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
   const [applying, setApplying] = useState(false);
+
 
   useEffect(() => {
     if (!open) return;
