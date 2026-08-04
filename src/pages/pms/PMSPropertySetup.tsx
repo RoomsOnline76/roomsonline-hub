@@ -4,9 +4,12 @@ import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 import PropertyForm from "@/pages/PropertyForm";
 import PropertyContactDetails from "@/components/property/PropertyContactDetails";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { PropertySectionRail } from "@/components/property/PropertySectionRail";
+import { RolosReadinessChecklist } from "@/components/property/RolosReadinessChecklist";
 import { buildSectionGroups, type PropertySectionKey } from "@/config/propertySectionOrder";
+
 
 /**
  * ROLOS "Property Setup" hub.
