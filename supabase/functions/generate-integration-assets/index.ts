@@ -7,43 +7,52 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+/**
+ * TOBI install-instruction writer.
+ *
+ * This function no longer builds embed snippets or preview URLs — the integration
+ * tabs (Smart Book Button, Direct Link, Widget, Booking Bar, Full Embed, WordPress,
+ * Elementor, Portfolio) generate those client-side with the correct white-label host
+ * and portfolio target. The caller passes the snippet it is showing the owner and
+ * gets back plain-language install steps for it.
+ */
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
+  const json = (body: unknown, status = 200) =>
+    new Response(JSON.stringify(body), {
+      status,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+
   try {
-    // Validate auth
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return json({ error: "Unauthorized" }, 401);
     }
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_ANON_KEY")!,
-      { global: { headers: { Authorization: authHeader } } }
+      { global: { headers: { Authorization: authHeader } } },
     );
 
     const { data: claims, error: claimsError } = await supabase.auth.getClaims(
-      authHeader.replace("Bearer ", "")
+      authHeader.replace("Bearer ", ""),
     );
     if (claimsError || !claims?.claims) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return json({ error: "Unauthorized" }, 401);
     }
 
     const body = await req.json();
-    const { property_id, integration_type } = body;
+    const propertyId: string | undefined = body?.property_id;
+    const integrationType: string | undefined = body?.integration_type;
+    const snippet: string | undefined = body?.snippet;
 
-    if (!property_id || !integration_type) {
-      return new Response(JSON.stringify({ error: "property_id and integration_type required" }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    if (!propertyId || !integrationType || !snippet) {
+      return json({ error: "property_id, integration_type and snippet are required" }, 400);
     }
 
-    // Fetch property details
     const adminClient = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
@@ -51,77 +60,28 @@ serve(async (req) => {
 
     const { data: property, error: propError } = await adminClient
       .from("properties")
-      .select("id, name, slug, brand_primary_color, brand_logo_url, city, country, address, description")
-      .eq("id", property_id)
+      .select("id, name, city, country, address")
+      .eq("id", propertyId)
       .single();
 
     if (propError || !property) {
       console.error("generate-integration-assets property lookup failed", propError);
-      return new Response(
-        JSON.stringify({
+      return json(
+        {
           error: propError?.message
             ? `Could not load property: ${propError.message}`
             : "Property not found",
-        }),
-        { status: propError ? 500 : 404, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        },
+        propError ? 500 : 404,
       );
     }
 
-    // `properties` has no single `location` column - compose one from what exists.
-    const propertyLocation = [property.city, property.country]
-      .filter((part) => Boolean(part))
-      .join(", ") || property.address || "";
+    // `properties` has no single `location` column — compose one from what exists.
+    const propertyLocation =
+      [property.city, property.country].filter((part) => Boolean(part)).join(", ") ||
+      property.address ||
+      "";
 
-    const baseUrl = "https://book.sleepinafrica.roomsonline.co.za";
-    const embedBase = `${baseUrl}/embed/property/${property.slug}`;
-    const primaryColor = property.brand_primary_color || "#e91e63";
-
-    // Generate snippet based on type
-    let snippet = "";
-    let previewUrl = "";
-
-    switch (integration_type) {
-      case "direct": {
-        const url = `${baseUrl}/property/${property.slug}?source=website&integration=direct&property_id=${property.id}`;
-        snippet = `<a href="${url}" target="_blank" rel="noopener noreferrer" style="display:inline-block;padding:12px 24px;background:${primaryColor};color:#fff;text-decoration:none;border-radius:6px;font-weight:600;">Book Now</a>`;
-        previewUrl = url;
-        break;
-      }
-      case "widget": {
-        const url = `${embedBase}?integration=widget&property_id=${property.id}`;
-        snippet = `<div id="rolos-booking-widget" style="width:100%;max-width:480px;"><iframe src="${url}" style="width:100%;height:520px;border:none;border-radius:8px;box-shadow:0 2px 12px rgba(0,0,0,0.08);" title="Book ${property.name}" loading="lazy" allow="payment"></iframe></div>`;
-        previewUrl = url;
-        break;
-      }
-      case "booking_bar": {
-        const bookingBarUrl = `${baseUrl}/booking/${property.slug}?source=website&integration=booking_bar&property_id=${property.id}&brand_color=${encodeURIComponent(primaryColor)}`;
-        snippet = `<!-- RoomsOnline Floating Booking Bar -->
-<div id="rolos-booking-bar" style="position:fixed;bottom:0;left:0;right:0;z-index:9999;background:${primaryColor};box-shadow:0 -2px 12px rgba(0,0,0,0.15);padding:12px 20px;display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap;font-family:system-ui,-apple-system,sans-serif;">
-  <label style="color:#fff;font-size:14px;font-weight:500;">Check-in<input type="date" id="rolos-checkin" style="margin-left:6px;padding:6px 10px;border:none;border-radius:4px;font-size:14px;" /></label>
-  <label style="color:#fff;font-size:14px;font-weight:500;">Check-out<input type="date" id="rolos-checkout" style="margin-left:6px;padding:6px 10px;border:none;border-radius:4px;font-size:14px;" /></label>
-  <button onclick="(function(){var ci=document.getElementById('rolos-checkin').value;var co=document.getElementById('rolos-checkout').value;var url='${bookingBarUrl}';if(ci)url+='&checkin='+ci;if(co)url+='&checkout='+co;window.open(url,'_blank');})()" style="background:#fff;color:${primaryColor};border:none;padding:10px 24px;border-radius:6px;font-weight:700;font-size:14px;cursor:pointer;">Book Now</button>
-</div>
-<script>(function(){var t=new Date().toISOString().split('T')[0];document.getElementById('rolos-checkin').setAttribute('min',t);document.getElementById('rolos-checkout').setAttribute('min',t);})()</script>`;
-        previewUrl = bookingBarUrl;
-        break;
-      }
-      case "full_embed": {
-        const url = `${embedBase}?integration=full_embed&property_id=${property.id}&mode=full`;
-        snippet = `<iframe src="${url}" style="width:100%;min-height:800px;border:none;border-radius:8px;" title="${property.name} Booking Engine" loading="lazy" allow="payment"></iframe>`;
-        previewUrl = url;
-        break;
-      }
-      case "wordpress": {
-        snippet = `[rolos_booking property="${property.slug}" property_id="${property.id}"]`;
-        previewUrl = `${embedBase}?integration=wordpress&property_id=${property.id}`;
-        break;
-      }
-      default:
-        snippet = `${baseUrl}/property/${property.slug}?source=website&integration=${integration_type}&property_id=${property.id}`;
-        previewUrl = snippet;
-    }
-
-    // Generate AI-powered instructions
     let instructions = "";
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
 
@@ -138,11 +98,12 @@ serve(async (req) => {
             messages: [
               {
                 role: "system",
-                content: "You are a helpful web developer assistant. Write clear, concise installation instructions for property owners who may not be technical. Use numbered steps. Keep it under 150 words. Do not use markdown headers.",
+                content:
+                  "You are a helpful web developer assistant. Write clear, concise installation instructions for property owners who may not be technical. Use numbered steps. Keep it under 150 words. Do not use markdown headers.",
               },
               {
                 role: "user",
-                content: `Write installation instructions for a "${integration_type}" booking integration for the property "${property.name}". The embed code is: ${snippet}. The property is located at ${propertyLocation || "their location"}. Make the instructions friendly and specific to their property name.`,
+                content: `Write installation instructions for a "${integrationType}" booking integration for the property "${property.name}". The embed code is: ${snippet}. The property is located at ${propertyLocation || "their location"}. Make the instructions friendly and specific to their property name.`,
               },
             ],
           }),
@@ -151,36 +112,32 @@ serve(async (req) => {
         if (aiResponse.ok) {
           const aiData = await aiResponse.json();
           instructions = aiData.choices?.[0]?.message?.content || "";
+        } else {
+          console.error("AI instruction generation returned", aiResponse.status, await aiResponse.text());
         }
       } catch (e) {
         console.error("AI instruction generation failed:", e);
       }
     }
 
-    // Fallback instructions if AI fails
     if (!instructions) {
       const fallbackInstructions: Record<string, string> = {
-        direct: `1. Copy the booking URL above.\n2. Add it to any "Book Now" button on your website.\n3. Guests clicking the link will be taken directly to ${property.name}'s booking page.\n4. All bookings are automatically tracked.`,
-        widget: `1. Copy the iframe code above.\n2. Paste it into your website where you want the booking widget to appear.\n3. The widget will display with ${property.name}'s branding.\n4. Guests can check availability without leaving your site.`,
-        booking_bar: `1. Copy the code snippet.\n2. Paste it just before </body> in your website's HTML.\n3. A booking bar will appear fixed at the bottom of every page.\n4. Guests can quickly start their booking from any page.`,
-        full_embed: `1. Create a dedicated "Book" or "Reservations" page on your website.\n2. Paste the iframe code into the page body.\n3. The complete ${property.name} booking engine will appear inline.\n4. Adjust the min-height to fit your layout.`,
-        wordpress: `1. Save the plugin code as rolos-booking.php.\n2. Upload to wp-content/plugins/rolos-booking/ on your WordPress site.\n3. Activate the plugin under Plugins in WordPress admin.\n4. Add the shortcode to any page or post.`,
+        direct: `1. Copy the booking link above.\n2. Add it to any "Book Now" button on your website.\n3. Guests clicking the link go straight to ${property.name}'s booking page.\n4. All bookings are automatically tracked.`,
+        widget: `1. Copy the code above.\n2. Paste it into your website where you want the booking widget to appear.\n3. The widget displays with ${property.name}'s branding.\n4. Guests can check availability without leaving your site.`,
+        booking_bar: `1. Copy the code snippet.\n2. Paste it just before </body> in your website's HTML.\n3. A booking bar appears fixed at the bottom of every page.\n4. Guests can start a booking from any page.`,
+        full_embed: `1. Create a dedicated "Book" or "Reservations" page on your website.\n2. Paste the iframe code into the page body.\n3. The complete ${property.name} booking engine appears inline.\n4. Adjust the min-height to fit your layout.`,
+        wordpress: `1. Install and activate the ROL'OS WordPress plugin.\n2. Edit the page where bookings should appear.\n3. Paste the shortcode above into the content.\n4. Publish and test the booking flow.`,
+        elementor: `1. Edit your page in Elementor.\n2. Drag in a Shortcode widget.\n3. Paste the shortcode above into it.\n4. Update the page and test the booking flow.`,
+        portfolio: `1. Copy the code above.\n2. Paste it into the page that should list your portfolio.\n3. Guests can browse every property and book from one place.\n4. Publish and test the booking flow.`,
       };
-      instructions = fallbackInstructions[integration_type] || "Copy the code snippet and paste it into your website.";
+      instructions =
+        fallbackInstructions[integrationType] ||
+        "Copy the code snippet above and paste it into your website where the booking option should appear.";
     }
 
-    return new Response(JSON.stringify({
-      snippet,
-      instructions,
-      preview_url: previewUrl,
-      property: { name: property.name, slug: property.slug },
-    }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  } catch (e) {
-    console.error("generate-integration-assets error:", e);
-    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Internal error" }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return json({ instructions, integration_type: integrationType, property_id: property.id });
+  } catch (error) {
+    console.error("generate-integration-assets error:", error);
+    return json({ error: error instanceof Error ? error.message : "Unexpected error" }, 500);
   }
 });
