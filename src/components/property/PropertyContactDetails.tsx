@@ -57,8 +57,6 @@ export default function PropertyContactDetails({ propertyId }: Props) {
           toast({ title: "Error loading contacts", description: error.message, variant: "destructive" });
         } else {
           setContacts((data as PropertyContact[]) || []);
-    // Contacts feed the readiness model — refresh score, checksheet and borders.
-    queryClient.invalidateQueries({ queryKey: ["property-readiness"] });
         }
         setLoading(false);
       });
