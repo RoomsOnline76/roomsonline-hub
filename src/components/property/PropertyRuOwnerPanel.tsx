@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { RuLnmStatusChips } from "@/components/property/RuLnmStatusChips";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -235,6 +236,11 @@ export function PropertyRuOwnerPanel({ propertyId, pmsSystem, readOnly = false }
             <AlertDescription className="text-xs">{identity.gate_reason}</AlertDescription>
           </Alert>
         )}
+
+        {/* Live notification (LNM) + content quality (MCQ) health — read-only */}
+        {linked && <RuLnmStatusChips propertyId={propertyId} />}
+
+
 
         {/* Linked identity summary */}
         {linked && (
