@@ -254,6 +254,18 @@ export default function PMSChannels() {
           }}
         />
       )}
+
+      {/* Readiness breakdown with deep links to each outstanding field */}
+      {readinessDialog && propertyId && (
+        <ChannelReadinessDialog
+          open={!!readinessDialog}
+          onOpenChange={(open) => !open && setReadinessDialog(null)}
+          channelName={readinessDialog}
+          propertyId={propertyId}
+          readiness={readiness}
+        />
+      )}
     </>
+
   );
 }
