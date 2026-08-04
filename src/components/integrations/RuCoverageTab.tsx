@@ -209,9 +209,15 @@ export function RuCoverageTab() {
       for (const area of evidence.areas) {
         const areaRows = evidence.endpoints.filter((r) => r.area === area.key);
         if (areaRows.length === 0) continue;
+        if (cursor > 470) {
+          doc.addPage();
+          cursor = 48;
+        }
+        doc.setFontSize(11);
+        doc.text(area.label, 40, cursor);
         autoTable(doc, {
-          startY: cursor,
-          head: [["RU method", "Direction", "RU result", "Last run", "ROL'OS surface / stream", "ROL'OS status"]],
+          startY: cursor + 10,
+          head: [["RU method", "Dir.", "RU result", "Last RU call", "ROL'OS surface / stream", "ROL'OS status"]],
           body: areaRows.map((r) => [
             `${r.label}\n${r.ru_method}${r.mandatory ? " (mandatory)" : ""}`,
             r.direction,
@@ -222,25 +228,13 @@ export function RuCoverageTab() {
           ]),
           styles: { fontSize: 7, cellPadding: 3, overflow: "linebreak" },
           headStyles: { fillColor: [233, 30, 140] },
-          columnStyles: { 0: { cellWidth: 175 }, 4: { cellWidth: 200 } },
+          columnStyles: { 0: { cellWidth: 175 }, 1: { cellWidth: 34 }, 2: { cellWidth: 52 }, 3: { cellWidth: 100 }, 4: { cellWidth: 200 } },
           margin: { left: 40, right: 40 },
-          didDrawPage: () => undefined,
-          willDrawPage: () => undefined,
-          didParseCell: () => undefined,
           theme: "grid",
-          // Section heading
-          beforePageBreak: () => undefined,
         });
-        const finalY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY;
-        doc.setFontSize(10);
-        cursor = finalY + 28;
-        if (cursor > 500) {
-          doc.addPage();
-          cursor = 48;
-        }
-        doc.text(area.label, 40, cursor - 10);
-        cursor += 4;
+        cursor = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 26;
       }
+
 
       const problems = evidence.endpoints.filter((r) => r.rag !== "green");
       doc.addPage();
