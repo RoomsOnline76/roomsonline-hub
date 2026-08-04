@@ -58,11 +58,41 @@ interface NotificationRow {
   details: Record<string, unknown> | null;
 }
 
+interface ChangeTypeRow {
+  id?: string | number;
+  name?: string;
+  [key: string]: unknown;
+}
+
 export function RuLnmPanel() {
   const [accounts, setAccounts] = useState<AccountRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshingAll, setRefreshingAll] = useState(false);
   const [notifications, setNotifications] = useState<NotificationRow[]>([]);
+  const [changeTypes, setChangeTypes] = useState<ChangeTypeRow[] | null>(null);
+  const [changeTypesError, setChangeTypesError] = useState<string | null>(null);
+  const [loadingChangeTypes, setLoadingChangeTypes] = useState(false);
+
+  const listChangeTypes = useCallback(async () => {
+    setLoadingChangeTypes(true);
+    setChangeTypesError(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("rentalsunited-api", {
+        body: { action: "list_lnm_change_types" },
+      });
+      if (error) throw new Error(error.message);
+      if (!data?.success) throw new Error(data?.error?.message ?? "RU rejected the read");
+      const rows = (data.change_types ?? []) as ChangeTypeRow[];
+      setChangeTypes(rows);
+      toast.success(`Pulled ${rows.length} LNM change type(s) from Rentals United`);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setChangeTypesError(msg);
+      toast.error("List LNM change types failed", { description: msg });
+    }
+    setLoadingChangeTypes(false);
+  }, []);
+
 
   const loadAccounts = useCallback(async () => {
     setLoading(true);
