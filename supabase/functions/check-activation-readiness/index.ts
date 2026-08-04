@@ -47,6 +47,8 @@ const CHECK_ROUTES: Record<string, { section: string; label: string; surface: 'r
   contact: { section: 'contacts', label: 'Contacts', surface: 'rolos' },
   rooms: { section: 'rooms', label: 'Rooms', surface: 'rolos' },
   policies: { section: 'rates', label: 'Rates & Pricing → Policies', surface: 'rolos' },
+  check_times: { section: 'rates', label: 'Rates & Pricing → House Rules', surface: 'rolos' },
+
   rentalsunited_geo: { section: 'general', label: 'Identity & Location', surface: 'admin' },
   rentalsunited_location_currency: { section: 'integrations', label: 'Integrations → Rentals United', surface: 'admin' },
 };
