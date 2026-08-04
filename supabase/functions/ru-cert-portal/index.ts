@@ -2643,6 +2643,8 @@ Deno.serve(async (req) => {
       const { account: mcqOwnerAccount } = await findOwnerAccount(admin, propertyId, null, null);
       const mcqOwnerId = Number(mcqOwnerAccount?.ru_owner_id ?? 0);
       const mcqScope = mcqOwnerId > 0 ? { owner_id: mcqOwnerId } : {};
+      // ChannelID is mandatory in the RU CM_LNM_* schema; allow an explicit override.
+      const mcqChannel = body.channel_id ? { channel_id: body.channel_id } : {};
 
       const mcqResults: Array<{
         ru_property_id: string;
@@ -2655,7 +2657,7 @@ Deno.serve(async (req) => {
       }> = [];
       for (const target of targets) {
         const { data: result, error: mcqErr } = await admin.functions.invoke("rentalsunited-api", {
-          body: { action: "order_mcq", ru_property_id: target.ru_property_id, property_id: propertyId, ...mcqScope },
+          body: { action: "order_mcq", ru_property_id: target.ru_property_id, property_id: propertyId, ...mcqScope, ...mcqChannel },
         });
         const ok = !mcqErr && result?.success === true;
         const errMessage = ok ? undefined : (mcqErr?.message ?? result?.error?.message ?? "Rentals United rejected the quality check order");
