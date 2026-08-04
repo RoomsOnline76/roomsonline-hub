@@ -857,8 +857,10 @@ button {
   50% { box-shadow: 0 0 0 5px hsl(var(--req-pulse-color) / 0.28); }
 }
 .pf-req-pulse {
+  --req-pulse-color: var(--req-mandatory);
   animation: pf-req-pulse 700ms ease-in-out 3;
   scroll-margin-top: 6rem;
+
 }
 .pf-req-pulse.pf-req-mandatory { --req-pulse-color: var(--req-mandatory); }
 .pf-req-pulse.pf-req-recommended { --req-pulse-color: var(--req-recommended); }
