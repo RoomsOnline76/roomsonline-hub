@@ -267,10 +267,10 @@ export function PortfolioWidgetTab({ property }: PortfolioWidgetTabProps) {
                             payload: { action: "recommend", portfolio_id: selectedPortfolioId, theme: aiTheme },
                           },
                         });
-                        toast({ title: "AI Refreshed", description: "Portfolio recommendations regenerated" });
+                        toast({ title: "TOBI Refreshed", description: "Portfolio recommendations regenerated" });
                       }
                     } catch {
-                      toast({ title: "Error", description: "Failed to refresh AI suggestions", variant: "destructive" });
+                      toast({ title: "Error", description: "Failed to refresh TOBI suggestions", variant: "destructive" });
                     } finally {
                       setRefreshingAi(false);
                     }
