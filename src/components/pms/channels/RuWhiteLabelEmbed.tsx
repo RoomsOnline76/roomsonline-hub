@@ -120,7 +120,7 @@ export function RuWhiteLabelEmbed({ propertyId }: { propertyId: string | null | 
 
   if (isUnavailable || scriptFailed) {
     let title = "Channel Manager is not available yet.";
-    let body = "";
+    let body: ReactNode = "";
 
     if (scriptFailed) {
       title = "Channel Manager could not be loaded.";
