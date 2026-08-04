@@ -68,7 +68,7 @@ Deno.serve(async (req) => {
         const { data } = await admin
           .from('pms_mappings')
           .select('property_id')
-          .eq('system_type', 'rentals_united')
+          .in('system_type', ['rentals_united', 'rentalsunited'])
           .eq('external_id', ruPropertyId)
           .limit(1)
           .maybeSingle();
