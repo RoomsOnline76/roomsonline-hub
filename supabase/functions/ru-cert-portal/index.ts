@@ -15,7 +15,7 @@ import { summarizeReadiness, type RuCheck, type RuUnitInput } from "../_shared/r
 import { evaluatePhases, findOwnerAccount, resolvePortfolioId } from "../_shared/ruPhaseGate.ts";
 import { createRateResolver, describeCoverage } from "../_shared/rateResolution.ts";
 import { parseRuPricePoints } from "../_shared/ruPriceParsing.ts";
-import { countRuOpenDays } from "../_shared/ruAvailabilityParsing.ts";
+import { countRuOpenDays, parseRuAvailabilityDays } from "../_shared/ruAvailabilityParsing.ts";
 import { DEFAULT_LNM_CHANGE_TYPES, diffLnmSubscriptions, parseLnmSubscriptions } from "../_shared/ruLnm.ts";
 import {
   RU_EMPLOYEE_RANGES,
