@@ -6115,11 +6115,29 @@ export default function PropertyForm({
               {/* Property Amenities & Facilities — Rentals United aligned */}
               <Card>
                 <CardHeader className="py-2 px-4">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-3">
                     <CardTitle className="text-sm">Property Amenities &amp; Facilities</CardTitle>
-                    <div className="text-xs text-muted-foreground flex items-center gap-1">
-                      <Info className="h-3 w-3" />
-                      Channel amenities first — the selection is pushed to Rentals United and OTAs
+                    <div className="flex items-center gap-3">
+                      <div className="text-xs text-muted-foreground flex items-center gap-1">
+                        <Info className="h-3 w-3" />
+                        Channel amenities first — the selection is pushed to Rentals United and OTAs
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-xs shrink-0"
+                        disabled={!propertyId}
+                        title={
+                          propertyId
+                            ? "Let AI review the property website and ROLOS data to propose amenities"
+                            : "Save the property first"
+                        }
+                        onClick={() => setAiAmenityOpen(true)}
+                      >
+                        <Sparkles className="h-3 w-3 mr-1" />
+                        AI amenity check
+                      </Button>
                     </div>
                   </div>
                 </CardHeader>
@@ -6135,6 +6153,20 @@ export default function PropertyForm({
                   />
                 </CardContent>
               </Card>
+
+              {propertyId && (
+                <AiAmenityDialog
+                  open={aiAmenityOpen}
+                  onOpenChange={setAiAmenityOpen}
+                  propertyId={propertyId}
+                  websiteUrl={formData.property_url || undefined}
+                  currentPropertyFacilities={selectedFacilities}
+                  onApplyProperty={(next) => {
+                    setSelectedFacilities(next);
+                    setIsDirty(true);
+                  }}
+                />
+              )}
 
 
               {/* Breakfast Options */}
