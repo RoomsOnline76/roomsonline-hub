@@ -192,6 +192,9 @@ export function PropertyRuOwnerPanel({ propertyId, pmsSystem, readOnly = false }
   const account = identity?.account ?? null;
   const linked = !!account?.ru_owner_id;
   const gated = identity?.push_gated !== false;
+  /** Once keys exist the instructions and inputs collapse to a single "Update keys" action. */
+  const showKeyEntry = !identity?.keys_captured || editingKeys;
+
 
   return (
     <Card className={gated ? "border-amber-500/40" : "border-emerald-500/40"}>
