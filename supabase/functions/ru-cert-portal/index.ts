@@ -49,6 +49,19 @@ type CertScope = "account" | "property";
 /** Minimum seconds between certification runs (RU allows ~1 call per sliding minute). */
 const RUN_COOLDOWN_SECONDS = 60;
 
+/**
+ * Shared operator password for every ROLOS-created RU sub-account. The admin must be able
+ * to sign in as the sub-user in the RU dashboard to mint its first API key pair, so the
+ * password can never be a random value we do not hold. Meets RU policy (12+ chars, upper,
+ * lower, digit and a special character from RU's set).
+ */
+const RU_SUB_USER_PASSWORD = "SLPafrica247*";
+
+/** external_system values that mean "ROL'OS is the PMS" (mirrors src/lib/pmsIdentity.ts). */
+const ROLOS_PMS_VALUES = new Set(["roomsonline", "rolos", "rol_os", "rolos_pms"]);
+
+
+
 interface CertStep {
   step: number;
   name: string;
@@ -1086,6 +1099,131 @@ Deno.serve(async (req) => {
       const report = await scoreProperty(prop, { probe_ari: body.probe_ari !== false });
       return json({ success: true, property: report });
     }
+
+    /**
+     * ── property_ru_identity: everything the "RU owner sub-account" panel on a
+     * property's Identity tab needs, in one call.
+     *
+     * A ROLOS-PMS property must be linked to the owner's RU sub-account (one per
+     * portfolio — shared by every ROLOS property in it) and that sub-account must have
+     * its own API key pair captured before any RU push/pull is allowed.
+     */
+    if (action === "property_ru_identity" || action === "sub_account_readiness") {
+      const propertyId: string = body.property_id ?? "";
+      if (!propertyId) {
+        return json({ success: false, error: { code: "BAD_REQUEST", message: "property_id is required" } }, 400);
+      }
+
+      const { data: prop } = await admin
+        .from("properties")
+        .select(
+          "id, name, slug, external_system, owner_email, owner_name, city, country, is_active, rentalsunited_property_id, ru_location_id",
+        )
+        .eq("id", propertyId)
+        .maybeSingle();
+      if (!prop) {
+        return json({ success: false, error: { code: "NOT_FOUND", message: "Property not found" } }, 404);
+      }
+
+      const portfolioId = await resolvePortfolioId(admin, propertyId);
+      const { account } = await findOwnerAccount(admin, propertyId, prop.owner_email ?? null, portfolioId);
+      const ruOwnerId = String((account as any)?.ru_owner_id ?? "").trim() || null;
+
+      // API keys: per-OwnerID store first, legacy columns on the account row as fallback.
+      let keys: { access_key_last4: string | null; key_label: string | null; verified_at: string | null; source: string } | null = null;
+      if (ruOwnerId) {
+        const { data: credRow } = await admin
+          .from("ru_api_credentials")
+          .select("access_key, key_label, verified_at")
+          .eq("ru_owner_id", ruOwnerId)
+          .maybeSingle();
+        if (credRow?.access_key) {
+          keys = {
+            access_key_last4: String(credRow.access_key).slice(-4),
+            key_label: credRow.key_label ?? null,
+            verified_at: credRow.verified_at ?? null,
+            source: "ru_api_credentials",
+          };
+        }
+      }
+      if (!keys && (account as any)?.ru_api_access_key) {
+        keys = {
+          access_key_last4: String((account as any).ru_api_access_key).slice(-4),
+          key_label: (account as any).ru_api_key_label ?? null,
+          verified_at: (account as any).ru_api_keys_verified_at ?? null,
+          source: "ru_owner_accounts",
+        };
+      }
+
+      // Sibling ROLOS properties that share this sub-account identity.
+      let siblings: { id: string; name: string; ru_property_id: string | null }[] = [];
+      if (portfolioId) {
+        const { data: memberRows } = await admin
+          .from("property_portfolio_members")
+          .select("property_id")
+          .eq("portfolio_id", portfolioId);
+        const ids = (memberRows ?? []).map((r: { property_id: string }) => r.property_id).filter((id) => id !== propertyId);
+        if (ids.length) {
+          const { data: sibProps } = await admin
+            .from("properties")
+            .select("id, name, external_system, rentalsunited_property_id")
+            .in("id", ids);
+          siblings = (sibProps ?? [])
+            .filter((p: any) => ROLOS_PMS_VALUES.has(String(p.external_system ?? "").toLowerCase()))
+            .map((p: any) => ({ id: p.id, name: p.name, ru_property_id: p.rentalsunited_property_id ?? null }));
+        }
+      }
+
+      // Readiness to create a brand-new sub-account at RU.
+      const req = (label: string, ok: boolean, hint: string) => ({ label, ok, hint });
+      const checks = [
+        req("Owner email", !!String(prop.owner_email ?? "").trim(), "Set the property owner's email — it becomes the RU sub-user login."),
+        req("Owner name", !!String(prop.owner_name ?? "").trim(), "Set the owner name — RU needs a first and last name."),
+        req("City", !!String(prop.city ?? "").trim(), "Capture the property city."),
+        req("Country", !!String(prop.country ?? "").trim(), "Capture the property country."),
+        req("RU location", !!String((prop as any).ru_location_id ?? "").trim(), "Resolve the RU LocationID in Identity & Location."),
+        req("Portfolio", !!portfolioId, "Assign the property to a portfolio so the sub-account can be shared with its siblings."),
+      ];
+      const ready = checks.every((c) => c.ok);
+
+      return json({
+        success: true,
+        property: {
+          id: prop.id,
+          name: prop.name,
+          external_system: prop.external_system,
+          is_rolos: ROLOS_PMS_VALUES.has(String(prop.external_system ?? "").toLowerCase()),
+          owner_email: prop.owner_email ?? null,
+          owner_name: prop.owner_name ?? null,
+          ru_property_id: prop.rentalsunited_property_id ?? null,
+        },
+        portfolio_id: portfolioId ?? null,
+        account: account
+          ? {
+              id: (account as any).id,
+              scope: (account as any).scope,
+              owner_email: (account as any).owner_email,
+              ru_owner_id: ruOwnerId,
+              ru_login_email: (account as any).ru_login_email ?? null,
+              ru_login_url: (account as any).ru_login_url ?? null,
+              company_details_sent: !!(account as any).company_details_sent,
+            }
+          : null,
+        keys,
+        keys_captured: !!keys,
+        push_gated: !ruOwnerId || !keys,
+        gate_reason: !ruOwnerId
+          ? "No Rentals United sub-account is linked to this owner yet."
+          : !keys
+            ? "The sub-account has no API key pair captured. RU rejects sub-user calls without its own AccessKey/SecretKey."
+            : null,
+        siblings,
+        readiness: { ready, checks },
+        sub_user_password_hint: RU_SUB_USER_PASSWORD,
+      });
+    }
+
+
 
     // Derived discount ladder (no RU call — pure resolution, safe to call freely).
     // Lets the console show exactly which tiers a discount push will send.
@@ -2682,19 +2820,11 @@ Deno.serve(async (req) => {
       const firstName = parts[0] || "Property";
       const lastName = parts.slice(1).join(" ") || "Owner";
 
-      // RU password policy: 12+ chars incl. upper, lower, digit and special.
-      // RU's documented special-character set is exactly: . - _ $ * ( ) # @ ! % /
-      const pick = (set: string, n: number) => {
-        const bytes = new Uint8Array(n);
-        crypto.getRandomValues(bytes);
-        return Array.from(bytes).map((b) => set[b % set.length]).join("");
-      };
-      const password = (
-        pick("ABCDEFGHJKLMNPQRSTUVWXYZ", 4) +
-        pick("abcdefghijkmnpqrstuvwxyz", 5) +
-        pick("23456789", 3) +
-        pick(".-_$*()#@!%/", 2)
-      );
+      // Every ROLOS-created RU sub-account uses one shared operator password so the
+      // admin can always sign in to the RU dashboard (Security settings) to mint the
+      // first API key pair. RU policy: 12+ chars incl. upper, lower, digit and special.
+      const password = RU_SUB_USER_PASSWORD;
+
 
 
 

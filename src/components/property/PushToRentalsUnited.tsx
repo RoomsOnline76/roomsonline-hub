@@ -150,6 +150,11 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
   const [ruOwnerAccount, setRuOwnerAccount] = useState<RuOwnerAccount | null>(null);
   const [autoManaged, setAutoManaged] = useState(false);
   const [ruOwnerLabel, setRuOwnerLabel] = useState<string | null>(null);
+  /** Sub-account identity gate: no OwnerID or no API keys → every RU call is blocked. */
+  const [identityGate, setIdentityGate] = useState<{ gated: boolean; reason: string | null }>({
+    gated: false,
+    reason: null,
+  });
 
   useEffect(() => {
     // Load property RU IDs and owner email
@@ -178,6 +183,21 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
         }
       });
   }, [propertyId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    supabase.functions
+      .invoke("ru-cert-portal", { body: { action: "property_ru_identity", property_id: propertyId } })
+      .then(({ data }) => {
+        if (cancelled || !data?.success) return;
+        setIdentityGate({ gated: data.push_gated === true, reason: data.gate_reason ?? null });
+      })
+      .catch(() => {/* panel on the Identity tab reports the real reason */});
+    return () => {
+      cancelled = true;
+    };
+  }, [propertyId]);
+
 
   /**
    * Buildings are legacy: units are pushed to RU as standalone properties and no push
@@ -510,13 +530,23 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
                 {ruOwnerLabel ?? `OwnerID ${ruOwnerAccount?.ru_owner_id}`}
               </Badge>
             )}
+            {identityGate.gated && (
+              <Badge variant="outline" className="text-[10px] h-5 gap-1 border-amber-500/60 text-amber-600">
+                <AlertTriangle className="h-3 w-3" />
+                Sub-account keys required
+              </Badge>
+            )}
             <Button
               variant="outline"
               size="sm"
               className="h-7 text-xs gap-1"
               onClick={resolveRuIds}
-              disabled={resolvingIds || loading || dryRunning}
-              title="Read the Rentals United listing IDs for this property's sub-user account and store them here"
+              disabled={resolvingIds || loading || dryRunning || identityGate.gated}
+              title={
+                identityGate.gated
+                  ? identityGate.reason ?? "Link the RU sub-account and capture its API keys on the Identity tab first"
+                  : "Read the Rentals United listing IDs for this property's sub-user account and store them here"
+              }
             >
               {resolvingIds ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
               {resolvingIds ? "Fetching..." : "Fetch RU IDs"}
@@ -529,12 +559,33 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
               size="sm"
               className="h-7 text-xs gap-1"
               onClick={pushToRU}
-              disabled={loading || dryRunning || readiness?.blocked === true || (validation !== null && !isReady)}
-              title={readiness?.blocked ? "Complete the RU readiness checklist below before syncing" : undefined}
+              disabled={
+                loading ||
+                dryRunning ||
+                identityGate.gated ||
+                readiness?.blocked === true ||
+                (validation !== null && !isReady)
+              }
+              title={
+                identityGate.gated
+                  ? identityGate.reason ?? "Link the RU sub-account and capture its API keys on the Identity tab first"
+                  : readiness?.blocked
+                    ? "Complete the RU readiness checklist below before syncing"
+                    : undefined
+              }
             >
               {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
-              {loading ? "Pushing..." : readiness?.blocked ? "Sync blocked" : isMultiUnit ? "Push Building + Units" : "Push to RU"}
+              {loading
+                ? "Pushing..."
+                : identityGate.gated
+                  ? "Keys required"
+                  : readiness?.blocked
+                    ? "Sync blocked"
+                    : isMultiUnit
+                      ? "Push Building + Units"
+                      : "Push to RU"}
             </Button>
+
           </div>
         </div>
       </CardHeader>

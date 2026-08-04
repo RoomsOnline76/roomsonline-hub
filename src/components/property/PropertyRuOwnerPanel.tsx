@@ -1,0 +1,452 @@
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Separator } from "@/components/ui/separator";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Copy,
+  ExternalLink,
+  KeyRound,
+  Loader2,
+  RefreshCw,
+  ShieldCheck,
+  UserPlus,
+  XCircle,
+} from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { extractFunctionError } from "@/lib/functionError";
+
+const RU_SECURITY_SETTINGS_URL = "https://new.rentalsunited.com/My/SecuritySettings";
+
+interface ReadinessCheck {
+  label: string;
+  ok: boolean;
+  hint: string;
+}
+
+export interface RuOwnerIdentity {
+  property: {
+    id: string;
+    name: string;
+    external_system: string | null;
+    is_rolos: boolean;
+    owner_email: string | null;
+    owner_name: string | null;
+    ru_property_id: string | null;
+  };
+  portfolio_id: string | null;
+  account: {
+    id: string;
+    scope: string;
+    owner_email: string | null;
+    ru_owner_id: string | null;
+    ru_login_email: string | null;
+    ru_login_url: string | null;
+    company_details_sent: boolean;
+  } | null;
+  keys: {
+    access_key_last4: string | null;
+    key_label: string | null;
+    verified_at: string | null;
+    source: string;
+  } | null;
+  keys_captured: boolean;
+  push_gated: boolean;
+  gate_reason: string | null;
+  siblings: { id: string; name: string; ru_property_id: string | null }[];
+  readiness: { ready: boolean; checks: ReadinessCheck[] };
+  sub_user_password_hint: string | null;
+}
+
+interface PropertyRuOwnerPanelProps {
+  propertyId: string;
+  /** Current PMS selection in the form — the panel only applies to ROL'OS-managed properties. */
+  pmsSystem: string | null;
+  readOnly?: boolean;
+}
+
+/**
+ * RU owner sub-account panel (Identity tab).
+ *
+ * Every ROL'OS-PMS owner gets one Rentals United sub-account, shared by all ROL'OS
+ * properties in their portfolio. The panel shows the linked OwnerID, creates the
+ * sub-account when none exists (after a readiness check + explicit confirmation), and
+ * captures the sub-account's own API key pair — until those keys exist, every RU
+ * push/pull for this property is gated.
+ */
+export function PropertyRuOwnerPanel({ propertyId, pmsSystem, readOnly = false }: PropertyRuOwnerPanelProps) {
+  const isRolos = useMemo(
+    () => ["roomsonline", "rolos", "rol_os", "rolos_pms"].includes((pmsSystem ?? "").trim().toLowerCase()),
+    [pmsSystem],
+  );
+
+  const [loading, setLoading] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [savingKeys, setSavingKeys] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [confirmCreate, setConfirmCreate] = useState(false);
+  const [identity, setIdentity] = useState<RuOwnerIdentity | null>(null);
+  const [accessKey, setAccessKey] = useState("");
+  const [secretKey, setSecretKey] = useState("");
+  const [keyLabel, setKeyLabel] = useState("ROL'OS");
+
+  const load = useCallback(async () => {
+    if (!propertyId || !isRolos) return;
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
+        body: { action: "property_ru_identity", property_id: propertyId },
+      });
+      if (error) throw new Error(await extractFunctionError(error));
+      if (!data?.success) throw new Error(data?.error?.message ?? "Could not load the RU owner identity");
+      setIdentity(data as RuOwnerIdentity);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not load the RU owner identity");
+    } finally {
+      setLoading(false);
+    }
+  }, [propertyId, isRolos]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const createSubAccount = async () => {
+    setCreating(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
+        body: { action: "ensure_owner_account", property_id: propertyId },
+      });
+      if (error) throw new Error(await extractFunctionError(error));
+      if (!data?.success) throw new Error(data?.error?.message ?? "RU sub-account creation failed");
+      toast.success("RU sub-account linked to this owner");
+      setConfirmCreate(false);
+      await load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "RU sub-account creation failed");
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const saveKeys = async () => {
+    if (!identity?.account?.ru_owner_id) return;
+    setSavingKeys(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
+        body: {
+          action: "save_api_keys",
+          account_id: identity.account.id,
+          ru_owner_id: identity.account.ru_owner_id,
+          login_email: identity.account.ru_login_email ?? identity.account.owner_email,
+          access_key: accessKey.trim(),
+          secret_key: secretKey.trim(),
+          key_label: keyLabel.trim() || null,
+        },
+      });
+      if (error) throw new Error(await extractFunctionError(error));
+      if (!data?.success) throw new Error(data?.error?.message ?? "Could not save the API keys");
+      toast.success("API keys saved — RU push/pull is now unlocked for this owner");
+      setAccessKey("");
+      setSecretKey("");
+      await load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not save the API keys");
+    } finally {
+      setSavingKeys(false);
+    }
+  };
+
+  const verifyKeys = async () => {
+    if (!identity?.account?.ru_owner_id) return;
+    setVerifying(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
+        body: {
+          action: "verify_api_keys",
+          account_id: identity.account.id,
+          ru_owner_id: identity.account.ru_owner_id,
+        },
+      });
+      if (error) throw new Error(await extractFunctionError(error));
+      if (!data?.success) throw new Error(data?.error?.message ?? "Verification failed");
+      toast.success("Rentals United accepted the sub-account keys");
+      await load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Verification failed");
+    } finally {
+      setVerifying(false);
+    }
+  };
+
+  if (!isRolos) return null;
+
+  const account = identity?.account ?? null;
+  const linked = !!account?.ru_owner_id;
+  const gated = identity?.push_gated !== false;
+
+  return (
+    <Card className={gated ? "border-amber-500/40" : "border-emerald-500/40"}>
+      <CardHeader className="py-3 px-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <CardTitle className="text-sm flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4 text-primary" />
+              Rentals United owner sub-account
+              {linked ? (
+                <Badge variant="secondary" className="text-[10px]">OwnerID {account?.ru_owner_id}</Badge>
+              ) : (
+                <Badge variant="outline" className="text-[10px]">Not linked</Badge>
+              )}
+              {linked && identity?.keys_captured && (
+                <Badge className="text-[10px] bg-emerald-600 hover:bg-emerald-600">Keys captured</Badge>
+              )}
+            </CardTitle>
+            <CardDescription className="text-xs">
+              One sub-account per owner, shared by every ROL'OS property in their portfolio. RU push and pull stay
+              blocked until the sub-account's own API key and secret are captured here.
+            </CardDescription>
+          </div>
+          <Button variant="ghost" size="sm" onClick={() => void load()} disabled={loading} className="gap-1.5">
+            {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+            Refresh
+          </Button>
+        </div>
+      </CardHeader>
+
+      <CardContent className="py-3 px-4 space-y-3">
+        {gated && identity?.gate_reason && (
+          <Alert variant="default" className="py-2">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle className="text-xs">RU push/pull gated</AlertTitle>
+            <AlertDescription className="text-xs">{identity.gate_reason}</AlertDescription>
+          </Alert>
+        )}
+
+        {/* Linked identity summary */}
+        {linked && (
+          <div className="grid gap-2 sm:grid-cols-2 text-xs">
+            <div>
+              <span className="text-muted-foreground">Sub-account login</span>
+              <div className="font-medium break-all">{account?.ru_login_email ?? account?.owner_email ?? "—"}</div>
+            </div>
+            <div>
+              <span className="text-muted-foreground">Scope</span>
+              <div className="font-medium capitalize">{account?.scope ?? "—"}</div>
+            </div>
+            <div>
+              <span className="text-muted-foreground">Company details sent</span>
+              <div className="font-medium">{account?.company_details_sent ? "Yes" : "Not yet"}</div>
+            </div>
+            <div>
+              <span className="text-muted-foreground">RU PropertyID for this property</span>
+              <div className="font-medium">{identity?.property.ru_property_id ?? "Not pushed yet"}</div>
+            </div>
+          </div>
+        )}
+
+        {/* Not linked → readiness + create */}
+        {!linked && identity && (
+          <div className="space-y-2">
+            <p className="text-xs text-muted-foreground">
+              No Rentals United sub-account exists for this owner. Complete the checks below, then create it — the new
+              account is linked to this property and shared with its portfolio siblings.
+            </p>
+            <ul className="space-y-1">
+              {identity.readiness.checks.map((c) => (
+                <li key={c.label} className="flex items-start gap-2 text-xs">
+                  {c.ok ? (
+                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 mt-0.5 shrink-0" />
+                  ) : (
+                    <XCircle className="h-3.5 w-3.5 text-destructive mt-0.5 shrink-0" />
+                  )}
+                  <span>
+                    <span className="font-medium">{c.label}</span>
+                    {!c.ok && <span className="text-muted-foreground"> — {c.hint}</span>}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            {!readOnly && (
+              confirmCreate ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs">
+                    Create an RU sub-account for {identity.property.owner_email ?? "this owner"}?
+                  </span>
+                  <Button size="sm" onClick={() => void createSubAccount()} disabled={creating} className="gap-1.5">
+                    {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UserPlus className="h-3.5 w-3.5" />}
+                    Confirm &amp; create
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setConfirmCreate(false)} disabled={creating}>
+                    Cancel
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5"
+                  disabled={!identity.readiness.ready}
+                  onClick={() => setConfirmCreate(true)}
+                >
+                  <UserPlus className="h-3.5 w-3.5" />
+                  Create RU sub-account
+                </Button>
+              )
+            )}
+          </div>
+        )}
+
+        {/* API keys */}
+        {linked && (
+          <>
+            <Separator />
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <KeyRound className="h-4 w-4 text-primary" />
+                <span className="text-xs font-semibold">Sub-account API keys</span>
+                {identity?.keys ? (
+                  <Badge variant="secondary" className="text-[10px]">
+                    ••••{identity.keys.access_key_last4}
+                    {identity.keys.key_label ? ` · ${identity.keys.key_label}` : ""}
+                    {identity.keys.verified_at
+                      ? ` · verified ${new Date(identity.keys.verified_at).toLocaleDateString()}`
+                      : " · unverified"}
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="text-[10px]">No keys</Badge>
+                )}
+              </div>
+
+              <ol className="text-xs text-muted-foreground space-y-1 list-decimal pl-4">
+                <li>
+                  Sign in to Rentals United as the sub-user{" "}
+                  <span className="font-medium text-foreground">
+                    {account?.ru_login_email ?? account?.owner_email ?? "—"}
+                  </span>
+                  {identity?.sub_user_password_hint && (
+                    <>
+                      {" "}using the ROL'OS operator password{" "}
+                      <button
+                        type="button"
+                        className="underline underline-offset-2 font-medium text-foreground"
+                        onClick={() => {
+                          void navigator.clipboard.writeText(identity.sub_user_password_hint ?? "");
+                          toast.success("Password copied");
+                        }}
+                      >
+                        (copy <Copy className="inline h-3 w-3" />)
+                      </button>
+                    </>
+                  )}
+                  .
+                </li>
+                <li>
+                  Open{" "}
+                  <a
+                    href={RU_SECURITY_SETTINGS_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline underline-offset-2 inline-flex items-center gap-1 text-foreground"
+                  >
+                    Security settings <ExternalLink className="h-3 w-3" />
+                  </a>{" "}
+                  and generate an API key with scope <span className="font-medium text-foreground">XmlApi</span>.
+                </li>
+                <li>Paste the AccessKey and SecretKey below and save. The secret is stored encrypted and never shown again.</li>
+              </ol>
+
+              {!readOnly && (
+                <div className="grid gap-2 sm:grid-cols-3">
+                  <div className="space-y-1">
+                    <Label htmlFor="ru_access_key" className="text-xs">AccessKey</Label>
+                    <Input
+                      id="ru_access_key"
+                      value={accessKey}
+                      onChange={(e) => setAccessKey(e.target.value)}
+                      placeholder="RU AccessKey"
+                      className="h-7 text-xs"
+                      autoComplete="off"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="ru_secret_key" className="text-xs">SecretKey</Label>
+                    <Input
+                      id="ru_secret_key"
+                      type="password"
+                      value={secretKey}
+                      onChange={(e) => setSecretKey(e.target.value)}
+                      placeholder="RU SecretKey"
+                      className="h-7 text-xs"
+                      autoComplete="off"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="ru_key_label" className="text-xs">Label</Label>
+                    <Input
+                      id="ru_key_label"
+                      value={keyLabel}
+                      onChange={(e) => setKeyLabel(e.target.value)}
+                      className="h-7 text-xs"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {!readOnly && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    size="sm"
+                    className="gap-1.5"
+                    onClick={() => void saveKeys()}
+                    disabled={savingKeys || !accessKey.trim() || !secretKey.trim()}
+                  >
+                    {savingKeys ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <KeyRound className="h-3.5 w-3.5" />}
+                    Save keys
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-1.5"
+                    onClick={() => void verifyKeys()}
+                    disabled={verifying || !identity?.keys_captured}
+                  >
+                    {verifying ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />}
+                    Verify with RU
+                  </Button>
+                </div>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* Shared identity */}
+        {linked && (identity?.siblings.length ?? 0) > 0 && (
+          <>
+            <Separator />
+            <div className="text-xs">
+              <span className="text-muted-foreground">
+                Shared with {identity?.siblings.length} other ROL'OS property in this portfolio — the same OwnerID, key
+                and secret apply to all of them:
+              </span>
+              <div className="mt-1 flex flex-wrap gap-1">
+                {identity?.siblings.map((s) => (
+                  <Badge key={s.id} variant="outline" className="text-[10px]">
+                    {s.name}
+                    {s.ru_property_id ? ` · RU ${s.ru_property_id}` : ""}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}

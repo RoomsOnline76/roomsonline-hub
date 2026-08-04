@@ -27,9 +27,10 @@ Sub-account, no keys     -> API keys required (all push/pull blocked)
 
 ### 2. Readiness check before creating a sub-account
 
-Before the create button is enabled, a readiness list is evaluated (reusing the console's field logic): owner email, owner/representative name, registered business name, address + city + country + postal code, RU LocationID, phone, currency, and RU user management not parked. Each missing item is listed with a link to the field that fills it. Creating requires an explicit confirmation dialog ("this creates a new white-label account at Rentals United for <owner email>") — no silent creation.
+Before the create button is enabled, a readiness list is evaluated (reusing the console's field logic): owner email, owner/representative name, registered business name, address + city + country + postal code, RU LocationID, phone, currency, and RU user management not parked. Each missing item is listed with a link to the field that fills it. Creating requires an explicit confirmation dialog ("this creates a new white-label account at Rentals United for &nbsp;") — no silent creation.
 
-On success the local row is created/bound, company details are submitted, and the property is linked to the resolved OwnerID.
+On success the local row is created/bound, company details are submitted, and the property is linked to the resolved OwnerID.  
+ALL SUB-ACCOUNTS ARE CREATED WIT THE SAME PASSWORD: "SLPafrica247*" during the crate sub-acocunt push.
 
 ### 3. API key + secret capture on the property
 
@@ -49,7 +50,11 @@ Step-by-step instructions inline in the panel:
 
 ### 5. Switching a property to ROLOS
 
-When PMS is set to ROLOS (on load and on save), the panel resolves the RU identity automatically and surfaces the next required step, so the flow is: owner set → sub-account found or created → keys captured → push/pull unlocked.
+When PMS is set to ROLOS (on load and on save), the panel resolves the RU identity automatically and surfaces the next required step, so the flow is: owner set → sub-account found or created → keys captured → push/pull unlocked.  
+
+6. 5. Switching a property away from  ROLOS
+
+Prompt for confirmation to switch and warn consequnaces. rooms/units will be archived.  Prompt to archive only one proeprty or all proerties inthe portfolio. Arcive the property(s) in RU, depending on seleciton. Owner ID will be unbound from portfolio and properties. 
 
 ## Technical notes
 

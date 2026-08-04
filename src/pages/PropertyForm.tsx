@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { PromoCodesTab } from "@/components/property/PromoCodesTab";
 import { CompanyInformationCard, type RuCompanyProfile } from "@/components/property/CompanyInformationCard";
+import { PropertyRuOwnerPanel } from "@/components/property/PropertyRuOwnerPanel";
+
 import { PortfolioIdentityCopy } from "@/components/property/PortfolioIdentityCopy";
 import { HyperGuestSyncReflectionButton } from "@/components/property/HyperGuestSyncReflectionButton";
 import { HyperGuestPropertyLookup } from "@/components/property/HyperGuestPropertyLookup";
@@ -5296,7 +5298,18 @@ export default function PropertyForm({
                   </Card>
                 </div>
 
+                {/* RU owner sub-account: identity link + API key capture (ROL'OS PMS only) */}
+                {isEditMode && propertyId && (
+                  <PropertyRuOwnerPanel
+                    propertyId={propertyId}
+                    pmsSystem={selectedPMS}
+                    readOnly={!(isAdmin || isDev || isFearlessLeader)}
+                  />
+
+                )}
+
                 {/* Company Information — contract variables + banking + Rentals United profile */}
+
                 {selectedPMS !== "nightsbridge" && (
                   <CompanyInformationCard
                     registeredBusinessName={registeredBusinessName}
