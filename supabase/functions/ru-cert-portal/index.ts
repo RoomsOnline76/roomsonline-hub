@@ -306,6 +306,62 @@ const EXPECTED_JOBS = [
 
 const RUNNABLE_JOBS = new Set(EXPECTED_JOBS.map((j) => j.fn));
 
+/**
+ * Milestones can also be satisfied outside a certification run: the daily cron jobs and the
+ * Live-notifications panel exercise the same RU methods and log to `ru_sync_runs`. Without
+ * this fallback a milestone reads "never run" even though the call succeeded minutes ago —
+ * which is exactly what happened to the LNM rows after they were subscribed from the panel.
+ */
+const MILESTONE_SYNC_ACTIONS: Record<string, string[]> = {
+  "LNM_PutHandlerUrl_RQ": ["PutHandlerUrl", "RLNM"],
+  "Push_PutLiveNotificationMechanismSubscriptions_RQ": ["PutLnmSubscriptions"],
+  "Pull_ListLiveNotificationMechanismSubscriptions_RQ": ["ListLnmSubscriptions"],
+  "Pull_ListReservations_RQ": ["pull_reservations"],
+  "Pull_GetLeads_RQ": ["lead_lifecycle", "pull_reservations"],
+  "Push_PutProperty_RQ": ["inventory_push", "weekly_content_refresh"],
+  "Push_PutAvbUnits_RQ": ["refresh_ari"],
+  "Push_PutPrices_RQ": ["refresh_ari"],
+};
+
+/** Cert runs are orchestrated in phases from the browser; a closed tab or a failed phase
+ *  leaves the record stuck on "running" forever. Close out anything idle past this window. */
+const STALE_RUN_MINUTES = 20;
+
+async function reapStaleRuns(admin: ReturnType<typeof createClient>): Promise<void> {
+  const cutoff = new Date(Date.now() - STALE_RUN_MINUTES * 60000).toISOString();
+  const { data: stale } = await admin
+    .from("ru_cert_runs")
+    .select("id, passed, failed, total, steps")
+    .is("finished_at", null)
+    .lt("started_at", cutoff)
+    .limit(50);
+  for (const run of (stale ?? []) as { id: string; passed: number; failed: number; total: number; steps: unknown[] }[]) {
+    const steps = Array.isArray(run.steps) ? [...run.steps] : [];
+    steps.push({
+      step: steps.length + 1,
+      name: "Run finalised automatically",
+      ru_method: "—",
+      mandatory: false,
+      scope: "account",
+      status: "skipped",
+      duration_ms: 0,
+      detail:
+        `No phase reported back within ${STALE_RUN_MINUTES} minutes (browser closed or a later phase was started as its own run). ` +
+        "Status below reflects the steps that were recorded.",
+    });
+    await admin
+      .from("ru_cert_runs")
+      .update({
+        status: (run.failed ?? 0) > 0 ? "failed" : "passed",
+        finished_at: new Date().toISOString(),
+        steps,
+      })
+      .eq("id", run.id);
+  }
+}
+
+
+
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -350,6 +406,7 @@ Deno.serve(async (req) => {
 
     // ── milestones: certification matrix built from the most recent runs ──
     if (action === "milestones") {
+      await reapStaleRuns(admin);
       const { data: runs } = await admin
         .from("ru_cert_runs")
         .select("id, started_at, suite, steps")
@@ -368,8 +425,39 @@ Deno.serve(async (req) => {
         }
       }
 
+      // Cron jobs and the Live-notifications panel exercise the same methods outside a cert
+      // run and log to ru_sync_runs — use the newest of those when no cert step covers it.
+      const { data: syncRows } = await admin
+        .from("ru_sync_runs")
+        .select("action, success, error_message, created_at")
+        .gte("created_at", new Date(Date.now() - 14 * 24 * 3600 * 1000).toISOString())
+        .order("created_at", { ascending: false })
+        .limit(3000);
+      const latestSyncByAction = new Map<string, { success: boolean; error_message: string | null; created_at: string }>();
+      for (const row of (syncRows ?? []) as { action: string; success: boolean; error_message: string | null; created_at: string }[]) {
+        if (!latestSyncByAction.has(row.action)) latestSyncByAction.set(row.action, row);
+      }
+
       const milestones = CERT_MILESTONES.map((m) => {
         const hit = latestByMethod.get(m.ru_method);
+        if (!hit) {
+          for (const act of MILESTONE_SYNC_ACTIONS[m.ru_method] ?? []) {
+            const sync = latestSyncByAction.get(act);
+            if (!sync) continue;
+            return {
+              ...m,
+              status: (sync.success ? "passed" : "failed") as StepStatus,
+              partial_success: false,
+              ru_status_id: null,
+              detail: sync.success
+                ? `Verified outside a certification run — scheduled/manual "${act}" succeeded.`
+                : sync.error_message ?? `Scheduled/manual "${act}" failed.`,
+              last_run_at: sync.created_at,
+              run_id: null,
+              source: "sync_log" as const,
+            };
+          }
+        }
         const statusId = hit?.step.ru_status_id ?? null;
         const partial = String(statusId ?? "") === "5";
         return {
@@ -380,6 +468,7 @@ Deno.serve(async (req) => {
           detail: hit?.step.detail ?? null,
           last_run_at: hit?.at ?? null,
           run_id: hit?.run_id ?? null,
+          source: hit ? ("cert_run" as const) : ("none" as const),
         };
       });
 
@@ -395,6 +484,7 @@ Deno.serve(async (req) => {
         },
       });
     }
+
 
     // ── evidence: printable / downloadable bundle for the RU certification call ──
     if (action === "evidence") {
@@ -433,7 +523,9 @@ Deno.serve(async (req) => {
 
     // ── list_runs ──
     if (action === "list_runs") {
+      await reapStaleRuns(admin);
       const { data, error } = await admin
+
         .from("ru_cert_runs")
         .select("id, started_at, finished_at, status, suite, property_id, ru_property_id, passed, failed, total")
         .order("started_at", { ascending: false })

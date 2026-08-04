@@ -225,14 +225,23 @@ export async function evaluatePhases(
     }
   }
 
-  const { data: lastInventoryRun } = await admin
+  const { data: inventoryRuns } = await admin
     .from("ru_sync_runs")
     .select("success, created_at, details")
     .eq("property_id", property.id)
     .eq("action", "inventory_push")
     .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .limit(20);
+  const runs = (inventoryRuns ?? []) as { success: boolean; created_at: string; details: Record<string, unknown> | null }[];
+  const lastInventoryRun = runs[0] ?? null;
+  const sameOwner = (r: typeof runs[number]) =>
+    Number((r.details as { ru_owner_id?: unknown } | null)?.ru_owner_id) === Number(account?.ru_owner_id);
+  // Phase 3 asks "has a complete owner-scoped push ever succeeded?" — a later partial failure
+  // (e.g. one unit's ARI rejected because RU holds a reservation) must not un-complete it.
+  const lastGoodPush = runs.find((r) => r.success === true && sameOwner(r)) ?? null;
+  const lastVerifiedPush = runs.find(
+    (r) => r.success === true && sameOwner(r) && (r.details as { verified?: unknown } | null)?.verified === true,
+  ) ?? null;
 
   // ── Phase 3 ──
   // Multi-unit properties are pushed standalone: each unit carries its own RU PropertyID and
@@ -255,25 +264,26 @@ export async function evaluatePhases(
   ) {
     p3Blockers.push("Property has not been pushed to Rentals United yet (no RU PropertyID/BuildingID stored).");
   }
-  if (!lastInventoryRun?.success) {
-    p3Blockers.push("A complete property, availability, and price push has not succeeded for the linked RU sub-user.");
-  } else if (Number(lastInventoryRun?.details?.ru_owner_id) !== Number(account?.ru_owner_id)) {
-    p3Blockers.push("The latest inventory push belongs to a different RU OwnerID; re-push under the linked sub-user.");
+  if (!lastGoodPush) {
+    p3Blockers.push(
+      lastInventoryRun?.success && !sameOwner(lastInventoryRun)
+        ? "The latest inventory push belongs to a different RU OwnerID; re-push under the linked sub-user."
+        : "A complete property, availability, and price push has not succeeded for the linked RU sub-user.",
+    );
   }
 
 
   // ── Phase 4 ──
   const p4Blockers: string[] = [];
-  const verificationPassed = lastInventoryRun?.success === true
-    && lastInventoryRun?.details?.verified === true
-    && Number(lastInventoryRun?.details?.ru_owner_id) === Number(account?.ru_owner_id);
-  const lastOkAt = verificationPassed && lastInventoryRun?.created_at ? new Date(lastInventoryRun.created_at).getTime() : 0;
+  const verificationPassed = Boolean(lastVerifiedPush);
+  const lastOkAt = lastVerifiedPush ? new Date(lastVerifiedPush.created_at).getTime() : 0;
   const freshMs = 24 * 60 * 60 * 1000;
   if (!lastOkAt) {
     p4Blockers.push("No owner-scoped RU content, availability, and price verification has passed yet.");
   } else if (Date.now() - lastOkAt > freshMs) {
     p4Blockers.push("Last successful RU sync is older than 24 hours — re-verify before ordering the quality check.");
   }
+
 
   const phases: PhaseResult[] = [
     {
