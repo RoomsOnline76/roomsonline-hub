@@ -39,8 +39,8 @@ export function usePublicPricing() {
     queryKey: ["public-pricing-defaults"],
     staleTime: 5 * 60 * 1000,
     queryFn: async (): Promise<PublicPricingData> => {
-      const { data, error } = await supabase
-        .from("billing_global_defaults")
+      const { data, error } = await (supabase as any)
+        .from("public_pricing_defaults")
         .select("strategy, tier_pricing_json, branding_addon_monthly_fee, white_label_monthly_fee, pricelabs_monthly_fee, byo_gateway_monthly_fee, widget_flat_commission_rate, default_commission_rate");
 
       if (error || !data) return FALLBACK;
