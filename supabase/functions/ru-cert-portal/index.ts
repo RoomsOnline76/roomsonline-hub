@@ -463,17 +463,22 @@ const RU_ENDPOINT_REGISTRY: {
   { key: "rlnm", area: "notifications", label: "Subscribe RLNM handler", ru_method: "LNM_PutHandlerUrl_RQ", direction: "push", mandatory: true, implemented: true,
     rolos_surface: "Live notifications panel + daily cron", rolos_stream: "Reservation push notifications", rolos_wired: true, sync_actions: ["PutHandlerUrl", "RLNM"], max_age_hours: 24, note: "ru-reservation-handler endpoint" },
   { key: "lnm_subscribe", area: "notifications", label: "Subscribe LNM (content + ARI)", ru_method: "Push_PutLiveNotificationMechanismSubscriptions_RQ", direction: "push", mandatory: true, implemented: true,
-    rolos_surface: "Live notifications panel + daily cron", rolos_stream: "Content / ARI change webhooks", rolos_wired: true, sync_actions: ["PutLnmSubscriptions"], max_age_hours: 24, note: "" },
+    rolos_surface: "Live notifications panel + daily cron", rolos_stream: "Content / ARI change webhooks", rolos_wired: true, sync_actions: ["PutLnmSubscriptions", "lnm_duplicate_test"], max_age_hours: 24, note: "" },
   { key: "lnm_verify", area: "notifications", label: "Verify LNM subscriptions", ru_method: "Pull_ListLiveNotificationMechanismSubscriptions_RQ", direction: "pull", mandatory: true, implemented: true,
-    rolos_surface: "Live notifications panel (read-back)", rolos_stream: "Webhook drift detection", rolos_wired: true, sync_actions: ["ListLnmSubscriptions"], max_age_hours: 24, note: "" },
+    rolos_surface: "Live notifications panel (read-back) + property status chips", rolos_stream: "Webhook drift detection", rolos_wired: true, sync_actions: ["ListLnmSubscriptions", "lnm_duplicate_test"], max_age_hours: 24, note: "" },
   { rolos_via_cert: true, key: "lnm_change_types", area: "notifications", label: "List LNM change types", ru_method: "Pull_ListLiveNotificationMechanismChangeTypes_RQ", direction: "pull", mandatory: false, implemented: true,
     rolos_surface: "Live notifications panel (dictionary)", rolos_stream: "Reference data", rolos_wired: true, sync_actions: ["ListLnmChangeTypes", "list_lnm_change_types"], note: "Dictionary read" },
+  { rolos_via_cert: true, key: "lnm_duplicate", area: "notifications", label: "LNM duplicate-subscription test", ru_method: "Push_PutLiveNotificationMechanismSubscriptions_RQ (idempotency)", direction: "push", mandatory: false, implemented: true,
+    rolos_surface: "Live notifications panel → Duplicate test", rolos_stream: "Certification evidence", rolos_wired: true, sync_actions: ["lnm_duplicate_test"], note: "Subscribes twice, proves RU holds one record" },
   { key: "lnm_inbound", area: "notifications", label: "Inbound notification handler", ru_method: "LNM notification (inbound)", direction: "webhook", mandatory: true, implemented: true,
     rolos_surface: "ru-lnm-handler → MCQ orders / refresh", rolos_stream: "Inbound webhooks", rolos_wired: true, sync_actions: ["LNM_Notification"], note: "Routes PropertyMCQEligibilityCheck" },
   { key: "sales_channels", area: "notifications", label: "List sales channels", ru_method: "Pull_ListSalesChannels_RQ", direction: "pull", mandatory: true, implemented: true,
     rolos_surface: "RU console → Phase 4 channel ID", rolos_stream: "Onboarding P4 — channel readiness", rolos_wired: true, sync_actions: ["resolve_sales_channel", "list_sales_channels"], max_age_hours: 720, note: "Resolves LekkeSlaap ChannelID for MCQ" },
   { rolos_via_cert: true, key: "mcq", area: "notifications", label: "Order content quality check", ru_method: "CM_LNM_OrderMinimumContentQualityCheck_RQ", direction: "push", mandatory: false, implemented: true,
-    rolos_surface: "RU console → Phase 4 quality check", rolos_stream: "Onboarding P4 — channel readiness", rolos_wired: true, sync_actions: ["order_mcq"], note: "Requires LNM subscription + ChannelID" },
+    rolos_surface: "RU console → Phase 4 quality check + property status chips", rolos_stream: "Onboarding P4 — channel readiness", rolos_wired: true, sync_actions: ["order_mcq", "mcq_duplicate_test"], note: "Requires LNM subscription + ChannelID" },
+  { rolos_via_cert: true, key: "mcq_duplicate", area: "notifications", label: "MCQ duplicate-order test", ru_method: "CM_LNM_OrderMinimumContentQualityCheck_RQ (idempotency)", direction: "push", mandatory: false, implemented: true,
+    rolos_surface: "Live notifications panel → Duplicate test", rolos_stream: "Certification evidence", rolos_wired: true, sync_actions: ["mcq_duplicate_test"], note: "Orders twice; status 17 is an RU-side fault" },
+
 ];
 
 
