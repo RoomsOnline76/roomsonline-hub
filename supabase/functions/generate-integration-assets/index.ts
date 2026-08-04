@@ -51,15 +51,26 @@ serve(async (req) => {
 
     const { data: property, error: propError } = await adminClient
       .from("properties")
-      .select("id, name, slug, brand_primary_color, brand_logo_url, location, description")
+      .select("id, name, slug, brand_primary_color, brand_logo_url, city, country, address, description")
       .eq("id", property_id)
       .single();
 
     if (propError || !property) {
-      return new Response(JSON.stringify({ error: "Property not found" }), {
-        status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      console.error("generate-integration-assets property lookup failed", propError);
+      return new Response(
+        JSON.stringify({
+          error: propError?.message
+            ? `Could not load property: ${propError.message}`
+            : "Property not found",
+        }),
+        { status: propError ? 500 : 404, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
+
+    // `properties` has no single `location` column - compose one from what exists.
+    const propertyLocation = [property.city, property.country]
+      .filter((part) => Boolean(part))
+      .join(", ") || property.address || "";
 
     const baseUrl = "https://book.sleepinafrica.roomsonline.co.za";
     const embedBase = `${baseUrl}/embed/property/${property.slug}`;
@@ -131,7 +142,7 @@ serve(async (req) => {
               },
               {
                 role: "user",
-                content: `Write installation instructions for a "${integration_type}" booking integration for the property "${property.name}". The embed code is: ${snippet}. The property is located at ${property.location || "their location"}. Make the instructions friendly and specific to their property name.`,
+                content: `Write installation instructions for a "${integration_type}" booking integration for the property "${property.name}". The embed code is: ${snippet}. The property is located at ${propertyLocation || "their location"}. Make the instructions friendly and specific to their property name.`,
               },
             ],
           }),
