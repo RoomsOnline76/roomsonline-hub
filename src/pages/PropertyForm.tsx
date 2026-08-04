@@ -3632,6 +3632,10 @@ export default function PropertyForm({
         navigate(`/admin/properties/${savedProperty.slug}`, { replace: true });
       }
 
+      // Readiness (score badge, checksheet, field borders, stepper) must reflect
+      // the values we just saved without a page refresh.
+      void queryClient.invalidateQueries({ queryKey: ["property-readiness"] });
+
       toast({
         title: "Success",
         description: isEditMode ? "Property updated successfully" : "Property created successfully",
