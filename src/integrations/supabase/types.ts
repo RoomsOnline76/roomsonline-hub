@@ -786,10 +786,13 @@ export type Database = {
           guest_nationality: string | null
           guest_phone: string | null
           guest_phone_encrypted: string | null
+          hold_expires_at: string | null
+          hold_released_at: string | null
           id: string
           infants: number | null
           integration_type: string | null
           last_modified_at: string | null
+          lead_created_at: string | null
           modification_notes: Json | null
           modified_by: string | null
           origin_portfolio_id: string | null
@@ -845,10 +848,13 @@ export type Database = {
           guest_nationality?: string | null
           guest_phone?: string | null
           guest_phone_encrypted?: string | null
+          hold_expires_at?: string | null
+          hold_released_at?: string | null
           id?: string
           infants?: number | null
           integration_type?: string | null
           last_modified_at?: string | null
+          lead_created_at?: string | null
           modification_notes?: Json | null
           modified_by?: string | null
           origin_portfolio_id?: string | null
@@ -904,10 +910,13 @@ export type Database = {
           guest_nationality?: string | null
           guest_phone?: string | null
           guest_phone_encrypted?: string | null
+          hold_expires_at?: string | null
+          hold_released_at?: string | null
           id?: string
           infants?: number | null
           integration_type?: string | null
           last_modified_at?: string | null
+          lead_created_at?: string | null
           modification_notes?: Json | null
           modified_by?: string | null
           origin_portfolio_id?: string | null
