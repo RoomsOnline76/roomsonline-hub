@@ -430,7 +430,7 @@ function PMSMessaging() {
                         </Button>
                       )}
                       <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setAiWriterOpen(true)}>
-                        <Sparkles className="h-3.5 w-3.5 mr-1" /> Generate with AI
+                        <Sparkles className="h-3.5 w-3.5 mr-1" /> Generate with TOBI
                       </Button>
                     </div>
                   </div>

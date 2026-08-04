@@ -173,7 +173,7 @@ const Insights = () => {
             <div className="flex items-center gap-3">
               <Sparkles className="h-4 w-4 text-muted-foreground shrink-0" />
               <Input
-                placeholder="Ask AI: e.g., What search trends convert best?"
+                placeholder="Ask TOBI: e.g., What search trends convert best?"
                 value={aiPrompt}
                 onChange={(e) => setAiPrompt(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleAiAnalysis()}

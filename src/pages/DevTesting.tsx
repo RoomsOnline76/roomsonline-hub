@@ -106,8 +106,8 @@ export default function DevTesting() {
     <AppLayout>
       <div className="container mx-auto py-6 space-y-6">
         <PageHeader
-          title="AI-Assisted Testing"
-          subtitle="Generate and execute test scenarios with AI assistance"
+          title="TOBI-Assisted Testing"
+          subtitle="Generate and execute test scenarios with TOBI"
         />
 
         {/* Stats Overview */}

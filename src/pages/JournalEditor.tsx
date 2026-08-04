@@ -412,7 +412,7 @@ export default function JournalEditor() {
                 ) : (
                   <Sparkles className="h-4 w-4 mr-1" />
                 )}
-                AI Generate
+                TOBI Generate
               </Button>
             </div>
 

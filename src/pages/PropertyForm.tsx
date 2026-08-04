@@ -6132,13 +6132,13 @@ export default function PropertyForm({
                         disabled={!propertyId}
                         title={
                           propertyId
-                            ? "Let AI review the property website and ROLOS data to propose amenities"
+                            ? "Let TOBI review the property website and ROLOS data to propose amenities"
                             : "Save the property first"
                         }
                         onClick={() => setAiAmenityOpen(true)}
                       >
                         <Sparkles className="h-3 w-3 mr-1" />
-                        AI amenity check
+                        TOBI amenity check
                       </Button>
                     </div>
                   </div>

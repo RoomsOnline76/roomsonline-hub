@@ -600,7 +600,7 @@ export default function PMSCommandCentre() {
       );
     } catch (err) {
       console.error("AI suggestions error:", err);
-      toast.error("Could not load AI suggestions");
+      toast.error("Could not load TOBI suggestions");
     } finally {
       setAiLoading(false);
     }
@@ -1100,7 +1100,7 @@ export default function PMSCommandCentre() {
               <div className="flex items-center justify-between">
                 <CardTitle className="text-sm flex items-center gap-2">
                   <Lightbulb className="h-4 w-4 text-status-warning" />
-                  AI Suggestions
+                  TOBI Suggestions
                   {suggestions.length > 0 && (
                     <Badge variant="secondary" className="text-[10px]">
                       {suggestions.length}
@@ -1114,7 +1114,7 @@ export default function PMSCommandCentre() {
                 />
               </div>
               <CardDescription className="text-xs">
-                AI-powered recommendations based on availability data
+                TOBI recommendations based on availability data
               </CardDescription>
             </CardHeader>
           </CollapsibleTrigger>
