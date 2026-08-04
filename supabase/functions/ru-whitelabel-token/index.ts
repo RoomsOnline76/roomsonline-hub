@@ -128,6 +128,63 @@ async function mintFromLogin(
   return { error: `Rentals United did not return a White Label token pair (${attempts.join('; ')})` };
 }
 
+/** White Label token exchange candidates using the sub-user's API key pair. */
+const RU_KEY_EXCHANGE_ENDPOINTS = [
+  'https://new.rentalsunited.com/api/authorization/token',
+  'https://new.rentalsunited.com/api/authorization/api-key-login',
+  'https://new.rentalsunited.com/api/white-pms/token',
+];
+
+/**
+ * Exchange the verified sub-user AccessKey/SecretKey for a White Label token pair.
+ * Rentals United has not published a programmatic endpoint for this, so every
+ * candidate is tried and any failure is reported back as a reason (never as a
+ * "your setup is incomplete" message).
+ */
+async function mintFromKeys(
+  accessKey: string,
+  secretKey: string,
+  ownerId: string,
+): Promise<{ access: string; refresh: string; ttl: number } | { error: string }> {
+  const attempts: string[] = [];
+  for (const url of RU_KEY_EXCHANGE_ENDPOINTS) {
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ accessKey, secretKey, ownerId }),
+      });
+      const text = await res.text();
+      if (!res.ok) {
+        attempts.push(`HTTP ${res.status}`);
+        continue;
+      }
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        attempts.push('non-JSON response');
+        continue;
+      }
+      const { access, refresh, ttl } = extractTokens(parsed);
+      if (access && refresh) {
+        console.log('[ru-whitelabel-token] Minted White Label tokens from sub-user API keys');
+        return { access, refresh, ttl: ttl ?? DEFAULT_TTL_SECONDS };
+      }
+      attempts.push('no token pair in response');
+    } catch (e) {
+      attempts.push(e instanceof Error ? e.message : 'request failed');
+    }
+  }
+  console.warn(`[ru-whitelabel-token] Key exchange unavailable: ${attempts.join(' | ')}`);
+  return {
+    error:
+      'Rentals United has not issued a White Label token pair for this verified sub-user yet. Your Rentals United connection is fine — the Channel Manager sign-in still needs to be finalised.',
+  };
+}
+
+
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
 
@@ -252,8 +309,49 @@ Deno.serve(async (req) => {
       });
     }
 
-    const loginEmail = (account.ru_login_email || account.owner_email || '').trim();
+    // ── Verified sub-user API keys (canonical store: ru_api_credentials) ──
+    // A verified sub-user means the RU setup IS complete on the owner's side; only the
+    // White Label sign-in may still be outstanding, so never tell them to redo setup.
+    const { data: credRow } = await admin
+      .from('ru_api_credentials')
+      .select('access_key, secret_enc, verified_at, login_email')
+      .eq('ru_owner_id', ownerId)
+      .maybeSingle();
+    const subUserVerified = !!(credRow?.access_key || account.ru_api_access_key);
+    let keyExchangeError: string | null = null;
+
+    if (credRow?.access_key) {
+      const secret = await decryptSecret(admin, credRow.secret_enc);
+      if (secret) {
+        const exchanged = await mintFromKeys(String(credRow.access_key), secret, ownerId);
+        if (!('error' in exchanged)) {
+          const keyExpiry = new Date(Date.now() + exchanged.ttl * 1000).toISOString();
+          await admin
+            .from('ru_owner_accounts')
+            .update({
+              ru_wl_access_token: exchanged.access,
+              ru_wl_refresh_token: exchanged.refresh,
+              ru_wl_token_expires_at: keyExpiry,
+              ru_wl_token_source: 'keys',
+            })
+            .eq('id', account.id);
+          return json({
+            success: true,
+            available: true,
+            owner_id: ownerId,
+            access_token: exchanged.access,
+            refresh_token: exchanged.refresh,
+            expires_at: keyExpiry,
+            source: 'keys',
+          });
+        }
+        keyExchangeError = exchanged.error;
+      }
+    }
+
+    const loginEmail = (account.ru_login_email || credRow?.login_email || account.owner_email || '').trim();
     const password = await decryptSecret(admin, account.ru_login_password_enc);
+
 
     if (loginEmail && password) {
       const minted = await mintFromLogin(loginEmail, password);
@@ -313,12 +411,25 @@ Deno.serve(async (req) => {
       });
     }
 
+    if (subUserVerified) {
+      return json({
+        success: true,
+        available: false,
+        reason: 'awaiting_wl_token',
+        sub_user_verified: true,
+        message:
+          keyExchangeError ??
+          'The Rentals United sub-user is connected and verified, but no White Label Channel Manager token pair has been issued yet.',
+      });
+    }
+
     return json({
       success: true,
       available: false,
       reason: 'no_credentials',
-      message: 'No Rentals United sub-user login or White Label token pair is stored for this owner.',
+      message: 'No Rentals United sub-user credentials or White Label token pair are stored for this owner.',
     });
+
   } catch (error) {
     console.error('[ru-whitelabel-token] Error:', error);
     return json({ error: error instanceof Error ? error.message : 'Unexpected error' }, 500);

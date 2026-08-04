@@ -16,7 +16,10 @@ interface TokenResponse {
   reason?: string | null;
   message?: string | null;
   error?: string | null;
+  /** True when the RU sub-user is connected and verified (setup is NOT the blocker). */
+  sub_user_verified?: boolean | null;
 }
+
 
 /**
  * Resolves the Rentals United White Label Channel Manager token pair for a property's
@@ -56,7 +59,9 @@ export function useRuWhiteLabelTokens(propertyId: string | null | undefined) {
     isLoading: query.isLoading,
     isUnavailable: !query.isLoading && !query.isError && !tokens,
     reason: data?.reason ?? (query.isError ? "request_failed" : null),
+    subUserVerified: data?.sub_user_verified === true,
     message: data?.message ?? (query.error instanceof Error ? query.error.message : null),
     refetch: query.refetch,
   };
 }
+
