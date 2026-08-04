@@ -245,6 +245,25 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
    * (or a lost response) leave the local RU ID blank. This re-reads the RU property
    * list for the bound sub-user and captures the real RUIDs by name.
    */
+  /** Re-read the stored RU links so the panel reflects what the fetch just wrote. */
+  const reloadStoredRuIds = async () => {
+    const [{ data: prop }, { data: rows }] = await Promise.all([
+      supabase.from("properties").select("rentalsunited_property_id").eq("id", propertyId).maybeSingle(),
+      supabase
+        .from("hostfully_room_types")
+        .select("id, name, rentalsunited_property_id, is_active")
+        .eq("property_id", propertyId),
+    ]);
+    setRuPropertyId(prop?.rentalsunited_property_id ?? null);
+    const active = (rows ?? []).filter((r) => r.is_active !== false);
+    setUnits((prev) =>
+      prev.map((u) => {
+        const hit = active.find((r) => r.id === u.room_type_id);
+        return hit ? { ...u, ru_property_id: hit.rentalsunited_property_id ?? null } : u;
+      }),
+    );
+  };
+
   const resolveRuIds = async () => {
     setResolvingIds(true);
     try {
