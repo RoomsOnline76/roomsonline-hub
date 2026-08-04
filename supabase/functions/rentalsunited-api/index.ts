@@ -1347,6 +1347,12 @@ const CHILD_SCOPED_ACTIONS = new Set([
   'reject_request',
   'cancel_reservation',
   'subscribe_notifications',
+  // LNM subscriptions are per-account: subscribing on master credentials leaves the
+  // sub-user's content/ARI changes unnotified.
+  'put_lnm_subscriptions',
+  'list_lnm_subscriptions',
+  'list_lnm_change_types',
+
 ]);
 
 
