@@ -149,6 +149,7 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
 
   const [ruOwnerAccount, setRuOwnerAccount] = useState<RuOwnerAccount | null>(null);
   const [autoManaged, setAutoManaged] = useState(false);
+  const [ruOwnerLabel, setRuOwnerLabel] = useState<string | null>(null);
 
   useEffect(() => {
     // Load property RU IDs and owner email
@@ -272,6 +273,9 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
       });
       if (fnErr) throw new Error(await extractFunctionError(fnErr, "Could not read the Rentals United property list"));
       if (!data?.success) throw new Error(data?.error?.message ?? "Could not read the Rentals United property list");
+
+      if (data.ru_owner_label) setRuOwnerLabel(String(data.ru_owner_label));
+      else if (data.ru_owner_id) setRuOwnerLabel(`OwnerID ${data.ru_owner_id}`);
 
       const matched: { scope: string; name: string; ru_property_id: string }[] = data.matched ?? [];
       const propMatch = matched.find((m) => m.scope === "property");
@@ -500,6 +504,12 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
             )}
           </div>
           <div className="flex items-center gap-2">
+            {(ruOwnerLabel || ruOwnerAccount?.ru_owner_id) && (
+              <Badge variant="outline" className="text-[10px] h-5 gap-1" title="RU sub-account the IDs are fetched from">
+                <User className="h-3 w-3" />
+                {ruOwnerLabel ?? `OwnerID ${ruOwnerAccount?.ru_owner_id}`}
+              </Badge>
+            )}
             <Button
               variant="outline"
               size="sm"
