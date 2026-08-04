@@ -1,13 +1,18 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { resolveRuOwnerScopes, type RuOwnerScope } from '../_shared/ruOwnerScopes.ts';
+import { extractTag, extractAllBlocks, parseRuReservation } from '../_shared/ruReservationParsing.ts';
+import { classifyRuStatus, ingestRuReservation } from '../_shared/ruReservationIngest.ts';
 
 /**
  * Cron job: Pull reservations from Rentals United every 30 minutes.
  * Safety net alongside RLNM — catches missed push notifications.
  * Queries the last 90 days of reservations via Pull_ListReservations_RQ (RU filters on the
  * reservation CREATION date, so a short window silently drops bookings taken earlier).
- * Confirmed reservations also block the booked nights in `property_availability` so the ROL
- * booking engine cannot resell a night a channel already sold; cancellations release them.
+ *
+ * Parsing and all booking writes are shared with `ru-reservation-handler` via
+ * `_shared/ruReservationParsing.ts` + `_shared/ruReservationIngest.ts`, so the poll and
+ * notification paths are identical and idempotent (a replayed reservation updates the
+ * existing booking instead of creating a second one).
  *
  * Credentials: Pull_ListReservations_RQ / Pull_GetLeads_RQ are ACCOUNT-scoped —
  * a white-label sub-user's bookings never appear in the master account's answer.
@@ -24,25 +29,13 @@ const corsHeaders = {
 const METHOD_WINDOW_MS = 61_000;
 /** How far back to ask RU for reservations (RU filters on the reservation creation date). */
 const PULL_WINDOW_DAYS = 90;
-/** How long an unconfirmed RU lead holds the dates before availability is released. */
-const LEAD_HOLD_DAYS = 3;
 /** Wall-clock budget for the whole run; remaining accounts roll into the next run. */
 const RUN_BUDGET_MS = 6 * 60_000;
-
-function extractTag(xml: string, tag: string): string | null {
-  const regex = new RegExp(`<${tag}>([^<]*)</${tag}>`, 'i');
-  const match = xml.match(regex);
-  return match ? match[1].trim() : null;
-}
-
-function extractAllBlocks(xml: string, tag: string): string[] {
-  const regex = new RegExp(`<${tag}[^>]*>[\\s\\S]*?</${tag}>`, 'gi');
-  return xml.match(regex) || [];
-}
 
 function formatDate(d: Date): string {
   return d.toISOString().split('T')[0];
 }
+
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
