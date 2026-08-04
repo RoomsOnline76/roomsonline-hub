@@ -106,6 +106,8 @@ const LOGGED_PORTAL_ACTIONS = new Set<string>([
   "discount_ladder",
   "property_readiness",
   "wl_readiness",
+  "list_reservations",
+  "list_lnm_change_types",
 ]);
 
 async function logPortalAction(
@@ -118,7 +120,8 @@ async function logPortalAction(
   if (!LOGGED_PORTAL_ACTIONS.has(action)) return;
   const p = (payload ?? {}) as { success?: boolean; error?: { message?: string } };
   try {
-    await admin.from("ru_sync_runs").insert({
+    const { error } = await admin.from("ru_sync_runs").insert({
+      batch_id: crypto.randomUUID(),
       action,
       property_id: propertyId,
       success: p.success === true,
@@ -126,6 +129,7 @@ async function logPortalAction(
       elapsed_ms: elapsedMs,
       details: { source: "ru_console" },
     });
+    if (error) console.warn("[ru-cert-portal] coverage log insert failed", error.message);
   } catch (e) {
     console.warn("[ru-cert-portal] coverage log failed", e);
   }
@@ -440,7 +444,7 @@ const RU_ENDPOINT_REGISTRY: {
 
   // ── reservations ──
   { key: "reservations", area: "reservations", label: "Pull reservations", ru_method: "Pull_ListReservations_RQ", direction: "pull", mandatory: true, implemented: true,
-    rolos_surface: "Reservation poll cron (30 min) → dashboard + calendar", rolos_stream: "Bookings inbound", rolos_wired: true, sync_actions: ["pull_reservations"], max_age_hours: 1, note: "StatusID 1,2,4,6,7,8 — sub-user scoped" },
+    rolos_surface: "Reservation poll cron (30 min) → dashboard + calendar", rolos_stream: "Bookings inbound", rolos_wired: true, sync_actions: ["pull_reservations", "list_reservations"], max_age_hours: 1, note: "StatusID 1,2,4,6,7,8 — sub-user scoped" },
   { key: "leads", area: "reservations", label: "Pull leads / requests", ru_method: "Pull_GetLeads_RQ", direction: "pull", mandatory: false, implemented: true,
     rolos_surface: "Reservation poll cron → 3-day hold on calendar", rolos_stream: "Leads inbound", rolos_wired: true, sync_actions: ["pull_reservations", "lead_lifecycle"], max_age_hours: 24, note: "Creates availability hold" },
   { key: "lead_lifecycle", area: "reservations", label: "Lead hold lifecycle", ru_method: "Push_RejectRequest_RQ", direction: "push", mandatory: false, implemented: true,
@@ -462,7 +466,7 @@ const RU_ENDPOINT_REGISTRY: {
   { key: "lnm_verify", area: "notifications", label: "Verify LNM subscriptions", ru_method: "Pull_ListLiveNotificationMechanismSubscriptions_RQ", direction: "pull", mandatory: true, implemented: true,
     rolos_surface: "Live notifications panel (read-back)", rolos_stream: "Webhook drift detection", rolos_wired: true, sync_actions: ["ListLnmSubscriptions"], max_age_hours: 24, note: "" },
   { rolos_via_cert: true, key: "lnm_change_types", area: "notifications", label: "List LNM change types", ru_method: "Pull_ListLiveNotificationMechanismChangeTypes_RQ", direction: "pull", mandatory: false, implemented: true,
-    rolos_surface: "Live notifications panel (dictionary)", rolos_stream: "Reference data", rolos_wired: true, sync_actions: ["ListLnmChangeTypes"], note: "Dictionary read" },
+    rolos_surface: "Live notifications panel (dictionary)", rolos_stream: "Reference data", rolos_wired: true, sync_actions: ["ListLnmChangeTypes", "list_lnm_change_types"], note: "Dictionary read" },
   { key: "lnm_inbound", area: "notifications", label: "Inbound notification handler", ru_method: "LNM notification (inbound)", direction: "webhook", mandatory: true, implemented: true,
     rolos_surface: "ru-lnm-handler → MCQ orders / refresh", rolos_stream: "Inbound webhooks", rolos_wired: true, sync_actions: ["LNM_Notification"], note: "Routes PropertyMCQEligibilityCheck" },
   { key: "sales_channels", area: "notifications", label: "List sales channels", ru_method: "Pull_ListSalesChannels_RQ", direction: "pull", mandatory: true, implemented: true,
@@ -728,6 +732,34 @@ Deno.serve(async (req) => {
       for (const row of (syncRows ?? []) as SyncRow[]) {
         if (!latestSyncByAction.has(row.action)) latestSyncByAction.set(row.action, row);
         if (row.success && !latestSuccessByAction.has(row.action)) latestSuccessByAction.set(row.action, row);
+      }
+
+      // Phase 1/2 pre-date endpoint logging. The durable account row is authoritative
+      // historical evidence that RU created the child user and accepted company details.
+      const { data: latestOwnerAccount } = await admin
+        .from("ru_owner_accounts")
+        .select("created_at, company_details_sent, company_filled_at")
+        .not("ru_owner_id", "is", null)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      const addHistoricalSuccess = (action: string, at: string | null | undefined) => {
+        if (!at || latestSyncByAction.has(action)) return;
+        const row: SyncRow = {
+          action,
+          success: true,
+          error_code: null,
+          error_message: null,
+          created_at: at,
+          property_id: null,
+          ru_property_id: null,
+        };
+        latestSyncByAction.set(action, row);
+        latestSuccessByAction.set(action, row);
+      };
+      addHistoricalSuccess("ensure_owner_account", latestOwnerAccount?.created_at);
+      if (latestOwnerAccount?.company_details_sent === true) {
+        addHistoricalSuccess("ensure_company_details", latestOwnerAccount.company_filled_at);
       }
 
       const now = Date.now();
@@ -3667,6 +3699,18 @@ Deno.serve(async (req) => {
             data?.message ??
             (ok ? "OK" : "Unexpected response");
           const soft = ok && !assertFail ? null : masterLeak ? null : softSkipReason(String(rawDetail));
+
+          // Persist every adapter invocation independently of the enclosing suite. Coverage
+          // must not depend on a small recent-run window or loose step-name matching.
+          await logPortalAction(
+            admin,
+            ruAction,
+            typeof payload.property_id === "string" ? payload.property_id : propertyId,
+            ok && !assertFail
+              ? { success: true }
+              : { success: false, error: { message: String(rawDetail) } },
+            duration,
+          );
 
           steps.push({
             step: stepNo,
