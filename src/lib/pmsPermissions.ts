@@ -137,5 +137,5 @@ export const ROLE_DESCRIPTIONS: Record<PmsStaffRole, string> = {
   maintenance: "Maintenance dockets only. Read-only housekeeping board.",
   accountant: "Financial reports, folios, guest CRM for billing. No operational access.",
   auditor: "Read-only access to all PMS modules for audits.",
-  agent: "Multi-property availability overview and AI-powered booking suggestions.",
+  agent: "Multi-property availability overview and TOBI booking suggestions.",
 };
