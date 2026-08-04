@@ -13,15 +13,44 @@ interface QualityCheckResult {
   fix?: string;
   field?: string;
   severity: 'blocker' | 'warning' | 'info';
+  /** Mandatory = blocks activation. Recommended = nice-to-have quality lift. */
+  tier?: 'mandatory' | 'recommended';
+  /** Deep-link target: which property section to open to fix the shortfall */
+  section?: string;
+  section_label?: string;
+  /** Where the section lives: ROLOS property setup hub or the admin property editor */
+  surface?: 'rolos' | 'admin';
 }
 
 interface ActivationReadinessResponse {
   passed: boolean;
   score: number;
+  mandatory_score: number;
+  mandatory_total: number;
+  mandatory_passed: number;
+  recommended_score: number;
+  recommended_total: number;
+  recommended_passed: number;
   blockers: QualityCheckResult[];
   warnings: QualityCheckResult[];
   checks: QualityCheckResult[];
 }
+
+/** Check id → where the user fixes it */
+const CHECK_ROUTES: Record<string, { section: string; label: string; surface: 'rolos' | 'admin' }> = {
+  contract: { section: 'admin', label: 'Admin · Contracts', surface: 'admin' },
+  content: { section: 'general', label: 'Identity & Location', surface: 'admin' },
+  media: { section: 'images', label: 'Media', surface: 'rolos' },
+  commercial: { section: 'general', label: 'Identity & Location → Banking', surface: 'admin' },
+  pms: { section: 'integrations', label: 'Integrations', surface: 'admin' },
+  location: { section: 'general', label: 'Identity & Location', surface: 'admin' },
+  contact: { section: 'contacts', label: 'Contacts', surface: 'rolos' },
+  rooms: { section: 'rooms', label: 'Rooms', surface: 'rolos' },
+  policies: { section: 'rates', label: 'Rates & Pricing → Policies', surface: 'rolos' },
+  rentalsunited_geo: { section: 'general', label: 'Identity & Location', surface: 'admin' },
+  rentalsunited_location_currency: { section: 'integrations', label: 'Integrations → Rentals United', surface: 'admin' },
+};
+
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -143,12 +172,32 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Annotate every check with its tier (mandatory vs nice-to-have) and the UI
+    // destination where the shortfall is fixed, so the setup checksheet can deep-link.
+    for (const c of checks) {
+      c.tier = c.severity === 'blocker' ? 'mandatory' : 'recommended';
+      const route = CHECK_ROUTES[c.id];
+      if (route) {
+        c.section = route.section;
+        c.surface = route.surface;
+        c.section_label = route.label;
+      }
+    }
+
     // Calculate results
     const blockers = checks.filter(c => !c.passed && c.severity === 'blocker');
     const warnings = checks.filter(c => !c.passed && c.severity === 'warning');
-    const passedChecks = checks.filter(c => c.passed);
 
-    // Score calculation: 100 points max, deduct for failed checks
+    const mandatory = checks.filter(c => c.tier === 'mandatory');
+    const recommended = checks.filter(c => c.tier === 'recommended');
+    const mandatoryPassed = mandatory.filter(c => c.passed).length;
+    const recommendedPassed = recommended.filter(c => c.passed).length;
+
+    const pct = (passed: number, total: number) => (total === 0 ? 100 : Math.round((passed / total) * 100));
+    const mandatoryScore = pct(mandatoryPassed, mandatory.length);
+    const recommendedScore = pct(recommendedPassed, recommended.length);
+
+    // Legacy combined score (weighted deductions) kept for existing consumers.
     const blockerWeight = 20;
     const warningWeight = 5;
     const score = Math.max(0, 100 - (blockers.length * blockerWeight) - (warnings.length * warningWeight));
@@ -156,10 +205,17 @@ Deno.serve(async (req) => {
     const response: ActivationReadinessResponse = {
       passed: blockers.length === 0,
       score,
+      mandatory_score: mandatoryScore,
+      mandatory_total: mandatory.length,
+      mandatory_passed: mandatoryPassed,
+      recommended_score: recommendedScore,
+      recommended_total: recommended.length,
+      recommended_passed: recommendedPassed,
       blockers,
       warnings,
       checks
     };
+
 
     return new Response(
       JSON.stringify(response),

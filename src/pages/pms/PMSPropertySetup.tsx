@@ -4,9 +4,12 @@ import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 import PropertyForm from "@/pages/PropertyForm";
 import PropertyContactDetails from "@/components/property/PropertyContactDetails";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { PropertySectionRail } from "@/components/property/PropertySectionRail";
+import { RolosReadinessChecklist } from "@/components/property/RolosReadinessChecklist";
 import { buildSectionGroups, type PropertySectionKey } from "@/config/propertySectionOrder";
+
 
 /**
  * ROLOS "Property Setup" hub.
@@ -72,6 +75,8 @@ export default function PMSPropertySetup() {
   })();
 
   const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
+  const [showChecksheet, setShowChecksheet] = useState(true);
+
   const [railCollapsed, setRailCollapsed] = useState<boolean>(() => {
     try {
       return localStorage.getItem("property-rail-collapsed") === "1";
@@ -143,7 +148,27 @@ export default function PMSPropertySetup() {
             live here — same tables the admin editor and book. OTA read.
           </p>
         </div>
+        <Button
+          type="button"
+          size="sm"
+          variant={showChecksheet ? "secondary" : "outline"}
+          className="h-7 text-[11px]"
+          onClick={() => setShowChecksheet((v) => !v)}
+        >
+          {showChecksheet ? "Hide" : "Show"} readiness checksheet
+        </Button>
       </header>
+
+      {showChecksheet && (
+        <RolosReadinessChecklist
+          propertyId={propertyId}
+          onNavigateSection={(section) => {
+            if (VALID_TABS.has(section as TabKey)) handleSelectTab(section as TabKey);
+          }}
+        />
+      )}
+
+
 
       <div
         className={
