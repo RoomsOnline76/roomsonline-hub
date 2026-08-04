@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { RuLnmStatusChips } from "@/components/property/RuLnmStatusChips";
+import { RuWhiteLabelTokenFields } from "@/components/property/RuWhiteLabelTokenFields";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
