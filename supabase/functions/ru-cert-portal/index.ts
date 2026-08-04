@@ -732,7 +732,13 @@ Deno.serve(async (req) => {
 
       const now = Date.now();
       const rows = RU_ENDPOINT_REGISTRY.map((e) => {
-        const cert = latestByMethod.get(e.ru_method);
+        let cert: { step: StepRow; run_id: string; at: string } | undefined;
+        for (const candidate of [e.ru_method, ...(e.cert_methods ?? [])]) {
+          const hit = latestByMethod.get(normMethod(candidate));
+          if (!hit) continue;
+          if (!cert || new Date(hit.at).getTime() > new Date(cert.at).getTime()) cert = hit;
+        }
+
         let status: "passed" | "failed" | "skipped" | "never_run" = "never_run";
         let detail: string | null = null;
         let lastRunAt: string | null = null;
