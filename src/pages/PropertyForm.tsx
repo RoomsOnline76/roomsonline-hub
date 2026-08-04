@@ -4178,6 +4178,7 @@ export default function PropertyForm({
                     propertyId && (
                       <div className="mb-3">
                         <RolosReadinessScoreBadge propertyId={propertyId} />
+                        <RuPushContinueButton propertyId={propertyId} className="mt-2" />
                       </div>
                     )}
 
