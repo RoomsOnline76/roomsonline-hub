@@ -284,6 +284,105 @@ const CERT_MILESTONES: { key: string; label: string; ru_method: string; mandator
   { key: "last_minute", label: "Last-minute discounts", ru_method: "Push_PutLastMinuteDiscounts_RQ", mandatory: false, scope: "property", note: "Optional but recommended" },
 ];
 
+/** Grouping used by the Coverage tab. */
+const RU_COVERAGE_AREAS = [
+  { key: "account", label: "Account & authentication" },
+  { key: "content", label: "Content / onboarding push" },
+  { key: "ari", label: "Availability, rates & discounts" },
+  { key: "reservations", label: "Reservations & leads" },
+  { key: "lifecycle", label: "Booking lifecycle (modify / cancel)" },
+  { key: "notifications", label: "Live notifications & quality" },
+] as const;
+
+type RuArea = typeof RU_COVERAGE_AREAS[number]["key"];
+
+/**
+ * Every RU endpoint the adapter implements, mapped to the ROL'OS PMS surface that
+ * exercises it. `sync_actions` are `ru_sync_runs.action` values written by that
+ * surface — they prove the ROL'OS integration has actually been used, not just built.
+ */
+const RU_ENDPOINT_REGISTRY: {
+  key: string;
+  area: RuArea;
+  label: string;
+  ru_method: string;
+  direction: "pull" | "push" | "refresh" | "webhook";
+  mandatory: boolean;
+  implemented: boolean;
+  rolos_surface: string;
+  rolos_stream: string;
+  rolos_wired: boolean;
+  sync_actions: string[];
+  max_age_hours?: number;
+  note: string;
+}[] = [
+  // ── account ──
+  { key: "auth", area: "account", label: "Connectivity / auth", ru_method: "Pull_ListProp_RQ (health)", direction: "pull", mandatory: true, implemented: true,
+    rolos_surface: "RU console → API keys (verify)", rolos_stream: "Onboarding P1 — account binding", rolos_wired: true, sync_actions: ["verify_api_keys"], note: "AccessKey + SecretKey per sub-user" },
+  { key: "list_properties", area: "account", label: "List properties", ru_method: "Pull_ListProp_RQ", direction: "pull", mandatory: true, implemented: true,
+    rolos_surface: "RU console → bind RU account / resolve IDs", rolos_stream: "Onboarding P1 — inventory discovery", rolos_wired: true, sync_actions: ["resolve_ru_property_ids", "list_ru_candidates"], note: "Pull_ListOwnerProp_RQ equivalent" },
+  { key: "create_user", area: "account", label: "Create white-label sub-user", ru_method: "Push_PutOwner_RQ", direction: "push", mandatory: true, implemented: true,
+    rolos_surface: "RU console → user management", rolos_stream: "Onboarding P1 — sub-user provisioning", rolos_wired: true, sync_actions: ["create_user", "ensure_owner_account"], note: "White-label isolation" },
+  { key: "company_details", area: "account", label: "Push company details", ru_method: "Push_PutCompanyDetails_RQ", direction: "push", mandatory: true, implemented: true,
+    rolos_surface: "Edit property → Company information", rolos_stream: "Onboarding P2 — company profile", rolos_wired: true, sync_actions: ["fill_company_details", "ensure_company_details"], note: "Strict UTC±HH:MM timezone" },
+  { key: "locations", area: "account", label: "Location register", ru_method: "Pull_ListLocations_RQ", direction: "pull", mandatory: false, implemented: true,
+    rolos_surface: "Edit property → Company information → refresh register", rolos_stream: "Onboarding P2 — address mapping", rolos_wired: true, sync_actions: ["refresh_locations", "pull_locations"], note: "Builds the RU LocationID register" },
+  { key: "currency", area: "account", label: "Property currency", ru_method: "Push_ChangeCurrency_RQ", direction: "push", mandatory: true, implemented: true,
+    rolos_surface: "RU console → Currency panel", rolos_stream: "Onboarding P2 — pricing currency", rolos_wired: true, sync_actions: ["change_currency", "verify_ru_currency"], note: "ZAR primary, USD fallback conversion" },
+
+  // ── content ──
+  { key: "push_property", area: "content", label: "Push property content", ru_method: "Push_PutProperty_RQ", direction: "push", mandatory: true, implemented: true,
+    rolos_surface: "Edit property → push to RU / weekly cron", rolos_stream: "Onboarding P3 — content publish", rolos_wired: true, sync_actions: ["inventory_push", "weekly_content_refresh"], max_age_hours: 168, note: "Create + update, photos, amenities, composition" },
+  { key: "get_property", area: "content", label: "Get property content (read-back)", ru_method: "Pull_GetProperty_RQ", direction: "pull", mandatory: true, implemented: true,
+    rolos_surface: "RU console → readiness / verification", rolos_stream: "Onboarding P3 — publish verification", rolos_wired: true, sync_actions: ["verify_property"], note: "Read-back verification" },
+  { key: "buildings", area: "content", label: "Buildings", ru_method: "Pull_ListBuildings_RQ", direction: "pull", mandatory: false, implemented: true,
+    rolos_surface: "RU console → Buildings panel", rolos_stream: "Onboarding P3 — multi-unit structure", rolos_wired: true, sync_actions: ["list_buildings", "get_building"], note: "Read-only — ROL'OS never creates buildings" },
+
+  // ── ari ──
+  { key: "push_availability", area: "ari", label: "Push availability", ru_method: "Push_PutAvbUnits_RQ", direction: "push", mandatory: true, implemented: true,
+    rolos_surface: "Calendar / ARI refresh cron (6h)", rolos_stream: "Onboarding P4 — live ARI", rolos_wired: true, sync_actions: ["refresh_ari", "push_availability"], max_age_hours: 24, note: "Excludes confirmed RU reservation dates" },
+  { key: "push_prices", area: "ari", label: "Push prices", ru_method: "Push_PutPrices_RQ", direction: "push", mandatory: true, implemented: true,
+    rolos_surface: "Rate manager / ARI refresh cron", rolos_stream: "Onboarding P4 — live ARI", rolos_wired: true, sync_actions: ["refresh_ari", "push_prices"], max_age_hours: 24, note: "Seasonal calendar first, rack-rate fallback" },
+  { key: "get_availability", area: "ari", label: "Get availability (365d)", ru_method: "Pull_ListPropertyAvailabilityCalendar_RQ", direction: "pull", mandatory: true, implemented: true,
+    rolos_surface: "RU console → ARI read-back", rolos_stream: "Onboarding P4 — ARI verification", rolos_wired: true, sync_actions: ["verify_availability"], note: "CalDay/Units parsing" },
+  { key: "get_prices", area: "ari", label: "Get prices (365d)", ru_method: "Pull_ListPropertyPrices_RQ", direction: "pull", mandatory: true, implemented: true,
+    rolos_surface: "RU console → ARI read-back", rolos_stream: "Onboarding P4 — ARI verification", rolos_wired: true, sync_actions: ["verify_prices"], note: "" },
+  { key: "long_stay", area: "ari", label: "Long-stay discounts", ru_method: "Push_PutLongStayDiscounts_RQ", direction: "push", mandatory: false, implemented: true,
+    rolos_surface: "RU console → Discounts ladder", rolos_stream: "Specials / discount ladder", rolos_wired: true, sync_actions: ["push_long_stay"], note: "Optional but recommended" },
+  { key: "last_minute", area: "ari", label: "Last-minute discounts", ru_method: "Push_PutLastMinuteDiscounts_RQ", direction: "push", mandatory: false, implemented: true,
+    rolos_surface: "RU console → Discounts ladder", rolos_stream: "Specials / discount ladder", rolos_wired: true, sync_actions: ["push_last_minute"], note: "Optional but recommended" },
+
+  // ── reservations ──
+  { key: "reservations", area: "reservations", label: "Pull reservations", ru_method: "Pull_ListReservations_RQ", direction: "pull", mandatory: true, implemented: true,
+    rolos_surface: "Reservation poll cron (30 min) → dashboard + calendar", rolos_stream: "Bookings inbound", rolos_wired: true, sync_actions: ["pull_reservations"], max_age_hours: 1, note: "StatusID 1,2,4,6,7,8 — sub-user scoped" },
+  { key: "leads", area: "reservations", label: "Pull leads / requests", ru_method: "Pull_GetLeads_RQ", direction: "pull", mandatory: false, implemented: true,
+    rolos_surface: "Reservation poll cron → 3-day hold on calendar", rolos_stream: "Leads inbound", rolos_wired: true, sync_actions: ["pull_reservations", "lead_lifecycle"], max_age_hours: 24, note: "Creates availability hold" },
+  { key: "lead_lifecycle", area: "reservations", label: "Lead hold lifecycle", ru_method: "Push_RejectRequest_RQ", direction: "push", mandatory: false, implemented: true,
+    rolos_surface: "ru-lead-lifecycle cron (30 min)", rolos_stream: "Leads — hold release & auto-withdraw", rolos_wired: true, sync_actions: ["lead_lifecycle", "reject_request"], max_age_hours: 24, note: "3-day hold, 14-day arrival withdrawal" },
+
+  // ── lifecycle ──
+  { key: "cancel", area: "lifecycle", label: "Cancel reservation", ru_method: "Push_CancelReservation_RQ", direction: "push", mandatory: true, implemented: true,
+    rolos_surface: "Dashboard booking card → Cancel booking", rolos_stream: "Bookings outbound — cancellation", rolos_wired: true, sync_actions: ["cancel_reservation"], note: "Mandatory CancelTypeID; status 178 blocked" },
+  { key: "reject", area: "lifecycle", label: "Reject request", ru_method: "Push_RejectRequest_RQ (booking card)", direction: "push", mandatory: false, implemented: true,
+    rolos_surface: "Dashboard booking card → Cancel (unconfirmed request)", rolos_stream: "Leads outbound — rejection", rolos_wired: true, sync_actions: ["reject_request"], note: "Preferred for StatusID 4" },
+  { key: "modify", area: "lifecycle", label: "Modify stay", ru_method: "Push_ModifyStay_RQ", direction: "push", mandatory: true, implemented: true,
+    rolos_surface: "Dashboard booking card → Modify booking", rolos_stream: "Bookings outbound — modification", rolos_wired: true, sync_actions: ["modify_stay"], note: "Requires Current + Modify nodes" },
+
+  // ── notifications ──
+  { key: "rlnm", area: "notifications", label: "Subscribe RLNM handler", ru_method: "LNM_PutHandlerUrl_RQ", direction: "push", mandatory: true, implemented: true,
+    rolos_surface: "Live notifications panel + daily cron", rolos_stream: "Reservation push notifications", rolos_wired: true, sync_actions: ["PutHandlerUrl", "RLNM"], max_age_hours: 24, note: "ru-reservation-handler endpoint" },
+  { key: "lnm_subscribe", area: "notifications", label: "Subscribe LNM (content + ARI)", ru_method: "Push_PutLiveNotificationMechanismSubscriptions_RQ", direction: "push", mandatory: true, implemented: true,
+    rolos_surface: "Live notifications panel + daily cron", rolos_stream: "Content / ARI change webhooks", rolos_wired: true, sync_actions: ["PutLnmSubscriptions"], max_age_hours: 24, note: "" },
+  { key: "lnm_verify", area: "notifications", label: "Verify LNM subscriptions", ru_method: "Pull_ListLiveNotificationMechanismSubscriptions_RQ", direction: "pull", mandatory: true, implemented: true,
+    rolos_surface: "Live notifications panel (read-back)", rolos_stream: "Webhook drift detection", rolos_wired: true, sync_actions: ["ListLnmSubscriptions"], max_age_hours: 24, note: "" },
+  { key: "lnm_change_types", area: "notifications", label: "List LNM change types", ru_method: "Pull_ListLiveNotificationMechanismChangeTypes_RQ", direction: "pull", mandatory: false, implemented: true,
+    rolos_surface: "Live notifications panel (dictionary)", rolos_stream: "Reference data", rolos_wired: true, sync_actions: ["ListLnmChangeTypes"], note: "Dictionary read" },
+  { key: "lnm_inbound", area: "notifications", label: "Inbound notification handler", ru_method: "LNM notification (inbound)", direction: "webhook", mandatory: true, implemented: true,
+    rolos_surface: "ru-lnm-handler → MCQ orders / refresh", rolos_stream: "Inbound webhooks", rolos_wired: true, sync_actions: ["LNM_Notification"], note: "Routes PropertyMCQEligibilityCheck" },
+  { key: "mcq", area: "notifications", label: "Order content quality check", ru_method: "CM_LNM_OrderMinimumContentQualityCheck_RQ", direction: "push", mandatory: false, implemented: true,
+    rolos_surface: "RU console → Phase 4 quality check", rolos_stream: "Onboarding P4 — channel readiness", rolos_wired: true, sync_actions: ["order_mcq"], note: "Requires LNM subscription + ChannelID" },
+];
+
 
 // Refresh cadences mandated by RU (hours)
 const CADENCE_RULES = [
