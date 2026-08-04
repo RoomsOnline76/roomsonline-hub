@@ -44,6 +44,11 @@ export function ChannelCard({
   onSync,
   isConnected,
   readOnly,
+  readinessScore,
+  readinessOutstanding,
+  readinessLoading,
+  onReadinessClick,
+  requiresReadiness,
 }: {
   connection?: ChannelConnection;
   channelName?: string;
@@ -54,10 +59,23 @@ export function ChannelCard({
   onSync?: () => void;
   isConnected: boolean;
   readOnly?: boolean;
+  /** Mandatory-readiness percentage for distribution (0-100). */
+  readinessScore?: number;
+  /** Number of outstanding mandatory requirements. */
+  readinessOutstanding?: number;
+  readinessLoading?: boolean;
+  /** Opens the readiness breakdown with deep links to each missing field. */
+  onReadinessClick?: () => void;
+  /** When true, the channel cannot be connected until readiness is 100%. */
+  requiresReadiness?: boolean;
 }) {
   const channelName = connection?.channel_name || channelNameProp || "";
   const status = connection?.status ?? "disconnected";
   const badge = STATUS_BADGES[status] ?? STATUS_BADGES.disconnected;
+  const hasReadiness = typeof readinessScore === "number";
+  const ready = hasReadiness ? (readinessOutstanding ?? 0) === 0 : true;
+  const blockConnect = !!requiresReadiness && hasReadiness && !ready;
+
 
   return (
     <Card className="hover:shadow-md transition-shadow">
