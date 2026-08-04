@@ -8,6 +8,7 @@ import { PromoCodesTab } from "@/components/property/PromoCodesTab";
 import { CompanyInformationCard, type RuCompanyProfile } from "@/components/property/CompanyInformationCard";
 import { PropertyRuOwnerPanel } from "@/components/property/PropertyRuOwnerPanel";
 import { RolosReadinessScoreBadge } from "@/components/property/RolosReadinessScoreBadge";
+import { RuPushContinueButton } from "@/components/property/RuPushContinueButton";
 
 
 import { PortfolioIdentityCopy } from "@/components/property/PortfolioIdentityCopy";
