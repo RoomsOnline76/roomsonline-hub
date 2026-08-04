@@ -192,6 +192,8 @@ const RU_METHOD_BY_ACTION: Record<string, string> = {
   get_prices: "Pull_ListPropertyPrices_RQ",
   list_reservations: "Pull_ListReservations_RQ",
   get_leads: "Pull_GetLeads_RQ",
+  reject_request: "Push_RejectRequest_RQ",
+  cancel_reservation: "Push_CancelReservation_RQ",
   list_buildings: "Pull_ListOwnerBuildings_RQ",
   list_composition_rooms: "Pull_ListCompositionRooms_RQ",
   list_cities_and_currencies: "Pull_ListCurrencies_RQ",
@@ -2942,6 +2944,61 @@ Deno.serve(async (req) => {
         }
       };
 
+      /**
+       * Lead hold lifecycle: proves that pulled RU enquiries hold the dates for 3 days,
+       * release them afterwards, and are withdrawn at RU (Push_RejectRequest_RQ, falling
+       * back to Push_CancelReservation_RQ) when arrival is inside 14 days.
+       */
+      const runLeadLifecycleStep = async () => {
+        stepNo += 1;
+        const t0 = Date.now();
+        const name = "Lead hold lifecycle (3-day hold / 14-day withdrawal)";
+        const ru_method = "Push_RejectRequest_RQ (fallback Push_CancelReservation_RQ)";
+        try {
+          const { data, error } = await admin.functions.invoke("ru-lead-lifecycle", { body: {} });
+          const duration = Date.now() - t0;
+          if (error || data?.success !== true) {
+            steps.push({
+              step: stepNo,
+              name,
+              ru_method,
+              mandatory: true,
+              scope: "account" as CertScope,
+              status: "failed",
+              duration_ms: duration,
+              detail: error?.message ?? data?.error ?? "Lead lifecycle worker failed",
+            });
+            return;
+          }
+          const s = data.summary ?? {};
+          const failed = Number(s.reject_failed ?? 0) > 0;
+          steps.push({
+            step: stepNo,
+            name,
+            ru_method,
+            mandatory: true,
+            scope: "account" as CertScope,
+            status: failed ? "failed" : "passed",
+            duration_ms: duration,
+            detail: `${s.examined ?? 0} held lead(s) examined · ${s.released ?? 0} hold(s) released after 3 days · ${s.rejected ?? 0} withdrawn at RU within 14 days of arrival${failed ? ` · ${s.reject_failed} withdrawal(s) failed` : ""}`,
+            response_preview: preview(data),
+          });
+        } catch (e) {
+          steps.push({
+            step: stepNo,
+            name,
+            ru_method,
+            mandatory: true,
+            scope: "account" as CertScope,
+            status: "failed",
+            duration_ms: Date.now() - t0,
+            detail: e instanceof Error ? e.message : "Unknown error",
+          });
+        }
+      };
+
+
+
       // A staged full run passes `phase`; a single-suite run keeps its historic behaviour.
       const activePhase = phase ?? (suite === "full" ? null : suite);
       const runReadOnly = activePhase ? activePhase === "read_only" : suite === "read_only" || suite === "full";
@@ -3085,7 +3142,24 @@ Deno.serve(async (req) => {
         await probeAri("Get availability (365 days)", "get_availability");
         await probeAri("Get prices (365 days)", "get_prices");
         await call("List reservations (last 7 days)", "list_reservations", { date_from: isoDate(-7), date_to: isoDate(0) }, { mandatory: true, scope: "account" });
-        await call("Get leads (optional)", "get_leads", { date_from: isoDate(-7), date_to: isoDate(0) }, { mandatory: false, scope: "account" });
+        // Leads are mandatory: RU requires an integration to pull enquiries and hold the
+        // dates. The lifecycle step below proves the 3-day hold / 14-day withdrawal policy.
+        await call(
+          "Get leads (Pull_GetLeads_RQ)",
+          "get_leads",
+          { date_from: isoDate(-14), date_to: isoDate(0) },
+          {
+            mandatory: true,
+            scope: "account",
+            assert: (data) => {
+              const xml: string = data?.raw_xml ?? "";
+              if (!xml) return "RU returned no leads payload";
+              return null;
+            },
+            successDetail: "Leads pulled — each becomes a 3-day hold on the ROL'OS calendar",
+          },
+        );
+        await runLeadLifecycleStep();
         await call(
           "List owner buildings",
           "list_buildings",

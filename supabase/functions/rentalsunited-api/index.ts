@@ -234,7 +234,11 @@ interface RequestBody {
   // API key management
   key_label?: string;
   target_access_key?: string;
+  // Reservation / request lifecycle
+  reservation_id?: string | number;
+  reject_reason?: string;
 }
+
 
 // ── XML Helpers ──────────────────────────────────────────────
 
@@ -475,7 +479,30 @@ function buildGetLeadsXml(creds: RUCredentials, dateFrom: string, dateTo: string
 </Pull_GetLeads_RQ>`;
 }
 
+/**
+ * Decline / withdraw an unconfirmed RU request. `Push_RejectRequest_RQ` is RU's preferred
+ * method; `Push_CancelReservation_RQ` remains for backwards compatibility with older
+ * integrations where reject is not enabled.
+ */
+function buildRejectRequestXml(creds: RUCredentials, reservationId: string, reason: string): string {
+  return `<?xml version="1.0" encoding="utf-8"?>
+<Push_RejectRequest_RQ>
+  ${buildAuthXml(creds)}
+  <ReservationID>${escapeXml(reservationId)}</ReservationID>${reason ? `
+  <Comments>${escapeXml(reason)}</Comments>` : ''}
+</Push_RejectRequest_RQ>`;
+}
+
+function buildCancelReservationXml(creds: RUCredentials, reservationId: string): string {
+  return `<?xml version="1.0" encoding="utf-8"?>
+<Push_CancelReservation_RQ>
+  ${buildAuthXml(creds)}
+  <ReservationID>${escapeXml(reservationId)}</ReservationID>
+</Push_CancelReservation_RQ>`;
+}
+
 // ── Push XML Builders ────────────────────────────────────────
+
 
 function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RUPropertyPayload): string {
   const buildOptionalNode = (tag: string, value?: string | null) => {
@@ -1272,6 +1299,8 @@ const CHILD_SCOPED_ACTIONS = new Set([
   // appear in the master account's Pull_ListReservations_RQ response.
   'list_reservations',
   'get_leads',
+  'reject_request',
+  'cancel_reservation',
   'subscribe_notifications',
 ]);
 
@@ -1301,6 +1330,8 @@ const CHILD_AUTH_STRICT_ACTIONS = new Set([
   // which would look like "no reservations" for the white-label account.
   'list_reservations',
   'get_leads',
+  'reject_request',
+  'cancel_reservation',
   'subscribe_notifications',
 ]);
 
@@ -2817,8 +2848,31 @@ Deno.serve(async (req) => {
     }
 
 
+    // ── reject_request (preferred way to decline / cancel an unpaid RU request) ──
+    if (action === 'reject_request') {
+      const reservationId = body.reservation_id != null ? String(body.reservation_id).trim() : '';
+      if (!reservationId) return errorResponse('MISSING_PARAM', 'reservation_id is required');
+      const xml = buildRejectRequestXml(scopedCreds, reservationId, body.reject_reason ?? '');
+      const response = await callRentalsUnited(scopedCreds, xml);
+      const { ok, status } = handleRUStatus(response);
+      if (!ok) return ruErrorResponse(status);
+      return jsonResponse({ success: true, auth_mode: authMode, raw_xml: response });
+    }
+
+    // ── cancel_reservation (backwards-compatible fallback for reject_request) ──
+    if (action === 'cancel_reservation') {
+      const reservationId = body.reservation_id != null ? String(body.reservation_id).trim() : '';
+      if (!reservationId) return errorResponse('MISSING_PARAM', 'reservation_id is required');
+      const xml = buildCancelReservationXml(scopedCreds, reservationId);
+      const response = await callRentalsUnited(scopedCreds, xml);
+      const { ok, status } = handleRUStatus(response);
+      if (!ok) return ruErrorResponse(status);
+      return jsonResponse({ success: true, auth_mode: authMode, raw_xml: response });
+    }
+
     // Unknown action
     return errorResponse('UNKNOWN_ACTION', `Action "${action}" is not supported`);
+
 
   } catch (error) {
     console.error('[rentalsunited-api] Error:', error);

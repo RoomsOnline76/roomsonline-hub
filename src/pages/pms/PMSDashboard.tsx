@@ -132,6 +132,11 @@ interface BookingRow {
   room_type_id: string | null;
   rolos_guest_id: string | null;
   property_id: string | null;
+  /** e.g. 'rentalsunited_lead' for a channel enquiry holding the dates. */
+  integration_type?: string | null;
+  /** Set once a lead's 3-day hold has lapsed and the nights were released. */
+  hold_released_at?: string | null;
+  hold_expires_at?: string | null;
 }
 
 interface RoomType {
@@ -217,6 +222,10 @@ const STATUS_COLORS: Record<string, { bg: string; text: string; border: string }
   checked_out: { bg: "bg-slate-500/20", text: "text-foreground/80 dark:text-slate-300", border: "border-slate-500/40" },
   cancelled: { bg: "bg-red-500/20", text: "text-destructive dark:text-red-300 line-through", border: "border-red-500/40" },
   no_show: { bg: "bg-rose-500/20", text: "text-destructive dark:text-rose-300", border: "border-rose-500/40" },
+  /** Channel enquiry (e.g. Rentals United lead) holding the dates for 3 days. */
+  lead_held: { bg: "bg-violet-500/20", text: "text-primary dark:text-violet-300", border: "border-violet-500/40 border-dashed" },
+  /** Enquiry whose hold has lapsed — still visible, no longer blocking. */
+  lead_released: { bg: "bg-muted", text: "text-muted-foreground italic", border: "border-border border-dotted" },
 };
 
 const STATUS_BADGE_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
@@ -230,6 +239,19 @@ const STATUS_BADGE_VARIANT: Record<string, "default" | "secondary" | "destructiv
 
 function getStatusColor(status: string) {
   return STATUS_COLORS[status] || STATUS_COLORS.pending;
+}
+
+/** True for a channel enquiry pulled from a channel manager (not yet a confirmed booking). */
+function isChannelLead(booking: Pick<BookingRow, "integration_type">): boolean {
+  return (booking.integration_type ?? "").endsWith("_lead");
+}
+
+/** Colour a calendar bar: enquiries read as held (dashed) or lapsed (muted). */
+function getBookingColor(booking: Pick<BookingRow, "status" | "integration_type" | "hold_released_at">) {
+  if (isChannelLead(booking) && booking.status === "pending") {
+    return booking.hold_released_at ? STATUS_COLORS.lead_released : STATUS_COLORS.lead_held;
+  }
+  return getStatusColor(booking.status);
 }
 
 function bookingTouchesDate(booking: Pick<BookingRow, "check_in_date" | "check_out_date" | "status">, dateStr: string): boolean {
@@ -462,7 +484,7 @@ export default function PMSDashboard() {
       if (!propertyId) return { items: [] as BookingRow[], nextOffset: null as number | null };
       const { data, count } = await supabase
         .from("bookings")
-        .select("id, guest_name, guest_email, guest_phone, check_in_date, check_out_date, status, adults, children, infants, pets, teens, total_price, special_requests, special_requests_parsed, requires_intervention, booking_channel, payment_status, payment_method, rolos_check_in_time, rolos_check_out_time, rolos_room_ids, rolos_rate_plan_id, modification_notes, room_type_id, rolos_guest_id", { count: "exact" })
+        .select("id, guest_name, guest_email, guest_phone, check_in_date, check_out_date, status, adults, children, infants, pets, teens, total_price, special_requests, special_requests_parsed, requires_intervention, booking_channel, payment_status, payment_method, rolos_check_in_time, rolos_check_out_time, rolos_room_ids, rolos_rate_plan_id, modification_notes, room_type_id, rolos_guest_id, integration_type, hold_expires_at, hold_released_at", { count: "exact" })
         .eq("property_id", propertyId)
         .neq("status", "cancelled")
         .lte("check_in_date", format(dateRange.end, "yyyy-MM-dd"))
@@ -762,7 +784,7 @@ export default function PMSDashboard() {
       if (!portfolioPropertyIds.length) return [];
       const { data } = await supabase
         .from("bookings")
-        .select("id, guest_name, guest_email, guest_phone, check_in_date, check_out_date, status, adults, children, infants, pets, teens, total_price, special_requests, special_requests_parsed, requires_intervention, booking_channel, payment_status, payment_method, rolos_check_in_time, rolos_check_out_time, rolos_room_ids, rolos_rate_plan_id, modification_notes, room_type_id, rolos_guest_id, property_id")
+        .select("id, guest_name, guest_email, guest_phone, check_in_date, check_out_date, status, adults, children, infants, pets, teens, total_price, special_requests, special_requests_parsed, requires_intervention, booking_channel, payment_status, payment_method, rolos_check_in_time, rolos_check_out_time, rolos_room_ids, rolos_rate_plan_id, modification_notes, room_type_id, rolos_guest_id, property_id, integration_type, hold_expires_at, hold_released_at")
         .in("property_id", portfolioPropertyIds)
         .neq("status", "cancelled")
         .lte("check_in_date", format(dateRange.end, "yyyy-MM-dd"))
@@ -2316,7 +2338,7 @@ function MonthRoomTypeRows({ rt, weekDates, typeRooms, bookings, getRateForDate,
                   )}
                   {/* Booking bars for single-room types */}
                   {dayBookings.map(b => {
-                    const colors = getStatusColor(b.status);
+                    const colors = getBookingColor(b);
                     const isStart = b.check_in_date === dateStr;
                     const isEnd = addDays(parseISO(b.check_out_date), -1).toISOString().slice(0, 10) === dateStr;
                     return (
@@ -2369,7 +2391,7 @@ function MonthRoomTypeRows({ rt, weekDates, typeRooms, bookings, getRateForDate,
               return (
                 <td key={i} className="border p-0 relative h-8">
                   {dayBookings.map(b => {
-                    const colors = getStatusColor(b.status);
+                    const colors = getBookingColor(b);
                     const isStart = b.check_in_date === dateStr;
                     return (
                       <button
@@ -2426,7 +2448,7 @@ function MonthRoomRow({ room, dates, bookings, onSelectBooking }: {
         return (
           <td key={i} className={cn("border p-0 relative h-8", dateCellBg(date))}>
             {dayBookings.map(b => {
-              const colors = getStatusColor(b.status);
+              const colors = getBookingColor(b);
               const isStart = b.check_in_date === dateStr;
               const isEnd = addDays(parseISO(b.check_out_date), -1).toISOString().slice(0, 10) === dateStr;
               return (
@@ -2532,7 +2554,7 @@ function RoomTypeSection({ rt, dates, roomsByType, bookings, getRateForDate, get
                     </div>
                   )}
                   {dayBookings.map(b => {
-                    const colors = getStatusColor(b.status);
+                    const colors = getBookingColor(b);
                     const isStart = b.check_in_date === dateStr;
                     const isEnd = addDays(parseISO(b.check_out_date), -1).toISOString().slice(0, 10) === dateStr;
                     return (
@@ -2594,7 +2616,7 @@ function WeekRoomRow({ room, dates, bookings, onSelectBooking }: {
         return (
           <td key={i} className={cn("border p-0 relative h-8 min-w-[80px]", dateCellBg(date))}>
             {dayBookings.map(b => {
-              const colors = getStatusColor(b.status);
+              const colors = getBookingColor(b);
               const isStart = b.check_in_date === dateStr;
               const isEnd = addDays(parseISO(b.check_out_date), -1).toISOString().slice(0, 10) === dateStr;
               return (

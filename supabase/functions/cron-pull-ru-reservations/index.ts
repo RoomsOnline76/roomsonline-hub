@@ -24,6 +24,8 @@ const corsHeaders = {
 const METHOD_WINDOW_MS = 61_000;
 /** How far back to ask RU for reservations (RU filters on the reservation creation date). */
 const PULL_WINDOW_DAYS = 90;
+/** How long an unconfirmed RU lead holds the dates before availability is released. */
+const LEAD_HOLD_DAYS = 3;
 /** Wall-clock budget for the whole run; remaining accounts roll into the next run. */
 const RUN_BUDGET_MS = 6 * 60_000;
 
@@ -51,7 +53,7 @@ Deno.serve(async (req) => {
   const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
   const supabase = createClient(supabaseUrl, supabaseKey);
 
-  const summary = { total: 0, created: 0, updated: 0, cancelled: 0, skipped: 0, failed: 0, unmatched: 0, leads_found: 0, leads_logged: 0 };
+  const summary = { total: 0, created: 0, updated: 0, cancelled: 0, skipped: 0, failed: 0, unmatched: 0, leads_found: 0, leads_logged: 0, leads_held: 0 };
   const cronStartedAt = Date.now();
   const deadline = cronStartedAt + RUN_BUDGET_MS;
 
@@ -422,37 +424,39 @@ Deno.serve(async (req) => {
 
         for (const leadBlock of leadBlocks) {
           try {
-            const leadId = extractTag(leadBlock, 'LeadID');
+            const leadId = extractTag(leadBlock, 'LeadID') || extractTag(leadBlock, 'ReservationID');
             if (!leadId) continue;
-
-            // Deduplicate: skip if already logged
-            const { data: existingNotif } = await supabase
-              .from('ru_notifications')
-              .select('id')
-              .eq('ru_reservation_id', leadId)
-              .eq('event_type', 'poll_lead')
-              .limit(1)
-              .maybeSingle();
-
-            if (existingNotif) continue;
 
             const ruPropertyId = extractTag(leadBlock, 'PropID') || extractTag(leadBlock, 'PropertyID');
             const guestFirstName = extractTag(leadBlock, 'FirstName') || extractTag(leadBlock, 'GuestName') || '';
             const guestLastName = extractTag(leadBlock, 'LastName') || extractTag(leadBlock, 'GuestSurname') || '';
             const guestName = `${guestFirstName} ${guestLastName}`.trim() || 'RU Lead';
-            const guestEmail = extractTag(leadBlock, 'Email') || null;
+            const guestEmail = extractTag(leadBlock, 'Email') || 'ru-lead@rentalsunited.com';
+            const guestPhone = extractTag(leadBlock, 'Phone') || null;
+            const leadFrom = extractTag(leadBlock, 'DateFrom');
+            const leadTo = extractTag(leadBlock, 'DateTo');
+            const numGuests = parseInt(extractTag(leadBlock, 'NumberOfGuests') || '1', 10);
+            const leadPrice = parseFloat(extractTag(leadBlock, 'RUPrice') || extractTag(leadBlock, 'Price') || '0');
+            const createdRaw =
+              extractTag(leadBlock, 'DateCreated') ||
+              extractTag(leadBlock, 'CreationDate') ||
+              extractTag(leadBlock, 'DateRequested');
+            const leadCreatedAt = createdRaw ? new Date(createdRaw.replace(' ', 'T')) : new Date();
+            const holdExpiresAt = new Date(leadCreatedAt.getTime() + LEAD_HOLD_DAYS * 86_400_000);
 
-            // Resolve property
+            // Resolve property + unit
             let propertyId: string | null = null;
+            let roomTypeId: string | null = null;
             if (ruPropertyId) {
               const { data: roomType } = await supabase
                 .from('hostfully_room_types')
-                .select('property_id')
+                .select('property_id, id')
                 .eq('rentalsunited_property_id', ruPropertyId)
                 .limit(1)
                 .maybeSingle();
               if (roomType?.property_id) {
                 propertyId = roomType.property_id;
+                roomTypeId = roomType.id;
               } else {
                 const { data: prop } = await supabase
                   .from('properties')
@@ -464,20 +468,79 @@ Deno.serve(async (req) => {
               }
             }
 
-            await supabase.from('ru_notifications').insert({
-              event_type: 'poll_lead',
-              ru_reservation_id: leadId,
-              ru_property_id: ruPropertyId,
-              property_id: propertyId,
-              raw_xml: leadBlock,
-              processed: true,
-            });
-            summary.leads_logged++;
-            console.log(`[cron-pull-ru] ✅ Logged lead ${leadId} from ${guestName} (${guestEmail || 'no email'})`);
+            // A lead becomes a provisional (pending) booking that holds the dates for
+            // LEAD_HOLD_DAYS. ru-lead-lifecycle releases or rejects it afterwards.
+            if (propertyId && leadFrom && leadTo) {
+              const { data: existingLead } = await supabase
+                .from('bookings')
+                .select('id, status, hold_released_at')
+                .eq('external_reservation_id', leadId)
+                .eq('integration_type', 'rentalsunited_lead')
+                .limit(1)
+                .maybeSingle();
+
+              if (!existingLead) {
+                const leadBooking: Record<string, unknown> = {
+                  property_id: propertyId,
+                  guest_name: guestName,
+                  guest_email: guestEmail,
+                  guest_phone: guestPhone,
+                  check_in_date: leadFrom,
+                  check_out_date: leadTo,
+                  adults: numGuests || 1,
+                  total_price: leadPrice || 0,
+                  status: 'pending',
+                  booking_channel: 'rentals_united',
+                  integration_type: 'rentalsunited_lead',
+                  external_reservation_id: leadId,
+                  payment_status: 'pending',
+                  lead_created_at: leadCreatedAt.toISOString(),
+                  hold_expires_at: holdExpiresAt.toISOString(),
+                  special_requests: `Rentals United enquiry — dates held until ${holdExpiresAt.toISOString().slice(0, 10)}`,
+                };
+                if (roomTypeId) leadBooking.room_type_id = roomTypeId;
+
+                const { error: leadBookingErr } = await supabase.from('bookings').insert(leadBooking);
+                if (leadBookingErr) {
+                  console.error(`[cron-pull-ru] Lead booking insert failed for ${leadId}: ${leadBookingErr.message}`);
+                } else {
+                  summary.leads_held++;
+                  if (holdExpiresAt.getTime() > Date.now()) {
+                    await applyAvailabilityBlock(propertyId, roomTypeId, leadFrom, leadTo, true);
+                  }
+                  console.log(`[cron-pull-ru] ✅ Held lead ${leadId} (${guestName}) until ${holdExpiresAt.toISOString()}`);
+                }
+              }
+            } else if (propertyId) {
+              console.warn(`[cron-pull-ru] Lead ${leadId} has no usable stay dates — logged only`);
+            }
+
+            // Deduplicate the notification log only (the booking upsert above is idempotent)
+            const { data: existingNotif } = await supabase
+              .from('ru_notifications')
+              .select('id')
+              .eq('ru_reservation_id', leadId)
+              .eq('event_type', 'poll_lead')
+              .limit(1)
+              .maybeSingle();
+
+            if (!existingNotif) {
+              await supabase.from('ru_notifications').insert({
+                event_type: 'poll_lead',
+                ru_reservation_id: leadId,
+                ru_property_id: ruPropertyId,
+                property_id: propertyId,
+                raw_xml: leadBlock,
+                processed: true,
+              });
+              summary.leads_logged++;
+              console.log(`[cron-pull-ru] ✅ Logged lead ${leadId} from ${guestName} (${guestEmail})`);
+            }
           } catch (leadErr) {
             console.error(`[cron-pull-ru] Error processing lead:`, leadErr);
           }
         }
+
       } catch (leadsError) {
         console.warn(`[cron-pull-ru] Leads polling error (non-fatal) for ${scope.label}:`, leadsError);
       }
