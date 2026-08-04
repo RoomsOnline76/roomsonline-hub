@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Lock } from "lucide-react";
 import { useBillingConfig } from "@/hooks/useBillingConfig";
@@ -11,17 +12,18 @@ import { RuWhiteLabelEmbed } from "@/components/pms/channels/RuWhiteLabelEmbed";
  * The whole channel-manager surface (connections, room & rate mapping, sync history)
  * is provided by the embedded Rentals United White Label client, so this page is just
  * the ROL'OS header, the currency notice and the full-height embed.
+ *
+ * The page stays gated until an admin explicitly enables Channel Manager in the
+ * property's (or its portfolio's) billing profile — unset counts as not enabled.
  */
 export default function PMSChannels() {
   const { propertyId } = usePmsPropertyId();
 
-  // Billing entitlement — when admin switches Channel Manager billing off, the
-  // module is locked and every listing is archived at Rentals United.
+  // Billing entitlement — Channel Manager must be explicitly switched on by admin.
   const { config: billingConfig, isLoading: billingLoading } = useBillingConfig(propertyId ?? undefined);
-  const channelManagerLocked =
-    !billingLoading && billingConfig != null && billingConfig.channel_manager_enabled === false;
+  const channelManagerEnabled = billingConfig?.channel_manager_enabled === true;
 
-  if (channelManagerLocked) {
+  if (!billingLoading && !channelManagerEnabled) {
     return (
       <div className="max-w-2xl mx-auto py-10">
         <Card className="border-dashed">
@@ -57,6 +59,15 @@ export default function PMSChannels() {
       </div>
 
       <RuWhiteLabelEmbed propertyId={propertyId} />
+
+      <p className="text-center text-sm text-muted-foreground">
+        Don't see your channel manager?{" "}
+        <Link to="/contact" className="font-medium text-primary underline-offset-4 hover:underline">
+          Let's talk
+        </Link>{" "}
+        — we'll bring it on board.
+      </p>
     </div>
   );
 }
+
