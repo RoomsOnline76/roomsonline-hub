@@ -590,7 +590,12 @@ export default function PMSDashboard() {
   const bookingsLoading = bookingsInfinite.isLoading;
 
   const bookings: BookingRow[] = useMemo(
-    () => autoAssignBookings(bookingsRaw, rooms, roomTypes, [...aliasRoomTypes, ...roomTypeNamesForRooms]) as BookingRow[],
+    () => autoAssignBookings(
+      remapBookingsToCanonicalRoomTypes(bookingsRaw, [...aliasRoomTypes, ...roomTypeNamesForRooms], roomTypes),
+      rooms,
+      roomTypes,
+      [...aliasRoomTypes, ...roomTypeNamesForRooms],
+    ) as BookingRow[],
     [bookingsRaw, rooms, roomTypes, aliasRoomTypes, roomTypeNamesForRooms]
   );
 
