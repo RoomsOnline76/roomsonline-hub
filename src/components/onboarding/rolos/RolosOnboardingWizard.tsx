@@ -231,8 +231,14 @@ export function RolosOnboardingWizard({ propertyId, className }: Props) {
   if (isLoading) return null;
   if (!isRolosPms) return null;
 
+  // The property is live on at least one channel and no hard gate is violated —
+  // onboarding is done, so the wizard (and the Connect Channels button) retire
+  // entirely. It reappears automatically the moment a mandatory step regresses.
+  if (channelsConnected > 0 && allComplete) return null;
+
   // Every readiness step is green — the wizard condenses into a single action.
   if (allComplete) {
+
     return (
       <div
         className={`fixed bottom-4 right-4 z-50 flex items-center gap-2 rounded-xl border bg-card p-2 shadow-2xl ${className ?? ""}`}
