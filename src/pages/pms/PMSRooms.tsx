@@ -317,7 +317,7 @@ export default function PMSRooms() {
   };
 
   const renderRoomGrid = (items: Room[]) => (
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
       {items.map((room) => {
         const displayStatus = displayStatusForRoom(room);
         const activeBooking = activeBookingForRoom(room.id);
@@ -513,7 +513,7 @@ export default function PMSRooms() {
               </Select>
               <p className="text-xs text-muted-foreground mt-1">Room types are synced from Property Overview configuration.</p>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div><Label>Floor</Label><Input type="number" value={form.floor} onChange={(e) => setForm((p) => ({ ...p, floor: e.target.value }))} /></div>
               <div><Label>Max Occupancy</Label><Input type="number" value={form.max_occupancy} onChange={(e) => setForm((p) => ({ ...p, max_occupancy: e.target.value }))} /></div>
             </div>
