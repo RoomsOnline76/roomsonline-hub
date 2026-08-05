@@ -197,10 +197,17 @@ export function RuWhiteLabelEmbed({ propertyId }: { propertyId: string | null | 
 
   return (
     <div
-      id="ruApp"
-      ref={containerRef}
       style={brandStyle}
       className={`w-full ${EMBED_HEIGHT} rounded-lg border bg-background overflow-hidden`}
-    />
+    >
+      <iframe
+        ref={frameRef}
+        title="ROL'OS Channel Manager"
+        srcDoc={embedDoc ?? undefined}
+        className="h-full w-full border-0"
+        sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-downloads allow-modals"
+      />
+    </div>
   );
+
 }
