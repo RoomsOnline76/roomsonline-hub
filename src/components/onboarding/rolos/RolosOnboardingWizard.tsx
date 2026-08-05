@@ -303,7 +303,10 @@ export function RolosOnboardingWizard({ propertyId, className }: Props) {
                 onGoToField={goToField}
                 onPushOwner={pushOwner}
                 onSignoff={toggleSignoff}
+                onSignoffItem={toggleSignoffItem}
+                signoffChecks={signoff.checks}
                 signedOff={signoff.signed_off}
+
                 busyAction={busyAction}
                 isPlatformUser={isPlatformUser}
                 onOpenChannels={() => navigate(`/pms/channels?property=${propertyId}`)}
