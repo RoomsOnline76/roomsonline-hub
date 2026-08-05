@@ -139,20 +139,41 @@ async function mintSubUserPair(
       console.warn(`[ru-whitelabel-token] Sub-user client HTTP ${res.status} for owner ${ownerId}`);
       return { error: `sub_user_http_${res.status}` };
     }
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(text);
-    } catch {
-      return { error: 'sub_user_non_json' };
+
+    // RU returns a <white-pms-host … token="…" refresh_token="…"/> document (sometimes
+    // wrapped as a JSON string), so try attribute parsing first, then JSON shapes.
+    const attr = (name: string) =>
+      text.match(new RegExp(`(?:^|[^\\w-])${name}\\s*=\\s*\\\\?"([^"\\\\]+)`, 'i'))?.[1] ?? '';
+
+    let access = attr('token');
+    let refresh = attr('refresh_token');
+    let ttl: number | null = Number(attr('expires_in')) || null;
+
+    if (!access || !refresh) {
+      try {
+        const parsed = JSON.parse(text);
+        const extracted = extractTokens(parsed);
+        access = access || extracted.access;
+        refresh = refresh || extracted.refresh;
+        ttl = ttl ?? extracted.ttl;
+      } catch {
+        // non-JSON is expected for the XML form
+      }
     }
-    const { access, refresh, ttl } = extractTokens(parsed);
-    if (!access || !refresh) return { error: 'sub_user_pair_missing' };
+
+    if (!access || !refresh) {
+      console.warn(
+        `[ru-whitelabel-token] Sub-user client 200 but no pair. userName=${userName} ownerId=${ownerId} body=${text.slice(0, 300)}`,
+      );
+      return { error: 'sub_user_pair_missing' };
+    }
     console.log(`[ru-whitelabel-token] Minted White Label pair for owner ${ownerId}`);
     return { access, refresh, ttl: ttl ?? DEFAULT_TTL_SECONDS };
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'sub_user_request_failed' };
   }
 }
+
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
