@@ -907,16 +907,17 @@ export default function EmbedProperty() {
             variant="outline"
             size="sm"
             onClick={() => setShowCalendar(!showCalendar)}
-            className="h-8 text-xs font-semibold"
+            className="h-9 rounded-none text-[11px] font-bold uppercase tracking-wider"
             style={showCalendar ? {
-              background: `${brandColor}10`,
-              borderColor: `${brandColor}30`,
-              color: brandColor,
-            } : undefined}
+              background: brandColor,
+              borderColor: brandColor,
+              color: fontColor,
+            } : { borderColor: "#e2e2e2", color: "#3d3d3d" }}
           >
-            {showCalendar ? "Hide Calendar" : "Show Calendar"}
+            {showCalendar ? "Hide Calendar" : "View Calendar"}
           </Button>
         </div>
+
       </motion.div>
 
       {/* ── Availability Grid ── */}
