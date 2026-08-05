@@ -91,6 +91,17 @@ export default function EmbedProperty() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pendingRoom, setPendingRoom] = useState<{ roomId: string; roomName: string } | null>(null);
 
+  // Journey add: draw the guest straight to the date picker for this new stay
+  useEffect(() => {
+    if (!requireDates) return;
+    setPickerOpen(true);
+    setDatesPulse(true);
+    const t = setTimeout(() => setDatesPulse(false), 4000);
+    const s = setTimeout(() => dateControlsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 300);
+    return () => { clearTimeout(t); clearTimeout(s); };
+  }, [requireDates]);
+
+
   // Resize observer — post height changes to parent
   useEffect(() => {
     if (window.parent === window) return;
