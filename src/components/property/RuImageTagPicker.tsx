@@ -23,6 +23,8 @@ interface RuImageTagPickerProps {
   disabled?: boolean;
   /** Compact chip row for image thumbnails (default) or a wider inline layout. */
   align?: "start" | "center" | "end";
+  /** Hide the "Untagged → Interior" status chip (bulk / header pickers). */
+  hideStatusBadge?: boolean;
 }
 
 /**
@@ -36,6 +38,7 @@ export default function RuImageTagPicker({
   isMain,
   disabled,
   align = "start",
+  hideStatusBadge,
 }: RuImageTagPickerProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -94,7 +97,7 @@ export default function RuImageTagPicker({
           )}
         </Badge>
       ))}
-      {!isMain && selected.length === 0 && (
+      {!isMain && !hideStatusBadge && selected.length === 0 && (
         <Badge variant="outline" className="h-5 border-warning-border bg-warning-surface px-1.5 text-[10px] text-warning">
           Untagged → Interior
         </Badge>
