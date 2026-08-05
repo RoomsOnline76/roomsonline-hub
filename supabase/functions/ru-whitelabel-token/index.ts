@@ -143,7 +143,8 @@ async function mintSubUserPair(
     // RU returns a <white-pms-host … token="…" refresh_token="…"/> document (sometimes
     // wrapped as a JSON string), so try attribute parsing first, then JSON shapes.
     const attr = (name: string) =>
-      text.match(new RegExp(`${name}\\s*=\\s*\\\\?"([^"\\\\]+)`, 'i'))?.[1] ?? '';
+      text.match(new RegExp(`(?:^|[^\\w-])${name}\\s*=\\s*\\\\?"([^"\\\\]+)`, 'i'))?.[1] ?? '';
+
     let access = attr('token');
     let refresh = attr('refresh_token');
     let ttl: number | null = Number(attr('expires_in')) || null;
