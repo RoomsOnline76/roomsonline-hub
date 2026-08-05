@@ -71,13 +71,21 @@ export default function EmbedProperty() {
   const [activeImageIndex, setActiveImageIndex] = useState(0);
 
   const today = startOfDay(new Date());
-  const initialCheckIn = searchParams.get("checkIn") || searchParams.get("checkin") || format(today, "yyyy-MM-dd");
-  const initialCheckOut = searchParams.get("checkOut") || searchParams.get("checkout") || format(addDays(today, 2), "yyyy-MM-dd");
+  // `require_dates=1` (journey add from the portfolio) means the guest must pick
+  // dates for this stay — inherited dates are only a starting point.
+  const requireDates = searchParams.get("require_dates") === "1";
+  const suggestedCheckIn = searchParams.get("suggest_checkin");
+  const urlCheckIn = searchParams.get("checkIn") || searchParams.get("checkin");
+  const urlCheckOut = searchParams.get("checkOut") || searchParams.get("checkout");
+  const initialCheckIn = urlCheckIn || suggestedCheckIn || format(today, "yyyy-MM-dd");
+  const initialCheckOut = urlCheckOut
+    || (suggestedCheckIn ? format(addDays(new Date(suggestedCheckIn), 2), "yyyy-MM-dd") : format(addDays(today, 2), "yyyy-MM-dd"));
   const [checkIn, setCheckIn] = useState<string>(initialCheckIn);
   const [checkOut, setCheckOut] = useState<string>(initialCheckOut);
   const [promoCode, setPromoCode] = useState("");
   const [showPromo, setShowPromo] = useState(false);
-  const [datesConfirmed, setDatesConfirmed] = useState(!!(searchParams.get("checkIn") || searchParams.get("checkin")) && !!(searchParams.get("checkOut") || searchParams.get("checkout")));
+  const [datesConfirmed, setDatesConfirmed] = useState(!requireDates && !!urlCheckIn && !!urlCheckOut);
+
   const dateControlsRef = useRef<HTMLDivElement>(null);
   const [datesPulse, setDatesPulse] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
