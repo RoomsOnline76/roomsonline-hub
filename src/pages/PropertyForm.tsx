@@ -7563,6 +7563,7 @@ export default function PropertyForm({
             </TabsContent>
           )}
         </Tabs>
+        </Suspense>
         </div>
 
 
