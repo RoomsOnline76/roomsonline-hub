@@ -100,6 +100,8 @@ export function PropertyRuOwnerPanel({ propertyId, pmsSystem, readOnly = false }
   const [secretKey, setSecretKey] = useState("");
   const [keyLabel, setKeyLabel] = useState("ROL'OS");
   const [editingKeys, setEditingKeys] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+
 
 
   const load = useCallback(async () => {
