@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { MoreHorizontal, Users } from "lucide-react";
+import { MoreHorizontal, Users, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { hasMinRole } from "@/lib/permissions";
@@ -27,7 +27,7 @@ export function PmsMobileBottomNav() {
   const location = useLocation();
   const navigate = useNavigate();
   const [moreOpen, setMoreOpen] = useState(false);
-  const { userRole } = useAuth();
+  const { userRole, signOut } = useAuth();
   const { propertyId } = usePmsPropertyId();
   const { staffRole } = usePmsStaffRole(propertyId);
 
@@ -153,6 +153,18 @@ export function PmsMobileBottomNav() {
                   </div>
                 </div>
               )}
+
+              <button
+                onClick={async () => {
+                  setMoreOpen(false);
+                  await signOut();
+                  navigate("/auth");
+                }}
+                className="flex w-full items-center gap-3 rounded-lg border border-border bg-card p-3 text-left text-sm font-semibold text-destructive transition-colors hover:bg-muted"
+              >
+                <LogOut className="h-5 w-5" />
+                Sign out
+              </button>
             </div>
           </SheetContent>
         </Sheet>
