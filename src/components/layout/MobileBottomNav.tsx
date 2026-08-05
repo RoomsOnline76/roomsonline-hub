@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from "react-router-dom";
-import { MoreHorizontal } from "lucide-react";
+import { Menu, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { hasMinRole } from "@/lib/permissions";
 import { mobileNavItems, adminMobileNavItem, systemMobileNavItem, type NavItem } from "@/config/navigation";
@@ -19,7 +19,7 @@ import { PmsMobileBottomNav } from "./PmsMobileBottomNav";
 export function MobileBottomNav() {
   const location = useLocation();
   const navigate = useNavigate();
-  const [moreOpen, setMoreOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const { userRole } = useAuth();
 
   const isAdmin = hasMinRole(userRole, 'admin');
@@ -31,31 +31,24 @@ export function MobileBottomNav() {
   // Inside the ROL'OS shell the bottom bar carries the ROL'OS modules instead.
   const inPms = location.pathname === "/pms" || location.pathname.startsWith("/pms/");
 
+  // Two quick shortcuts stay on the bar; everything else lives in the hamburger.
+  const quickItems: NavItem[] = [];
+  if (isAdmin) quickItems.push(adminMobileNavItem);
+  quickItems.push(mobileNavItems[0], mobileNavItems[1]);
 
+  // Every section the role can reach, including link-only sections (ROL'OS PMS).
+  const accessibleSections = navigationConfig.filter((section) =>
+    hasMinRole(userRole, section.minRole)
+  );
 
-  // Build visible nav items based on role - admin/dev get Admin first
-  const visibleItems: NavItem[] = [];
-  
-  if (hasMinRole(userRole, 'admin')) {
-    visibleItems.push(adminMobileNavItem);
-  }
-  
-  visibleItems.push(...mobileNavItems);
-  
-  // Add system item if user has dev role
-  if (hasMinRole(userRole, 'dev')) {
-    visibleItems.push(systemMobileNavItem);
-  }
-
-  // Show max 4 items + more button if needed
-  const maxVisible = 4;
-  const displayItems = visibleItems.slice(0, maxVisible);
-  const hasMore = visibleItems.length > maxVisible;
+  const go = (href: string) => {
+    navigate(href);
+    setMenuOpen(false);
+  };
 
   const NavButton = ({ item }: { item: NavItem }) => {
     const active = isActive(item.href);
     const Icon = item.icon;
-    // "Admin" rolls up every pending queue; other items use their own count.
     const pending = item.id === adminMobileNavItem.id ? totalPending : (actionCounts[item.id] || 0);
 
     return (
@@ -79,96 +72,106 @@ export function MobileBottomNav() {
     );
   };
 
-
-  // Get all accessible sections for the More sheet
-  const accessibleSections = navigationConfig.filter(section => 
-    hasMinRole(userRole, section.minRole)
-  );
-
   if (inPms) return <PmsMobileBottomNav />;
-
-
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:hidden">
       <div className="flex items-center justify-around px-2 safe-area-inset-bottom">
-        {displayItems.map((item) => (
+        {quickItems.map((item) => (
           <NavButton key={item.id} item={item} />
         ))}
-        
-        {hasMore && (
-          <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
-            <SheetTrigger asChild>
-              <button
-                className={cn(
-                  "flex flex-col items-center justify-center gap-0.5 flex-1 py-2 min-h-[56px] transition-colors",
-                  "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                <MoreHorizontal className="h-5 w-5" />
-                <span className="text-[10px] font-medium">More</span>
-              </button>
-            </SheetTrigger>
-            <SheetContent side="bottom" className="h-[60vh] flex flex-col">
-              <SheetHeader className="shrink-0">
-                <SheetTitle>Navigation</SheetTitle>
-              </SheetHeader>
-              <div className="mt-4 space-y-6 overflow-y-auto flex-1 min-h-0 pb-6">
-                {accessibleSections.map((section) => {
-                  const accessibleItems = section.items.filter(item => 
-                    hasMinRole(userRole, item.minRole)
-                  );
-                  
-                  if (accessibleItems.length === 0) return null;
-                  
+
+        <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
+          <SheetTrigger asChild>
+            <button
+              aria-label="Open navigation menu"
+              className="flex flex-col items-center justify-center gap-0.5 flex-1 py-2 min-h-[56px] text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <Menu className="h-5 w-5" />
+              <span className="text-[10px] font-medium">Menu</span>
+            </button>
+          </SheetTrigger>
+          <SheetContent side="bottom" className="flex h-[85vh] flex-col">
+            <SheetHeader className="shrink-0">
+              <SheetTitle>Navigation</SheetTitle>
+            </SheetHeader>
+            <div className="mt-4 min-h-0 flex-1 space-y-6 overflow-y-auto pb-8">
+              {accessibleSections.map((section) => {
+                const accessibleItems = section.items.filter((item) =>
+                  hasMinRole(userRole, item.minRole)
+                );
+                const SectionIcon = section.icon;
+
+                // Link-only section (e.g. ROL'OS PMS) — render as a single row.
+                if (accessibleItems.length === 0) {
+                  if (!section.href) return null;
                   return (
-                    <div key={section.id}>
-                      <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
-                        {section.label}
-                      </h3>
-                      <div className="grid grid-cols-4 gap-2">
-                        {accessibleItems.map((item) => {
-                          const Icon = item.icon;
-                          const active = isActive(item.href);
-                          const pending = actionCounts[item.id] || 0;
-
-                          return (
-                            <button
-                              key={item.id}
-                              onClick={() => {
-                                navigate(item.href);
-                                setMoreOpen(false);
-                              }}
-                              className={cn(
-                                "flex flex-col items-center justify-center gap-1 p-3 rounded-lg transition-colors",
-                                active 
-                                  ? "bg-primary/10 text-primary" 
-                                  : "hover:bg-muted text-muted-foreground hover:text-foreground"
-                              )}
-                            >
-                              <span className="relative">
-                                <Icon className="h-5 w-5" />
-                                {pending > 0 && (
-                                  <span className="absolute -right-2 -top-1.5 min-w-[16px] rounded-full bg-primary px-1 text-[9px] font-semibold leading-4 text-primary-foreground">
-                                    {pending}
-                                  </span>
-                                )}
-                              </span>
-                              <span className="text-[10px] font-medium text-center leading-tight">
-                                {item.title}
-                              </span>
-
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
+                    <button
+                      key={section.id}
+                      onClick={() => go(section.href!)}
+                      className="flex w-full items-center gap-3 rounded-lg border border-border bg-card p-3 text-left transition-colors hover:bg-muted"
+                    >
+                      {SectionIcon && <SectionIcon className="h-5 w-5 text-primary" />}
+                      <span className="flex-1 text-sm font-semibold">{section.label}</span>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    </button>
                   );
-                })}
-              </div>
-            </SheetContent>
-          </Sheet>
-        )}
+                }
+
+                return (
+                  <div key={section.id}>
+                    <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      {section.label}
+                    </h3>
+                    <div className="grid grid-cols-4 gap-2">
+                      {accessibleItems.map((item) => {
+                        const Icon = item.icon;
+                        const active = isActive(item.href);
+                        const pending = actionCounts[item.id] || 0;
+
+                        return (
+                          <button
+                            key={item.id}
+                            onClick={() => go(item.href)}
+                            className={cn(
+                              "flex flex-col items-center justify-center gap-1 rounded-lg p-3 transition-colors",
+                              active
+                                ? "bg-primary/10 text-primary"
+                                : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                            )}
+                          >
+                            <span className="relative">
+                              <Icon className="h-5 w-5" />
+                              {pending > 0 && (
+                                <span className="absolute -right-2 -top-1.5 min-w-[16px] rounded-full bg-primary px-1 text-[9px] font-semibold leading-4 text-primary-foreground">
+                                  {pending}
+                                </span>
+                              )}
+                            </span>
+                            <span className="text-center text-[10px] font-medium leading-tight">
+                              {item.title}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+
+              {isDev && (
+                <button
+                  onClick={() => go(systemMobileNavItem.href)}
+                  className="flex w-full items-center gap-3 rounded-lg border border-border bg-card p-3 text-left transition-colors hover:bg-muted"
+                >
+                  <systemMobileNavItem.icon className="h-5 w-5 text-primary" />
+                  <span className="flex-1 text-sm font-semibold">System overview</span>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                </button>
+              )}
+            </div>
+          </SheetContent>
+        </Sheet>
       </div>
     </nav>
   );
