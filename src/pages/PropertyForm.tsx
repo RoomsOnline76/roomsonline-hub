@@ -9,6 +9,7 @@ import { CompanyInformationCard, type RuCompanyProfile } from "@/components/prop
 import { PropertyRuOwnerPanel } from "@/components/property/PropertyRuOwnerPanel";
 import { RolosReadinessScoreBadge } from "@/components/property/RolosReadinessScoreBadge";
 import { RuPushContinueButton } from "@/components/property/RuPushContinueButton";
+import { RolosOnboardingWizard } from "@/components/onboarding/rolos/RolosOnboardingWizard";
 
 
 import { PortfolioIdentityCopy } from "@/components/property/PortfolioIdentityCopy";
