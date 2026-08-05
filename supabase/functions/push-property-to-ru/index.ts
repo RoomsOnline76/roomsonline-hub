@@ -2419,6 +2419,15 @@ Deno.serve(async (req) => {
         }
 
         const strays = listings.filter(l => l.on_master_account);
+        const stale = listings.filter(l => !l.ru_reported_iso && /does not exist/i.test(String(l.error ?? '')));
+        const transport = listings.filter(l => !l.ru_reported_iso && /failed to send a request|fetch failed|timeout/i.test(String(l.error ?? '')));
+        const reason = strays.length
+          ? `${strays.length} listing(s) still live on the master Rentals United account (${strays.map((s: any) => s.ru_property_id).join(', ')}) — re-push them as the white-label sub-user.`
+          : stale.length === listings.length && listings.length > 0
+            ? `Stored listing IDs (${stale.map((s: any) => s.ru_property_id).join(', ')}) no longer exist on this owner account — re-push the property to issue fresh listing IDs. The currency itself was not checked.`
+            : transport.length === listings.length && listings.length > 0
+              ? 'Could not reach Rentals United for this property — transport error, currency not checked. Retry.'
+              : (listings.find(l => l.error)?.error ?? notes[0] ?? null);
         results.push({
           property_id: p.id,
           name: p.name,
@@ -2427,13 +2436,14 @@ Deno.serve(async (req) => {
           listings,
           notes,
           listings_on_master_account: strays.length,
+          stale_listing_ids: stale.map((s: any) => s.ru_property_id),
+          unreachable: transport.length === listings.length && listings.length > 0,
           ru_reported_iso: primaryVerification?.ru_reported_iso ?? listings.find(l => l.ru_reported_iso)?.ru_reported_iso ?? null,
           matches: listings.length > 0 && listings.every(l => l.matches),
           success: listings.some(l => !!l.ru_reported_iso),
-          error: strays.length
-            ? `${strays.length} listing(s) still live on the master Rentals United account (${strays.map((s: any) => s.ru_property_id).join(', ')}) — re-push them as the white-label sub-user.`
-            : (listings.find(l => l.error)?.error ?? notes[0] ?? null),
+          error: reason,
         });
+
 
 
 
