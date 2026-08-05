@@ -11,10 +11,12 @@
  * Token sources, in order:
  *   1. cached pair on `ru_owner_accounts` (ru_wl_access_token / ru_wl_refresh_token)
  *      while still inside its expiry window;
- *   2. minted server-side by signing in to the RU portal with the owner's stored
- *      sub-user login (`ru_login_email` + encrypted `ru_login_password_enc`);
- *   3. an admin-entered pair (source = 'admin'), used when RU has not enabled a
- *      programmatic login for the integration.
+ *   2. the documented two-step RU exchange:
+ *        POST https://webapi.rentalsunited.com/whitepms/oauth2/token   (master, password grant)
+ *        GET  https://webapi.rentalsunited.com/api/white-pms/client?userName=…&ownerId=…
+ *      using the RU_WHITELABEL_MASTER_USERNAME / RU_WHITELABEL_MASTER_PASSWORD partner
+ *      credentials, scoped to the property's sub-user and OwnerID;
+ *   3. an admin-entered pair (source = 'admin') as an emergency fallback.
  *
  * Tokens are never logged. They are returned to the authenticated caller only.
  *
@@ -288,14 +290,14 @@ Deno.serve(async (req) => {
     // White Label sign-in may still be outstanding, so never tell them to redo setup.
     const { data: credRow } = await admin
       .from('ru_api_credentials')
-      .select('access_key, verified_at, login_email, user_name')
+      .select('access_key, verified_at, login_email')
       .eq('ru_owner_id', ownerId)
       .maybeSingle();
     const subUserVerified = !!(credRow?.access_key || account.ru_api_access_key);
 
     // ── Documented two-step White Label exchange: master token → sub-user pair ──
     const subUserName = String(
-      credRow?.user_name || credRow?.login_email || account.ru_login_email || account.owner_email || '',
+      credRow?.login_email || account.ru_login_email || account.owner_email || '',
     ).trim();
     let exchangeError: string | null = null;
 
