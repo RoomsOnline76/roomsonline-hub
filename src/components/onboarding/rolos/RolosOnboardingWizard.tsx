@@ -180,6 +180,19 @@ export function RolosOnboardingWizard({ propertyId, className }: Props) {
     [isPlatformUser, macros],
   );
 
+  // Passed steps condense into a single tick strip; clicking one brings the full
+  // row back (it becomes the open macro).
+  const completedChips = useMemo(
+    () => visibleMacros.filter((m) => m.complete && openMacro !== m.macro.key),
+    [visibleMacros, openMacro],
+  );
+  const openMacros = useMemo(
+    () => visibleMacros.filter((m) => !m.complete || openMacro === m.macro.key),
+    [visibleMacros, openMacro],
+  );
+
+
+
   if (!propertyId || dismissed) return null;
   if (isLoading) return null;
   if (!isRolosPms) return null;
