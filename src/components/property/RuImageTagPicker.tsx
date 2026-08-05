@@ -66,7 +66,7 @@ export default function RuImageTagPicker({
       <button
         key={tag.id}
         type="button"
-        onClick={() => toggle(tag.id)}
+        onClick={() => toggle(tag.id, true)}
         className={`flex w-full items-center gap-2 rounded px-2 py-1 text-left text-xs transition-colors ${
           active ? "bg-primary text-primary-foreground" : "hover:bg-muted"
         }`}
