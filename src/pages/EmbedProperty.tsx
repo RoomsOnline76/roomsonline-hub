@@ -201,7 +201,11 @@ export default function EmbedProperty() {
           : allVisibleRooms;
         setRoomTypes(filteredRooms || []);
 
+        // Rate-plan backfill for rooms without a daily rate. Deferred: the cards
+        // render from the room rows themselves and prices fill in on arrival, so
+        // this third hop never delays the first paint.
         if (rooms && rooms.some((r: any) => !r.daily_rate && r.linked_rolos_id)) {
+          void (async () => {
           const rolosIds = rooms.filter((r: any) => r.linked_rolos_id).map((r: any) => r.linked_rolos_id);
           const { data: rpRoomTypes } = await supabase
             .from("rolos_rate_plan_room_types")
@@ -222,6 +226,7 @@ export default function EmbedProperty() {
             }
             setRatePlanMap(map);
           }
+          })();
         }
       }
       setLoading(false);
