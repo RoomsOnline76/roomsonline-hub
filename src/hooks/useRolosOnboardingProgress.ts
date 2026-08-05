@@ -201,7 +201,11 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
       detail: String(prop.ru_location_id ?? "") || "Not resolved",
       hint: "Identity & Location → Location register",
     });
-    put("google_place_id", "Google Place ID captured", !!String(prop.google_place_id ?? "").trim(), {
+    const externalIds = ((prop.amenities as Record<string, unknown> | null)?.external_ids ?? {}) as Record<
+      string,
+      unknown
+    >;
+    put("google_place_id", "Google Place ID captured", !!String(externalIds.google_place_id ?? "").trim(), {
       hint: "Identity & Location → Google Place ID",
     });
 
