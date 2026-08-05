@@ -854,8 +854,10 @@ const Bookings = () => {
           </CardHeader>
           <CardContent className="p-0">
             {loading ? (
-              <div className="text-center py-4 text-muted-foreground text-sm">
-                Loading...
+              <div className="space-y-2 p-3">
+                {[0, 1, 2, 3, 4].map((i) => (
+                  <div key={i} className="h-12 rounded-md bg-muted animate-pulse" />
+                ))}
               </div>
             ) : filteredBookings.length === 0 ? (
               <div className="text-center py-4 text-muted-foreground text-sm">
