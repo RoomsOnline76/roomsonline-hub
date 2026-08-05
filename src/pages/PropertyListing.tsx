@@ -69,12 +69,14 @@ export default function PropertyListing() {
 
       {/* Property Segments */}
       <div className="flex-1">
-        {ALL_SEGMENTS.map((segmentId) => (
+        {ALL_SEGMENTS.map((segmentId, index) => (
           <PropertySegmentSection
             key={segmentId}
             segmentId={segmentId}
+            priorityImages={index === 0 ? 4 : 0}
           />
         ))}
+
       </div>
     </PublicLayout>
   );

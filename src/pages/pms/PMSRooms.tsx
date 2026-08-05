@@ -14,6 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { syncRolosRoomTypesFromOverview } from "@/lib/pmsRoomTypeSync";
 import { autoAssignBookings } from "@/lib/bookingAssignment";
 import { toast } from "sonner";
+import { PmsPageSkeleton } from "@/components/pms/PmsPageSkeleton";
 
 const STATUS_COLORS: Record<string, string> = {
   available: "bg-emerald-500/10 text-success border-emerald-500/20",
@@ -278,7 +279,7 @@ export default function PMSRooms() {
     toast.success("Status updated");
   };
 
-  if (propertyLoading) return <p className="text-muted-foreground">Loading property…</p>;
+  if (propertyLoading) return <PmsPageSkeleton rows={4} />;
   if (!propertyId && !isPortfolio) return <p className="text-muted-foreground">Select a property first.</p>;
 
   const currentIdx = properties.findIndex((p) => p.id === propertyId);

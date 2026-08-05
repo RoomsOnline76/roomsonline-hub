@@ -29,6 +29,7 @@ import {
   Plus, Trash2, Settings2, Zap, Sparkles,
 } from "lucide-react";
 import { PriceLabsPanel } from "./PMSPriceLabs";
+import { PmsPageSkeleton } from "@/components/pms/PmsPageSkeleton";
 
 // ============================================================================
 // Yield Rules Hook
@@ -639,7 +640,7 @@ export default function PMSRevenue() {
 
   const loading = propLoading || futureLoading;
 
-  if (propLoading) return <p className="text-muted-foreground">Loading property…</p>;
+  if (propLoading) return <PmsPageSkeleton rows={3} />;
   if (!queryEnabled) return <p className="text-muted-foreground">Select a property first.</p>;
 
   return (

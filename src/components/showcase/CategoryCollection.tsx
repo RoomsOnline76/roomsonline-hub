@@ -6,6 +6,7 @@ import { FormattedPrice } from '@/components/FormattedPrice';
 import { Bed, Users, Maximize, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { optimizedImage, imageSrcSet } from '@/lib/storageImage';
 
 interface RoomData {
   id: string;
@@ -193,7 +194,9 @@ export function CategoryCollection({
                   <div className="aspect-[4/3] sm:aspect-auto sm:h-full overflow-hidden">
                     {category.representativeImage ? (
                       <img
-                        src={category.representativeImage}
+                        src={optimizedImage(category.representativeImage, 700, 70)}
+                        srcSet={imageSrcSet(category.representativeImage, [400, 700, 1000], 70)}
+                        sizes="(min-width: 768px) 33vw, 92vw"
                         alt={category.displayName}
                         className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                         loading="lazy"

@@ -1,7 +1,6 @@
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { PropertyCard } from "@/components/PropertyCard";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useShowcaseProperties } from "@/hooks/useShowcaseProperties";
 import { 
   SegmentFilterId, 
   SEGMENT_FILTERS, 
@@ -13,38 +12,24 @@ interface PropertySegmentSectionProps {
   title?: string;
   limit?: number;
   showCautionBadge?: boolean;
+  /** Number of leading cards to load eagerly (above-the-fold LCP candidates). */
+  priorityImages?: number;
 }
 
 export function PropertySegmentSection({ 
   segmentId, 
   title, 
   limit,
-  showCautionBadge = false
+  showCautionBadge = false,
+  priorityImages = 0
 }: PropertySegmentSectionProps) {
   const segmentConfig = SEGMENT_FILTERS[segmentId];
   const sectionTitle = title || segmentConfig?.label || "Properties";
   const segmentTags = segmentConfig?.tags || [];
 
-  const { data: properties, isLoading } = useQuery({
-    queryKey: ["properties-segment", segmentId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("properties")
-        .select(`
-          id, slug, name, city, country, images, description,
-          editorial_rating, navigation_tags, external_system,
-          why_we_chose_this_place, who_this_suits, 
-          what_its_really_like, why_this_place_matters, who_its_not_for
-        `)
-        .eq("is_active", true)
-        .eq("show_on_website", true)
-        .is("permanently_deleted_at", null);
+  // Shared across every segment section — one request, cached.
+  const { data: properties, isLoading } = useShowcaseProperties();
 
-      if (error) throw error;
-      
-      return data || [];
-    },
-  });
 
   const filteredProperties = filterPropertiesBySegment(properties || [], segmentId);
   const displayProperties = limit ? filteredProperties.slice(0, limit) : filteredProperties;
@@ -86,9 +71,15 @@ export function PropertySegmentSection({
         {/* Properties Grid */}
         {!isLoading && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {displayProperties.map((property) => (
-              <PropertyCard key={property.id} property={property} showCautionBadge={showCautionBadge} />
+            {displayProperties.map((property, i) => (
+              <PropertyCard
+                key={property.id}
+                property={property}
+                showCautionBadge={showCautionBadge}
+                priority={i < priorityImages}
+              />
             ))}
+
           </div>
         )}
       </div>

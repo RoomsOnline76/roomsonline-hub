@@ -4,6 +4,8 @@ import { heroTitleReveal, taglineFade } from '@/lib/motion';
 import { ChevronLeft, ChevronRight, MapPin, Images } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { FormattedPrice } from '@/components/FormattedPrice';
+import { optimizedImage, imageSrcSet } from '@/lib/storageImage';
+
 
 interface RunwayHeroProps {
   name: string;
@@ -117,14 +119,20 @@ export function RunwayHero({
             <AnimatePresence mode="wait">
               <motion.img
                 key={currentImageIndex}
-                src={images[currentImageIndex]}
+                src={optimizedImage(images[currentImageIndex], 900, 72)}
+                srcSet={imageSrcSet(images[currentImageIndex], [640, 900, 1280], 72)}
+                sizes="100vw"
                 alt={`${name} - ${currentImageIndex + 1}`}
+                loading={currentImageIndex === 0 ? 'eager' : 'lazy'}
+                fetchPriority={currentImageIndex === 0 ? 'high' : 'auto'}
+                decoding="async"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.8, ease: 'easeInOut' }}
                 className="absolute inset-0 w-full h-full object-cover"
               />
+
             </AnimatePresence>
           ) : (
             <div className="absolute inset-0 bg-muted" style={{ background: gradientFallback }} />
@@ -237,10 +245,14 @@ export function RunwayHero({
                 {/* Main large image — spans 2 cols, 2 rows */}
                 <div className="col-span-2 row-span-2 relative group cursor-pointer" onClick={onShowAllPhotos}>
                   <img
-                    src={gridImages[0]}
+                    src={optimizedImage(gridImages[0], 1000, 72)}
+                    srcSet={imageSrcSet(gridImages[0], [700, 1000, 1400], 72)}
+                    sizes="50vw"
                     alt={`${name} - main`}
                     className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
                     loading="eager"
+                    fetchPriority="high"
+                    decoding="async"
                   />
                 </div>
                 {/* 4 smaller images */}
@@ -254,11 +266,15 @@ export function RunwayHero({
                     onClick={onShowAllPhotos}
                   >
                     <img
-                      src={img}
+                      src={optimizedImage(img, 500, 70)}
+                      srcSet={imageSrcSet(img, [350, 500, 700], 70)}
+                      sizes="25vw"
                       alt={`${name} - ${i + 2}`}
                       className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
                       loading="lazy"
+                      decoding="async"
                     />
+
                     {/* "+N more" overlay on the last image */}
                     {i === 3 && hasExtraImages && (
                       <div className="absolute inset-0 bg-black/40 flex items-center justify-center transition-colors group-hover:bg-black/50">
@@ -284,22 +300,30 @@ export function RunwayHero({
                   gridImages.length >= 3 ? "col-span-2 row-span-2" : ""
                 )} onClick={onShowAllPhotos}>
                   <img
-                    src={gridImages[0]}
+                    src={optimizedImage(gridImages[0], 1000, 72)}
+                    srcSet={imageSrcSet(gridImages[0], [700, 1000, 1400], 72)}
+                    sizes="(min-width: 768px) 50vw, 100vw"
                     alt={`${name} - main`}
                     className="w-full h-full object-cover"
                     loading="eager"
+                    fetchPriority="high"
+                    decoding="async"
                   />
                 </div>
                 {gridImages.slice(1).map((img, i) => (
                   <div key={i} className="relative cursor-pointer" onClick={onShowAllPhotos}>
                     <img
-                      src={img}
+                      src={optimizedImage(img, 500, 70)}
+                      srcSet={imageSrcSet(img, [350, 500, 700], 70)}
+                      sizes="25vw"
                       alt={`${name} - ${i + 2}`}
                       className="w-full h-full object-cover"
                       loading="lazy"
+                      decoding="async"
                     />
                   </div>
                 ))}
+
               </div>
             ) : (
               <div className="h-[420px] bg-muted rounded-2xl" style={{ background: gradientFallback }} />

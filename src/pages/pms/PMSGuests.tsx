@@ -13,6 +13,7 @@ import { Plus, Search, Users, Mail, Phone, CalendarDays, AlertCircle } from "luc
 import { callPmsApi } from "@/hooks/usePmsApi";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { PmsPageSkeleton } from "@/components/pms/PmsPageSkeleton";
 
 interface Guest {
   id: string;
@@ -133,7 +134,7 @@ export default function PMSGuests() {
     setLoadingHistory(false);
   };
 
-  if (propertyLoading) return <p className="text-muted-foreground">Loading property…</p>;
+  if (propertyLoading) return <PmsPageSkeleton rows={4} />;
   if (viewMode === "single" && !activeIds.length) return <p className="text-muted-foreground">Select a property first.</p>;
 
 
