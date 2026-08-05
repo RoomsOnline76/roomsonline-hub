@@ -944,7 +944,7 @@ export default function EmbedPortfolio() {
                       brandColor={brandColor}
                       fontColor={portfolioBranding.font_color || "#FFFFFF"}
                       visibleDays={7}
-                      startDate={journeyNextCheckIn || undefined}
+                      startDate={(stays.some(s => s.property_id === prop.id) ? journeyRange?.from : journeyNextCheckIn) || undefined}
                       title="Availability & rates"
                       highlightRange={journeyRange && stays.some(s => s.property_id === prop.id) ? journeyRange : null}
                       onBook={(roomId) => handleViewProperty(prop.slug, { journey: true, roomId })}
