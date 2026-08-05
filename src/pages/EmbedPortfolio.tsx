@@ -167,8 +167,11 @@ export default function EmbedPortfolio() {
       try {
         // Use direct fetch for GET with query params
         const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        // First paint payload only — the AI enrichment pass (semantic groups,
+        // bundles, featured stay) runs through the experience engine and is
+        // fetched separately once the cards are on screen.
         const resp = await fetch(
-          `${supabaseUrl}/functions/v1/booking-portfolio-api?portfolio=${portfolioSlug}&ai=true`,
+          `${supabaseUrl}/functions/v1/booking-portfolio-api?portfolio=${portfolioSlug}`,
           {
             headers: {
               "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
@@ -239,6 +242,27 @@ export default function EmbedPortfolio() {
           }
 
           setLoading(false);
+
+          // Deferred AI enrichment — never blocks the first paint.
+          void (async () => {
+            try {
+              const aiResp = await fetch(
+                `${supabaseUrl}/functions/v1/booking-portfolio-api?portfolio=${portfolioSlug}&ai=true`,
+                {
+                  headers: {
+                    "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+                  },
+                }
+              );
+              if (!aiResp.ok) return;
+              const aiPayload = await aiResp.json();
+              if (aiPayload.ai_groups) setAiGroups(aiPayload.ai_groups);
+              if (aiPayload.ai_bundles) setAiBundles(aiPayload.ai_bundles);
+              if (aiPayload.ai_featured) setAiFeatured(aiPayload.ai_featured);
+            } catch {
+              /* enrichment is optional */
+            }
+          })();
           return;
         }
       } catch {
