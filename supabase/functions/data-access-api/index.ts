@@ -59,7 +59,7 @@ Deno.serve(async (req) => {
     }
 
 
-    const userId = claimsData.claims.sub as string;
+    const userId = claims.sub as string;
 
     const { action } = await req.json();
 
