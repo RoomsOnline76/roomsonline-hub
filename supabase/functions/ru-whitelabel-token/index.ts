@@ -81,13 +81,6 @@ function extractTokens(payload: unknown): { access: string | null; refresh: stri
   return { access, refresh, ttl };
 }
 
-async function decryptSecret(admin: Db, enc: unknown): Promise<string> {
-  if (!enc) return '';
-  const { data } = await admin.rpc('decrypt_sensitive_text', { encrypted_data: enc });
-  const plain = typeof data === 'string' ? data : '';
-  return plain && plain !== '[ENCRYPTED]' && plain !== '[DECRYPTION_ERROR]' ? plain : '';
-}
-
 /**
  * Step 1 of the documented White Label flow: obtain the PMS **master** OAuth token
  * with the partner credentials Rentals United issued to ROL'OS.
