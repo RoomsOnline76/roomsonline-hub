@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Bed } from "lucide-react";
+import { ShowcaseAvailabilityCalendar } from "@/components/showcase/ShowcaseAvailabilityCalendar";
 import RoomAvailabilityCalendar from "@/components/RoomAvailabilityCalendar";
 import { PublicLayout } from "@/components/layout/PublicLayout";
 
