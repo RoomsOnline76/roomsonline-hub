@@ -102,8 +102,11 @@ export function ShowcaseAvailabilityCalendar({
   className,
   title,
   onBook,
+  highlightRange,
+  defaultOpen = false,
 }: ShowcaseAvailabilityCalendarProps) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
+
   const [blocks, setBlocks] = useState<Record<string, Record<string, DayCell>>>({});
   const [pmsCache, setPmsCache] = useState<Record<string, Record<string, { available_units: number; rate: number | null }>>>({});
   const [fetchedAmenities, setFetchedAmenities] = useState<Record<string, any> | null>(null);
