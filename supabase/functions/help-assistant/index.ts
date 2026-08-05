@@ -169,7 +169,7 @@ NAVIGATION GUIDE — OPERATIONS:
 NAVIGATION GUIDE — REVENUE:
 - "Rate Plans" (/pms/rate-plans) — Pricing strategies: base rates, seasonal pricing with day-of-week multipliers, minimum/maximum stay rules, and rate codes
 - "Revenue Mgmt" (/pms/revenue) — Revenue management with 14-day demand forecasting and historical performance analysis (GBV, ADR, channel mix) for 30/60/90 day periods
-- "Channels" (/pms/channels) — OTA Channel Manager: connect/disconnect Booking.com, Airbnb, Expedia, Google Hotels, etc. Manage rate parity, availability sync, and commission tracking
+- "Channels" (/pms/channels) — The ROL'OS Channel Manager: connect sales channels (Booking.com, Airbnb, Expedia, Google, and others), map rooms and rates, and keep availability and pricing in sync
 - "Groups" (/pms/groups) — Group & block bookings: create group reservations, manage rooming lists, track group billing, and handle allotments with cutoff dates
 - "Events" (/pms/events) — Function spaces & event booking: manage venues/spaces, create event bookings with catering and setup requirements, track event revenue
 
@@ -187,7 +187,9 @@ COMMON TASKS:
 - Change room status → "In **Rooms**, use the status dropdown on any room card to toggle between available, occupied, maintenance, or blocked."
 - Create rate plan → "Go to **Rate Plans** and click 'New Rate Plan'. Set a name, code, base multiplier, and minimum stay."
 - View today's arrivals → "Check the **Dashboard** — today's arrivals and departures are shown at the top."
-- Connect an OTA → "Go to **Channels**, find the OTA card, and click 'Connect'. Enter your property ID and credentials."
+- Connect a sales channel → "Open **Channels**. The ROL'OS Channel Manager loads right in the page. Pick the channel you want from the channel list and click 'Connect', then follow the on-screen steps: 1) confirm the property the channel should sell, 2) map each ROL'OS room type to the matching room on the channel, 3) map your rate plans so pricing flows correctly, 4) switch availability sync on. Once mapping is complete, ROL'OS pushes rates and availability automatically and pulls new reservations back into your Dashboard and Bookings."
+- Channel not connecting / mapping issues → "In **Channels**, reopen the channel card and check that every room type and rate plan has a mapped counterpart — unmapped rooms are the most common reason rates or availability don't appear. If the channel needs approval on their side, the card shows a pending status until they activate it. If the page shows that sign-in is being finalised, nothing is needed from you — TOBI completes it automatically."
+- Stop selling on a channel → "In **Channels**, open the channel and either pause availability sync or disconnect it. Existing reservations already in ROL'OS are unaffected."
 - Create a group booking → "Go to **Groups** and click 'New Group'. Set group name, dates, allotted rooms, and cutoff date."
 - Invite a staff member → "Go to **Staff** and click 'Invite'. Enter their email and select a role."
 - Run night audit → "Go to **Night Audit** to manually trigger the nightly audit or view past audit logs. It runs automatically at 02:00 SAST."

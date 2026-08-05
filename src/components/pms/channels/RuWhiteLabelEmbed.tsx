@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
+import { useTheme } from "next-themes";
 import { Loader2, RefreshCw, Radio, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useRuWhiteLabelTokens } from "@/hooks/useRuWhiteLabelTokens";
@@ -7,8 +8,15 @@ import { usePMSBrand } from "@/contexts/PMSBrandContext";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
+/** Resolved page background, handed to the embed so it never looks pasted on. */
+function readPageBackground(): string {
+  if (typeof window === "undefined") return "#ffffff";
+  const raw = getComputedStyle(document.documentElement).getPropertyValue("--background").trim();
+  return raw ? `hsl(${raw})` : "#ffffff";
+}
 
 const EMBED_HEIGHT = "h-[calc(100vh-12rem)]";
+
 
 /**
  * Rentals United White Label Channel Manager embed.
@@ -25,8 +33,11 @@ export function RuWhiteLabelEmbed({ propertyId }: { propertyId: string | null | 
   const { tokens, isLoading, isFetching, isUnavailable, reason, subUserVerified, refetch } =
     useRuWhiteLabelTokens(propertyId);
   const brand = usePMSBrand();
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
   const { isAdmin, isDev, isFearlessLeader } = useAuth();
   const isStaff = isAdmin || isDev || isFearlessLeader;
+
   const frameRef = useRef<HTMLIFrameElement | null>(null);
   const [scriptFailed, setScriptFailed] = useState(false);
 
@@ -94,10 +105,23 @@ export function RuWhiteLabelEmbed({ propertyId }: { propertyId: string | null | 
       languageId: "1",
       uiVersion: "2",
       ownerId: tokens.ruOwnerId,
+      // Initial theme + page background; later switches arrive via postMessage.
+      theme: isDark ? "dark" : "light",
+      bg: readPageBackground(),
     });
     return `/ru-embed.html?${params.toString()}`;
+    // The theme is deliberately not a dependency — re-keying the src would remount the
+    // client and lose the user's place. Theme changes are pushed to the frame instead.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tokens]);
 
+  /** Push light/dark switches into the frame without reloading the channel manager. */
+  useEffect(() => {
+    frameRef.current?.contentWindow?.postMessage(
+      { type: "rolos-theme", theme: isDark ? "dark" : "light", bg: readPageBackground() },
+      window.location.origin,
+    );
+  }, [isDark, embedSrc]);
 
   useEffect(() => {
     if (!embedSrc) return;
@@ -110,6 +134,7 @@ export function RuWhiteLabelEmbed({ propertyId }: { propertyId: string | null | 
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
   }, [embedSrc]);
+
 
 
   if (isLoading) {
@@ -184,11 +209,12 @@ export function RuWhiteLabelEmbed({ propertyId }: { propertyId: string | null | 
 
   return (
     <div
-      // The White Label client renders on its own light canvas. The wrapper matches that
-      // canvas exactly and drops the border so the frame boundary is invisible.
-      style={{ ...brandStyle, backgroundColor: "hsl(var(--ru-embed-canvas))" }}
-      className={`w-full ${EMBED_HEIGHT} w-full overflow-hidden border-0`}
+      // Borderless and on the page background, so the frame boundary is invisible in
+      // both light and dark mode.
+      style={brandStyle}
+      className={`w-full ${EMBED_HEIGHT} overflow-hidden border-0 bg-background`}
     >
+
       <iframe
         ref={frameRef}
         title="ROL'OS Channel Manager"
