@@ -395,6 +395,18 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
     return result;
   }, [readiness.items, stateChecks]);
 
+  /**
+   * Live channel connections for this property. Used to retire the onboarding
+   * wizard once the property is actually distributing.
+   */
+  const channelsConnected = useMemo(
+    () =>
+      ((d?.channels ?? []) as { status?: string }[]).filter((c) =>
+        ["connected", "active", "live"].includes(String(c?.status ?? "").toLowerCase()),
+      ).length,
+    [d?.channels],
+  );
+
   const currentMacro = useMemo(
     () => macros.find((m) => !m.complete) ?? macros[macros.length - 1] ?? null,
     [macros],
@@ -481,6 +493,7 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
     macros,
     currentMacro,
     overall,
+    channelsConnected,
     signoff,
     recordSignoff,
     recordSignoffCheck,
