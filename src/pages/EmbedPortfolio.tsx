@@ -13,6 +13,7 @@ import { fetchLiveRatesBatch } from "@/lib/pmsLiveAvailability";
 import { EmbedPortfolioMap } from "@/components/embed/EmbedPortfolioMap";
 import { EmbedPortfolioReviews } from "@/components/embed/EmbedPortfolioReviews";
 import { useItinerary } from "@/contexts/ItineraryContext";
+import { ShowcaseAvailabilityCalendar } from "@/components/showcase/ShowcaseAvailabilityCalendar";
 
 interface ReviewRating {
   source: string;
@@ -912,7 +913,19 @@ export default function EmbedPortfolio() {
                       ))}
                     </div>
                   )}
+                  {/* Availability & rates (NightsBridge-style grid, collapsed) */}
+                  <div className="mt-3" onClick={(e) => e.stopPropagation()}>
+                    <ShowcaseAvailabilityCalendar
+                      propertyId={prop.id}
+                      brandColor={brandColor}
+                      fontColor={portfolioBranding.font_color || "#FFFFFF"}
+                      visibleDays={7}
+                      title="Availability & rates"
+                      onBook={() => handleViewProperty(prop.slug, { journey: true })}
+                    />
+                  </div>
                   <div className="mt-auto pt-3 flex items-center justify-between">
+
                     <div className="flex gap-3 text-xs text-gray-400">
                       {prop.room_count > 0 && (
                         <span className="flex items-center gap-1"><BedDouble className="h-3 w-3" />{prop.room_count} rooms</span>
