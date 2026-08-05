@@ -45,6 +45,7 @@ export function EmbedAvailabilityGrid({
   fontColor,
   currency = "R",
   onBook,
+  highlightRange,
 }: EmbedAvailabilityGridProps) {
   const [offset, setOffset] = useState(0);
   const [hover, setHover] = useState<HoverCell | null>(null);
@@ -57,8 +58,34 @@ export function EmbedAvailabilityGrid({
 
   const canGoBack = !isBefore(addDays(new Date(startDate), offset - 1), today);
 
+  const isHighlighted = (key: string) =>
+    !!highlightRange && key >= highlightRange.from && key < highlightRange.to;
+
   return (
     <div style={{ width: "100%", background: "#fff", padding: "4px 0 10px" }}>
+      {highlightRange && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            margin: "8px 16px 0",
+            padding: "6px 10px",
+            background: `${brandColor}14`,
+            borderLeft: `3px solid ${brandColor}`,
+            fontSize: "12px",
+            color: "#3d3d3d",
+          }}
+        >
+          <span style={{ fontWeight: 700, color: brandColor }}>
+            {highlightRange.label || "Your journey"}
+          </span>
+          <span>
+            {format(new Date(highlightRange.from), "d MMM")} – {format(new Date(highlightRange.to), "d MMM")}
+          </span>
+        </div>
+      )}
+
       {/* Navigation — day / week stepper, NightsBridge style */}
       <div
         style={{
