@@ -105,10 +105,10 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
       const [property, phase, identity, currency, channels, roadmap, units] = await Promise.all([
         supabase
           .from("properties")
-          .select("id, name, external_system, timezone, ru_location_id, google_place_id, rentalsunited_property_id")
+          .select("id, name, external_system, timezone, ru_location_id, amenities, rentalsunited_property_id")
           .eq("id", id)
           .maybeSingle()
-          .then((r) => r.data as Record<string, unknown> | null),
+          .then((r) => (r.data ?? null) as Record<string, unknown> | null),
         invokeCert<PhaseStatusPayload>("phase_status", id),
         invokeCert<IdentityPayload>("property_ru_identity", id),
         supabase
