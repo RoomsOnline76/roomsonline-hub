@@ -135,6 +135,36 @@
           };
           document.head.appendChild(s);
         }
+        /*
+          Replace any logo that fails to load with its alt-text label, so a broken
+          upstream logo asset never renders an empty, unreadable channel card.
+        */
+        function labelBrokenLogo(img) {
+          if (!img || img.dataset.rolosFallback === "1") return;
+          img.dataset.rolosFallback = "1";
+          var span = document.createElement("span");
+          span.className = "rolos-logo-fallback";
+          span.textContent = img.getAttribute("alt") || "Channel";
+          img.style.display = "none";
+          if (img.parentNode) img.parentNode.insertBefore(span, img);
+        }
+        document.addEventListener(
+          "error",
+          function (e) {
+            var t = e.target;
+            if (t && t.tagName === "IMG") labelBrokenLogo(t);
+          },
+          true
+        );
+        // Images that already failed before the observer/listener attached.
+        setInterval(function () {
+          var imgs = document.querySelectorAll("#ruApp img");
+          for (var i = 0; i < imgs.length; i++) {
+            var im = imgs[i];
+            if (im.complete && im.naturalWidth === 0) labelBrokenLogo(im);
+          }
+        }, 1000);
+
         if (window.jQuery) boot();
         else window.addEventListener("load", boot);
       })();
