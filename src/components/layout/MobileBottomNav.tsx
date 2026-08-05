@@ -27,6 +27,10 @@ export function MobileBottomNav() {
 
   const isActive = (href: string) => location.pathname === href;
 
+  // Inside the ROL'OS shell the bottom bar carries the ROL'OS modules instead.
+  const inPms = location.pathname === "/pms" || location.pathname.startsWith("/pms/");
+
+
 
   // Build visible nav items based on role - admin/dev get Admin first
   const visibleItems: NavItem[] = [];
