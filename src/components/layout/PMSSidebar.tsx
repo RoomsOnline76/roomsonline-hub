@@ -189,8 +189,6 @@ export function PMSSidebar() {
           )}
         </div>
 
-        {/* Property switcher for platform users */}
-        {isPlatformUser && !collapsed && properties.length > 0 && (
         {/* Property switcher for platform users — searchable */}
         {isPlatformUser && !collapsed && properties.length > 0 && (
           <Popover open={switcherOpen} onOpenChange={setSwitcherOpen}>
