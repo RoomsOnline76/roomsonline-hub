@@ -592,13 +592,25 @@ export default function EmbedProperty() {
         }
       });
 
+      const r = room as any;
+      const childNote = r.allow_children === false
+        ? "No children allowed."
+        : r.child_min_age != null || r.child_max_age != null
+          ? `Children welcome (${r.child_min_age ?? 0}–${r.child_max_age ?? 17} yrs).`
+          : undefined;
+
       return {
         roomId: room.id,
         roomName: room.name,
         maxGuests: room.max_guests,
+        maxAdults: r.max_adults ?? room.max_guests,
         beds: room.beds,
+        allowChildren: r.allow_children,
+        childPolicyNote: childNote,
+        mealPlan: linkedRateType?.name ?? rolosPlan?.name ?? undefined,
         ratesByDate,
       };
+
     });
   }, [roomTypes, ratePlanMap, checkIn, property, availabilityOverrides, pmsCacheMap, resolveSeasonRate]);
 
