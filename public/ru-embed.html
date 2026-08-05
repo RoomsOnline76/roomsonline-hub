@@ -16,7 +16,37 @@
       #ruApp {
         min-height: 100%;
       }
+
+      /*
+        Layout-only centering of the White Label client. RU ships a left-aligned
+        fluid layout; inside our fixed-width embed frame that leaves a large gap on
+        the right. We centre their page shell and the channel card grids without
+        touching any of their colours, sizing or behaviour.
+      */
+      #ruApp > * {
+        margin-left: auto;
+        margin-right: auto;
+      }
+      #ruApp .container,
+      #ruApp .container-fluid,
+      #ruApp .content,
+      #ruApp .page-content,
+      #ruApp .main-content {
+        margin-left: auto !important;
+        margin-right: auto !important;
+        max-width: 1280px;
+        float: none !important;
+      }
+      /* Channel / sales-channel card grids: centre the wrapped rows. */
+      #ruApp .row,
+      #ruApp [class*="channels-list"],
+      #ruApp [class*="channel-list"],
+      #ruApp [class*="card-list"],
+      #ruApp [class*="tiles"] {
+        justify-content: center;
+      }
     </style>
+
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
   </head>
   <body>
