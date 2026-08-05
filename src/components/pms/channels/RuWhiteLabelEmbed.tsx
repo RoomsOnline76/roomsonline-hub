@@ -33,8 +33,11 @@ export function RuWhiteLabelEmbed({ propertyId }: { propertyId: string | null | 
   const { tokens, isLoading, isFetching, isUnavailable, reason, subUserVerified, refetch } =
     useRuWhiteLabelTokens(propertyId);
   const brand = usePMSBrand();
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
   const { isAdmin, isDev, isFearlessLeader } = useAuth();
   const isStaff = isAdmin || isDev || isFearlessLeader;
+
   const frameRef = useRef<HTMLIFrameElement | null>(null);
   const [scriptFailed, setScriptFailed] = useState(false);
 
