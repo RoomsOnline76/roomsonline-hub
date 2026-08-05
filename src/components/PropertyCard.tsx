@@ -5,6 +5,7 @@ import { EditorialRatingBadge } from "@/components/EditorialRatingBadge";
 import { WhoItsNotForBadge } from "@/components/WhoItsNotForBadge";
 import { memo, useMemo } from "react";
 import rolLogo from "@/assets/rol-logo.png";
+import { optimizedImage, imageSrcSet } from "@/lib/storageImage";
 
 interface PropertyCardProps {
   property: {
@@ -24,7 +25,10 @@ interface PropertyCardProps {
   };
   variant?: "default" | "large";
   showCautionBadge?: boolean;
+  /** Above-the-fold card: load its image eagerly at high priority (LCP candidate). */
+  priority?: boolean;
 }
+
 
 function getRandomEditorialBlurb(property: PropertyCardProps["property"]): string | null {
   const blurbs = [
