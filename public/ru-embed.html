@@ -83,6 +83,26 @@
         var token = q.get("token") || "";
         var refreshToken = q.get("refreshToken") || "";
         var ownerId = q.get("ownerId") || "";
+
+        // Follow the ROL'OS theme: the host page hands us its resolved background
+        // colour and light/dark mode so the frame never looks pasted on.
+        var bg = q.get("bg");
+        if (bg) document.documentElement.style.setProperty("--rolos-bg", bg);
+        document.documentElement.setAttribute(
+          "data-rolos-theme",
+          q.get("theme") === "dark" ? "dark" : "light"
+        );
+        // Later theme switches arrive from the parent without reloading the client.
+        window.addEventListener("message", function (event) {
+          var data = event.data || {};
+          if (data.type !== "rolos-theme") return;
+          if (data.bg) document.documentElement.style.setProperty("--rolos-bg", data.bg);
+          document.documentElement.setAttribute(
+            "data-rolos-theme",
+            data.theme === "dark" ? "dark" : "light"
+          );
+        });
+
         if (!token || !refreshToken) {
           parent.postMessage({ type: "ru-wl-error" }, "*");
           return;
