@@ -295,6 +295,8 @@ export function ShowcaseAvailabilityCalendar({
               fontColor={fontColor}
               currency={currency}
               onBook={onBook}
+              highlightRange={highlightRange}
+
             />
           </motion.div>
         )}
