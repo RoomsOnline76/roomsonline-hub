@@ -466,15 +466,56 @@ function MacroRow({
             )}
 
             {macro.action === "signoff" && isPlatformUser && (
-              <label className="flex items-center gap-2 text-[11px]">
-                <Checkbox
-                  checked={signedOff}
-                  disabled={locked || busyAction === "signoff"}
-                  onCheckedChange={(v) => onSignoff(v === true)}
-                />
-                I have verified the live sub-account
-              </label>
+              <div className="w-full space-y-1.5 rounded-md border bg-muted/20 p-2">
+                {ROLOS_SIGNOFF_CHECKLIST.map((item) => {
+                  const record = signoffChecks?.[item.key];
+                  return (
+                    <label key={item.key} className="flex items-start gap-2 text-[11px] leading-snug">
+                      <Checkbox
+                        className="mt-0.5"
+                        checked={record?.checked === true}
+                        disabled={locked || busyAction === `signoff:${item.key}`}
+                        onCheckedChange={(v) => onSignoffItem(item.key, v === true)}
+                      />
+                      <span className="min-w-0 flex-1">
+                        {item.label}
+                        {record?.checked && record.by ? (
+                          <span className="block text-[10px] text-muted-foreground">
+                            {record.by}
+                            {record.at ? ` · ${new Date(record.at).toLocaleDateString()}` : ""}
+                          </span>
+                        ) : null}
+                      </span>
+                    </label>
+                  );
+                })}
+                {!signedOff && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-7 w-full text-[11px]"
+                    disabled={locked || busyAction === "signoff"}
+                    onClick={() => onSignoff(true)}
+                  >
+                    Confirm all items
+                  </Button>
+                )}
+                {signedOff && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 w-full text-[11px]"
+                    disabled={locked || busyAction === "signoff"}
+                    onClick={() => onSignoff(false)}
+                  >
+                    Clear sign-off
+                  </Button>
+                )}
+              </div>
             )}
+
 
             {macro.action === "open_channels" && (
               <Button
