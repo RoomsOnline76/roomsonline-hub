@@ -36,14 +36,30 @@ Deno.serve(async (req) => {
     );
 
     const token = authHeader.replace("Bearer ", "");
-    const { data: claimsData, error: claimsError } =
-      await supabaseAuth.auth.getClaims(token);
 
-    if (claimsError || !claimsData?.claims) {
-      return jsonResponse({ error: "Unauthorized" }, 401);
+    let claims: Record<string, unknown> | null = null;
+    try {
+      const { data: claimsData, error: claimsError } =
+        await supabaseAuth.auth.getClaims(token);
+      if (claimsError || !claimsData?.claims) {
+        return jsonResponse({ error: "Unauthorized", code: "invalid_token" }, 401);
+      }
+      claims = claimsData.claims as Record<string, unknown>;
+    } catch (authErr) {
+      const message = String((authErr as Error)?.message ?? authErr);
+      const expired = /expired/i.test(message);
+      console.warn("data-access-api auth rejected:", message);
+      return jsonResponse(
+        {
+          error: expired ? "Session expired" : "Unauthorized",
+          code: expired ? "token_expired" : "invalid_token",
+        },
+        401
+      );
     }
 
-    const userId = claimsData.claims.sub as string;
+
+    const userId = claims.sub as string;
 
     const { action } = await req.json();
 
