@@ -801,7 +801,9 @@ export default function EmbedProperty() {
             <img
               src={logoUrl || property.brand_logo_url}
               alt=""
-              className="h-8 object-contain"
+              width={140}
+              height={32}
+              className="h-8 w-auto max-w-[140px] object-contain"
             />
           )}
           <div>

@@ -1,5 +1,5 @@
 import { PropertyCard } from "@/components/PropertyCard";
-import { Skeleton } from "@/components/ui/skeleton";
+import { PropertyCardSkeleton } from "@/components/PropertyCardSkeleton";
 import { useShowcaseProperties } from "@/hooks/useShowcaseProperties";
 import { 
   SegmentFilterId, 
@@ -58,12 +58,7 @@ export function PropertySegmentSection({
         {isLoading && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {[...Array(4)].map((_, i) => (
-              <div key={i} className="space-y-3">
-                <Skeleton className="aspect-[4/3] w-full rounded-lg" />
-                <Skeleton className="h-5 w-3/4" />
-                <Skeleton className="h-4 w-1/2" />
-                <Skeleton className="h-16 w-full" />
-              </div>
+              <PropertyCardSkeleton key={i} />
             ))}
           </div>
         )}

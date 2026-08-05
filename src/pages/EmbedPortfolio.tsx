@@ -132,6 +132,11 @@ export default function EmbedPortfolio() {
   const [aiSearching, setAiSearching] = useState(false);
   const [reviewRatings, setReviewRatings] = useState<Record<string, ReviewRating[]>>({});
   const [specials, setSpecials] = useState<PortfolioSpecial[]>([]);
+  // CLS guards: these two bands are populated by post-paint fetches (AI
+  // enrichment / specials fallback). While a fetch is in flight we render a
+  // same-height placeholder so the property grid below never gets pushed down.
+  const [aiEnrichmentPending, setAiEnrichmentPending] = useState(false);
+  const [specialsPending, setSpecialsPending] = useState(false);
   const [portfolioReviews, setPortfolioReviews] = useState<any[]>([]);
   const [tobiBlurbs, setTobiBlurbs] = useState<{ property_name: string; blurb: string }[]>([]);
   const [heroVideoMuted, setHeroVideoMuted] = useState(true);
@@ -217,7 +222,9 @@ export default function EmbedPortfolio() {
           } else {
             // Fallback: fetch specials client-side if API returned empty.
             // Deferred — specials are decoration, not part of the first paint.
+            setSpecialsPending(true);
             void (async () => {
+              try {
               const propIds = mapped.map((p: PortfolioProperty) => p.id);
               if (propIds.length === 0) return;
               const today = new Date().toISOString().split("T")[0];
@@ -239,12 +246,16 @@ export default function EmbedPortfolio() {
                 return { id: s.id, name: s.name, description: s.description, discount_type, discount_value, valid_from: s.valid_from, valid_to: s.valid_to, property_id: s.property_id, property_name: prop?.name || null, property_slug: prop?.slug || null };
               });
               setSpecials(fbMapped);
+              } finally {
+                setSpecialsPending(false);
+              }
             })();
           }
 
           setLoading(false);
 
           // Deferred AI enrichment — never blocks the first paint.
+          setAiEnrichmentPending(true);
           void (async () => {
             try {
               const aiResp = await fetch(
@@ -262,6 +273,8 @@ export default function EmbedPortfolio() {
               if (aiPayload.ai_featured) setAiFeatured(aiPayload.ai_featured);
             } catch {
               /* enrichment is optional */
+            } finally {
+              setAiEnrichmentPending(false);
             }
           })();
           return;
@@ -614,7 +627,7 @@ export default function EmbedPortfolio() {
         <div className="max-w-6xl mx-auto flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             {brandLogo ? (
-              <img src={brandLogo} alt="" className="h-8 object-contain" />
+              <img src={brandLogo} alt="" width={140} height={32} className="h-8 w-auto max-w-[140px] object-contain" />
             ) : (
               <div className="h-8 w-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: brandColor }}>
                 <Building2 className="h-4 w-4 text-white" />
@@ -705,6 +718,14 @@ export default function EmbedPortfolio() {
         </motion.div>
       )}
 
+      {/* Featured Pick placeholder — holds the band's height while the
+          enrichment pass resolves, so the grid below stays put. */}
+      {!featuredProp && aiEnrichmentPending && !aiSearchResults && activeGroup === "all" && (
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-4" aria-hidden>
+          <div className="rounded-xl border border-gray-200 bg-gray-50 h-40 animate-pulse" />
+        </div>
+      )}
+
       {/* Featured Pick Banner */}
       {featuredProp && !aiSearchResults && activeGroup === "all" && (
         <motion.div
@@ -744,6 +765,18 @@ export default function EmbedPortfolio() {
             </div>
           </div>
         </motion.div>
+      )}
+
+      {/* Specials placeholder — same height as a loaded specials rail. */}
+      {specials.length === 0 && specialsPending && (
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-4" aria-hidden>
+          <div className="h-4 w-32 bg-gray-100 rounded mb-3 animate-pulse" />
+          <div className="flex gap-4 pb-2">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="h-[150px] w-[240px] shrink-0 rounded-xl bg-gray-50 border-2 border-gray-200 animate-pulse" />
+            ))}
+          </div>
+        </div>
       )}
 
       {/* Specials Banner */}
