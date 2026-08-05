@@ -102,10 +102,23 @@ export function RuWhiteLabelEmbed({ propertyId }: { propertyId: string | null | 
       languageId: "1",
       uiVersion: "2",
       ownerId: tokens.ruOwnerId,
+      // Initial theme + page background; later switches arrive via postMessage.
+      theme: isDark ? "dark" : "light",
+      bg: readPageBackground(),
     });
     return `/ru-embed.html?${params.toString()}`;
+    // The theme is deliberately not a dependency — re-keying the src would remount the
+    // client and lose the user's place. Theme changes are pushed to the frame instead.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tokens]);
 
+  /** Push light/dark switches into the frame without reloading the channel manager. */
+  useEffect(() => {
+    frameRef.current?.contentWindow?.postMessage(
+      { type: "rolos-theme", theme: isDark ? "dark" : "light", bg: readPageBackground() },
+      window.location.origin,
+    );
+  }, [isDark, embedSrc]);
 
   useEffect(() => {
     if (!embedSrc) return;
@@ -118,6 +131,7 @@ export function RuWhiteLabelEmbed({ propertyId }: { propertyId: string | null | 
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
   }, [embedSrc]);
+
 
 
   if (isLoading) {
