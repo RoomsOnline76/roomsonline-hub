@@ -4,6 +4,7 @@ import { useScrollReveal } from '@/hooks/useScrollReveal';
 import { sectionReveal } from '@/lib/motion';
 import { X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { optimizedImage, imageSrcSet } from '@/lib/storageImage';
 
 interface BuildingGalleryProps {
   images: string[];
@@ -72,7 +73,9 @@ export function BuildingGallery({ images, propertyName }: BuildingGalleryProps) 
                   transition={{ delay: index * 0.08, duration: 0.5 }}
                 >
                   <img
-                    src={img}
+                    src={optimizedImage(img, 700, 70)}
+                    srcSet={imageSrcSet(img, [400, 700, 1000], 70)}
+                    sizes="(min-width: 768px) 33vw, 92vw"
                     alt={`${propertyName} - ${index + 1}`}
                     className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                     loading="lazy"
@@ -125,7 +128,7 @@ export function BuildingGallery({ images, propertyName }: BuildingGalleryProps) 
             </button>
 
             <img
-              src={images[lightboxIndex]}
+              src={optimizedImage(images[lightboxIndex], 1600, 80)}
               alt={`${propertyName} - ${lightboxIndex + 1}`}
               className="max-w-[90vw] max-h-[85vh] object-contain"
               onClick={(e) => e.stopPropagation()}

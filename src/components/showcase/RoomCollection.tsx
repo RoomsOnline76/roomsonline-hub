@@ -6,6 +6,7 @@ import { Bed, Users, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { formatRoomCapacity } from '@/lib/editorialUtils';
+import { optimizedImage, imageSrcSet } from '@/lib/storageImage';
 
 interface RoomData {
   id: string;
@@ -120,7 +121,9 @@ export function RoomCollection({
                   <div className="aspect-[16/9] sm:aspect-auto sm:h-full overflow-hidden">
                     {heroImage ? (
                       <img
-                        src={heroImage}
+                        src={optimizedImage(heroImage, 700, 70)}
+                        srcSet={imageSrcSet(heroImage, [400, 700, 1000], 70)}
+                        sizes="(min-width: 768px) 33vw, 92vw"
                         alt={room.name}
                         loading="lazy"
                         className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
