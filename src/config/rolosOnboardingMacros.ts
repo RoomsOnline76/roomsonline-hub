@@ -208,8 +208,10 @@ export const ROLOS_ONBOARDING_MACROS: MacroDef[] = [
     tasks: [
       { kind: "state", key: "channel_entitlement" },
       { kind: "state", key: "channels_connected", optional: true },
+      { kind: "state", key: "quality_check", optional: true },
     ],
     notes: [
+
       "Connect one channel at a time. Verify each: listing visible, availability and pricing present, quality check passed, first inbound test reservation writes a booking and blocks availability.",
     ],
   },
