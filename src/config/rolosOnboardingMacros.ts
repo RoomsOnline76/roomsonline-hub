@@ -196,8 +196,9 @@ export const ROLOS_ONBOARDING_MACROS: MacroDef[] = [
     action: "signoff",
     tasks: [{ kind: "state", key: "manual_signoff" }],
     notes: [
-      "Sign in with the sub-account login and confirm: owner details, company details, property/properties present, calendar resolves in the correct currency, and no outstanding content-quality warnings.",
+      "Sign in with the sub-account login, then tick each item below as you confirm it. The step completes only once every item is ticked.",
     ],
+
   },
   {
     key: "channels",
