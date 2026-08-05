@@ -102,6 +102,19 @@ export default function EmbedPortfolio() {
   // portfolio property into one checkout.
   const { stays, hasStays, totalPrice: journeyTotal, totalNights: journeyNights, removeStay } = useItinerary();
 
+  // Span of the stays already in the basket — used to mark the calendars and to
+  // suggest where the next stay should start.
+  const journeyRange = useMemo(() => {
+    if (stays.length === 0) return null;
+    const ins = stays.map(s => s.dates.check_in).sort();
+    const outs = stays.map(s => s.dates.check_out).sort();
+    return {
+      from: ins[0],
+      to: outs[outs.length - 1],
+      label: stays.length === 1 ? "Stay 1 booked" : `${stays.length} stays booked`,
+    };
+  }, [stays]);
+  const journeyNextCheckIn = journeyRange?.to || null;
 
 
   const [portfolio, setPortfolio] = useState<any>(null);
