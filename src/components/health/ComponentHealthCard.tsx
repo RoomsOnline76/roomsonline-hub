@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, lazy, Suspense } from "react";
 import { ChevronDown, ChevronUp, RefreshCw, AlertTriangle, Clock, Zap } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { HealthStatusBadge } from "./HealthStatusBadge";
-import { HealthTrendChart } from "./HealthTrendChart";
+/* Trend chart only renders in the expanded detail view. */
+const HealthTrendChart = lazy(() => import("./HealthTrendChart").then((m) => ({ default: m.HealthTrendChart })));
 import { cn } from "@/lib/utils";
 
 interface HealthCheck {
@@ -182,11 +183,13 @@ export function ComponentHealthCard({
             <div>
               <h4 className="text-sm font-medium mb-2">Latency Trend (Last 24h)</h4>
               <div className="bg-muted/30 rounded-lg p-2">
+                <Suspense fallback={<div className="h-[160px] w-full animate-pulse rounded bg-muted/50" aria-hidden />}>
                 <HealthTrendChart 
                   data={chartData} 
                   expectedLatency={expectedLatency}
                   height={100}
                 />
+                </Suspense>
               </div>
             </div>
 

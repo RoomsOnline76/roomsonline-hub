@@ -19,11 +19,11 @@ import { SpeedInsights } from "@vercel/speed-insights/react";
 
 // ─── Eager — critical path only (FCP) ────────────────────────────
 import Home from "./pages/Home";
-import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import UnderConstruction from "./pages/UnderConstruction";
 
 // ─── Lazy — public pages ─────────────────────────────────────────
+const Auth = lazy(() => import("./pages/Auth"));
 const PropertyShowcase = lazy(() => import("./pages/PropertyShowcase"));
 const RoomShowcase = lazy(() => import("./pages/RoomShowcase"));
 const RoomAvailability = lazy(() => import("./pages/RoomAvailability"));
