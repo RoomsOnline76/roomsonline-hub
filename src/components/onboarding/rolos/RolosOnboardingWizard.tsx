@@ -61,7 +61,9 @@ export function RolosOnboardingWizard({ propertyId, className }: Props) {
     overall,
     signoff,
     recordSignoff,
+    recordSignoffCheck,
     refresh,
+
     isLoading,
     isFetching,
     propertyName,
