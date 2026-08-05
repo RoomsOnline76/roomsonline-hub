@@ -4,17 +4,14 @@ import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 import PropertyForm from "@/pages/PropertyForm";
 import PropertyContactDetails from "@/components/property/PropertyContactDetails";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { PropertySectionRail } from "@/components/property/PropertySectionRail";
-import { RolosReadinessChecklist } from "@/components/property/RolosReadinessChecklist";
 import { RequirementLegend } from "@/components/property/RequirementLegend";
-import { RequirementStepper } from "@/components/property/RequirementStepper";
 import { usePropertyFieldRequirements } from "@/hooks/usePropertyFieldRequirements";
 import { focusRequirementField } from "@/lib/requirementFocus";
 import {
   buildSectionGroups,
-  getSectionLabel,
+
   type PropertySectionKey,
 } from "@/config/propertySectionOrder";
 
@@ -83,7 +80,6 @@ export default function PMSPropertySetup() {
   })();
 
   const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
-  const [showChecksheet, setShowChecksheet] = useState(true);
 
   const [railCollapsed, setRailCollapsed] = useState<boolean>(() => {
     try {
@@ -192,26 +188,11 @@ export default function PMSPropertySetup() {
             live here — same tables the admin editor and book. OTA read.
           </p>
         </div>
-        <Button
-          type="button"
-          size="sm"
-          variant={showChecksheet ? "secondary" : "outline"}
-          className="h-7 text-[11px]"
-          onClick={() => setShowChecksheet((v) => !v)}
-        >
-          {showChecksheet ? "Hide" : "Show"} readiness checksheet
-        </Button>
       </header>
 
-      {showChecksheet && (
-        <RolosReadinessChecklist
-          propertyId={propertyId}
-          onNavigateSection={(section) => {
-            if (VALID_TABS.has(section as TabKey)) handleSelectTab(section as TabKey);
-          }}
-        />
-      )}
-
+      {/* Legacy readiness checksheet + section stepper retired — the floating
+          ROL'OS onboarding wizard owns gating. Only the field-highlighting
+          legend stays. */}
       <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
         <RequirementLegend
           className="flex-1"
@@ -220,12 +201,8 @@ export default function PMSPropertySetup() {
           recommendedOutstanding={recommendedOutstanding}
           recommendedTotal={recommendedTotal}
         />
-        <RequirementStepper
-          className="lg:max-w-[55%]"
-          outstanding={outstandingInSection}
-          sectionLabel={getSectionLabel(activeTab)}
-        />
       </div>
+
 
       <div
         className={

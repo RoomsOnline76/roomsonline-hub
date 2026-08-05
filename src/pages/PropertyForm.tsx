@@ -3,12 +3,10 @@ import { useQueryClient } from "@tanstack/react-query";
 import { usePropertyFieldRequirements } from "@/hooks/usePropertyFieldRequirements";
 import { focusRequirementField } from "@/lib/requirementFocus";
 import { RequirementLegend } from "@/components/property/RequirementLegend";
-import { RequirementStepper } from "@/components/property/RequirementStepper";
+
 import { PromoCodesTab } from "@/components/property/PromoCodesTab";
 import { CompanyInformationCard, type RuCompanyProfile } from "@/components/property/CompanyInformationCard";
 import { PropertyRuOwnerPanel } from "@/components/property/PropertyRuOwnerPanel";
-import { RolosReadinessScoreBadge } from "@/components/property/RolosReadinessScoreBadge";
-import { RuPushContinueButton } from "@/components/property/RuPushContinueButton";
 import { RolosOnboardingWizard } from "@/components/onboarding/rolos/RolosOnboardingWizard";
 
 
@@ -4021,6 +4019,8 @@ export default function PropertyForm({
           </Alert>
         )}
 
+        {/* Legacy readiness stepper/gates retired — the floating ROL'OS onboarding
+            wizard now owns gating. Only the field-highlighting legend stays. */}
         {!embedded && (
           <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
             <RequirementLegend
@@ -4029,11 +4029,6 @@ export default function PropertyForm({
               mandatoryTotal={requirementMandatoryTotal}
               recommendedOutstanding={requirementRecommendedOutstanding}
               recommendedTotal={requirementRecommendedTotal}
-            />
-            <RequirementStepper
-              className="lg:max-w-[55%]"
-              outstanding={requirementOutstandingInSection}
-              sectionLabel={getSectionLabel(activeTab)}
             />
           </div>
         )}
@@ -4201,15 +4196,9 @@ export default function PropertyForm({
                     </>
                   )}
 
-                  {["roomsonline", "rolos", "rol_os", "rolos_pms"].includes(
-                    (selectedPMS ?? "").trim().toLowerCase(),
-                  ) &&
-                    propertyId && (
-                      <div className="mb-3">
-                        <RolosReadinessScoreBadge propertyId={propertyId} />
-                        <RuPushContinueButton propertyId={propertyId} className="mt-2" />
-                      </div>
-                    )}
+                  {/* Legacy readiness badge + RU push gate retired — handled by the
+                      floating ROL'OS onboarding wizard. */}
+
 
 
                   {/* WETU Pin ID — always visible regardless of PMS */}
