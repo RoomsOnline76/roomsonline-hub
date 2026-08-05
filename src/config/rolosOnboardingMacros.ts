@@ -169,15 +169,14 @@ export const ROLOS_ONBOARDING_MACROS: MacroDef[] = [
     title: "Push property & full ARI publish",
     goal: "The property is live on the distribution layer with a stable identity.",
     section: "integrations",
-    tasks: [
-      { kind: "state", key: "listing_ids" },
-      { kind: "state", key: "quality_check", optional: true },
-    ],
+    tasks: [{ kind: "state", key: "listing_ids" }],
 
     notes: [
       "Push stays disabled below 100% mandatory readiness. Re-push updates the stored listing IDs — it never duplicates.",
       "Availability and pricing publish for the full rolling 365-day horizon and are read back to verify.",
+      "The content quality check runs later (step 11) — it can only be assessed once a channel subscription exists.",
     ],
+
   },
   {
     key: "currency",
@@ -209,10 +208,13 @@ export const ROLOS_ONBOARDING_MACROS: MacroDef[] = [
     tasks: [
       { kind: "state", key: "channel_entitlement" },
       { kind: "state", key: "channels_connected", optional: true },
+      { kind: "state", key: "quality_check", optional: true },
     ],
     notes: [
       "Connect one channel at a time. Verify each: listing visible, availability and pricing present, quality check passed, first inbound test reservation writes a booking and blocks availability.",
+      "The content quality check is assessed here — it only returns a real verdict once the channel subscription is active.",
     ],
+
   },
 ];
 
