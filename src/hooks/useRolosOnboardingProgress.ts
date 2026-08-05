@@ -313,13 +313,17 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
     });
 
     // Macro 10 — manual sign-off
-    put("manual_signoff", "Admin sign-off recorded", signoff.signed_off, {
+    const tickedCount = ROLOS_SIGNOFF_CHECKLIST.filter(
+      (i) => signoff.checks[i.key]?.checked === true,
+    ).length;
+    put("manual_signoff", "Manual verification checklist", signoff.signed_off, {
       detail: signoff.signed_off
-        ? `Signed off${signoff.signed_off_by ? ` by ${signoff.signed_off_by}` : ""}${
-            signoff.signed_off_at ? ` on ${new Date(signoff.signed_off_at).toLocaleDateString()}` : ""
+        ? `All ${ROLOS_SIGNOFF_CHECKLIST.length} items confirmed${
+            signoff.signed_off_by ? ` · ${signoff.signed_off_by}` : ""
           }`
-        : "Awaiting sign-off",
+        : `${tickedCount}/${ROLOS_SIGNOFF_CHECKLIST.length} items ticked`,
     });
+
 
     // Macro 11 — channels
     put("channel_entitlement", "Channel Manager enabled on billing", billing?.channel_manager_enabled === true, {
