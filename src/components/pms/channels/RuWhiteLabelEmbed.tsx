@@ -100,7 +100,7 @@ export function RuWhiteLabelEmbed({ propertyId }: { propertyId: string | null | 
 
 
   useEffect(() => {
-    if (!embedDoc) return;
+    if (!embedSrc) return;
     setScriptFailed(false);
     const onMessage = (event: MessageEvent) => {
       if (event.data && (event.data as { type?: string }).type === "ru-wl-error") {
@@ -109,7 +109,7 @@ export function RuWhiteLabelEmbed({ propertyId }: { propertyId: string | null | 
     };
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, [embedDoc]);
+  }, [embedSrc]);
 
 
   if (isLoading) {
@@ -190,7 +190,7 @@ export function RuWhiteLabelEmbed({ propertyId }: { propertyId: string | null | 
       <iframe
         ref={frameRef}
         title="ROL'OS Channel Manager"
-        srcDoc={embedDoc ?? undefined}
+        srcDoc={embedSrc ?? undefined}
         className="h-full w-full border-0"
         sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-downloads allow-modals"
       />
