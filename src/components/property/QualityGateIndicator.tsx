@@ -52,7 +52,47 @@ interface QualityGateIndicatorProps {
   className?: string;
 }
 
-export function QualityGateIndicator({ 
+/**
+ * Visibility gate: long property lists render one indicator per row, which used
+ * to fire ~70 parallel edge-function calls (and as many cold starts) on mount.
+ * We only fetch readiness for rows the user can actually see.
+ */
+export function QualityGateIndicator(props: QualityGateIndicatorProps) {
+  const [inView, setInView] = useState(false);
+  const placeholderRef = useRef<HTMLSpanElement | null>(null);
+
+  useEffect(() => {
+    if (inView) return;
+    const el = placeholderRef.current;
+    if (!el) return;
+    if (typeof IntersectionObserver === "undefined") {
+      setInView(true);
+      return;
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) setInView(true);
+      },
+      { rootMargin: "200px" },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [inView]);
+
+  if (!inView) {
+    return (
+      <span
+        ref={placeholderRef}
+        aria-hidden="true"
+        className={cn("inline-block h-4 w-4 rounded-full bg-muted", props.className)}
+      />
+    );
+  }
+
+  return <QualityGateIndicatorInner {...props} />;
+}
+
+function QualityGateIndicatorInner({ 
   propertyId, 
   onNavigateToField,
   compact = false,
@@ -74,9 +114,11 @@ export function QualityGateIndicator({
       if (error) throw error;
       return data as ActivationReadinessResponse;
     },
-    staleTime: 30000, // Cache for 30 seconds
+    staleTime: 1000 * 60 * 5,
+    gcTime: 1000 * 60 * 10,
     refetchOnWindowFocus: false
   });
+
 
   if (isLoading) {
     return (
