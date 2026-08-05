@@ -271,9 +271,15 @@ Deno.serve(async (req) => {
         });
 
         if (leadsErr || !leadsResult?.success) {
-          console.warn(`[cron-pull-ru] ${scope.label} leads API call failed: ${leadsErr?.message || leadsResult?.error?.message || 'Unknown'}`);
+          const failure = leadsErr
+            ? await readInvokeError(leadsErr)
+            : { message: leadsResult?.error?.message || 'Unknown', httpStatus: null, errorCode: null };
+          console.warn(
+            `[cron-pull-ru] ${scope.label} leads API call failed (http=${failure.httpStatus ?? 'n/a'}): ${failure.message}`,
+          );
           continue;
         }
+
         if (scope.ownerId && leadsResult.auth_mode === 'master') {
           console.error(`[cron-pull-ru] Refused leads for ${scope.label}: RU answered on master credentials`);
           continue;
