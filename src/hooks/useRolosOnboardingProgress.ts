@@ -262,11 +262,23 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
             : "Not published yet",
     });
 
+    // The content quality check is advisory: it is ordered on the channel side and
+    // only returns a verdict once the channel subscription is live. Gate/plumbing
+    // rejections (property not found, invalid channel, subscription missing) are not
+    // content failures, so they must not mark the publish step as failed.
     const mcq = d?.phase?.last_mcq ?? null;
-    const mcqOk = !!mcq && ["passed", "ok", "success", "completed"].includes(String(mcq.status ?? "").toLowerCase());
-    put("quality_check", "Content quality check passed", mcqOk, {
-      detail: mcq ? `Last check: ${mcq.status ?? "unknown"}` : "Never ordered",
+    const mcqStatus = String(mcq?.status ?? "").toLowerCase();
+    const mcqOk = !!mcq && ["passed", "ok", "success", "completed"].includes(mcqStatus);
+    const gatedStatusIds = ["56", "219", "280"];
+    const mcqGated = !mcq || gatedStatusIds.includes(String(mcq?.ru_status_id ?? "").trim());
+    put("quality_check", "Content quality check (advisory)", mcqOk || (listingOk && mcqGated), {
+      detail: mcqOk
+        ? `Last check: ${mcq?.status ?? "passed"}`
+        : mcqGated
+          ? "Not yet assessable — runs once the channel subscription is live"
+          : `Last check: ${mcq?.status ?? "unknown"}`,
     });
+
 
     // Macro 9 — currency
     const cur = (d?.currency ?? null) as Record<string, string | null> | null;
