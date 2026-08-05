@@ -491,7 +491,7 @@ export default function EmbedPortfolio() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [properties.length, portfolioBranding.hero_video_url]);
 
-  const handleViewProperty = (slug: string, opts?: { journey?: boolean }) => {
+  const handleViewProperty = (slug: string, opts?: { journey?: boolean; roomId?: string }) => {
     const prop = properties.find(p => p.slug === slug);
     const allowOverride = portfolioBranding.allow_property_brand_override === true;
     // Default: portfolio brand carries through. Override: use property's own brand.
@@ -515,7 +515,8 @@ export default function EmbedPortfolio() {
     // and routes back to the journey review instead of a single-stay checkout.
     // Active once the guest has any stay in the basket, or when they explicitly
     // chose "Add stay" from a card.
-    if (journeyMode || hasStays || opts?.journey) params.set("journey_mode", "true");
+    const isJourneyAdd = journeyMode || hasStays || opts?.journey === true;
+    if (isJourneyAdd) params.set("journey_mode", "true");
 
     const forwardedCheckIn = searchParams.get("checkIn") || searchParams.get("checkin");
     const forwardedCheckOut = searchParams.get("checkOut") || searchParams.get("checkout");
@@ -523,12 +524,22 @@ export default function EmbedPortfolio() {
     const forwardedChildren = searchParams.get("children");
     const forwardedInfants = searchParams.get("infants");
     const forwardedVoucher = searchParams.get("voucher");
-    if (forwardedCheckIn) params.set("checkIn", forwardedCheckIn);
-    if (forwardedCheckOut) params.set("checkOut", forwardedCheckOut);
+    if (isJourneyAdd) {
+      // Every added stay needs its own dates: never auto-confirm the dates from
+      // the previous stay — pass them as suggestions and make the guest pick.
+      params.set("require_dates", "1");
+      const suggestedCheckIn = journeyNextCheckIn || forwardedCheckOut || forwardedCheckIn;
+      if (suggestedCheckIn) params.set("suggest_checkin", suggestedCheckIn);
+    } else {
+      if (forwardedCheckIn) params.set("checkIn", forwardedCheckIn);
+      if (forwardedCheckOut) params.set("checkOut", forwardedCheckOut);
+    }
+    if (opts?.roomId) params.set("focus_room", opts.roomId);
     if (forwardedAdults) params.set("adults", forwardedAdults);
     if (forwardedChildren) params.set("children", forwardedChildren);
     if (forwardedInfants) params.set("infants", forwardedInfants);
     if (forwardedVoucher) params.set("voucher", forwardedVoucher);
+
     if (window.parent !== window) {
       window.location.href = `/embed/property/${slug}?${params.toString()}`;
     } else {
