@@ -234,7 +234,12 @@ export function EmbedAvailabilityGrid({
                           position: "relative",
                           padding: "6px 4px",
                           cursor: hasRate ? "default" : undefined,
-                          background: isHovered && hasRate ? "#f6f6f6" : undefined,
+                          background: isHovered && hasRate
+                            ? "#f6f6f6"
+                            : isHighlighted(key)
+                              ? `${brandColor}0d`
+                              : undefined,
+
                         }}
                       >
                         {hasRate ? (
