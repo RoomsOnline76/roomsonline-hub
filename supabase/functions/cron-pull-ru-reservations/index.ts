@@ -58,12 +58,15 @@ Deno.serve(async (req) => {
     errorMessage: string | null,
     scope: RuOwnerScope,
     extra: Record<string, unknown> = {},
+    failure: { httpStatus?: number | null; errorCode?: string | null } = {},
   ) => {
     await supabase.from('ru_sync_runs').insert({
       batch_id: crypto.randomUUID(),
       action: 'pull_reservations',
       success,
       error_message: errorMessage,
+      http_status: failure.httpStatus ?? null,
+      error_code: failure.errorCode ?? null,
       elapsed_ms: Date.now() - cronStartedAt,
       details: {
         ...summary,
@@ -74,6 +77,7 @@ Deno.serve(async (req) => {
       },
     }).then(() => {}, (e) => console.warn('[cron-pull-ru] log insert failed', e));
   };
+
 
   try {
     // Date range: last PULL_WINDOW_DAYS days → today (RU filters on creation date)
