@@ -1251,7 +1251,7 @@ All edge functions support BOTH `camelCase` and `snake_case` input parameters to
 | `docs/modify-cancel-booking-implementation-brief.md` | Modify/cancel system spec (v2.0) |
 | `docs/property-listing-process.md` | Property activation workflow |
 | `docs/rolos-pms-module-spec.md` | ROL'OS PMS module specification |
-| `public/docs/ROLOS-Developer-REST-API-v3.docx` | Developer REST API reference |
+| `public/docs/ROLOS-Developer-REST-API-v3.1.docx` | Developer REST API reference |
 
 ### Shared Edge Function Utilities
 | File | Purpose |

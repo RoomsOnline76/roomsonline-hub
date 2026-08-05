@@ -18,7 +18,7 @@ export default function ApiDocsViewer() {
           title="ROL'OS API Documentation"
           subtitle={`${ROLOS_API_VERSION} — REST API reference for the Native PMS Adapter · ${ROLOS_API_ACTION_COUNT} endpoints`}
           actions={
-            <a href="/public/docs/ROLOS-Developer-REST-API-v3.docx" target="_blank" rel="noreferrer">
+            <a href="/public/docs/ROLOS-Developer-REST-API-v3.1.docx" target="_blank" rel="noreferrer">
               <Button variant="outline" className="gap-1.5">
                 <ExternalLink className="h-4 w-4" />
                 Full API Spec (docx)
