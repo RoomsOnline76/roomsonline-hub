@@ -4,12 +4,9 @@ import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 import PropertyForm from "@/pages/PropertyForm";
 import PropertyContactDetails from "@/components/property/PropertyContactDetails";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { PropertySectionRail } from "@/components/property/PropertySectionRail";
-import { RolosReadinessChecklist } from "@/components/property/RolosReadinessChecklist";
 import { RequirementLegend } from "@/components/property/RequirementLegend";
-import { RequirementStepper } from "@/components/property/RequirementStepper";
 import { usePropertyFieldRequirements } from "@/hooks/usePropertyFieldRequirements";
 import { focusRequirementField } from "@/lib/requirementFocus";
 import {
@@ -83,7 +80,6 @@ export default function PMSPropertySetup() {
   })();
 
   const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
-  const [showChecksheet, setShowChecksheet] = useState(true);
 
   const [railCollapsed, setRailCollapsed] = useState<boolean>(() => {
     try {
