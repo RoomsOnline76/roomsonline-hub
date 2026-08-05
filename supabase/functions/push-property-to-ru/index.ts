@@ -2404,14 +2404,16 @@ Deno.serve(async (req) => {
           owner_scope: String(ownerId),
           expected_iso: expectedIso,
           listings,
+          notes,
           listings_on_master_account: strays.length,
           ru_reported_iso: primaryVerification?.ru_reported_iso ?? listings.find(l => l.ru_reported_iso)?.ru_reported_iso ?? null,
           matches: listings.length > 0 && listings.every(l => l.matches),
           success: listings.some(l => !!l.ru_reported_iso),
           error: strays.length
             ? `${strays.length} listing(s) still live on the master Rentals United account (${strays.map((s: any) => s.ru_property_id).join(', ')}) — re-push them as the white-label sub-user.`
-            : (listings.find(l => l.error)?.error ?? null),
+            : (listings.find(l => l.error)?.error ?? notes[0] ?? null),
         });
+
 
 
         await new Promise(r => setTimeout(r, 750));
