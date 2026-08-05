@@ -278,7 +278,7 @@ export default function PropertyForm({
   const navigate = useNavigate();
   const routeParams = useParams(); // Can be UUID or slug
   const id = embeddedPropertyId ?? routeParams.id;
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const forceTabs = forceTabsOverride ?? searchParams.get("forceTabs") === "1";
   // Embed mode: renders PropertyForm without page chrome (breadcrumb, header,
   // outer tab strip) and only the tab in `?tab=`. Used by /pms/property-setup
