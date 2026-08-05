@@ -589,11 +589,13 @@ function HomeContent() {
           </Link>
         )}
 
-        <CategoryBanner
-          onSegmentClick={handleSegmentClick}
-          heroRef={heroRef}
-          selectedProperty={selectedProperty ?? null}
-        />
+        <Suspense fallback={null}>
+          <CategoryBanner
+            onSegmentClick={handleSegmentClick}
+            heroRef={heroRef}
+            selectedProperty={selectedProperty ?? null}
+          />
+        </Suspense>
       </section>
 
       {/* Find By Section */}
