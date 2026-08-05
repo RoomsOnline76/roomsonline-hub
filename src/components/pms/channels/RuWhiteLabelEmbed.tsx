@@ -213,10 +213,10 @@ export function RuWhiteLabelEmbed({ propertyId }: { propertyId: string | null | 
 
   return (
     <div
-      // Borderless and on the page background, so the frame boundary is invisible in
-      // both light and dark mode.
-      style={brandStyle}
-      className={`w-full ${EMBED_HEIGHT} overflow-hidden border-0 bg-background`}
+      // Borderless, painted with the embed canvas colour so the frame boundary is
+      // invisible in both day (#FFFFFF) and night (#141414) mode.
+      style={{ ...brandStyle, backgroundColor: isDark ? EMBED_BG_DARK : EMBED_BG_LIGHT }}
+      className={`w-full ${EMBED_HEIGHT} overflow-hidden border-0`}
     >
 
       <iframe
