@@ -8260,9 +8260,11 @@ export default function PropertyForm({
           });
         }}
       />
-      {!embedded && isEditMode && propertyId && (
+      {/* Channel readiness wizard hidden. */}
+      {false && !embedded && isEditMode && propertyId && (
         <RolosOnboardingWizard propertyId={propertyId} />
       )}
+
     </FormShell>
   );
 }
