@@ -415,18 +415,15 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
     await queryClient.invalidateQueries({ queryKey: ["rolos-onboarding-distribution", propertyId] });
   }, [propertyId, queryClient, readiness]);
 
-  const recordSignoff = useCallback(
-    async (signedOff: boolean, actorLabel?: string | null, note?: string | null) => {
+  const writeChannelReadiness = useCallback(
+    async (patch: Record<string, unknown>) => {
       if (!propertyId) return;
       const existing = ((d?.roadmap as any)?.roadmap ?? {}) as Record<string, unknown>;
       const next = {
         ...existing,
         channel_readiness: {
           ...((existing.channel_readiness ?? {}) as Record<string, unknown>),
-          signed_off: signedOff,
-          signed_off_by: signedOff ? actorLabel ?? null : null,
-          signed_off_at: signedOff ? new Date().toISOString() : null,
-          note: note ?? null,
+          ...patch,
         },
       };
       const { error } = await supabase
@@ -438,6 +435,47 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
     [d?.roadmap, propertyId, refresh],
   );
 
+  /** Tick / untick a single step-10 verification item. */
+  const recordSignoffCheck = useCallback(
+    async (itemKey: string, checked: boolean, actorLabel?: string | null) => {
+      const checks = { ...(signoff.checks ?? {}) };
+      if (checked) {
+        checks[itemKey] = { checked: true, by: actorLabel ?? null, at: new Date().toISOString() };
+      } else {
+        delete checks[itemKey];
+      }
+      const allTicked = ROLOS_SIGNOFF_CHECKLIST.every((i) => checks[i.key]?.checked === true);
+      await writeChannelReadiness({
+        checks,
+        signed_off: allTicked,
+        signed_off_by: allTicked ? actorLabel ?? null : null,
+        signed_off_at: allTicked ? new Date().toISOString() : null,
+      });
+    },
+    [signoff.checks, writeChannelReadiness],
+  );
+
+  /** Tick or clear every verification item at once. */
+  const recordSignoff = useCallback(
+    async (signedOff: boolean, actorLabel?: string | null, note?: string | null) => {
+      const at = new Date().toISOString();
+      const checks: Record<string, SignoffCheckRecord> = {};
+      if (signedOff) {
+        for (const item of ROLOS_SIGNOFF_CHECKLIST) {
+          checks[item.key] = { checked: true, by: actorLabel ?? null, at };
+        }
+      }
+      await writeChannelReadiness({
+        checks,
+        signed_off: signedOff,
+        signed_off_by: signedOff ? actorLabel ?? null : null,
+        signed_off_at: signedOff ? at : null,
+        note: note ?? null,
+      });
+    },
+    [writeChannelReadiness],
+  );
+
   return {
     isRolosPms,
     macros,
@@ -445,6 +483,8 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
     overall,
     signoff,
     recordSignoff,
+    recordSignoffCheck,
+
     refresh,
     isLoading: readiness.isLoading || distribution.isLoading,
     isFetching: readiness.isFetching || distribution.isFetching,
