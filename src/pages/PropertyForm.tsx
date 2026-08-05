@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { usePropertyFieldRequirements } from "@/hooks/usePropertyFieldRequirements";
 import { focusRequirementField } from "@/lib/requirementFocus";
 import { RequirementLegend } from "@/components/property/RequirementLegend";
-import { RequirementStepper } from "@/components/property/RequirementStepper";
+
 import { PromoCodesTab } from "@/components/property/PromoCodesTab";
 import { CompanyInformationCard, type RuCompanyProfile } from "@/components/property/CompanyInformationCard";
 import { PropertyRuOwnerPanel } from "@/components/property/PropertyRuOwnerPanel";
