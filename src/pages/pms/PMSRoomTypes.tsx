@@ -13,6 +13,7 @@ import { Plus, Layers, Users, DollarSign, Pencil, Trash2, Link2, RefreshCw } fro
 import { supabase } from "@/integrations/supabase/client";
 import { syncRolosRoomTypesFromOverview } from "@/lib/pmsRoomTypeSync";
 import { toast } from "sonner";
+import { PmsPageSkeleton } from "@/components/pms/PmsPageSkeleton";
 
 interface PropertyAmenities {
   room_types?: Array<{
@@ -234,7 +235,7 @@ export default function PMSRoomTypes() {
     fetchRoomTypes();
   };
 
-  if (propertyLoading) return <p className="text-muted-foreground">Loading property…</p>;
+  if (propertyLoading) return <PmsPageSkeleton rows={3} />;
   if (!propertyId) return <p className="text-muted-foreground">Select a property first.</p>;
 
   return (

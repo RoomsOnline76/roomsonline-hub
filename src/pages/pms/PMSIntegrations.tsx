@@ -46,11 +46,7 @@ export default function PMSIntegrations() {
   });
 
   if (propertyLoading || propertyDataLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <p className="text-muted-foreground">Loading property…</p>
-      </div>
-    );
+    return <PmsPageSkeleton rows={4} />;
   }
 
   if (!propertyId || !property) {
@@ -701,3 +697,4 @@ function PortfolioWhitelabelPanel({
 import { Copy, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { PmsPageSkeleton } from "@/components/pms/PmsPageSkeleton";

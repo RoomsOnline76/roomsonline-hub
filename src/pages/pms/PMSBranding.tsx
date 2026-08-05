@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { usePMSBrand } from "@/contexts/PMSBrandContext";
 import { PoweredByRolOS } from "@/components/pms/PoweredByRolOS";
 import { BrandReadabilityPanel } from "@/components/branding/BrandReadabilityPanel";
+import { PmsPageSkeleton } from "@/components/pms/PmsPageSkeleton";
 
 
 interface BrandConfig {
@@ -406,7 +407,7 @@ export default function PMSBranding() {
     setSaving(false);
   };
 
-  if (propertyLoading) return <p className="text-muted-foreground">Loading property…</p>;
+  if (propertyLoading) return <PmsPageSkeleton rows={3} />;
   if (!propertyId) return <p className="text-muted-foreground">Select a property first.</p>;
 
   const addr = config.business_address;

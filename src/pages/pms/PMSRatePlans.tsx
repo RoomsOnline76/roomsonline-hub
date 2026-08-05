@@ -15,6 +15,7 @@ import { RatePlanStopSellDialog } from "@/components/restrictions/RatePlanStopSe
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { PmsPageSkeleton } from "@/components/pms/PmsPageSkeleton";
 
 const PRICING_MODELS = [
   { value: "per_room", label: "Per Room", suffix: "/room", desc: "Flat rate per room per night" },
@@ -459,7 +460,7 @@ export default function PMSRatePlans() {
     }));
   };
 
-  if (propertyLoading) return <p className="text-muted-foreground">Loading property…</p>;
+  if (propertyLoading) return <PmsPageSkeleton rows={3} />;
   if (!isPortfolio && !propertyId) return <p className="text-muted-foreground">Select a property first.</p>;
 
   const propertySections = isPortfolio

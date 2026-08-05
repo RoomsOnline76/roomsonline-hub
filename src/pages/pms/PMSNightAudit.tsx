@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Moon, Play, CheckCircle2, XCircle, Clock, ChevronDown, DollarSign, BedDouble, Receipt, Sparkles } from "lucide-react";
 import { format } from "date-fns";
+import { PmsPageSkeleton } from "@/components/pms/PmsPageSkeleton";
 
 function StatusBadge({ status }: { status: string }) {
   switch (status) {
@@ -90,7 +91,7 @@ export default function PMSNightAudit() {
 
   const lastCompleted = logs?.find((l) => l.status === "completed");
 
-  if (propertyLoading) return <p className="text-muted-foreground">Loading property…</p>;
+  if (propertyLoading) return <PmsPageSkeleton rows={2} />;
   if (!propertyId) return <p className="text-muted-foreground">Select a property first.</p>;
 
   return (

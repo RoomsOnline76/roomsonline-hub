@@ -26,6 +26,7 @@ import { callPmsApi } from "@/hooks/usePmsApi";
 import { supabase } from "@/integrations/supabase/client";
 import { autoAssignBookings } from "@/lib/bookingAssignment";
 import { toast } from "sonner";
+import { PmsPageSkeleton } from "@/components/pms/PmsPageSkeleton";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -423,7 +424,7 @@ export default function PMSHousekeeping() {
 
   // ── Render ────────────────────────────────────────────────────────────
 
-  if (propertyLoading) return <p className="text-muted-foreground">Loading property…</p>;
+  if (propertyLoading) return <PmsPageSkeleton rows={4} />;
   if (!isPortfolio && !propertyId) return <p className="text-muted-foreground">Select a property first.</p>;
 
   const propertySections = isPortfolio

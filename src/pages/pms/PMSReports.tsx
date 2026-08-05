@@ -15,6 +15,7 @@ import {
   AreaChart, Area, BarChart, Bar, Legend,
 } from "recharts";
 import {
+import { PmsPageSkeleton } from "@/components/pms/PmsPageSkeleton";
   format, subDays, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear,
   differenceInDays, parseISO, eachDayOfInterval, eachMonthOfInterval,
 } from "date-fns";
@@ -247,7 +248,7 @@ export default function PMSReports() {
 
   // ── Render ────────────────────────────────────────────────────────────
 
-  if (propertyLoading) return <p className="text-muted-foreground">Loading property…</p>;
+  if (propertyLoading) return <PmsPageSkeleton rows={3} />;
   if (!isPortfolio && !propertyId) return <p className="text-muted-foreground">Select a property first.</p>;
 
   return (
