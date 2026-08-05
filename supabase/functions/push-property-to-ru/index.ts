@@ -2302,18 +2302,23 @@ Deno.serve(async (req) => {
         new Set(((unitOwners ?? []) as any[]).map((u) => u.property_id).filter(Boolean)),
       ) as string[];
 
-      const { data: props } = await supabase
-        .from('properties')
-        .select('id, name, owner_email, country, amenities, ru_location_id, rentalsunited_property_id, rentalsunited_building_id')
-        .or(
-          [
-            'rentalsunited_property_id.not.is.null',
-            'rentalsunited_building_id.not.is.null',
-            ...(unitPropertyIds.length ? [`id.in.(${unitPropertyIds.join(',')})`] : []),
-          ].join(','),
-        );
+      const propSelect = 'id, name, owner_email, country, amenities, ru_location_id, rentalsunited_property_id, rentalsunited_building_id';
+      const [{ data: propLevel, error: propLevelError }, { data: unitLevel, error: unitLevelError }] = await Promise.all([
+        supabase.from('properties').select(propSelect)
+          .or('rentalsunited_property_id.not.is.null,rentalsunited_building_id.not.is.null'),
+        unitPropertyIds.length
+          ? supabase.from('properties').select(propSelect).in('id', unitPropertyIds)
+          : Promise.resolve({ data: [], error: null } as any),
+      ]);
+      if (propLevelError || unitLevelError) {
+        console.error('[push-property-to-ru] verify_ru_currency target lookup failed', propLevelError ?? unitLevelError);
+      }
+      const propsById = new Map<string, any>();
+      for (const p of [...((propLevel ?? []) as any[]), ...((unitLevel ?? []) as any[])]) propsById.set(p.id, p);
+      const props = Array.from(propsById.values());
 
       const targets = (props ?? []).filter((p: any) => !targetIds || targetIds.includes(p.id));
+
       const results: any[] = [];
 
       for (const p of targets as any[]) {
