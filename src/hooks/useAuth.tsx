@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { User, Session } from "@supabase/supabase-js";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { UserRole, computeUserRole } from "@/lib/permissions";
 
@@ -11,111 +12,108 @@ interface Profile {
   role: string | null;
 }
 
+interface UserContext {
+  profile: Profile | null;
+  roles: string[];
+  sales_rep_id: string | null;
+}
+
+const EMPTY_CONTEXT: UserContext = { profile: null, roles: [], sales_rep_id: null };
+
+const cacheKey = (userId: string) => `rolos.user_context.${userId}`;
+
+/**
+ * Read the last-known user context synchronously so the shell can paint with
+ * the correct role/menus while the (possibly cold) edge function responds.
+ */
+function readCachedContext(userId: string | undefined): UserContext | undefined {
+  if (!userId) return undefined;
+  try {
+    const raw = sessionStorage.getItem(cacheKey(userId));
+    if (!raw) return undefined;
+    const parsed = JSON.parse(raw) as UserContext;
+    if (!Array.isArray(parsed?.roles)) return undefined;
+    return parsed;
+  } catch {
+    return undefined;
+  }
+}
+
+function writeCachedContext(userId: string, ctx: UserContext) {
+  try {
+    sessionStorage.setItem(cacheKey(userId), JSON.stringify(ctx));
+  } catch {
+    /* storage full / disabled — cache is best-effort only */
+  }
+}
+
+function clearCachedContexts() {
+  try {
+    const keys: string[] = [];
+    for (let i = 0; i < sessionStorage.length; i += 1) {
+      const k = sessionStorage.key(i);
+      if (k?.startsWith("rolos.user_context.")) keys.push(k);
+    }
+    keys.forEach((k) => sessionStorage.removeItem(k));
+  } catch {
+    /* ignore */
+  }
+}
+
+async function fetchUserContext(userId: string, isRetry = false): Promise<UserContext> {
+  const { data: response, error } = await supabase.functions.invoke("data-access-api", {
+    body: { action: "get_user_context" },
+  });
+
+  if (error || !response?.success) {
+    const code = response?.code;
+    const isAuthIssue =
+      code === "token_expired" ||
+      code === "invalid_token" ||
+      (error as { context?: { status?: number } } | null)?.context?.status === 401;
+
+    if (isAuthIssue && !isRetry) {
+      const { data: refreshed } = await supabase.auth.refreshSession();
+      if (refreshed?.session) return fetchUserContext(userId, true);
+      await supabase.auth.signOut();
+      return EMPTY_CONTEXT;
+    }
+
+    throw new Error(String(error?.message ?? response?.error ?? "Failed to fetch user context"));
+  }
+
+  const ctx: UserContext = {
+    profile: response.data?.profile ?? null,
+    roles: Array.isArray(response.data?.roles) ? response.data.roles : [],
+    sales_rep_id: response.data?.sales_rep_id ?? null,
+  };
+  writeCachedContext(userId, ctx);
+  return ctx;
+}
+
 export function useAuth() {
+  const queryClient = useQueryClient();
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [isDev, setIsDev] = useState(false);
-  const [isFearlessLeader, setIsFearlessLeader] = useState(false);
-  const [isSalesRep, setIsSalesRep] = useState(false);
-  const [salesRepId, setSalesRepId] = useState<string | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [userRole, setUserRole] = useState<UserRole>('owner');
+  const [sessionResolved, setSessionResolved] = useState(false);
 
   useEffect(() => {
     let mounted = true;
 
-    const checkRolesAndProfile = async (_userId: string, isRetry = false) => {
-      try {
-        const { data: response, error } = await supabase.functions.invoke(
-          "data-access-api",
-          { body: { action: "get_user_context" } }
-        );
-
-        if (error || !response?.success) {
-          const code = response?.code;
-          const isAuthIssue =
-            code === "token_expired" ||
-            code === "invalid_token" ||
-            (error as { context?: { status?: number } } | null)?.context?.status === 401;
-
-          if (isAuthIssue && !isRetry) {
-            const { data: refreshed } = await supabase.auth.refreshSession();
-            if (refreshed?.session) {
-              await checkRolesAndProfile(_userId, true);
-              return;
-            }
-            await supabase.auth.signOut();
-            if (mounted) setLoading(false);
-            return;
-          }
-
-          console.error("Failed to fetch user context:", error ?? response?.error);
-          if (mounted) setLoading(false);
-          return;
-        }
-
-
-        if (mounted) {
-          const { profile: profileData, roles, sales_rep_id } = response.data;
-
-          const hasDev = roles.includes("dev");
-          const hasFearlessLeader = roles.includes("fearless_leader");
-          const hasAdmin = roles.includes("admin") || hasDev || hasFearlessLeader;
-          const hasSalesRep = roles.includes("sales_rep");
-
-          setIsAdmin(hasAdmin);
-          setIsDev(hasDev);
-          setIsFearlessLeader(hasFearlessLeader);
-          setIsSalesRep(hasSalesRep);
-          setProfile(profileData || null);
-          setUserRole(computeUserRole(hasDev, hasFearlessLeader, hasAdmin, hasSalesRep));
-          setSalesRepId(sales_rep_id || null);
-          setLoading(false);
-        }
-      } catch (err) {
-        console.error("User context fetch error:", err);
-        if (mounted) setLoading(false);
-      }
-    };
-
-    // Set up auth state listener
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      if (mounted) {
-        setSession(session);
-        setUser(session?.user ?? null);
-        
-        if (session?.user) {
-          setLoading(true);
-          checkRolesAndProfile(session.user.id);
-        } else {
-          setIsAdmin(false);
-          setIsDev(false);
-          setIsFearlessLeader(false);
-          setIsSalesRep(false);
-          setSalesRepId(null);
-          setProfile(null);
-          setUserRole('owner');
-          setLoading(false);
-        }
-      }
+    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      if (!mounted) return;
+      setSession(nextSession);
+      setUser(nextSession?.user ?? null);
+      setSessionResolved(true);
     });
 
-    // Check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (mounted) {
-        setSession(session);
-        setUser(session?.user ?? null);
-        
-        if (session?.user) {
-          checkRolesAndProfile(session.user.id);
-        } else {
-          setLoading(false);
-        }
-      }
+    supabase.auth.getSession().then(({ data: { session: existing } }) => {
+      if (!mounted) return;
+      setSession(existing);
+      setUser(existing?.user ?? null);
+      setSessionResolved(true);
     });
 
     return () => {
@@ -124,23 +122,50 @@ export function useAuth() {
     };
   }, []);
 
-  const signOut = async () => {
+  const userId = user?.id;
+
+  // One shared, cached request per signed-in user — every consumer of useAuth
+  // reads the same query instead of triggering its own edge-function call.
+  const { data: context, isFetching, isPending } = useQuery({
+    queryKey: ["user-context", userId],
+    enabled: !!userId,
+    queryFn: () => fetchUserContext(userId as string),
+    initialData: () => readCachedContext(userId),
+    staleTime: 1000 * 60 * 5,
+    gcTime: 1000 * 60 * 30,
+    refetchOnWindowFocus: false,
+    retry: 1,
+  });
+
+  const roles = context?.roles ?? [];
+  const isDev = roles.includes("dev");
+  const isFearlessLeader = roles.includes("fearless_leader");
+  const isAdmin = roles.includes("admin") || isDev || isFearlessLeader;
+  const isSalesRep = roles.includes("sales_rep");
+
+  const userRole: UserRole = useMemo(
+    () => computeUserRole(isDev, isFearlessLeader, isAdmin, isSalesRep),
+    [isDev, isFearlessLeader, isAdmin, isSalesRep],
+  );
+
+  // Never block first paint on a possibly cold edge function: once we have a
+  // cached context (or no session at all) the shell can render immediately and
+  // refresh in the background.
+  const loading = !sessionResolved || (!!userId && isPending && !context);
+
+  const signOut = useCallback(async () => {
     // Local scope first — guarantees the client-side session is cleared even
-    // if the network request for global sign-out fails or is slow. Without
-    // this, a failed global signOut leaves the session in localStorage and
-    // the auth listener immediately re-hydrates the user on the next route.
+    // if the network request for global sign-out fails or is slow.
     try {
       await supabase.auth.signOut({ scope: "local" });
     } catch (err) {
       console.warn("Local signOut failed:", err);
     }
-    // Best-effort global sign-out (revoke refresh token server-side).
     try {
       await supabase.auth.signOut({ scope: "global" });
     } catch (err) {
       console.warn("Global signOut failed (session already cleared locally):", err);
     }
-    // Belt-and-braces: purge any lingering supabase auth keys from storage.
     try {
       const keys: string[] = [];
       for (let i = 0; i < localStorage.length; i += 1) {
@@ -151,18 +176,24 @@ export function useAuth() {
     } catch (err) {
       console.warn("Storage purge failed:", err);
     }
-    // Clear local React state immediately so any consumer re-render sees
-    // signed-out state before navigation.
+    clearCachedContexts();
+    queryClient.removeQueries({ queryKey: ["user-context"] });
     setSession(null);
     setUser(null);
-    setIsAdmin(false);
-    setIsDev(false);
-    setIsFearlessLeader(false);
-    setIsSalesRep(false);
-    setSalesRepId(null);
-    setProfile(null);
-    setUserRole("owner");
-  };
+  }, [queryClient]);
 
-  return { user, session, loading, isAdmin, isDev, isFearlessLeader, isSalesRep, salesRepId, profile, userRole, signOut };
+  return {
+    user,
+    session,
+    loading,
+    isRefreshingContext: isFetching,
+    isAdmin,
+    isDev,
+    isFearlessLeader,
+    isSalesRep,
+    salesRepId: context?.sales_rep_id ?? null,
+    profile: context?.profile ?? null,
+    userRole,
+    signOut,
+  };
 }
