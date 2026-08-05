@@ -179,7 +179,7 @@ export function ShowcaseAvailabilityCalendar({
     return () => { cancelled = true; };
   }, [open, propertyId, wizardRooms.length, start]);
 
-  const resolveSeasonRate = useMemo(() => buildSeasonResolver(amenities), [amenities]);
+  const resolveSeasonRate = useMemo(() => buildSeasonResolver(effectiveAmenities), [effectiveAmenities]);
 
   const gridRooms = useMemo(() => {
     if (wizardRooms.length === 0) return [];
@@ -187,7 +187,7 @@ export function ShowcaseAvailabilityCalendar({
       start: new Date(start),
       end: addDays(new Date(start), GRID_WINDOW_DAYS - 1),
     });
-    const rateTypes = Array.isArray(amenities?.pms_rate_types) ? amenities!.pms_rate_types : [];
+    const rateTypes = Array.isArray(effectiveAmenities?.pms_rate_types) ? effectiveAmenities!.pms_rate_types : [];
 
     return wizardRooms.map((room: any) => {
       const roomId = String(room.id || room.room_type_id || room.pmsRoomId || room.name);
@@ -247,9 +247,9 @@ export function ShowcaseAvailabilityCalendar({
         ratesByDate,
       };
     });
-  }, [wizardRooms, amenities, blocks, pmsCache, resolveSeasonRate, start]);
+  }, [wizardRooms, effectiveAmenities, blocks, pmsCache, resolveSeasonRate, start]);
 
-  if (wizardRooms.length === 0) return null;
+  if (amenities && wizardRooms.length === 0) return null;
 
   return (
     <div className={className}>
