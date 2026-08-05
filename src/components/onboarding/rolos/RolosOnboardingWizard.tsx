@@ -20,6 +20,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { focusRequirementField } from "@/lib/requirementFocus";
+
 import { useRolosOnboardingProgress, type MacroProgress } from "@/hooks/useRolosOnboardingProgress";
 
 /**
