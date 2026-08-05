@@ -143,6 +143,10 @@ export const ROLOS_ONBOARDING_MACROS: MacroDef[] = [
     tasks: [{ kind: "state", key: "sub_owner_id" }],
     action: "ensure_owner",
     adminOnly: true,
+    notes: [
+      "Existing distribution owners are detected first (by owner ID, then login email) and simply linked — the owner ID is adopted and no duplicate identity is created.",
+    ],
+
   },
   {
     key: "keys",
