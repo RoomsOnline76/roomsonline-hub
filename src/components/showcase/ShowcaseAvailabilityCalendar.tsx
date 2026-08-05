@@ -101,13 +101,31 @@ export function ShowcaseAvailabilityCalendar({
   const [open, setOpen] = useState(false);
   const [blocks, setBlocks] = useState<Record<string, Record<string, DayCell>>>({});
   const [pmsCache, setPmsCache] = useState<Record<string, Record<string, { available_units: number; rate: number | null }>>>({});
+  const [fetchedAmenities, setFetchedAmenities] = useState<Record<string, any> | null>(null);
 
   const start = startDate || format(new Date(), "yyyy-MM-dd");
+  const effectiveAmenities = amenities ?? fetchedAmenities;
+
+  // Portfolio cards don't carry the amenities blob — pull it on first open
+  useEffect(() => {
+    if (!open || amenities || fetchedAmenities || !propertyId) return;
+    let cancelled = false;
+    supabase
+      .from("properties")
+      .select("amenities")
+      .eq("id", propertyId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!cancelled) setFetchedAmenities((data?.amenities as any) || {});
+      });
+    return () => { cancelled = true; };
+  }, [open, amenities, fetchedAmenities, propertyId]);
 
   const wizardRooms = useMemo(() => {
-    const rooms = Array.isArray(amenities?.room_types) ? amenities!.room_types : [];
+    const rooms = Array.isArray(effectiveAmenities?.room_types) ? effectiveAmenities!.room_types : [];
     return rooms.filter((r: any) => r?.is_active !== false);
-  }, [amenities]);
+  }, [effectiveAmenities]);
+
 
   // Load manual blocks + PMS cache once the panel is opened (keeps first paint fast)
   useEffect(() => {
