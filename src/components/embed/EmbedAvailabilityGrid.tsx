@@ -24,7 +24,10 @@ interface EmbedAvailabilityGridProps {
   fontColor: string;
   currency?: string;
   onBook?: (roomId: string, roomName: string) => void;
+  /** Highlights a date span already reserved in the guest's journey. */
+  highlightRange?: { from: string; to: string; label?: string } | null;
 }
+
 
 interface HoverCell {
   roomId: string;
@@ -42,6 +45,7 @@ export function EmbedAvailabilityGrid({
   fontColor,
   currency = "R",
   onBook,
+  highlightRange,
 }: EmbedAvailabilityGridProps) {
   const [offset, setOffset] = useState(0);
   const [hover, setHover] = useState<HoverCell | null>(null);
@@ -54,8 +58,34 @@ export function EmbedAvailabilityGrid({
 
   const canGoBack = !isBefore(addDays(new Date(startDate), offset - 1), today);
 
+  const isHighlighted = (key: string) =>
+    !!highlightRange && key >= highlightRange.from && key < highlightRange.to;
+
   return (
     <div style={{ width: "100%", background: "#fff", padding: "4px 0 10px" }}>
+      {highlightRange && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            margin: "8px 16px 0",
+            padding: "6px 10px",
+            background: `${brandColor}14`,
+            borderLeft: `3px solid ${brandColor}`,
+            fontSize: "12px",
+            color: "#3d3d3d",
+          }}
+        >
+          <span style={{ fontWeight: 700, color: brandColor }}>
+            {highlightRange.label || "Your journey"}
+          </span>
+          <span>
+            {format(new Date(highlightRange.from), "d MMM")} – {format(new Date(highlightRange.to), "d MMM")}
+          </span>
+        </div>
+      )}
+
       {/* Navigation — day / week stepper, NightsBridge style */}
       <div
         style={{
@@ -107,8 +137,19 @@ export function EmbedAvailabilityGrid({
               {dates.map((d) => {
                 const isWeekend = d.getDay() === 0 || d.getDay() === 6;
                 const labelColor = isWeekend ? "#6b6b6b" : brandColor;
+                const hl = isHighlighted(format(d, "yyyy-MM-dd"));
                 return (
-                  <th key={d.toISOString()} style={{ ...thStyle, minWidth: "62px", textAlign: "center" }}>
+                  <th
+                    key={d.toISOString()}
+                    style={{
+                      ...thStyle,
+                      minWidth: "62px",
+                      textAlign: "center",
+                      background: hl ? `${brandColor}14` : "#fff",
+                      borderBottom: hl ? `2px solid ${brandColor}` : thStyle.borderBottom,
+                    }}
+                  >
+
                     <div
                       style={{
                         fontSize: "11px",
@@ -193,7 +234,12 @@ export function EmbedAvailabilityGrid({
                           position: "relative",
                           padding: "6px 4px",
                           cursor: hasRate ? "default" : undefined,
-                          background: isHovered && hasRate ? "#f6f6f6" : undefined,
+                          background: isHovered && hasRate
+                            ? "#f6f6f6"
+                            : isHighlighted(key)
+                              ? `${brandColor}0d`
+                              : undefined,
+
                         }}
                       >
                         {hasRate ? (

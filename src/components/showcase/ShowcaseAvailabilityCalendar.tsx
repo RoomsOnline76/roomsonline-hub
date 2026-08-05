@@ -25,7 +25,12 @@ interface ShowcaseAvailabilityCalendarProps {
   /** Optional label override for the collapse toggle. */
   title?: string;
   onBook?: (roomId: string, roomName: string) => void;
+  /** Marks a span already in the guest's journey (e.g. the first stay). */
+  highlightRange?: { from: string; to: string; label?: string } | null;
+  /** Force the calendar open on mount (e.g. when dates still need picking). */
+  defaultOpen?: boolean;
 }
+
 
 type DayCell = { available_units: number | null; is_stop_sell: boolean };
 
@@ -97,8 +102,11 @@ export function ShowcaseAvailabilityCalendar({
   className,
   title,
   onBook,
+  highlightRange,
+  defaultOpen = false,
 }: ShowcaseAvailabilityCalendarProps) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
+
   const [blocks, setBlocks] = useState<Record<string, Record<string, DayCell>>>({});
   const [pmsCache, setPmsCache] = useState<Record<string, Record<string, { available_units: number; rate: number | null }>>>({});
   const [fetchedAmenities, setFetchedAmenities] = useState<Record<string, any> | null>(null);
@@ -287,6 +295,8 @@ export function ShowcaseAvailabilityCalendar({
               fontColor={fontColor}
               currency={currency}
               onBook={onBook}
+              highlightRange={highlightRange}
+
             />
           </motion.div>
         )}

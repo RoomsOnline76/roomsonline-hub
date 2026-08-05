@@ -102,6 +102,19 @@ export default function EmbedPortfolio() {
   // portfolio property into one checkout.
   const { stays, hasStays, totalPrice: journeyTotal, totalNights: journeyNights, removeStay } = useItinerary();
 
+  // Span of the stays already in the basket — used to mark the calendars and to
+  // suggest where the next stay should start.
+  const journeyRange = useMemo(() => {
+    if (stays.length === 0) return null;
+    const ins = stays.map(s => s.dates.check_in).sort();
+    const outs = stays.map(s => s.dates.check_out).sort();
+    return {
+      from: ins[0],
+      to: outs[outs.length - 1],
+      label: stays.length === 1 ? "Stay 1 booked" : `${stays.length} stays booked`,
+    };
+  }, [stays]);
+  const journeyNextCheckIn = journeyRange?.to || null;
 
 
   const [portfolio, setPortfolio] = useState<any>(null);
@@ -491,7 +504,7 @@ export default function EmbedPortfolio() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [properties.length, portfolioBranding.hero_video_url]);
 
-  const handleViewProperty = (slug: string, opts?: { journey?: boolean }) => {
+  const handleViewProperty = (slug: string, opts?: { journey?: boolean; roomId?: string }) => {
     const prop = properties.find(p => p.slug === slug);
     const allowOverride = portfolioBranding.allow_property_brand_override === true;
     // Default: portfolio brand carries through. Override: use property's own brand.
@@ -515,7 +528,8 @@ export default function EmbedPortfolio() {
     // and routes back to the journey review instead of a single-stay checkout.
     // Active once the guest has any stay in the basket, or when they explicitly
     // chose "Add stay" from a card.
-    if (journeyMode || hasStays || opts?.journey) params.set("journey_mode", "true");
+    const isJourneyAdd = journeyMode || hasStays || opts?.journey === true;
+    if (isJourneyAdd) params.set("journey_mode", "true");
 
     const forwardedCheckIn = searchParams.get("checkIn") || searchParams.get("checkin");
     const forwardedCheckOut = searchParams.get("checkOut") || searchParams.get("checkout");
@@ -523,12 +537,22 @@ export default function EmbedPortfolio() {
     const forwardedChildren = searchParams.get("children");
     const forwardedInfants = searchParams.get("infants");
     const forwardedVoucher = searchParams.get("voucher");
-    if (forwardedCheckIn) params.set("checkIn", forwardedCheckIn);
-    if (forwardedCheckOut) params.set("checkOut", forwardedCheckOut);
+    if (isJourneyAdd) {
+      // Every added stay needs its own dates: never auto-confirm the dates from
+      // the previous stay — pass them as suggestions and make the guest pick.
+      params.set("require_dates", "1");
+      const suggestedCheckIn = journeyNextCheckIn || forwardedCheckOut || forwardedCheckIn;
+      if (suggestedCheckIn) params.set("suggest_checkin", suggestedCheckIn);
+    } else {
+      if (forwardedCheckIn) params.set("checkIn", forwardedCheckIn);
+      if (forwardedCheckOut) params.set("checkOut", forwardedCheckOut);
+    }
+    if (opts?.roomId) params.set("focus_room", opts.roomId);
     if (forwardedAdults) params.set("adults", forwardedAdults);
     if (forwardedChildren) params.set("children", forwardedChildren);
     if (forwardedInfants) params.set("infants", forwardedInfants);
     if (forwardedVoucher) params.set("voucher", forwardedVoucher);
+
     if (window.parent !== window) {
       window.location.href = `/embed/property/${slug}?${params.toString()}`;
     } else {
@@ -920,9 +944,12 @@ export default function EmbedPortfolio() {
                       brandColor={brandColor}
                       fontColor={portfolioBranding.font_color || "#FFFFFF"}
                       visibleDays={7}
+                      startDate={(stays.some(s => s.property_id === prop.id) ? journeyRange?.from : journeyNextCheckIn) || undefined}
                       title="Availability & rates"
-                      onBook={() => handleViewProperty(prop.slug, { journey: true })}
+                      highlightRange={journeyRange && stays.some(s => s.property_id === prop.id) ? journeyRange : null}
+                      onBook={(roomId) => handleViewProperty(prop.slug, { journey: true, roomId })}
                     />
+
                   </div>
                   <div className="mt-auto pt-3 flex items-center justify-between">
 
