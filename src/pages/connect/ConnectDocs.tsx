@@ -383,7 +383,7 @@ export default function ConnectDocs() {
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <a href="/docs/ROLOS-Developer-REST-API-v3.docx" download>
+              <a href="/docs/ROLOS-Developer-REST-API-v3.1.docx" download>
                 <Button variant="outline" size="sm" className="gap-1.5">
                   <FileDown className="h-3.5 w-3.5" /> Download API Doc
                 </Button>
