@@ -28,6 +28,11 @@ h1, h2, h3, h4, h5, h6, .font-heading {
     --background-soft: 40 6% 95%;
     --foreground: 220 20% 12%;
 
+    /* Canvas of the embedded White Label channel manager — kept identical in both
+       themes so the embed frame boundary is invisible against its own light UI. */
+    --ru-embed-canvas: 0 0% 100%;
+
+
     /* Cards & Surfaces */
     --card: 0 0% 100%;
     --card-foreground: 220 20% 12%;
