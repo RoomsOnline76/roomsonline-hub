@@ -944,9 +944,12 @@ export default function EmbedPortfolio() {
                       brandColor={brandColor}
                       fontColor={portfolioBranding.font_color || "#FFFFFF"}
                       visibleDays={7}
+                      startDate={journeyNextCheckIn || undefined}
                       title="Availability & rates"
-                      onBook={() => handleViewProperty(prop.slug, { journey: true })}
+                      highlightRange={journeyRange && stays.some(s => s.property_id === prop.id) ? journeyRange : null}
+                      onBook={(roomId) => handleViewProperty(prop.slug, { journey: true, roomId })}
                     />
+
                   </div>
                   <div className="mt-auto pt-3 flex items-center justify-between">
 
