@@ -545,7 +545,15 @@ async function resolveWizardRates(
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
+  // Keep-warm probe — returns before any ARI work; never touches availability.
+  if (req.headers.get("x-warm") === "1") {
+    return new Response(JSON.stringify({ success: true, warm: true }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
   try {
+
     const body = await req.json();
     const { action } = body;
 
