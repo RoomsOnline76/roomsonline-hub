@@ -107,7 +107,7 @@ export function RuWhiteLabelEmbed({ propertyId }: { propertyId: string | null | 
       ownerId: tokens.ruOwnerId,
       // Initial theme + page background; later switches arrive via postMessage.
       theme: isDark ? "dark" : "light",
-      bg: readPageBackground(),
+      bg: isDark ? EMBED_BG_DARK : EMBED_BG_LIGHT,
     });
     return `/ru-embed.html?${params.toString()}`;
     // The theme is deliberately not a dependency — re-keying the src would remount the
@@ -118,7 +118,11 @@ export function RuWhiteLabelEmbed({ propertyId }: { propertyId: string | null | 
   /** Push light/dark switches into the frame without reloading the channel manager. */
   useEffect(() => {
     frameRef.current?.contentWindow?.postMessage(
-      { type: "rolos-theme", theme: isDark ? "dark" : "light", bg: readPageBackground() },
+      {
+        type: "rolos-theme",
+        theme: isDark ? "dark" : "light",
+        bg: isDark ? EMBED_BG_DARK : EMBED_BG_LIGHT,
+      },
       window.location.origin,
     );
   }, [isDark, embedSrc]);
