@@ -189,7 +189,12 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
 
     // Macro 1 — identity
     const tz = String(prop.timezone ?? "").trim();
-    put("timezone_format", "Timezone in UTC±HH:MM form", /^UTC[+-]\d{2}:\d{2}$/.test(tz), {
+    // ROL'OS stores canonical IANA zones (for example Africa/Johannesburg),
+    // while some imported properties use a fixed UTC offset. Both are valid
+    // configured timezone values; rejecting IANA values made this wizard
+    // disagree with the unified readiness tracker.
+    const timezoneConfigured = /^UTC[+-]\d{2}:\d{2}$/.test(tz) || /^[A-Za-z_]+(?:\/[A-Za-z0-9_+-]+)+$/.test(tz);
+    put("timezone_format", "Timezone configured", timezoneConfigured, {
       detail: tz || "Not set",
       hint: "Identity & Location → Timezone",
     });
