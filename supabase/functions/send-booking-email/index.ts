@@ -493,7 +493,15 @@ function generateSuccessEmail(booking: any, property: any, syncWarning?: string)
                   <td style="padding: 8px 0; color: #666;">Location</td>
                   <td style="padding: 8px 0; color: #333; text-align: right;">${property.city}, ${property.country}</td>
                 </tr>
+                ${hasRooms ? `
+                <tr>
+                  <td style="padding: 8px 0; color: #666;">${booking.rooms.length > 1 ? "Units / Rooms booked" : "Unit / Room booked"}</td>
+                  <td style="padding: 8px 0; color: #333; font-weight: 600; text-align: right;">${booking.rooms
+                    .map((r: any) => r.roomTypeName || "Room")
+                    .join(", ")}</td>
+                </tr>` : ""}
               </table>
+
             </td>
           </tr>
 
