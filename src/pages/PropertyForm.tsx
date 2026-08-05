@@ -4063,7 +4063,7 @@ export default function PropertyForm({
 
         <Tabs
           value={activeTab}
-          onValueChange={setActiveTab}
+          onValueChange={handleTabChange}
           className={
             embedded ? "space-y-3" : "min-w-0 space-y-3 rounded-lg border bg-background p-3"
           }
