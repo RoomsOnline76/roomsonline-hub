@@ -4,6 +4,8 @@ import { heroTitleReveal, taglineFade } from '@/lib/motion';
 import { ChevronLeft, ChevronRight, MapPin, Images } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { FormattedPrice } from '@/components/FormattedPrice';
+import { optimizedImage, imageSrcSet } from '@/lib/storageImage';
+
 
 interface RunwayHeroProps {
   name: string;
