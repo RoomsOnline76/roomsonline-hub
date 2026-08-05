@@ -4021,6 +4021,8 @@ export default function PropertyForm({
           </Alert>
         )}
 
+        {/* Legacy readiness stepper/gates retired — the floating ROL'OS onboarding
+            wizard now owns gating. Only the field-highlighting legend stays. */}
         {!embedded && (
           <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
             <RequirementLegend
@@ -4029,11 +4031,6 @@ export default function PropertyForm({
               mandatoryTotal={requirementMandatoryTotal}
               recommendedOutstanding={requirementRecommendedOutstanding}
               recommendedTotal={requirementRecommendedTotal}
-            />
-            <RequirementStepper
-              className="lg:max-w-[55%]"
-              outstanding={requirementOutstandingInSection}
-              sectionLabel={getSectionLabel(activeTab)}
             />
           </div>
         )}
