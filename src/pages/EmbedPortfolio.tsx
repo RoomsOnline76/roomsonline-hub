@@ -912,7 +912,19 @@ export default function EmbedPortfolio() {
                       ))}
                     </div>
                   )}
+                  {/* Availability & rates (NightsBridge-style grid, collapsed) */}
+                  <div className="mt-3" onClick={(e) => e.stopPropagation()}>
+                    <ShowcaseAvailabilityCalendar
+                      propertyId={prop.id}
+                      brandColor={brandColor}
+                      fontColor={fontColor}
+                      visibleDays={7}
+                      title="Availability & rates"
+                      onBook={() => handleViewProperty(prop.slug, { journey: true })}
+                    />
+                  </div>
                   <div className="mt-auto pt-3 flex items-center justify-between">
+
                     <div className="flex gap-3 text-xs text-gray-400">
                       {prop.room_count > 0 && (
                         <span className="flex items-center gap-1"><BedDouble className="h-3 w-3" />{prop.room_count} rooms</span>
