@@ -24,7 +24,10 @@ interface EmbedAvailabilityGridProps {
   fontColor: string;
   currency?: string;
   onBook?: (roomId: string, roomName: string) => void;
+  /** Highlights a date span already reserved in the guest's journey. */
+  highlightRange?: { from: string; to: string; label?: string } | null;
 }
+
 
 interface HoverCell {
   roomId: string;
