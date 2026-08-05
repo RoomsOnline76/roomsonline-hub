@@ -607,7 +607,7 @@ export default function EmbedProperty() {
         beds: room.beds,
         allowChildren: r.allow_children,
         childPolicyNote: childNote,
-        mealPlan: linkedRateType?.name ?? rolosPlan?.name ?? undefined,
+        mealPlan: linkedRateType?.name ?? undefined,
         ratesByDate,
       };
 
