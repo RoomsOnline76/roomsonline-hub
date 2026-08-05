@@ -67,7 +67,7 @@ export default function EmbedProperty() {
   const [ratePlanMap, setRatePlanMap] = useState<Record<string, { base_rate: number; pricing_model: string }>>({});
   const [pmsCacheMap, setPmsCacheMap] = useState<Record<string, Record<string, { available_units: number; rate: number | null }>>>({});
   const [loading, setLoading] = useState(true);
-  const [showCalendar, setShowCalendar] = useState(true);
+  const [showCalendar, setShowCalendar] = useState(false);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
 
   const today = startOfDay(new Date());
