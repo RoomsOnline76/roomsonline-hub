@@ -78,7 +78,11 @@ export interface RolosOnboardingSignoff {
   note?: string | null;
 }
 
-async function invokeCert<T>(action: string, propertyId: string): Promise<T | null> {
+async function invokeCert<T>(
+  action: string,
+  propertyId: string,
+  extra: Record<string, unknown> = {},
+): Promise<T | null> {
   try {
     const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
       body: { action, property_id: propertyId },
