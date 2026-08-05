@@ -71,9 +71,15 @@ export function PropertySegmentSection({
         {/* Properties Grid */}
         {!isLoading && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {displayProperties.map((property) => (
-              <PropertyCard key={property.id} property={property} showCautionBadge={showCautionBadge} />
+            {displayProperties.map((property, i) => (
+              <PropertyCard
+                key={property.id}
+                property={property}
+                showCautionBadge={showCautionBadge}
+                priority={i < priorityImages}
+              />
             ))}
+
           </div>
         )}
       </div>
