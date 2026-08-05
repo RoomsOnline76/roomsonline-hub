@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { MoreHorizontal, Users } from "lucide-react";
+import { MoreHorizontal, Users, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { hasMinRole } from "@/lib/permissions";
