@@ -26,7 +26,7 @@ export function useAuth() {
   useEffect(() => {
     let mounted = true;
 
-    const checkRolesAndProfile = async (_userId: string) => {
+    const checkRolesAndProfile = async (_userId: string, isRetry = false) => {
       try {
         const { data: response, error } = await supabase.functions.invoke(
           "data-access-api",
@@ -34,10 +34,28 @@ export function useAuth() {
         );
 
         if (error || !response?.success) {
+          const code = response?.code;
+          const isAuthIssue =
+            code === "token_expired" ||
+            code === "invalid_token" ||
+            (error as { context?: { status?: number } } | null)?.context?.status === 401;
+
+          if (isAuthIssue && !isRetry) {
+            const { data: refreshed } = await supabase.auth.refreshSession();
+            if (refreshed?.session) {
+              await checkRolesAndProfile(_userId, true);
+              return;
+            }
+            await supabase.auth.signOut();
+            if (mounted) setLoading(false);
+            return;
+          }
+
           console.error("Failed to fetch user context:", error ?? response?.error);
           if (mounted) setLoading(false);
           return;
         }
+
 
         if (mounted) {
           const { profile: profileData, roles, sales_rep_id } = response.data;
