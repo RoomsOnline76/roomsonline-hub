@@ -921,9 +921,22 @@ export default function EmbedPortfolio() {
                         <span className="flex items-center gap-1"><Users className="h-3 w-3" />Up to {prop.max_guests}</span>
                       )}
                     </div>
-                    <Button size="sm" className="text-xs h-7 gap-1 text-white" style={{ backgroundColor: brandColor }}>
-                      View & Book <ChevronRight className="h-3 w-3" />
-                    </Button>
+                    <div className="flex items-center gap-1.5">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-xs h-7 gap-1"
+                        style={{ borderColor: `${brandColor}60`, color: brandColor }}
+                        onClick={(e) => { e.stopPropagation(); handleViewProperty(prop.slug, { journey: true }); }}
+                        title="Pick dates and rooms, then keep adding more stays before checking out"
+                      >
+                        <Plus className="h-3 w-3" /> {hasStays ? "Add stay" : "Add to journey"}
+                      </Button>
+                      <Button size="sm" className="text-xs h-7 gap-1 text-white" style={{ backgroundColor: brandColor }}>
+                        View & Book <ChevronRight className="h-3 w-3" />
+                      </Button>
+                    </div>
+
                   </div>
                 </div>
               </motion.div>
