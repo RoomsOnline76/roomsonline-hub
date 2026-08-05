@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
+import { useTheme } from "next-themes";
 import { Loader2, RefreshCw, Radio, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useRuWhiteLabelTokens } from "@/hooks/useRuWhiteLabelTokens";
@@ -7,8 +8,15 @@ import { usePMSBrand } from "@/contexts/PMSBrandContext";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
+/** Resolved page background, handed to the embed so it never looks pasted on. */
+function readPageBackground(): string {
+  if (typeof window === "undefined") return "#ffffff";
+  const raw = getComputedStyle(document.documentElement).getPropertyValue("--background").trim();
+  return raw ? `hsl(${raw})` : "#ffffff";
+}
 
 const EMBED_HEIGHT = "h-[calc(100vh-12rem)]";
+
 
 /**
  * Rentals United White Label Channel Manager embed.
