@@ -245,10 +245,14 @@ export function RunwayHero({
                 {/* Main large image — spans 2 cols, 2 rows */}
                 <div className="col-span-2 row-span-2 relative group cursor-pointer" onClick={onShowAllPhotos}>
                   <img
-                    src={gridImages[0]}
+                    src={optimizedImage(gridImages[0], 1000, 72)}
+                    srcSet={imageSrcSet(gridImages[0], [700, 1000, 1400], 72)}
+                    sizes="50vw"
                     alt={`${name} - main`}
                     className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
                     loading="eager"
+                    fetchPriority="high"
+                    decoding="async"
                   />
                 </div>
                 {/* 4 smaller images */}
@@ -262,11 +266,15 @@ export function RunwayHero({
                     onClick={onShowAllPhotos}
                   >
                     <img
-                      src={img}
+                      src={optimizedImage(img, 500, 70)}
+                      srcSet={imageSrcSet(img, [350, 500, 700], 70)}
+                      sizes="25vw"
                       alt={`${name} - ${i + 2}`}
                       className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
                       loading="lazy"
+                      decoding="async"
                     />
+
                     {/* "+N more" overlay on the last image */}
                     {i === 3 && hasExtraImages && (
                       <div className="absolute inset-0 bg-black/40 flex items-center justify-center transition-colors group-hover:bg-black/50">
