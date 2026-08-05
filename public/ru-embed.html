@@ -20,20 +20,11 @@
       }
 
       /*
-        Night mode. The embedded channel manager ships a light-only stylesheet, so the
-        rendered tree is tone-mapped to match the ROL'OS dark theme, and media
-        (logos, channel artwork, photos) is mapped back so it stays true to colour.
+        Night mode: the embedded channel manager ships a light-only stylesheet, so its
+        content is left at its native colours (inverting it made the connector cards
+        illegible). Only the surrounding canvas follows the ROL'OS theme via ?bg=.
       */
-      html[data-rolos-theme="dark"] #ruApp {
-        filter: invert(0.92) hue-rotate(180deg);
-      }
-      html[data-rolos-theme="dark"] #ruApp img,
-      html[data-rolos-theme="dark"] #ruApp svg,
-      html[data-rolos-theme="dark"] #ruApp video,
-      html[data-rolos-theme="dark"] #ruApp canvas,
-      html[data-rolos-theme="dark"] #ruApp [style*="background-image"] {
-        filter: invert(1) hue-rotate(180deg);
-      }
+
 
 
       /*
