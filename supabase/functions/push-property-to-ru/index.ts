@@ -3479,7 +3479,13 @@ Deno.serve(async (req) => {
     if (singleImageIssues.length > 0) {
       console.warn(`[push-property-to-ru] Dropped ${singleImageIssues.length} image(s) Rentals United would reject`, singleImageIssues.map(i => i.reason));
     }
-    const existingRuId = property.rentalsunited_property_id ? parseInt(property.rentalsunited_property_id, 10) : 0;
+    const storedRuId = property.rentalsunited_property_id ? parseInt(property.rentalsunited_property_id, 10) : 0;
+    // A stored value equal to the RU OwnerID is a mis-capture, not a listing ID — treat the
+    // property as unpushed instead of asking RU to update a listing that cannot exist.
+    const existingRuId = storedRuId > 0 && ruOwnerId && storedRuId === Number(ruOwnerId) ? 0 : storedRuId;
+    if (storedRuId && !existingRuId) {
+      console.warn(`[push-property-to-ru] Stored RU property ID ${storedRuId} equals OwnerID — ignoring as a mis-capture`);
+    }
 
     const singleValidation = buildValidation(ruPayload as unknown as Record<string, any>);
 
