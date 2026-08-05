@@ -278,7 +278,7 @@ export default function PropertyForm({
   const navigate = useNavigate();
   const routeParams = useParams(); // Can be UUID or slug
   const id = embeddedPropertyId ?? routeParams.id;
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const forceTabs = forceTabsOverride ?? searchParams.get("forceTabs") === "1";
   // Embed mode: renders PropertyForm without page chrome (breadcrumb, header,
   // outer tab strip) and only the tab in `?tab=`. Used by /pms/property-setup
@@ -2035,14 +2035,37 @@ export default function PropertyForm({
     });
   }, []);
 
+  // Keep the visible tab in sync with readiness-wizard deep links, but consume
+  // each deep link ONCE. Otherwise the lingering ?section= param would keep
+  // snapping the user back to that tab, locking them on the page.
+  const consumedDeepLinkRef = useRef<string | null>(null);
+  const deepLinkKey = `${searchParams.get("section") ?? ""}|${searchParams.get("rq") ?? ""}`;
   useEffect(() => {
-    // Keep the visible tab in sync with readiness-wizard deep links. This must
-    // also run in the standalone admin editor, where updating ?section= does
-    // not remount PropertyForm.
-    if (requestedInitialTab && requestedInitialTab !== activeTab) {
-      setActiveTab(requestedInitialTab);
+    const section = searchParams.get("section");
+    if (!section) {
+      consumedDeepLinkRef.current = null;
+      return;
     }
-  }, [activeTab, requestedInitialTab]);
+    if (consumedDeepLinkRef.current === deepLinkKey) return;
+    consumedDeepLinkRef.current = deepLinkKey;
+    setActiveTab(section);
+  }, [deepLinkKey, searchParams]);
+
+  const handleTabChange = useCallback(
+    (next: string) => {
+      setActiveTab(next);
+      // Drop the wizard deep-link params so nothing pulls the user back.
+      const params = new URLSearchParams(searchParams);
+      if (params.has("section") || params.has("focus") || params.has("rq")) {
+        params.delete("section");
+        params.delete("focus");
+        params.delete("rq");
+        setSearchParams(params, { replace: true });
+      }
+    },
+    [searchParams, setSearchParams],
+  );
+
 
   // --- Field-level readiness highlighting (pink = mandatory, blue = nice-to-have).
   // When embedded in the ROLOS hub, that shell owns the painting/legend/stepper.
@@ -4029,7 +4052,7 @@ export default function PropertyForm({
             <PropertySectionRail
               groups={railGroups}
               activeKey={activeTab}
-              onSelect={setActiveTab}
+              onSelect={handleTabChange}
               blockerKeys={tabsWithBlockers}
               requirementCounts={requirementCounts}
               collapsed={railCollapsed}
@@ -4040,7 +4063,7 @@ export default function PropertyForm({
 
         <Tabs
           value={activeTab}
-          onValueChange={setActiveTab}
+          onValueChange={handleTabChange}
           className={
             embedded ? "space-y-3" : "min-w-0 space-y-3 rounded-lg border bg-background p-3"
           }
