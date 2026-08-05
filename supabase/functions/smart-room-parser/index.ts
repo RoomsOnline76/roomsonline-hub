@@ -1,4 +1,3 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { AI_MODELS } from "../_shared/aiModels.ts";
 
 const corsHeaders = {
@@ -51,7 +50,7 @@ const AMENITY_KEYWORDS: Record<string, string[]> = {
   "ensuite": ["ensuite", "en-suite", "private bathroom", "attached bathroom"],
 };
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }

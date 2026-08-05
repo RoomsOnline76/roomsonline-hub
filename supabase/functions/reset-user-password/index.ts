@@ -1,4 +1,3 @@
-import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { Resend } from "npm:resend@4";
 import { z } from "npm:zod@3.23.8";
@@ -14,7 +13,7 @@ const requestSchema = z.object({
   email: z.string().trim().email("Invalid email address").max(255, "Email too long"),
 });
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }

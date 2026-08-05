@@ -1,4 +1,3 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { findDiningExperience } from "../_shared/delight-engine.ts";
 import { AI_MODELS, AI_GATEWAY_URL } from "../_shared/aiModels.ts";
@@ -758,7 +757,7 @@ RULES:
 // MAIN HANDLER
 // ============================================================================
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
