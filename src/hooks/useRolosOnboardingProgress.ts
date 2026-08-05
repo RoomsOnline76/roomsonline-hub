@@ -71,12 +71,21 @@ interface IdentityPayload {
   keys_captured?: boolean;
 }
 
+export interface SignoffCheckRecord {
+  checked: boolean;
+  by?: string | null;
+  at?: string | null;
+}
+
 export interface RolosOnboardingSignoff {
   signed_off: boolean;
   signed_off_by?: string | null;
   signed_off_at?: string | null;
   note?: string | null;
+  /** Per-item manual verification ticks (step 10). */
+  checks: Record<string, SignoffCheckRecord>;
 }
+
 
 async function invokeCert<T>(
   action: string,
