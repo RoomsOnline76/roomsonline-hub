@@ -50,10 +50,15 @@ export default function RuImageTagPicker({
 
   const groups = useMemo(() => ruImageTagGroups(), []);
 
-  const toggle = (id: number) => {
+  const toggle = (id: number, closeAfter = false) => {
     if (disabled) return;
     onChange(selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id]);
+    if (closeAfter) {
+      setSearch("");
+      setOpen(false);
+    }
   };
+
 
   const renderTag = (tag: RuImageTag) => {
     const active = selected.includes(tag.id);
