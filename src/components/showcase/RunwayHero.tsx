@@ -300,22 +300,30 @@ export function RunwayHero({
                   gridImages.length >= 3 ? "col-span-2 row-span-2" : ""
                 )} onClick={onShowAllPhotos}>
                   <img
-                    src={gridImages[0]}
+                    src={optimizedImage(gridImages[0], 1000, 72)}
+                    srcSet={imageSrcSet(gridImages[0], [700, 1000, 1400], 72)}
+                    sizes="(min-width: 768px) 50vw, 100vw"
                     alt={`${name} - main`}
                     className="w-full h-full object-cover"
                     loading="eager"
+                    fetchPriority="high"
+                    decoding="async"
                   />
                 </div>
                 {gridImages.slice(1).map((img, i) => (
                   <div key={i} className="relative cursor-pointer" onClick={onShowAllPhotos}>
                     <img
-                      src={img}
+                      src={optimizedImage(img, 500, 70)}
+                      srcSet={imageSrcSet(img, [350, 500, 700], 70)}
+                      sizes="25vw"
                       alt={`${name} - ${i + 2}`}
                       className="w-full h-full object-cover"
                       loading="lazy"
+                      decoding="async"
                     />
                   </div>
                 ))}
+
               </div>
             ) : (
               <div className="h-[420px] bg-muted rounded-2xl" style={{ background: gradientFallback }} />
