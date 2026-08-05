@@ -2,7 +2,7 @@
 // EXPERIENCE ENGINE — SHARED HELPERS
 // ============================================================================
 
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { createClient } from 'npm:@supabase/supabase-js@2';
 
 /**
  * Resolve experience config for a property + type.

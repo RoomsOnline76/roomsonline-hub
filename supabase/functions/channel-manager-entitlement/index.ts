@@ -4,7 +4,7 @@
 // property or a portfolio, every affected property must be archived (or
 // re-activated) at Rentals United and flagged locally so the ROL'OS Channel
 // Manager screen can lock itself.
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;

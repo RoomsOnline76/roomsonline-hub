@@ -13,7 +13,7 @@
  * Effects on RU: loses dashboard access, channel connections removed, properties archived.
  * Locally: clears the portfolio/property RU bind (identity reset) when a matching row exists.
  */
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

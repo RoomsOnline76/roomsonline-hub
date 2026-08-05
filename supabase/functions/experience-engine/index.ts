@@ -1,4 +1,4 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { createClient } from 'npm:@supabase/supabase-js@2';
 import { createSuccessResponse, createErrorResponse } from '../_shared/adapter-contract.ts';
 import { resolveExperienceConfig, callPmsAdapterWithLiveCheck } from '../_shared/experience-helpers.ts';
 import { AI_MODELS } from "../_shared/aiModels.ts";

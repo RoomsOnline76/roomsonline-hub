@@ -2,7 +2,7 @@
 // Allows HyperGuest's QA team to (a) run the 12-step certification against sandbox hotel 19912
 // and (b) inspect a read-only "reflection" of how cancellation policies, board bases, taxes,
 // fees, remarks, special requests, photos, and facilities are presented in ROLOS.
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

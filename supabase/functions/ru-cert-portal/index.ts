@@ -10,7 +10,7 @@
 //   compliance       → refresh cadence panel data (from ru_sync_runs)
 //   wl_readiness     → per-property White-Label minimum inventory report
 //   user_management  → status of RU sub-user management (parked)
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2";
 import { summarizeReadiness, type RuCheck, type RuUnitInput } from "../_shared/ruReadiness.ts";
 import { evaluatePhases, findOwnerAccount, resolvePortfolioId } from "../_shared/ruPhaseGate.ts";
 import { createRateResolver, describeCoverage } from "../_shared/rateResolution.ts";

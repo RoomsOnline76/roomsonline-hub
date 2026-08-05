@@ -1,8 +1,8 @@
 // One-shot helper: sends every active rolos_message_template for a property
 // to a recipient with sample placeholder data, wrapped in the property's
 // own branded stationery (logo + colours). Intended for QA/preview only.
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { Resend } from "https://esm.sh/resend@4.0.0";
+import { createClient } from "npm:@supabase/supabase-js@2";
+import { Resend } from "npm:resend@4";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
