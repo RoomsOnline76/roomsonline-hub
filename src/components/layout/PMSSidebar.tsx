@@ -103,6 +103,7 @@ export function PMSSidebar() {
     const saved = localStorage.getItem("pms-sidebar-collapsed");
     return saved ? JSON.parse(saved) : false;
   });
+  const [switcherOpen, setSwitcherOpen] = useState(false);
 
   useEffect(() => {
     localStorage.setItem("pms-sidebar-collapsed", JSON.stringify(collapsed));
