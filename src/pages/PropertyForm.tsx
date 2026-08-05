@@ -4198,15 +4198,9 @@ export default function PropertyForm({
                     </>
                   )}
 
-                  {["roomsonline", "rolos", "rol_os", "rolos_pms"].includes(
-                    (selectedPMS ?? "").trim().toLowerCase(),
-                  ) &&
-                    propertyId && (
-                      <div className="mb-3">
-                        <RolosReadinessScoreBadge propertyId={propertyId} />
-                        <RuPushContinueButton propertyId={propertyId} className="mt-2" />
-                      </div>
-                    )}
+                  {/* Legacy readiness badge + RU push gate retired — handled by the
+                      floating ROL'OS onboarding wizard. */}
+
 
 
                   {/* WETU Pin ID — always visible regardless of PMS */}
