@@ -191,20 +191,57 @@ export function PMSSidebar() {
 
         {/* Property switcher for platform users */}
         {isPlatformUser && !collapsed && properties.length > 0 && (
-          <Select value={propertyId || ""} onValueChange={switchProperty}>
-            <SelectTrigger className="h-8 text-xs bg-muted/50 border-border/50">
-              <SelectValue placeholder="Select ROL'OS property…" />
-            </SelectTrigger>
-            <SelectContent>
-              {properties.map((p) => (
-                <SelectItem key={p.id} value={p.id} className="text-xs">
-                  {p.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        {/* Property switcher for platform users — searchable */}
+        {isPlatformUser && !collapsed && properties.length > 0 && (
+          <Popover open={switcherOpen} onOpenChange={setSwitcherOpen}>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                role="combobox"
+                aria-expanded={switcherOpen}
+                className="flex h-8 w-full items-center justify-between rounded-md border border-border/50 bg-muted/50 px-3 text-xs text-left"
+              >
+                <span className="truncate">
+                  {properties.find((p) => p.id === propertyId)?.name || "Select ROL'OS property…"}
+                </span>
+                <ChevronsUpDown className="h-3 w-3 shrink-0 opacity-50" />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-64 p-0" align="start">
+              <Command>
+                <CommandInput placeholder="Search properties…" className="h-8 text-xs" />
+                <CommandList>
+                  <CommandEmpty className="py-4 text-center text-xs text-muted-foreground">
+                    No property found.
+                  </CommandEmpty>
+                  <CommandGroup>
+                    {properties.map((p) => (
+                      <CommandItem
+                        key={p.id}
+                        value={p.name}
+                        className="text-xs"
+                        onSelect={() => {
+                          switchProperty(p.id);
+                          setSwitcherOpen(false);
+                        }}
+                      >
+                        <Check
+                          className={cn(
+                            "mr-2 h-3 w-3",
+                            propertyId === p.id ? "opacity-100" : "opacity-0"
+                          )}
+                        />
+                        <span className="truncate">{p.name}</span>
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
         )}
         {isPlatformUser && collapsed && properties.length > 0 && (
+
           <Tooltip>
             <TooltipTrigger asChild>
               <button
