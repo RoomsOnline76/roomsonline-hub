@@ -8232,6 +8232,9 @@ export default function PropertyForm({
           });
         }}
       />
+      {!embedded && isEditMode && propertyId && (
+        <RolosOnboardingWizard propertyId={propertyId} />
+      )}
     </FormShell>
   );
 }
