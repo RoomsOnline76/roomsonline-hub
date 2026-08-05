@@ -1,10 +1,10 @@
-import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { Resend } from "https://esm.sh/resend@4.0.0";
-import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
+import { createClient } from "npm:@supabase/supabase-js@2";
+import { Resend } from "npm:resend@4";
+import { z } from "npm:zod@3.23.8";
 
-const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
-
+// Lazy client: constructed on first use so cold boots don't pay for it.
+let _resend: Resend | null = null;
+const getResend = () => (_resend ??= new Resend(Deno.env.get("RESEND_API_KEY")));
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -134,7 +134,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     const fromEmailConfig = emailConfig?.find((k: any) => k.key_name === "RESEND_FROM_EMAIL")?.key_value;
     const toEmailConfig = emailConfig?.find((k: any) => k.key_name === "RESEND_TO_EMAIL")?.key_value;
-    const fromEmail = fromEmailConfig || "RoomsOnline <onboarding@resend.dev>";
+    const fromEmail = fromEmailConfig || "RoomsOnline <onboarding@getResend().dev>";
     const adminEmail = toEmailConfig || "sleepinafrica@roomsonline.co.za";
 
     console.log("Using email config:", { fromEmail, adminEmail });
@@ -166,7 +166,7 @@ const handler = async (req: Request): Promise<Response> => {
     console.log("Access request saved:", accessRequest.id);
 
     // Send notification email to admin
-    await resend.emails.send({
+    await getResend().emails.send({
       from: fromEmail,
       to: [adminEmail],
       subject: `New Access Request from ${name}`,
@@ -194,7 +194,7 @@ const handler = async (req: Request): Promise<Response> => {
     });
 
     // Send confirmation email to requester
-    await resend.emails.send({
+    await getResend().emails.send({
       from: fromEmail,
       to: [email],
       subject: "Access Request Received - RoomsOnline",
@@ -226,4 +226,4 @@ const handler = async (req: Request): Promise<Response> => {
   }
 };
 
-serve(handler);
+Deno.serve(handler);

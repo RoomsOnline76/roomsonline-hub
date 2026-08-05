@@ -1,8 +1,8 @@
-import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { Resend } from "https://esm.sh/resend@4.0.0";
+import { Resend } from "npm:resend@4";
 
-const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
-
+// Lazy client: constructed on first use so cold boots don't pay for it.
+let _resend: Resend | null = null;
+const getResend = () => (_resend ??= new Resend(Deno.env.get("RESEND_API_KEY")));
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -192,7 +192,7 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     // Send notification email to RoomsOnline team
-    const teamEmailResponse = await resend.emails.send({
+    const teamEmailResponse = await getResend().emails.send({
       from: "RoomsOnline Contact <contact@notify.roomsonline.co.za>",
       to: ["carike@roomsonline.co.za"],
       replyTo: email,
@@ -218,7 +218,7 @@ const handler = async (req: Request): Promise<Response> => {
     console.log("Team notification email sent:", teamEmailResponse);
 
     // Send confirmation email to user with ROL branding
-    const userEmailResponse = await resend.emails.send({
+    const userEmailResponse = await getResend().emails.send({
       from: "RoomsOnline <hello@notify.roomsonline.co.za>",
       to: [email],
       subject: "We've received your message - RoomsOnline",
@@ -247,4 +247,4 @@ const handler = async (req: Request): Promise<Response> => {
   }
 };
 
-serve(handler);
+Deno.serve(handler);

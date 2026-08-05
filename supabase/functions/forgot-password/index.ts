@@ -1,10 +1,10 @@
-import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { Resend } from "https://esm.sh/resend@4.0.0";
-import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
+import { createClient } from "npm:@supabase/supabase-js@2";
+import { Resend } from "npm:resend@4";
+import { z } from "npm:zod@3.23.8";
 
-const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
-
+// Lazy client: constructed on first use so cold boots don't pay for it.
+let _resend: Resend | null = null;
+const getResend = () => (_resend ??= new Resend(Deno.env.get("RESEND_API_KEY")));
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -14,7 +14,7 @@ const requestSchema = z.object({
   email: z.string().trim().email("Invalid email address").max(255, "Email too long"),
 });
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -96,7 +96,7 @@ serve(async (req) => {
     console.log('Sending password reset email to:', email);
 
     // Send custom password reset email via Resend
-    const emailResponse = await resend.emails.send({
+    const emailResponse = await getResend().emails.send({
       from: fromEmail,
       to: [email],
       subject: "Password Reset - RoomsOnline",

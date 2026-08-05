@@ -5,8 +5,8 @@
 //  - Marks past_due after current_period_end lapses without payment
 //  - Resends reminder every 3 days for still-pending invoices (max 5)
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { Resend } from "https://esm.sh/resend@2.0.0";
+import { createClient } from "npm:@supabase/supabase-js@2";
+import { Resend } from "npm:resend@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

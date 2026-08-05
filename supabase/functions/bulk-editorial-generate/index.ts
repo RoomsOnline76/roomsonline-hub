@@ -1,4 +1,3 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { AI_MODELS } from "../_shared/aiModels.ts";
 
@@ -175,7 +174,7 @@ IMPORTANT: Each response should be 1-2 sentences only. Be specific to THIS prope
   }
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }

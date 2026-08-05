@@ -1,4 +1,4 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { createClient } from 'npm:@supabase/supabase-js@2';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type SupabaseClientType = any;

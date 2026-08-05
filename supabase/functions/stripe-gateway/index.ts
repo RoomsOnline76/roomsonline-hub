@@ -2,7 +2,7 @@
 // STRIPE GATEWAY v1.0 — Stripe Checkout Sessions (redirect-based, no SDK)
 // ============================================================================
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

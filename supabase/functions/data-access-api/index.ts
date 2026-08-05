@@ -1,10 +1,11 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
+    "authorization, x-client-info, apikey, content-type, x-warm",
 };
+
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -17,6 +18,14 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
+
+  // Keep-warm probe: answered before any client/auth/DB work so the isolate
+  // stays resident without doing (or authorising) real work.
+  if (req.headers.get("x-warm") === "1") {
+    return jsonResponse({ success: true, warm: true });
+  }
+
+
 
   try {
     const authHeader = req.headers.get("Authorization");

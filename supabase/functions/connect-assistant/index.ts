@@ -1,5 +1,4 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { createClient } from "npm:@supabase/supabase-js@2";
 import { AI_MODELS } from "../_shared/aiModels.ts";
 
 const corsHeaders = {
@@ -156,7 +155,7 @@ All prices in ZAR. All plans include 60-day free trial, no credit card, cancel a
   }
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }

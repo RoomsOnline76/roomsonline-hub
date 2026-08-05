@@ -13,7 +13,7 @@ import {
   parseLnmChangeTypes,
   parseLnmSubscriptions,
 } from '../_shared/ruLnm.ts';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { createClient } from 'npm:@supabase/supabase-js@2';
 
 
 /**

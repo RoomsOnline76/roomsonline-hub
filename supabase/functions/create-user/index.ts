@@ -1,10 +1,10 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
-import { Resend } from "https://esm.sh/resend@4.0.0";
+import { z } from "npm:zod@3.23.8";
+import { Resend } from "npm:resend@4";
 
-const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
-
+// Lazy client: constructed on first use so cold boots don't pay for it.
+let _resend: Resend | null = null;
+const getResend = () => (_resend ??= new Resend(Deno.env.get("RESEND_API_KEY")));
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -21,7 +21,7 @@ const requestSchema = z.object({
 });
 
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -235,7 +235,7 @@ serve(async (req) => {
         console.log('Sending welcome email from:', fromEmail, 'to:', email, 'isNewUser:', isNewUser);
 
         // Send welcome email
-        const emailResponse = await resend.emails.send({
+        const emailResponse = await getResend().emails.send({
           from: fromEmail,
           to: [email],
           subject: emailSubject,

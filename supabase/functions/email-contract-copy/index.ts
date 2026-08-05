@@ -1,8 +1,8 @@
-import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { Resend } from "https://esm.sh/resend@2.0.0";
+import { Resend } from "npm:resend@2";
 
-const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
-
+// Lazy client: constructed on first use so cold boots don't pay for it.
+let _resend: Resend | null = null;
+const getResend = () => (_resend ??= new Resend(Deno.env.get("RESEND_API_KEY")));
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -90,7 +90,7 @@ const handler = async (req: Request): Promise<Response> => {
     const logoUrl = "https://book.sleepinafrica.roomsonline.co.za/images/rol-logo-email.png";
     const propertyDetailsHTML = generatePropertyDetailsHTML(property_details);
 
-    const emailResponse = await resend.emails.send({
+    const emailResponse = await getResend().emails.send({
       from: "RoomsOnline <hello@notify.roomsonline.co.za>",
       to: [email],
       subject: `RoomsOnline Agreement for ${property_name} - For Your Review`,
@@ -201,4 +201,4 @@ const handler = async (req: Request): Promise<Response> => {
   }
 };
 
-serve(handler);
+Deno.serve(handler);

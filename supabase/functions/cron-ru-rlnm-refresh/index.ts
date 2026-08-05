@@ -1,4 +1,4 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { createClient } from 'npm:@supabase/supabase-js@2';
 import { resolveRuOwnerScopes } from '../_shared/ruOwnerScopes.ts';
 import {
   DEFAULT_LNM_CHANGE_TYPES,

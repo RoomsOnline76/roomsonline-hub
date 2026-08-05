@@ -10,7 +10,7 @@
  * So every account-level refresh has to fan out: master first, then one call
  * per sub-user that has usable API credentials, each with its own auth.
  */
-import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 
 export interface RuOwnerScope {
   /** null for the master account. */

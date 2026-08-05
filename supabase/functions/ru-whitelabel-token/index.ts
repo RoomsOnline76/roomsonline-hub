@@ -25,7 +25,7 @@
  *   set_tokens  { property_id | ru_owner_id, access_token, refresh_token, expires_in? }  (admin only)
  *   clear_tokens { property_id | ru_owner_id }        (admin only)
  */
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { createClient } from 'npm:@supabase/supabase-js@2';
 import { findOwnerAccount } from '../_shared/ruPhaseGate.ts';
 
 const corsHeaders = {

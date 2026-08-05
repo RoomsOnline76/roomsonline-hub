@@ -1,4 +1,3 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { AI_MODELS } from "../_shared/aiModels.ts";
 
 const corsHeaders = {
@@ -102,7 +101,7 @@ const INVARIANT_RULES: Record<string, string> = {
   auth_boundaries: "Authentication boundaries must be enforced. Unauthenticated users cannot access protected routes or data.",
 };
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
