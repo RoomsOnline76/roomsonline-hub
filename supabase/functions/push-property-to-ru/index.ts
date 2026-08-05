@@ -2292,12 +2292,30 @@ Deno.serve(async (req) => {
     // of trusting our own cache (which is what previously reported green while RU sat on USD).
     if (action === 'verify_ru_currency') {
       const targetIds: string[] | undefined = Array.isArray(reqBody.property_ids) ? reqBody.property_ids : undefined;
+      // Multi-unit listings live on the UNITS, not the parent property, so a property-level
+      // RU ID filter alone silently skipped every ROL'OS multi-unit property.
+      const { data: unitOwners } = await supabase
+        .from('hostfully_room_types')
+        .select('property_id')
+        .not('rentalsunited_property_id', 'is', null);
+      const unitPropertyIds = Array.from(
+        new Set(((unitOwners ?? []) as any[]).map((u) => u.property_id).filter(Boolean)),
+      ) as string[];
+
       const { data: props } = await supabase
         .from('properties')
         .select('id, name, owner_email, country, amenities, ru_location_id, rentalsunited_property_id, rentalsunited_building_id')
-        .or('rentalsunited_property_id.not.is.null,rentalsunited_building_id.not.is.null');
+        .or(
+          [
+            'rentalsunited_property_id.not.is.null',
+            'rentalsunited_building_id.not.is.null',
+            ...(unitPropertyIds.length ? [`id.in.(${unitPropertyIds.join(',')})`] : []),
+          ].join(','),
+        );
 
       const targets = (props ?? []).filter((p: any) => !targetIds || targetIds.includes(p.id));
+      const results: any[] = [];
+
       const results: any[] = [];
 
       for (const p of targets as any[]) {
