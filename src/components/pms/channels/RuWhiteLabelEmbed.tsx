@@ -8,12 +8,12 @@ import { usePMSBrand } from "@/contexts/PMSBrandContext";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
-/** Resolved page background, handed to the embed so it never looks pasted on. */
-function readPageBackground(): string {
-  if (typeof window === "undefined") return "#ffffff";
-  const raw = getComputedStyle(document.documentElement).getPropertyValue("--background").trim();
-  return raw ? `hsl(${raw})` : "#ffffff";
-}
+/**
+ * Embed frame canvas, matched to the ROL'OS page background so the frame boundary is
+ * invisible: #FFFFFF in day mode, #141414 in night mode.
+ */
+const EMBED_BG_LIGHT = "#FFFFFF";
+const EMBED_BG_DARK = "#141414";
 
 const EMBED_HEIGHT = "h-[calc(100vh-12rem)]";
 
