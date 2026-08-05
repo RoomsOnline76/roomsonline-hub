@@ -110,6 +110,13 @@ export default function RoomAvailability() {
 
   return (
     <PublicLayout hideHeader>
+      <div className="container mx-auto px-4 pt-6">
+        <ShowcaseAvailabilityCalendar
+          propertyId={property.id}
+          amenities={property.amenities}
+          title="Availability & rates"
+        />
+      </div>
       <RoomAvailabilityCalendar
         propertyId={property.id}
         propertySlug={property.slug || property.id}
@@ -118,6 +125,7 @@ export default function RoomAvailability() {
         roomId={roomId}
         externalSystem={property.external_system}
       />
+
     </PublicLayout>
   );
 }
