@@ -125,6 +125,8 @@ export const PropertyCard = memo(PropertyCardInner, (prev, next) => {
   return (
     prev.property.id === next.property.id &&
     prev.variant === next.variant &&
-    prev.showCautionBadge === next.showCautionBadge
+    prev.showCautionBadge === next.showCautionBadge &&
+    prev.priority === next.priority
+
   );
 });
