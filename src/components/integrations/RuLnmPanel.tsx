@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-import { AlertCircle, BellRing, CheckCircle2, Copy, Loader2, RefreshCw, Radio, ListTree, Info } from "lucide-react";
+import { AlertCircle, BellRing, CheckCircle2, Copy, Loader2, RefreshCw, Radio, ListTree } from "lucide-react";
 
 /**
  * Rentals United Live Notification Mechanism management.
@@ -403,21 +403,6 @@ export function RuLnmPanel() {
         </Card>
       )}
 
-      <Card className="border-warning/40">
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <Info className="h-4 w-4" /> Minimum content quality check — gated
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            <code className="font-mono">CM_LNM_OrderMinimumContentQualityCheck_RQ</code> cannot be
-            called until the Channel Manager API is fully integrated and deployed. Ordering a quality
-            check before then will be rejected by Rentals United, so the action stays disabled in the
-            onboarding pipeline.
-          </p>
-        </CardContent>
-      </Card>
 
 
 
