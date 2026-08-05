@@ -11,6 +11,8 @@ import { Separator } from "@/components/ui/separator";
 import {
   AlertTriangle,
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
   Copy,
   ExternalLink,
   KeyRound,
@@ -98,6 +100,8 @@ export function PropertyRuOwnerPanel({ propertyId, pmsSystem, readOnly = false }
   const [secretKey, setSecretKey] = useState("");
   const [keyLabel, setKeyLabel] = useState("ROL'OS");
   const [editingKeys, setEditingKeys] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+
 
 
   const load = useCallback(async () => {
@@ -198,6 +202,9 @@ export function PropertyRuOwnerPanel({ propertyId, pmsSystem, readOnly = false }
   const gated = identity?.push_gated !== false;
   /** Once keys exist the instructions and inputs collapse to a single "Update keys" action. */
   const showKeyEntry = !identity?.keys_captured || editingKeys;
+  /** Fully provisioned (OwnerID + key/secret captured) — the panel rests collapsed. */
+  const settled = linked && identity?.keys_captured === true;
+  const bodyVisible = !settled || expanded;
 
 
   return (
@@ -222,13 +229,28 @@ export function PropertyRuOwnerPanel({ propertyId, pmsSystem, readOnly = false }
               blocked until the sub-account's own API key and secret are captured here.
             </CardDescription>
           </div>
-          <Button variant="ghost" size="sm" onClick={() => void load()} disabled={loading} className="gap-1.5">
-            {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-            Refresh
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button variant="ghost" size="sm" onClick={() => void load()} disabled={loading} className="gap-1.5">
+              {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+              Refresh
+            </Button>
+            {settled && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 gap-1 text-xs"
+                onClick={() => setExpanded((v) => !v)}
+                aria-expanded={expanded}
+              >
+                {expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                {expanded ? "Hide" : "Manage"}
+              </Button>
+            )}
+          </div>
         </div>
       </CardHeader>
 
+      {bodyVisible && (
       <CardContent className="py-3 px-4 space-y-3">
         {gated && identity?.gate_reason && (
           <Alert variant="default" className="py-2">
@@ -493,6 +515,7 @@ export function PropertyRuOwnerPanel({ propertyId, pmsSystem, readOnly = false }
           </>
         )}
       </CardContent>
+      )}
     </Card>
   );
 }

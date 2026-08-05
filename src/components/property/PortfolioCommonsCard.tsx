@@ -7,7 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
-import { AlertCircle, ArrowDownToLine, Check, Loader2, Share2, Users } from "lucide-react";
+import { AlertCircle, ArrowDownToLine, Check, ChevronDown, ChevronUp, Loader2, Share2, Users } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   PORTFOLIO_COMMONS_GROUPS,
@@ -42,6 +42,8 @@ export function PortfolioCommonsCard({ propertyId, isDirty }: Props) {
     Object.fromEntries(PORTFOLIO_COMMONS_GROUPS.map((g) => [g.key, true])),
   );
   const [selectedTargets, setSelectedTargets] = useState<Record<string, boolean>>({});
+  // Commons is a maintenance tool, not a daily task — it starts collapsed.
+  const [expanded, setExpanded] = useState(false);
 
   const load = useCallback(async () => {
     if (!propertyId) return;
@@ -183,9 +185,21 @@ export function PortfolioCommonsCard({ propertyId, isDirty }: Props) {
               Auto-share on save
             </Label>
             <Switch id="commons-auto-share" checked={state.autoShare} onCheckedChange={handleAutoShare} />
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 gap-1 text-xs"
+              onClick={() => setExpanded((v) => !v)}
+              aria-expanded={expanded}
+            >
+              {expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+              {expanded ? "Hide" : "Manage"}
+            </Button>
           </div>
         </div>
       </CardHeader>
+      {expanded && (
       <CardContent className="space-y-4">
         {isDirty && (
           <p className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -285,6 +299,7 @@ export function PortfolioCommonsCard({ propertyId, isDirty }: Props) {
           Both actions are blank-safe: a value already captured on a property is never overwritten.
         </p>
       </CardContent>
+      )}
     </Card>
   );
 }
