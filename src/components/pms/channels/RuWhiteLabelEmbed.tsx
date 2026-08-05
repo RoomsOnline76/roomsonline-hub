@@ -77,13 +77,15 @@ export function RuWhiteLabelEmbed({ propertyId }: { propertyId: string | null | 
     } as React.CSSProperties;
   }, [brand.brandEnabled, brand.primaryColor, brand.secondaryColor, brand.accentColor, brand.fontColor]);
 
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container || !tokens) return;
-
-    setScriptFailed(false);
-    container.innerHTML = "";
-
+  /**
+   * The RU one-line script is a jQuery snippet that appends `<base href="/">` plus the
+   * Angular bundles to the host document's <head> and then renders <white-pms-host>
+   * inside `#ruApp`. Running that directly in our SPA both fails (no global jQuery) and
+   * would hijack relative URL resolution for our own router, so we host it inside an
+   * isolated same-origin iframe document that provides jQuery and the empty container.
+   */
+  const embedDoc = useMemo(() => {
+    if (!tokens) return null;
     const params = new URLSearchParams({
       token: tokens.subUserAccessToken,
       refreshToken: tokens.subUserRefreshToken,
@@ -91,22 +93,37 @@ export function RuWhiteLabelEmbed({ propertyId }: { propertyId: string | null | 
       uiVersion: "2",
       ownerId: tokens.ruOwnerId,
     });
-
-    const script = document.createElement("script");
-    script.src = `https://new.rentalsunited.com/white-pms-client/script?${params.toString()}`;
-    script.async = true;
-    script.onerror = () => setScriptFailed(true);
-
-    // Official placement: outside the #ruApp container so the RU client can
-    // reliably mount into the empty div.
-    document.head.appendChild(script);
-
-    return () => {
-      script.onerror = null;
-      script.remove();
-      container.innerHTML = "";
-    };
+    const src = `https://new.rentalsunited.com/white-pms-client/script?${params.toString()}`;
+    return `<!doctype html>
+<html><head><meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>html,body{margin:0;padding:0;height:100%;background:#fff;font-family:system-ui,-apple-system,"Segoe UI",sans-serif}#ruApp{min-height:100%}</style>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+</head>
+<body><div id="ruApp"></div>
+<script>
+(function(){
+  function boot(){ var s=document.createElement('script'); s.src=${JSON.stringify(src)};
+    s.onerror=function(){ parent.postMessage({ type:'ru-wl-error' },'*'); };
+    document.head.appendChild(s); }
+  if (window.jQuery) { boot(); } else { window.addEventListener('load', boot); }
+})();
+</script>
+</body></html>`;
   }, [tokens]);
+
+  useEffect(() => {
+    if (!embedDoc) return;
+    setScriptFailed(false);
+    const onMessage = (event: MessageEvent) => {
+      if (event.data && (event.data as { type?: string }).type === "ru-wl-error") {
+        setScriptFailed(true);
+      }
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [embedDoc]);
+
 
   if (isLoading) {
     return (
