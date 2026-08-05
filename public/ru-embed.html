@@ -10,12 +10,31 @@
         margin: 0;
         padding: 0;
         height: 100%;
-        background: #fff;
+        /* Set from the ?bg= param so the frame matches the ROL'OS page background. */
+        background: var(--rolos-bg, #fff);
         font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
       }
       #ruApp {
         min-height: 100%;
+        background: transparent;
       }
+
+      /*
+        Night mode. The embedded channel manager ships a light-only stylesheet, so the
+        rendered tree is tone-mapped to match the ROL'OS dark theme, and media
+        (logos, channel artwork, photos) is mapped back so it stays true to colour.
+      */
+      html[data-rolos-theme="dark"] #ruApp {
+        filter: invert(0.92) hue-rotate(180deg);
+      }
+      html[data-rolos-theme="dark"] #ruApp img,
+      html[data-rolos-theme="dark"] #ruApp svg,
+      html[data-rolos-theme="dark"] #ruApp video,
+      html[data-rolos-theme="dark"] #ruApp canvas,
+      html[data-rolos-theme="dark"] #ruApp [style*="background-image"] {
+        filter: invert(1) hue-rotate(180deg);
+      }
+
 
       /*
         Layout-only centering of the White Label client. RU ships a left-aligned
