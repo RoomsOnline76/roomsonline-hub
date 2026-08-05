@@ -5,9 +5,11 @@ import { usePropertyReadiness, type ReadinessItem } from "@/hooks/usePropertyRea
 import { useBillingConfig } from "@/hooks/useBillingConfig";
 import {
   ROLOS_ONBOARDING_MACROS,
+  ROLOS_SIGNOFF_CHECKLIST,
   type DistributionCheckKey,
   type MacroDef,
 } from "@/config/rolosOnboardingMacros";
+
 
 /**
  * ROL'OS Channel Readiness progress model.
