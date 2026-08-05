@@ -215,9 +215,11 @@ export default function EmbedPortfolio() {
           if (data.specials && data.specials.length > 0) {
             setSpecials(data.specials);
           } else {
-            // Fallback: fetch specials client-side if API returned empty
-            const propIds = mapped.map((p: PortfolioProperty) => p.id);
-            if (propIds.length > 0) {
+            // Fallback: fetch specials client-side if API returned empty.
+            // Deferred — specials are decoration, not part of the first paint.
+            void (async () => {
+              const propIds = mapped.map((p: PortfolioProperty) => p.id);
+              if (propIds.length === 0) return;
               const today = new Date().toISOString().split("T")[0];
               const { data: fallbackSpecials } = await supabase
                 .from("property_specials" as any)
@@ -226,19 +228,18 @@ export default function EmbedPortfolio() {
                 .eq("is_public", true)
                 .gte("valid_to", today)
                 .in("property_id", propIds);
-              if (fallbackSpecials && fallbackSpecials.length > 0) {
-                const fbMapped = (fallbackSpecials as any[]).map((s) => {
-                  const prop = mapped.find((p: PortfolioProperty) => p.id === s.property_id);
-                  let discount_type = "percentage";
-                  let discount_value = s.discount_percent || s.fixed_amount || s.fixed_price || 0;
-                  if (s.discount_percent) { discount_type = "percentage"; discount_value = s.discount_percent; }
-                  else if (s.fixed_amount) { discount_type = "fixed_amount"; discount_value = s.fixed_amount; }
-                  else if (s.fixed_price) { discount_type = "fixed_price"; discount_value = s.fixed_price; }
-                  return { id: s.id, name: s.name, description: s.description, discount_type, discount_value, valid_from: s.valid_from, valid_to: s.valid_to, property_id: s.property_id, property_name: prop?.name || null, property_slug: prop?.slug || null };
-                });
-                setSpecials(fbMapped);
-              }
-            }
+              if (!fallbackSpecials || fallbackSpecials.length === 0) return;
+              const fbMapped = (fallbackSpecials as any[]).map((s) => {
+                const prop = mapped.find((p: PortfolioProperty) => p.id === s.property_id);
+                let discount_type = "percentage";
+                let discount_value = s.discount_percent || s.fixed_amount || s.fixed_price || 0;
+                if (s.discount_percent) { discount_type = "percentage"; discount_value = s.discount_percent; }
+                else if (s.fixed_amount) { discount_type = "fixed_amount"; discount_value = s.fixed_amount; }
+                else if (s.fixed_price) { discount_type = "fixed_price"; discount_value = s.fixed_price; }
+                return { id: s.id, name: s.name, description: s.description, discount_type, discount_value, valid_from: s.valid_from, valid_to: s.valid_to, property_id: s.property_id, property_name: prop?.name || null, property_slug: prop?.slug || null };
+              });
+              setSpecials(fbMapped);
+            })();
           }
 
           setLoading(false);
