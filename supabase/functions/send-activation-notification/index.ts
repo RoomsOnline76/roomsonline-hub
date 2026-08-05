@@ -6,8 +6,9 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
-
+// Lazy client: constructed on first use so cold boots don't pay for it.
+let _resend: Resend | null = null;
+const getResend = () => (_resend ??= new Resend(Deno.env.get("RESEND_API_KEY")));
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -145,7 +146,7 @@ Deno.serve(async (req) => {
 </html>
     `;
 
-    const { data: emailResult, error: emailError } = await resend.emails.send({
+    const { data: emailResult, error: emailError } = await getResend().emails.send({
       from: "RoomsOnline <noreply@notify.roomsonline.co.za>",
       to: [ownerEmail],
       subject: `🎉 ${propertyName} is now live on RoomsOnline!`,
@@ -164,7 +165,7 @@ Deno.serve(async (req) => {
 
     // Also send internal notification to admins
     try {
-      await resend.emails.send({
+      await getResend().emails.send({
         from: "RoomsOnline <noreply@notify.roomsonline.co.za>",
         to: ["carike@roomsonline.co.za", "sleepinafrica@roomsonline.co.za"],
         subject: `Property Activated: ${propertyName}`,
