@@ -189,6 +189,7 @@ export function ComponentHealthCard({
                   expectedLatency={expectedLatency}
                   height={100}
                 />
+                </Suspense>
               </div>
             </div>
 
