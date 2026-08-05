@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { Search, MapPin, Users, BedDouble, ChevronRight, Loader2, Building2, Sparkles, Package, Star, Tag, Volume2, VolumeX } from "lucide-react";
+import { Search, MapPin, Users, BedDouble, ChevronRight, Loader2, Building2, Sparkles, Package, Star, Tag, Volume2, VolumeX, Plus, X, Route } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +12,7 @@ import { PoweredByRolOS } from "@/components/pms/PoweredByRolOS";
 import { fetchLiveRatesBatch } from "@/lib/pmsLiveAvailability";
 import { EmbedPortfolioMap } from "@/components/embed/EmbedPortfolioMap";
 import { EmbedPortfolioReviews } from "@/components/embed/EmbedPortfolioReviews";
+import { useItinerary } from "@/contexts/ItineraryContext";
 
 interface ReviewRating {
   source: string;
@@ -95,6 +96,12 @@ export default function EmbedPortfolio() {
   const journeyMode = searchParams.get("journey_mode") === "true";
   const journeyCurrentPropertyId = searchParams.get("current_property_id");
   const journeyCheckIn = searchParams.get("checkIn");
+
+  // Multi-stay journey basket — lets guests stack stays from this or any other
+  // portfolio property into one checkout.
+  const { stays, hasStays, totalPrice: journeyTotal, totalNights: journeyNights, removeStay } = useItinerary();
+
+
 
   const [portfolio, setPortfolio] = useState<any>(null);
   const [properties, setProperties] = useState<PortfolioProperty[]>([]);
@@ -483,7 +490,7 @@ export default function EmbedPortfolio() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [properties.length, portfolioBranding.hero_video_url]);
 
-  const handleViewProperty = (slug: string) => {
+  const handleViewProperty = (slug: string, opts?: { journey?: boolean }) => {
     const prop = properties.find(p => p.slug === slug);
     const allowOverride = portfolioBranding.allow_property_brand_override === true;
     // Default: portfolio brand carries through. Override: use property's own brand.
@@ -503,8 +510,12 @@ export default function EmbedPortfolio() {
     params.set("integration", "portfolio_embed");
     params.set("mode", "embedded");
     if (portfolioSlug) params.set("portfolio_slug", portfolioSlug);
-    // Forward journey_mode so EmbedProperty knows to route back to journey review
-    if (journeyMode) params.set("journey_mode", "true");
+    // Forward journey_mode so EmbedProperty adds the selected stay to the journey
+    // and routes back to the journey review instead of a single-stay checkout.
+    // Active once the guest has any stay in the basket, or when they explicitly
+    // chose "Add stay" from a card.
+    if (journeyMode || hasStays || opts?.journey) params.set("journey_mode", "true");
+
     const forwardedCheckIn = searchParams.get("checkIn") || searchParams.get("checkin");
     const forwardedCheckOut = searchParams.get("checkOut") || searchParams.get("checkout");
     const forwardedAdults = searchParams.get("adults");
@@ -910,9 +921,22 @@ export default function EmbedPortfolio() {
                         <span className="flex items-center gap-1"><Users className="h-3 w-3" />Up to {prop.max_guests}</span>
                       )}
                     </div>
-                    <Button size="sm" className="text-xs h-7 gap-1 text-white" style={{ backgroundColor: brandColor }}>
-                      View & Book <ChevronRight className="h-3 w-3" />
-                    </Button>
+                    <div className="flex items-center gap-1.5">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-xs h-7 gap-1"
+                        style={{ borderColor: `${brandColor}60`, color: brandColor }}
+                        onClick={(e) => { e.stopPropagation(); handleViewProperty(prop.slug, { journey: true }); }}
+                        title="Pick dates and rooms, then keep adding more stays before checking out"
+                      >
+                        <Plus className="h-3 w-3" /> {hasStays ? "Add stay" : "Add to journey"}
+                      </Button>
+                      <Button size="sm" className="text-xs h-7 gap-1 text-white" style={{ backgroundColor: brandColor }}>
+                        View & Book <ChevronRight className="h-3 w-3" />
+                      </Button>
+                    </div>
+
                   </div>
                 </div>
               </motion.div>
@@ -997,6 +1021,67 @@ export default function EmbedPortfolio() {
           brandColor={brandColor}
         />
       </div>
+
+      {/* Journey basket — stack stays from this or any other property into one checkout */}
+      {hasStays && (
+        <>
+          <div className="h-28" aria-hidden />
+          <motion.div
+            initial={{ y: 60, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            className="fixed bottom-0 left-0 right-0 z-40 border-t bg-white/95 backdrop-blur px-4 py-3 sm:px-6"
+            style={{ borderColor: `${brandColor}30`, boxShadow: "0 -4px 16px rgba(0,0,0,0.08)" }}
+          >
+            <div className="max-w-6xl mx-auto flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <Route className="h-4 w-4 shrink-0" style={{ color: brandColor }} />
+                  <span className="text-sm font-semibold text-gray-900">
+                    Your journey · {stays.length} {stays.length === 1 ? "stay" : "stays"} · {journeyNights} {journeyNights === 1 ? "night" : "nights"}
+                  </span>
+                  <span className="text-sm text-gray-500">R{Math.round(journeyTotal).toLocaleString()}</span>
+                </div>
+                <div className="mt-1.5 flex gap-1.5 overflow-x-auto scrollbar-thin">
+                  {stays.map((s) => (
+                    <span
+                      key={s.id}
+                      className="inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] text-gray-600"
+                      style={{ borderColor: `${brandColor}40` }}
+                    >
+                      <span className="max-w-[140px] truncate">{s.property_name}</span>
+                      <span className="text-gray-400">
+                        {new Date(s.dates.check_in).toLocaleDateString("en-ZA", { day: "numeric", month: "short" })}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => removeStay(s.id)}
+                        className="ml-0.5 text-gray-400 hover:text-gray-700"
+                        aria-label={`Remove ${s.property_name} from journey`}
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+                <p className="mt-1 text-[11px] text-gray-400">
+                  Keep adding stays — same property on new dates or another property — then check out once.
+                </p>
+              </div>
+              <Button
+                size="sm"
+                className="text-xs text-white gap-1 shrink-0"
+                style={{ backgroundColor: brandColor }}
+                onClick={() => {
+                  if (window.parent !== window) window.location.href = "/journey/review";
+                  else navigate("/journey/review");
+                }}
+              >
+                Review & check out <ChevronRight className="h-3 w-3" />
+              </Button>
+            </div>
+          </motion.div>
+        </>
+      )}
 
       {/* Footer */}
       {searchParams.get("wl") !== "1" && (
