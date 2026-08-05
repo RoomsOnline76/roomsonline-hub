@@ -61,6 +61,8 @@ export function RolosOnboardingWizard({ propertyId, className }: Props) {
     macros,
     currentMacro,
     overall,
+    channelsConnected,
+
     signoff,
     recordSignoff,
     recordSignoffCheck,
