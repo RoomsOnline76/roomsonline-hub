@@ -287,6 +287,16 @@ export function ShowcaseAvailabilityCalendar({
             exit={{ height: 0, opacity: 0 }}
             className="overflow-hidden mt-3 border border-border bg-white"
           >
+            {gridRooms.length === 0 ? (
+              /* Space reservation: the grid's own height while rooms/ARI load,
+                 so opening the panel doesn't re-flow twice. */
+              <div className="p-3 space-y-2" aria-hidden>
+                <div className="h-8 w-full bg-muted animate-pulse" />
+                {[0, 1, 2].map((i) => (
+                  <div key={i} className="h-14 w-full bg-muted/60 animate-pulse" />
+                ))}
+              </div>
+            ) : (
             <EmbedAvailabilityGrid
               rooms={gridRooms}
               startDate={start}
@@ -298,6 +308,7 @@ export function ShowcaseAvailabilityCalendar({
               highlightRange={highlightRange}
 
             />
+            )}
           </motion.div>
         )}
       </AnimatePresence>

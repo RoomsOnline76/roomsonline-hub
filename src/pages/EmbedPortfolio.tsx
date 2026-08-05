@@ -627,7 +627,7 @@ export default function EmbedPortfolio() {
         <div className="max-w-6xl mx-auto flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             {brandLogo ? (
-              <img src={brandLogo} alt="" className="h-8 object-contain" />
+              <img src={brandLogo} alt="" width={140} height={32} className="h-8 w-auto max-w-[140px] object-contain" />
             ) : (
               <div className="h-8 w-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: brandColor }}>
                 <Building2 className="h-4 w-4 text-white" />
