@@ -190,7 +190,7 @@ export function RuWhiteLabelEmbed({ propertyId }: { propertyId: string | null | 
       <iframe
         ref={frameRef}
         title="ROL'OS Channel Manager"
-        srcDoc={embedSrc ?? undefined}
+        src={embedSrc ?? undefined}
         className="h-full w-full border-0"
         sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-downloads allow-modals"
       />
