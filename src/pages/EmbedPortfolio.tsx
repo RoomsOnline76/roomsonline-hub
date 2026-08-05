@@ -97,6 +97,12 @@ export default function EmbedPortfolio() {
   const journeyCurrentPropertyId = searchParams.get("current_property_id");
   const journeyCheckIn = searchParams.get("checkIn");
 
+  // Multi-stay journey basket — lets guests stack stays from this or any other
+  // portfolio property into one checkout.
+  const { stays, hasStays, totalPrice: journeyTotal, totalNights: journeyNights, removeStay } = useItinerary();
+
+
+
   const [portfolio, setPortfolio] = useState<any>(null);
   const [properties, setProperties] = useState<PortfolioProperty[]>([]);
   const [loading, setLoading] = useState(true);
