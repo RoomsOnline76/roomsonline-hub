@@ -1,7 +1,7 @@
 /**
  * ru-whitelabel-token
  *
- * Returns a configured Rentals United **White Label Channel Manager** token
+ * Mints (or returns a cached) Rentals United **White Label Channel Manager** token
  * pair for the RU sub-user account that owns a ROL'OS property, so the ROL'OS
  * Channels page can boot the one-line White Label script:
  *
@@ -11,11 +11,12 @@
  * Token sources, in order:
  *   1. cached pair on `ru_owner_accounts` (ru_wl_access_token / ru_wl_refresh_token)
  *      while still inside its expiry window;
- *   2. an admin-entered pair (source = 'admin').
- *
- * RU has not supplied a documented programmatic White Label token exchange contract.
- * API keys authenticate the XML API; they are not assumed to be White Label browser
- * tokens. Do not add guessed portal endpoints here.
+ *   2. the documented two-step RU exchange:
+ *        POST https://webapi.rentalsunited.com/whitepms/oauth2/token   (master, password grant)
+ *        GET  https://webapi.rentalsunited.com/api/white-pms/client?userName=…&ownerId=…
+ *      using the RU_WHITELABEL_MASTER_USERNAME / RU_WHITELABEL_MASTER_PASSWORD partner
+ *      credentials, scoped to the property's sub-user and OwnerID;
+ *   3. an admin-entered pair (source = 'admin') as an emergency fallback.
  *
  * Tokens are never logged. They are returned to the authenticated caller only.
  *
@@ -24,16 +25,23 @@
  *   set_tokens  { property_id | ru_owner_id, access_token, refresh_token, expires_in? }  (admin only)
  *   clear_tokens { property_id | ru_owner_id }        (admin only)
  */
-import { createClient } from 'npm:@supabase/supabase-js@2';
-import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
-import { z } from 'npm:zod@3.23.8';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { findOwnerAccount } from '../_shared/ruPhaseGate.ts';
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   });
+
+/** Documented Rentals United White Label endpoints. */
+const RU_MASTER_TOKEN_URL = 'https://webapi.rentalsunited.com/whitepms/oauth2/token';
+const RU_WL_CLIENT_URL = 'https://webapi.rentalsunited.com/api/white-pms/client';
 
 /** Treat a token as stale a few minutes before RU expires it. */
 const EXPIRY_SKEW_MS = 5 * 60_000;
@@ -43,18 +51,108 @@ const DEFAULT_TTL_SECONDS = 55 * 60;
 // deno-lint-ignore no-explicit-any
 type Db = any;
 
-const RequestSchema = z.object({
-  action: z.enum(['get_tokens', 'set_tokens', 'clear_tokens']).default('get_tokens'),
-  property_id: z.string().uuid().optional(),
-  ru_owner_id: z.string().trim().regex(/^\d+$/).max(32).optional(),
-  access_token: z.string().trim().min(1).max(16_384).optional(),
-  refresh_token: z.string().trim().min(1).max(16_384).optional(),
-  expires_in: z.coerce.number().int().positive().max(31_536_000).optional(),
-}).refine((value) => value.property_id || value.ru_owner_id, {
-  message: 'property_id or ru_owner_id is required',
-});
+function pick(obj: Record<string, unknown>, keys: string[]): string | null {
+  for (const k of keys) {
+    const v = obj[k];
+    if (typeof v === 'string' && v.trim()) return v.trim();
+  }
+  return null;
+}
 
+/** Find token / refreshToken anywhere in a (possibly nested) RU JSON response. */
+function extractTokens(payload: unknown): { access: string | null; refresh: string | null; ttl: number | null } {
+  let access: string | null = null;
+  let refresh: string | null = null;
+  let ttl: number | null = null;
 
+  const walk = (node: unknown, depth: number) => {
+    if (!node || typeof node !== 'object' || depth > 5) return;
+    const obj = node as Record<string, unknown>;
+    access ??= pick(obj, ['token', 'accessToken', 'access_token', 'jwt', 'Token', 'AccessToken']);
+    refresh ??= pick(obj, ['refreshToken', 'refresh_token', 'RefreshToken']);
+    const rawTtl = obj.expiresIn ?? obj.expires_in ?? obj.ExpiresIn;
+    if (ttl == null && (typeof rawTtl === 'number' || typeof rawTtl === 'string')) {
+      const n = Number(rawTtl);
+      if (Number.isFinite(n) && n > 0) ttl = n;
+    }
+    for (const v of Object.values(obj)) walk(v, depth + 1);
+  };
+  walk(payload, 0);
+  return { access, refresh, ttl };
+}
+
+/**
+ * Step 1 of the documented White Label flow: obtain the PMS **master** OAuth token
+ * with the partner credentials Rentals United issued to ROL'OS.
+ */
+async function getMasterToken(): Promise<{ token: string } | { error: string }> {
+  const username = (Deno.env.get('RU_WHITELABEL_MASTER_USERNAME') ?? '').trim();
+  const password = Deno.env.get('RU_WHITELABEL_MASTER_PASSWORD') ?? '';
+  if (!username || !password) {
+    return { error: 'master_credentials_missing' };
+  }
+
+  const form = new URLSearchParams({ grant_type: 'password', username, password });
+  try {
+    const res = await fetch(RU_MASTER_TOKEN_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
+      body: form.toString(),
+    });
+    const text = await res.text();
+    if (!res.ok) {
+      console.warn(`[ru-whitelabel-token] Master token HTTP ${res.status}`);
+      return { error: `master_token_http_${res.status}` };
+    }
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      return { error: 'master_token_non_json' };
+    }
+    const { access } = extractTokens(parsed);
+    if (!access) return { error: 'master_token_missing' };
+    return { token: access };
+  } catch (e) {
+    console.warn('[ru-whitelabel-token] Master token request failed');
+    return { error: e instanceof Error ? e.message : 'master_token_request_failed' };
+  }
+}
+
+/**
+ * Step 2: exchange the master token for the sub-user's White Label client token pair
+ * scoped to this owner. This is the pair the one-line script consumes.
+ */
+async function mintSubUserPair(
+  masterToken: string,
+  userName: string,
+  ownerId: string,
+): Promise<{ access: string; refresh: string; ttl: number } | { error: string }> {
+  const url = `${RU_WL_CLIENT_URL}?userName=${encodeURIComponent(userName)}&ownerId=${encodeURIComponent(ownerId)}`;
+  try {
+    const res = await fetch(url, {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${masterToken}`, Accept: 'application/json' },
+    });
+    const text = await res.text();
+    if (!res.ok) {
+      console.warn(`[ru-whitelabel-token] Sub-user client HTTP ${res.status} for owner ${ownerId}`);
+      return { error: `sub_user_http_${res.status}` };
+    }
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      return { error: 'sub_user_non_json' };
+    }
+    const { access, refresh, ttl } = extractTokens(parsed);
+    if (!access || !refresh) return { error: 'sub_user_pair_missing' };
+    console.log(`[ru-whitelabel-token] Minted White Label pair for owner ${ownerId}`);
+    return { access, refresh, ttl: ttl ?? DEFAULT_TTL_SECONDS };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'sub_user_request_failed' };
+  }
+}
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
@@ -72,11 +170,9 @@ Deno.serve(async (req) => {
     const user = userData?.user;
     if (!user) return json({ error: 'Invalid session' }, 401);
 
-    const parsed = RequestSchema.safeParse(await req.json().catch(() => ({})));
-    if (!parsed.success) return json({ error: parsed.error.flatten().fieldErrors }, 400);
-    const body = parsed.data;
-    const action = body.action;
-    const propertyId = body.property_id ?? null;
+    const body = await req.json().catch(() => ({}));
+    const action = String(body.action ?? 'get_tokens');
+    const propertyId = typeof body.property_id === 'string' ? body.property_id : null;
 
     const isPrivileged = async () => {
       for (const role of ['admin', 'dev', 'fearless_leader']) {
@@ -87,7 +183,7 @@ Deno.serve(async (req) => {
     };
 
     // ── Resolve the RU owner account behind this property ──
-    let ownerId = body.ru_owner_id ?? '';
+    let ownerId = typeof body.ru_owner_id === 'string' ? body.ru_owner_id.trim() : '';
     // deno-lint-ignore no-explicit-any
     let account: any = null;
 
@@ -138,10 +234,10 @@ Deno.serve(async (req) => {
         return json({ success: true, cleared: true });
       }
 
-      const access = body.access_token ?? '';
-      const refresh = body.refresh_token ?? '';
+      const access = typeof body.access_token === 'string' ? body.access_token.trim() : '';
+      const refresh = typeof body.refresh_token === 'string' ? body.refresh_token.trim() : '';
       if (!access || !refresh) return json({ error: 'access_token and refresh_token are required' }, 400);
-      const ttl = body.expires_in ?? DEFAULT_TTL_SECONDS;
+      const ttl = Number(body.expires_in) > 0 ? Number(body.expires_in) : DEFAULT_TTL_SECONDS;
       await admin
         .from('ru_owner_accounts')
         .update({
@@ -182,15 +278,56 @@ Deno.serve(async (req) => {
       });
     }
 
-    // ── Verified sub-user API keys (canonical store: ru_api_credentials) ──
+    // ── Sub-user identity (canonical store: ru_api_credentials) ──
     // A verified sub-user means the RU setup IS complete on the owner's side; only the
     // White Label sign-in may still be outstanding, so never tell them to redo setup.
     const { data: credRow } = await admin
       .from('ru_api_credentials')
-      .select('access_key, verified_at')
+      .select('access_key, verified_at, login_email')
       .eq('ru_owner_id', ownerId)
       .maybeSingle();
     const subUserVerified = !!(credRow?.access_key || account.ru_api_access_key);
+
+    // ── Documented two-step White Label exchange: master token → sub-user pair ──
+    const subUserName = String(
+      credRow?.login_email || account.ru_login_email || account.owner_email || '',
+    ).trim();
+    let exchangeError: string | null = null;
+
+    if (subUserName) {
+      const master = await getMasterToken();
+      if ('error' in master) {
+        exchangeError = master.error;
+      } else {
+        const minted = await mintSubUserPair(master.token, subUserName, ownerId);
+        if ('error' in minted) {
+          exchangeError = minted.error;
+        } else {
+          const expiry = new Date(Date.now() + minted.ttl * 1000).toISOString();
+          await admin
+            .from('ru_owner_accounts')
+            .update({
+              ru_wl_access_token: minted.access,
+              ru_wl_refresh_token: minted.refresh,
+              ru_wl_token_expires_at: expiry,
+              ru_wl_token_source: 'master_exchange',
+            })
+            .eq('id', account.id);
+          return json({
+            success: true,
+            available: true,
+            owner_id: ownerId,
+            access_token: minted.access,
+            refresh_token: minted.refresh,
+            expires_at: expiry,
+            source: 'master_exchange',
+          });
+        }
+      }
+    } else {
+      exchangeError = 'sub_user_name_missing';
+    }
+
     if (account.ru_wl_access_token && account.ru_wl_refresh_token) {
       return json({
         success: true,
@@ -209,8 +346,9 @@ Deno.serve(async (req) => {
         available: false,
         reason: 'awaiting_wl_token',
         sub_user_verified: true,
-        diagnostic_code: 'RU_WL_TOKEN_CONTRACT_NOT_CONFIGURED',
-        message: "The ROL'OS account is connected. Channel Manager sign-in is still being finalised by TOBI.",
+        diagnostic: exchangeError,
+        message:
+          "The ROL'OS account is connected. Channel Manager sign-in is still being finalised by TOBI.",
       });
     }
 
