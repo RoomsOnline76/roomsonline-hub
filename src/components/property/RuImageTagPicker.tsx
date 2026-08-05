@@ -99,7 +99,14 @@ export default function RuImageTagPicker({
           Untagged → Interior
         </Badge>
       )}
-      <Popover open={open} onOpenChange={setOpen}>
+      <Popover
+        open={open}
+        onOpenChange={(next) => {
+          setOpen(next);
+          if (!next) setSearch("");
+        }}
+      >
+
         <PopoverTrigger asChild>
           <Button type="button" variant="ghost" size="sm" className="h-5 gap-1 px-1.5 text-[10px]" disabled={disabled}>
             <Tag className="h-3 w-3" />
