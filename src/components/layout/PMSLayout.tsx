@@ -63,7 +63,7 @@ export function PMSLayout({ children }: PMSLayoutProps) {
         </main>
         {isMobile && <MobileBottomNav />}
       </div>
-      <RolosOnboardingWizard propertyId={propertyId} />
+      {/* Channel readiness wizard hidden — surfaced from the property editor only when re-enabled. */}
 
       {showForcePassword && (
         <ForcePasswordChangeModal
