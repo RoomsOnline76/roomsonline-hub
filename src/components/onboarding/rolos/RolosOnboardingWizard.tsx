@@ -20,6 +20,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { focusRequirementField } from "@/lib/requirementFocus";
+
 import { useRolosOnboardingProgress, type MacroProgress } from "@/hooks/useRolosOnboardingProgress";
 
 /**
@@ -84,9 +86,16 @@ export function RolosOnboardingWizard({ propertyId, className }: Props) {
     }
   }, [propertyId]);
 
+  // Keep the expanded row on the first incomplete step: a step that reaches
+  // 100% collapses itself and hands over to the next outstanding macro.
   useEffect(() => {
-    if (currentMacro && !openMacro) setOpenMacro(currentMacro.macro.key);
-  }, [currentMacro, openMacro]);
+    setOpenMacro((prev) => {
+      if (!prev) return currentMacro?.macro.key ?? null;
+      const prevMacro = macros.find((m) => m.macro.key === prev);
+      if (prevMacro && !prevMacro.complete) return prev;
+      return currentMacro?.macro.key ?? null;
+    });
+  }, [currentMacro, macros]);
 
   const toggleCollapsed = useCallback(() => {
     setCollapsed((prev) => {
@@ -112,13 +121,26 @@ export function RolosOnboardingWizard({ propertyId, className }: Props) {
   const goToField = useCallback(
     (section: string, focus?: string) => {
       const next = new URLSearchParams(searchParams);
+      const sameSection = next.get("section") === section;
       next.set("section", section);
       if (focus) next.set("focus", focus);
       else next.delete("focus");
+      // Nonce forces a fresh navigation even when the target section is already
+      // open, so the deep link always produces visible movement.
+      next.set("rq", String(Date.now()));
       navigate(`${location.pathname}?${next.toString()}`, { replace: false });
+
+      window.setTimeout(() => {
+        if (focus) {
+          focusRequirementField(focus);
+          return;
+        }
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }, sameSection ? 60 : 400);
     },
     [location.pathname, navigate, searchParams],
   );
+
 
   const pushOwner = useCallback(async () => {
     if (!propertyId) return;
