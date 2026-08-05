@@ -1,4 +1,5 @@
 import { ReactNode, useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { PMSSidebar } from "./PMSSidebar";
 import { MobileBottomNav } from "./MobileBottomNav";
 import { HelpProvider } from "@/contexts/HelpContext";
@@ -19,6 +20,7 @@ interface PMSLayoutProps {
 
 export function PMSLayout({ children }: PMSLayoutProps) {
   const isMobile = useIsMobile();
+  const { pathname } = useLocation();
   const { propertyId, portfolioProperties, portfolioName } = usePmsPropertyId();
   const { user } = useAuth();
   const { mustChangePassword, loading: roleLoading } = usePmsStaffRole(propertyId);
@@ -51,9 +53,7 @@ export function PMSLayout({ children }: PMSLayoutProps) {
 
   // Property setup keeps its own dense editor layout — it opts out of the
   // ROL'OS mobile density pass.
-  const setupExempt =
-    typeof window !== "undefined" &&
-    /\/(setup-property|edit-property)/.test(window.location.pathname);
+  const setupExempt = /\/(setup-property|edit-property)/.test(pathname);
 
   return (
     <HelpProvider>
