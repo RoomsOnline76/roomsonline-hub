@@ -17,6 +17,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar, Users, ArrowLeft, Minus, Plus, Loader2, CheckCircle, AlertCircle, Info, CalendarDays, PawPrint, CreditCard, Lock, ChevronRight, BedDouble, Sparkles } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { ShowcaseAvailabilityCalendar } from "@/components/showcase/ShowcaseAvailabilityCalendar";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -2389,6 +2390,18 @@ const Booking = () => {
               <span className="h-6 w-6 rounded-full bg-primary text-primary-foreground text-xs font-semibold flex items-center justify-center">1</span>
               <h3 className="font-medium">Your Stay</h3>
             </div>
+
+            {/* NightsBridge-style availability & rates grid (collapsed by default) */}
+            {property?.id && (
+              <ShowcaseAvailabilityCalendar
+                propertyId={property.id}
+                amenities={amenities}
+                startDate={checkIn || undefined}
+                className="mb-1"
+              />
+            )}
+
+
 
             {/* Date Picker — always available for editing */}
             <div className={cn(

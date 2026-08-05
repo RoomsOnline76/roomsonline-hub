@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Bed } from "lucide-react";
+import { ShowcaseAvailabilityCalendar } from "@/components/showcase/ShowcaseAvailabilityCalendar";
 import RoomAvailabilityCalendar from "@/components/RoomAvailabilityCalendar";
 import { PublicLayout } from "@/components/layout/PublicLayout";
 
@@ -110,6 +111,13 @@ export default function RoomAvailability() {
 
   return (
     <PublicLayout hideHeader>
+      <div className="container mx-auto px-4 pt-6">
+        <ShowcaseAvailabilityCalendar
+          propertyId={property.id}
+          amenities={property.amenities}
+          title="Availability & rates"
+        />
+      </div>
       <RoomAvailabilityCalendar
         propertyId={property.id}
         propertySlug={property.slug || property.id}
@@ -118,6 +126,7 @@ export default function RoomAvailability() {
         roomId={roomId}
         externalSystem={property.external_system}
       />
+
     </PublicLayout>
   );
 }
