@@ -56,25 +56,37 @@ function getPrimaryImage(images: unknown): string {
   return rolLogo;
 }
 
-function PropertyCardInner({ property, variant = "default", showCautionBadge = false }: PropertyCardProps) {
+function PropertyCardInner({ property, variant = "default", showCautionBadge = false, priority = false }: PropertyCardProps) {
   const blurb = useMemo(() => getRandomEditorialBlurb(property), [property.id]);
-  const imageUrl = getPrimaryImage(property.images);
+  const rawImage = getPrimaryImage(property.images);
+  const isFallback = rawImage === rolLogo;
   const propertyLink = `/property/${property.slug || property.id}`;
   const isLarge = variant === "large";
+
+  // Cards are at most ~600px wide, so never download the full-resolution upload.
+  const cardWidth = isLarge ? 800 : 600;
+  const src = isFallback ? rawImage : optimizedImage(rawImage, cardWidth);
+  const srcSet = isFallback ? undefined : imageSrcSet(rawImage, [400, 600, 800, 1200]);
 
   return (
     <Link to={propertyLink} className="block group">
       <Card className="overflow-hidden hover:shadow-lg hover:scale-[1.02] transition-all duration-300 h-full border-border/50">
-        <div className={`relative overflow-hidden ${isLarge ? "h-64 sm:h-72" : "h-48 sm:h-52"}`}>
+        <div className={`relative overflow-hidden bg-muted/30 ${isLarge ? "h-64 sm:h-72" : "h-48 sm:h-52"}`}>
           <img
-            src={imageUrl}
+            src={src}
+            srcSet={srcSet}
+            sizes="(min-width: 1280px) 20vw, (min-width: 1024px) 30vw, (min-width: 640px) 45vw, 92vw"
             alt={`${property.name} – ${property.city}, ${property.country}`}
-            loading="lazy"
-            decoding="async"
+            loading={priority ? "eager" : "lazy"}
+            fetchPriority={priority ? "high" : "auto"}
+            decoding={priority ? "sync" : "async"}
+            width={cardWidth}
+            height={Math.round(cardWidth * 0.66)}
             className={`w-full h-full transition-transform duration-500 group-hover:scale-105 ${
-              imageUrl === rolLogo ? "object-contain bg-muted/30 p-8" : "object-cover"
+              isFallback ? "object-contain bg-muted/30 p-8" : "object-cover"
             }`}
           />
+
           <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
           {property.editorial_rating && (
             <div className="absolute top-3 left-3">
