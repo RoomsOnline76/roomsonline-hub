@@ -119,14 +119,20 @@ export function RunwayHero({
             <AnimatePresence mode="wait">
               <motion.img
                 key={currentImageIndex}
-                src={images[currentImageIndex]}
+                src={optimizedImage(images[currentImageIndex], 900, 72)}
+                srcSet={imageSrcSet(images[currentImageIndex], [640, 900, 1280], 72)}
+                sizes="100vw"
                 alt={`${name} - ${currentImageIndex + 1}`}
+                loading={currentImageIndex === 0 ? 'eager' : 'lazy'}
+                fetchPriority={currentImageIndex === 0 ? 'high' : 'auto'}
+                decoding="async"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.8, ease: 'easeInOut' }}
                 className="absolute inset-0 w-full h-full object-cover"
               />
+
             </AnimatePresence>
           ) : (
             <div className="absolute inset-0 bg-muted" style={{ background: gradientFallback }} />
