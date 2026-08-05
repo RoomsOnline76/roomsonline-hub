@@ -184,8 +184,10 @@ export function RuWhiteLabelEmbed({ propertyId }: { propertyId: string | null | 
 
   return (
     <div
-      style={brandStyle}
-      className={`w-full ${EMBED_HEIGHT} rounded-lg border bg-background overflow-hidden`}
+      // The White Label client renders on its own light canvas. The wrapper matches that
+      // canvas exactly and drops the border so the frame boundary is invisible.
+      style={{ ...brandStyle, backgroundColor: "hsl(var(--ru-embed-canvas))" }}
+      className={`w-full ${EMBED_HEIGHT} w-full overflow-hidden border-0`}
     >
       <iframe
         ref={frameRef}
@@ -196,5 +198,6 @@ export function RuWhiteLabelEmbed({ propertyId }: { propertyId: string | null | 
       />
     </div>
   );
+
 
 }

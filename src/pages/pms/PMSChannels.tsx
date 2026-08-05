@@ -1,4 +1,3 @@
-import { Link } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Lock } from "lucide-react";
 import { useBillingConfig } from "@/hooks/useBillingConfig";
@@ -60,13 +59,6 @@ export default function PMSChannels() {
 
       <RuWhiteLabelEmbed propertyId={propertyId} />
 
-      <p className="text-center text-sm text-muted-foreground">
-        Don't see your channel manager?{" "}
-        <Link to="/contact" className="font-medium text-primary underline-offset-4 hover:underline">
-          Let's talk
-        </Link>{" "}
-        — we'll bring it on board.
-      </p>
     </div>
   );
 }
