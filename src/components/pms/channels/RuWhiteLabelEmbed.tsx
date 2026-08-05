@@ -125,10 +125,8 @@ export function RuWhiteLabelEmbed({ propertyId }: { propertyId: string | null | 
   if (isLoading) {
     return (
       <div
-        style={brandStyle}
+        style={{ ...brandStyle, backgroundColor: EMBED_BG_LIGHT }}
         className={`flex ${EMBED_HEIGHT} w-full items-center justify-center border-0`}
-        // Light-only canvas, matching the Channels page.
-
       >
         <div className="flex flex-col items-center gap-3 text-muted-foreground">
           <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -165,10 +163,8 @@ export function RuWhiteLabelEmbed({ propertyId }: { propertyId: string | null | 
 
     return (
       <div
-        style={brandStyle}
+        style={{ ...brandStyle, backgroundColor: EMBED_BG_LIGHT }}
         className={`flex ${EMBED_HEIGHT} w-full items-center justify-center border-0`}
-        // Light-only canvas, matching the Channels page.
-
       >
         <div className="max-w-md space-y-3 px-6 text-center">
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-muted">
