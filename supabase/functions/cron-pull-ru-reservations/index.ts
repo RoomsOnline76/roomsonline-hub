@@ -2,6 +2,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { resolveRuOwnerScopes, type RuOwnerScope } from '../_shared/ruOwnerScopes.ts';
 import { extractTag, extractAllBlocks, parseRuReservation } from '../_shared/ruReservationParsing.ts';
 import { classifyRuStatus, ingestRuReservation } from '../_shared/ruReservationIngest.ts';
+import { readInvokeError } from '../_shared/functionInvokeError.ts';
 
 /**
  * Cron job: Pull reservations from Rentals United every 30 minutes.
@@ -57,12 +58,15 @@ Deno.serve(async (req) => {
     errorMessage: string | null,
     scope: RuOwnerScope,
     extra: Record<string, unknown> = {},
+    failure: { httpStatus?: number | null; errorCode?: string | null } = {},
   ) => {
     await supabase.from('ru_sync_runs').insert({
       batch_id: crypto.randomUUID(),
       action: 'pull_reservations',
       success,
       error_message: errorMessage,
+      http_status: failure.httpStatus ?? null,
+      error_code: failure.errorCode ?? null,
       elapsed_ms: Date.now() - cronStartedAt,
       details: {
         ...summary,
@@ -73,6 +77,7 @@ Deno.serve(async (req) => {
       },
     }).then(() => {}, (e) => console.warn('[cron-pull-ru] log insert failed', e));
   };
+
 
   try {
     // Date range: last PULL_WINDOW_DAYS days → today (RU filters on creation date)
@@ -126,11 +131,22 @@ Deno.serve(async (req) => {
 
 
       if (ruErr || !ruResult?.success) {
-        const msg = ruErr?.message || ruResult?.error?.message || 'Unknown error';
-        console.error(`[cron-pull-ru] ${scope.label} API call failed: ${msg}`);
-        await logCadence(false, msg, scope);
+        // invoke() hides the real body behind "non-2xx status code" — read it back so the
+        // RU error taxonomy can classify the run instead of bucketing it as unclassified.
+        const failure = ruErr
+          ? await readInvokeError(ruErr)
+          : {
+              message: ruResult?.error?.message || 'Unknown error',
+              httpStatus: null,
+              errorCode: ruResult?.error?.code ?? null,
+            };
+        console.error(
+          `[cron-pull-ru] ${scope.label} API call failed (http=${failure.httpStatus ?? 'n/a'}, code=${failure.errorCode ?? 'n/a'}): ${failure.message}`,
+        );
+        await logCadence(false, failure.message, scope, {}, failure);
         continue;
       }
+
 
       if (scope.ownerId && ruResult.auth_mode === 'master') {
         const msg = `Refused: RU answered on MASTER credentials for ${scope.label}. Add this sub-user's RU AccessKey/SecretKey before its reservations can be polled.`;
@@ -255,9 +271,15 @@ Deno.serve(async (req) => {
         });
 
         if (leadsErr || !leadsResult?.success) {
-          console.warn(`[cron-pull-ru] ${scope.label} leads API call failed: ${leadsErr?.message || leadsResult?.error?.message || 'Unknown'}`);
+          const failure = leadsErr
+            ? await readInvokeError(leadsErr)
+            : { message: leadsResult?.error?.message || 'Unknown', httpStatus: null, errorCode: null };
+          console.warn(
+            `[cron-pull-ru] ${scope.label} leads API call failed (http=${failure.httpStatus ?? 'n/a'}): ${failure.message}`,
+          );
           continue;
         }
+
         if (scope.ownerId && leadsResult.auth_mode === 'master') {
           console.error(`[cron-pull-ru] Refused leads for ${scope.label}: RU answered on master credentials`);
           continue;

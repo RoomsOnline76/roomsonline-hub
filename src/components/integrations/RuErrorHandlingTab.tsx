@@ -73,7 +73,11 @@ export const classifyRuError = (run: {
       fix: "Nothing usually needed — stagger manual full pushes rather than firing them back to back.",
     };
   }
-  if (msg.includes("timeout") || msg.includes("aborted") || msg.includes("network") || (run.http_status ?? 0) >= 500) {
+  if (
+    msg.includes("timeout") || msg.includes("aborted") || msg.includes("network") ||
+    msg.includes("returned http") || msg.includes("non-2xx") || msg.includes("fetch failed") ||
+    (run.http_status ?? 0) >= 500
+  ) {
     return {
       key: "transport",
       label: "Transport / RU upstream error",
