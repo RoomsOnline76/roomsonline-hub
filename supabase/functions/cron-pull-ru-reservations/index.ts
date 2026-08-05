@@ -131,11 +131,22 @@ Deno.serve(async (req) => {
 
 
       if (ruErr || !ruResult?.success) {
-        const msg = ruErr?.message || ruResult?.error?.message || 'Unknown error';
-        console.error(`[cron-pull-ru] ${scope.label} API call failed: ${msg}`);
-        await logCadence(false, msg, scope);
+        // invoke() hides the real body behind "non-2xx status code" — read it back so the
+        // RU error taxonomy can classify the run instead of bucketing it as unclassified.
+        const failure = ruErr
+          ? await readInvokeError(ruErr)
+          : {
+              message: ruResult?.error?.message || 'Unknown error',
+              httpStatus: null,
+              errorCode: ruResult?.error?.code ?? null,
+            };
+        console.error(
+          `[cron-pull-ru] ${scope.label} API call failed (http=${failure.httpStatus ?? 'n/a'}, code=${failure.errorCode ?? 'n/a'}): ${failure.message}`,
+        );
+        await logCadence(false, failure.message, scope, {}, failure);
         continue;
       }
+
 
       if (scope.ownerId && ruResult.auth_mode === 'master') {
         const msg = `Refused: RU answered on MASTER credentials for ${scope.label}. Add this sub-user's RU AccessKey/SecretKey before its reservations can be polled.`;
