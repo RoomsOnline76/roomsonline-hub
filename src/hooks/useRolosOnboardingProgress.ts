@@ -85,7 +85,7 @@ async function invokeCert<T>(
 ): Promise<T | null> {
   try {
     const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
-      body: { action, property_id: propertyId },
+      body: { action, property_id: propertyId, ...extra },
     });
     if (error || data?.success !== true) return null;
     return data as T;
