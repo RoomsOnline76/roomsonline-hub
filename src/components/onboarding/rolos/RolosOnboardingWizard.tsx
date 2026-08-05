@@ -177,6 +177,21 @@ export function RolosOnboardingWizard({ propertyId, className }: Props) {
     [recordSignoff, user?.email],
   );
 
+  const toggleSignoffItem = useCallback(
+    async (itemKey: string, next: boolean) => {
+      setBusyAction(`signoff:${itemKey}`);
+      try {
+        await recordSignoffCheck(itemKey, next, user?.email ?? null);
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Could not record the confirmation");
+      } finally {
+        setBusyAction(null);
+      }
+    },
+    [recordSignoffCheck, user?.email],
+  );
+
+
   const visibleMacros = useMemo(
     () => macros.filter((m) => !m.macro.adminOnly || isPlatformUser),
     [isPlatformUser, macros],
