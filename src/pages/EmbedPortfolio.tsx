@@ -771,9 +771,9 @@ export default function EmbedPortfolio() {
       {specials.length === 0 && specialsPending && (
         <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-4" aria-hidden>
           <div className="h-4 w-32 bg-gray-100 rounded mb-3 animate-pulse" />
-          <div className="flex gap-4">
+          <div className="flex gap-4 pb-2">
             {[0, 1, 2].map((i) => (
-              <div key={i} className="h-28 w-64 shrink-0 rounded-xl bg-gray-50 border border-gray-200 animate-pulse" />
+              <div key={i} className="h-[150px] w-[240px] shrink-0 rounded-xl bg-gray-50 border-2 border-gray-200 animate-pulse" />
             ))}
           </div>
         </div>
