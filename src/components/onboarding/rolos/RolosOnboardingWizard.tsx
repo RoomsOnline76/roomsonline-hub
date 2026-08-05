@@ -180,16 +180,29 @@ export function RolosOnboardingWizard({ propertyId, className }: Props) {
     [isPlatformUser, macros],
   );
 
-  // Passed steps condense into a single tick strip; clicking one brings the full
-  // row back (it becomes the open macro).
+  // Only the leading run of passed steps condenses into the tick strip. Any
+  // step at or after the first incomplete one keeps its full row, even if it is
+  // already complete. Clicking a tick brings that row back.
+  const firstIncompleteIndex = useMemo(() => {
+    const idx = visibleMacros.findIndex((m) => !m.complete);
+    return idx === -1 ? visibleMacros.length : idx;
+  }, [visibleMacros]);
+
   const completedChips = useMemo(
-    () => visibleMacros.filter((m) => m.complete && openMacro !== m.macro.key),
-    [visibleMacros, openMacro],
+    () =>
+      visibleMacros.filter(
+        (m, i) => i < firstIncompleteIndex && m.complete && openMacro !== m.macro.key,
+      ),
+    [visibleMacros, firstIncompleteIndex, openMacro],
   );
   const openMacros = useMemo(
-    () => visibleMacros.filter((m) => !m.complete || openMacro === m.macro.key),
-    [visibleMacros, openMacro],
+    () =>
+      visibleMacros.filter(
+        (m, i) => i >= firstIncompleteIndex || !m.complete || openMacro === m.macro.key,
+      ),
+    [visibleMacros, firstIncompleteIndex, openMacro],
   );
+
 
 
 
