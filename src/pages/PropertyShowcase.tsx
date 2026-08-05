@@ -337,6 +337,123 @@ export default function PropertyShowcase() {
     }
   }, [searchParams, property?.id]);
 
+  /**
+   * Secondary hydration — runs after the first paint.
+   *
+   * Availability, synthetic rates and portfolio siblings are all progressive
+   * enhancements: the page renders without them and each one fills in as it
+   * resolves. Availability and siblings are fetched concurrently so the slower
+   * of the two sets the ceiling, not their sum.
+   */
+  const hydrateAfterPaint = useCallback(async (propertyData: any, today: string) => {
+    const sevenDaysOut = new Date();
+    sevenDaysOut.setDate(sevenDaysOut.getDate() + 7);
+    const endDate = sevenDaysOut.toISOString().split("T")[0];
+
+    const availabilityTask = (async () => {
+      const { data: availData } = await supabase
+        .from("pms_availability_cache")
+        .select("external_room_type_id, available_units, rates, date")
+        .eq("property_id", propertyData.id)
+        .gte("date", today)
+        .lte("date", endDate);
+      return availData;
+    })();
+
+    const siblingsTask = (async () => {
+      try {
+        const { data: memberships } = await supabase
+          .from("property_portfolio_members")
+          .select("portfolio_id")
+          .eq("property_id", propertyData.id);
+
+        if (!memberships || memberships.length === 0) return;
+        const portfolioIds = memberships.map((m: any) => m.portfolio_id);
+        const { data: allMembers } = await supabase
+          .from("property_portfolio_members")
+          .select("property_id, properties:property_id(name, slug, latitude, longitude, images)")
+          .in("portfolio_id", portfolioIds)
+          .neq("property_id", propertyData.id);
+
+        if (!allMembers) return;
+        const siblings = allMembers
+          .filter((m: any) => m.properties?.latitude && m.properties?.longitude)
+          .map((m: any) => ({
+            name: m.properties.name,
+            slug: m.properties.slug || m.property_id,
+            lat: Number(m.properties.latitude),
+            lng: Number(m.properties.longitude),
+            heroImage: Array.isArray(m.properties.images) ? m.properties.images[0] : undefined,
+          }));
+        const unique = Array.from(new Map(siblings.map((s: any) => [s.slug, s])).values());
+        setSiblingProperties(unique as any);
+      } catch (e) {
+        console.warn("Failed to fetch portfolio siblings:", e);
+      }
+    })();
+
+    const [availData] = await Promise.all([availabilityTask, siblingsTask]);
+
+    if (availData && availData.length > 0) {
+      const availMap = new Map<string, AvailabilityData>();
+      const nextAvailMap = new Map<string, { date: string; dayName: string; units: number }>();
+
+      const byRoom = new Map<string, typeof availData>();
+      availData.forEach((item) => {
+        if (!byRoom.has(item.external_room_type_id)) byRoom.set(item.external_room_type_id, []);
+        byRoom.get(item.external_room_type_id)!.push(item);
+      });
+
+      byRoom.forEach((rows, roomId) => {
+        const todayRow = rows.find((r) => r.date === today);
+        if (todayRow) availMap.set(roomId, todayRow);
+
+        const futureRows = rows
+          .filter((r) => r.date !== today && r.available_units > 0)
+          .sort((a, b) => a.date.localeCompare(b.date));
+        if (futureRows.length > 0) {
+          const first = futureRows[0];
+          nextAvailMap.set(roomId, {
+            date: first.date,
+            dayName: new Date(first.date + "T12:00:00").toLocaleDateString("en", { weekday: "long" }),
+            units: first.available_units,
+          });
+        }
+      });
+
+      setAvailability(availMap);
+      setNextAvailableDay(nextAvailMap);
+
+      try {
+        sessionStorage.setItem(`avail_preload_${propertyData.id}`, JSON.stringify({
+          data: availData,
+          fetchedAt: Date.now(),
+        }));
+      } catch (_) { /* sessionStorage full — ignore */ }
+    } else if (!propertyData.external_system) {
+      // No PMS connected — build synthetic availability from wizard rates
+      const amenitiesData = propertyData.amenities as Record<string, any> | null;
+      const wizardRooms = amenitiesData?.room_types || [];
+      const syntheticAvailMap = new Map<string, AvailabilityData>();
+
+      wizardRooms.forEach((room: any) => {
+        const roomId = room.id || room.room_type_id || `wizard-room-${room.name}`;
+        syntheticAvailMap.set(roomId, {
+          external_room_type_id: roomId,
+          available_units: 99,
+          rates: [{
+            rate_type_id: 'wizard-rate',
+            room_amount: room.base_rate || room.baseRate || room.daily_rate,
+            price_type: (room.rate_unit || room.rateUnit) === 'per_stay' ? 'PerStay' : 'UnitRate',
+          }],
+          date: today,
+        });
+      });
+
+      if (syntheticAvailMap.size > 0) setAvailability(syntheticAvailMap);
+    }
+  }, []);
+
   const fetchPropertyData = async () => {
     setLoading(true);
     try {
@@ -367,121 +484,13 @@ export default function PropertyShowcase() {
         setProperty(propertyData.id, propertyData.name, propertyData.slug || propertyData.id);
       }
 
-      // Fire cache availability fetch immediately — 7-day window for next-available labels
-      const sevenDaysOut = new Date();
-      sevenDaysOut.setDate(sevenDaysOut.getDate() + 7);
-      const endDate = sevenDaysOut.toISOString().split("T")[0];
+      // ── Progressive render boundary ─────────────────────────────────────
+      // The hero (LCP element) only needs the property row. Availability,
+      // synthetic wizard rates and portfolio siblings are hydrated after the
+      // first paint so the shell is never blocked on those round-trips.
+      setLoading(false);
+      void hydrateAfterPaint(propertyData, today);
 
-      const availPromise = supabase
-        .from("pms_availability_cache")
-        .select("external_room_type_id, available_units, rates, date")
-        .eq("property_id", propertyData.id)
-        .gte("date", today)
-        .lte("date", endDate);
-
-      const { data: availData } = await availPromise;
-
-      if (availData && availData.length > 0) {
-        // Today's availability map (existing behaviour)
-        const availMap = new Map<string, AvailabilityData>();
-        // Next-available-day map: roomTypeId → { date, dayName, units }
-        const nextAvailMap = new Map<string, { date: string; dayName: string; units: number }>();
-
-        // Group by room type
-        const byRoom = new Map<string, typeof availData>();
-        availData.forEach((item) => {
-          if (!byRoom.has(item.external_room_type_id)) byRoom.set(item.external_room_type_id, []);
-          byRoom.get(item.external_room_type_id)!.push(item);
-        });
-
-        byRoom.forEach((rows, roomId) => {
-          // Today row
-          const todayRow = rows.find((r) => r.date === today);
-          if (todayRow) availMap.set(roomId, todayRow);
-
-          // First future date with availability > 0 (skip today)
-          const futureRows = rows
-            .filter((r) => r.date !== today && r.available_units > 0)
-            .sort((a, b) => a.date.localeCompare(b.date));
-          if (futureRows.length > 0) {
-            const first = futureRows[0];
-            nextAvailMap.set(roomId, {
-              date: first.date,
-              dayName: new Date(first.date + "T12:00:00").toLocaleDateString("en", { weekday: "long" }),
-              units: first.available_units,
-            });
-          }
-        });
-
-        setAvailability(availMap);
-        setNextAvailableDay(nextAvailMap);
-        
-        // Preload availability to sessionStorage for Booking page
-        try {
-          sessionStorage.setItem(`avail_preload_${propertyData.id}`, JSON.stringify({
-            data: availData,
-            fetchedAt: Date.now(),
-          }));
-        } catch (_) { /* sessionStorage full — ignore */ }
-      } else if (!propertyData.external_system) {
-        // No PMS connected - build synthetic availability from wizard rates
-        const amenitiesData = propertyData.amenities as Record<string, any> | null;
-        const wizardRooms = amenitiesData?.room_types || [];
-        const syntheticAvailMap = new Map<string, AvailabilityData>();
-        
-        wizardRooms.forEach((room: any) => {
-          const roomId = room.id || room.room_type_id || `wizard-room-${room.name}`;
-          syntheticAvailMap.set(roomId, {
-            external_room_type_id: roomId,
-            available_units: 99,
-            rates: [{
-              rate_type_id: 'wizard-rate',
-              room_amount: room.base_rate || room.baseRate || room.daily_rate,
-              price_type: (room.rate_unit || room.rateUnit) === 'per_stay' ? 'PerStay' : 'UnitRate',
-            }],
-            date: today,
-          });
-        });
-        
-        if (syntheticAvailMap.size > 0) {
-          console.log('[PropertyShowcase] Built synthetic availability from wizard rates:', syntheticAvailMap.size, 'rooms');
-          setAvailability(syntheticAvailMap);
-        }
-      }
-
-      // Fetch portfolio siblings for the map
-      try {
-        const { data: memberships } = await supabase
-          .from("property_portfolio_members")
-          .select("portfolio_id")
-          .eq("property_id", propertyData.id);
-
-        if (memberships && memberships.length > 0) {
-          const portfolioIds = memberships.map((m: any) => m.portfolio_id);
-          const { data: allMembers } = await supabase
-            .from("property_portfolio_members")
-            .select("property_id, properties:property_id(name, slug, latitude, longitude, images)")
-            .in("portfolio_id", portfolioIds)
-            .neq("property_id", propertyData.id);
-
-          if (allMembers) {
-            const siblings = allMembers
-              .filter((m: any) => m.properties?.latitude && m.properties?.longitude)
-              .map((m: any) => ({
-                name: m.properties.name,
-                slug: m.properties.slug || m.property_id,
-                lat: Number(m.properties.latitude),
-                lng: Number(m.properties.longitude),
-                heroImage: Array.isArray(m.properties.images) ? m.properties.images[0] : undefined,
-              }));
-            // Deduplicate by slug
-            const unique = Array.from(new Map(siblings.map((s: any) => [s.slug, s])).values());
-            setSiblingProperties(unique);
-          }
-        }
-      } catch (e) {
-        console.warn("Failed to fetch portfolio siblings:", e);
-      }
     } catch (error) {
       console.error("Error fetching property:", error);
     } finally {

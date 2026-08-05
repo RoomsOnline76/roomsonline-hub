@@ -189,7 +189,13 @@ export default function PMSGuests() {
         </div>
 
 
-        {loading ? <p className="text-muted-foreground">Loading...</p> : guests.length === 0 ? (
+        {loading ? (
+          <div className="space-y-2">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="h-14 rounded-md bg-muted animate-pulse" />
+            ))}
+          </div>
+        ) : guests.length === 0 ? (
           <Card><CardContent className="py-12 text-center"><Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" /><p className="text-muted-foreground">No guest profiles yet.</p></CardContent></Card>
         ) : (
           <div className="space-y-2">
@@ -273,7 +279,13 @@ export default function PMSGuests() {
                   <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
                     <CalendarDays className="h-3 w-3" />Booking History
                   </h4>
-                  {loadingHistory ? <p className="text-xs text-muted-foreground">Loading...</p> : guestBookings.length === 0 ? (
+                  {loadingHistory ? (
+                    <div className="space-y-2">
+                      {[0, 1].map((i) => (
+                        <div key={i} className="h-10 rounded-md bg-muted animate-pulse" />
+                      ))}
+                    </div>
+                  ) : guestBookings.length === 0 ? (
                     <p className="text-xs text-muted-foreground">No bookings found.</p>
                   ) : (
                     <div className="space-y-1.5">

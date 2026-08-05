@@ -189,6 +189,79 @@ export default function RoomShowcase() {
     }
   }, [propertySlug, roomSlug]);
 
+  /**
+   * Post-paint hydration for a single room: published rates, cached ARI and
+   * (where relevant) the NightsBridge agent code. All three are independent, so
+   * they run concurrently rather than as a chain.
+   */
+  const hydrateRoomExtras = async (propertyData: any, foundRoom: any) => {
+    const tasks: Promise<void>[] = [];
+
+    if (foundRoom) {
+      tasks.push((async () => {
+        const { data: ratesData } = await supabase
+          .from("property_rates")
+          .select("room_type, rate_type, meal_type, amount, currency")
+          .eq("property_id", propertyData.id)
+          .eq("room_type", foundRoom.name)
+          .order("rate_type");
+        if (ratesData) setRates(ratesData);
+      })());
+
+      tasks.push((async () => {
+        const roomId = foundRoom.pmsRoomId || foundRoom.id;
+        const slugifiedName = slugifyRoomName(foundRoom.name);
+        const today = new Date().toISOString().split('T')[0];
+
+        let { data: availData } = await supabase
+          .from("pms_availability_cache")
+          .select("available_units, date, rates")
+          .eq("property_id", propertyData.id)
+          .eq("external_room_type_id", roomId)
+          .gte("date", today)
+          .order("date", { ascending: true })
+          .limit(1);
+
+        if ((!availData || availData.length === 0) && slugifiedName !== roomId) {
+          const { data: slugAvailData } = await supabase
+            .from("pms_availability_cache")
+            .select("available_units, date, rates")
+            .eq("property_id", propertyData.id)
+            .eq("external_room_type_id", slugifiedName)
+            .gte("date", today)
+            .order("date", { ascending: true })
+            .limit(1);
+          availData = slugAvailData;
+        }
+
+        if (availData && availData.length > 0) {
+          setAvailableUnits(availData[0].available_units);
+          if (availData[0].rates) {
+            const ratesObj = availData[0].rates as any;
+            setCachedRate({
+              currency: ratesObj.currency || 'ZAR',
+              room_amount: ratesObj.room_amount,
+              adult_amount_1: ratesObj.adult_amount_1,
+              adult_amount_2: ratesObj.adult_amount_2,
+            });
+          }
+        }
+      })());
+    }
+
+    if (propertyData.external_system === "nightsbridge") {
+      tasks.push((async () => {
+        const { data: nbConfig } = await supabase
+          .from("public_nightsbridge_config")
+          .select("agent_code")
+          .maybeSingle();
+        if (nbConfig?.agent_code) setNightsBridgeAgentCode(nbConfig.agent_code);
+      })());
+    }
+
+    await Promise.allSettled(tasks);
+  };
+
   const fetchData = async () => {
     setLoading(true);
     try {
@@ -217,78 +290,14 @@ export default function RoomShowcase() {
         slugifyRoomName(r.name) === roomSlug || r.id === roomSlug
       );
       
-      if (foundRoom) {
-        setRoom(foundRoom);
-        
-        // Fetch rates for this room
-        const { data: ratesData } = await supabase
-          .from("property_rates")
-          .select("room_type, rate_type, meal_type, amount, currency")
-          .eq("property_id", propertyData.id)
-          .eq("room_type", foundRoom.name)
-          .order("rate_type");
+      if (foundRoom) setRoom(foundRoom);
 
-        if (ratesData) {
-          setRates(ratesData);
-        }
-
-        // Fetch availability AND rates for today from pms_availability_cache
-        // Try multiple ID formats: pmsRoomId, id, slugified name
-        const roomId = foundRoom.pmsRoomId || foundRoom.id;
-        const slugifiedName = slugifyRoomName(foundRoom.name);
-        const today = new Date().toISOString().split('T')[0];
-        
-        // Try with roomId first
-        let { data: availData } = await supabase
-          .from("pms_availability_cache")
-          .select("available_units, date, rates")
-          .eq("property_id", propertyData.id)
-          .eq("external_room_type_id", roomId)
-          .gte("date", today)
-          .order("date", { ascending: true })
-          .limit(1);
-
-        // If no data found, try with slugified room name
-        if ((!availData || availData.length === 0) && slugifiedName !== roomId) {
-          const { data: slugAvailData } = await supabase
-            .from("pms_availability_cache")
-            .select("available_units, date, rates")
-            .eq("property_id", propertyData.id)
-            .eq("external_room_type_id", slugifiedName)
-            .gte("date", today)
-            .order("date", { ascending: true })
-            .limit(1);
-          
-          availData = slugAvailData;
-        }
-
-        if (availData && availData.length > 0) {
-          setAvailableUnits(availData[0].available_units);
-          // Extract rates from cache if available
-          if (availData[0].rates) {
-            const ratesObj = availData[0].rates as any;
-            setCachedRate({
-              currency: ratesObj.currency || 'ZAR',
-              room_amount: ratesObj.room_amount,
-              adult_amount_1: ratesObj.adult_amount_1,
-              adult_amount_2: ratesObj.adult_amount_2,
-            });
-          }
-        }
-      }
-
-      // Fetch NightsBridge agent code if this is a NightsBridge property
-      if (propertyData.external_system === "nightsbridge") {
-        // Use public view that doesn't require authentication
-        const { data: nbConfig } = await supabase
-          .from("public_nightsbridge_config")
-          .select("agent_code")
-          .maybeSingle();
-        
-        if (nbConfig?.agent_code) {
-          setNightsBridgeAgentCode(nbConfig.agent_code);
-        }
-      }
+      // ── Progressive render boundary ─────────────────────────────────────
+      // Hero, gallery and copy come from the property row; rates, live
+      // availability and the NightsBridge agent code are hydrated after the
+      // first paint so nothing above the fold waits on them.
+      setLoading(false);
+      void hydrateRoomExtras(propertyData, foundRoom);
     } catch (error) {
       console.error("Error fetching room:", error);
     } finally {

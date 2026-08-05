@@ -669,7 +669,13 @@ export default function PMSRatePlans() {
           </div>
         </div>
 
-        {loading ? <p className="text-muted-foreground">Loading...</p> : plans.length === 0 ? (
+        {loading ? (
+          <div className="space-y-2">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="h-16 rounded-md bg-muted animate-pulse" />
+            ))}
+          </div>
+        ) : plans.length === 0 ? (
           <Card>
             <CardContent className="py-12 text-center">
               <TrendingUp className="h-12 w-12 mx-auto text-muted-foreground mb-4" />

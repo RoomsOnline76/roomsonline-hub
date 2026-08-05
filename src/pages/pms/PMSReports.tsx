@@ -110,7 +110,9 @@ export default function PMSReports() {
     getNextPageParam: (lastPage) => lastPage.nextOffset,
     initialPageParam: 0,
     enabled: activePropertyIds.length > 0,
-    staleTime: 0,
+    // Reports are re-read often while navigating between PMS tabs; a short cache
+    // window keeps the shell instant without serving stale figures.
+    staleTime: 60_000,
   });
 
   // Flatten all pages into single array
