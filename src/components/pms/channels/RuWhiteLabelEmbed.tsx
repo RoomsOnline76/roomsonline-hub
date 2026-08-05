@@ -27,7 +27,7 @@ export function RuWhiteLabelEmbed({ propertyId }: { propertyId: string | null | 
   const brand = usePMSBrand();
   const { isAdmin, isDev, isFearlessLeader } = useAuth();
   const isStaff = isAdmin || isDev || isFearlessLeader;
-  const containerRef = useRef<HTMLDivElement | null>(null);
+  const frameRef = useRef<HTMLIFrameElement | null>(null);
   const [scriptFailed, setScriptFailed] = useState(false);
 
   /**
