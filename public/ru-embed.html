@@ -55,6 +55,25 @@
       #ruApp [class*="tiles"] {
         justify-content: center;
       }
+
+      /*
+        Channel logo fallback: the upstream channel-logo CDN currently 404s for many
+        channels, which left every card visually empty. When a logo fails we swap in a
+        text label built from the image's alt text so the channel is still identifiable
+        and connectable.
+      */
+      #ruApp .rolos-logo-fallback {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 48px;
+        padding: 8px 10px;
+        font-size: 15px;
+        font-weight: 600;
+        line-height: 1.2;
+        text-align: center;
+        color: #1a1a2e;
+      }
     </style>
 
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
