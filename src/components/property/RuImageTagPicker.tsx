@@ -50,10 +50,15 @@ export default function RuImageTagPicker({
 
   const groups = useMemo(() => ruImageTagGroups(), []);
 
-  const toggle = (id: number) => {
+  const toggle = (id: number, closeAfter = false) => {
     if (disabled) return;
     onChange(selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id]);
+    if (closeAfter) {
+      setSearch("");
+      setOpen(false);
+    }
   };
+
 
   const renderTag = (tag: RuImageTag) => {
     const active = selected.includes(tag.id);
@@ -61,7 +66,7 @@ export default function RuImageTagPicker({
       <button
         key={tag.id}
         type="button"
-        onClick={() => toggle(tag.id)}
+        onClick={() => toggle(tag.id, true)}
         className={`flex w-full items-center gap-2 rounded px-2 py-1 text-left text-xs transition-colors ${
           active ? "bg-primary text-primary-foreground" : "hover:bg-muted"
         }`}
@@ -94,7 +99,14 @@ export default function RuImageTagPicker({
           Untagged → Interior
         </Badge>
       )}
-      <Popover open={open} onOpenChange={setOpen}>
+      <Popover
+        open={open}
+        onOpenChange={(next) => {
+          setOpen(next);
+          if (!next) setSearch("");
+        }}
+      >
+
         <PopoverTrigger asChild>
           <Button type="button" variant="ghost" size="sm" className="h-5 gap-1 px-1.5 text-[10px]" disabled={disabled}>
             <Tag className="h-3 w-3" />
