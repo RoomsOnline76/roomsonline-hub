@@ -19,6 +19,14 @@ Deno.serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
+  // Keep-warm probe: answered before any client/auth/DB work so the isolate
+  // stays resident without doing (or authorising) real work.
+  if (req.headers.get("x-warm") === "1") {
+    return jsonResponse({ success: true, warm: true });
+  }
+
+
+
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
