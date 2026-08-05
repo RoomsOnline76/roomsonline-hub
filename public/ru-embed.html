@@ -135,6 +135,23 @@
           };
           document.head.appendChild(s);
         }
+
+        /*
+          The host document itself loads before the Angular channel client. Notify the
+          parent only when actual channel cards exist, otherwise the parent would hide
+          its loader while the iframe is still an empty white canvas.
+        */
+        var readySent = false;
+        var readyObserver = new MutationObserver(function () {
+          if (readySent || !document.querySelector("#ruApp .channel-card")) return;
+          readySent = true;
+          parent.postMessage({ type: "ru-wl-ready" }, "*");
+          readyObserver.disconnect();
+        });
+        readyObserver.observe(document.getElementById("ruApp"), {
+          childList: true,
+          subtree: true,
+        });
         /*
           Replace any logo that fails to load with its alt-text label, so a broken
           upstream logo asset never renders an empty, unreadable channel card.
