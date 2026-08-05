@@ -2390,6 +2390,18 @@ const Booking = () => {
               <h3 className="font-medium">Your Stay</h3>
             </div>
 
+            {/* NightsBridge-style availability & rates grid (collapsed by default) */}
+            {property?.id && (
+              <ShowcaseAvailabilityCalendar
+                propertyId={property.id}
+                amenities={amenities}
+                startDate={checkIn || undefined}
+                className="mb-1"
+              />
+            )}
+
+
+
             {/* Date Picker — always available for editing */}
             <div className={cn(
               "rounded-xl border p-4 space-y-3",
