@@ -171,8 +171,9 @@ export const ROLOS_ONBOARDING_MACROS: MacroDef[] = [
     section: "integrations",
     tasks: [
       { kind: "state", key: "listing_ids" },
-      { kind: "state", key: "quality_check" },
+      { kind: "state", key: "quality_check", optional: true },
     ],
+
     notes: [
       "Push stays disabled below 100% mandatory readiness. Re-push updates the stored listing IDs — it never duplicates.",
       "Availability and pricing publish for the full rolling 365-day horizon and are read back to verify.",
