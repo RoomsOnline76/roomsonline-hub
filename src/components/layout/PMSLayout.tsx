@@ -11,6 +11,7 @@ import { usePmsStaffRole } from "@/hooks/usePmsStaffRole";
 import { ForcePasswordChangeModal } from "@/components/pms/ForcePasswordChangeModal";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { RolosOnboardingWizard } from "@/components/onboarding/rolos/RolosOnboardingWizard";
 
 interface PMSLayoutProps {
   children: ReactNode;
@@ -62,6 +63,8 @@ export function PMSLayout({ children }: PMSLayoutProps) {
         </main>
         {isMobile && <MobileBottomNav />}
       </div>
+      <RolosOnboardingWizard propertyId={propertyId} />
+
       {showForcePassword && (
         <ForcePasswordChangeModal
           open={true}
