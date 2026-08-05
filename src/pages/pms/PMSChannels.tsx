@@ -1,4 +1,3 @@
-import { Link } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Lock } from "lucide-react";
 import { useBillingConfig } from "@/hooks/useBillingConfig";
