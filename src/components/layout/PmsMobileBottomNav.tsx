@@ -27,7 +27,7 @@ export function PmsMobileBottomNav() {
   const location = useLocation();
   const navigate = useNavigate();
   const [moreOpen, setMoreOpen] = useState(false);
-  const { userRole } = useAuth();
+  const { userRole, signOut } = useAuth();
   const { propertyId } = usePmsPropertyId();
   const { staffRole } = usePmsStaffRole(propertyId);
 
