@@ -403,21 +403,6 @@ export function RuLnmPanel() {
         </Card>
       )}
 
-      <Card className="border-warning/40">
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <Info className="h-4 w-4" /> Minimum content quality check — gated
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            <code className="font-mono">CM_LNM_OrderMinimumContentQualityCheck_RQ</code> cannot be
-            called until the Channel Manager API is fully integrated and deployed. Ordering a quality
-            check before then will be rejected by Rentals United, so the action stays disabled in the
-            onboarding pipeline.
-          </p>
-        </CardContent>
-      </Card>
 
 
 
