@@ -143,10 +143,17 @@ async function mintSubUserPair(
     try {
       parsed = JSON.parse(text);
     } catch {
+      console.warn(`[ru-whitelabel-token] Sub-user client non-JSON body: ${text.slice(0, 400)}`);
       return { error: 'sub_user_non_json' };
     }
     const { access, refresh, ttl } = extractTokens(parsed);
-    if (!access || !refresh) return { error: 'sub_user_pair_missing' };
+    if (!access || !refresh) {
+      console.warn(
+        `[ru-whitelabel-token] Sub-user client 200 but no pair. userName=${userName} ownerId=${ownerId} body=${text.slice(0, 800)}`,
+      );
+      return { error: 'sub_user_pair_missing' };
+    }
+
     console.log(`[ru-whitelabel-token] Minted White Label pair for owner ${ownerId}`);
     return { access, refresh, ttl: ttl ?? DEFAULT_TTL_SECONDS };
   } catch (e) {
