@@ -1,14 +1,19 @@
 import { useState, useMemo } from "react";
 import { format, addDays, eachDayOfInterval, isBefore, startOfDay } from "date-fns";
-import { surfaceForegroundPair } from "@/lib/brandOverride";
-
 
 interface RoomAvailability {
   roomId: string;
   roomName: string;
   maxGuests?: number;
+  maxAdults?: number;
   beds?: number;
+  allowChildren?: boolean;
+  childPolicyNote?: string;
+  mealPlan?: string;
+  /** Main rate per night keyed by yyyy-MM-dd. `null` = sold out, `undefined` = no rate loaded. */
   ratesByDate: Record<string, number | null>;
+  /** Optional single-occupancy rate keyed by yyyy-MM-dd (shown as the small upper figure). */
+  singleRatesByDate?: Record<string, number | null>;
 }
 
 interface EmbedAvailabilityGridProps {
@@ -21,6 +26,14 @@ interface EmbedAvailabilityGridProps {
   onBook?: (roomId: string, roomName: string) => void;
 }
 
+interface HoverCell {
+  roomId: string;
+  dateKey: string;
+}
+
+const money = (v: number) =>
+  v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
 export function EmbedAvailabilityGrid({
   rooms,
   startDate,
@@ -31,6 +44,7 @@ export function EmbedAvailabilityGrid({
   onBook,
 }: EmbedAvailabilityGridProps) {
   const [offset, setOffset] = useState(0);
+  const [hover, setHover] = useState<HoverCell | null>(null);
   const today = startOfDay(new Date());
 
   const dates = useMemo(() => {
@@ -40,56 +54,89 @@ export function EmbedAvailabilityGrid({
 
   const canGoBack = !isBefore(addDays(new Date(startDate), offset - 1), today);
 
-  // Never trust the supplied font colour blindly — enforce readability on the brand bar.
-  const headerText = useMemo(() => surfaceForegroundPair(brandColor, fontColor), [brandColor, fontColor]);
-
-
   return (
-    <div style={{ overflowX: "auto", width: "100%", padding: "4px 0" }}>
-      {/* Navigation */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", padding: "10px 16px", fontSize: "12px" }}>
-        <NavBtn label="‹‹" onClick={() => setOffset(o => Math.max(o - 7, 0))} disabled={!canGoBack} brandColor={brandColor} fontColor={fontColor} />
-        <NavBtn label="‹" onClick={() => setOffset(o => Math.max(o - 1, 0))} disabled={!canGoBack} brandColor={brandColor} fontColor={fontColor} />
-        <span style={{ padding: "0 12px", fontWeight: 600, fontSize: "13px", color: "#333", letterSpacing: "-0.01em" }}>
-          {format(dates[0], "d MMM")} – {format(dates[dates.length - 1], "d MMM yyyy")}
+    <div style={{ width: "100%", background: "#fff", padding: "4px 0 10px" }}>
+      {/* Navigation — day / week stepper, NightsBridge style */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: "12px",
+          flexWrap: "wrap",
+          padding: "12px 16px 8px",
+        }}
+      >
+        <span style={{ fontSize: "12px", color: "#8a8a8a" }}>
+          Move the mouse over the price for more info.
         </span>
-        <NavBtn label="›" onClick={() => setOffset(o => o + 1)} brandColor={brandColor} fontColor={fontColor} />
-        <NavBtn label="››" onClick={() => setOffset(o => o + 7)} brandColor={brandColor} fontColor={fontColor} />
+        <div style={{ display: "flex", alignItems: "center", gap: "4px", marginLeft: "auto" }}>
+          <StepBtn label="‹" onClick={() => setOffset((o) => Math.max(o - 1, 0))} disabled={!canGoBack} />
+          <StepLabel>DAY</StepLabel>
+          <StepBtn label="‹‹" onClick={() => setOffset((o) => Math.max(o - 7, 0))} disabled={!canGoBack} />
+          <StepLabel>WEEK</StepLabel>
+          <StepBtn label="››" onClick={() => setOffset((o) => o + 7)} />
+          <StepLabel>DAY</StepLabel>
+          <StepBtn label="›" onClick={() => setOffset((o) => o + 1)} />
+        </div>
       </div>
 
-      <div style={{ padding: "0 12px 12px" }}>
-        <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: "0", fontSize: "12px" }}>
+      <div style={{ overflowX: "auto", padding: "0 12px" }}>
+        <table
+          style={{
+            width: "100%",
+            borderCollapse: "collapse",
+            fontSize: "13px",
+            color: "#3d3d3d",
+          }}
+        >
           <thead>
             <tr>
-              <th style={{ ...thStyle, minWidth: "140px", textAlign: "left", background: brandColor, color: headerText.fg, borderRadius: "8px 0 0 8px" }}>
+              <th
+                style={{
+                  ...thStyle,
+                  minWidth: "180px",
+                  textAlign: "left",
+                  fontSize: "15px",
+                  fontWeight: 700,
+                  color: "#2b2b2b",
+                }}
+              >
                 Room Type
               </th>
-              {dates.map((d, i) => {
+              {dates.map((d) => {
                 const isWeekend = d.getDay() === 0 || d.getDay() === 6;
-                const cellBg = isWeekend ? darken(brandColor, 0.12) : brandColor;
-                const cellText = surfaceForegroundPair(cellBg, fontColor);
+                const labelColor = isWeekend ? "#6b6b6b" : brandColor;
                 return (
-                  <th
-                    key={d.toISOString()}
-                    style={{
-                      ...thStyle,
-                      minWidth: "58px",
-                      textAlign: "center",
-                      background: cellBg,
-                      color: cellText.fg,
-                      borderRadius: i === dates.length - 1 && !onBook ? "0 8px 8px 0" : undefined,
-                    }}
-                  >
-                    <div style={{ fontSize: "10px", textTransform: "uppercase", letterSpacing: "0.04em", color: cellText.muted }}>{format(d, "EEE")}</div>
-                    <div style={{ fontWeight: 700, fontSize: "14px", color: cellText.fg }}>{format(d, "d")}</div>
-                    <div style={{ fontSize: "9px", textTransform: "uppercase", color: cellText.muted }}>{format(d, "MMM")}</div>
+                  <th key={d.toISOString()} style={{ ...thStyle, minWidth: "62px", textAlign: "center" }}>
+                    <div
+                      style={{
+                        fontSize: "11px",
+                        fontWeight: 600,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.05em",
+                        color: labelColor,
+                      }}
+                    >
+                      {format(d, "EEE")}
+                    </div>
+                    <div style={{ fontSize: "17px", fontWeight: 700, lineHeight: 1.15, color: labelColor }}>
+                      {format(d, "d")}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "10px",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.05em",
+                        color: "#9a9a9a",
+                      }}
+                    >
+                      {format(d, "MMM")}
+                    </div>
                   </th>
                 );
               })}
-              {onBook && (
-                <th style={{ ...thStyle, width: "48px", background: brandColor, color: headerText.fg, borderRadius: "0 8px 8px 0" }} />
-              )}
-
+              {onBook && <th style={{ ...thStyle, width: "56px" }} />}
             </tr>
           </thead>
           <tbody>
@@ -100,40 +147,75 @@ export function EmbedAvailabilityGrid({
                 </td>
               </tr>
             ) : (
-              rooms.map((room, ri) => (
-                <tr key={room.roomId} style={{ background: ri % 2 === 0 ? "#fff" : "#fafbfc" }}>
-                  <td style={{ ...tdStyle, fontWeight: 600, color: "#222" }}>
-                    <div style={{ fontSize: "13px" }}>{room.roomName}</div>
-                    {(room.maxGuests || room.beds) && (
-                      <div style={{ fontSize: "10px", color: "#999", fontWeight: 400, marginTop: "1px" }}>
-                        {[room.maxGuests && `${room.maxGuests} guests`, room.beds && `${room.beds} bed${room.beds > 1 ? "s" : ""}`].filter(Boolean).join(" · ")}
-                      </div>
-                    )}
+              rooms.map((room) => (
+                <tr key={room.roomId}>
+                  <td style={{ ...tdStyle, textAlign: "left" }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px" }}>
+                      <span style={{ fontSize: "14px", color: brandColor, fontWeight: 500 }}>{room.roomName}</span>
+                      <OccupancyIcons count={room.maxGuests || room.maxAdults || 2} />
+                    </div>
                   </td>
                   {dates.map((d) => {
                     const key = format(d, "yyyy-MM-dd");
                     const rate = room.ratesByDate[key];
+                    const single = room.singleRatesByDate?.[key];
                     const isSold = rate === null;
                     const hasRate = rate !== undefined && rate !== null;
+                    const isHovered = hover?.roomId === room.roomId && hover?.dateKey === key;
+
+                    if (isSold) {
+                      return (
+                        <td key={key} style={{ ...tdStyle, textAlign: "center", padding: "6px 4px" }}>
+                          <div
+                            style={{
+                              background: "#d9d9d9",
+                              color: "#4a4a4a",
+                              fontSize: "11px",
+                              fontWeight: 700,
+                              letterSpacing: "0.06em",
+                              padding: "12px 2px",
+                            }}
+                          >
+                            SOLD
+                          </div>
+                        </td>
+                      );
+                    }
 
                     return (
                       <td
                         key={key}
+                        onMouseEnter={() => setHover({ roomId: room.roomId, dateKey: key })}
+                        onMouseLeave={() => setHover((h) => (h?.roomId === room.roomId && h?.dateKey === key ? null : h))}
                         style={{
                           ...tdStyle,
                           textAlign: "center",
-                          fontWeight: 600,
-                          background: isSold ? "#fef2f2" : undefined,
-                          color: isSold ? "#ef4444" : hasRate ? "#222" : "#ccc",
+                          position: "relative",
+                          padding: "6px 4px",
+                          cursor: hasRate ? "default" : undefined,
+                          background: isHovered && hasRate ? "#f6f6f6" : undefined,
                         }}
-                        title={hasRate ? `${currency}${rate.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} per night` : isSold ? "Sold out" : "No rate"}
                       >
-                        {isSold ? (
-                          <span style={{ fontSize: "9px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em" }}>SOLD</span>
-                        ) : hasRate ? (
-                          <span style={{ fontSize: "12px" }}>{rate.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        {hasRate ? (
+                          <div style={{ padding: "6px 2px", lineHeight: 1.25 }}>
+                            {single != null && single !== rate && (
+                              <div style={{ fontSize: "11px", color: brandColor }}>{money(single)}</div>
+                            )}
+                            <div style={{ fontSize: "13px", fontWeight: 600, color: "#2b2b2b" }}>{money(rate)}</div>
+                          </div>
                         ) : (
-                          <span style={{ fontSize: "11px" }}>–</span>
+                          <span style={{ fontSize: "12px", color: "#cfcfcf" }}>–</span>
+                        )}
+
+                        {isHovered && hasRate && (
+                          <RateTooltip
+                            room={room}
+                            date={d}
+                            rate={rate}
+                            single={single ?? undefined}
+                            currency={currency}
+                            brandColor={brandColor}
+                          />
                         )}
                       </td>
                     );
@@ -147,13 +229,13 @@ export function EmbedAvailabilityGrid({
                           background: brandColor,
                           color: fontColor,
                           border: "none",
-                          borderRadius: "6px",
-                          padding: "6px 10px",
+                          borderRadius: "2px",
+                          padding: "7px 12px",
                           cursor: "pointer",
                           fontSize: "10px",
                           fontWeight: 700,
-                          letterSpacing: "0.02em",
-                          transition: "opacity 0.15s",
+                          textTransform: "uppercase",
+                          letterSpacing: "0.05em",
                         }}
                       >
                         Book
@@ -170,25 +252,118 @@ export function EmbedAvailabilityGrid({
   );
 }
 
-/* ── Helpers ── */
+/* ── Pieces ── */
 
-function NavBtn({ label, onClick, disabled, brandColor, fontColor }: { label: string; onClick: () => void; disabled?: boolean; brandColor: string; fontColor: string }) {
+function RateTooltip({
+  room,
+  date,
+  rate,
+  single,
+  currency,
+  brandColor,
+}: {
+  room: RoomAvailability;
+  date: Date;
+  rate: number;
+  single?: number;
+  currency: string;
+  brandColor: string;
+}) {
+  const maxAdults = room.maxAdults || room.maxGuests || 2;
+  return (
+    <div
+      style={{
+        position: "absolute",
+        top: "100%",
+        left: "50%",
+        transform: "translateX(-50%)",
+        zIndex: 30,
+        marginTop: "2px",
+        minWidth: "210px",
+        textAlign: "left",
+        background: "#f1f1f1",
+        border: "1px solid #dcdcdc",
+        boxShadow: "0 6px 18px rgba(0,0,0,0.14)",
+        padding: "12px 14px",
+        fontSize: "12px",
+        color: "#3d3d3d",
+        pointerEvents: "none",
+      }}
+    >
+      <div style={{ fontWeight: 700, color: "#2b2b2b", marginBottom: "8px" }}>
+        {format(date, "EEE, d MMM yyyy")}
+      </div>
+      <Row label="Max Occupancy" value={String(room.maxGuests || maxAdults)} />
+      <Row label="Max Adults" value={String(maxAdults)} />
+      <div style={{ marginTop: "8px", fontWeight: 700, color: "#2b2b2b" }}>Child Policy</div>
+      <div style={{ color: "#6b6b6b" }}>
+        {room.childPolicyNote || (room.allowChildren === false ? "No children allowed." : "Children welcome.")}
+      </div>
+      {room.mealPlan && (
+        <>
+          <div style={{ marginTop: "8px", fontWeight: 700, color: "#2b2b2b" }}>Default Meal Plan</div>
+          <div style={{ color: "#6b6b6b" }}>{room.mealPlan}</div>
+        </>
+      )}
+      <div style={{ marginTop: "8px", borderTop: "1px solid #dcdcdc", paddingTop: "8px" }}>
+        {single != null && single !== rate && (
+          <div style={{ display: "flex", justifyContent: "space-between", gap: "12px" }}>
+            <span>1 Adult</span>
+            <span style={{ fontWeight: 700, color: brandColor }}>
+              {currency}
+              {money(single)}
+            </span>
+          </div>
+        )}
+        <div style={{ display: "flex", justifyContent: "space-between", gap: "12px" }}>
+          <span>{maxAdults >= 2 ? "2 Adults" : "Per night"}</span>
+          <span style={{ fontWeight: 700, color: "#2b2b2b" }}>
+            {currency}
+            {money(rate)}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Row({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", gap: "12px" }}>
+      <span>{label}</span>
+      <span style={{ fontWeight: 700, color: "#2b2b2b" }}>{value}</span>
+    </div>
+  );
+}
+
+function OccupancyIcons({ count }: { count: number }) {
+  const shown = Math.min(Math.max(count, 1), 4);
+  return (
+    <span style={{ display: "inline-flex", gap: "1px", color: "#bdbdbd" }} title={`Sleeps ${count}`}>
+      {Array.from({ length: shown }).map((_, i) => (
+        <svg key={i} width="11" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+          <circle cx="12" cy="7" r="4" />
+          <path d="M4 22c0-4.4 3.6-8 8-8s8 3.6 8 8z" />
+        </svg>
+      ))}
+    </span>
+  );
+}
+
+function StepBtn({ label, onClick, disabled }: { label: string; onClick: () => void; disabled?: boolean }) {
   return (
     <button
       onClick={onClick}
       disabled={disabled}
       style={{
-        background: disabled ? "#f0f0f0" : brandColor,
-        color: disabled ? "#bbb" : fontColor,
+        background: "transparent",
         border: "none",
-        borderRadius: "6px",
-        padding: "5px 10px",
-        fontSize: "13px",
+        color: disabled ? "#d5d5d5" : "#4a4a4a",
+        fontSize: "16px",
         fontWeight: 700,
+        lineHeight: 1,
+        padding: "4px 6px",
         cursor: disabled ? "default" : "pointer",
-        opacity: disabled ? 0.5 : 1,
-        transition: "all 0.15s ease",
-        minWidth: "32px",
       }}
     >
       {label}
@@ -196,24 +371,35 @@ function NavBtn({ label, onClick, disabled, brandColor, fontColor }: { label: st
   );
 }
 
-function darken(hex: string, amount: number): string {
-  const c = hex.replace("#", "");
-  if (c.length !== 6) return hex;
-  const r = Math.max(0, parseInt(c.substring(0, 2), 16) * (1 - amount));
-  const g = Math.max(0, parseInt(c.substring(2, 4), 16) * (1 - amount));
-  const b = Math.max(0, parseInt(c.substring(4, 6), 16) * (1 - amount));
-  return `#${Math.round(r).toString(16).padStart(2, "0")}${Math.round(g).toString(16).padStart(2, "0")}${Math.round(b).toString(16).padStart(2, "0")}`;
+function StepLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <span
+      style={{
+        fontSize: "13px",
+        fontWeight: 700,
+        letterSpacing: "0.08em",
+        textTransform: "uppercase",
+        color: "#2b2b2b",
+        padding: "0 2px",
+      }}
+    >
+      {children}
+    </span>
+  );
 }
 
 const thStyle: React.CSSProperties = {
-  padding: "8px 4px",
-  borderBottom: "none",
+  padding: "6px 4px 10px",
+  background: "#fff",
+  borderBottom: "1px solid #ececec",
   fontSize: "11px",
   fontWeight: 600,
+  verticalAlign: "bottom",
 };
 
 const tdStyle: React.CSSProperties = {
   padding: "10px 6px",
-  borderBottom: "1px solid #f0f0f0",
-  fontSize: "12px",
+  borderBottom: "1px solid #ececec",
+  fontSize: "13px",
+  verticalAlign: "middle",
 };
