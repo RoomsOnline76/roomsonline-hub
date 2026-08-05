@@ -2328,8 +2328,17 @@ Deno.serve(async (req) => {
         // Every listing matters: a portfolio's units can sit on different RU accounts and
         // locations, so verify each RUID rather than extrapolating from one.
         const ruIds: number[] = [];
+        const notes: string[] = [];
         const propRuId = parseInt(p.rentalsunited_property_id || '0', 10);
-        if (propRuId > 0) ruIds.push(propRuId);
+        // Guard: some properties have the RU OwnerID pasted into the listing-ID column.
+        // Verifying it asks RU for a property that cannot exist and reports a false
+        // "RU disagrees" for a property whose real unit listings are perfectly fine.
+        if (propRuId > 0 && ownerId && propRuId === Number(ownerId)) {
+          notes.push(`Ignored property-level RU ID ${propRuId} — that is the RU OwnerID, not a listing ID.`);
+          console.warn(`[push-property-to-ru] ${p.name}: property-level RU ID equals OwnerID ${ownerId} — ignored for verification`);
+        } else if (propRuId > 0) {
+          ruIds.push(propRuId);
+        }
         const { data: units } = await supabase
           .from('hostfully_room_types')
           .select('name, rentalsunited_property_id')
@@ -2340,9 +2349,10 @@ Deno.serve(async (req) => {
           if (id > 0 && !ruIds.includes(id)) ruIds.push(id);
         }
         if (ruIds.length === 0) {
-          results.push({ property_id: p.id, name: p.name, success: false, reason: 'no_ru_listing_id' });
+          results.push({ property_id: p.id, name: p.name, success: false, reason: 'no_ru_listing_id', notes });
           continue;
         }
+
 
         const state = await loadCurrencyState(supabase, p.id);
         const expectedIso = state?.published_currency_iso ?? state?.authored_currency_iso ?? 'ZAR';
