@@ -27,6 +27,18 @@ const DEFAULT_FLAGS: FeatureFlags = {
   hostfully_client_id: null,
 };
 
+const FLAGS_CACHE_KEY = "rolos.feature_flags";
+
+function readCachedFlags(): FeatureFlags | undefined {
+  try {
+    const raw = sessionStorage.getItem(FLAGS_CACHE_KEY);
+    if (!raw) return undefined;
+    return { ...DEFAULT_FLAGS, ...(JSON.parse(raw) as Partial<FeatureFlags>) };
+  } catch {
+    return undefined;
+  }
+}
+
 export function useFeatureFlags() {
   return useQuery({
     queryKey: ["feature-flags"],
@@ -36,23 +48,30 @@ export function useFeatureFlags() {
         
         if (error || !data?.success) {
           console.error('Feature flags error:', error || data?.error);
-          return DEFAULT_FLAGS;
+          return readCachedFlags() ?? DEFAULT_FLAGS;
         }
         
-        return {
-          ...DEFAULT_FLAGS,
-          ...data.data,
-        };
+        const flags = { ...DEFAULT_FLAGS, ...data.data };
+        try {
+          sessionStorage.setItem(FLAGS_CACHE_KEY, JSON.stringify(flags));
+        } catch {
+          /* best-effort cache only */
+        }
+        return flags;
       } catch (err) {
         console.error('Feature flags fetch failed:', err);
-        return DEFAULT_FLAGS;
+        return readCachedFlags() ?? DEFAULT_FLAGS;
       }
     },
+    // Paint immediately from the last known flags; a cold edge function then
+    // refreshes them in the background instead of gating the first render.
+    initialData: readCachedFlags,
     staleTime: 1000 * 60 * 5,
     retry: 1,
     refetchOnWindowFocus: false,
   });
 }
+
 
 // Convenience hooks for specific flags
 export function useRoomsonlineActive() {
