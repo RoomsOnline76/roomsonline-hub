@@ -8,12 +8,12 @@ import { usePMSBrand } from "@/contexts/PMSBrandContext";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
-/** Resolved page background, handed to the embed so it never looks pasted on. */
-function readPageBackground(): string {
-  if (typeof window === "undefined") return "#ffffff";
-  const raw = getComputedStyle(document.documentElement).getPropertyValue("--background").trim();
-  return raw ? `hsl(${raw})` : "#ffffff";
-}
+/**
+ * Embed frame canvas, matched to the ROL'OS page background so the frame boundary is
+ * invisible: #FFFFFF in day mode, #141414 in night mode.
+ */
+const EMBED_BG_LIGHT = "#FFFFFF";
+const EMBED_BG_DARK = "#141414";
 
 const EMBED_HEIGHT = "h-[calc(100vh-12rem)]";
 
@@ -107,7 +107,7 @@ export function RuWhiteLabelEmbed({ propertyId }: { propertyId: string | null | 
       ownerId: tokens.ruOwnerId,
       // Initial theme + page background; later switches arrive via postMessage.
       theme: isDark ? "dark" : "light",
-      bg: readPageBackground(),
+      bg: isDark ? EMBED_BG_DARK : EMBED_BG_LIGHT,
     });
     return `/ru-embed.html?${params.toString()}`;
     // The theme is deliberately not a dependency — re-keying the src would remount the
@@ -118,7 +118,11 @@ export function RuWhiteLabelEmbed({ propertyId }: { propertyId: string | null | 
   /** Push light/dark switches into the frame without reloading the channel manager. */
   useEffect(() => {
     frameRef.current?.contentWindow?.postMessage(
-      { type: "rolos-theme", theme: isDark ? "dark" : "light", bg: readPageBackground() },
+      {
+        type: "rolos-theme",
+        theme: isDark ? "dark" : "light",
+        bg: isDark ? EMBED_BG_DARK : EMBED_BG_LIGHT,
+      },
       window.location.origin,
     );
   }, [isDark, embedSrc]);
@@ -209,10 +213,10 @@ export function RuWhiteLabelEmbed({ propertyId }: { propertyId: string | null | 
 
   return (
     <div
-      // Borderless and on the page background, so the frame boundary is invisible in
-      // both light and dark mode.
-      style={brandStyle}
-      className={`w-full ${EMBED_HEIGHT} overflow-hidden border-0 bg-background`}
+      // Borderless, painted with the embed canvas colour so the frame boundary is
+      // invisible in both day (#FFFFFF) and night (#141414) mode.
+      style={{ ...brandStyle, backgroundColor: isDark ? EMBED_BG_DARK : EMBED_BG_LIGHT }}
+      className={`w-full ${EMBED_HEIGHT} overflow-hidden border-0`}
     >
 
       <iframe

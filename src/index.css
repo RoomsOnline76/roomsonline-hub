@@ -127,7 +127,7 @@ h1, h2, h3, h4, h5, h6, .font-heading {
 
   .dark {
     /* Dark mode - Deep & Sophisticated */
-    --background: 220 20% 8%;
+    --background: 216 21% 8%; /* #101318 */
     --background-soft: 220 18% 10%;
     --foreground: 40 6% 95%;
 
