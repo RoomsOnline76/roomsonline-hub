@@ -1069,8 +1069,22 @@ export default function PropertyShowcase() {
               />
             )}
 
+            {/* Availability & rates calendar (NightsBridge style, collapsed by default) */}
+            <ShowcaseAvailabilityCalendar
+              propertyId={property.id}
+              amenities={property.amenities as any}
+              brandColor={property.brand_primary_color || "#E91E8C"}
+              fontColor={(property as any).brand_font_color || "#FFFFFF"}
+              className="py-6"
+              onBook={(roomId) => {
+                const room = roomTypes.find((r: any) => String(r.id) === String(roomId));
+                if (room) handleRoomClick(room);
+              }}
+            />
+
             {/* Room/Unit Cards */}
             {isHostfullyProperty && roomTypes.length > 4 ? (
+
               <CategoryCollection
                 rooms={roomTypes}
                 getLowestRate={getLowestRateForRoom}
