@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from "react-router-dom";
-import { Menu, ChevronRight } from "lucide-react";
+import { Menu, ChevronRight, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { hasMinRole } from "@/lib/permissions";
 import { mobileNavItems, adminMobileNavItem, systemMobileNavItem, type NavItem } from "@/config/navigation";
@@ -20,7 +20,7 @@ export function MobileBottomNav() {
   const location = useLocation();
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
-  const { userRole } = useAuth();
+  const { userRole, signOut } = useAuth();
 
   const isAdmin = hasMinRole(userRole, 'admin');
   const isDev = hasMinRole(userRole, 'dev');
@@ -169,6 +169,18 @@ export function MobileBottomNav() {
                   <ChevronRight className="h-4 w-4 text-muted-foreground" />
                 </button>
               )}
+
+              <button
+                onClick={async () => {
+                  setMenuOpen(false);
+                  await signOut();
+                  navigate("/auth");
+                }}
+                className="flex w-full items-center gap-3 rounded-lg border border-border bg-card p-3 text-left text-sm font-semibold text-destructive transition-colors hover:bg-muted"
+              >
+                <LogOut className="h-5 w-5" />
+                Sign out
+              </button>
             </div>
           </SheetContent>
         </Sheet>
