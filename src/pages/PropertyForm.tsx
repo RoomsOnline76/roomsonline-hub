@@ -1,10 +1,32 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef, lazy, Suspense } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { usePropertyFieldRequirements } from "@/hooks/usePropertyFieldRequirements";
 import { focusRequirementField } from "@/lib/requirementFocus";
 import { RequirementLegend } from "@/components/property/RequirementLegend";
 
-import { PromoCodesTab } from "@/components/property/PromoCodesTab";
+/* ── Code-split heavy tab surfaces ───────────────────────────────────
+   Radix unmounts inactive tabs, so each of these only downloads when
+   the operator actually opens that section. Keeps the editor's initial
+   chunk to the General tab. */
+const PromoCodesTab = lazy(() => import("@/components/property/PromoCodesTab").then((m) => ({ default: m.PromoCodesTab })));
+const BillingConfigTab = lazy(() => import("@/components/property/BillingConfigTab").then((m) => ({ default: m.BillingConfigTab })));
+const AdminOverviewTab = lazy(() => import("@/components/property/AdminOverviewTab").then((m) => ({ default: m.AdminOverviewTab })));
+const ROLSpecTab = lazy(() => import("@/components/property/ROLSpecTab").then((m) => ({ default: m.ROLSpecTab })));
+const ExperienceEmailDesigner = lazy(() => import("@/components/property/ExperienceEmailDesigner").then((m) => ({ default: m.ExperienceEmailDesigner })));
+const PropertyOnboardingWizard = lazy(() => import("@/components/onboarding").then((m) => ({ default: m.PropertyOnboardingWizard })));
+const RatesOverviewPanel = lazy(() => import("@/components/property/RatesOverviewPanel").then((m) => ({ default: m.RatesOverviewPanel })));
+const PropertyFormIntegrationsTab = lazy(() => import("@/components/property/PropertyFormIntegrationsTab").then((m) => ({ default: m.PropertyFormIntegrationsTab })));
+const AccommodationSpecialsTab = lazy(() => import("@/components/property/AccommodationSpecialsTab").then((m) => ({ default: m.AccommodationSpecialsTab })));
+const RoomManagerTab = lazy(() => import("@/components/property/RoomManagerTab").then((m) => ({ default: m.RoomManagerTab })));
+const RateManagerTab = lazy(() => import("@/components/property/RateManagerTab").then((m) => ({ default: m.RateManagerTab })));
+const HostfullyRoomDetails = lazy(() => import("@/components/pms/HostfullyRoomDetails").then((m) => ({ default: m.HostfullyRoomDetails })));
+const PropertyMap = lazy(() => import("@/components/PropertyMap").then((m) => ({ default: m.PropertyMap })));
+const BrandingTab = lazy(() => import("@/components/property/BrandingTab").then((m) => ({ default: m.BrandingTab })));
+const WebsiteSyncModal = lazy(() => import("@/components/property/WebsiteSyncModal").then((m) => ({ default: m.WebsiteSyncModal })));
+const RichTextEditor = lazy(() => import("@/components/RichTextEditor"));
+import type { BrandingData } from "@/components/property/BrandingTab";
+import type { WebsiteSyncSuggestion } from "@/components/property/WebsiteSyncModal";
+
 import { CompanyInformationCard, type RuCompanyProfile } from "@/components/property/CompanyInformationCard";
 import { PropertyRuOwnerPanel } from "@/components/property/PropertyRuOwnerPanel";
 import { RolosOnboardingWizard } from "@/components/onboarding/rolos/RolosOnboardingWizard";
@@ -95,7 +117,6 @@ import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
-import { PropertyMap } from "@/components/PropertyMap";
 import { TagInput } from "@/components/TagInput";
 import {
   ACCOMMODATION_LABEL_OPTIONS,
@@ -117,7 +138,6 @@ import {
   getAuthorityLabel as getEditorialAuthorityLabel,
 } from "@/lib/pmsEditorialConfig";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import RichTextEditor from "@/components/RichTextEditor";
 import { pmsIntegrationStatus } from "@/components/ApiMilestones";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertTriangle, Sparkles, Globe, Palette, ShieldCheck } from "lucide-react";
@@ -129,29 +149,16 @@ import {
   RU_TAG_MAIN,
 } from "@/lib/ruImageTags";
 
-import { BillingConfigTab } from "@/components/property/BillingConfigTab";
 
 import { ReferralSection } from "@/components/property/ReferralSection";
-import { AdminOverviewTab } from "@/components/property/AdminOverviewTab";
-import { ROLSpecTab } from "@/components/property/ROLSpecTab";
-import { BrandingTab, BrandingData } from "@/components/property/BrandingTab";
 import { BrandVoiceCard } from "@/components/property/BrandVoiceCard";
-import { ExperienceEmailDesigner } from "@/components/property/ExperienceEmailDesigner";
 import { ContextualHelp, ImpactWarning } from "@/components/help";
 import { OwnerPMSConnectionCard } from "@/components/pms/OwnerPMSConnectionCard";
 import { parseHostfullyProperties } from "@/lib/hostfullyBuildingParser";
-import { HostfullyRoomDetails } from "@/components/pms/HostfullyRoomDetails";
-import { WebsiteSyncModal, WebsiteSyncSuggestion } from "@/components/property/WebsiteSyncModal";
 import { syncFromWebsite } from "@/lib/api/websiteSync";
 import { useFeatureFlags } from "@/hooks/useFeatureFlags";
 import { ContractManagementPanel } from "@/components/contract";
-import { PropertyOnboardingWizard } from "@/components/onboarding";
-import { RatesOverviewPanel } from "@/components/property/RatesOverviewPanel";
-import { PropertyFormIntegrationsTab } from "@/components/property/PropertyFormIntegrationsTab";
-import { AccommodationSpecialsTab } from "@/components/property/AccommodationSpecialsTab";
 import { useActivationReadiness } from "@/components/property/QualityGateIndicator";
-import { RoomManagerTab } from "@/components/property/RoomManagerTab";
-import { RateManagerTab } from "@/components/property/RateManagerTab";
 import { HouseRulesCard } from "@/components/property/policies/HouseRulesCard";
 import { RuPaymentMethodsPicker } from "@/components/property/RuPaymentMethodsPicker";
 import { RuChannelContentFields } from "@/components/property/RuChannelContentFields";
@@ -4056,6 +4063,14 @@ export default function PropertyForm({
           )}
 
 
+        <Suspense
+          fallback={
+            <div className="min-w-0 space-y-3 p-3" aria-hidden>
+              <div className="h-8 w-48 animate-pulse rounded bg-muted" />
+              <div className="h-64 w-full animate-pulse rounded bg-muted/60" />
+            </div>
+          }
+        >
         <Tabs
           value={activeTab}
           onValueChange={handleTabChange}
