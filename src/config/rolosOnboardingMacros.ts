@@ -222,3 +222,20 @@ export const ROLOS_ONBOARDING_MACROS: MacroDef[] = [
 export function getMacro(key: string): MacroDef | undefined {
   return ROLOS_ONBOARDING_MACROS.find((m) => m.key === key);
 }
+
+/**
+ * Step 10 manual verification checklist. Each item is ticked individually by an
+ * admin / owner / developer; the macro only completes once all are ticked.
+ */
+export interface SignoffChecklistItem {
+  key: string;
+  label: string;
+}
+
+export const ROLOS_SIGNOFF_CHECKLIST: SignoffChecklistItem[] = [
+  { key: "owner_details", label: "Owner details are correct" },
+  { key: "company_details", label: "Company details are correct" },
+  { key: "properties_present", label: "Property / properties are present" },
+  { key: "calendar_currency", label: "Calendar resolves in the correct currency" },
+  { key: "no_content_warnings", label: "No outstanding content-quality warnings" },
+];
