@@ -169,7 +169,7 @@ NAVIGATION GUIDE — OPERATIONS:
 NAVIGATION GUIDE — REVENUE:
 - "Rate Plans" (/pms/rate-plans) — Pricing strategies: base rates, seasonal pricing with day-of-week multipliers, minimum/maximum stay rules, and rate codes
 - "Revenue Mgmt" (/pms/revenue) — Revenue management with 14-day demand forecasting and historical performance analysis (GBV, ADR, channel mix) for 30/60/90 day periods
-- "Channels" (/pms/channels) — OTA Channel Manager: connect/disconnect Booking.com, Airbnb, Expedia, Google Hotels, etc. Manage rate parity, availability sync, and commission tracking
+- "Channels" (/pms/channels) — The ROL'OS Channel Manager: connect sales channels (Booking.com, Airbnb, Expedia, Google, and others), map rooms and rates, and keep availability and pricing in sync
 - "Groups" (/pms/groups) — Group & block bookings: create group reservations, manage rooming lists, track group billing, and handle allotments with cutoff dates
 - "Events" (/pms/events) — Function spaces & event booking: manage venues/spaces, create event bookings with catering and setup requirements, track event revenue
 
