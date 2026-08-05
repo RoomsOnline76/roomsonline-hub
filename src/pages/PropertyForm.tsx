@@ -6380,6 +6380,7 @@ export default function PropertyForm({
                     <RuImageTagPicker
                       value={[]}
                       align="end"
+                      hideStatusBadge
                       onChange={(next) => {
                         if (!next.length) return;
                         setImageTags((prev) => {
