@@ -200,23 +200,6 @@ export const ROLOS_ONBOARDING_MACROS: MacroDef[] = [
     ],
 
   },
-  {
-    key: "channels",
-    order: 11,
-    title: "Connect channels",
-    goal: "The owner activates the sales channels they want to trade on.",
-    action: "open_channels",
-    tasks: [
-      { kind: "state", key: "channel_entitlement" },
-      { kind: "state", key: "channels_connected", optional: true },
-      { kind: "state", key: "quality_check", optional: true },
-    ],
-    notes: [
-      "Connect one channel at a time. Verify each: listing visible, availability and pricing present, quality check passed, first inbound test reservation writes a booking and blocks availability.",
-      "The content quality check is assessed here — it only returns a real verdict once the channel subscription is active.",
-    ],
-
-  },
 ];
 
 export function getMacro(key: string): MacroDef | undefined {

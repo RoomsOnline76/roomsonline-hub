@@ -225,9 +225,36 @@ export function RolosOnboardingWizard({ propertyId, className }: Props) {
 
 
 
+  const allComplete = visibleMacros.length > 0 && visibleMacros.every((m) => m.complete);
+
   if (!propertyId || dismissed) return null;
   if (isLoading) return null;
   if (!isRolosPms) return null;
+
+  // Every readiness step is green — the wizard condenses into a single action.
+  if (allComplete) {
+    return (
+      <div
+        className={`fixed bottom-4 right-4 z-50 flex items-center gap-2 rounded-xl border bg-card p-2 shadow-2xl ${className ?? ""}`}
+        role="complementary"
+        aria-label="ROL'OS channel readiness complete"
+      >
+        <Button
+          type="button"
+          size="sm"
+          className="h-8 text-xs"
+          onClick={() => navigate(`/pms/channels?property=${propertyId}`)}
+        >
+          <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
+          Connect Channels
+        </Button>
+        <Button type="button" size="icon" variant="ghost" className="h-7 w-7" onClick={dismiss} aria-label="Hide">
+          <X className="h-3.5 w-3.5" />
+        </Button>
+      </div>
+    );
+  }
+
 
   return (
     <div
