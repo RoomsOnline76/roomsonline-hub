@@ -4052,7 +4052,7 @@ export default function PropertyForm({
             <PropertySectionRail
               groups={railGroups}
               activeKey={activeTab}
-              onSelect={setActiveTab}
+              onSelect={handleTabChange}
               blockerKeys={tabsWithBlockers}
               requirementCounts={requirementCounts}
               collapsed={railCollapsed}
