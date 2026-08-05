@@ -14,7 +14,7 @@ import { ContractStatusBadge } from "./ContractStatusBadge";
 import { ContractOverrideModal } from "./ContractOverrideModal";
 import { useOwnerContract } from "@/hooks/useOwnerContract";
 import { useAuth } from "@/hooks/useAuth";
-import { FileText, Send, RefreshCw, Download, Shield, AlertTriangle, Building2, Server } from "lucide-react";
+import { FileText, Send, RefreshCw, Download, Shield, AlertTriangle, Building2, Server, ChevronDown, ChevronUp } from "lucide-react";
 import { format } from "date-fns";
 import { generateSignedContractHTML, generatePdfFromDynamicTemplate, PropertyContractDetails, SignatureData, ContractMetadata, CoveredProperty } from "@/lib/contractAgreementText";
 import { supabase } from "@/integrations/supabase/client";
@@ -51,6 +51,8 @@ export function ContractManagementPanel({
   } = useOwnerContract(ownerEmail);
 
   const [overrideModalOpen, setOverrideModalOpen] = useState(false);
+  /** A signed contract needs no action — the panel rests collapsed on its badge. */
+  const [contractExpanded, setContractExpanded] = useState(false);
   const [contractTypeModalOpen, setContractTypeModalOpen] = useState(false);
   const [selectedContractType, setSelectedContractType] = useState<'standard' | 'rolos'>(
     isRolProperty ? 'rolos' : 'standard'
@@ -288,8 +290,22 @@ export function ContractManagementPanel({
             {!contract && !isLoading && (
               <ContractStatusBadge status={null} />
             )}
+            {contract?.status === "signed" && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="ml-auto h-6 gap-1 text-xs"
+                onClick={() => setContractExpanded((v) => !v)}
+                aria-expanded={contractExpanded}
+              >
+                {contractExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                {contractExpanded ? "Hide" : "Details"}
+              </Button>
+            )}
           </CardTitle>
         </CardHeader>
+        {(contract?.status !== "signed" || contractExpanded) && (
         <CardContent className="py-2 px-4 space-y-3">
           {/* Warning for live properties without contract */}
           {showWarning && (
@@ -443,6 +459,7 @@ export function ContractManagementPanel({
             </p>
           )}
         </CardContent>
+        )}
       </Card>
 
       <ContractOverrideModal
