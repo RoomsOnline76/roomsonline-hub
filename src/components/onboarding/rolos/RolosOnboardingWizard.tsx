@@ -17,6 +17,8 @@ import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
+import { ROLOS_SIGNOFF_CHECKLIST } from "@/config/rolosOnboardingMacros";
+
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -61,7 +63,9 @@ export function RolosOnboardingWizard({ propertyId, className }: Props) {
     overall,
     signoff,
     recordSignoff,
+    recordSignoffCheck,
     refresh,
+
     isLoading,
     isFetching,
     propertyName,
@@ -175,6 +179,21 @@ export function RolosOnboardingWizard({ propertyId, className }: Props) {
     [recordSignoff, user?.email],
   );
 
+  const toggleSignoffItem = useCallback(
+    async (itemKey: string, next: boolean) => {
+      setBusyAction(`signoff:${itemKey}`);
+      try {
+        await recordSignoffCheck(itemKey, next, user?.email ?? null);
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Could not record the confirmation");
+      } finally {
+        setBusyAction(null);
+      }
+    },
+    [recordSignoffCheck, user?.email],
+  );
+
+
   const visibleMacros = useMemo(
     () => macros.filter((m) => !m.macro.adminOnly || isPlatformUser),
     [isPlatformUser, macros],
@@ -286,7 +305,10 @@ export function RolosOnboardingWizard({ propertyId, className }: Props) {
                 onGoToField={goToField}
                 onPushOwner={pushOwner}
                 onSignoff={toggleSignoff}
+                onSignoffItem={toggleSignoffItem}
+                signoffChecks={signoff.checks}
                 signedOff={signoff.signed_off}
+
                 busyAction={busyAction}
                 isPlatformUser={isPlatformUser}
                 onOpenChannels={() => navigate(`/pms/channels?property=${propertyId}`)}
@@ -307,6 +329,8 @@ interface RowProps {
   onGoToField: (section: string, focus?: string) => void;
   onPushOwner: () => void;
   onSignoff: (next: boolean) => void;
+  onSignoffItem: (itemKey: string, next: boolean) => void;
+  signoffChecks: Record<string, { checked: boolean; by?: string | null; at?: string | null }>;
   signedOff: boolean;
   busyAction: string | null;
   isPlatformUser: boolean;
@@ -320,11 +344,14 @@ function MacroRow({
   onGoToField,
   onPushOwner,
   onSignoff,
+  onSignoffItem,
+  signoffChecks,
   signedOff,
   busyAction,
   isPlatformUser,
   onOpenChannels,
 }: RowProps) {
+
   const { macro, complete, locked, score, fieldItems, stateChecks } = progress;
   const outstandingFields = fieldItems.filter((i) => !i.satisfied);
   const firstOutstandingField = outstandingFields.find((item) => item.tier === "mandatory") ?? outstandingFields[0];
@@ -441,15 +468,56 @@ function MacroRow({
             )}
 
             {macro.action === "signoff" && isPlatformUser && (
-              <label className="flex items-center gap-2 text-[11px]">
-                <Checkbox
-                  checked={signedOff}
-                  disabled={locked || busyAction === "signoff"}
-                  onCheckedChange={(v) => onSignoff(v === true)}
-                />
-                I have verified the live sub-account
-              </label>
+              <div className="w-full space-y-1.5 rounded-md border bg-muted/20 p-2">
+                {ROLOS_SIGNOFF_CHECKLIST.map((item) => {
+                  const record = signoffChecks?.[item.key];
+                  return (
+                    <label key={item.key} className="flex items-start gap-2 text-[11px] leading-snug">
+                      <Checkbox
+                        className="mt-0.5"
+                        checked={record?.checked === true}
+                        disabled={locked || busyAction === `signoff:${item.key}`}
+                        onCheckedChange={(v) => onSignoffItem(item.key, v === true)}
+                      />
+                      <span className="min-w-0 flex-1">
+                        {item.label}
+                        {record?.checked && record.by ? (
+                          <span className="block text-[10px] text-muted-foreground">
+                            {record.by}
+                            {record.at ? ` · ${new Date(record.at).toLocaleDateString()}` : ""}
+                          </span>
+                        ) : null}
+                      </span>
+                    </label>
+                  );
+                })}
+                {!signedOff && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-7 w-full text-[11px]"
+                    disabled={locked || busyAction === "signoff"}
+                    onClick={() => onSignoff(true)}
+                  >
+                    Confirm all items
+                  </Button>
+                )}
+                {signedOff && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 w-full text-[11px]"
+                    disabled={locked || busyAction === "signoff"}
+                    onClick={() => onSignoff(false)}
+                  >
+                    Clear sign-off
+                  </Button>
+                )}
+              </div>
             )}
+
 
             {macro.action === "open_channels" && (
               <Button
