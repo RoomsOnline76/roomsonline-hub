@@ -17,6 +17,8 @@ export interface ShowcaseProperty {
   what_its_really_like: string | null;
   why_this_place_matters: string | null;
   who_its_not_for: string | null;
+  [key: string]: unknown;
+
 }
 
 const SELECT = `
