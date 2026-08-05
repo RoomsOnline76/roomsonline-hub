@@ -96,7 +96,10 @@ export function RuWhiteLabelEmbed({ propertyId }: { propertyId: string | null | 
     script.src = `https://new.rentalsunited.com/white-pms-client/script?${params.toString()}`;
     script.async = true;
     script.onerror = () => setScriptFailed(true);
-    container.appendChild(script);
+
+    // Official placement: outside the #ruApp container so the RU client can
+    // reliably mount into the empty div.
+    document.head.appendChild(script);
 
     return () => {
       script.onerror = null;
