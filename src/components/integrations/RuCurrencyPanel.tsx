@@ -171,10 +171,29 @@ export function RuCurrencyPanel() {
         body: { action: "verify_ru_currency", ...(selected.length ? { property_ids: selected } : {}) },
       });
       if (error || !data?.success) throw new Error(error?.message || data?.error?.message || "Verification failed");
-      const results = (data.results ?? []) as Array<{ matches?: boolean }>;
+      type VerifyResult = {
+        matches?: boolean;
+        name?: string;
+        error?: string | null;
+        unreachable?: boolean;
+        stale_listing_ids?: number[];
+      };
+      const results = (data.results ?? []) as VerifyResult[];
       const ok = results.filter((r) => r.matches).length;
-      if (ok === results.length) toast.success(`Rentals United confirms the expected currency on ${ok}/${results.length} listings`);
-      else toast.warning(`Rentals United disagrees on ${results.length - ok} of ${results.length} listings — see the RU reports column`);
+      // A listing that cannot be read is not a currency disagreement — say what actually happened.
+      const stale = results.filter((r) => !r.matches && (r.stale_listing_ids?.length ?? 0) > 0);
+      const unreachable = results.filter((r) => !r.matches && r.unreachable);
+      const mismatched = results.filter(
+        (r) => !r.matches && !r.unreachable && !(r.stale_listing_ids?.length ?? 0),
+      );
+      if (results.length === 0) toast.info("No properties with channel listings to verify");
+      else if (ok === results.length) toast.success(`Currency confirmed on ${ok}/${results.length} properties`);
+      else {
+        if (mismatched.length) toast.warning(`Currency mismatch on ${mismatched.length} of ${results.length} properties — see the reported column`);
+        if (stale.length) toast.warning(`${stale.length} property(ies) hold listing IDs that no longer exist upstream — re-push to refresh them`);
+        if (unreachable.length) toast.error(`${unreachable.length} property(ies) could not be reached — currency not checked, please retry`);
+      }
+
       await load();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Verification failed");

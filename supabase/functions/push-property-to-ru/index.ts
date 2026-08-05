@@ -2292,12 +2292,33 @@ Deno.serve(async (req) => {
     // of trusting our own cache (which is what previously reported green while RU sat on USD).
     if (action === 'verify_ru_currency') {
       const targetIds: string[] | undefined = Array.isArray(reqBody.property_ids) ? reqBody.property_ids : undefined;
-      const { data: props } = await supabase
-        .from('properties')
-        .select('id, name, owner_email, country, amenities, ru_location_id, rentalsunited_property_id, rentalsunited_building_id')
-        .or('rentalsunited_property_id.not.is.null,rentalsunited_building_id.not.is.null');
+      // Multi-unit listings live on the UNITS, not the parent property, so a property-level
+      // RU ID filter alone silently skipped every ROL'OS multi-unit property.
+      const { data: unitOwners } = await supabase
+        .from('hostfully_room_types')
+        .select('property_id')
+        .not('rentalsunited_property_id', 'is', null);
+      const unitPropertyIds = Array.from(
+        new Set(((unitOwners ?? []) as any[]).map((u) => u.property_id).filter(Boolean)),
+      ) as string[];
+
+      const propSelect = 'id, name, owner_email, country, amenities, ru_location_id, rentalsunited_property_id, rentalsunited_building_id';
+      const [{ data: propLevel, error: propLevelError }, { data: unitLevel, error: unitLevelError }] = await Promise.all([
+        supabase.from('properties').select(propSelect)
+          .or('rentalsunited_property_id.not.is.null,rentalsunited_building_id.not.is.null'),
+        unitPropertyIds.length
+          ? supabase.from('properties').select(propSelect).in('id', unitPropertyIds)
+          : Promise.resolve({ data: [], error: null } as any),
+      ]);
+      if (propLevelError || unitLevelError) {
+        console.error('[push-property-to-ru] verify_ru_currency target lookup failed', propLevelError ?? unitLevelError);
+      }
+      const propsById = new Map<string, any>();
+      for (const p of [...((propLevel ?? []) as any[]), ...((unitLevel ?? []) as any[])]) propsById.set(p.id, p);
+      const props = Array.from(propsById.values());
 
       const targets = (props ?? []).filter((p: any) => !targetIds || targetIds.includes(p.id));
+
       const results: any[] = [];
 
       for (const p of targets as any[]) {
@@ -2328,8 +2349,17 @@ Deno.serve(async (req) => {
         // Every listing matters: a portfolio's units can sit on different RU accounts and
         // locations, so verify each RUID rather than extrapolating from one.
         const ruIds: number[] = [];
+        const notes: string[] = [];
         const propRuId = parseInt(p.rentalsunited_property_id || '0', 10);
-        if (propRuId > 0) ruIds.push(propRuId);
+        // Guard: some properties have the RU OwnerID pasted into the listing-ID column.
+        // Verifying it asks RU for a property that cannot exist and reports a false
+        // "RU disagrees" for a property whose real unit listings are perfectly fine.
+        if (propRuId > 0 && ownerId && propRuId === Number(ownerId)) {
+          notes.push(`Ignored property-level RU ID ${propRuId} — that is the RU OwnerID, not a listing ID.`);
+          console.warn(`[push-property-to-ru] ${p.name}: property-level RU ID equals OwnerID ${ownerId} — ignored for verification`);
+        } else if (propRuId > 0) {
+          ruIds.push(propRuId);
+        }
         const { data: units } = await supabase
           .from('hostfully_room_types')
           .select('name, rentalsunited_property_id')
@@ -2340,9 +2370,10 @@ Deno.serve(async (req) => {
           if (id > 0 && !ruIds.includes(id)) ruIds.push(id);
         }
         if (ruIds.length === 0) {
-          results.push({ property_id: p.id, name: p.name, success: false, reason: 'no_ru_listing_id' });
+          results.push({ property_id: p.id, name: p.name, success: false, reason: 'no_ru_listing_id', notes });
           continue;
         }
+
 
         const state = await loadCurrencyState(supabase, p.id);
         const expectedIso = state?.published_currency_iso ?? state?.authored_currency_iso ?? 'ZAR';
@@ -2388,20 +2419,32 @@ Deno.serve(async (req) => {
         }
 
         const strays = listings.filter(l => l.on_master_account);
+        const stale = listings.filter(l => !l.ru_reported_iso && /does not exist/i.test(String(l.error ?? '')));
+        const transport = listings.filter(l => !l.ru_reported_iso && /failed to send a request|fetch failed|timeout/i.test(String(l.error ?? '')));
+        const reason = strays.length
+          ? `${strays.length} listing(s) still live on the master Rentals United account (${strays.map((s: any) => s.ru_property_id).join(', ')}) — re-push them as the white-label sub-user.`
+          : stale.length === listings.length && listings.length > 0
+            ? `Stored listing IDs (${stale.map((s: any) => s.ru_property_id).join(', ')}) no longer exist on this owner account — re-push the property to issue fresh listing IDs. The currency itself was not checked.`
+            : transport.length === listings.length && listings.length > 0
+              ? 'Could not reach Rentals United for this property — transport error, currency not checked. Retry.'
+              : (listings.find(l => l.error)?.error ?? notes[0] ?? null);
         results.push({
           property_id: p.id,
           name: p.name,
           owner_scope: String(ownerId),
           expected_iso: expectedIso,
           listings,
+          notes,
           listings_on_master_account: strays.length,
+          stale_listing_ids: stale.map((s: any) => s.ru_property_id),
+          unreachable: transport.length === listings.length && listings.length > 0,
           ru_reported_iso: primaryVerification?.ru_reported_iso ?? listings.find(l => l.ru_reported_iso)?.ru_reported_iso ?? null,
           matches: listings.length > 0 && listings.every(l => l.matches),
           success: listings.some(l => !!l.ru_reported_iso),
-          error: strays.length
-            ? `${strays.length} listing(s) still live on the master Rentals United account (${strays.map((s: any) => s.ru_property_id).join(', ')}) — re-push them as the white-label sub-user.`
-            : (listings.find(l => l.error)?.error ?? null),
+          error: reason,
         });
+
+
 
 
         await new Promise(r => setTimeout(r, 750));
@@ -3467,7 +3510,13 @@ Deno.serve(async (req) => {
     if (singleImageIssues.length > 0) {
       console.warn(`[push-property-to-ru] Dropped ${singleImageIssues.length} image(s) Rentals United would reject`, singleImageIssues.map(i => i.reason));
     }
-    const existingRuId = property.rentalsunited_property_id ? parseInt(property.rentalsunited_property_id, 10) : 0;
+    const storedRuId = property.rentalsunited_property_id ? parseInt(property.rentalsunited_property_id, 10) : 0;
+    // A stored value equal to the RU OwnerID is a mis-capture, not a listing ID — treat the
+    // property as unpushed instead of asking RU to update a listing that cannot exist.
+    const existingRuId = storedRuId > 0 && ruOwnerId && storedRuId === Number(ruOwnerId) ? 0 : storedRuId;
+    if (storedRuId && !existingRuId) {
+      console.warn(`[push-property-to-ru] Stored RU property ID ${storedRuId} equals OwnerID — ignoring as a mis-capture`);
+    }
 
     const singleValidation = buildValidation(ruPayload as unknown as Record<string, any>);
 

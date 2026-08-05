@@ -116,12 +116,23 @@ export async function verifyRuPropertyCurrency(
 ): Promise<{ iso: string | null; currency_id: number | null; error?: string }> {
   if (!ruPropertyId || ruPropertyId <= 0) return { iso: null, currency_id: null, error: 'no ru_property_id' };
   try {
-    const { data, error } = await supabase.functions.invoke('rentalsunited-api', {
-      body: { action: 'get_property', ru_property_id: ruPropertyId, ...childAuth },
-    });
+    // Batch verification fans out many invocations; a single transport blip (worker boot
+    // limit, cold start) must not be reported as a currency mismatch. Retry transient
+    // transport failures before giving up.
+    let data: any = null;
+    let error: any = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      ({ data, error } = await supabase.functions.invoke('rentalsunited-api', {
+        body: { action: 'get_property', ru_property_id: ruPropertyId, ...childAuth },
+      }));
+      const transient = !!error && /failed to send a request|fetch failed|network|timeout|shutdown|boot/i.test(String(error?.message ?? ''));
+      if (!transient) break;
+      await new Promise((r) => setTimeout(r, 800 * (attempt + 1)));
+    }
     if (error || !data?.success) {
       return { iso: null, currency_id: null, error: error?.message || data?.error?.message || 'Pull_GetProperty failed' };
     }
+
     // RU reports the listing currency as an ISO attribute on <Property Currency="USD">,
     // not as a <CurrencyID> element — read the attribute first, then fall back.
     let iso: string | null = typeof data.currency_iso === 'string' && data.currency_iso ? String(data.currency_iso).toUpperCase() : null;
