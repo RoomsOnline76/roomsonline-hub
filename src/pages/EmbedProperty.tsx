@@ -67,7 +67,7 @@ export default function EmbedProperty() {
   const [ratePlanMap, setRatePlanMap] = useState<Record<string, { base_rate: number; pricing_model: string }>>({});
   const [pmsCacheMap, setPmsCacheMap] = useState<Record<string, Record<string, { available_units: number; rate: number | null }>>>({});
   const [loading, setLoading] = useState(true);
-  const [showCalendar, setShowCalendar] = useState(true);
+  const [showCalendar, setShowCalendar] = useState(false);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
 
   const today = startOfDay(new Date());
@@ -592,13 +592,25 @@ export default function EmbedProperty() {
         }
       });
 
+      const r = room as any;
+      const childNote = r.allow_children === false
+        ? "No children allowed."
+        : r.child_min_age != null || r.child_max_age != null
+          ? `Children welcome (${r.child_min_age ?? 0}–${r.child_max_age ?? 17} yrs).`
+          : undefined;
+
       return {
         roomId: room.id,
         roomName: room.name,
         maxGuests: room.max_guests,
+        maxAdults: r.max_adults ?? room.max_guests,
         beds: room.beds,
+        allowChildren: r.allow_children,
+        childPolicyNote: childNote,
+        mealPlan: linkedRateType?.name ?? undefined,
         ratesByDate,
       };
+
     });
   }, [roomTypes, ratePlanMap, checkIn, property, availabilityOverrides, pmsCacheMap, resolveSeasonRate]);
 
@@ -895,16 +907,17 @@ export default function EmbedProperty() {
             variant="outline"
             size="sm"
             onClick={() => setShowCalendar(!showCalendar)}
-            className="h-8 text-xs font-semibold"
+            className="h-9 rounded-none text-[11px] font-bold uppercase tracking-wider"
             style={showCalendar ? {
-              background: `${brandColor}10`,
-              borderColor: `${brandColor}30`,
-              color: brandColor,
-            } : undefined}
+              background: brandColor,
+              borderColor: brandColor,
+              color: fontColor,
+            } : { borderColor: "#e2e2e2", color: "#3d3d3d" }}
           >
-            {showCalendar ? "Hide Calendar" : "Show Calendar"}
+            {showCalendar ? "Hide Calendar" : "View Calendar"}
           </Button>
         </div>
+
       </motion.div>
 
       {/* ── Availability Grid ── */}
