@@ -113,7 +113,10 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
           .eq("id", id)
           .maybeSingle()
           .then((r) => (r.data ?? null) as Record<string, unknown> | null),
-        invokeCert<PhaseStatusPayload>("phase_status", id),
+        // ARI (availability + pricing coverage) is only scored when explicitly probed.
+        // Without this flag the wizard never receives the "Availability 365d" /
+        // "Pricing 365d" groups, so steps 5.2/5.3 stayed outstanding forever.
+        invokeCert<PhaseStatusPayload>("phase_status", id, { probe_ari: true }),
         invokeCert<IdentityPayload>("property_ru_identity", id),
         supabase
           .from("ru_currency_state")
