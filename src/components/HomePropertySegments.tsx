@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { PropertyCard } from "@/components/PropertyCard";
-import { Skeleton } from "@/components/ui/skeleton";
+import { PropertyCardSkeleton } from "@/components/PropertyCardSkeleton";
 import { BANNER_SEGMENTS } from "@/lib/bannerSegments";
 import { SEGMENT_FILTERS, SegmentFilterId, filterPropertiesBySegment } from "@/lib/segmentFilters";
 
@@ -87,12 +87,7 @@ export function SegmentSection({ id, title, tag, segmentId, properties, isLoadin
         {isLoading && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 sm:gap-8">
             {[...Array(4)].map((_, i) => (
-              <div key={i} className="space-y-3">
-                <Skeleton className="h-48 sm:h-52 w-full rounded-lg" />
-                <Skeleton className="h-4 w-3/4" />
-                <Skeleton className="h-3 w-1/2" />
-                <Skeleton className="h-12 w-full" />
-              </div>
+              <PropertyCardSkeleton key={i} />
             ))}
           </div>
         )}
