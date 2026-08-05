@@ -13,6 +13,7 @@ import { fetchLiveRatesBatch } from "@/lib/pmsLiveAvailability";
 import { EmbedPortfolioMap } from "@/components/embed/EmbedPortfolioMap";
 import { EmbedPortfolioReviews } from "@/components/embed/EmbedPortfolioReviews";
 import { useItinerary } from "@/contexts/ItineraryContext";
+import { ShowcaseAvailabilityCalendar } from "@/components/showcase/ShowcaseAvailabilityCalendar";
 
 interface ReviewRating {
   source: string;
@@ -917,7 +918,7 @@ export default function EmbedPortfolio() {
                     <ShowcaseAvailabilityCalendar
                       propertyId={prop.id}
                       brandColor={brandColor}
-                      fontColor={fontColor}
+                      fontColor={portfolioBranding.font_color || "#FFFFFF"}
                       visibleDays={7}
                       title="Availability & rates"
                       onBook={() => handleViewProperty(prop.slug, { journey: true })}
