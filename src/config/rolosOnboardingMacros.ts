@@ -211,9 +211,10 @@ export const ROLOS_ONBOARDING_MACROS: MacroDef[] = [
       { kind: "state", key: "quality_check", optional: true },
     ],
     notes: [
-
       "Connect one channel at a time. Verify each: listing visible, availability and pricing present, quality check passed, first inbound test reservation writes a booking and blocks availability.",
+      "The content quality check is assessed here — it only returns a real verdict once the channel subscription is active.",
     ],
+
   },
 ];
 
