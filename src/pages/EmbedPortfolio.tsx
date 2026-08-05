@@ -1022,6 +1022,67 @@ export default function EmbedPortfolio() {
         />
       </div>
 
+      {/* Journey basket — stack stays from this or any other property into one checkout */}
+      {hasStays && (
+        <>
+          <div className="h-28" aria-hidden />
+          <motion.div
+            initial={{ y: 60, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            className="fixed bottom-0 left-0 right-0 z-40 border-t bg-white/95 backdrop-blur px-4 py-3 sm:px-6"
+            style={{ borderColor: `${brandColor}30`, boxShadow: "0 -4px 16px rgba(0,0,0,0.08)" }}
+          >
+            <div className="max-w-6xl mx-auto flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <Route className="h-4 w-4 shrink-0" style={{ color: brandColor }} />
+                  <span className="text-sm font-semibold text-gray-900">
+                    Your journey · {stays.length} {stays.length === 1 ? "stay" : "stays"} · {journeyNights} {journeyNights === 1 ? "night" : "nights"}
+                  </span>
+                  <span className="text-sm text-gray-500">R{Math.round(journeyTotal).toLocaleString()}</span>
+                </div>
+                <div className="mt-1.5 flex gap-1.5 overflow-x-auto scrollbar-thin">
+                  {stays.map((s) => (
+                    <span
+                      key={s.id}
+                      className="inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] text-gray-600"
+                      style={{ borderColor: `${brandColor}40` }}
+                    >
+                      <span className="max-w-[140px] truncate">{s.property_name}</span>
+                      <span className="text-gray-400">
+                        {new Date(s.dates.check_in).toLocaleDateString("en-ZA", { day: "numeric", month: "short" })}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => removeStay(s.id)}
+                        className="ml-0.5 text-gray-400 hover:text-gray-700"
+                        aria-label={`Remove ${s.property_name} from journey`}
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+                <p className="mt-1 text-[11px] text-gray-400">
+                  Keep adding stays — same property on new dates or another property — then check out once.
+                </p>
+              </div>
+              <Button
+                size="sm"
+                className="text-xs text-white gap-1 shrink-0"
+                style={{ backgroundColor: brandColor }}
+                onClick={() => {
+                  if (window.parent !== window) window.location.href = "/journey/review";
+                  else navigate("/journey/review");
+                }}
+              >
+                Review & check out <ChevronRight className="h-3 w-3" />
+              </Button>
+            </div>
+          </motion.div>
+        </>
+      )}
+
       {/* Footer */}
       {searchParams.get("wl") !== "1" && (
         <div className="border-t py-3 px-4 flex justify-center">
