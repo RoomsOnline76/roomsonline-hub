@@ -164,13 +164,21 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
   const signoff: RolosOnboardingSignoff = useMemo(() => {
     const raw = ((d?.roadmap as any)?.roadmap ?? {}) as Record<string, unknown>;
     const cr = (raw.channel_readiness ?? {}) as Record<string, unknown>;
+    const checks = (cr.checks ?? {}) as Record<string, SignoffCheckRecord>;
+    // The step is signed off only when every checklist item is ticked.
+    const allTicked = ROLOS_SIGNOFF_CHECKLIST.every((item) => checks[item.key]?.checked === true);
+    const lastTick = ROLOS_SIGNOFF_CHECKLIST.map((i) => checks[i.key])
+      .filter((c): c is SignoffCheckRecord => !!c?.checked)
+      .sort((a, b) => String(b.at ?? "").localeCompare(String(a.at ?? "")))[0];
     return {
-      signed_off: cr.signed_off === true,
-      signed_off_by: (cr.signed_off_by as string) ?? null,
-      signed_off_at: (cr.signed_off_at as string) ?? null,
+      signed_off: allTicked,
+      signed_off_by: (cr.signed_off_by as string) ?? lastTick?.by ?? null,
+      signed_off_at: (cr.signed_off_at as string) ?? lastTick?.at ?? null,
       note: (cr.note as string) ?? null,
+      checks,
     };
   }, [d?.roadmap]);
+
 
   const stateChecks = useMemo(() => {
     const map = new Map<DistributionCheckKey, DistributionCheck>();
