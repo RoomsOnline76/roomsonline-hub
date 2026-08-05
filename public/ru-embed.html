@@ -1,0 +1,64 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Channel Manager</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        background: #fff;
+        font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      }
+      #ruApp {
+        min-height: 100%;
+      }
+    </style>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+  </head>
+  <body>
+    <!--
+      Host document for the Rentals United White Label one-line script.
+
+      It must be served from a real URL (not an `srcdoc` iframe): the embedded Angular
+      client calls history.replaceState/pushState on boot, which throws a SecurityError
+      in a srcdoc document and makes the client show its generic "OOOPS" dialog.
+    -->
+    <div id="ruApp"></div>
+    <script>
+      (function () {
+        var q = new URLSearchParams(window.location.search);
+        var token = q.get("token") || "";
+        var refreshToken = q.get("refreshToken") || "";
+        var ownerId = q.get("ownerId") || "";
+        if (!token || !refreshToken) {
+          parent.postMessage({ type: "ru-wl-error" }, "*");
+          return;
+        }
+        var src =
+          "https://new.rentalsunited.com/white-pms-client/script?" +
+          new URLSearchParams({
+            token: token,
+            refreshToken: refreshToken,
+            languageId: q.get("languageId") || "1",
+            uiVersion: q.get("uiVersion") || "2",
+            ownerId: ownerId,
+          }).toString();
+
+        function boot() {
+          var s = document.createElement("script");
+          s.src = src;
+          s.onerror = function () {
+            parent.postMessage({ type: "ru-wl-error" }, "*");
+          };
+          document.head.appendChild(s);
+        }
+        if (window.jQuery) boot();
+        else window.addEventListener("load", boot);
+      })();
+    </script>
+  </body>
+</html>
