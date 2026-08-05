@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Lock } from "lucide-react";
 import { useBillingConfig } from "@/hooks/useBillingConfig";
@@ -17,6 +18,15 @@ import { RuWhiteLabelEmbed } from "@/components/pms/channels/RuWhiteLabelEmbed";
  */
 export default function PMSChannels() {
   const { propertyId } = usePmsPropertyId();
+
+  /**
+   * The Channel Manager client is light-only, so the Channels page canvas is locked to
+   * #FFFFFF for as long as this page is mounted — dark mode never applies here.
+   */
+  useEffect(() => {
+    document.documentElement.classList.add("channels-force-light");
+    return () => document.documentElement.classList.remove("channels-force-light");
+  }, []);
 
   // Billing entitlement — Channel Manager must be explicitly switched on by admin.
   const { config: billingConfig, isLoading: billingLoading } = useBillingConfig(propertyId ?? undefined);
