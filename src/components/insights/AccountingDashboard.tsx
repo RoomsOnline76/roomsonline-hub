@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, lazy, Suspense } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { InvoiceTable } from "./InvoiceTable";
 import { AddInvoiceModal } from "./AddInvoiceModal";
-import { RunwayChart } from "./RunwayChart";
+/* Charts pull in the full charting runtime — load it after the cards paint. */
+const RunwayChart = lazy(() => import("./RunwayChart").then((m) => ({ default: m.RunwayChart })));
 import { FinancialMetricsCards } from "./FinancialMetricsCards";
 import { Button } from "@/components/ui/button";
 import { Plus, TrendingUp, Receipt } from "lucide-react";
@@ -124,7 +125,9 @@ export function AccountingDashboard({ dateRange }: AccountingDashboardProps) {
         </TabsContent>
 
         <TabsContent value="runway" className="space-y-4">
-          <RunwayChart metrics={metrics || []} isLoading={metricsLoading} />
+          <Suspense fallback={<div className="h-[300px] w-full animate-pulse rounded bg-muted/50" aria-hidden />}>
+            <RunwayChart metrics={metrics || []} isLoading={metricsLoading} />
+          </Suspense>
         </TabsContent>
       </Tabs>
 
