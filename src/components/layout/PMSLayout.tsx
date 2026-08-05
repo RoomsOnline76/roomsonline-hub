@@ -62,6 +62,8 @@ export function PMSLayout({ children }: PMSLayoutProps) {
         </main>
         {isMobile && <MobileBottomNav />}
       </div>
+      <RolosOnboardingWizard propertyId={propertyId} />
+
       {showForcePassword && (
         <ForcePasswordChangeModal
           open={true}
