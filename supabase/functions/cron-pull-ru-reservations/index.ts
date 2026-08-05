@@ -2,6 +2,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { resolveRuOwnerScopes, type RuOwnerScope } from '../_shared/ruOwnerScopes.ts';
 import { extractTag, extractAllBlocks, parseRuReservation } from '../_shared/ruReservationParsing.ts';
 import { classifyRuStatus, ingestRuReservation } from '../_shared/ruReservationIngest.ts';
+import { readInvokeError } from '../_shared/functionInvokeError.ts';
 
 /**
  * Cron job: Pull reservations from Rentals United every 30 minutes.
