@@ -327,6 +327,8 @@ interface RowProps {
   onGoToField: (section: string, focus?: string) => void;
   onPushOwner: () => void;
   onSignoff: (next: boolean) => void;
+  onSignoffItem: (itemKey: string, next: boolean) => void;
+  signoffChecks: Record<string, { checked: boolean; by?: string | null; at?: string | null }>;
   signedOff: boolean;
   busyAction: string | null;
   isPlatformUser: boolean;
@@ -340,11 +342,14 @@ function MacroRow({
   onGoToField,
   onPushOwner,
   onSignoff,
+  onSignoffItem,
+  signoffChecks,
   signedOff,
   busyAction,
   isPlatformUser,
   onOpenChannels,
 }: RowProps) {
+
   const { macro, complete, locked, score, fieldItems, stateChecks } = progress;
   const outstandingFields = fieldItems.filter((i) => !i.satisfied);
   const firstOutstandingField = outstandingFields.find((item) => item.tier === "mandatory") ?? outstandingFields[0];
