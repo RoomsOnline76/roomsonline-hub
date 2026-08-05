@@ -2316,8 +2316,6 @@ Deno.serve(async (req) => {
       const targets = (props ?? []).filter((p: any) => !targetIds || targetIds.includes(p.id));
       const results: any[] = [];
 
-      const results: any[] = [];
-
       for (const p of targets as any[]) {
         const phase = await evaluatePhases(supabase, p as any, { readinessGaps: [] });
         const ownerId = phase.ru_owner_id;
