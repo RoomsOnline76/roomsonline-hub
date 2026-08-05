@@ -261,6 +261,7 @@ function MacroRow({
 }: RowProps) {
   const { macro, complete, locked, score, fieldItems, stateChecks } = progress;
   const outstandingFields = fieldItems.filter((i) => !i.satisfied);
+  const firstOutstandingField = outstandingFields.find((item) => item.tier === "mandatory") ?? outstandingFields[0];
 
   return (
     <div className={locked ? "opacity-60" : undefined}>
@@ -347,7 +348,12 @@ function MacroRow({
                 size="sm"
                 variant="outline"
                 className="h-7 text-[11px]"
-                onClick={() => onGoToField(macro.section as string)}
+                onClick={() =>
+                  onGoToField(
+                    firstOutstandingField?.section ?? (macro.section as string),
+                    firstOutstandingField?.paintable ? firstOutstandingField.key : undefined,
+                  )
+                }
               >
                 Open step
               </Button>

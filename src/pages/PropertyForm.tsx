@@ -2013,7 +2013,8 @@ export default function PropertyForm({
 
   // Active tab state. In ROLOS embed mode, /pms/property-setup passes the tab
   // directly so the migrated source-of-truth section opens without an iframe.
-  const requestedInitialTab = embeddedInitialTab || searchParams.get("tab") || "general";
+  const requestedInitialTab =
+    embeddedInitialTab || searchParams.get("section") || searchParams.get("tab") || "general";
   const [activeTab, setActiveTab] = useState(requestedInitialTab);
   const [railCollapsed, setRailCollapsed] = useState<boolean>(() => {
     try {
@@ -2035,10 +2036,13 @@ export default function PropertyForm({
   }, []);
 
   useEffect(() => {
-    if (embedded && requestedInitialTab && requestedInitialTab !== activeTab) {
+    // Keep the visible tab in sync with readiness-wizard deep links. This must
+    // also run in the standalone admin editor, where updating ?section= does
+    // not remount PropertyForm.
+    if (requestedInitialTab && requestedInitialTab !== activeTab) {
       setActiveTab(requestedInitialTab);
     }
-  }, [activeTab, embedded, requestedInitialTab]);
+  }, [activeTab, requestedInitialTab]);
 
   // --- Field-level readiness highlighting (pink = mandatory, blue = nice-to-have).
   // When embedded in the ROLOS hub, that shell owns the painting/legend/stepper.
