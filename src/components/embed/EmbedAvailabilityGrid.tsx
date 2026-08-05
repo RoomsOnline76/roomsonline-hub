@@ -137,8 +137,19 @@ export function EmbedAvailabilityGrid({
               {dates.map((d) => {
                 const isWeekend = d.getDay() === 0 || d.getDay() === 6;
                 const labelColor = isWeekend ? "#6b6b6b" : brandColor;
+                const hl = isHighlighted(format(d, "yyyy-MM-dd"));
                 return (
-                  <th key={d.toISOString()} style={{ ...thStyle, minWidth: "62px", textAlign: "center" }}>
+                  <th
+                    key={d.toISOString()}
+                    style={{
+                      ...thStyle,
+                      minWidth: "62px",
+                      textAlign: "center",
+                      background: hl ? `${brandColor}14` : "#fff",
+                      borderBottom: hl ? `2px solid ${brandColor}` : thStyle.borderBottom,
+                    }}
+                  >
+
                     <div
                       style={{
                         fontSize: "11px",
