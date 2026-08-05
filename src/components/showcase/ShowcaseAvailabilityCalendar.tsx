@@ -25,7 +25,12 @@ interface ShowcaseAvailabilityCalendarProps {
   /** Optional label override for the collapse toggle. */
   title?: string;
   onBook?: (roomId: string, roomName: string) => void;
+  /** Marks a span already in the guest's journey (e.g. the first stay). */
+  highlightRange?: { from: string; to: string; label?: string } | null;
+  /** Force the calendar open on mount (e.g. when dates still need picking). */
+  defaultOpen?: boolean;
 }
+
 
 type DayCell = { available_units: number | null; is_stop_sell: boolean };
 
