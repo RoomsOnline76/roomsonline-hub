@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { Loader2, RefreshCw, Radio, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,8 @@ import { toast } from "sonner";
 const EMBED_BG_LIGHT = "#FFFFFF";
 
 const EMBED_HEIGHT = "h-[calc(100vh-12rem)]";
+const EMBED_DOCUMENT_VERSION = "2026-08-05-2";
+const EMBED_BOOT_TIMEOUT_MS = 25_000;
 
 
 /**
@@ -36,6 +38,8 @@ export function RuWhiteLabelEmbed({ propertyId }: { propertyId: string | null | 
 
   const frameRef = useRef<HTMLIFrameElement | null>(null);
   const [scriptFailed, setScriptFailed] = useState(false);
+  const [embedReady, setEmbedReady] = useState(false);
+  const [reloadNonce, setReloadNonce] = useState(0);
 
   /**
    * Manual retry: re-run the token request and tell the owner what came back, so the
@@ -43,6 +47,7 @@ export function RuWhiteLabelEmbed({ propertyId }: { propertyId: string | null | 
    */
   const handleRetry = async () => {
     setScriptFailed(false);
+    setEmbedReady(false);
     const result = await refetch();
     const fresh = result.data;
     if (fresh?.available && fresh.access_token) {
@@ -104,21 +109,41 @@ export function RuWhiteLabelEmbed({ propertyId }: { propertyId: string | null | 
       // Channels is light-only.
       theme: "light",
       bg: EMBED_BG_LIGHT,
+      embedVersion: EMBED_DOCUMENT_VERSION,
+      reload: String(reloadNonce),
     });
     return `/ru-embed.html?${params.toString()}`;
-  }, [tokens]);
+  }, [reloadNonce, tokens]);
+
+  const retryEmbed = useCallback(() => {
+    setScriptFailed(false);
+    setEmbedReady(false);
+    setReloadNonce((current) => current + 1);
+  }, []);
 
   useEffect(() => {
     if (!embedSrc) return;
     setScriptFailed(false);
+    setEmbedReady(false);
     const onMessage = (event: MessageEvent) => {
-      if (event.data && (event.data as { type?: string }).type === "ru-wl-error") {
+      if (event.source !== frameRef.current?.contentWindow) return;
+      const type = event.data && (event.data as { type?: string }).type;
+      if (type === "ru-wl-ready") {
+        setEmbedReady(true);
+        setScriptFailed(false);
+      } else if (type === "ru-wl-error") {
         setScriptFailed(true);
       }
     };
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
   }, [embedSrc]);
+
+  useEffect(() => {
+    if (!embedSrc || embedReady || scriptFailed) return;
+    const timeout = window.setTimeout(() => setScriptFailed(true), EMBED_BOOT_TIMEOUT_MS);
+    return () => window.clearTimeout(timeout);
+  }, [embedReady, embedSrc, scriptFailed]);
 
 
 
@@ -173,7 +198,12 @@ export function RuWhiteLabelEmbed({ propertyId }: { propertyId: string | null | 
           <p className="text-sm font-medium text-foreground">{title}</p>
           {body && <div className="space-y-2 text-sm text-muted-foreground">{body}</div>}
           <div className="flex flex-wrap items-center justify-center gap-2">
-            <Button variant="outline" size="sm" onClick={handleRetry} disabled={isFetching}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={scriptFailed ? retryEmbed : handleRetry}
+              disabled={isFetching}
+            >
               <RefreshCw className={`mr-2 h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
               {isFetching ? "Retrying…" : "Retry"}
             </Button>
@@ -197,8 +227,17 @@ export function RuWhiteLabelEmbed({ propertyId }: { propertyId: string | null | 
       // Borderless, painted white so the frame boundary is invisible against the
       // always-white Channels page.
       style={{ ...brandStyle, backgroundColor: EMBED_BG_LIGHT }}
-      className={`w-full ${EMBED_HEIGHT} overflow-hidden border-0`}
+      className={`relative w-full ${EMBED_HEIGHT} overflow-hidden border-0`}
     >
+
+      {!embedReady && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center bg-background">
+          <div className="flex flex-col items-center gap-3 text-muted-foreground">
+            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            <p className="text-sm">Loading your channels…</p>
+          </div>
+        </div>
+      )}
 
       <iframe
         ref={frameRef}
