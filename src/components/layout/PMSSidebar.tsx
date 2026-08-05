@@ -35,7 +35,9 @@ import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 import { usePmsHousekeepingCounts } from "@/hooks/usePmsHousekeepingCounts";
 import { getVisibleModules, type PmsModule } from "@/lib/pmsPermissions";
 import { PoweredByRolOS } from "@/components/pms/PoweredByRolOS";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Check } from "lucide-react";
 import rolLogo from "@/assets/rol-logo.png";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
