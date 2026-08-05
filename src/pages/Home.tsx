@@ -1,11 +1,9 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback, lazy, Suspense } from "react";
 import { HeroVideo } from "@/components/ui/HeroVideo";
 import { usePageSEO } from "@/hooks/usePageSEO";
 import { SearchForm } from "@/components/SearchForm";
-import { PropertiesMap } from "@/components/PropertiesMap";
 import { useHomePropertySegments, SegmentSection } from "@/components/HomePropertySegments";
 import { SegmentFilterId } from "@/lib/segmentFilters";
-import { FindBySection } from "@/components/FindBySection";
 import {
   Shield,
   Zap,
@@ -31,7 +29,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { format, subYears } from "date-fns";
 import { composeHeadline, composeMapSubheadline } from "@/lib/headlineComposer";
-import CategoryBanner from "@/components/CategoryBanner";
 import { BannerSegment } from "@/lib/bannerSegments";
 import { MAP_FILTER_CATEGORIES, getMapFiltersByCategory, MapFilterCategoryId } from "@/lib/mapFilters";
 import { SearchProvider, useSearch } from "@/contexts/SearchContext";
@@ -39,9 +36,16 @@ import { CurrencySelector } from "@/components/CurrencySelector";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AISearchProvider, useAISearch } from "@/contexts/AISearchContext";
 import { AISearchInput } from "@/components/AISearchInput";
-import { AIExplanationOverlay } from "@/components/AIExplanationOverlay";
 import { PropertyCard } from "@/components/PropertyCard";
-import { PublicFooter } from "@/components/layout/PublicFooter";
+
+/* ── Code-split: below-the-fold / conditional surfaces ──────────────
+   None of these are needed for the first paint. Each fallback matches
+   the real component's footprint so splitting costs no layout shift. */
+const PropertiesMap = lazy(() => import("@/components/PropertiesMap").then(m => ({ default: m.PropertiesMap })));
+const FindBySection = lazy(() => import("@/components/FindBySection").then(m => ({ default: m.FindBySection })));
+const CategoryBanner = lazy(() => import("@/components/CategoryBanner"));
+const AIExplanationOverlay = lazy(() => import("@/components/AIExplanationOverlay").then(m => ({ default: m.AIExplanationOverlay })));
+const PublicFooter = lazy(() => import("@/components/layout/PublicFooter").then(m => ({ default: m.PublicFooter })));
 
 // Keys match database property_type values (lowercase)
 const PROPERTY_TYPES = [
@@ -566,7 +570,7 @@ function HomeContent() {
         </div>
 
         {/* AI Overlays */}
-        <AIExplanationOverlay />
+        <Suspense fallback={null}><AIExplanationOverlay /></Suspense>
 
         <div className="absolute bottom-24 sm:bottom-28 left-0 right-0 z-20">
           <AISearchInput />
@@ -593,7 +597,11 @@ function HomeContent() {
       </section>
 
       {/* Find By Section */}
-      {!isAISearchActive && <FindBySection onScrollToTypes={handleScrollToTypes} onScrollToMap={handleScrollToMap} />}
+      {!isAISearchActive && (
+        <Suspense fallback={<div className="h-[220px]" aria-hidden />}>
+          <FindBySection onScrollToTypes={handleScrollToTypes} onScrollToMap={handleScrollToMap} />
+        </Suspense>
+      )}
 
       {/* Map Section */}
       <section ref={mapRef} id="map-section" className="py-12 sm:py-16 bg-background">
@@ -676,13 +684,15 @@ function HomeContent() {
           )}
 
           <div className="h-[300px] sm:h-[400px] md:h-[500px] rounded-xl overflow-hidden border border-border shadow-sm">
-            <PropertiesMap
-              enabledTypes={enabledTypes}
-              typeColors={TYPE_COLORS}
-              selectedMapFilters={selectedMapFilters}
-              filteredPropertyIds={filteredPropertyIds ?? null}
-              autoOpenFirstMarker={isAISearchActive}
-            />
+            <Suspense fallback={<div className="h-full w-full bg-muted/40 animate-pulse" aria-hidden />}>
+              <PropertiesMap
+                enabledTypes={enabledTypes}
+                typeColors={TYPE_COLORS}
+                selectedMapFilters={selectedMapFilters}
+                filteredPropertyIds={filteredPropertyIds ?? null}
+                autoOpenFirstMarker={isAISearchActive}
+              />
+            </Suspense>
           </div>
         </div>
       </section>
@@ -877,7 +887,9 @@ function HomeContent() {
       )}
 
       {/* Footer */}
-      <PublicFooter />
+      <Suspense fallback={<div className="h-[320px]" aria-hidden />}>
+        <PublicFooter />
+      </Suspense>
     </div>
   );
 }
