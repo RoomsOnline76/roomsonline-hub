@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { useTheme } from "next-themes";
 import { Loader2, RefreshCw, Radio, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useRuWhiteLabelTokens } from "@/hooks/useRuWhiteLabelTokens";
@@ -9,11 +8,10 @@ import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
 /**
- * Embed frame canvas, matched to the ROL'OS page background so the frame boundary is
- * invisible: #FFFFFF in day mode, #141414 in night mode.
+ * Embed frame canvas. The Channel Manager client is light-only, so the Channels page
+ * and this frame are locked to #FFFFFF — dark mode is never applied here.
  */
 const EMBED_BG_LIGHT = "#FFFFFF";
-const EMBED_BG_DARK = "#141414";
 
 const EMBED_HEIGHT = "h-[calc(100vh-12rem)]";
 
@@ -33,8 +31,6 @@ export function RuWhiteLabelEmbed({ propertyId }: { propertyId: string | null | 
   const { tokens, isLoading, isFetching, isUnavailable, reason, subUserVerified, refetch } =
     useRuWhiteLabelTokens(propertyId);
   const brand = usePMSBrand();
-  const { resolvedTheme } = useTheme();
-  const isDark = resolvedTheme === "dark";
   const { isAdmin, isDev, isFearlessLeader } = useAuth();
   const isStaff = isAdmin || isDev || isFearlessLeader;
 
@@ -105,27 +101,12 @@ export function RuWhiteLabelEmbed({ propertyId }: { propertyId: string | null | 
       languageId: "1",
       uiVersion: "2",
       ownerId: tokens.ruOwnerId,
-      // Initial theme + page background; later switches arrive via postMessage.
-      theme: isDark ? "dark" : "light",
-      bg: isDark ? EMBED_BG_DARK : EMBED_BG_LIGHT,
+      // Channels is light-only.
+      theme: "light",
+      bg: EMBED_BG_LIGHT,
     });
     return `/ru-embed.html?${params.toString()}`;
-    // The theme is deliberately not a dependency — re-keying the src would remount the
-    // client and lose the user's place. Theme changes are pushed to the frame instead.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tokens]);
-
-  /** Push light/dark switches into the frame without reloading the channel manager. */
-  useEffect(() => {
-    frameRef.current?.contentWindow?.postMessage(
-      {
-        type: "rolos-theme",
-        theme: isDark ? "dark" : "light",
-        bg: isDark ? EMBED_BG_DARK : EMBED_BG_LIGHT,
-      },
-      window.location.origin,
-    );
-  }, [isDark, embedSrc]);
 
   useEffect(() => {
     if (!embedSrc) return;
@@ -145,7 +126,9 @@ export function RuWhiteLabelEmbed({ propertyId }: { propertyId: string | null | 
     return (
       <div
         style={brandStyle}
-        className={`flex ${EMBED_HEIGHT} w-full items-center justify-center rounded-lg border bg-background`}
+        className={`flex ${EMBED_HEIGHT} w-full items-center justify-center border-0`}
+        // Light-only canvas, matching the Channels page.
+
       >
         <div className="flex flex-col items-center gap-3 text-muted-foreground">
           <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -183,7 +166,9 @@ export function RuWhiteLabelEmbed({ propertyId }: { propertyId: string | null | 
     return (
       <div
         style={brandStyle}
-        className={`flex ${EMBED_HEIGHT} w-full items-center justify-center rounded-lg border bg-background`}
+        className={`flex ${EMBED_HEIGHT} w-full items-center justify-center border-0`}
+        // Light-only canvas, matching the Channels page.
+
       >
         <div className="max-w-md space-y-3 px-6 text-center">
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-muted">
@@ -213,9 +198,9 @@ export function RuWhiteLabelEmbed({ propertyId }: { propertyId: string | null | 
 
   return (
     <div
-      // Borderless, painted with the embed canvas colour so the frame boundary is
-      // invisible in both day (#FFFFFF) and night (#141414) mode.
-      style={{ ...brandStyle, backgroundColor: isDark ? EMBED_BG_DARK : EMBED_BG_LIGHT }}
+      // Borderless, painted white so the frame boundary is invisible against the
+      // always-white Channels page.
+      style={{ ...brandStyle, backgroundColor: EMBED_BG_LIGHT }}
       className={`w-full ${EMBED_HEIGHT} overflow-hidden border-0`}
     >
 
