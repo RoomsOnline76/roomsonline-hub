@@ -428,7 +428,7 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
       };
       const { error } = await supabase
         .from("property_onboarding_roadmap")
-        .upsert({ property_id: propertyId, roadmap: next }, { onConflict: "property_id" });
+        .upsert({ property_id: propertyId, roadmap: next as never }, { onConflict: "property_id" });
       if (error) throw error;
       await refresh();
     },
