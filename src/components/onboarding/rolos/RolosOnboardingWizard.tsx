@@ -233,8 +233,25 @@ export function RolosOnboardingWizard({ propertyId, className }: Props) {
 
       {!collapsed && (
         <ScrollArea className="max-h-[60vh]">
+          {completedChips.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1 border-b bg-muted/30 px-3 py-2">
+              {completedChips.map((m) => (
+                <button
+                  key={m.macro.key}
+                  type="button"
+                  onClick={() => setOpenMacro(m.macro.key)}
+                  title={`${m.macro.order}. ${m.macro.title}`}
+                  aria-label={`Step ${m.macro.order} complete — reopen`}
+                  className="flex items-center gap-1 rounded-full border border-emerald-500/40 bg-background px-2 py-0.5 text-[10px] font-medium text-emerald-600 transition-colors hover:bg-emerald-500/10"
+                >
+                  {m.macro.order}
+                  <CheckCircle2 className="h-3 w-3" />
+                </button>
+              ))}
+            </div>
+          )}
           <div className="divide-y">
-            {visibleMacros.map((m) => (
+            {openMacros.map((m) => (
               <MacroRow
                 key={m.macro.key}
                 progress={m}
@@ -252,6 +269,7 @@ export function RolosOnboardingWizard({ propertyId, className }: Props) {
           </div>
         </ScrollArea>
       )}
+
     </div>
   );
 }
