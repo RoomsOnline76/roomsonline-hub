@@ -490,7 +490,7 @@ export default function EmbedPortfolio() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [properties.length, portfolioBranding.hero_video_url]);
 
-  const handleViewProperty = (slug: string) => {
+  const handleViewProperty = (slug: string, opts?: { journey?: boolean }) => {
     const prop = properties.find(p => p.slug === slug);
     const allowOverride = portfolioBranding.allow_property_brand_override === true;
     // Default: portfolio brand carries through. Override: use property's own brand.
@@ -510,8 +510,12 @@ export default function EmbedPortfolio() {
     params.set("integration", "portfolio_embed");
     params.set("mode", "embedded");
     if (portfolioSlug) params.set("portfolio_slug", portfolioSlug);
-    // Forward journey_mode so EmbedProperty knows to route back to journey review
-    if (journeyMode) params.set("journey_mode", "true");
+    // Forward journey_mode so EmbedProperty adds the selected stay to the journey
+    // and routes back to the journey review instead of a single-stay checkout.
+    // Active once the guest has any stay in the basket, or when they explicitly
+    // chose "Add stay" from a card.
+    if (journeyMode || hasStays || opts?.journey) params.set("journey_mode", "true");
+
     const forwardedCheckIn = searchParams.get("checkIn") || searchParams.get("checkin");
     const forwardedCheckOut = searchParams.get("checkOut") || searchParams.get("checkout");
     const forwardedAdults = searchParams.get("adults");
