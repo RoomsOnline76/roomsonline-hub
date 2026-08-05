@@ -48,6 +48,8 @@ import {
   HouseRulesSection,
 } from "@/components/showcase";
 import { AnnouncementBanner } from "@/components/showcase/AnnouncementBanner";
+import { ShowcaseAvailabilityCalendar } from "@/components/showcase/ShowcaseAvailabilityCalendar";
+
 import { SpecialsBanner } from "@/components/showcase/SpecialsBanner";
 import { PackageCards } from "@/components/showcase/PackageCards";
 
