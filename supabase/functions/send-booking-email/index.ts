@@ -1149,6 +1149,75 @@ Deno.serve(async (req) => {
 
     const property = booking.property;
 
+    // Guest-facing emails must always name the unit/room that was booked.
+    // Some booking paths (PMS/native, channel pushes) leave `bookings.rooms` empty and
+    // only store `rolos_room_ids` / `room_type_id`, so hydrate a rooms array from those.
+    if (!Array.isArray(booking.rooms) || booking.rooms.length === 0) {
+      const hydrated: Array<Record<string, unknown>> = [];
+      try {
+        const roomIds: string[] = Array.isArray(booking.rolos_room_ids) ? booking.rolos_room_ids : [];
+        if (roomIds.length > 0) {
+          const { data: rows } = await supabaseClient
+            .from("rolos_rooms")
+            .select("id, room_name, room_number, room_type_id, rolos_room_types(name)")
+            .in("id", roomIds);
+          for (const r of rows || []) {
+            const typeName = (r as any)?.rolos_room_types?.name as string | undefined;
+            const label = [r.room_name || typeName, r.room_number ? `#${r.room_number}` : ""]
+              .filter(Boolean)
+              .join(" ");
+            hydrated.push({
+              roomTypeId: r.room_type_id,
+              roomTypeName: label || typeName || "Room",
+              checkIn: booking.check_in_date,
+              checkOut: booking.check_out_date,
+              numberOfAdults: booking.adults || 1,
+              numberOfTeens: booking.teens || 0,
+              numberOfChildren: booking.children || 0,
+              numberOfInfants: booking.infants || 0,
+            });
+          }
+        }
+
+        if (hydrated.length === 0 && booking.room_type_id) {
+          const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+            String(booking.room_type_id),
+          );
+          if (isUuid) {
+            const { data: rt } = await supabaseClient
+              .from("rolos_room_types")
+              .select("id, name")
+              .eq("id", booking.room_type_id)
+              .maybeSingle();
+            if (rt?.name) {
+              hydrated.push({
+                roomTypeId: rt.id,
+                roomTypeName: rt.name,
+                checkIn: booking.check_in_date,
+                checkOut: booking.check_out_date,
+                numberOfAdults: booking.adults || 1,
+                numberOfTeens: booking.teens || 0,
+                numberOfChildren: booking.children || 0,
+                numberOfInfants: booking.infants || 0,
+              });
+            }
+          }
+        }
+      } catch (e) {
+        console.warn("[send-booking-email] Room hydration failed:", e);
+      }
+
+      if (hydrated.length > 0) {
+        booking.rooms = hydrated;
+        console.log(
+          `[send-booking-email] Hydrated ${hydrated.length} room(s) for booking ${booking.id}: ${hydrated
+            .map((r) => r.roomTypeName)
+            .join(", ")}`,
+        );
+      }
+    }
+
+
     // Handle admin_alert status - send to admin team, not guest
     if (status === "admin_alert") {
       console.log(`[Admin Alert] Sending sync failure notification for booking ${booking_id}`);
