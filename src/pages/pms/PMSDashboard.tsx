@@ -375,6 +375,7 @@ export default function PMSDashboard() {
   const { propertyName: brandName } = usePMSBrand();
   const queryClient = useQueryClient();
   const [viewMode, setViewMode] = useState<ViewMode>("month");
+  const [legendOpen, setLegendOpen] = useState(false);
   const [anchorDate, setAnchorDate] = useState(new Date());
   const [selectedBooking, setSelectedBooking] = useState<BookingRow | null>(null);
   const [bookingSheetTab, setBookingSheetTab] = useState<BookingDetailTab>("details");
@@ -1736,11 +1737,11 @@ export default function PMSDashboard() {
                 </DropdownMenuContent>
               </DropdownMenu>
 
-              <div className="ml-auto flex items-center gap-1">
+              <div className="flex w-full flex-wrap items-center gap-1 sm:ml-auto sm:w-auto sm:flex-nowrap sm:justify-end">
                 <Button variant="outline" size="icon" onClick={() => navigateBy(-1)} className="h-7 w-7">
                   <ChevronLeft className="h-3 w-3" />
                 </Button>
-                <span className="text-sm font-semibold min-w-[160px] text-center">
+                <span className="text-xs sm:text-sm font-semibold min-w-0 sm:min-w-[160px] text-center whitespace-nowrap">
                   {format(dateRange.start, "d MMM")} – {format(dateRange.end, "d MMM yyyy")}
                 </span>
                 <Button variant="outline" size="icon" onClick={() => navigateBy(1)} className="h-7 w-7">
@@ -1784,8 +1785,15 @@ export default function PMSDashboard() {
               </div>
             </div>
 
-            {/* Legend row */}
-            <div className="flex flex-wrap items-center gap-3 mb-3 text-xs">
+            {/* Legend row — collapsed by default on small screens to save vertical space */}
+            <button
+              type="button"
+              onClick={() => setLegendOpen((v) => !v)}
+              className="mb-2 flex items-center gap-1 text-xs font-medium text-muted-foreground sm:hidden"
+            >
+              {legendOpen ? "Hide legend" : "Show legend"}
+            </button>
+            <div className={cn("flex-wrap items-center gap-3 mb-3 text-xs", legendOpen ? "flex" : "hidden sm:flex")}>
               <span className="text-muted-foreground font-medium">Bookings:</span>
               {Object.entries(STATUS_COLORS).map(([status, colors]) => (
                 <div key={status} className="flex items-center gap-1">
