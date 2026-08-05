@@ -439,15 +439,15 @@ export default function PMSRooms() {
               return (
                 <section key={property.id} className="space-y-3">
                   {isPortfolio && (
-                    <div className="flex items-center justify-between border-b border-border pb-2">
-                      <h2 className="text-lg font-semibold flex items-center gap-2">
-                        <Building2 className="h-4 w-4 text-muted-foreground" />
-                        {property.name}
-                        <span className="text-xs font-normal text-muted-foreground">
+                    <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 border-b border-border pb-2">
+                      <h2 className="text-base sm:text-lg font-semibold flex min-w-0 flex-wrap items-center gap-2">
+                        <Building2 className="h-4 w-4 shrink-0 text-muted-foreground" />
+                        <span className="min-w-0 break-words">{property.name}</span>
+                        <span className="whitespace-nowrap text-xs font-normal text-muted-foreground">
                           ({pRooms.length} room{pRooms.length !== 1 ? "s" : ""})
                         </span>
                       </h2>
-                      <Button variant="ghost" size="sm" onClick={() => { switchProperty(property.id); setViewMode("single"); }}>
+                      <Button variant="ghost" size="sm" className="shrink-0" onClick={() => { switchProperty(property.id); setViewMode("single"); }}>
                         Manage →
                       </Button>
                     </div>
