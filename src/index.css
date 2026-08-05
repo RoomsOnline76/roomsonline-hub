@@ -894,3 +894,21 @@ button {
   color: hsl(var(--req-recommended));
   border-color: hsl(var(--req-recommended) / 0.5);
 }
+
+/* ---------------------------------------------------------------
+   ROL'OS Channels page: always light.
+   The embedded Channel Manager client is light-only, so the Channels
+   page canvas is locked to #FFFFFF and never follows dark mode.
+   Scoped to the page shell (<main>) so the sidebar/theme stay intact.
+--------------------------------------------------------------- */
+html.channels-force-light main {
+  background-color: #FFFFFF !important;
+}
+html.channels-force-light main,
+html.channels-force-light main h1,
+html.channels-force-light main .text-foreground {
+  color: #1A1A2E !important;
+}
+html.channels-force-light main .text-muted-foreground {
+  color: #5B5B6B !important;
+}
