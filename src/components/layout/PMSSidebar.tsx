@@ -39,19 +39,20 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import rolLogo from "@/assets/rol-logo.png";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
-interface NavItem {
+export interface NavItem {
   title: string;
   icon: React.ElementType;
   href: string;
   module: PmsModule;
 }
 
-interface NavGroup {
+export interface NavGroup {
   label: string;
   items: NavItem[];
 }
 
-const pmsNavGroups: NavGroup[] = [
+/** ROL'OS navigation, shared by the desktop sidebar and the mobile bottom nav. */
+export const pmsNavGroups: NavGroup[] = [
   {
     label: "Operations",
     items: [

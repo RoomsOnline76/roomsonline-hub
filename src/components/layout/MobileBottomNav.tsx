@@ -14,6 +14,7 @@ import { useState } from "react";
 import { navigationConfig } from "@/config/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdminActionCounts } from "@/hooks/useAdminActionCounts";
+import { PmsMobileBottomNav } from "./PmsMobileBottomNav";
 
 export function MobileBottomNav() {
   const location = useLocation();
@@ -26,6 +27,10 @@ export function MobileBottomNav() {
   const { counts: actionCounts, totalPending } = useAdminActionCounts({ isAdmin, isDev });
 
   const isActive = (href: string) => location.pathname === href;
+
+  // Inside the ROL'OS shell the bottom bar carries the ROL'OS modules instead.
+  const inPms = location.pathname === "/pms" || location.pathname.startsWith("/pms/");
+
 
 
   // Build visible nav items based on role - admin/dev get Admin first
@@ -79,6 +84,10 @@ export function MobileBottomNav() {
   const accessibleSections = navigationConfig.filter(section => 
     hasMinRole(userRole, section.minRole)
   );
+
+  if (inPms) return <PmsMobileBottomNav />;
+
+
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:hidden">
