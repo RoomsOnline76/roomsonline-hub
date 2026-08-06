@@ -1598,15 +1598,26 @@ export default function PMSDashboard() {
             )}
           </div>
 
-          {/* Compact stat pills — horizontal strip */}
+          {/* Compact stat pills — the arrival / departure / recent pills expand their list inline */}
           <div className="flex gap-2 overflow-x-auto scrollbar-hide">
             {statCards.map((stat) => (
-              <div key={stat.label} className="flex items-center gap-2 px-3 py-1.5 rounded-md border border-border bg-card shrink-0">
+              <button
+                key={stat.label}
+                type="button"
+                disabled={!stat.panel}
+                onClick={() => stat.panel && setOpenPanel((current) => (current === stat.panel ? null : stat.panel!))}
+                className={cn(
+                  "flex items-center gap-2 px-3 py-1.5 rounded-md border border-border bg-card shrink-0 text-left",
+                  stat.panel && "hover:border-primary/50 transition-colors",
+                  stat.panel && openPanel === stat.panel && "border-primary bg-primary/5"
+                )}
+              >
                 <stat.icon className={cn("h-3.5 w-3.5 shrink-0", stat.color)} />
                 <span className={cn("text-sm font-semibold tabular-nums", stat.color)}>{stat.value}</span>
                 <span className="text-[10px] text-muted-foreground whitespace-nowrap">{stat.label}</span>
-              </div>
+              </button>
             ))}
+
           </div>
         </div>
 
