@@ -39,24 +39,36 @@ function generateInvoiceHTML(invoice: any, transactions: any[], property: any, b
     </tr>
   `).join("");
 
+  const docTitle = isProForma ? "PRO FORMA INVOICE" : (isVatRegistered ? "TAX INVOICE" : "INVOICE");
+
   return `<!DOCTYPE html>
 <html>
-<head><meta charset="utf-8"><title>Invoice ${invoice.invoice_number}</title></head>
+<head><meta charset="utf-8"><title>${docTitle} ${invoice.invoice_number}</title></head>
 <body style="font-family:'Helvetica Neue',Arial,sans-serif;margin:0;padding:40px;color:#1a1a2e;max-width:800px;margin:0 auto;">
   <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:40px;">
     <div>
       ${logoUrl ? `<img src="${logoUrl}" alt="${businessName}" style="max-height:60px;margin-bottom:8px;" />` : ""}
       <h1 style="margin:0;font-size:28px;color:${primaryColor};">${businessName}</h1>
       ${businessAddress ? `<p style="margin:4px 0;color:#666;font-size:13px;">${businessAddress}</p>` : ""}
-      ${isVatRegistered && vatNumber ? `<p style="margin:4px 0;color:#666;font-size:13px;">VAT: ${vatNumber}</p>` : ""}
+      ${isVatRegistered && vatNumber && !isProForma ? `<p style="margin:4px 0;color:#666;font-size:13px;">VAT: ${vatNumber}</p>` : ""}
     </div>
     <div style="text-align:right;">
-      <h2 style="margin:0;font-size:24px;color:${primaryColor};">INVOICE</h2>
+      <h2 style="margin:0;font-size:24px;color:${primaryColor};">${docTitle}</h2>
       <p style="margin:4px 0;font-size:14px;color:#666;">${invoice.invoice_number}</p>
       <p style="margin:4px 0;font-size:13px;color:#666;">Issued: ${invoice.issued_date || new Date().toISOString().split("T")[0]}</p>
       ${invoice.due_date ? `<p style="margin:4px 0;font-size:13px;color:#666;">Due: ${invoice.due_date}</p>` : ""}
     </div>
   </div>
+
+  ${isProForma ? `<p style="margin:0 0 24px;padding:10px 14px;background:#fff7ed;border:1px solid #fdba74;border-radius:6px;font-size:12px;color:#9a3412;">This is a <strong>pro forma invoice</strong> — a quotation of charges for your upcoming stay. It is not a tax invoice and cannot be used for VAT purposes. A final invoice will be issued after your stay.</p>` : ""}
+
+  ${invoice.invoice_to || invoice.stay ? `
+  <div style="display:flex;gap:32px;margin-bottom:24px;font-size:13px;color:#444;">
+    ${invoice.invoice_to ? `<div><div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#999;">Invoice To</div><div>${invoice.invoice_to}</div></div>` : ""}
+    ${invoice.stay ? `<div><div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#999;">Stay</div><div>${invoice.stay.check_in} &rarr; ${invoice.stay.check_out}</div></div>` : ""}
+    ${invoice.reference ? `<div><div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#999;">Reference</div><div>${invoice.reference}</div></div>` : ""}
+  </div>` : ""}
+
 
   <table style="width:100%;border-collapse:collapse;margin-bottom:24px;">
     <thead>
