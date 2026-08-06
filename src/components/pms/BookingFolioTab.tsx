@@ -7,6 +7,7 @@ import { Separator } from "@/components/ui/separator";
 import { callPmsApi } from "@/hooks/usePmsApi";
 import { toast } from "sonner";
 import { Plus, CreditCard, Receipt, Zap, RotateCcw, ShieldCheck } from "lucide-react";
+import { getRevenueStreamLabel, normalizeRevenueStream, type RevenueStream } from "@/components/charges/ChargeCalculator";
 
 interface Transaction {
   id: string;
@@ -15,6 +16,7 @@ interface Transaction {
   amount: number;
   tax_amount: number | null;
   reference: string | null;
+  revenue_stream?: RevenueStream | null;
   created_at: string;
 }
 
@@ -28,12 +30,21 @@ interface BookingCharge {
   refund_timing: string | null;
   refund_status: string | null;
   breakdown: string | null;
+  revenue_stream?: RevenueStream | null;
   created_at: string;
 }
 
 interface BookingFolioTabProps {
   bookingId: string;
 }
+
+const STREAM_COLORS: Record<RevenueStream, string> = {
+  accommodation: "bg-sky-500/15 text-info border-info-border",
+  fnb: "bg-emerald-500/15 text-success border-success-border",
+  other: "bg-slate-500/15 text-foreground/80 border-border",
+};
+
+type StreamFilter = RevenueStream | "all";
 
 const CATEGORY_COLORS: Record<string, string> = {
   tax: "bg-amber-500/15 text-warning border-warning-border",
@@ -56,6 +67,7 @@ export function BookingFolioTab({ bookingId }: BookingFolioTabProps) {
 
   const [chargeForm, setChargeForm] = useState({ description: "", amount: "", type: "charge" });
   const [paymentForm, setPaymentForm] = useState({ amount: "", method: "cash", reference: "" });
+  const [streamFilter, setStreamFilter] = useState<StreamFilter>("all");
 
   const fetchFolio = async () => {
     setLoading(true);
@@ -80,6 +92,20 @@ export function BookingFolioTab({ bookingId }: BookingFolioTabProps) {
   const totalCharges = transactions.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0);
   const totalPayments = transactions.filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0);
   const balance = totalCharges - totalPayments;
+
+  // Revenue stream split (reporting only — never affects the balance above)
+  const streamTotals = transactions.reduce((acc, t) => {
+    if (t.amount <= 0) return acc;
+    const stream = normalizeRevenueStream(t.revenue_stream);
+    acc[stream] += t.amount;
+    return acc;
+  }, { accommodation: 0, fnb: 0, other: 0 } as Record<RevenueStream, number>);
+  const hasStreamSplit = streamTotals.fnb > 0 || streamTotals.other > 0;
+
+  const matchesStream = (stream: RevenueStream | null | undefined) =>
+    streamFilter === "all" || normalizeRevenueStream(stream) === streamFilter;
+  const visibleTransactions = transactions.filter(t => matchesStream(t.revenue_stream));
+  const visibleCharges = bookingCharges.filter(c => matchesStream(c.revenue_stream));
 
   const handleAddCharge = async () => {
     if (!chargeForm.description || !chargeForm.amount) return;
@@ -177,12 +203,17 @@ export function BookingFolioTab({ bookingId }: BookingFolioTabProps) {
         <div className="space-y-1.5">
           <h5 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Service Charges</h5>
           <div className="space-y-1">
-            {bookingCharges.map(c => (
+            {visibleCharges.map(c => (
               <div key={c.id} className="flex items-center justify-between text-sm py-1.5 px-2 rounded bg-muted/30">
                 <div className="flex items-center gap-2">
                   <Badge variant="outline" className={`text-[9px] px-1.5 py-0 ${CATEGORY_COLORS[c.category] || CATEGORY_COLORS.custom}`}>
                     {c.category}
                   </Badge>
+                  {normalizeRevenueStream(c.revenue_stream) !== "accommodation" && (
+                    <Badge variant="outline" className={`text-[9px] px-1.5 py-0 ${STREAM_COLORS[normalizeRevenueStream(c.revenue_stream)]}`}>
+                      {getRevenueStreamLabel(c.revenue_stream)}
+                    </Badge>
+                  )}
                   <div>
                     <p className="text-xs font-medium">{c.name}</p>
                     {c.breakdown && <p className="text-[10px] text-muted-foreground">{c.breakdown}</p>}
@@ -273,19 +304,56 @@ export function BookingFolioTab({ bookingId }: BookingFolioTabProps) {
 
       <Separator />
 
+      {hasStreamSplit && (
+        <div className="grid grid-cols-3 gap-2">
+          <div className="bg-muted/50 rounded-md p-2 text-center">
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Accommodation</p>
+            <p className="text-xs font-semibold">R{streamTotals.accommodation.toLocaleString()}</p>
+          </div>
+          <div className="bg-muted/50 rounded-md p-2 text-center">
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground">F&amp;B</p>
+            <p className="text-xs font-semibold">R{streamTotals.fnb.toLocaleString()}</p>
+          </div>
+          <div className="bg-muted/50 rounded-md p-2 text-center">
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Other</p>
+            <p className="text-xs font-semibold">R{streamTotals.other.toLocaleString()}</p>
+          </div>
+        </div>
+      )}
+
       {/* Transactions List */}
       <div className="space-y-1">
-        <h5 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Transactions</h5>
-        {transactions.length === 0 ? (
+        <div className="flex items-center justify-between gap-2">
+          <h5 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Transactions</h5>
+          {hasStreamSplit && (
+            <Select value={streamFilter} onValueChange={v => setStreamFilter(v as StreamFilter)}>
+              <SelectTrigger className="h-7 w-[150px] text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All streams</SelectItem>
+                <SelectItem value="accommodation">Accommodation</SelectItem>
+                <SelectItem value="fnb">F&amp;B</SelectItem>
+                <SelectItem value="other">Other</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
+        </div>
+        {visibleTransactions.length === 0 ? (
           <p className="text-xs text-muted-foreground py-2">No transactions yet.</p>
         ) : (
           <div className="space-y-1.5">
-            {transactions.map(t => (
+            {visibleTransactions.map(t => (
               <div key={t.id} className="flex items-center justify-between text-sm py-1.5 px-2 rounded bg-muted/30">
                 <div className="flex items-center gap-2">
                   {t.amount < 0 ? <CreditCard className="h-3 w-3 text-success" /> : <Receipt className="h-3 w-3 text-muted-foreground" />}
                   <div>
-                    <p className="text-xs font-medium">{t.description}</p>
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-xs font-medium">{t.description}</p>
+                      {t.amount > 0 && normalizeRevenueStream(t.revenue_stream) !== "accommodation" && (
+                        <Badge variant="outline" className={`text-[9px] px-1.5 py-0 ${STREAM_COLORS[normalizeRevenueStream(t.revenue_stream)]}`}>
+                          {getRevenueStreamLabel(t.revenue_stream)}
+                        </Badge>
+                      )}
+                    </div>
                     <p className="text-[10px] text-muted-foreground">{new Date(t.created_at).toLocaleString()}</p>
                   </div>
                 </div>
