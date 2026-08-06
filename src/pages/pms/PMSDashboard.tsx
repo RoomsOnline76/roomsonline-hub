@@ -1854,6 +1854,13 @@ export default function PMSDashboard() {
                   </PopoverContent>
                 </Popover>
                 <div className="flex gap-0.5 ml-1">
+                  {!isMobile && (
+                    <Button
+                      variant={viewMode === "roomplan" ? "default" : "outline"}
+                      onClick={() => setViewMode("roomplan")}
+                      className="h-7 text-xs px-2"
+                    >Room Plan</Button>
+                  )}
                   <Button
                     variant={viewMode === "week" ? "default" : "outline"}
                     onClick={() => setViewMode("week")}
@@ -1865,45 +1872,103 @@ export default function PMSDashboard() {
                     className="h-7 text-xs px-2"
                   >Month</Button>
                 </div>
-                <Button
-                  variant={showOnlyBookedDays ? "default" : "outline"}
-                  onClick={() => setShowOnlyBookedDays((value) => !value)}
-                  className="h-7 text-xs px-2"
-                  title={showOnlyBookedDays ? "Showing only booked days" : "Show only booked days"}
-                >
-                  <EyeOff className="h-3 w-3 mr-1" />Booked days
-                </Button>
+                {viewMode !== "roomplan" && (
+                  <Button
+                    variant={showOnlyBookedDays ? "default" : "outline"}
+                    onClick={() => setShowOnlyBookedDays((value) => !value)}
+                    className="h-7 text-xs px-2"
+                    title={showOnlyBookedDays ? "Showing only booked days" : "Show only booked days"}
+                  >
+                    <EyeOff className="h-3 w-3 mr-1" />Booked days
+                  </Button>
+                )}
+                {/* Legend — tucked into a popover so it costs no vertical space */}
+                <Popover open={legendOpen} onOpenChange={setLegendOpen}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="h-7 text-xs px-2" title="Colour legend">
+                      <Info className="h-3 w-3" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent align="end" className="w-64 p-3">
+                    <div className="flex flex-col gap-1.5 text-xs">
+                      <span className="font-medium text-muted-foreground">Bookings</span>
+                      {Object.entries(STATUS_COLORS).map(([status, colors]) => (
+                        <div key={status} className="flex items-center gap-2">
+                          <div className={cn("w-4 h-1.5 rounded-full", colors.bg, "border", colors.border)} />
+                          <span className="capitalize text-muted-foreground">{status.replace("_", " ")}</span>
+                        </div>
+                      ))}
+                      <span className="font-medium text-muted-foreground mt-1">Restrictions</span>
+                      <div className="flex items-center gap-2"><div className="w-4 h-1.5 rounded-full bg-red-500" /><span className="text-muted-foreground">Stop Sell</span></div>
+                      <div className="flex items-center gap-2"><div className="w-4 h-1.5 rounded-full bg-blue-500" /><span className="text-muted-foreground">Min Stay</span></div>
+                      <div className="flex items-center gap-2"><div className="w-4 h-1.5 rounded-full bg-pink-500" /><span className="text-muted-foreground">Max Stay</span></div>
+                      <div className="flex items-center gap-2"><div className="w-4 h-1.5 rounded-full bg-yellow-500" /><span className="text-muted-foreground">Lead Adv</span></div>
+                      <div className="flex items-center gap-2"><div className="w-4 h-1.5 rounded-full bg-orange-500" /><span className="text-muted-foreground">Lead Post</span></div>
+                      <div className="flex items-center gap-2"><AlertTriangle className="h-3 w-3 text-amber-500" /><span className="text-muted-foreground">Attention</span></div>
+                    </div>
+                  </PopoverContent>
+                </Popover>
               </div>
             </div>
 
-            {/* Legend row — collapsed by default on small screens to save vertical space */}
-            <button
-              type="button"
-              onClick={() => setLegendOpen((v) => !v)}
-              className="mb-2 flex items-center gap-1 text-xs font-medium text-muted-foreground sm:hidden"
-            >
-              {legendOpen ? "Hide legend" : "Show legend"}
-            </button>
-            <div className={cn("flex-wrap items-center gap-3 mb-3 text-xs", legendOpen ? "flex" : "hidden sm:flex")}>
-              <span className="text-muted-foreground font-medium">Bookings:</span>
-              {Object.entries(STATUS_COLORS).map(([status, colors]) => (
-                <div key={status} className="flex items-center gap-1">
-                  <div className={cn("w-3 h-1.5 rounded-full", colors.bg, "border", colors.border)} />
-                  <span className="capitalize text-muted-foreground">{status.replace("_", " ")}</span>
-                </div>
-              ))}
-              <span className="text-muted-foreground">|</span>
-              <span className="text-muted-foreground font-medium">Restrictions:</span>
-              <div className="flex items-center gap-1"><div className="w-3 h-1.5 rounded-full bg-red-500" /><span className="text-muted-foreground">Stop Sell</span></div>
-              <div className="flex items-center gap-1"><div className="w-3 h-1.5 rounded-full bg-blue-500" /><span className="text-muted-foreground">Min Stay</span></div>
-              <div className="flex items-center gap-1"><div className="w-3 h-1.5 rounded-full bg-pink-500" /><span className="text-muted-foreground">Max Stay</span></div>
-              <div className="flex items-center gap-1"><div className="w-3 h-1.5 rounded-full bg-yellow-500" /><span className="text-muted-foreground">Lead Adv</span></div>
-              <div className="flex items-center gap-1"><div className="w-3 h-1.5 rounded-full bg-orange-500" /><span className="text-muted-foreground">Lead Post</span></div>
-              <div className="flex items-center gap-1"><AlertTriangle className="h-3 w-3 text-amber-500" /><span className="text-muted-foreground">Attention</span></div>
-            </div>
+            {viewMode === "roomplan" && (
+              <p className="mb-2 text-[11px] text-muted-foreground">
+                Drag a reservation to move it, or drag across empty nights to start a new booking. Hover for details.
+              </p>
+            )}
 
             {/* Calendar Grid */}
-            {isPortfolioMode ? (
+            {viewMode === "roomplan" ? (
+              isPortfolioMode ? (
+                <div className="space-y-4">
+                  {(portfolioProperties || []).map((prop) => {
+                    const propData = portfolioDataByProperty.get(prop.id);
+                    if (!propData || propData.roomTypes.length === 0) return null;
+                    return (
+                      <div key={prop.id}>
+                        <div className="flex items-center gap-2 mb-1.5 px-1 py-1 bg-muted/30 rounded-md">
+                          <Building2 className="h-3.5 w-3.5 text-primary shrink-0" />
+                          <h3 className="text-xs font-semibold text-foreground">{prop.name}</h3>
+                        </div>
+                        <RoomPlanGrid
+                          dates={dates}
+                          roomTypes={propData.roomTypes}
+                          roomsByType={propData.roomsByType}
+                          bookings={propData.bookings as unknown as RoomPlanBooking[]}
+                          propertyName={prop.name}
+                          isHoliday={getHolidayName}
+                          getRateForDate={(rtId, date) => getPortfolioRateForDate(prop.id, rtId, date)}
+                          onSelectBooking={(b) => openBookingSheet(b as unknown as BookingRow)}
+                          onQuickAction={(b, action) => handleQuickAction(b as unknown as BookingRow, action)}
+                          onModifyBooking={(b) => setModifyTarget(b as unknown as BookingRow)}
+                          onCancelBooking={(b) => setCancelTarget(b as unknown as BookingRow)}
+                          onCreateBooking={(payload) => handleRoomPlanCreate({ ...payload, propertyId: prop.id })}
+                          onMoveBooking={handleRoomPlanMove}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <RoomPlanGrid
+                  dates={dates}
+                  roomTypes={roomTypes as RoomType[]}
+                  roomsByType={roomsByType}
+                  bookings={bookings as unknown as RoomPlanBooking[]}
+                  propertyName={displayName}
+                  bookingsLoading={bookingsLoading}
+                  isHoliday={getHolidayName}
+                  getRateForDate={getRateForDate}
+                  onSelectBooking={(b) => openBookingSheet(b as unknown as BookingRow)}
+                  onQuickAction={(b, action) => handleQuickAction(b as unknown as BookingRow, action)}
+                  onModifyBooking={(b) => setModifyTarget(b as unknown as BookingRow)}
+                  onCancelBooking={(b) => setCancelTarget(b as unknown as BookingRow)}
+                  onCreateBooking={handleRoomPlanCreate}
+                  onMoveBooking={handleRoomPlanMove}
+                />
+              )
+            ) : isPortfolioMode ? (
+
               viewMode === "week" ? (
                 <div className="space-y-6">
                   {showOnlyBookedDays && !portfolioHasAnyBookedDay && (
