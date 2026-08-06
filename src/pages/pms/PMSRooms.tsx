@@ -102,13 +102,24 @@ export default function PMSRooms() {
           if (allRolosTypes && allRolosTypes.length > 0) {
             const { data: existingPhysical } = await supabase
               .from("rolos_rooms")
-              .select("room_type_id")
+              .select("room_type_id, room_number")
               .eq("property_id", pid);
 
             const hasPhysical = new Set(
               (existingPhysical || []).map((room) => room.room_type_id).filter(Boolean)
             );
-            const missingPhysical = allRolosTypes.filter((roomType) => !hasPhysical.has(roomType.id));
+            // Never create a second unit for a duplicate room type that shares a
+            // name with an existing unit — that is how archived duplicates leak in.
+            const takenNames = new Set(
+              (existingPhysical || [])
+                .map((room) => (room.room_number || "").trim().toLowerCase())
+                .filter(Boolean)
+            );
+            const missingPhysical = allRolosTypes.filter(
+              (roomType) =>
+                !hasPhysical.has(roomType.id) &&
+                !takenNames.has((roomType.name || "").trim().toLowerCase())
+            );
 
             if (missingPhysical.length > 0) {
               const backfillRooms = missingPhysical.map((roomType) => ({
@@ -121,6 +132,7 @@ export default function PMSRooms() {
               await supabase.from("rolos_rooms").insert(backfillRooms);
             }
           }
+
         } catch (err) {
           console.warn(`[PMSRooms] sync failed for property ${pid}:`, err);
         }
