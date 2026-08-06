@@ -1137,7 +1137,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { booking_id, status, error_message, sync_warning, recipient_email } = validationResult.data;
+    const { booking_id, status, error_message, sync_warning, recipient_email, document_kind } = validationResult.data;
 
     console.log(`Sending ${status} booking email for booking ${booking_id}${sync_warning ? ' (with sync warning)' : ''}`);
 
