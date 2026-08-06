@@ -113,6 +113,23 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
     setForm(p => ({ ...p, room_type_id: "", room_id: "" }));
   }, [effectivePropertyId]);
 
+  // Apply Room Plan prefill after the property-reset effect above has run.
+  useEffect(() => {
+    if (!open || !initialValues) return;
+    if (initialValues.propertyId) setSelectedPropertyId(initialValues.propertyId);
+    const timer = setTimeout(() => {
+      setForm(p => ({
+        ...p,
+        room_type_id: initialValues.roomTypeId || p.room_type_id,
+        room_id: initialValues.roomId || "",
+        check_in: initialValues.checkIn || p.check_in,
+        check_out: initialValues.checkOut || p.check_out,
+      }));
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [open, initialValues]);
+
+
   const filteredRooms = useMemo(() =>
     activeRooms.filter(r => r.room_type_id === form.room_type_id && r.status !== "out_of_service"),
     [activeRooms, form.room_type_id]
