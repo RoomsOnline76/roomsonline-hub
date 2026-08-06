@@ -15,6 +15,7 @@ const requestSchema = z.object({
   error_message: z.string().optional(),
   sync_warning: z.string().optional(),
   recipient_email: z.string().email().optional(), // For property notifications
+  document_kind: z.enum(["pro_forma", "tax_invoice"]).optional(), // Attach/send a specific account document
 });
 
 // Format currency
