@@ -1352,6 +1352,105 @@ function expandAvailability(
   return out;
 }
 
+type AvailEntry = { date_from: string; date_to: string; units: number; min_stay: number; max_stay?: number; changeover: number };
+
+type ManualDayOverride = { units?: number; min_stay?: number; max_stay?: number };
+
+const normalizeRoomLabel = (v: string): string => v.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+
+/**
+ * Manual restrictions authored on the ROL'OS dashboard (Stop Sell / Min Stay / Max Stay)
+ * live in `property_availability` with `external_system = 'manual'`. They are authoritative
+ * over the season-derived ARI window, so they must be overlaid before we push to RU.
+ *
+ * Unit-scoped push (multi-unit): only rows whose room type matches this unit apply.
+ * Property-scoped push: a blocked room type reduces the sellable unit count for that date,
+ * it never closes the whole property unless every room type is blocked.
+ */
+async function loadManualRestrictions(
+  supabase: any,
+  propertyId: string,
+  windowFrom: string,
+  windowTo: string,
+  unitName: string | null,
+  totalUnits: number,
+): Promise<{ overrides: Map<string, ManualDayOverride>; stats: { rows: number; days: number; stop_sell_days: number; min_stay_days: number; max_stay_days: number } }> {
+  const overrides = new Map<string, ManualDayOverride>();
+  const stats = { rows: 0, days: 0, stop_sell_days: 0, min_stay_days: 0, max_stay_days: 0 };
+
+  const { data, error } = await supabase
+    .from('property_availability')
+    .select('date, room_type, available_units, is_stop_sell, minimum_stay, maximum_stay')
+    .eq('property_id', propertyId)
+    .eq('external_system', 'manual')
+    .gte('date', windowFrom)
+    .lte('date', windowTo);
+
+  if (error || !Array.isArray(data)) return { overrides, stats };
+
+  const wanted = unitName ? normalizeRoomLabel(unitName) : null;
+  const perDay = new Map<string, { blocked: Set<string>; minStay: number | null; maxStay: number | null }>();
+
+  for (const row of data as any[]) {
+    const label = normalizeRoomLabel(String(row.room_type ?? ''));
+    if (wanted && label && label !== wanted) continue;
+    stats.rows += 1;
+    const day = String(row.date).slice(0, 10);
+    const bucket = perDay.get(day) ?? { blocked: new Set<string>(), minStay: null, maxStay: null };
+    if (row.is_stop_sell === true || row.available_units === 0) bucket.blocked.add(label || '__all__');
+    if (row.minimum_stay != null) bucket.minStay = Math.max(bucket.minStay ?? 0, Number(row.minimum_stay));
+    if (row.maximum_stay != null) bucket.maxStay = bucket.maxStay == null ? Number(row.maximum_stay) : Math.min(bucket.maxStay, Number(row.maximum_stay));
+    perDay.set(day, bucket);
+  }
+
+  for (const [day, bucket] of perDay) {
+    const ov: ManualDayOverride = {};
+    if (bucket.blocked.size > 0) {
+      ov.units = wanted ? 0 : Math.max(0, totalUnits - bucket.blocked.size);
+      if (ov.units === 0) stats.stop_sell_days += 1;
+    }
+    if (bucket.minStay != null && bucket.minStay > 0) { ov.min_stay = bucket.minStay; stats.min_stay_days += 1; }
+    if (bucket.maxStay != null && bucket.maxStay > 0) { ov.max_stay = bucket.maxStay; stats.max_stay_days += 1; }
+    if (Object.keys(ov).length > 0) { overrides.set(day, ov); stats.days += 1; }
+  }
+
+  return { overrides, stats };
+}
+
+/** Overlay per-date manual overrides onto season-derived entries, then recompress ranges. */
+function applyManualOverrides(entries: AvailEntry[], overrides: Map<string, ManualDayOverride>): AvailEntry[] {
+  if (overrides.size === 0) return entries;
+  const perDay: AvailEntry[] = [];
+  for (const e of entries) {
+    for (let d = e.date_from; d <= e.date_to; d = isoAddDays(d, 1)) {
+      const ov = overrides.get(d);
+      perDay.push({
+        date_from: d,
+        date_to: d,
+        units: ov?.units ?? e.units,
+        min_stay: ov?.min_stay ?? e.min_stay,
+        ...(ov?.max_stay != null ? { max_stay: ov.max_stay } : e.max_stay != null ? { max_stay: e.max_stay } : {}),
+        changeover: e.changeover,
+      });
+    }
+  }
+  perDay.sort((a, b) => a.date_from.localeCompare(b.date_from));
+  const out: AvailEntry[] = [];
+  for (const e of perDay) {
+    const last = out[out.length - 1];
+    if (
+      last && last.units === e.units && last.min_stay === e.min_stay &&
+      (last.max_stay ?? null) === (e.max_stay ?? null) && last.changeover === e.changeover &&
+      isoAddDays(last.date_to, 1) === e.date_from
+    ) {
+      last.date_to = e.date_to;
+    } else {
+      out.push({ ...e });
+    }
+  }
+  return out;
+}
+
 /**
  * Remove specific dates from availability entries. Entries are ranges when no per-day
  * changeover rules apply, so a reserved day usually sits *inside* a range — filtering by
@@ -1578,7 +1677,7 @@ async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRo
   const amenities = (property.amenities || {}) as Record<string, any>;
   const seasons = amenities.seasons as any[] | undefined;
   const seasonRates = amenities.season_rates as Record<string, any> | undefined;
-  const result: { availability_reserved_days?: number; availability_pushed?: boolean; prices_pushed?: boolean; availability_error?: string; prices_error?: string; availability_verification?: AvailabilityVerification; prices_verification?: PriceVerification; price_coverage?: Record<string, any>; availability_coverage?: Record<string, any>; currency?: Record<string, any> } = {};
+  const result: { availability_reserved_days?: number; availability_pushed?: boolean; prices_pushed?: boolean; availability_error?: string; prices_error?: string; availability_verification?: AvailabilityVerification; prices_verification?: PriceVerification; price_coverage?: Record<string, any>; availability_coverage?: Record<string, any>; manual_restrictions?: Record<string, any>; currency?: Record<string, any> } = {};
 
   const today = new Date();
   const todayStr = today.toISOString().slice(0, 10);
@@ -1623,8 +1722,12 @@ async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRo
 
   {
     try {
-      const availEntries = expandAvailability(allPeriods, unitUnits, changeoverConfig);
-      console.log(`[pushARI] Pushing ${availEntries.length} availability entries (per-day rules: ${changeoverConfig.perDow ? 'yes' : 'no'}, default changeover: ${changeoverConfig.defaultCode})`);
+      let availEntries: AvailEntry[] = expandAvailability(allPeriods, unitUnits, changeoverConfig);
+      // Manual dashboard restrictions win over season-derived values.
+      const manual = await loadManualRestrictions(supabase, property.id, todayStr, oneYearStr, unit?.name ?? null, unitUnits);
+      availEntries = applyManualOverrides(availEntries, manual.overrides);
+      result.manual_restrictions = manual.stats;
+      console.log(`[pushARI] Pushing ${availEntries.length} availability entries (per-day rules: ${changeoverConfig.perDow ? 'yes' : 'no'}, default changeover: ${changeoverConfig.defaultCode}, manual override days: ${manual.stats.days})`);
       const { data: availResult, error: availErr } = await supabase.functions.invoke('rentalsunited-api', {
         body: { action: 'push_availability', ru_property_id: ruPropertyId, availability: availEntries, ...childAuth },
       });
