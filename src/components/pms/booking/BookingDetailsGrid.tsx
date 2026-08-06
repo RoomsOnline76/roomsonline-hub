@@ -512,7 +512,55 @@ export function BookingDetailsGrid({
           <Label className="text-[11px]">Internal Notes (staff only)</Label>
           <Textarea rows={4} value={form.internal_notes} onChange={e => set("internal_notes", e.target.value)} placeholder="Not shown to the guest" />
         </div>
+
+        <Separator />
+
+        {/* ───── Linked Profiles & Segmentation ───── */}
+        <div className="space-y-2">
+          <h4 className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <Users2 className="h-3.5 w-3.5" />Linked Profiles &amp; Segmentation
+          </h4>
+          <BookerSegmentationFields
+            compact
+            value={crm}
+            onChange={patch => setCrm(p => ({ ...p, ...patch }))}
+            accounts={accounts}
+            isPortfolioScoped={isPortfolioScoped}
+            onSaveAccount={saveAccount}
+            onCompanyLinked={applyCompany}
+          />
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <Label className="text-[11px]">Invoice To</Label>
+              <Input
+                className="h-8"
+                value={invoiceTo.invoice_to_name}
+                onChange={e => setInvoiceTo(p => ({ ...p, invoice_to_name: e.target.value }))}
+                placeholder="Defaults to the guest"
+              />
+            </div>
+            <div>
+              <Label className="text-[11px]">Invoice VAT No.</Label>
+              <Input
+                className="h-8"
+                value={invoiceTo.invoice_to_vat}
+                onChange={e => setInvoiceTo(p => ({ ...p, invoice_to_vat: e.target.value }))}
+                placeholder="Optional"
+              />
+            </div>
+          </div>
+          <div>
+            <Label className="text-[11px]">Invoice Address</Label>
+            <Textarea
+              rows={2}
+              value={invoiceTo.invoice_to_address}
+              onChange={e => setInvoiceTo(p => ({ ...p, invoice_to_address: e.target.value }))}
+              placeholder="Auto-filled when a company is linked"
+            />
+          </div>
+        </div>
       </div>
+
 
       {/* ───── Account ───── */}
       <div className="space-y-3">
