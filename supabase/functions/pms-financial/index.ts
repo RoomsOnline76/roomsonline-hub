@@ -12,6 +12,7 @@ const corsHeaders = {
 };
 
 function generateInvoiceHTML(invoice: any, transactions: any[], property: any, branding: any): string {
+  const isProForma = invoice?.document_kind === "pro_forma";
   const businessName = branding?.business_name || property?.name || "Property";
   const businessAddress = branding?.business_address || "";
   const amenities = property?.amenities || {};
