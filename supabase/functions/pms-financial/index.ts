@@ -12,6 +12,7 @@ const corsHeaders = {
 };
 
 function generateInvoiceHTML(invoice: any, transactions: any[], property: any, branding: any): string {
+  const isProForma = invoice?.document_kind === "pro_forma";
   const businessName = branding?.business_name || property?.name || "Property";
   const businessAddress = branding?.business_address || "";
   const amenities = property?.amenities || {};
@@ -38,24 +39,36 @@ function generateInvoiceHTML(invoice: any, transactions: any[], property: any, b
     </tr>
   `).join("");
 
+  const docTitle = isProForma ? "PRO FORMA INVOICE" : (isVatRegistered ? "TAX INVOICE" : "INVOICE");
+
   return `<!DOCTYPE html>
 <html>
-<head><meta charset="utf-8"><title>Invoice ${invoice.invoice_number}</title></head>
+<head><meta charset="utf-8"><title>${docTitle} ${invoice.invoice_number}</title></head>
 <body style="font-family:'Helvetica Neue',Arial,sans-serif;margin:0;padding:40px;color:#1a1a2e;max-width:800px;margin:0 auto;">
   <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:40px;">
     <div>
       ${logoUrl ? `<img src="${logoUrl}" alt="${businessName}" style="max-height:60px;margin-bottom:8px;" />` : ""}
       <h1 style="margin:0;font-size:28px;color:${primaryColor};">${businessName}</h1>
       ${businessAddress ? `<p style="margin:4px 0;color:#666;font-size:13px;">${businessAddress}</p>` : ""}
-      ${isVatRegistered && vatNumber ? `<p style="margin:4px 0;color:#666;font-size:13px;">VAT: ${vatNumber}</p>` : ""}
+      ${isVatRegistered && vatNumber && !isProForma ? `<p style="margin:4px 0;color:#666;font-size:13px;">VAT: ${vatNumber}</p>` : ""}
     </div>
     <div style="text-align:right;">
-      <h2 style="margin:0;font-size:24px;color:${primaryColor};">INVOICE</h2>
+      <h2 style="margin:0;font-size:24px;color:${primaryColor};">${docTitle}</h2>
       <p style="margin:4px 0;font-size:14px;color:#666;">${invoice.invoice_number}</p>
       <p style="margin:4px 0;font-size:13px;color:#666;">Issued: ${invoice.issued_date || new Date().toISOString().split("T")[0]}</p>
       ${invoice.due_date ? `<p style="margin:4px 0;font-size:13px;color:#666;">Due: ${invoice.due_date}</p>` : ""}
     </div>
   </div>
+
+  ${isProForma ? `<p style="margin:0 0 24px;padding:10px 14px;background:#fff7ed;border:1px solid #fdba74;border-radius:6px;font-size:12px;color:#9a3412;">This is a <strong>pro forma invoice</strong> — a quotation of charges for your upcoming stay. It is not a tax invoice and cannot be used for VAT purposes. A final invoice will be issued after your stay.</p>` : ""}
+
+  ${invoice.invoice_to || invoice.stay ? `
+  <div style="display:flex;gap:32px;margin-bottom:24px;font-size:13px;color:#444;">
+    ${invoice.invoice_to ? `<div><div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#999;">Invoice To</div><div>${invoice.invoice_to}</div></div>` : ""}
+    ${invoice.stay ? `<div><div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#999;">Stay</div><div>${invoice.stay.check_in} &rarr; ${invoice.stay.check_out}</div></div>` : ""}
+    ${invoice.reference ? `<div><div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#999;">Reference</div><div>${invoice.reference}</div></div>` : ""}
+  </div>` : ""}
+
 
   <table style="width:100%;border-collapse:collapse;margin-bottom:24px;">
     <thead>
@@ -120,12 +133,18 @@ Deno.serve(async (req) => {
       });
     }
     const token = authHeader.replace("Bearer ", "");
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-    if (authError || !user) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    // Internal service-to-service calls (e.g. the booking email pipeline) authenticate with the service role key
+    const isServiceCall = token === supabaseServiceKey;
+    let user: { id: string } | null = null;
+    if (!isServiceCall) {
+      const { data: { user: authUser }, error: authError } = await supabase.auth.getUser(token);
+      if (authError || !authUser) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      user = authUser;
     }
 
     const body = await req.json();
@@ -147,7 +166,7 @@ Deno.serve(async (req) => {
             notes,
             status: "completed",
             paid_at: new Date().toISOString(),
-            created_by: user.id,
+            created_by: user?.id ?? null,
           })
           .select()
           .single();
@@ -158,7 +177,7 @@ Deno.serve(async (req) => {
           transaction_type: "payment",
           description: `Payment via ${method || "cash"}${reference ? ` (${reference})` : ""}`,
           amount: -Math.abs(amount),
-          created_by: user.id,
+          created_by: user?.id ?? null,
         });
 
         await updateFolioBalance(supabase, folio_id);
@@ -195,17 +214,90 @@ Deno.serve(async (req) => {
         });
       }
 
-      // ==================== GENERATE INVOICE WITH PDF ====================
+      // ==================== GENERATE INVOICE / PRO FORMA ====================
       case "generate_invoice": {
-        const { folio_id: invFolioId, property_id: invPropId, notes: invNotes } = body;
+        const {
+          property_id: invPropId,
+          notes: invNotes,
+          booking_id: invBookingId,
+          invoice_to: invInvoiceTo,
+          reference: invReference,
+        } = body;
+        const documentKind: string = body.document_kind === "pro_forma" ? "pro_forma" : "tax_invoice";
+        let invFolioId: string | null = body.folio_id || null;
 
-        const { data: transactions } = await supabase
+        // Resolve booking + folio (creating the folio if the booking has none yet)
+        let bookingRow: any = null;
+        if (invBookingId) {
+          const { data: bk } = await supabase
+            .from("bookings")
+            .select("id, guest_name, guest_email, check_in_date, check_out_date, total_price, status, property_id")
+            .eq("id", invBookingId)
+            .maybeSingle();
+          bookingRow = bk;
+          if (!invFolioId) {
+            const { data: existingFolio } = await supabase
+              .from("rolos_folios")
+              .select("id")
+              .eq("booking_id", invBookingId)
+              .maybeSingle();
+            if (existingFolio?.id) {
+              invFolioId = existingFolio.id;
+            } else {
+              const { data: createdFolio } = await supabase
+                .from("rolos_folios")
+                .insert({ booking_id: invBookingId, property_id: invPropId })
+                .select("id")
+                .single();
+              invFolioId = createdFolio?.id || null;
+            }
+          }
+        }
+
+        if (!invFolioId) {
+          return new Response(JSON.stringify({ error: "folio_id or booking_id required" }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        // A final tax invoice may only be raised once the stay is over / guest checked out
+        if (documentKind === "tax_invoice" && bookingRow) {
+          const today = new Date().toISOString().split("T")[0];
+          const stayEnded = String(bookingRow.check_out_date || "") <= today;
+          const checkedOut = ["checked_out", "completed", "departed"].includes(String(bookingRow.status || "").toLowerCase());
+          if (!stayEnded && !checkedOut) {
+            return new Response(JSON.stringify({
+              error: "A tax invoice can only be generated after check-out. Issue a pro forma invoice instead.",
+              code: "STAY_NOT_COMPLETE",
+            }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+          }
+        }
+
+        const { data: transactionRows } = await supabase
           .from("rolos_folio_transactions")
           .select("*")
           .eq("folio_id", invFolioId)
           .order("created_at");
 
-        const charges = (transactions || []).filter((t: any) => (t.amount || 0) > 0);
+        const transactions: any[] = [...(transactionRows || [])];
+        const bookingTotal = Number(bookingRow?.total_price || 0);
+        const positives = transactions.filter((t: any) => (t.amount || 0) > 0);
+        const hasAccommodationLine = positives.some((t: any) => {
+          const text = `${t.transaction_type || ""} ${t.description || ""}`.toLowerCase();
+          return Math.abs(Number(t.amount || 0) - bookingTotal) < 0.01 ||
+            text.includes("accommodation") || text.includes("room rate") || text.includes("booking total");
+        });
+        if (bookingTotal > 0 && !hasAccommodationLine) {
+          transactions.unshift({
+            id: "accommodation-synthetic",
+            description: "Accommodation",
+            amount: bookingTotal,
+            transaction_type: "accommodation",
+          });
+        }
+
+        const charges = transactions.filter((t: any) => (t.amount || 0) > 0);
         const subtotal = charges.reduce((sum: number, t: any) => sum + Number(t.amount), 0);
 
         // Identify refundable deposit charges (excluded from VAT)
@@ -253,20 +345,35 @@ Deno.serve(async (req) => {
         }
 
         const total = subtotal + taxTotal;
-        const invoiceNumber = `INV-${Date.now().toString(36).toUpperCase()}`;
+        const prefix = documentKind === "pro_forma" ? "PF" : "INV";
+        const invoiceNumber = `${prefix}-${Date.now().toString(36).toUpperCase()}`;
+
+        // Only one live document of each kind per booking — supersede the previous one
+        if (invBookingId) {
+          await supabase
+            .from("rolos_invoices")
+            .update({ status: "cancelled" })
+            .eq("booking_id", invBookingId)
+            .eq("document_kind", documentKind)
+            .neq("status", "cancelled");
+        }
 
         const { data: invoice, error: invErr } = await supabase
           .from("rolos_invoices")
           .insert({
             folio_id: invFolioId,
             property_id: invPropId,
+            booking_id: invBookingId || null,
+            document_kind: documentKind,
+            invoice_to: invInvoiceTo || bookingRow?.guest_name || null,
+            reference: invReference || null,
             invoice_number: invoiceNumber,
             subtotal,
             tax_total: Math.round(taxTotal * 100) / 100,
             total: Math.round(total * 100) / 100,
             status: "issued",
             notes: invNotes || null,
-            created_by: user.id,
+            created_by: user?.id ?? null,
           })
           .select()
           .single();
@@ -284,7 +391,12 @@ Deno.serve(async (req) => {
           .eq("property_id", invPropId)
           .maybeSingle();
 
-        const html = generateInvoiceHTML(invoice, transactions || [], property, branding);
+        const html = generateInvoiceHTML(
+          { ...invoice, stay: bookingRow ? { check_in: bookingRow.check_in_date, check_out: bookingRow.check_out_date, guest: bookingRow.guest_name } : null },
+          transactions || [],
+          property,
+          branding,
+        );
 
         const filePath = `${invPropId}/${invoiceNumber}.html`;
         const encoder = new TextEncoder();
@@ -311,6 +423,38 @@ Deno.serve(async (req) => {
         }
 
         return new Response(JSON.stringify({ success: true, invoice }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // ==================== GET BOOKING INVOICES (+ fresh signed links) ====================
+      case "get_booking_invoices": {
+        const { booking_id: gbBookingId } = body;
+        if (!gbBookingId) {
+          return new Response(JSON.stringify({ error: "booking_id required" }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        const { data: docs, error: gbErr } = await supabase
+          .from("rolos_invoices")
+          .select("*")
+          .eq("booking_id", gbBookingId)
+          .neq("status", "cancelled")
+          .order("created_at", { ascending: false });
+        if (gbErr) throw gbErr;
+
+        // Refresh signed URLs so links never expire on the user
+        const refreshed = [];
+        for (const doc of docs || []) {
+          let url = doc.pdf_url as string | null;
+          const path = `${doc.property_id}/${doc.invoice_number}.html`;
+          const { data: signed } = await supabase.storage.from("invoices").createSignedUrl(path, 60 * 60 * 24 * 7);
+          if (signed?.signedUrl) url = signed.signedUrl;
+          refreshed.push({ ...doc, pdf_url: url });
+        }
+
+        return new Response(JSON.stringify({ success: true, invoices: refreshed }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
@@ -344,7 +488,7 @@ Deno.serve(async (req) => {
             method: "card",
             status: "pending",
             notes: `Gateway: ${gateway || "payfast"}`,
-            created_by: user.id,
+            created_by: user?.id ?? null,
           })
           .select()
           .single();
@@ -371,7 +515,7 @@ Deno.serve(async (req) => {
             method: "card",
             status: "pending",
             notes: `Gateway: ${igGateway || "payfast"}`,
-            created_by: user.id,
+            created_by: user?.id ?? null,
           })
           .select()
           .single();

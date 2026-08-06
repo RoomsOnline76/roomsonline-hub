@@ -530,7 +530,7 @@ export function BookingDetailsGrid({
 
         <div className="flex flex-wrap gap-2">
           {onOpenFolio && <Button size="sm" variant="outline" onClick={onOpenFolio}><Receipt className="h-3 w-3 mr-1" />Folio</Button>}
-          {onOpenInvoice && <Button size="sm" variant="outline" onClick={onOpenInvoice}>Invoice</Button>}
+          {onOpenInvoice && <Button size="sm" variant="outline" onClick={onOpenInvoice}>View Account</Button>}
           <Badge variant="outline" className="text-[10px] self-center capitalize">{form.status.replace(/_/g, " ")}</Badge>
         </div>
 

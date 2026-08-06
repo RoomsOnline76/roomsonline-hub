@@ -35,6 +35,7 @@ import { CheckoutConfirmationDialog } from "@/components/pms/CheckoutConfirmatio
 import { BookingCancelDialog } from "@/components/pms/BookingCancelDialog";
 import { BookingModifyDialog } from "@/components/pms/BookingModifyDialog";
 import { BookingInvoice } from "@/components/pms/BookingInvoice";
+import { AccountSummaryPanel } from "@/components/pms/booking/AccountSummaryPanel";
 import { BookingNotesTab } from "@/components/pms/BookingNotesTab";
 import { RoomPlanGrid, type RoomPlanCreatePayload, type RoomPlanMovePayload } from "@/components/pms/roomplan/RoomPlanGrid";
 import type { RoomPlanBooking } from "@/components/pms/roomplan/RoomPlanBar";
@@ -3353,7 +3354,17 @@ function BookingDetail({
         </TabsContent>
 
         {/* Invoice Tab */}
-        <TabsContent value="invoice" className="mt-3">
+        <TabsContent value="invoice" className="mt-3 space-y-4">
+          <AccountSummaryPanel
+            bookingId={b.id}
+            propertyId={propertyId}
+            guestName={b.guest_name}
+            guestEmail={b.guest_email}
+            checkOut={b.check_out_date}
+            totalPrice={b.total_price}
+            bookingStatus={b.status}
+            paymentStatus={b.payment_status}
+          />
           <BookingInvoice
             bookingId={b.id}
             guestName={b.guest_name}
