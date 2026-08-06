@@ -1511,8 +1511,75 @@ Deno.serve(async (req) => {
       // Continue without attachment - email is still valuable
     }
 
+    // ── Account documents: pro forma with unpaid confirmations, or an explicitly requested document ──
+    // Unpaid confirmations carry a pro forma invoice so the guest can settle before arrival.
+    const paidStatuses = ["paid", "completed", "success", "succeeded"];
+    const isPaid = paidStatuses.includes(String(booking.payment_status || "").toLowerCase());
+    const wantedDoc: "pro_forma" | "tax_invoice" | null =
+      document_kind || (status === "success" && !isPaid ? "pro_forma" : null);
+
+    let accountDocBlock = "";
+    if (wantedDoc) {
+      try {
+        const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+        const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+        const docRes = await fetch(`${supabaseUrl}/functions/v1/pms-financial`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceKey}` },
+          body: JSON.stringify({
+            action: "generate_invoice",
+            booking_id,
+            property_id: booking.property_id,
+            document_kind: wantedDoc,
+            invoice_to: booking.guest_name,
+          }),
+        });
+        const docData = await docRes.json().catch(() => null);
+        const invoice = docData?.invoice;
+        if (invoice?.pdf_url) {
+          const label = wantedDoc === "pro_forma" ? "Pro Forma Invoice" : "Tax Invoice";
+          accountDocBlock = `
+          <div style="margin:20px 40px;padding:15px;background-color:#f8fafc;border:1px solid #cbd5e1;border-radius:8px;">
+            <p style="margin:0 0 8px;font-size:14px;font-weight:bold;color:#1e293b;">${label} ${invoice.invoice_number}</p>
+            <p style="margin:0 0 10px;font-size:13px;color:#475569;line-height:1.5;">
+              ${wantedDoc === "pro_forma"
+                ? "Your pro forma invoice for this reservation is ready. It sets out the charges for your stay so you can arrange payment before arrival."
+                : "Your final invoice for this stay is attached below."}
+            </p>
+            <a href="${invoice.pdf_url}" style="display:inline-block;padding:10px 16px;background-color:#1e293b;color:#ffffff;text-decoration:none;border-radius:6px;font-size:13px;">Download ${label}</a>
+          </div>`;
+
+          // Attach the document itself so it travels with the email
+          try {
+            const docHtmlRes = await fetch(invoice.pdf_url);
+            if (docHtmlRes.ok) {
+              const docHtml = await docHtmlRes.text();
+              const bytes = new TextEncoder().encode(docHtml);
+              let binary = "";
+              bytes.forEach(b => { binary += String.fromCharCode(b); });
+              attachments.push({
+                filename: `${label.replace(/\s+/g, "-")}-${invoice.invoice_number}.html`,
+                content: btoa(binary),
+                content_type: "text/html",
+              });
+            }
+          } catch (attachErr) {
+            console.warn("[Email] Could not attach account document:", attachErr);
+          }
+        }
+      } catch (docErr) {
+        console.error("[Email] Failed to prepare account document:", docErr);
+      }
+    }
+
     // Send email with optional attachments
-    const htmlWithContact = appendContactFooterHtml(html, identity);
+    const htmlWithContact = appendContactFooterHtml(
+      accountDocBlock ? html.replace(/<\/body>/i, `${accountDocBlock}</body>`) === html
+        ? html + accountDocBlock
+        : html.replace(/<\/body>/i, `${accountDocBlock}</body>`)
+        : html,
+      identity,
+    );
     const { data: emailData, error: emailError } = await resend.emails.send({
       from: fromEmail,
       to: [booking.guest_email],
