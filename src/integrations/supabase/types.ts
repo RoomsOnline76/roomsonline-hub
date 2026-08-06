@@ -8421,16 +8421,20 @@ export type Database = {
       }
       rolos_invoices: {
         Row: {
+          booking_id: string | null
           created_at: string
           created_by: string | null
+          document_kind: string
           due_date: string | null
           folio_id: string
           id: string
           invoice_number: string
+          invoice_to: string | null
           issued_date: string
           notes: string | null
           pdf_url: string | null
           property_id: string
+          reference: string | null
           status: Database["public"]["Enums"]["invoice_status"]
           subtotal: number
           tax_total: number
@@ -8438,16 +8442,20 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          booking_id?: string | null
           created_at?: string
           created_by?: string | null
+          document_kind?: string
           due_date?: string | null
           folio_id: string
           id?: string
           invoice_number: string
+          invoice_to?: string | null
           issued_date?: string
           notes?: string | null
           pdf_url?: string | null
           property_id: string
+          reference?: string | null
           status?: Database["public"]["Enums"]["invoice_status"]
           subtotal?: number
           tax_total?: number
@@ -8455,16 +8463,20 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          booking_id?: string | null
           created_at?: string
           created_by?: string | null
+          document_kind?: string
           due_date?: string | null
           folio_id?: string
           id?: string
           invoice_number?: string
+          invoice_to?: string | null
           issued_date?: string
           notes?: string | null
           pdf_url?: string | null
           property_id?: string
+          reference?: string | null
           status?: Database["public"]["Enums"]["invoice_status"]
           subtotal?: number
           tax_total?: number
@@ -8472,6 +8484,20 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "rolos_invoices_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_invoices_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings_decrypted"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "rolos_invoices_folio_id_fkey"
             columns: ["folio_id"]
