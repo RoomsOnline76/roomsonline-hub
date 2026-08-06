@@ -482,7 +482,6 @@ export function BookingDetailsGrid({
               rooms={rooms}
               onSaved={(total) => {
                 set("total_price", String(total));
-                setLines(prev => prev.map(l => l));
                 onSaved();
               }}
             />
