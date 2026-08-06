@@ -130,8 +130,9 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
   const { config, isLoading, upsert, scope } = useBillingConfig(propertyId);
   const isPortfolioScope = scope.source === "portfolio";
   const { defaults, getDefaultsForStrategy } = useBillingDefaults();
-  const { profile } = useAuth();
-  const isAdmin = profile?.role === "admin" || profile?.role === "dev" || profile?.role === "fearless_leader";
+  // Role comes from user_roles via useAuth — never from the editable profiles row.
+  const { isAdmin } = useAuth();
+
   const [commissionOpen, setCommissionOpen] = useState(false);
 
   const { data: propertyFlag } = useQuery({
