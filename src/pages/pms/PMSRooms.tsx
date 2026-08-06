@@ -245,6 +245,22 @@ export default function PMSRooms() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
+  // Room types offered in the create/edit dialog: scoped to the room being
+  // edited (portfolio view can mix properties) and always including the room's
+  // currently assigned type even if it was deduped/archived out of the plan.
+  const dialogRoomTypeOptions = useMemo(() => {
+    const scopeId = editingRoom?.property_id || propertyId || null;
+    const inScope = (rt: PlanRoomType) => !scopeId || rt.property_id === scopeId;
+    const options = roomTypes.filter(inScope);
+    const currentId = form.room_type_id;
+    if (currentId && !options.some((rt) => rt.id === currentId)) {
+      const current = allRoomTypes.find((rt) => rt.id === currentId);
+      if (current) options.unshift(current);
+    }
+    return options;
+  }, [roomTypes, allRoomTypes, editingRoom, propertyId, form.room_type_id]);
+
+
   const openCreateDialog = () => {
     setEditingRoom(null);
     setForm(emptyForm);
