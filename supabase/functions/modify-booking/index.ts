@@ -503,6 +503,33 @@ Deno.serve(async (req) => {
       );
     }
 
+    // S8b: Price/date/pax changes move the revenue figure — recalculate the
+    // commission so pulse, reports and payouts follow the new total instead of
+    // keeping the pre-modification amount.
+    const priceAffected =
+      updateData.total_price !== undefined ||
+      modifications.check_in_date !== undefined ||
+      modifications.check_out_date !== undefined ||
+      modifications.adults !== undefined ||
+      modifications.children !== undefined ||
+      modifications.teens !== undefined ||
+      modifications.infants !== undefined;
+
+    if (priceAffected) {
+      try {
+        await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/calculate-commission`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+          },
+          body: JSON.stringify({ booking_id }),
+        });
+      } catch (commissionErr) {
+        console.error("Commission recalculation failed (non-critical):", commissionErr);
+      }
+    }
+
     // S9: Update sync status
     if (externalSystem !== "none") {
       await supabase.from("booking_sync_status").upsert(
