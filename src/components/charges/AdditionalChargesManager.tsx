@@ -47,9 +47,11 @@ import { CopyChargesModal } from "./CopyChargesModal";
 import { 
   getCategoryLabel, 
   getCalculationMethodLabel,
+  getRevenueStreamLabel,
+  normalizeRevenueStream,
   type PropertyCharge,
   type ChargeCategory 
-, getRevenueStreamLabel, normalizeRevenueStream } from "./ChargeCalculator";
+} from "./ChargeCalculator";
 import { FormattedPrice } from "@/components/FormattedPrice";
 
 interface AdditionalChargesManagerProps {
