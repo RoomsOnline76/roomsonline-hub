@@ -10,6 +10,8 @@ import { PMSFoliosManager } from "@/components/pms/PMSFoliosManager";
 import { CrossPropertyPipelineCard } from "@/components/pms/CrossPropertyPipelineCard";
 import { supabase } from "@/integrations/supabase/client";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCrmAccounts } from "@/hooks/useCrmAccounts";
+import { MARKET_SEGMENTS, COMM_CHANNELS, labelFor } from "@/lib/crmSegmentation";
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   AreaChart, Area, BarChart, Bar, Legend,
@@ -34,6 +36,11 @@ interface ReportBooking {
   room_type_id: string | null;
   booking_channel: string | null;
   cancellation_reason_category: string | null;
+  market_segment: string | null;
+  comm_channel: string | null;
+  agent_account_id: string | null;
+  company_account_id: string | null;
+  source_account_id: string | null;
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────
@@ -45,7 +52,7 @@ const PAGE_SIZE = 500;
 // ── Component ────────────────────────────────────────────────────────────
 
 export default function PMSReports() {
-  const { propertyId, properties, portfolioProperties, switchProperty, loading: propertyLoading } = usePmsPropertyId();
+  const { propertyId, properties, portfolioProperties, portfolioIds, switchProperty, loading: propertyLoading } = usePmsPropertyId();
   const scopeProperties = portfolioProperties && portfolioProperties.length > 0 ? portfolioProperties : properties;
   const queryClient = useQueryClient();
   const [period, setPeriod] = useState("this_month");
@@ -97,7 +104,7 @@ export default function PMSReports() {
       if (activePropertyIds.length === 0) return { items: [] as ReportBooking[], nextOffset: null };
       const { data, count } = await supabase
         .from("bookings")
-        .select("id, check_in_date, check_out_date, total_price, status, created_at, room_type_id, booking_channel, cancellation_reason_category", { count: "exact" })
+        .select("id, check_in_date, check_out_date, total_price, status, created_at, room_type_id, booking_channel, cancellation_reason_category, market_segment, comm_channel, agent_account_id, company_account_id, source_account_id", { count: "exact" })
         .in("property_id", activePropertyIds)
         .gte("check_in_date", fromStr)
         .lte("check_in_date", toStr)
@@ -170,6 +177,45 @@ export default function PMSReports() {
       cancellationRate,
     };
   }, [bookings, totalRooms, daysInPeriod]);
+
+  // ── Segmentation analysis ─────────────────────────────────────────────
+  // Market code, distribution channel and travel-agent / company production —
+  // the reporting payoff for linking CRM profiles to reservations.
+  const { accounts: crmAccounts } = useCrmAccounts({ propertyId, portfolioIds });
+  const accountName = useCallback(
+    (id: string | null) => (id ? crmAccounts.find((a) => a.id === id)?.name || "Unknown profile" : null),
+    [crmAccounts],
+  );
+
+  const segmentation = useMemo(() => {
+    const active = bookings.filter((b) => b.status !== "cancelled" && b.status !== "failed");
+    if (active.length === 0) return null;
+
+    const tally = (key: (b: ReportBooking) => string | null) => {
+      const m = new Map<string, { count: number; value: number }>();
+      for (const b of active) {
+        const k = key(b);
+        if (!k) continue;
+        const row = m.get(k) || { count: 0, value: 0 };
+        row.count += 1;
+        row.value += Number(b.total_price || 0);
+        m.set(k, row);
+      }
+      return Array.from(m.entries())
+        .map(([label, v]) => ({ label, ...v }))
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 8);
+    };
+
+    const bySegment = tally((b) => (b.market_segment ? labelFor(MARKET_SEGMENTS, b.market_segment) : null));
+    const byChannel = tally((b) => (b.comm_channel ? labelFor(COMM_CHANNELS, b.comm_channel) : null));
+    const byAgent = tally((b) => accountName(b.agent_account_id));
+    const byCompany = tally((b) => accountName(b.company_account_id));
+
+    const unsegmented = active.filter((b) => !b.market_segment).length;
+    if (!bySegment.length && !byChannel.length && !byAgent.length && !byCompany.length) return null;
+    return { bySegment, byChannel, byAgent, byCompany, unsegmented, activeCount: active.length };
+  }, [bookings, accountName]);
 
   // ── Cancellation analysis ─────────────────────────────────────────────
   // Cancelled bookings are stripped out of revenue, so the lost value and the
@@ -415,6 +461,44 @@ export default function PMSReports() {
                   </div>
                 ))}
               </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Segmentation & production */}
+        {segmentation && (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">Segmentation &amp; Production</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              {[
+                { title: "Market Segment", rows: segmentation.bySegment },
+                { title: "Distribution Channel", rows: segmentation.byChannel },
+                { title: "Travel Agent / Operator", rows: segmentation.byAgent },
+                { title: "Company", rows: segmentation.byCompany },
+              ].map((group) => (
+                <div key={group.title} className="space-y-1.5">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{group.title}</p>
+                  {group.rows.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">Not captured on these bookings.</p>
+                  ) : (
+                    group.rows.map((r) => (
+                      <div key={r.label} className="flex items-center justify-between gap-2 text-xs">
+                        <span className="truncate">{r.label}</span>
+                        <span className="whitespace-nowrap font-medium">
+                          R{fmt(r.value)} <span className="text-muted-foreground">({r.count})</span>
+                        </span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              ))}
+              {segmentation.unsegmented > 0 && (
+                <p className="text-xs text-muted-foreground md:col-span-2 xl:col-span-4">
+                  {segmentation.unsegmented} of {segmentation.activeCount} bookings have no market segment set.
+                </p>
+              )}
             </CardContent>
           </Card>
         )}
