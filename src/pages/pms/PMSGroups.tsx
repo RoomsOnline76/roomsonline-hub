@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 import { usePmsStaffRole } from "@/hooks/usePmsStaffRole";
@@ -7,7 +7,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,9 +16,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { UsersRound, Plus, MoreHorizontal, BedDouble, CalendarRange, Trash2 } from "lucide-react";
+import { UsersRound, Plus, MoreHorizontal, BedDouble } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { format } from "date-fns";
+import { callGroupsApi } from "@/lib/groupsApi";
+import GroupBlockGrid, { type GroupBlock } from "@/components/pms/groups/GroupBlockGrid";
+import GroupPickupDialog from "@/components/pms/groups/GroupPickupDialog";
+import RoomingListTable, { type RoomingRow } from "@/components/pms/groups/RoomingListTable";
+import GroupBillingPanel, { type GroupRecord } from "@/components/pms/groups/GroupBillingPanel";
 
 const GROUP_TYPES = ["corporate", "wedding", "tour", "conference", "family", "other"];
 const STATUS_BADGES: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
@@ -35,22 +40,25 @@ export default function PMSGroups() {
   const readOnly = access.readOnly;
   const qc = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
-  const [selectedGroup, setSelectedGroup] = useState<any>(null);
+  const [selectedGroup, setSelectedGroup] = useState<GroupRecord | null>(null);
   const [showBlockDialog, setShowBlockDialog] = useState(false);
+  const [pickupBlock, setPickupBlock] = useState<GroupBlock | null>(null);
+  const [pickupLine, setPickupLine] = useState<RoomingRow | null>(null);
+  const [busyBlockId, setBusyBlockId] = useState<string | null>(null);
   const [blockForm, setBlockForm] = useState({ room_type_id: "", blocked_count: "1", rate_override: "", start_date: "", end_date: "", release_date: "" });
-  const [form, setForm] = useState({ name: "", group_type: "corporate", contact_name: "", contact_email: "", contact_phone: "", total_rooms: "1", notes: "", check_in_date: "", check_out_date: "", attrition_rate: "0", release_date: "" });
+  const [form, setForm] = useState({ name: "", group_type: "corporate", contact_name: "", contact_email: "", contact_phone: "", total_rooms: "1", notes: "", check_in_date: "", check_out_date: "", attrition_rate: "0", release_date: "", billing_mode: "individual", cutoff_date: "" });
 
   const { data: groups = [], isLoading } = useQuery({
     queryKey: ["pms-groups", propertyId],
     enabled: !!propertyId,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("rolos_groups" as any)
+        .from("rolos_groups" as never)
         .select("*")
         .eq("property_id", propertyId!)
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return data as any[];
+      return (data || []) as unknown as GroupRecord[];
     },
   });
 
@@ -73,12 +81,12 @@ export default function PMSGroups() {
     enabled: !!selectedGroup?.id,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("rolos_group_room_blocks" as any)
+        .from("rolos_group_room_blocks" as never)
         .select("*, room_type:rolos_room_types!room_type_id(name)")
-        .eq("group_id", selectedGroup.id)
+        .eq("group_id", selectedGroup!.id)
         .order("start_date");
       if (error) throw error;
-      return data as any[];
+      return (data || []) as unknown as GroupBlock[];
     },
   });
 
@@ -87,18 +95,26 @@ export default function PMSGroups() {
     enabled: !!selectedGroup?.id,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("rolos_group_reservations" as any)
+        .from("rolos_group_reservations" as never)
         .select("*")
-        .eq("group_id", selectedGroup.id)
+        .eq("group_id", selectedGroup!.id)
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return data as any[];
+      return (data || []) as unknown as RoomingRow[];
     },
   });
 
+  const refreshGroupData = useCallback(() => {
+    refetchBlocks();
+    refetchReservations();
+    qc.invalidateQueries({ queryKey: ["pms-groups", propertyId] });
+    qc.invalidateQueries({ queryKey: ["group-master-folio"] });
+    qc.invalidateQueries({ queryKey: ["group-master-folio-txns"] });
+  }, [refetchBlocks, refetchReservations, qc, propertyId]);
+
   const createGroup = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from("rolos_groups" as any).insert({
+      const { error } = await supabase.from("rolos_groups" as never).insert({
         property_id: propertyId,
         name: form.name,
         group_type: form.group_type,
@@ -111,32 +127,41 @@ export default function PMSGroups() {
         check_out_date: form.check_out_date || null,
         attrition_rate: parseFloat(form.attrition_rate) || 0,
         release_date: form.release_date || null,
-      });
+        billing_mode: form.billing_mode,
+        cutoff_date: form.cutoff_date || null,
+      } as never);
       if (error) throw error;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["pms-groups", propertyId] });
       toast.success("Group created");
       setShowCreate(false);
-      setForm({ name: "", group_type: "corporate", contact_name: "", contact_email: "", contact_phone: "", total_rooms: "1", notes: "", check_in_date: "", check_out_date: "", attrition_rate: "0", release_date: "" });
+      setForm({ name: "", group_type: "corporate", contact_name: "", contact_email: "", contact_phone: "", total_rooms: "1", notes: "", check_in_date: "", check_out_date: "", attrition_rate: "0", release_date: "", billing_mode: "individual", cutoff_date: "" });
     },
-    onError: (err: any) => toast.error("Failed to create group", { description: err.message }),
+    onError: (err: Error) => toast.error("Failed to create group", { description: err.message }),
   });
 
   const updateStatus = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const { error } = await supabase.from("rolos_groups" as any).update({ status }).eq("id", id);
+      if (status === "cancelled") {
+        await callGroupsApi("group_cancel", { property_id: propertyId, group_id: id });
+        return;
+      }
+      const { error } = await supabase.from("rolos_groups" as never).update({ status } as never).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["pms-groups", propertyId] });
+      refreshGroupData();
       toast.success("Status updated");
     },
+    onError: (err: Error) => toast.error("Status change failed", { description: err.message }),
   });
 
   const addBlock = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from("rolos_group_room_blocks" as any).insert({
+      if (!selectedGroup) return;
+      await callGroupsApi("group_create_block", {
+        property_id: selectedGroup.property_id,
         group_id: selectedGroup.id,
         room_type_id: blockForm.room_type_id,
         blocked_count: parseInt(blockForm.blocked_count) || 1,
@@ -145,39 +170,34 @@ export default function PMSGroups() {
         end_date: blockForm.end_date || selectedGroup.check_out_date,
         release_date: blockForm.release_date || null,
       });
-      if (error) throw error;
     },
     onSuccess: () => {
-      refetchBlocks();
-      toast.success("Room block added");
+      refreshGroupData();
+      toast.success("Rooms blocked — availability reduced");
       setShowBlockDialog(false);
       setBlockForm({ room_type_id: "", blocked_count: "1", rate_override: "", start_date: "", end_date: "", release_date: "" });
     },
-    onError: (err: any) => toast.error("Failed to add block", { description: err.message }),
+    onError: (err: Error) => toast.error("Failed to add block", { description: err.message }),
   });
 
   const releaseBlock = useMutation({
-    mutationFn: async (blockId: string) => {
-      const { error } = await supabase.from("rolos_group_room_blocks" as any).update({ status: "released" }).eq("id", blockId);
-      if (error) throw error;
-    },
-    onSuccess: () => { refetchBlocks(); toast.success("Block released"); },
-  });
-
-  const addGroupReservation = useMutation({
-    mutationFn: async (guestName: string) => {
-      const { error } = await supabase.from("rolos_group_reservations" as any).insert({
-        group_id: selectedGroup.id,
-        guest_name: guestName,
-        status: "pending",
+    mutationFn: async (block: GroupBlock) => {
+      setBusyBlockId(block.id);
+      return await callGroupsApi<{ released: number; attrition: number }>("group_release_block", {
+        property_id: selectedGroup?.property_id,
+        block_id: block.id,
       });
-      if (error) throw error;
     },
-    onSuccess: () => { refetchReservations(); toast.success("Reservation added to group"); },
-    onError: (err: any) => toast.error(err.message),
+    onSuccess: (res) => {
+      refreshGroupData();
+      toast.success(`Released ${res?.released ?? 0} room(s) back to inventory`, {
+        description: res?.attrition ? `Attrition of R${Number(res.attrition).toFixed(2)} posted to the master folio` : undefined,
+      });
+    },
+    onError: (err: Error) => toast.error("Release failed", { description: err.message }),
+    onSettled: () => setBusyBlockId(null),
   });
 
-  const [newGuestName, setNewGuestName] = useState("");
 
   return (
     <>
@@ -286,14 +306,15 @@ export default function PMSGroups() {
                 <div className="flex justify-between"><span className="text-muted-foreground">Type</span><span className="capitalize">{selectedGroup.group_type}</span></div>
                 <div className="flex justify-between"><span className="text-muted-foreground">Dates</span><span>{selectedGroup.check_in_date && selectedGroup.check_out_date ? `${format(new Date(selectedGroup.check_in_date), "MMM d")} – ${format(new Date(selectedGroup.check_out_date), "MMM d, yyyy")}` : "TBD"}</span></div>
                 <div className="flex justify-between"><span className="text-muted-foreground">Total Rooms</span><span>{selectedGroup.total_rooms}</span></div>
-                {selectedGroup.attrition_rate > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Attrition Rate</span><span>{selectedGroup.attrition_rate}%</span></div>}
+                {Number(selectedGroup.attrition_rate || 0) > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Attrition Rate</span><span>{selectedGroup.attrition_rate}%</span></div>}
                 {selectedGroup.release_date && <div className="flex justify-between"><span className="text-muted-foreground">Release Date</span><span>{format(new Date(selectedGroup.release_date), "MMM d, yyyy")}</span></div>}
               </div>
 
               <Tabs defaultValue="blocks" className="mt-6">
                 <TabsList className="w-full">
                   <TabsTrigger value="blocks" className="flex-1">Room Blocks ({blocks.length})</TabsTrigger>
-                  <TabsTrigger value="reservations" className="flex-1">Reservations ({groupReservations.length})</TabsTrigger>
+                  <TabsTrigger value="rooming" className="flex-1">Rooming List ({groupReservations.length})</TabsTrigger>
+                  <TabsTrigger value="billing" className="flex-1">Billing</TabsTrigger>
                 </TabsList>
 
                 {/* Room Blocks */}
@@ -303,68 +324,50 @@ export default function PMSGroups() {
                       <BedDouble className="h-4 w-4 mr-1" /> Add Room Block
                     </Button>
                   )}
-                  {blocks.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-4">No room blocks allocated</p>
-                  ) : (
-                    <div className="space-y-2">
-                      {blocks.map((b: any) => (
-                        <Card key={b.id}>
-                          <CardContent className="p-3 flex items-center justify-between">
-                            <div>
-                              <p className="text-sm font-medium">{b.room_type?.name || "Room Type"}</p>
-                              <p className="text-xs text-muted-foreground">
-                                {b.blocked_count} rooms · {format(new Date(b.start_date), "MMM d")} – {format(new Date(b.end_date), "MMM d")}
-                                {b.rate_override && ` · R${b.rate_override}/night`}
-                              </p>
-                              {b.release_date && <p className="text-xs text-muted-foreground">Release: {format(new Date(b.release_date), "MMM d")}</p>}
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Badge variant={b.status === "blocked" ? "default" : b.status === "released" ? "secondary" : "outline"} className="text-[10px] capitalize">{b.status}</Badge>
-                              {!readOnly && b.status === "blocked" && (
-                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => releaseBlock.mutate(b.id)}>
-                                  <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                                </Button>
-                              )}
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </div>
-                  )}
+                  <GroupBlockGrid
+                    blocks={blocks}
+                    readOnly={readOnly}
+                    busyBlockId={busyBlockId}
+                    onPickup={(b) => { setPickupLine(null); setPickupBlock(b); }}
+                    onRelease={(b) => releaseBlock.mutate(b)}
+                  />
                 </TabsContent>
 
-                {/* Linked Reservations */}
-                <TabsContent value="reservations" className="space-y-3 mt-3">
-                  {!readOnly && (
-                    <div className="flex gap-2">
-                      <Input placeholder="Guest name" value={newGuestName} onChange={(e) => setNewGuestName(e.target.value)} className="flex-1" />
-                      <Button size="sm" disabled={!newGuestName.trim()} onClick={() => { addGroupReservation.mutate(newGuestName.trim()); setNewGuestName(""); }}>
-                        <Plus className="h-4 w-4 mr-1" /> Add
-                      </Button>
-                    </div>
-                  )}
-                  {groupReservations.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-4">No linked reservations</p>
-                  ) : (
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Guest</TableHead>
-                          <TableHead>Status</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {groupReservations.map((r: any) => (
-                          <TableRow key={r.id}>
-                            <TableCell className="text-sm">{r.guest_name || "—"}</TableCell>
-                            <TableCell><Badge variant="outline" className="text-[10px] capitalize">{r.status}</Badge></TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  )}
+                {/* Rooming list */}
+                <TabsContent value="rooming" className="space-y-3 mt-3">
+                  <RoomingListTable
+                    propertyId={selectedGroup.property_id}
+                    groupId={selectedGroup.id}
+                    rows={groupReservations}
+                    blocks={blocks}
+                    readOnly={readOnly}
+                    onRefresh={refreshGroupData}
+                    onPickup={(row) => {
+                      const block = blocks.find((b) => b.id === row.block_id) || null;
+                      if (!block) {
+                        toast.error("Assign this guest to a room block first");
+                        return;
+                      }
+                      setPickupLine(row);
+                      setPickupBlock(block);
+                    }}
+                  />
+                </TabsContent>
+
+                {/* Billing & master folio */}
+                <TabsContent value="billing" className="space-y-3 mt-3">
+                  <GroupBillingPanel
+                    group={selectedGroup}
+                    readOnly={readOnly}
+                    onSaved={() => {
+                      refreshGroupData();
+                      const fresh = groups.find((g) => g.id === selectedGroup.id);
+                      if (fresh) setSelectedGroup(fresh);
+                    }}
+                  />
                 </TabsContent>
               </Tabs>
+
             </>
           )}
         </SheetContent>
@@ -468,6 +471,21 @@ export default function PMSGroups() {
                 <Label>Release Date</Label>
                 <Input type="date" value={form.release_date} onChange={(e) => setForm((f) => ({ ...f, release_date: e.target.value }))} />
               </div>
+              <div className="space-y-1.5">
+                <Label>Billing Mode</Label>
+                <Select value={form.billing_mode} onValueChange={(v) => setForm((f) => ({ ...f, billing_mode: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="individual">Individual folios</SelectItem>
+                    <SelectItem value="master">Master folio</SelectItem>
+                    <SelectItem value="hybrid">Hybrid</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Cut-off Date</Label>
+                <Input type="date" value={form.cutoff_date} onChange={(e) => setForm((f) => ({ ...f, cutoff_date: e.target.value }))} />
+              </div>
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setShowCreate(false)}>Cancel</Button>
@@ -476,6 +494,20 @@ export default function PMSGroups() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Pickup dialog */}
+      {selectedGroup && (
+        <GroupPickupDialog
+          open={!!pickupBlock}
+          onOpenChange={(o) => { if (!o) { setPickupBlock(null); setPickupLine(null); } }}
+          propertyId={selectedGroup.property_id}
+          groupId={selectedGroup.id}
+          block={pickupBlock}
+          roomingLine={pickupLine}
+          onDone={refreshGroupData}
+        />
+      )}
     </>
   );
 }
+

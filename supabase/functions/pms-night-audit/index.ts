@@ -25,10 +25,9 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  const supabase = createClient(
-    Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-  );
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
   // Support manual trigger with specific property_id
   let manualPropertyId: string | null = null;
@@ -412,6 +411,38 @@ Deno.serve(async (req) => {
             ? `${reconDiscrepancies} balance discrepancies corrected`
             : `${allOpenFolios?.length || 0} folios verified`,
         });
+
+        // ========================================
+        // TASK 7: Group block auto-release (+ attrition)
+        // Blocks past their release date go back to sellable inventory.
+        // ========================================
+        try {
+          const groupsRes = await fetch(`${supabaseUrl}/functions/v1/pms-groups`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${supabaseServiceKey}`,
+            },
+            body: JSON.stringify({ action: "group_release_due_blocks", property_id: property.id }),
+          });
+          const groupsData = await groupsRes.json();
+          const processed = Number(groupsData?.processed || 0);
+          tasks.push({
+            task: "release_group_blocks",
+            status: groupsRes.ok ? "success" : "failed",
+            count: processed,
+            details: groupsRes.ok
+              ? (processed > 0 ? `${processed} group block(s) released` : "No blocks due for release")
+              : `Release sweep failed: ${groupsData?.error || groupsRes.status}`,
+          });
+        } catch (groupErr) {
+          tasks.push({
+            task: "release_group_blocks",
+            status: "failed",
+            count: 0,
+            details: `Release sweep error: ${groupErr instanceof Error ? groupErr.message : String(groupErr)}`,
+          });
+        }
 
         // Update audit log as completed
         if (auditLogId) {
