@@ -20,7 +20,7 @@ import {
 import { buildUnitRows, SELECTABLE_ROOM_STATUSES, statusMeta } from "./roomUnitStatus";
 
 const COL_W = 62;
-const LABEL_W = 190;
+const LABEL_W = 240;
 
 interface Props {
   dates: Date[];
@@ -263,7 +263,7 @@ export function RoomTypePlanGrid({
                           {onStatusChange ? (
                             <Select value={unit.displayStatus} onValueChange={(v) => onStatusChange(unit.room.id, v)}>
                               <SelectTrigger
-                                className={cn("h-6 w-[104px] px-1.5 text-[10px] capitalize border", meta.chip)}
+                                className={cn("h-6 w-[96px] px-1.5 text-[10px] capitalize border", meta.chip)}
                                 aria-label={`Status for room ${unit.room.room_number}`}
                               >
                                 {meta.label}
