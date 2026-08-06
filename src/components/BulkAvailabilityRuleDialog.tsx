@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { syncRestrictionsToChannels } from "@/lib/restrictionSync";
 import { format, eachDayOfInterval, getDay } from "date-fns";
 
 interface BulkAvailabilityRuleDialogProps {
@@ -149,6 +150,7 @@ export function BulkAvailabilityRuleDialog({
       if (error) throw error;
 
       toast.success(`Updated availability to ${units} units for ${filteredDates.length} dates`);
+      if (propertyId) await syncRestrictionsToChannels([propertyId], "availability");
       onRuleCreated?.();
       onOpenChange(false);
     } catch (error: any) {
