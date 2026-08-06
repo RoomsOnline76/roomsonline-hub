@@ -770,6 +770,7 @@ export type Database = {
           booking_channel: string | null
           calculated_commission: number | null
           cancellation_reason: string | null
+          cancellation_reason_category: string | null
           charges_breakdown: Json | null
           check_in_date: string
           check_out_date: string
@@ -832,6 +833,7 @@ export type Database = {
           booking_channel?: string | null
           calculated_commission?: number | null
           cancellation_reason?: string | null
+          cancellation_reason_category?: string | null
           charges_breakdown?: Json | null
           check_in_date: string
           check_out_date: string
@@ -894,6 +896,7 @@ export type Database = {
           booking_channel?: string | null
           calculated_commission?: number | null
           cancellation_reason?: string | null
+          cancellation_reason_category?: string | null
           charges_breakdown?: Json | null
           check_in_date?: string
           check_out_date?: string
