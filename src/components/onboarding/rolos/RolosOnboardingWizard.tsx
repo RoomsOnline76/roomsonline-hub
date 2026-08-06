@@ -243,7 +243,7 @@ export function RolosOnboardingWizard({ propertyId, className }: Props) {
 
     return (
       <div
-        className={`fixed bottom-4 right-4 z-50 flex items-center gap-2 rounded-xl border bg-card p-2 shadow-2xl ${className ?? ""}`}
+        className={`fixed bottom-[4.75rem] right-4 md:bottom-4 z-50 flex items-center gap-2 rounded-xl border bg-card p-2 shadow-2xl ${className ?? ""}`}
         role="complementary"
         aria-label="ROL'OS channel readiness complete"
       >
@@ -266,7 +266,7 @@ export function RolosOnboardingWizard({ propertyId, className }: Props) {
 
   return (
     <div
-      className={`fixed bottom-4 right-4 z-50 w-[min(26rem,calc(100vw-2rem))] rounded-xl border bg-card shadow-2xl ${className ?? ""}`}
+      className={`fixed bottom-[4.75rem] right-4 md:bottom-4 z-50 w-[min(26rem,calc(100vw-2rem))] rounded-xl border bg-card shadow-2xl ${className ?? ""}`}
       role="complementary"
       aria-label="ROL'OS channel readiness"
     >
