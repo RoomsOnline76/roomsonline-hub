@@ -467,6 +467,28 @@ export function BookingDetailsGrid({
           </div>
         </div>
 
+        {booking.property_id && (
+          <>
+            <Button variant="outline" size="sm" className="w-full" onClick={() => setViewRatesOpen(true)}>
+              <CalendarRange className="h-3.5 w-3.5 mr-1.5" />View Rates / Override
+            </Button>
+            <ViewRatesDialog
+              open={viewRatesOpen}
+              onOpenChange={setViewRatesOpen}
+              bookingId={booking.id}
+              propertyId={booking.property_id}
+              checkIn={form.check_in_date}
+              checkOut={form.check_out_date}
+              rooms={rooms}
+              onSaved={(total) => {
+                set("total_price", String(total));
+                setLines(prev => prev.map(l => l));
+                onSaved();
+              }}
+            />
+          </>
+        )}
+
         <div>
           <Label className="text-[11px]">Booking Total (ZAR)</Label>
           <Input className="h-8" type="number" min={0} value={form.total_price} onChange={e => set("total_price", e.target.value)} />
