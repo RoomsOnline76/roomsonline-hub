@@ -95,7 +95,7 @@ export default function GroupBlockGrid({ blocks, readOnly, busyBlockId, onPickup
                   )}
                 </div>
                 <Badge
-                  variant={b.status === "blocked" ? "default" : b.status === "picked_up" ? "outline" : "secondary"}
+                  variant={b.status === "blocked" ? "default" : b.status === "converted" ? "outline" : "secondary"}
                   className="text-[10px] capitalize shrink-0"
                 >
                   {b.status.replace("_", " ")}
