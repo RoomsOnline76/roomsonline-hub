@@ -120,7 +120,7 @@ Deno.serve(async (req) => {
         // ========================================
         const { data: checkedInBookings } = await supabase
           .from("bookings")
-          .select("id, total_price, check_in_date, check_out_date, rolos_folio_id, rolos_rate_plan_id, rolos_room_ids, rooms")
+          .select("id, total_price, check_in_date, check_out_date, rolos_folio_id, rolos_rate_plan_id, rolos_room_ids, rooms, adults, children")
           .eq("property_id", property.id)
           .lte("check_in_date", auditDateStr)
           .gt("check_out_date", auditDateStr)
