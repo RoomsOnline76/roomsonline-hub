@@ -135,6 +135,7 @@ export async function syncRolosRoomTypesFromOverview(propertyId: string) {
     const match = linkedMatch || activeNameMatch || anyNameMatch;
 
     if (match) {
+      matchedIds.add(match.id);
       if (needsSyncUpdate(match, desired)) {
         updates.push({ id: match.id, ...desired });
         if (match.is_active !== true) {
@@ -143,6 +144,7 @@ export async function syncRolosRoomTypesFromOverview(propertyId: string) {
       }
       continue;
     }
+
 
     inserts.push({ property_id: propertyId, ...desired });
   }
