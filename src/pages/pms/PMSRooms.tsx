@@ -57,6 +57,7 @@ export default function PMSRooms() {
 
   const [rooms, setRooms] = useState<PlanRoom[]>([]);
   const [roomTypes, setRoomTypes] = useState<PlanRoomType[]>([]);
+  const [allRoomTypes, setAllRoomTypes] = useState<PlanRoomType[]>([]);
   const [bookings, setBookings] = useState<RoomsBooking[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -189,6 +190,7 @@ export default function PMSRooms() {
 
     // `allTypes` (incl. archived) is only used for legacy booking → type matching.
     const allTypes = (allTypesRes.data || []) as PlanRoomType[];
+    setAllRoomTypes(allTypes);
     const activeTypes = (typesRes.data || []) as PlanRoomType[];
     const roomRows = (roomsRes.data || []) as any[];
 
@@ -242,6 +244,22 @@ export default function PMSRooms() {
   }, [activePropertyIds, syncRoomTypesFromOverview, windowStart, windowEnd]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  // Room types offered in the create/edit dialog: scoped to the room being
+  // edited (portfolio view can mix properties) and always including the room's
+  // currently assigned type even if it was deduped/archived out of the plan.
+  const dialogRoomTypeOptions = useMemo(() => {
+    const scopeId = editingRoom?.property_id || propertyId || null;
+    const inScope = (rt: PlanRoomType) => !scopeId || rt.property_id === scopeId;
+    const options = roomTypes.filter(inScope);
+    const currentId = form.room_type_id;
+    if (currentId && !options.some((rt) => rt.id === currentId)) {
+      const current = allRoomTypes.find((rt) => rt.id === currentId);
+      if (current) options.unshift(current);
+    }
+    return options;
+  }, [roomTypes, allRoomTypes, editingRoom, propertyId, form.room_type_id]);
+
 
   const openCreateDialog = () => {
     setEditingRoom(null);
@@ -676,12 +694,10 @@ export default function PMSRooms() {
               <Select value={form.room_type_id} onValueChange={(v) => setForm((p) => ({ ...p, room_type_id: v }))}>
                 <SelectTrigger><SelectValue placeholder="Select room type" /></SelectTrigger>
                 <SelectContent>
-                  {roomTypes.length === 0 ? (
+                  {dialogRoomTypeOptions.length === 0 ? (
                     <SelectItem value="none" disabled>No room types — add them in Property Overview first</SelectItem>
                   ) : (
-                    roomTypes
-                      .filter((rt) => !propertyId || rt.property_id === propertyId)
-                      .map((rt) => <SelectItem key={rt.id} value={rt.id}>{rt.name}</SelectItem>)
+                    dialogRoomTypeOptions.map((rt) => <SelectItem key={rt.id} value={rt.id}>{rt.name}</SelectItem>)
                   )}
                 </SelectContent>
               </Select>
