@@ -166,7 +166,7 @@ Deno.serve(async (req) => {
             notes,
             status: "completed",
             paid_at: new Date().toISOString(),
-            created_by: user.id,
+            created_by: user?.id ?? null,
           })
           .select()
           .single();
@@ -177,7 +177,7 @@ Deno.serve(async (req) => {
           transaction_type: "payment",
           description: `Payment via ${method || "cash"}${reference ? ` (${reference})` : ""}`,
           amount: -Math.abs(amount),
-          created_by: user.id,
+          created_by: user?.id ?? null,
         });
 
         await updateFolioBalance(supabase, folio_id);
@@ -373,7 +373,7 @@ Deno.serve(async (req) => {
             total: Math.round(total * 100) / 100,
             status: "issued",
             notes: invNotes || null,
-            created_by: user.id,
+            created_by: user?.id ?? null,
           })
           .select()
           .single();
@@ -488,7 +488,7 @@ Deno.serve(async (req) => {
             method: "card",
             status: "pending",
             notes: `Gateway: ${gateway || "payfast"}`,
-            created_by: user.id,
+            created_by: user?.id ?? null,
           })
           .select()
           .single();
@@ -515,7 +515,7 @@ Deno.serve(async (req) => {
             method: "card",
             status: "pending",
             notes: `Gateway: ${igGateway || "payfast"}`,
-            created_by: user.id,
+            created_by: user?.id ?? null,
           })
           .select()
           .single();
