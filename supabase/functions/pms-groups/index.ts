@@ -411,7 +411,7 @@ Deno.serve(async (req) => {
           .from("rolos_group_room_blocks")
           .update({
             picked_up_count: newPickedUp,
-            status: newPickedUp >= (block.blocked_count || 0) ? "picked_up" : "blocked",
+            status: newPickedUp >= (block.blocked_count || 0) ? "converted" : "blocked",
           })
           .eq("id", p.block_id);
         if (counterErr) {
