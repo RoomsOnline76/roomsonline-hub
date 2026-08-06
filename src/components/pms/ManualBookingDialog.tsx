@@ -56,9 +56,18 @@ interface ManualBookingDialogProps {
    *  When provided and non-empty, the dialog renders a Property selector and uses that property's
    *  roomTypes/rooms instead of the top-level props. */
   portfolioOptions?: PortfolioPropertyOption[];
+  /** Optional prefill, e.g. when the Room Plan opens the dialog from a dragged date span. */
+  initialValues?: {
+    propertyId?: string | null;
+    roomTypeId?: string | null;
+    roomId?: string | null;
+    checkIn?: Date | null;
+    checkOut?: Date | null;
+  } | null;
 }
 
-export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes, rooms, ratePlans, onCreated, getRateForDate, portfolioOptions }: ManualBookingDialogProps) {
+
+export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes, rooms, ratePlans, onCreated, getRateForDate, portfolioOptions, initialValues }: ManualBookingDialogProps) {
   const [saving, setSaving] = useState(false);
   const portfolioMode = !!(portfolioOptions && portfolioOptions.length > 0);
   const [selectedPropertyId, setSelectedPropertyId] = useState<string>(propertyId || "");
@@ -103,6 +112,23 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
   useEffect(() => {
     setForm(p => ({ ...p, room_type_id: "", room_id: "" }));
   }, [effectivePropertyId]);
+
+  // Apply Room Plan prefill after the property-reset effect above has run.
+  useEffect(() => {
+    if (!open || !initialValues) return;
+    if (initialValues.propertyId) setSelectedPropertyId(initialValues.propertyId);
+    const timer = setTimeout(() => {
+      setForm(p => ({
+        ...p,
+        room_type_id: initialValues.roomTypeId || p.room_type_id,
+        room_id: initialValues.roomId || "",
+        check_in: initialValues.checkIn || p.check_in,
+        check_out: initialValues.checkOut || p.check_out,
+      }));
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [open, initialValues]);
+
 
   const filteredRooms = useMemo(() =>
     activeRooms.filter(r => r.room_type_id === form.room_type_id && r.status !== "out_of_service"),

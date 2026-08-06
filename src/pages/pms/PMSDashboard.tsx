@@ -34,6 +34,11 @@ import { BookingCancelDialog } from "@/components/pms/BookingCancelDialog";
 import { BookingModifyDialog } from "@/components/pms/BookingModifyDialog";
 import { BookingInvoice } from "@/components/pms/BookingInvoice";
 import { BookingNotesTab } from "@/components/pms/BookingNotesTab";
+import { RoomPlanGrid, type RoomPlanCreatePayload, type RoomPlanMovePayload } from "@/components/pms/roomplan/RoomPlanGrid";
+import type { RoomPlanBooking } from "@/components/pms/roomplan/RoomPlanBar";
+import { extractFunctionError } from "@/lib/functionError";
+import { useIsMobile } from "@/hooks/use-mobile";
+
 
 import { callPmsApi } from "@/hooks/usePmsApi";
 import {
@@ -71,6 +76,8 @@ import {
   Receipt,
   MessageSquareText,
   Loader2,
+  Info,
+
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -104,7 +111,9 @@ function isWeekendDay(date: Date): boolean {
   return day === 0 || day === 6;
 }
 
-type ViewMode = "week" | "month";
+type ViewMode = "roomplan" | "week" | "month";
+type DashboardPanel = "arrivals" | "departures" | "recent" | null;
+
 type BookingDetailTab = "details" | "folio" | "invoice" | "notes";
 
 interface BookingRow {
@@ -374,8 +383,24 @@ export default function PMSDashboard() {
   const displayProperties = portfolioProperties || properties;
   const { propertyName: brandName } = usePMSBrand();
   const queryClient = useQueryClient();
-  const [viewMode, setViewMode] = useState<ViewMode>("month");
+  const isMobile = useIsMobile();
+  const [viewMode, setViewMode] = useState<ViewMode>("roomplan");
   const [legendOpen, setLegendOpen] = useState(false);
+  const [openPanel, setOpenPanel] = useState<DashboardPanel>(null);
+  const [roomPlanPrefill, setRoomPlanPrefill] = useState<{
+    propertyId?: string | null;
+    roomTypeId?: string | null;
+    roomId?: string | null;
+    checkIn?: Date | null;
+    checkOut?: Date | null;
+  } | null>(null);
+  const [modifyTarget, setModifyTarget] = useState<BookingRow | null>(null);
+  const [cancelTarget, setCancelTarget] = useState<BookingRow | null>(null);
+  // Room Plan drag interactions are pointer-based — mobile keeps the stacked grid.
+  useEffect(() => {
+    if (isMobile) setViewMode((current) => (current === "roomplan" ? "month" : current));
+  }, [isMobile]);
+
   const [anchorDate, setAnchorDate] = useState(new Date());
   const [selectedBooking, setSelectedBooking] = useState<BookingRow | null>(null);
   const [bookingSheetTab, setBookingSheetTab] = useState<BookingDetailTab>("details");
@@ -1447,7 +1472,52 @@ export default function PMSDashboard() {
     refetchOverrides();
   };
 
+  // ─── Room Plan interactions ───
+  const refreshBookingQueries = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ["pms-cal-bookings"] });
+    queryClient.invalidateQueries({ queryKey: ["pms-portfolio-bookings"] });
+    queryClient.invalidateQueries({ queryKey: ["pms-arrivals"] });
+    queryClient.invalidateQueries({ queryKey: ["pms-departures"] });
+  }, [queryClient]);
+
+  const handleRoomPlanCreate = useCallback((payload: RoomPlanCreatePayload & { propertyId?: string | null }) => {
+    setRoomPlanPrefill({
+      propertyId: payload.propertyId || propertyId,
+      roomTypeId: payload.roomTypeId,
+      roomId: payload.roomId,
+      checkIn: payload.checkIn,
+      checkOut: payload.checkOut,
+    });
+    setManualBookingOpen(true);
+  }, [propertyId]);
+
+  const handleRoomPlanMove = useCallback(async ({ booking, roomId, checkIn, checkOut, datesChanged }: RoomPlanMovePayload) => {
+    try {
+      if (datesChanged) {
+        const { data, error } = await supabase.functions.invoke("modify-booking", {
+          body: { booking_id: booking.id, modifications: { check_in_date: checkIn, check_out_date: checkOut } },
+        });
+        if (error) throw new Error(await extractFunctionError(error, "Could not move the reservation"));
+        if (data && data.success === false) throw new Error(data.message || "Could not move the reservation");
+      }
+      const currentRooms = booking.rolos_room_ids || [];
+      const nextRooms = roomId ? [roomId] : [];
+      if (currentRooms.join(",") !== nextRooms.join(",")) {
+        const { error } = await supabase
+          .from("bookings")
+          .update({ rolos_room_ids: nextRooms.length ? nextRooms : null })
+          .eq("id", booking.id);
+        if (error) throw error;
+      }
+      toast.success("Reservation moved");
+      refreshBookingQueries();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not move the reservation");
+    }
+  }, [refreshBookingQueries]);
+
   const displayName = isPortfolioMode ? (portfolioName || "Portfolio") : (brandName || propertyData?.name || "");
+
 
   if (propLoading) {
     return (
@@ -1470,15 +1540,19 @@ export default function PMSDashboard() {
     );
   }
 
-  const statCards = [
+  const statCards: Array<{ label: string; value: string | number; icon: typeof Building2; color: string; panel?: Exclude<DashboardPanel, null> }> = [
     { label: "Total Rooms", value: effectiveStats.totalRooms, icon: Building2, color: "text-foreground" },
     { label: "Available", value: effectiveStats.available, icon: BedDouble, color: "text-success" },
     { label: "Occupied", value: `${effectiveStats.occupied} (${effectiveStats.occupancyPct}%)`, icon: Users, color: "text-info" },
-    { label: "Arrivals Today", value: effectiveArrivals.length, icon: CalendarCheck, color: "text-warning" },
-    { label: "Departures Today", value: effectiveDepartures.length, icon: TrendingUp, color: "text-purple-600" },
+    { label: "Arrivals Today", value: effectiveArrivals.length, icon: CalendarCheck, color: "text-warning", panel: "arrivals" },
+    { label: "Departures Today", value: effectiveDepartures.length, icon: TrendingUp, color: "text-purple-600", panel: "departures" },
+    ...(!isPortfolioMode && recentBookings.length > 0
+      ? [{ label: "Recent", value: recentBookings.length, icon: CalendarCheck, color: "text-primary", panel: "recent" as const }]
+      : []),
     ...(effectiveStats.dirty > 0 ? [{ label: "Dirty", value: effectiveStats.dirty, icon: AlertTriangle, color: "text-amber-500" }] : []),
     ...(effectiveStats.maintenance > 0 ? [{ label: "Maintenance", value: effectiveStats.maintenance, icon: Ban, color: "text-destructive" }] : []),
   ];
+
 
   return (
     <>
@@ -1526,21 +1600,34 @@ export default function PMSDashboard() {
             )}
           </div>
 
-          {/* Compact stat pills — horizontal strip */}
+          {/* Compact stat pills — the arrival / departure / recent pills expand their list inline */}
           <div className="flex gap-2 overflow-x-auto scrollbar-hide">
             {statCards.map((stat) => (
-              <div key={stat.label} className="flex items-center gap-2 px-3 py-1.5 rounded-md border border-border bg-card shrink-0">
+              <button
+                key={stat.label}
+                type="button"
+                disabled={!stat.panel}
+                onClick={() => stat.panel && setOpenPanel((current) => (current === stat.panel ? null : stat.panel!))}
+                className={cn(
+                  "flex items-center gap-2 px-3 py-1.5 rounded-md border border-border bg-card shrink-0 text-left",
+                  stat.panel && "hover:border-primary/50 transition-colors",
+                  stat.panel && openPanel === stat.panel && "border-primary bg-primary/5"
+                )}
+              >
                 <stat.icon className={cn("h-3.5 w-3.5 shrink-0", stat.color)} />
                 <span className={cn("text-sm font-semibold tabular-nums", stat.color)}>{stat.value}</span>
                 <span className="text-[10px] text-muted-foreground whitespace-nowrap">{stat.label}</span>
-              </div>
+              </button>
             ))}
+
           </div>
         </div>
 
-        {/* Today's Arrivals & Departures — surfaced top of page */}
-        {(effectiveArrivals.length > 0 || effectiveDepartures.length > 0) && (
-          <div className="grid md:grid-cols-2 gap-3">
+        {/* Today's Arrivals & Departures — expanded from the counter strip above */}
+        {(openPanel === "arrivals" || openPanel === "departures") && (
+          <div className="grid gap-3">
+            {openPanel === "arrivals" && (
+
             <Card className="border-amber-500/30">
               <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
                 <CardTitle className="text-sm flex items-center gap-2">
@@ -1593,7 +1680,10 @@ export default function PMSDashboard() {
                 })}
               </CardContent>
             </Card>
+            )}
+            {openPanel === "departures" && (
             <Card className="border-purple-500/30">
+
               <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
                 <CardTitle className="text-sm flex items-center gap-2">
                   <LogOut className="h-4 w-4 text-purple-600" />
@@ -1644,11 +1734,14 @@ export default function PMSDashboard() {
                 })}
               </CardContent>
             </Card>
+            )}
+
           </div>
         )}
 
-        {/* Recent bookings — always shows the newest reservations, even if outside the calendar window */}
-        {!isPortfolioMode && recentBookings.length > 0 && (
+        {/* Recent reservations — expanded from the "Recent" counter */}
+        {openPanel === "recent" && !isPortfolioMode && recentBookings.length > 0 && (
+
           <Card>
             <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
               <CardTitle className="text-sm flex items-center gap-2">
@@ -1763,6 +1856,13 @@ export default function PMSDashboard() {
                   </PopoverContent>
                 </Popover>
                 <div className="flex gap-0.5 ml-1">
+                  {!isMobile && (
+                    <Button
+                      variant={viewMode === "roomplan" ? "default" : "outline"}
+                      onClick={() => setViewMode("roomplan")}
+                      className="h-7 text-xs px-2"
+                    >Room Plan</Button>
+                  )}
                   <Button
                     variant={viewMode === "week" ? "default" : "outline"}
                     onClick={() => setViewMode("week")}
@@ -1774,45 +1874,103 @@ export default function PMSDashboard() {
                     className="h-7 text-xs px-2"
                   >Month</Button>
                 </div>
-                <Button
-                  variant={showOnlyBookedDays ? "default" : "outline"}
-                  onClick={() => setShowOnlyBookedDays((value) => !value)}
-                  className="h-7 text-xs px-2"
-                  title={showOnlyBookedDays ? "Showing only booked days" : "Show only booked days"}
-                >
-                  <EyeOff className="h-3 w-3 mr-1" />Booked days
-                </Button>
+                {viewMode !== "roomplan" && (
+                  <Button
+                    variant={showOnlyBookedDays ? "default" : "outline"}
+                    onClick={() => setShowOnlyBookedDays((value) => !value)}
+                    className="h-7 text-xs px-2"
+                    title={showOnlyBookedDays ? "Showing only booked days" : "Show only booked days"}
+                  >
+                    <EyeOff className="h-3 w-3 mr-1" />Booked days
+                  </Button>
+                )}
+                {/* Legend — tucked into a popover so it costs no vertical space */}
+                <Popover open={legendOpen} onOpenChange={setLegendOpen}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="h-7 text-xs px-2" title="Colour legend">
+                      <Info className="h-3 w-3" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent align="end" className="w-64 p-3">
+                    <div className="flex flex-col gap-1.5 text-xs">
+                      <span className="font-medium text-muted-foreground">Bookings</span>
+                      {Object.entries(STATUS_COLORS).map(([status, colors]) => (
+                        <div key={status} className="flex items-center gap-2">
+                          <div className={cn("w-4 h-1.5 rounded-full", colors.bg, "border", colors.border)} />
+                          <span className="capitalize text-muted-foreground">{status.replace("_", " ")}</span>
+                        </div>
+                      ))}
+                      <span className="font-medium text-muted-foreground mt-1">Restrictions</span>
+                      <div className="flex items-center gap-2"><div className="w-4 h-1.5 rounded-full bg-red-500" /><span className="text-muted-foreground">Stop Sell</span></div>
+                      <div className="flex items-center gap-2"><div className="w-4 h-1.5 rounded-full bg-blue-500" /><span className="text-muted-foreground">Min Stay</span></div>
+                      <div className="flex items-center gap-2"><div className="w-4 h-1.5 rounded-full bg-pink-500" /><span className="text-muted-foreground">Max Stay</span></div>
+                      <div className="flex items-center gap-2"><div className="w-4 h-1.5 rounded-full bg-yellow-500" /><span className="text-muted-foreground">Lead Adv</span></div>
+                      <div className="flex items-center gap-2"><div className="w-4 h-1.5 rounded-full bg-orange-500" /><span className="text-muted-foreground">Lead Post</span></div>
+                      <div className="flex items-center gap-2"><AlertTriangle className="h-3 w-3 text-amber-500" /><span className="text-muted-foreground">Attention</span></div>
+                    </div>
+                  </PopoverContent>
+                </Popover>
               </div>
             </div>
 
-            {/* Legend row — collapsed by default on small screens to save vertical space */}
-            <button
-              type="button"
-              onClick={() => setLegendOpen((v) => !v)}
-              className="mb-2 flex items-center gap-1 text-xs font-medium text-muted-foreground sm:hidden"
-            >
-              {legendOpen ? "Hide legend" : "Show legend"}
-            </button>
-            <div className={cn("flex-wrap items-center gap-3 mb-3 text-xs", legendOpen ? "flex" : "hidden sm:flex")}>
-              <span className="text-muted-foreground font-medium">Bookings:</span>
-              {Object.entries(STATUS_COLORS).map(([status, colors]) => (
-                <div key={status} className="flex items-center gap-1">
-                  <div className={cn("w-3 h-1.5 rounded-full", colors.bg, "border", colors.border)} />
-                  <span className="capitalize text-muted-foreground">{status.replace("_", " ")}</span>
-                </div>
-              ))}
-              <span className="text-muted-foreground">|</span>
-              <span className="text-muted-foreground font-medium">Restrictions:</span>
-              <div className="flex items-center gap-1"><div className="w-3 h-1.5 rounded-full bg-red-500" /><span className="text-muted-foreground">Stop Sell</span></div>
-              <div className="flex items-center gap-1"><div className="w-3 h-1.5 rounded-full bg-blue-500" /><span className="text-muted-foreground">Min Stay</span></div>
-              <div className="flex items-center gap-1"><div className="w-3 h-1.5 rounded-full bg-pink-500" /><span className="text-muted-foreground">Max Stay</span></div>
-              <div className="flex items-center gap-1"><div className="w-3 h-1.5 rounded-full bg-yellow-500" /><span className="text-muted-foreground">Lead Adv</span></div>
-              <div className="flex items-center gap-1"><div className="w-3 h-1.5 rounded-full bg-orange-500" /><span className="text-muted-foreground">Lead Post</span></div>
-              <div className="flex items-center gap-1"><AlertTriangle className="h-3 w-3 text-amber-500" /><span className="text-muted-foreground">Attention</span></div>
-            </div>
+            {viewMode === "roomplan" && (
+              <p className="mb-2 text-[11px] text-muted-foreground">
+                Drag a reservation to move it, or drag across empty nights to start a new booking. Hover for details.
+              </p>
+            )}
 
             {/* Calendar Grid */}
-            {isPortfolioMode ? (
+            {viewMode === "roomplan" ? (
+              isPortfolioMode ? (
+                <div className="space-y-4">
+                  {(portfolioProperties || []).map((prop) => {
+                    const propData = portfolioDataByProperty.get(prop.id);
+                    if (!propData || propData.roomTypes.length === 0) return null;
+                    return (
+                      <div key={prop.id}>
+                        <div className="flex items-center gap-2 mb-1.5 px-1 py-1 bg-muted/30 rounded-md">
+                          <Building2 className="h-3.5 w-3.5 text-primary shrink-0" />
+                          <h3 className="text-xs font-semibold text-foreground">{prop.name}</h3>
+                        </div>
+                        <RoomPlanGrid
+                          dates={dates}
+                          roomTypes={propData.roomTypes}
+                          roomsByType={propData.roomsByType}
+                          bookings={propData.bookings as unknown as RoomPlanBooking[]}
+                          propertyName={prop.name}
+                          isHoliday={getHolidayName}
+                          getRateForDate={(rtId, date) => getPortfolioRateForDate(prop.id, rtId, date)}
+                          onSelectBooking={(b) => openBookingSheet(b as unknown as BookingRow)}
+                          onQuickAction={(b, action) => handleQuickAction(b as unknown as BookingRow, action)}
+                          onModifyBooking={(b) => setModifyTarget(b as unknown as BookingRow)}
+                          onCancelBooking={(b) => setCancelTarget(b as unknown as BookingRow)}
+                          onCreateBooking={(payload) => handleRoomPlanCreate({ ...payload, propertyId: prop.id })}
+                          onMoveBooking={handleRoomPlanMove}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <RoomPlanGrid
+                  dates={dates}
+                  roomTypes={roomTypes as RoomType[]}
+                  roomsByType={roomsByType}
+                  bookings={bookings as unknown as RoomPlanBooking[]}
+                  propertyName={displayName}
+                  bookingsLoading={bookingsLoading}
+                  isHoliday={getHolidayName}
+                  getRateForDate={getRateForDate}
+                  onSelectBooking={(b) => openBookingSheet(b as unknown as BookingRow)}
+                  onQuickAction={(b, action) => handleQuickAction(b as unknown as BookingRow, action)}
+                  onModifyBooking={(b) => setModifyTarget(b as unknown as BookingRow)}
+                  onCancelBooking={(b) => setCancelTarget(b as unknown as BookingRow)}
+                  onCreateBooking={handleRoomPlanCreate}
+                  onMoveBooking={handleRoomPlanMove}
+                />
+              )
+            ) : isPortfolioMode ? (
+
               viewMode === "week" ? (
                 <div className="space-y-6">
                   {showOnlyBookedDays && !portfolioHasAnyBookedDay && (
@@ -2022,7 +2180,9 @@ export default function PMSDashboard() {
       {/* Manual Booking Dialog */}
       <ManualBookingDialog
         open={manualBookingOpen}
-        onOpenChange={setManualBookingOpen}
+        onOpenChange={(next) => { setManualBookingOpen(next); if (!next) setRoomPlanPrefill(null); }}
+        initialValues={roomPlanPrefill}
+
         propertyId={propertyId || ""}
         roomTypes={roomTypes}
         rooms={rooms}
