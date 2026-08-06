@@ -209,3 +209,24 @@ export function useCrmAccounts(scope: CrmScope) {
     refresh: invalidate,
   };
 }
+
+/**
+ * Resolves the CRM scope (portfolio ids + property) for a single property, for
+ * components that only know the booking's property.
+ */
+export function useCrmScopeForProperty(propertyId: string | null | undefined): CrmScope {
+  const { data } = useQuery({
+    queryKey: ["crm-scope-portfolios", propertyId],
+    enabled: !!propertyId,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async (): Promise<string[]> => {
+      const { data, error } = await supabase
+        .from("property_portfolio_members")
+        .select("portfolio_id")
+        .eq("property_id", propertyId as string);
+      if (error) throw error;
+      return (data || []).map((r) => (r as { portfolio_id: string }).portfolio_id).filter(Boolean);
+    },
+  });
+  return { propertyId, portfolioIds: data || [] };
+}
