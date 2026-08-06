@@ -313,7 +313,8 @@ export default function PMSGroups() {
               <Tabs defaultValue="blocks" className="mt-6">
                 <TabsList className="w-full">
                   <TabsTrigger value="blocks" className="flex-1">Room Blocks ({blocks.length})</TabsTrigger>
-                  <TabsTrigger value="reservations" className="flex-1">Reservations ({groupReservations.length})</TabsTrigger>
+                  <TabsTrigger value="rooming" className="flex-1">Rooming List ({groupReservations.length})</TabsTrigger>
+                  <TabsTrigger value="billing" className="flex-1">Billing</TabsTrigger>
                 </TabsList>
 
                 {/* Room Blocks */}
@@ -323,68 +324,50 @@ export default function PMSGroups() {
                       <BedDouble className="h-4 w-4 mr-1" /> Add Room Block
                     </Button>
                   )}
-                  {blocks.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-4">No room blocks allocated</p>
-                  ) : (
-                    <div className="space-y-2">
-                      {blocks.map((b: any) => (
-                        <Card key={b.id}>
-                          <CardContent className="p-3 flex items-center justify-between">
-                            <div>
-                              <p className="text-sm font-medium">{b.room_type?.name || "Room Type"}</p>
-                              <p className="text-xs text-muted-foreground">
-                                {b.blocked_count} rooms · {format(new Date(b.start_date), "MMM d")} – {format(new Date(b.end_date), "MMM d")}
-                                {b.rate_override && ` · R${b.rate_override}/night`}
-                              </p>
-                              {b.release_date && <p className="text-xs text-muted-foreground">Release: {format(new Date(b.release_date), "MMM d")}</p>}
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Badge variant={b.status === "blocked" ? "default" : b.status === "released" ? "secondary" : "outline"} className="text-[10px] capitalize">{b.status}</Badge>
-                              {!readOnly && b.status === "blocked" && (
-                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => releaseBlock.mutate(b.id)}>
-                                  <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                                </Button>
-                              )}
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </div>
-                  )}
+                  <GroupBlockGrid
+                    blocks={blocks}
+                    readOnly={readOnly}
+                    busyBlockId={busyBlockId}
+                    onPickup={(b) => { setPickupLine(null); setPickupBlock(b); }}
+                    onRelease={(b) => releaseBlock.mutate(b)}
+                  />
                 </TabsContent>
 
-                {/* Linked Reservations */}
-                <TabsContent value="reservations" className="space-y-3 mt-3">
-                  {!readOnly && (
-                    <div className="flex gap-2">
-                      <Input placeholder="Guest name" value={newGuestName} onChange={(e) => setNewGuestName(e.target.value)} className="flex-1" />
-                      <Button size="sm" disabled={!newGuestName.trim()} onClick={() => { addGroupReservation.mutate(newGuestName.trim()); setNewGuestName(""); }}>
-                        <Plus className="h-4 w-4 mr-1" /> Add
-                      </Button>
-                    </div>
-                  )}
-                  {groupReservations.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-4">No linked reservations</p>
-                  ) : (
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Guest</TableHead>
-                          <TableHead>Status</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {groupReservations.map((r: any) => (
-                          <TableRow key={r.id}>
-                            <TableCell className="text-sm">{r.guest_name || "—"}</TableCell>
-                            <TableCell><Badge variant="outline" className="text-[10px] capitalize">{r.status}</Badge></TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  )}
+                {/* Rooming list */}
+                <TabsContent value="rooming" className="space-y-3 mt-3">
+                  <RoomingListTable
+                    propertyId={selectedGroup.property_id}
+                    groupId={selectedGroup.id}
+                    rows={groupReservations}
+                    blocks={blocks}
+                    readOnly={readOnly}
+                    onRefresh={refreshGroupData}
+                    onPickup={(row) => {
+                      const block = blocks.find((b) => b.id === row.block_id) || null;
+                      if (!block) {
+                        toast.error("Assign this guest to a room block first");
+                        return;
+                      }
+                      setPickupLine(row);
+                      setPickupBlock(block);
+                    }}
+                  />
+                </TabsContent>
+
+                {/* Billing & master folio */}
+                <TabsContent value="billing" className="space-y-3 mt-3">
+                  <GroupBillingPanel
+                    group={selectedGroup}
+                    readOnly={readOnly}
+                    onSaved={() => {
+                      refreshGroupData();
+                      const fresh = groups.find((g) => g.id === selectedGroup.id);
+                      if (fresh) setSelectedGroup(fresh);
+                    }}
+                  />
                 </TabsContent>
               </Tabs>
+
             </>
           )}
         </SheetContent>
