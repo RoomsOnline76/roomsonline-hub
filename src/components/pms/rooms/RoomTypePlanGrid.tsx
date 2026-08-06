@@ -224,10 +224,112 @@ export function RoomTypePlanGrid({
                   </HoverCard>
                 );
               })}
+              </div>
+
+              {/* Physical room lines — status control + colour-coded night strip */}
+              {expanded[row.roomType.id] &&
+                buildUnitRows(dates, rooms.filter((r) => r.room_type_id === row.roomType.id), bookings, resolveStatus).map((unit) => {
+                  const meta = statusMeta(unit.displayStatus);
+                  return (
+                    <div key={unit.room.id} className="flex border-b border-border bg-muted/10 last:border-b-0">
+                      <div
+                        className="shrink-0 sticky left-0 z-10 bg-card px-2 py-1 flex items-center gap-1.5"
+                        style={{ width: LABEL_W }}
+                      >
+                        <span className={cn("h-2.5 w-2.5 rounded-full shrink-0", meta.dot)} aria-hidden />
+                        <span className="text-[11px] font-medium truncate" title={unit.room.room_name || unit.room.room_number}>
+                          {unit.room.room_number}
+                          {unit.room.room_name ? ` · ${unit.room.room_name}` : ""}
+                        </span>
+                        <div className="ml-auto flex items-center gap-1 shrink-0">
+                          {unit.room.max_occupancy != null && (
+                            <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
+                              <Users className="h-3 w-3" />
+                              {unit.room.max_occupancy}
+                            </span>
+                          )}
+                          {onStatusChange ? (
+                            <Select value={unit.displayStatus} onValueChange={(v) => onStatusChange(unit.room.id, v)}>
+                              <SelectTrigger
+                                className={cn("h-6 w-[104px] px-1.5 text-[10px] capitalize border", meta.chip)}
+                                aria-label={`Status for room ${unit.room.room_number}`}
+                              >
+                                {meta.label}
+                              </SelectTrigger>
+                              <SelectContent>
+                                {SELECTABLE_ROOM_STATUSES.map((status) => (
+                                  <SelectItem key={status} value={status} className="text-xs">
+                                    <span className="flex items-center gap-2">
+                                      <span className={cn("h-2 w-2 rounded-full", statusMeta(status).dot)} />
+                                      {statusMeta(status).label}
+                                    </span>
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <Badge variant="outline" className={cn("text-[10px]", meta.chip)}>{meta.label}</Badge>
+                          )}
+                          {onEditRoom && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6"
+                              onClick={() => onEditRoom(unit.room)}
+                              aria-label={`Edit room ${unit.room.room_number}`}
+                            >
+                              <Pencil className="h-3 w-3" />
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                      {unit.cells.map((cell) => {
+                        const isToday = isSameDay(cell.date, today);
+                        const state = cell.booking ? "occupied" : unit.displayStatus === "occupied" ? "available" : unit.displayStatus;
+                        const cellMeta = statusMeta(state);
+                        return (
+                          <button
+                            key={cell.date.toISOString()}
+                            type="button"
+                            disabled={!cell.booking}
+                            onClick={() => cell.booking && onSelectBooking(cell.booking)}
+                            title={
+                              cell.booking
+                                ? `${cell.booking.guest_name} · ${format(parseISO(cell.booking.check_in_date), "d MMM")} → ${format(parseISO(cell.booking.check_out_date), "d MMM")}`
+                                : `${unit.room.room_number} · ${cellMeta.label} · ${format(cell.date, "EEE d MMM")}`
+                            }
+                            className={cn(
+                              "shrink-0 border-l border-border h-6 text-[10px] truncate px-1 text-left",
+                              isWeekendDay(cell.date) && !cell.booking && "bg-muted/20",
+                              cellMeta.cell,
+                              cell.booking && "font-medium hover:brightness-110",
+                              isToday && "border-l-2 border-l-primary"
+                            )}
+                            style={{ width: COL_W }}
+                          >
+                            {cell.booking && cell.isStart ? cell.booking.guest_name : ""}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
             </div>
           ))}
         </div>
       </div>
+
+      {/* Colour legend */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-border bg-muted/20 px-3 py-1.5">
+        {SELECTABLE_ROOM_STATUSES.map((status) => (
+          <span key={status} className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+            <span className={cn("h-2 w-2 rounded-full", statusMeta(status).dot)} />
+            {statusMeta(status).label}
+          </span>
+        ))}
+        <span className="text-[10px] text-muted-foreground ml-auto">Click a room type to open its room lines</span>
+      </div>
     </div>
+
   );
 }
