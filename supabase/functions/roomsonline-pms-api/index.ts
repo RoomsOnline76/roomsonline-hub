@@ -1134,30 +1134,16 @@ async function handleCreateReservation(body: unknown, supabase: any): Promise<Re
       reason: "Reservation created",
     });
 
-    // Update inventory calendar - increment booked_units
+    // Update inventory calendar - atomically increment booked_units for the stay range
     for (const [roomTypeId, requiredCount] of requiredRooms.entries()) {
-      for (const date of dates) {
-        await supabase.from("rolos_inventory_calendar").upsert({
-          property_id: propertyId,
-          room_type_id: roomTypeId,
-          date,
-          booked_units: requiredCount,
-          total_units: 0,
-        }, { onConflict: "property_id,room_type_id,date" });
-        
-        // Increment booked_units for existing rows
-        const { data: existing } = await supabase.from("rolos_inventory_calendar")
-          .select("id, booked_units")
-          .eq("property_id", propertyId)
-          .eq("room_type_id", roomTypeId)
-          .eq("date", date)
-          .single();
-        if (existing) {
-          await supabase.from("rolos_inventory_calendar")
-            .update({ booked_units: (existing.booked_units || 0) + requiredCount })
-            .eq("id", existing.id);
-        }
-      }
+      const { error: invErr } = await supabase.rpc("rolos_adjust_booked_inventory", {
+        _property_id: propertyId,
+        _room_type_id: roomTypeId,
+        _start_date: arrival_date,
+        _end_date: departure_date,
+        _delta: requiredCount,
+      });
+      if (invErr) console.warn("[roomsonline-pms-api] Inventory adjust failed:", invErr.message);
     }
   }
 
