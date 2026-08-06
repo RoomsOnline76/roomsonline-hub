@@ -67,7 +67,7 @@ interface ManualBookingDialogProps {
 }
 
 
-export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes, rooms, ratePlans, onCreated, getRateForDate, portfolioOptions }: ManualBookingDialogProps) {
+export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes, rooms, ratePlans, onCreated, getRateForDate, portfolioOptions, initialValues }: ManualBookingDialogProps) {
   const [saving, setSaving] = useState(false);
   const portfolioMode = !!(portfolioOptions && portfolioOptions.length > 0);
   const [selectedPropertyId, setSelectedPropertyId] = useState<string>(propertyId || "");
