@@ -80,6 +80,7 @@ interface PlanRow {
   roomTypeId: string;
   label: string;
   sublabel?: string;
+  hideLabel?: boolean;
   bookings: RoomPlanBooking[];
 }
 
@@ -122,18 +123,29 @@ export function RoomPlanGrid({
       const rows: PlanRow[] = [];
 
       const assignedIds = new Set<string>();
+      const norm = (value: string | null | undefined) => (value || "").trim().toLowerCase();
+      const typeName = norm(type.name);
       for (const room of typeRooms) {
         const roomBookings = typeBookings.filter((booking) => booking.rolos_room_ids?.includes(room.id));
         roomBookings.forEach((booking) => assignedIds.add(booking.id));
+        const name = room.room_name || room.room_number;
+        // Don't repeat the room number when it duplicates the room name.
+        const sublabel =
+          room.room_name && norm(room.room_number) !== norm(room.room_name) ? room.room_number : undefined;
+        // A single unit that carries the room type's own name adds no
+        // information beyond the group header — render it unlabelled.
+        const redundant = typeRooms.length === 1 && norm(name) === typeName && !sublabel;
         rows.push({
           key: `${type.id}:${room.id}`,
           roomId: room.id,
           roomTypeId: type.id,
-          label: room.room_name || room.room_number,
-          sublabel: room.room_name ? room.room_number : undefined,
+          label: name,
+          sublabel,
+          hideLabel: redundant,
           bookings: roomBookings,
         });
       }
+
 
       const unassigned = typeBookings.filter((booking) => !assignedIds.has(booking.id));
       if (unassigned.length > 0 || typeRooms.length === 0) {
@@ -346,8 +358,14 @@ export function RoomPlanGrid({
                           className="sticky left-0 z-20 flex shrink-0 items-center gap-1 border-r bg-background px-2"
                           style={{ width: ROOM_PLAN_LABEL_W }}
                         >
-                          <span className={cn("truncate text-[11px]", !row.roomId && "italic text-muted-foreground")}>
-                            {row.label}
+                          <span
+                            className={cn(
+                              "truncate text-[11px]",
+                              !row.roomId && "italic text-muted-foreground",
+                              row.hideLabel && "text-[9px] italic text-muted-foreground"
+                            )}
+                          >
+                            {row.hideLabel ? "unit" : row.label}
                           </span>
                           {row.sublabel && <span className="shrink-0 text-[9px] text-muted-foreground">{row.sublabel}</span>}
                         </div>
