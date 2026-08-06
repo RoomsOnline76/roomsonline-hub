@@ -381,8 +381,24 @@ export default function PMSDashboard() {
   const displayProperties = portfolioProperties || properties;
   const { propertyName: brandName } = usePMSBrand();
   const queryClient = useQueryClient();
-  const [viewMode, setViewMode] = useState<ViewMode>("month");
+  const isMobile = useIsMobile();
+  const [viewMode, setViewMode] = useState<ViewMode>("roomplan");
   const [legendOpen, setLegendOpen] = useState(false);
+  const [openPanel, setOpenPanel] = useState<DashboardPanel>(null);
+  const [roomPlanPrefill, setRoomPlanPrefill] = useState<{
+    propertyId?: string | null;
+    roomTypeId?: string | null;
+    roomId?: string | null;
+    checkIn?: Date | null;
+    checkOut?: Date | null;
+  } | null>(null);
+  const [modifyTarget, setModifyTarget] = useState<BookingRow | null>(null);
+  const [cancelTarget, setCancelTarget] = useState<BookingRow | null>(null);
+  // Room Plan drag interactions are pointer-based — mobile keeps the stacked grid.
+  useEffect(() => {
+    if (isMobile) setViewMode((current) => (current === "roomplan" ? "month" : current));
+  }, [isMobile]);
+
   const [anchorDate, setAnchorDate] = useState(new Date());
   const [selectedBooking, setSelectedBooking] = useState<BookingRow | null>(null);
   const [bookingSheetTab, setBookingSheetTab] = useState<BookingDetailTab>("details");
