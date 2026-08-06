@@ -187,50 +187,70 @@ export default function PMSGuests() {
           </div>
         </div>
 
-        <div className="relative max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Search guests by name, email, or phone..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10" />
-        </div>
+        <Tabs defaultValue="guests" className="space-y-4">
+          <TabsList>
+            <TabsTrigger value="guests">Guests</TabsTrigger>
+            <TabsTrigger value="accounts">Companies &amp; Agents</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="guests" className="space-y-4">
+            <div className="relative max-w-md">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input placeholder="Search guests by name, email, or phone..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10" />
+            </div>
 
 
-        {loading ? (
-          <div className="space-y-2">
-            {[0, 1, 2, 3].map((i) => (
-              <div key={i} className="h-14 rounded-md bg-muted animate-pulse" />
-            ))}
-          </div>
-        ) : guests.length === 0 ? (
-          <Card><CardContent className="py-12 text-center"><Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" /><p className="text-muted-foreground">No guest profiles yet.</p></CardContent></Card>
-        ) : (
-          <div className="space-y-2">
-            {guests.map((guest) => (
-              <Card key={guest.id} className="hover:shadow-sm transition-shadow cursor-pointer" onClick={() => openGuestDetail(guest)}>
-                <CardContent className="py-4 flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm">
-                      {guest.full_name.charAt(0).toUpperCase()}
-                    </div>
-                    <div>
-                      <p className="font-medium">{guest.full_name}</p>
-                      <div className="flex gap-3 text-xs text-muted-foreground">
-                        {guest.email && <span className="flex items-center gap-1"><Mail className="h-3 w-3" />{guest.email}</span>}
-                        {guest.phone && <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{guest.phone}</span>}
+            {loading ? (
+              <div className="space-y-2">
+                {[0, 1, 2, 3].map((i) => (
+                  <div key={i} className="h-14 rounded-md bg-muted animate-pulse" />
+                ))}
+              </div>
+            ) : guests.length === 0 ? (
+              <Card><CardContent className="py-12 text-center"><Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" /><p className="text-muted-foreground">No guest profiles yet.</p></CardContent></Card>
+            ) : (
+              <div className="space-y-2">
+                {guests.map((guest) => (
+                  <Card key={guest.id} className="hover:shadow-sm transition-shadow cursor-pointer" onClick={() => openGuestDetail(guest)}>
+                    <CardContent className="py-4 flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm">
+                          {guest.full_name.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <p className="font-medium">{guest.full_name}</p>
+                          <div className="flex gap-3 text-xs text-muted-foreground">
+                            {guest.email && <span className="flex items-center gap-1"><Mail className="h-3 w-3" />{guest.email}</span>}
+                            {guest.phone && <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{guest.phone}</span>}
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="text-right text-sm">
-                      <p className="font-medium">{guest.total_stays} stays</p>
-                      <p className="text-xs text-muted-foreground">R{guest.total_spent.toLocaleString()}</p>
-                    </div>
-                    {guest.tags?.map(tag => <Badge key={tag} variant="outline" className="text-xs">{tag}</Badge>)}
-                    {guest.is_blacklisted && <Badge variant="destructive" className="text-xs">Blacklisted</Badge>}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
+                      <div className="flex items-center gap-3">
+                        <div className="text-right text-sm">
+                          <p className="font-medium">{guest.total_stays} stays</p>
+                          <p className="text-xs text-muted-foreground">R{guest.total_spent.toLocaleString()}</p>
+                        </div>
+                        {guest.tags?.map(tag => <Badge key={tag} variant="outline" className="text-xs">{tag}</Badge>)}
+                        {guest.is_blacklisted && <Badge variant="destructive" className="text-xs">Blacklisted</Badge>}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+      </TabsContent>
+
+          <TabsContent value="accounts">
+            <CrmAccountsTab
+              accounts={crm.accounts}
+              stats={crm.stats}
+              loading={crm.loading}
+              isPortfolioScoped={crm.isPortfolioScoped}
+              onSave={crm.saveAccount}
+              onArchive={crm.archiveAccount}
+            />
+          </TabsContent>
+        </Tabs>
       </div>
 
       {/* Guest Detail Sheet */}
