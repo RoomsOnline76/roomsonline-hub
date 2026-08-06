@@ -1,7 +1,8 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
+import { addDays, format, startOfDay } from "date-fns";
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,50 +10,32 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Plus, BedDouble, RefreshCw, Pencil, Trash2, ChevronLeft, ChevronRight, LayoutGrid, Building2 } from "lucide-react";
+import { Plus, BedDouble, RefreshCw, ChevronLeft, ChevronRight, LayoutGrid, Building2, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { syncRolosRoomTypesFromOverview } from "@/lib/pmsRoomTypeSync";
 import { autoAssignBookings } from "@/lib/bookingAssignment";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import { PmsPageSkeleton } from "@/components/pms/PmsPageSkeleton";
-
-const STATUS_COLORS: Record<string, string> = {
-  available: "bg-emerald-500/10 text-success border-emerald-500/20",
-  occupied: "bg-blue-500/10 text-info border-blue-500/20",
-  dirty: "bg-amber-500/10 text-warning border-amber-500/20",
-  maintenance: "bg-red-500/10 text-destructive border-red-500/20",
-  out_of_order: "bg-destructive/10 text-destructive border-destructive/20",
-};
-
-interface RoomType { id: string; name: string; property_id: string; }
-
-interface ActiveBooking {
-  id: string;
-  guest_name: string | null;
-  property_id: string | null;
-  check_in_date: string;
-  check_out_date: string;
-  status: string;
-  room_type_id: string | null;
-  rolos_room_ids: string[] | null;
-}
-
-interface Room {
-  id: string;
-  property_id: string;
-  room_number: string;
-  room_name: string | null;
-  floor: number | null;
-  status: string;
-  max_occupancy: number | null;
-  room_type_id: string | null;
-  room_type_name?: string;
-}
+import { BookingQuickViewSheet } from "@/components/pms/BookingQuickViewSheet";
+import { RoomTypePlanGrid } from "@/components/pms/rooms/RoomTypePlanGrid";
+import { ReservationFinder } from "@/components/pms/rooms/ReservationFinder";
+import { RoomCard, ROOM_STATUS_COLORS } from "@/components/pms/rooms/RoomCard";
+import { BLOCKED_ROOM_STATUSES, occupiesNight, type PlanRoom, type PlanRoomType, type RoomsBooking } from "@/components/pms/rooms/roomTypePlanLayout";
 
 type ViewMode = "portfolio" | "single";
 
+/** Nights shown in the Room Type Plan. */
+const PLAN_NIGHTS = 14;
+/** Extra days of reservations loaded beyond the plan so search finds future stays. */
+const SEARCH_LOOKAHEAD_DAYS = 60;
+
+const ACTIVE_BOOKING_STATUSES = ["confirmed", "checked_in", "in_house", "pending"];
+
 type RoomForm = { room_number: string; room_name: string; floor: string; room_type_id: string; max_occupancy: string };
 const emptyForm: RoomForm = { room_number: "", room_name: "", floor: "", room_type_id: "", max_occupancy: "" };
+
+const SLEEPS_OPTIONS = ["any", "2", "3", "4", "6"];
 
 export default function PMSRooms() {
   const { propertyId, properties, switchProperty, loading: propertyLoading } = usePmsPropertyId();
@@ -72,19 +55,36 @@ export default function PMSRooms() {
     [isPortfolio, properties, propertyId]
   );
 
-  const [rooms, setRooms] = useState<Room[]>([]);
-  const [roomTypes, setRoomTypes] = useState<RoomType[]>([]);
-  const [activeBookings, setActiveBookings] = useState<ActiveBooking[]>([]);
+  const [rooms, setRooms] = useState<PlanRoom[]>([]);
+  const [roomTypes, setRoomTypes] = useState<PlanRoomType[]>([]);
+  const [bookings, setBookings] = useState<RoomsBooking[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingRoom, setEditingRoom] = useState<Room | null>(null);
+  const [editingRoom, setEditingRoom] = useState<PlanRoom | null>(null);
   const [form, setForm] = useState<RoomForm>(emptyForm);
-  const [deleteRoom, setDeleteRoom] = useState<Room | null>(null);
+  const [deleteRoom, setDeleteRoom] = useState<PlanRoom | null>(null);
+  const [selectedBooking, setSelectedBooking] = useState<RoomsBooking | null>(null);
+
+  // ─── Plan window & filters ───
+  const [anchorDate, setAnchorDate] = useState<Date>(() => startOfDay(new Date()));
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [sleepsFilter, setSleepsFilter] = useState<string>("any");
+
+  const dates = useMemo(
+    () => Array.from({ length: PLAN_NIGHTS }, (_, i) => addDays(anchorDate, i)),
+    [anchorDate]
+  );
+  const windowStart = format(dates[0], "yyyy-MM-dd");
+  const windowEnd = format(addDays(dates[dates.length - 1], SEARCH_LOOKAHEAD_DAYS), "yyyy-MM-dd");
+
+  const shiftWindow = useCallback((direction: -1 | 1) => {
+    setAnchorDate((current) => addDays(current, direction * 7));
+  }, []);
+  const goToday = useCallback(() => setAnchorDate(startOfDay(new Date())), []);
 
   // Auto-sync room types from the true Property Overview source for every
-  // property currently in scope (single OR portfolio view). Without this,
-  // properties never opened individually had no rolos_room_types / rolos_rooms
-  // hydrated and the portfolio grid appeared empty for them.
+  // property currently in scope (single OR portfolio view).
   const syncRoomTypesFromOverview = useCallback(async () => {
     if (activePropertyIds.length === 0) return;
 
@@ -128,13 +128,11 @@ export default function PMSRooms() {
     );
   }, [activePropertyIds]);
 
-
   const fetchData = useCallback(async () => {
     if (activePropertyIds.length === 0) return;
     setLoading(true);
     await syncRoomTypesFromOverview();
 
-    const today = new Date().toLocaleDateString("en-CA");
     const [roomsRes, typesRes, allTypesRes, bookingsRes] = await Promise.all([
       supabase
         .from("rolos_rooms")
@@ -153,14 +151,16 @@ export default function PMSRooms() {
         .select("id, name, property_id")
         .in("property_id", activePropertyIds),
       (supabase.from("bookings") as any)
-        .select("id, guest_name, check_in_date, check_out_date, status, room_type_id, rolos_room_ids, property_id")
+        .select(
+          "id, property_id, guest_name, guest_email, guest_phone, booking_reference, check_in_date, check_out_date, status, adults, children, teens, infants, pets, total_price, special_requests, requires_intervention, payment_status, room_type_id, rolos_room_ids"
+        )
         .in("property_id", activePropertyIds)
-        .lte("check_in_date", today)
-        .gte("check_out_date", today)
-        .in("status", ["confirmed", "checked_in", "in_house"]),
+        .gte("check_out_date", windowStart)
+        .lte("check_in_date", windowEnd)
+        .in("status", ACTIVE_BOOKING_STATUSES),
     ]);
 
-    const rawBookings = (bookingsRes.data || []) as ActiveBooking[];
+    const rawBookings = (bookingsRes.data || []) as RoomsBooking[];
     const bookingIds = rawBookings.map((b) => b.id);
     const { data: bookingRoomLinks } = bookingIds.length
       ? await (supabase.from("rolos_booking_rooms") as any)
@@ -173,8 +173,8 @@ export default function PMSRooms() {
       linkedRoomIdsByBooking.set(link.booking_id, [...(linkedRoomIdsByBooking.get(link.booking_id) || []), link.room_id]);
     }
 
-    const allTypes = (allTypesRes.data || []) as RoomType[];
-    const types = ((typesRes.data || []) as RoomType[]).length ? (typesRes.data || []) as RoomType[] : allTypes;
+    const allTypes = (allTypesRes.data || []) as PlanRoomType[];
+    const types = ((typesRes.data || []) as PlanRoomType[]).length ? (typesRes.data || []) as PlanRoomType[] : allTypes;
     setRoomTypes(types);
 
     const activeTypeIds = new Set(types.map((t) => t.id));
@@ -185,7 +185,7 @@ export default function PMSRooms() {
       .map((r: any) => ({
         ...r,
         room_type_name: r.room_type_id ? typeMap.get(r.room_type_id) : undefined,
-      }));
+      })) as PlanRoom[];
     setRooms(visibleRooms);
 
     const assignedBookings = autoAssignBookings(
@@ -196,10 +196,10 @@ export default function PMSRooms() {
       }),
       visibleRooms,
       (allTypes.length ? allTypes : types)
-    );
-    setActiveBookings(assignedBookings);
+    ) as RoomsBooking[];
+    setBookings(assignedBookings);
     setLoading(false);
-  }, [activePropertyIds, syncRoomTypesFromOverview]);
+  }, [activePropertyIds, syncRoomTypesFromOverview, windowStart, windowEnd]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -209,7 +209,7 @@ export default function PMSRooms() {
     setDialogOpen(true);
   };
 
-  const openEditDialog = (room: Room) => {
+  const openEditDialog = (room: PlanRoom) => {
     setEditingRoom(room);
     setForm({
       room_number: room.room_number,
@@ -279,6 +279,56 @@ export default function PMSRooms() {
     toast.success("Status updated");
   };
 
+  const propertyNames = useMemo(() => new Map(properties.map((p) => [p.id, p.name])), [properties]);
+
+  const today = useMemo(() => startOfDay(new Date()), []);
+
+  const activeBookingForRoom = useCallback(
+    (roomId: string) => bookings.find((b) => (b.rolos_room_ids || []).includes(roomId) && occupiesNight(b, today)),
+    [bookings, today]
+  );
+
+  const nextBookingForRoom = useCallback(
+    (roomId: string) => {
+      const todayStr = format(today, "yyyy-MM-dd");
+      return bookings
+        .filter((b) => (b.rolos_room_ids || []).includes(roomId) && b.check_in_date > todayStr)
+        .sort((a, b) => a.check_in_date.localeCompare(b.check_in_date))[0];
+    },
+    [bookings, today]
+  );
+
+  const displayStatusForRoom = useCallback(
+    (room: PlanRoom) => {
+      const hasActiveBooking = !!activeBookingForRoom(room.id);
+      if (hasActiveBooking && !BLOCKED_ROOM_STATUSES.includes(room.status)) return "occupied";
+      return room.status;
+    },
+    [activeBookingForRoom]
+  );
+
+  // ─── Filtering ───
+  const statusCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const room of rooms) {
+      const status = displayStatusForRoom(room);
+      counts.set(status, (counts.get(status) || 0) + 1);
+    }
+    return counts;
+  }, [rooms, displayStatusForRoom]);
+
+  const filtersActive = statusFilter !== "all" || typeFilter !== "all" || sleepsFilter !== "any";
+
+  const matchesFilters = useCallback(
+    (room: PlanRoom) => {
+      if (statusFilter !== "all" && displayStatusForRoom(room) !== statusFilter) return false;
+      if (typeFilter !== "all" && room.room_type_id !== typeFilter) return false;
+      if (sleepsFilter !== "any" && (room.max_occupancy ?? 0) < Number(sleepsFilter)) return false;
+      return true;
+    },
+    [statusFilter, typeFilter, sleepsFilter, displayStatusForRoom]
+  );
+
   if (propertyLoading) return <PmsPageSkeleton rows={4} />;
   if (!propertyId && !isPortfolio) return <p className="text-muted-foreground">Select a property first.</p>;
 
@@ -301,70 +351,45 @@ export default function PMSRooms() {
         property: p,
         rooms: rooms.filter((r) => r.property_id === p.id),
         roomTypes: roomTypes.filter((t) => t.property_id === p.id),
+        bookings: bookings.filter((b) => b.property_id === p.id),
       }))
     : [{
         property: properties.find((p) => p.id === propertyId) || { id: propertyId!, name: "" },
         rooms,
         roomTypes,
+        bookings,
       }];
 
-  const activeBookingForRoom = (roomId: string) =>
-    activeBookings.find((booking) => (booking.rolos_room_ids || []).includes(roomId));
+  const planTitle = `${format(dates[0], "d MMM")} – ${format(dates[dates.length - 1], "d MMM yyyy")}`;
 
-  const displayStatusForRoom = (room: Room) => {
-    const hasActiveBooking = !!activeBookingForRoom(room.id);
-    if (hasActiveBooking && !["maintenance", "out_of_order", "out_of_service"].includes(room.status)) return "occupied";
-    return room.status;
-  };
-
-  const renderRoomGrid = (items: Room[]) => (
+  const renderRoomGrid = (items: PlanRoom[]) => (
     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
-      {items.map((room) => {
-        const displayStatus = displayStatusForRoom(room);
-        const activeBooking = activeBookingForRoom(room.id);
-        return (
-        <Card key={room.id} className="relative group">
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-lg font-bold">{room.room_number}</CardTitle>
-              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => openEditDialog(room)}>
-                  <Pencil className="h-3 w-3" />
-                </Button>
-                <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => setDeleteRoom(room)}>
-                  <Trash2 className="h-3 w-3" />
-                </Button>
-              </div>
-            </div>
-            {room.room_name && <p className="text-xs text-muted-foreground">{room.room_name}</p>}
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <Badge className={STATUS_COLORS[displayStatus] || ""} variant="outline">{displayStatus}</Badge>
-            {activeBooking?.guest_name && <p className="text-xs text-info dark:text-blue-300 truncate">Guest: {activeBooking.guest_name}</p>}
-            {room.room_type_name && <p className="text-xs text-muted-foreground">{room.room_type_name}</p>}
-            <Select value={displayStatus} onValueChange={(v) => handleStatusChange(room.id, v)}>
-              <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {Object.keys(STATUS_COLORS).map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </CardContent>
-        </Card>
-        );
-      })}
+      {items.map((room) => (
+        <RoomCard
+          key={room.id}
+          room={room}
+          displayStatus={displayStatusForRoom(room)}
+          activeBooking={activeBookingForRoom(room.id)}
+          nextBooking={nextBookingForRoom(room.id)}
+          onEdit={openEditDialog}
+          onDelete={setDeleteRoom}
+          onStatusChange={handleStatusChange}
+          onOpenBooking={setSelectedBooking}
+        />
+      ))}
     </div>
   );
 
   return (
     <>
-      <div className="space-y-6">
+      <div className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Room Inventory</h1>
             <p className="text-sm text-muted-foreground">
               {isPortfolio
                 ? `Portfolio view — ${properties.length} properties`
-                : "Physical rooms linked to room types from Property Overview."}
+                : "Availability plan, reservations and physical rooms in one view."}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -426,11 +451,82 @@ export default function PMSRooms() {
           </div>
         </div>
 
+        {/* Find a reservation in one keystroke */}
+        <ReservationFinder
+          bookings={bookings}
+          rooms={rooms}
+          propertyNames={propertyNames}
+          onSelectBooking={setSelectedBooking}
+        />
+
+        {/* Filter strip — chips narrow both the plan and the room grid */}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex gap-1 overflow-x-auto scrollbar-hide">
+            <Button
+              variant={statusFilter === "all" ? "default" : "outline"}
+              size="sm"
+              className="h-7 text-xs px-2 shrink-0"
+              onClick={() => setStatusFilter("all")}
+            >
+              All <span className="ml-1 tabular-nums opacity-70">{rooms.length}</span>
+            </Button>
+            {Object.keys(ROOM_STATUS_COLORS).map((status) => {
+              const count = statusCounts.get(status) || 0;
+              return (
+                <Button
+                  key={status}
+                  variant={statusFilter === status ? "default" : "outline"}
+                  size="sm"
+                  disabled={count === 0 && statusFilter !== status}
+                  className={cn("h-7 text-xs px-2 shrink-0 capitalize", statusFilter !== status && count > 0 && ROOM_STATUS_COLORS[status])}
+                  onClick={() => setStatusFilter((current) => (current === status ? "all" : status))}
+                >
+                  {status.replace(/_/g, " ")} <span className="ml-1 tabular-nums opacity-70">{count}</span>
+                </Button>
+              );
+            })}
+          </div>
+          <Select value={typeFilter} onValueChange={setTypeFilter}>
+            <SelectTrigger className="h-7 w-[170px] text-xs"><SelectValue placeholder="Room type" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All room types</SelectItem>
+              {roomTypes.map((rt) => (
+                <SelectItem key={rt.id} value={rt.id}>{rt.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={sleepsFilter} onValueChange={setSleepsFilter}>
+            <SelectTrigger className="h-7 w-[130px] text-xs">
+              <Users className="h-3 w-3 mr-1" />
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {SLEEPS_OPTIONS.map((option) => (
+                <SelectItem key={option} value={option}>
+                  {option === "any" ? "Any size" : `Sleeps ${option}+`}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {filtersActive && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs px-2"
+              onClick={() => { setStatusFilter("all"); setTypeFilter("all"); setSleepsFilter("any"); }}
+            >
+              Clear filters
+            </Button>
+          )}
+        </div>
+
         {loading ? (
-          <p className="text-muted-foreground">Loading rooms...</p>
+          <PmsPageSkeleton rows={4} />
         ) : (
           <div className="space-y-8">
-            {propertySections.map(({ property, rooms: pRooms, roomTypes: pTypes }) => {
+            {propertySections.map(({ property, rooms: pRooms, roomTypes: pTypes, bookings: pBookings }) => {
+              const filteredRooms = pRooms.filter(matchesFilters);
+              const planTypes = typeFilter === "all" ? pTypes : pTypes.filter((t) => t.id === typeFilter);
               const grouped = new Map<string, number>();
               for (const rt of pTypes) {
                 const count = pRooms.filter((r) => r.room_type_id === rt.id).length;
@@ -454,6 +550,17 @@ export default function PMSRooms() {
                     </div>
                   )}
 
+                  <RoomTypePlanGrid
+                    dates={dates}
+                    roomTypes={planTypes}
+                    rooms={pRooms}
+                    bookings={pBookings}
+                    onSelectBooking={setSelectedBooking}
+                    onShiftWindow={shiftWindow}
+                    onToday={goToday}
+                    title={isPortfolio ? `${property.name} · ${planTitle}` : planTitle}
+                  />
+
                   {pTypes.length > 0 && (
                     <div className="flex flex-wrap gap-2">
                       {Array.from(grouped.entries()).map(([name, count]) => (
@@ -475,8 +582,14 @@ export default function PMSRooms() {
                         </p>
                       </CardContent>
                     </Card>
+                  ) : filteredRooms.length === 0 ? (
+                    <Card>
+                      <CardContent className="py-6 text-center text-sm text-muted-foreground">
+                        No rooms match the current filters.
+                      </CardContent>
+                    </Card>
                   ) : (
-                    renderRoomGrid(pRooms)
+                    renderRoomGrid(filteredRooms)
                   )}
                 </section>
               );
@@ -484,6 +597,12 @@ export default function PMSRooms() {
           </div>
         )}
       </div>
+
+      {/* Reservation detail — same sheet the dashboard uses */}
+      <BookingQuickViewSheet
+        booking={selectedBooking}
+        onOpenChange={(open) => { if (!open) setSelectedBooking(null); }}
+      />
 
       {/* Create/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) { setEditingRoom(null); setForm(emptyForm); } }}>
