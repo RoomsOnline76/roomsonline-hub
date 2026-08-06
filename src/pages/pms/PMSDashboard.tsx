@@ -29,6 +29,8 @@ import { BulkMaximumStayDialog } from "@/components/BulkMaximumStayDialog";
 import { BulkLeadDaysAdvanceDialog } from "@/components/BulkLeadDaysAdvanceDialog";
 import { BulkLeadDaysPostDialog } from "@/components/BulkLeadDaysPostDialog";
 import { BookingFolioTab } from "@/components/pms/BookingFolioTab";
+import { BookingDetailsGrid, type BookingDetailsGridBooking } from "@/components/pms/booking/BookingDetailsGrid";
+
 import { CheckoutConfirmationDialog } from "@/components/pms/CheckoutConfirmationDialog";
 import { BookingCancelDialog } from "@/components/pms/BookingCancelDialog";
 import { BookingModifyDialog } from "@/components/pms/BookingModifyDialog";
