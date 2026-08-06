@@ -36,6 +36,9 @@ interface RatePlan {
   deposit_percentage: number | null;
   base_rate: number | null;
   pricing_model: string;
+  breakfast_included: boolean | null;
+  breakfast_amount: number | null;
+  breakfast_basis: string | null;
 }
 
 interface RoomType {
@@ -97,6 +100,9 @@ export default function PMSRatePlans() {
     name: "", code: "", description: "", min_stay: "1", requires_deposit: false,
     base_rate: "",
     pricing_model: "per_room",
+    breakfast_included: false,
+    breakfast_amount: "",
+    breakfast_basis: "per_person_night",
     linkedRoomTypeIds: [] as string[],
     target_property_id: "" as string,
   });
@@ -273,7 +279,7 @@ export default function PMSRatePlans() {
 
     const plansQ = supabase
       .from("rolos_rate_plans")
-      .select("id, property_id, name, code, description, is_active, min_stay, requires_deposit, deposit_percentage, base_rate, pricing_model")
+      .select("id, property_id, name, code, description, is_active, min_stay, requires_deposit, deposit_percentage, base_rate, pricing_model, breakfast_included, breakfast_amount, breakfast_basis")
       .in("property_id", activePropertyIds)
       .order("name");
     const roomTypesQ = supabase
@@ -307,7 +313,7 @@ export default function PMSRatePlans() {
     roomTypes.find(rt => rt.id === id)?.name || id;
 
   const resetForm = () => {
-    setForm({ name: "", code: "", description: "", min_stay: "1", requires_deposit: false, base_rate: "", pricing_model: "per_room", linkedRoomTypeIds: [], target_property_id: "" });
+    setForm({ name: "", code: "", description: "", min_stay: "1", requires_deposit: false, base_rate: "", pricing_model: "per_room", breakfast_included: false, breakfast_amount: "", breakfast_basis: "per_person_night", linkedRoomTypeIds: [], target_property_id: "" });
     setEditingPlan(null);
   };
 
@@ -322,6 +328,9 @@ export default function PMSRatePlans() {
         requires_deposit: plan.requires_deposit,
         base_rate: plan.base_rate ? String(plan.base_rate) : "",
         pricing_model: plan.pricing_model || "per_room",
+        breakfast_included: !!plan.breakfast_included,
+        breakfast_amount: plan.breakfast_amount != null ? String(plan.breakfast_amount) : "",
+        breakfast_basis: plan.breakfast_basis || "per_person_night",
         linkedRoomTypeIds: getLinkedRoomTypes(plan.id),
         target_property_id: plan.property_id,
       });
@@ -352,6 +361,9 @@ export default function PMSRatePlans() {
       requires_deposit: form.requires_deposit,
       base_rate: baseRate,
       pricing_model: form.pricing_model || "per_room",
+      breakfast_included: form.breakfast_included,
+      breakfast_amount: form.breakfast_included && form.breakfast_amount ? parseFloat(form.breakfast_amount) : null,
+      breakfast_basis: form.breakfast_included ? form.breakfast_basis : null,
     };
 
     let planId: string;
@@ -636,6 +648,39 @@ export default function PMSRatePlans() {
                     <div><Label>Min Stay (nights)</Label><Input type="number" value={form.min_stay} onChange={e => setForm(p => ({ ...p, min_stay: e.target.value }))} /></div>
                   </div>
                   <div className="flex items-center gap-2"><Switch checked={form.requires_deposit} onCheckedChange={v => setForm(p => ({ ...p, requires_deposit: v }))} /><Label>Requires Deposit</Label></div>
+                  <div className="rounded-md border p-3 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Switch checked={form.breakfast_included} onCheckedChange={v => setForm(p => ({ ...p, breakfast_included: v }))} />
+                      <Label>Breakfast included in rate</Label>
+                    </div>
+                    {form.breakfast_included && (
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <Label>Breakfast amount</Label>
+                          <Input
+                            type="number"
+                            value={form.breakfast_amount}
+                            onChange={e => setForm(p => ({ ...p, breakfast_amount: e.target.value }))}
+                            placeholder="e.g. 150"
+                          />
+                        </div>
+                        <div>
+                          <Label>Basis</Label>
+                          <Select value={form.breakfast_basis} onValueChange={v => setForm(p => ({ ...p, breakfast_basis: v }))}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="per_person_night">Per person / night</SelectItem>
+                              <SelectItem value="per_room_night">Per room / night</SelectItem>
+                              <SelectItem value="fixed">Fixed per stay</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <p className="col-span-2 text-xs text-muted-foreground">
+                          Split only — this amount is carved out of the rate as F&amp;B revenue and never added on top of the guest total.
+                        </p>
+                      </div>
+                    )}
+                  </div>
 
                   {/* Room type linking */}
                   <div className="space-y-2">
