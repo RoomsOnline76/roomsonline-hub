@@ -558,7 +558,17 @@ export default function PMSRooms() {
               Clear filters
             </Button>
           )}
+          <Button
+            variant={showCards ? "default" : "outline"}
+            size="sm"
+            className="h-7 text-xs px-2 ml-auto"
+            onClick={() => setShowCards((v) => !v)}
+          >
+            <LayoutGrid className="h-3 w-3 mr-1" />
+            {showCards ? "Hide room cards" : "Room cards"}
+          </Button>
         </div>
+
 
         {loading ? (
           <PmsPageSkeleton rows={4} />
