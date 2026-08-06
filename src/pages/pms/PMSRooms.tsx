@@ -57,6 +57,7 @@ export default function PMSRooms() {
 
   const [rooms, setRooms] = useState<PlanRoom[]>([]);
   const [roomTypes, setRoomTypes] = useState<PlanRoomType[]>([]);
+  const [allRoomTypes, setAllRoomTypes] = useState<PlanRoomType[]>([]);
   const [bookings, setBookings] = useState<RoomsBooking[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
