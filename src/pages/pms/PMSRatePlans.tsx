@@ -102,7 +102,7 @@ export default function PMSRatePlans() {
     pricing_model: "per_room",
     breakfast_included: false,
     breakfast_amount: "",
-    breakfast_basis: "per_person_night",
+    breakfast_basis: "per_person_per_night",
     linkedRoomTypeIds: [] as string[],
     target_property_id: "" as string,
   });
@@ -313,7 +313,7 @@ export default function PMSRatePlans() {
     roomTypes.find(rt => rt.id === id)?.name || id;
 
   const resetForm = () => {
-    setForm({ name: "", code: "", description: "", min_stay: "1", requires_deposit: false, base_rate: "", pricing_model: "per_room", breakfast_included: false, breakfast_amount: "", breakfast_basis: "per_person_night", linkedRoomTypeIds: [], target_property_id: "" });
+    setForm({ name: "", code: "", description: "", min_stay: "1", requires_deposit: false, base_rate: "", pricing_model: "per_room", breakfast_included: false, breakfast_amount: "", breakfast_basis: "per_person_per_night", linkedRoomTypeIds: [], target_property_id: "" });
     setEditingPlan(null);
   };
 
@@ -330,7 +330,7 @@ export default function PMSRatePlans() {
         pricing_model: plan.pricing_model || "per_room",
         breakfast_included: !!plan.breakfast_included,
         breakfast_amount: plan.breakfast_amount != null ? String(plan.breakfast_amount) : "",
-        breakfast_basis: plan.breakfast_basis || "per_person_night",
+        breakfast_basis: plan.breakfast_basis === "per_stay" ? "per_stay" : "per_person_per_night",
         linkedRoomTypeIds: getLinkedRoomTypes(plan.id),
         target_property_id: plan.property_id,
       });
@@ -669,9 +669,8 @@ export default function PMSRatePlans() {
                           <Select value={form.breakfast_basis} onValueChange={v => setForm(p => ({ ...p, breakfast_basis: v }))}>
                             <SelectTrigger><SelectValue /></SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="per_person_night">Per person / night</SelectItem>
-                              <SelectItem value="per_room_night">Per room / night</SelectItem>
-                              <SelectItem value="fixed">Fixed per stay</SelectItem>
+                              <SelectItem value="per_person_per_night">Per person / night</SelectItem>
+                              <SelectItem value="per_stay">Fixed per stay</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
