@@ -264,26 +264,39 @@ export function BookingDetailsGrid({
       return;
     }
 
-    // Sync room lines (replace-all keeps it simple and avoids orphan rows).
+    // Sync room lines in place so per-night rate overrides (which reference the
+    // room line id) are preserved: update existing, insert new, remove dropped.
     if (linesLoaded) {
-      await supabase.from("rolos_booking_rooms").delete().eq("booking_id", booking.id);
-      const rows = lines
-        .filter(l => l.room_id || l.room_type_id)
-        .map(l => ({
-          booking_id: booking.id,
-          room_id: l.room_id || null,
-          room_type_id: l.room_type_id || null,
-          rate_plan_id: l.rate_plan_id || null,
-          rate_charged: parseFloat(l.rate_charged) || 0,
-          nightly_rate: nights > 0 ? Math.round(((parseFloat(l.rate_charged) || 0) / nights) * 100) / 100 : null,
-          adults: parseInt(l.adults) || 1,
-          children: parseInt(l.children) || 0,
-          teens: parseInt(l.teens) || 0,
-          infants: parseInt(l.infants) || 0,
-        }));
-      if (rows.length) {
-        const { error: lineErr } = await supabase.from("rolos_booking_rooms").insert(rows as never);
-        if (lineErr) console.warn("Room line sync failed:", lineErr);
+      const payload = (l: RoomLineRow) => ({
+        room_id: l.room_id || null,
+        room_type_id: l.room_type_id || null,
+        rate_plan_id: l.rate_plan_id || null,
+        rate_charged: parseFloat(l.rate_charged) || 0,
+        nightly_rate: nights > 0 ? Math.round(((parseFloat(l.rate_charged) || 0) / nights) * 100) / 100 : null,
+        adults: parseInt(l.adults) || 1,
+        children: parseInt(l.children) || 0,
+        teens: parseInt(l.teens) || 0,
+        infants: parseInt(l.infants) || 0,
+      });
+
+      const keep = lines.filter(l => l.room_id || l.room_type_id);
+      const keepIds = keep.map(l => l.id).filter(Boolean) as string[];
+
+      const { data: existing } = await supabase
+        .from("rolos_booking_rooms")
+        .select("id")
+        .eq("booking_id", booking.id);
+      const stale = (existing || []).map(r => r.id).filter(id => !keepIds.includes(id));
+      if (stale.length) await supabase.from("rolos_booking_rooms").delete().in("id", stale);
+
+      for (const l of keep.filter(l => l.id)) {
+        const { error: upErr } = await supabase.from("rolos_booking_rooms").update(payload(l) as never).eq("id", l.id!);
+        if (upErr) console.warn("Room line update failed:", upErr);
+      }
+      const newRows = keep.filter(l => !l.id).map(l => ({ booking_id: booking.id, ...payload(l) }));
+      if (newRows.length) {
+        const { error: lineErr } = await supabase.from("rolos_booking_rooms").insert(newRows as never);
+        if (lineErr) console.warn("Room line insert failed:", lineErr);
       }
     }
 
