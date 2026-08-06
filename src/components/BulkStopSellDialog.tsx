@@ -11,6 +11,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { syncRestrictionsToChannels } from "@/lib/restrictionSync";
 import { format, eachDayOfInterval, getDay } from "date-fns";
 import {
   PropertyScopeSelector,
@@ -196,6 +197,10 @@ export function BulkStopSellDialog({
         }
       }
 
+      if (applyMode === "rooms") {
+        // Rate-plan closures have no Rentals United equivalent — they stay ROL'OS/direct only.
+        await syncRestrictionsToChannels(targetPropertyIds, "stop_sell");
+      }
       onRuleCreated?.();
       onOpenChange(false);
     } catch (error: any) {
@@ -222,7 +227,7 @@ export function BulkStopSellDialog({
         <Tabs value={applyMode} onValueChange={(v) => setApplyMode(v as ApplyMode)} className="mt-4">
           <TabsList className="grid grid-cols-2 w-full max-w-sm">
             <TabsTrigger value="rooms">Rooms</TabsTrigger>
-            <TabsTrigger value="rate_plan">Rate plan</TabsTrigger>
+            <TabsTrigger value="rate_plan">Rate plan (direct only)</TabsTrigger>
           </TabsList>
         </Tabs>
 
