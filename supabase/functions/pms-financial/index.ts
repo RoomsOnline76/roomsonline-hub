@@ -326,13 +326,28 @@ Deno.serve(async (req) => {
         }
 
         const total = subtotal + taxTotal;
-        const invoiceNumber = `INV-${Date.now().toString(36).toUpperCase()}`;
+        const prefix = documentKind === "pro_forma" ? "PF" : "INV";
+        const invoiceNumber = `${prefix}-${Date.now().toString(36).toUpperCase()}`;
+
+        // Only one live document of each kind per booking — supersede the previous one
+        if (invBookingId) {
+          await supabase
+            .from("rolos_invoices")
+            .update({ status: "cancelled" })
+            .eq("booking_id", invBookingId)
+            .eq("document_kind", documentKind)
+            .neq("status", "cancelled");
+        }
 
         const { data: invoice, error: invErr } = await supabase
           .from("rolos_invoices")
           .insert({
             folio_id: invFolioId,
             property_id: invPropId,
+            booking_id: invBookingId || null,
+            document_kind: documentKind,
+            invoice_to: invInvoiceTo || bookingRow?.guest_name || null,
+            reference: invReference || null,
             invoice_number: invoiceNumber,
             subtotal,
             tax_total: Math.round(taxTotal * 100) / 100,
@@ -357,7 +372,12 @@ Deno.serve(async (req) => {
           .eq("property_id", invPropId)
           .maybeSingle();
 
-        const html = generateInvoiceHTML(invoice, transactions || [], property, branding);
+        const html = generateInvoiceHTML(
+          { ...invoice, stay: bookingRow ? { check_in: bookingRow.check_in_date, check_out: bookingRow.check_out_date, guest: bookingRow.guest_name } : null },
+          transactions || [],
+          property,
+          branding,
+        );
 
         const filePath = `${invPropId}/${invoiceNumber}.html`;
         const encoder = new TextEncoder();
@@ -384,6 +404,38 @@ Deno.serve(async (req) => {
         }
 
         return new Response(JSON.stringify({ success: true, invoice }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // ==================== GET BOOKING INVOICES (+ fresh signed links) ====================
+      case "get_booking_invoices": {
+        const { booking_id: gbBookingId } = body;
+        if (!gbBookingId) {
+          return new Response(JSON.stringify({ error: "booking_id required" }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        const { data: docs, error: gbErr } = await supabase
+          .from("rolos_invoices")
+          .select("*")
+          .eq("booking_id", gbBookingId)
+          .neq("status", "cancelled")
+          .order("created_at", { ascending: false });
+        if (gbErr) throw gbErr;
+
+        // Refresh signed URLs so links never expire on the user
+        const refreshed = [];
+        for (const doc of docs || []) {
+          let url = doc.pdf_url as string | null;
+          const path = `${doc.property_id}/${doc.invoice_number}.html`;
+          const { data: signed } = await supabase.storage.from("invoices").createSignedUrl(path, 60 * 60 * 24 * 7);
+          if (signed?.signedUrl) url = signed.signedUrl;
+          refreshed.push({ ...doc, pdf_url: url });
+        }
+
+        return new Response(JSON.stringify({ success: true, invoices: refreshed }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
