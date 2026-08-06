@@ -1678,7 +1678,10 @@ export default function PMSDashboard() {
                 })}
               </CardContent>
             </Card>
+            )}
+            {openPanel === "departures" && (
             <Card className="border-purple-500/30">
+
               <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
                 <CardTitle className="text-sm flex items-center gap-2">
                   <LogOut className="h-4 w-4 text-purple-600" />
