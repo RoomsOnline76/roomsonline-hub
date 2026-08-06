@@ -8119,10 +8119,11 @@ export type Database = {
       rolos_folios: {
         Row: {
           balance: number | null
-          booking_id: string
+          booking_id: string | null
           closed_at: string | null
           created_at: string | null
           currency: string | null
+          group_id: string | null
           guest_name: string | null
           id: string
           property_id: string | null
@@ -8131,10 +8132,11 @@ export type Database = {
         }
         Insert: {
           balance?: number | null
-          booking_id: string
+          booking_id?: string | null
           closed_at?: string | null
           created_at?: string | null
           currency?: string | null
+          group_id?: string | null
           guest_name?: string | null
           id?: string
           property_id?: string | null
@@ -8143,10 +8145,11 @@ export type Database = {
         }
         Update: {
           balance?: number | null
-          booking_id?: string
+          booking_id?: string | null
           closed_at?: string | null
           created_at?: string | null
           currency?: string | null
+          group_id?: string | null
           guest_name?: string | null
           id?: string
           property_id?: string | null
@@ -8166,6 +8169,13 @@ export type Database = {
             columns: ["booking_id"]
             isOneToOne: true
             referencedRelation: "bookings_decrypted"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_folios_group_fk"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_groups"
             referencedColumns: ["id"]
           },
           {
@@ -8193,33 +8203,87 @@ export type Database = {
       }
       rolos_group_reservations: {
         Row: {
+          adults: number
+          arrival_date: string | null
+          block_id: string | null
           booking_id: string | null
+          children: number
           created_at: string
+          departure_date: string | null
           group_id: string
+          guest_email: string | null
           guest_name: string | null
+          guest_phone: string | null
           id: string
           reservation_id: string | null
+          room_preference: string | null
+          room_type_id: string | null
+          special_requests: string | null
           status: string
+          updated_at: string
         }
         Insert: {
+          adults?: number
+          arrival_date?: string | null
+          block_id?: string | null
           booking_id?: string | null
+          children?: number
           created_at?: string
+          departure_date?: string | null
           group_id: string
+          guest_email?: string | null
           guest_name?: string | null
+          guest_phone?: string | null
           id?: string
           reservation_id?: string | null
+          room_preference?: string | null
+          room_type_id?: string | null
+          special_requests?: string | null
           status?: string
+          updated_at?: string
         }
         Update: {
+          adults?: number
+          arrival_date?: string | null
+          block_id?: string | null
           booking_id?: string | null
+          children?: number
           created_at?: string
+          departure_date?: string | null
           group_id?: string
+          guest_email?: string | null
           guest_name?: string | null
+          guest_phone?: string | null
           id?: string
           reservation_id?: string | null
+          room_preference?: string | null
+          room_type_id?: string | null
+          special_requests?: string | null
           status?: string
+          updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "rolos_group_reservations_block_fk"
+            columns: ["block_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_group_room_blocks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_group_reservations_booking_fk"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_group_reservations_booking_fk"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings_decrypted"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "rolos_group_reservations_booking_id_fkey"
             columns: ["booking_id"]
@@ -8248,41 +8312,60 @@ export type Database = {
             referencedRelation: "rolos_reservations"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "rolos_group_reservations_room_type_fk"
+            columns: ["room_type_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_room_types"
+            referencedColumns: ["id"]
+          },
         ]
       }
       rolos_group_room_blocks: {
         Row: {
+          attrition_charged: boolean
           blocked_count: number
           created_at: string
           end_date: string
           group_id: string
           id: string
+          picked_up_count: number
+          property_id: string | null
           rate_override: number | null
           release_date: string | null
+          released_at: string | null
           room_type_id: string
           start_date: string
           status: string
         }
         Insert: {
+          attrition_charged?: boolean
           blocked_count?: number
           created_at?: string
           end_date: string
           group_id: string
           id?: string
+          picked_up_count?: number
+          property_id?: string | null
           rate_override?: number | null
           release_date?: string | null
+          released_at?: string | null
           room_type_id: string
           start_date: string
           status?: string
         }
         Update: {
+          attrition_charged?: boolean
           blocked_count?: number
           created_at?: string
           end_date?: string
           group_id?: string
           id?: string
+          picked_up_count?: number
+          property_id?: string | null
           rate_override?: number | null
           release_date?: string | null
+          released_at?: string | null
           room_type_id?: string
           start_date?: string
           status?: string
@@ -8307,17 +8390,23 @@ export type Database = {
       rolos_groups: {
         Row: {
           attrition_rate: number | null
+          billing_mode: string
           check_in_date: string | null
           check_out_date: string | null
           contact_email: string | null
           contact_name: string | null
           contact_phone: string | null
+          contract_ref: string | null
           created_at: string
           created_by: string | null
+          cutoff_date: string | null
+          deposit_amount: number | null
           group_type: string
           id: string
+          master_folio_id: string | null
           name: string
           notes: string | null
+          notes_json: Json
           property_id: string
           release_date: string | null
           status: Database["public"]["Enums"]["group_booking_status"]
@@ -8326,17 +8415,23 @@ export type Database = {
         }
         Insert: {
           attrition_rate?: number | null
+          billing_mode?: string
           check_in_date?: string | null
           check_out_date?: string | null
           contact_email?: string | null
           contact_name?: string | null
           contact_phone?: string | null
+          contract_ref?: string | null
           created_at?: string
           created_by?: string | null
+          cutoff_date?: string | null
+          deposit_amount?: number | null
           group_type?: string
           id?: string
+          master_folio_id?: string | null
           name: string
           notes?: string | null
+          notes_json?: Json
           property_id: string
           release_date?: string | null
           status?: Database["public"]["Enums"]["group_booking_status"]
@@ -8345,17 +8440,23 @@ export type Database = {
         }
         Update: {
           attrition_rate?: number | null
+          billing_mode?: string
           check_in_date?: string | null
           check_out_date?: string | null
           contact_email?: string | null
           contact_name?: string | null
           contact_phone?: string | null
+          contract_ref?: string | null
           created_at?: string
           created_by?: string | null
+          cutoff_date?: string | null
+          deposit_amount?: number | null
           group_type?: string
           id?: string
+          master_folio_id?: string | null
           name?: string
           notes?: string | null
+          notes_json?: Json
           property_id?: string
           release_date?: string | null
           status?: Database["public"]["Enums"]["group_booking_status"]
@@ -8363,6 +8464,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "rolos_groups_master_folio_fk"
+            columns: ["master_folio_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_folios"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "rolos_groups_property_id_fkey"
             columns: ["property_id"]
@@ -13276,6 +13384,36 @@ export type Database = {
         Returns: boolean
       }
       nextval_subscription_invoice_number: { Args: never; Returns: number }
+      rolos_adjust_booked_inventory: {
+        Args: {
+          _delta: number
+          _end_date: string
+          _property_id: string
+          _room_type_id: string
+          _start_date: string
+        }
+        Returns: undefined
+      }
+      rolos_apply_block_inventory: {
+        Args: {
+          _delta: number
+          _end_date: string
+          _property_id: string
+          _room_type_id: string
+          _start_date: string
+        }
+        Returns: undefined
+      }
+      rolos_convert_block_to_booked: {
+        Args: {
+          _end_date: string
+          _property_id: string
+          _room_type_id: string
+          _start_date: string
+          _units: number
+        }
+        Returns: undefined
+      }
       search_audit_logs: {
         Args: {
           date_from?: string
