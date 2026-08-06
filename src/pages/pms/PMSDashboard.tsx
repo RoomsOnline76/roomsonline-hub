@@ -2180,7 +2180,9 @@ export default function PMSDashboard() {
       {/* Manual Booking Dialog */}
       <ManualBookingDialog
         open={manualBookingOpen}
-        onOpenChange={setManualBookingOpen}
+        onOpenChange={(next) => { setManualBookingOpen(next); if (!next) setRoomPlanPrefill(null); }}
+        initialValues={roomPlanPrefill}
+
         propertyId={propertyId || ""}
         roomTypes={roomTypes}
         rooms={rooms}
