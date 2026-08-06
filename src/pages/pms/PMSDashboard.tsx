@@ -109,7 +109,9 @@ function isWeekendDay(date: Date): boolean {
   return day === 0 || day === 6;
 }
 
-type ViewMode = "week" | "month";
+type ViewMode = "roomplan" | "week" | "month";
+type DashboardPanel = "arrivals" | "departures" | "recent" | null;
+
 type BookingDetailTab = "details" | "folio" | "invoice" | "notes";
 
 interface BookingRow {
