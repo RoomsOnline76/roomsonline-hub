@@ -206,6 +206,9 @@ export async function ingestRuReservation(
         .update({
           status: 'cancelled',
           cancellation_reason: `Cancelled via Rentals United (${opts.source})`,
+          // Channel-side cancellation, so the Reports mix can separate it from
+          // guest-requested and operator-side losses.
+          cancellation_reason_category: 'channel_cancelled',
         })
         .eq('id', existing.id);
       if (r.dateFrom && r.dateTo && !opts.skipAvailability) {

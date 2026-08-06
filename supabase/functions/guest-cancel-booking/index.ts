@@ -202,6 +202,9 @@ Deno.serve(async (req) => {
     // Update booking
     const updateData: Record<string, any> = {
       cancellation_reason: `[Guest self-service] ${reason.trim()}`,
+      // Self-service cancellations are always guest-initiated — categorise them
+      // so the Reports cancellation mix is complete.
+      cancellation_reason_category: "guest_request",
       last_modified_at: new Date().toISOString(),
     };
 

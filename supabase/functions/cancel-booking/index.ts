@@ -1,6 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { cancelRuReservation, isRuBooking, isRuLead } from "../_shared/ruBookingSync.ts";
 import { queueRuAriDelta } from "../_shared/ruAriDelta.ts";
+import { CANCELLATION_REASON_CATEGORIES } from "../_shared/revenueStatuses.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -11,6 +12,8 @@ const corsHeaders = {
 interface CancelRequest {
   booking_id: string;
   reason: string;
+  /** Structured category used for cancellation analytics. */
+  reason_category?: string;
   cancel_rooms?: number[]; // Optional: specific room indices to cancel
   /** RU CancelTypeID: 1 = property provider (default), 2 = guest. */
   cancel_type_id?: number;
@@ -54,7 +57,7 @@ Deno.serve(async (req) => {
     const user = { id: claimsData.claims.sub };
 
     const body: CancelRequest = await req.json();
-    const { booking_id, reason, cancel_rooms, cancel_type_id } = body;
+    const { booking_id, reason, reason_category, cancel_rooms, cancel_type_id } = body;
 
 
     if (!booking_id) {
@@ -228,6 +231,16 @@ Deno.serve(async (req) => {
     // S5: Update local database
     const updateData: Record<string, any> = {
       cancellation_reason: reason,
+      cancellation_reason_category: CANCELLATION_REASON_CATEGORIES.includes(
+        String(reason_category)
+      )
+        ? reason_category
+        // RU CancelTypeID 2 means the guest asked; 1 means the property did.
+        : cancel_type_id === 2
+        ? "guest_request"
+        : cancel_type_id === 1
+        ? "property_operator"
+        : "other",
       last_modified_at: new Date().toISOString(),
       modified_by: user.id,
     };

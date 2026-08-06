@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { BarChart3, BedDouble, Percent, RefreshCw, Download, Loader2, Receipt, LayoutGrid, Building2 } from "lucide-react";
+import { BarChart3, BedDouble, Percent, RefreshCw, Download, Loader2, Receipt, LayoutGrid, Building2, XCircle } from "lucide-react";
 import { PMSFoliosManager } from "@/components/pms/PMSFoliosManager";
 import { CrossPropertyPipelineCard } from "@/components/pms/CrossPropertyPipelineCard";
 import { supabase } from "@/integrations/supabase/client";
@@ -19,6 +19,7 @@ import {
   differenceInDays, parseISO, eachDayOfInterval, eachMonthOfInterval,
 } from "date-fns";
 import { PmsPageSkeleton } from "@/components/pms/PmsPageSkeleton";
+import { cancellationCategoryLabel } from "@/lib/revenueStatuses";
 
 
 // ── Types ────────────────────────────────────────────────────────────────
@@ -32,6 +33,7 @@ interface ReportBooking {
   created_at: string | null;
   room_type_id: string | null;
   booking_channel: string | null;
+  cancellation_reason_category: string | null;
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────
@@ -95,7 +97,7 @@ export default function PMSReports() {
       if (activePropertyIds.length === 0) return { items: [] as ReportBooking[], nextOffset: null };
       const { data, count } = await supabase
         .from("bookings")
-        .select("id, check_in_date, check_out_date, total_price, status, created_at, room_type_id, booking_channel", { count: "exact" })
+        .select("id, check_in_date, check_out_date, total_price, status, created_at, room_type_id, booking_channel, cancellation_reason_category", { count: "exact" })
         .in("property_id", activePropertyIds)
         .gte("check_in_date", fromStr)
         .lte("check_in_date", toStr)
@@ -168,6 +170,39 @@ export default function PMSReports() {
       cancellationRate,
     };
   }, [bookings, totalRooms, daysInPeriod]);
+
+  // ── Cancellation analysis ─────────────────────────────────────────────
+  // Cancelled bookings are stripped out of revenue, so the lost value and the
+  // reason mix are the only way to see why the money went away.
+  const cancellationAnalysis = useMemo(() => {
+    const cancelled = bookings.filter((b) => b.status === "cancelled");
+    if (cancelled.length === 0) return null;
+
+    const lostValue = cancelled.reduce((s, b) => s + Number(b.total_price || 0), 0);
+
+    const byReason = new Map<string, { count: number; value: number }>();
+    const byChannel = new Map<string, { count: number; value: number }>();
+    for (const b of cancelled) {
+      const reasonKey = b.cancellation_reason_category || "uncategorised";
+      const reason = byReason.get(reasonKey) || { count: 0, value: 0 };
+      reason.count += 1;
+      reason.value += Number(b.total_price || 0);
+      byReason.set(reasonKey, reason);
+
+      const channelKey = b.booking_channel || "direct";
+      const channel = byChannel.get(channelKey) || { count: 0, value: 0 };
+      channel.count += 1;
+      channel.value += Number(b.total_price || 0);
+      byChannel.set(channelKey, channel);
+    }
+
+    const sort = (m: Map<string, { count: number; value: number }>) =>
+      Array.from(m.entries())
+        .map(([key, v]) => ({ key, ...v }))
+        .sort((a, b) => b.count - a.count);
+
+    return { total: cancelled.length, lostValue, reasons: sort(byReason), channels: sort(byChannel) };
+  }, [bookings]);
 
   // ── Chart data (daily or monthly) ─────────────────────────────────────
 
@@ -343,11 +378,43 @@ export default function PMSReports() {
           </Card>
         </div>
 
-        {/* Cancellation stat */}
-        {stats.cancelledBookings > 0 && (
+        {/* Cancellation analysis */}
+        {cancellationAnalysis && (
           <Card className="border-destructive/30">
-            <CardContent className="py-3 flex items-center gap-3">
-              <span className="text-xs text-destructive font-medium">Cancellations: {stats.cancelledBookings} ({stats.cancellationRate.toFixed(1)}%)</span>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <XCircle className="h-4 w-4 text-destructive" />
+                Cancellations
+              </CardTitle>
+              <p className="text-xs text-muted-foreground">
+                {cancellationAnalysis.total} cancelled ({stats.cancellationRate.toFixed(1)}% of all
+                bookings) — R{fmt(cancellationAnalysis.lostValue)} of value lost, already excluded
+                from revenue above.
+              </p>
+            </CardHeader>
+            <CardContent className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-1.5">
+                <p className="text-xs font-medium text-muted-foreground">By reason</p>
+                {cancellationAnalysis.reasons.map((r) => (
+                  <div key={r.key} className="flex items-center justify-between text-xs">
+                    <span>{cancellationCategoryLabel(r.key)}</span>
+                    <span className="text-muted-foreground">
+                      {r.count} · R{fmt(r.value)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <div className="space-y-1.5">
+                <p className="text-xs font-medium text-muted-foreground">By channel</p>
+                {cancellationAnalysis.channels.map((c) => (
+                  <div key={c.key} className="flex items-center justify-between text-xs">
+                    <span className="capitalize">{c.key.replace(/_/g, " ")}</span>
+                    <span className="text-muted-foreground">
+                      {c.count} · R{fmt(c.value)}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </CardContent>
           </Card>
         )}

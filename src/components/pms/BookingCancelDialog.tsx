@@ -15,6 +15,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { extractFunctionError } from "@/lib/functionError";
+import {
+  CANCELLATION_REASON_CATEGORIES,
+  type CancellationReasonCategory,
+} from "@/lib/revenueStatuses";
 
 interface Props {
   open: boolean;
@@ -39,6 +43,7 @@ export function BookingCancelDialog({
 }: Props) {
   const [reason, setReason] = useState("");
   const [cancelledBy, setCancelledBy] = useState<"1" | "2">("2");
+  const [category, setCategory] = useState<CancellationReasonCategory>("guest_request");
   const [busy, setBusy] = useState(false);
 
   const submit = async () => {
@@ -52,6 +57,7 @@ export function BookingCancelDialog({
         body: {
           booking_id: bookingId,
           reason: reason.trim(),
+          reason_category: category,
           cancel_type_id: Number(cancelledBy),
         },
       });
@@ -104,6 +110,28 @@ export function BookingCancelDialog({
               </p>
             </div>
           )}
+
+          <div className="space-y-1.5">
+            <Label className="text-xs">Reason category</Label>
+            <Select
+              value={category}
+              onValueChange={(v) => setCategory(v as CancellationReasonCategory)}
+            >
+              <SelectTrigger className="h-9">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {CANCELLATION_REASON_CATEGORIES.map((c) => (
+                  <SelectItem key={c.value} value={c.value}>
+                    {c.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-[11px] text-muted-foreground">
+              Used for the cancellation analysis on Reports.
+            </p>
+          </div>
 
           <div className="space-y-1.5">
             <Label className="text-xs">Reason</Label>

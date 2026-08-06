@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { ALL_REVENUE_PAYMENT_STATUSES, isRevenuePaymentStatus } from "../_shared/revenueStatuses.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -54,7 +55,7 @@ Deno.serve(async (req) => {
         .gte("check_in_date", startDate)
         .lte("check_in_date", endDate)
         .in("status", ["confirmed", "completed"])
-        .in("payment_status", ["paid", "partially_paid", "deposit_paid"]);
+        .in("payment_status", ALL_REVENUE_PAYMENT_STATUSES);
 
       if (bookingsError) throw bookingsError;
 
@@ -70,7 +71,7 @@ Deno.serve(async (req) => {
         return true;
       });
 
-      const paidBookings = deduped.filter(b => b.payment_status === "paid");
+      const paidBookings = deduped.filter(b => isRevenuePaymentStatus(b.payment_status, false));
       const gbv = paidBookings.reduce((s, b) => s + (b.total_price || 0), 0);
       const rolRevenue = paidBookings.reduce((s, b) => s + (b.calculated_commission || 0), 0);
       const avgCommissionRate = gbv > 0 ? (rolRevenue / gbv) * 100 : 10;
