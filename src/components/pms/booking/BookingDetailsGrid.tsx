@@ -145,6 +145,41 @@ export function BookingDetailsGrid({
 
   const set = (key: keyof typeof form, value: string) => setForm(p => ({ ...p, [key]: value }));
 
+  // ───── Linked CRM profiles + segmentation ─────
+  const crmScope = useCrmScopeForProperty(booking.property_id);
+  const { accounts, isPortfolioScoped, saveAccount } = useCrmAccounts(crmScope);
+
+  const [crm, setCrm] = useState<BookerSegmentationValue>({
+    booker_is_guest: booking.booker_is_guest ?? true,
+    booker_name: booking.booker_name || "",
+    booker_email: booking.booker_email || "",
+    booker_phone: booking.booker_phone || "",
+    company_account_id: booking.company_account_id || null,
+    agent_account_id: booking.agent_account_id || null,
+    source_account_id: booking.source_account_id || null,
+    market_segment: booking.market_segment || "",
+    comm_channel: booking.comm_channel || "",
+  });
+  const [invoiceTo, setInvoiceTo] = useState({
+    invoice_to_name: booking.invoice_to_name || "",
+    invoice_to_vat: booking.invoice_to_vat || "",
+    invoice_to_address: booking.invoice_to_address || "",
+  });
+
+  /** Copy the company's billing identity onto the booking for invoicing. */
+  const applyCompany = (a: CrmAccount | null) => {
+    if (!a) return;
+    setInvoiceTo({
+      invoice_to_name: a.name,
+      invoice_to_vat: a.vat_number || "",
+      invoice_to_address: [a.address_line1, a.address_line2, a.city, a.postal_code, a.country]
+        .filter(Boolean)
+        .join(", "),
+    });
+    setForm(p => ({ ...p, guest_company: a.name }));
+  };
+
+
   const nights = useMemo(() => {
     try {
       return Math.max(1, differenceInDays(parseISO(form.check_out_date), parseISO(form.check_in_date)));
