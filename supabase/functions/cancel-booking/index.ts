@@ -12,6 +12,8 @@ const corsHeaders = {
 interface CancelRequest {
   booking_id: string;
   reason: string;
+  /** Structured category used for cancellation analytics. */
+  reason_category?: string;
   cancel_rooms?: number[]; // Optional: specific room indices to cancel
   /** RU CancelTypeID: 1 = property provider (default), 2 = guest. */
   cancel_type_id?: number;
