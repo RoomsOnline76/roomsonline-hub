@@ -76,6 +76,8 @@ import {
   Receipt,
   MessageSquareText,
   Loader2,
+  Info,
+
 } from "lucide-react";
 import { toast } from "sonner";
 
