@@ -407,22 +407,31 @@ Deno.serve(async (req) => {
         }
 
         const newPickedUp = (block.picked_up_count || 0) + 1;
-        await supabase
+        const { error: counterErr } = await supabase
           .from("rolos_group_room_blocks")
           .update({
             picked_up_count: newPickedUp,
             status: newPickedUp >= (block.blocked_count || 0) ? "picked_up" : "blocked",
           })
           .eq("id", p.block_id);
+        if (counterErr) {
+          console.error("pickup: block counter update failed", counterErr);
+          throw counterErr;
+        }
 
         // Blocked -> booked: the cache was already reduced when the block was created.
-        await supabase.rpc("rolos_convert_block_to_booked", {
+        const { error: convertErr } = await supabase.rpc("rolos_convert_block_to_booked", {
           _property_id: p.property_id,
           _room_type_id: block.room_type_id,
           _start_date: arrival,
           _end_date: departure,
           _units: 1,
         });
+        if (convertErr) {
+          console.error("pickup: inventory convert failed", convertErr);
+          throw convertErr;
+        }
+
 
         return json({ success: true, booking_id: booking.id });
       }
