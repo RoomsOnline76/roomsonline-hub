@@ -13414,6 +13414,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      rolos_room_type_capacity: {
+        Args: { _property_id: string; _room_type_id: string }
+        Returns: number
+      }
       search_audit_logs: {
         Args: {
           date_from?: string
