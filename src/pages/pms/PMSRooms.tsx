@@ -70,6 +70,8 @@ export default function PMSRooms() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [sleepsFilter, setSleepsFilter] = useState<string>("any");
+  const [showCards, setShowCards] = useState(false);
+
 
   const dates = useMemo(
     () => Array.from({ length: PLAN_NIGHTS }, (_, i) => addDays(anchorDate, i)),
@@ -556,7 +558,17 @@ export default function PMSRooms() {
               Clear filters
             </Button>
           )}
+          <Button
+            variant={showCards ? "default" : "outline"}
+            size="sm"
+            className="h-7 text-xs px-2 ml-auto"
+            onClick={() => setShowCards((v) => !v)}
+          >
+            <LayoutGrid className="h-3 w-3 mr-1" />
+            {showCards ? "Hide room cards" : "Room cards"}
+          </Button>
         </div>
+
 
         {loading ? (
           <PmsPageSkeleton rows={4} />
@@ -591,16 +603,19 @@ export default function PMSRooms() {
                   <RoomTypePlanGrid
                     dates={dates}
                     roomTypes={planTypes}
-                    rooms={pRooms}
+                    rooms={pRooms.filter(matchesFilters)}
                     bookings={pBookings}
                     onSelectBooking={setSelectedBooking}
                     onShiftWindow={shiftWindow}
                     onToday={goToday}
                     title={isPortfolio ? `${property.name} · ${planTitle}` : planTitle}
+                    displayStatusFor={displayStatusForRoom}
+                    onStatusChange={handleStatusChange}
+                    onEditRoom={openEditDialog}
                   />
 
                   {pTypes.length > 0 && (
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       {Array.from(grouped.entries()).map(([name, count]) => (
                         <Badge key={name} variant="outline" className="text-xs">
                           {name}: {count} room{count !== 1 ? "s" : ""}
@@ -620,7 +635,7 @@ export default function PMSRooms() {
                         </p>
                       </CardContent>
                     </Card>
-                  ) : filteredRooms.length === 0 ? (
+                  ) : !showCards ? null : filteredRooms.length === 0 ? (
                     <Card>
                       <CardContent className="py-6 text-center text-sm text-muted-foreground">
                         No rooms match the current filters.
@@ -628,6 +643,7 @@ export default function PMSRooms() {
                     </Card>
                   ) : (
                     renderRoomGrid(filteredRooms)
+
                   )}
                 </section>
               );
