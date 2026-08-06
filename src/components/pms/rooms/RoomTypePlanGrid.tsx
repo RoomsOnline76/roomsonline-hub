@@ -154,17 +154,29 @@ export function RoomTypePlanGrid({
 
           {/* Rows */}
           {rows.map((row) => (
-            <div key={row.roomType.id} className="flex border-b border-border last:border-b-0 hover:bg-muted/20">
-              <div
-                className="shrink-0 sticky left-0 z-10 bg-card px-2 py-1 flex items-center justify-between gap-2"
+            <div key={row.roomType.id}>
+            <div className="flex border-b border-border hover:bg-muted/20">
+              <button
+                type="button"
+                onClick={() => toggleType(row.roomType.id)}
+                className="shrink-0 sticky left-0 z-10 bg-card px-2 py-1 flex items-center justify-between gap-2 text-left"
                 style={{ width: LABEL_W }}
+                aria-expanded={!!expanded[row.roomType.id]}
               >
-                <span className="text-xs font-medium truncate" title={row.roomType.name}>{row.roomType.name}</span>
+                <span className="flex min-w-0 items-center gap-1">
+                  {expanded[row.roomType.id] ? (
+                    <ChevronUp className="h-3 w-3 shrink-0 text-muted-foreground" />
+                  ) : (
+                    <ChevronDown className="h-3 w-3 shrink-0 text-muted-foreground" />
+                  )}
+                  <span className="text-xs font-medium truncate" title={row.roomType.name}>{row.roomType.name}</span>
+                </span>
                 <span className="text-xs font-semibold tabular-nums text-muted-foreground shrink-0">
                   {row.units}
                   {row.blocked > 0 && <span className="text-destructive"> −{row.blocked}</span>}
                 </span>
-              </div>
+              </button>
+
               {row.cells.map((cell) => {
                 const isToday = isSameDay(cell.date, today);
                 return (
