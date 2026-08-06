@@ -5327,6 +5327,7 @@ export type Database = {
           id: string
           internal_code: string | null
           is_active: boolean | null
+          is_included_in_rate: boolean
           is_refundable: boolean | null
           max_cap: number | null
           max_nights: number | null
@@ -5340,6 +5341,7 @@ export type Database = {
           rate_type_ids: string[] | null
           refund_timing: string | null
           refund_type: string | null
+          revenue_stream: string
           room_charge_overrides: Json | null
           room_type_ids: string[] | null
           updated_at: string | null
@@ -5359,6 +5361,7 @@ export type Database = {
           id?: string
           internal_code?: string | null
           is_active?: boolean | null
+          is_included_in_rate?: boolean
           is_refundable?: boolean | null
           max_cap?: number | null
           max_nights?: number | null
@@ -5372,6 +5375,7 @@ export type Database = {
           rate_type_ids?: string[] | null
           refund_timing?: string | null
           refund_type?: string | null
+          revenue_stream?: string
           room_charge_overrides?: Json | null
           room_type_ids?: string[] | null
           updated_at?: string | null
@@ -5391,6 +5395,7 @@ export type Database = {
           id?: string
           internal_code?: string | null
           is_active?: boolean | null
+          is_included_in_rate?: boolean
           is_refundable?: boolean | null
           max_cap?: number | null
           max_nights?: number | null
@@ -5404,6 +5409,7 @@ export type Database = {
           rate_type_ids?: string[] | null
           refund_timing?: string | null
           refund_type?: string | null
+          revenue_stream?: string
           room_charge_overrides?: Json | null
           room_type_ids?: string[] | null
           updated_at?: string | null
@@ -7006,6 +7012,7 @@ export type Database = {
           refund_status: string | null
           refund_timing: string | null
           refund_transaction_id: string | null
+          revenue_stream: string
         }
         Insert: {
           amount: number
@@ -7023,6 +7030,7 @@ export type Database = {
           refund_status?: string | null
           refund_timing?: string | null
           refund_transaction_id?: string | null
+          revenue_stream?: string
         }
         Update: {
           amount?: number
@@ -7040,6 +7048,7 @@ export type Database = {
           refund_status?: string | null
           refund_timing?: string | null
           refund_transaction_id?: string | null
+          revenue_stream?: string
         }
         Relationships: [
           {
@@ -8062,6 +8071,7 @@ export type Database = {
           folio_id: string
           id: string
           reference: string | null
+          revenue_stream: string
           tax_amount: number | null
           transaction_type: string
         }
@@ -8073,6 +8083,7 @@ export type Database = {
           folio_id: string
           id?: string
           reference?: string | null
+          revenue_stream?: string
           tax_amount?: number | null
           transaction_type: string
         }
@@ -8084,6 +8095,7 @@ export type Database = {
           folio_id?: string
           id?: string
           reference?: string | null
+          revenue_stream?: string
           tax_amount?: number | null
           transaction_type?: string
         }
@@ -9597,6 +9609,10 @@ export type Database = {
           adult_1_rate: number | null
           adult_2_rate: number | null
           base_rate: number | null
+          breakfast_amount: number | null
+          breakfast_basis: string | null
+          breakfast_charge_id: string | null
+          breakfast_included: boolean
           child_rate: number | null
           closed_to_arrival: boolean[] | null
           closed_to_departure: boolean[] | null
@@ -9622,6 +9638,10 @@ export type Database = {
           adult_1_rate?: number | null
           adult_2_rate?: number | null
           base_rate?: number | null
+          breakfast_amount?: number | null
+          breakfast_basis?: string | null
+          breakfast_charge_id?: string | null
+          breakfast_included?: boolean
           child_rate?: number | null
           closed_to_arrival?: boolean[] | null
           closed_to_departure?: boolean[] | null
@@ -9647,6 +9667,10 @@ export type Database = {
           adult_1_rate?: number | null
           adult_2_rate?: number | null
           base_rate?: number | null
+          breakfast_amount?: number | null
+          breakfast_basis?: string | null
+          breakfast_charge_id?: string | null
+          breakfast_included?: boolean
           child_rate?: number | null
           closed_to_arrival?: boolean[] | null
           closed_to_departure?: boolean[] | null
@@ -9669,6 +9693,13 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "rolos_rate_plans_breakfast_charge_id_fkey"
+            columns: ["breakfast_charge_id"]
+            isOneToOne: false
+            referencedRelation: "property_charges"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "rolos_rate_plans_property_id_fkey"
             columns: ["property_id"]
