@@ -36,8 +36,9 @@ interface PropertyFormIntegrationsTabProps {
 export function PropertyFormIntegrationsTab({ property }: PropertyFormIntegrationsTabProps) {
   const navigate = useNavigate();
   const wl = useWhitelabel(property.id);
-  const { profile } = useAuth();
-  const isAdmin = profile?.role === "admin" || profile?.role === "dev" || profile?.role === "fearless_leader";
+  // Role comes from user_roles via useAuth — never from the editable profiles row.
+  const { isAdmin } = useAuth();
+
   const [ruReport, setRuReport] = useState<RuReadinessReport | null>(null);
 
   return (
