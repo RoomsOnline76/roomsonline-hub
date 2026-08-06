@@ -43,8 +43,6 @@ export function bookingNights(booking: RoomPlanBookingLike): number {
  */
 export function getBarGeometry(booking: RoomPlanBookingLike, dates: Date[]): BarGeometry | null {
   if (dates.length === 0) return null;
-  const windowStart = dates[0];
-  const windowEnd = dates[dates.length - 1];
   let checkIn: Date;
   let checkOut: Date;
   try {
@@ -55,17 +53,25 @@ export function getBarGeometry(booking: RoomPlanBookingLike, dates: Date[]): Bar
   }
   // A stay occupies the nights [checkIn, checkOut) — the checkout day itself is free.
   const lastNight = differenceInCalendarDays(checkOut, checkIn) <= 0 ? checkIn : new Date(checkOut.getTime() - 86400000);
-  if (lastNight < windowStart || checkIn > windowEnd) return null;
 
-  const rawStart = differenceInCalendarDays(checkIn, windowStart);
-  const rawLastNight = differenceInCalendarDays(lastNight, windowStart);
-  const startCol = Math.max(0, rawStart);
-  const endCol = Math.min(dates.length - 1, rawLastNight);
+  // Columns are resolved by looking the nights up in the visible date list, so
+  // the maths still holds when days are filtered out (e.g. "booked days only").
+  let startCol = -1;
+  let endCol = -1;
+  for (let i = 0; i < dates.length; i += 1) {
+    const day = dates[i];
+    if (differenceInCalendarDays(day, checkIn) >= 0 && differenceInCalendarDays(day, lastNight) <= 0) {
+      if (startCol === -1) startCol = i;
+      endCol = i;
+    }
+  }
+  if (startCol === -1) return null;
+
   return {
     startCol,
     cols: Math.max(1, endCol - startCol + 1),
-    clippedStart: rawStart < 0,
-    clippedEnd: rawLastNight > dates.length - 1,
+    clippedStart: differenceInCalendarDays(checkIn, dates[0]) < 0,
+    clippedEnd: differenceInCalendarDays(lastNight, dates[dates.length - 1]) > 0,
   };
 }
 
