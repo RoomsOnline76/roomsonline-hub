@@ -80,6 +80,7 @@ interface PlanRow {
   roomTypeId: string;
   label: string;
   sublabel?: string;
+  hideLabel?: boolean;
   bookings: RoomPlanBooking[];
 }
 
