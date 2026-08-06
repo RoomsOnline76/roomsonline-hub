@@ -213,14 +213,6 @@ export function BookingDetailsGrid({
     return rooms.filter(r => (!roomTypeId || r.room_type_id === roomTypeId) && !taken.has(r.id));
   };
 
-  const roomTypeOptions = useMemo(() => {
-    const seen = new Map<string, string>();
-    rooms.forEach(r => {
-      if (r.room_type_id && !seen.has(r.room_type_id)) seen.set(r.room_type_id, r.room_type_id);
-    });
-    return Array.from(seen.keys());
-  }, [rooms]);
-
   const handleSave = async () => {
     if (!form.guest_name || !form.guest_email) {
       toast.error("Guest name and email are required");
