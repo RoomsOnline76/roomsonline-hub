@@ -93,6 +93,10 @@ export interface PlanRow {
 /**
  * Builds the Room Type Plan matrix: one row per room type, one cell per night.
  * Free units = sellable units − reservations occupying that night for the type.
+ *
+ * Room types with no physical units are skipped — they are archived / duplicate
+ * leftovers rather than sellable inventory. When the property has no units at
+ * all (fresh setup) every type is kept so the plan is not empty.
  */
 export function buildRoomTypePlan(
   dates: Date[],
@@ -101,8 +105,14 @@ export function buildRoomTypePlan(
   bookings: RoomsBooking[]
 ): PlanRow[] {
   const roomById = new Map(rooms.map((r) => [r.id, r]));
+  const hasAnyUnits = rooms.length > 0;
 
-  return roomTypes.map((roomType) => {
+  const visibleTypes = hasAnyUnits
+    ? roomTypes.filter((rt) => rooms.some((r) => r.room_type_id === rt.id))
+    : roomTypes;
+
+  return visibleTypes.map((roomType) => {
+
     const typeRooms = rooms.filter((r) => r.room_type_id === roomType.id);
     const blocked = typeRooms.filter((r) => BLOCKED_ROOM_STATUSES.includes(r.status)).length;
     const sellable = Math.max(0, typeRooms.length - blocked);
