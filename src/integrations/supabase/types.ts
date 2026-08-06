@@ -6805,6 +6805,95 @@ export type Database = {
           },
         ]
       }
+      rolos_booking_room_nights: {
+        Row: {
+          booking_id: string
+          booking_room_id: string
+          created_at: string
+          id: string
+          is_override: boolean
+          property_id: string
+          rate: number
+          rate_plan_id: string | null
+          stay_date: string
+          updated_at: string
+        }
+        Insert: {
+          booking_id: string
+          booking_room_id: string
+          created_at?: string
+          id?: string
+          is_override?: boolean
+          property_id: string
+          rate?: number
+          rate_plan_id?: string | null
+          stay_date: string
+          updated_at?: string
+        }
+        Update: {
+          booking_id?: string
+          booking_room_id?: string
+          created_at?: string
+          id?: string
+          is_override?: boolean
+          property_id?: string
+          rate?: number
+          rate_plan_id?: string | null
+          stay_date?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rolos_booking_room_nights_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_booking_room_nights_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings_decrypted"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_booking_room_nights_booking_room_id_fkey"
+            columns: ["booking_room_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_booking_rooms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_booking_room_nights_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "rolos_booking_room_nights_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_booking_room_nights_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_booking_room_nights_rate_plan_id_fkey"
+            columns: ["rate_plan_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_rate_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rolos_booking_rooms: {
         Row: {
           adults: number

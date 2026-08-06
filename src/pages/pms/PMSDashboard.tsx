@@ -3280,7 +3280,7 @@ function BookingDetail({
 
           {isEditing ? (
             <BookingDetailsGrid
-              booking={b as unknown as BookingDetailsGridBooking}
+              booking={{ ...(b as unknown as BookingDetailsGridBooking), property_id: propertyId }}
               rooms={rooms}
               onSaved={() => { setIsEditing(false); onSaved(); }}
               onOpenFolio={() => onTabChange("folio")}

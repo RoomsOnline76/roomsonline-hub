@@ -9,7 +9,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { BedDouble, Plus, Trash2, Save, User, Receipt, StickyNote } from "lucide-react";
+import { BedDouble, Plus, Trash2, Save, User, Receipt, StickyNote, CalendarRange } from "lucide-react";
+import { ViewRatesDialog } from "./ViewRatesDialog";
 
 export interface BookingDetailsGridBooking {
   id: string;
@@ -37,6 +38,7 @@ export interface BookingDetailsGridBooking {
   booking_channel?: string | null;
   rolos_room_ids?: string[] | null;
   created_at?: string | null;
+  property_id?: string | null;
 }
 
 interface RoomOption {
@@ -101,6 +103,7 @@ export function BookingDetailsGrid({
   onOpenInvoice?: () => void;
 }) {
   const [saving, setSaving] = useState(false);
+  const [viewRatesOpen, setViewRatesOpen] = useState(false);
   const [lines, setLines] = useState<RoomLineRow[]>([]);
   const [linesLoaded, setLinesLoaded] = useState(false);
   const [account, setAccount] = useState({ extras: 0, payments: 0 });
@@ -261,26 +264,39 @@ export function BookingDetailsGrid({
       return;
     }
 
-    // Sync room lines (replace-all keeps it simple and avoids orphan rows).
+    // Sync room lines in place so per-night rate overrides (which reference the
+    // room line id) are preserved: update existing, insert new, remove dropped.
     if (linesLoaded) {
-      await supabase.from("rolos_booking_rooms").delete().eq("booking_id", booking.id);
-      const rows = lines
-        .filter(l => l.room_id || l.room_type_id)
-        .map(l => ({
-          booking_id: booking.id,
-          room_id: l.room_id || null,
-          room_type_id: l.room_type_id || null,
-          rate_plan_id: l.rate_plan_id || null,
-          rate_charged: parseFloat(l.rate_charged) || 0,
-          nightly_rate: nights > 0 ? Math.round(((parseFloat(l.rate_charged) || 0) / nights) * 100) / 100 : null,
-          adults: parseInt(l.adults) || 1,
-          children: parseInt(l.children) || 0,
-          teens: parseInt(l.teens) || 0,
-          infants: parseInt(l.infants) || 0,
-        }));
-      if (rows.length) {
-        const { error: lineErr } = await supabase.from("rolos_booking_rooms").insert(rows as never);
-        if (lineErr) console.warn("Room line sync failed:", lineErr);
+      const payload = (l: RoomLineRow) => ({
+        room_id: l.room_id || null,
+        room_type_id: l.room_type_id || null,
+        rate_plan_id: l.rate_plan_id || null,
+        rate_charged: parseFloat(l.rate_charged) || 0,
+        nightly_rate: nights > 0 ? Math.round(((parseFloat(l.rate_charged) || 0) / nights) * 100) / 100 : null,
+        adults: parseInt(l.adults) || 1,
+        children: parseInt(l.children) || 0,
+        teens: parseInt(l.teens) || 0,
+        infants: parseInt(l.infants) || 0,
+      });
+
+      const keep = lines.filter(l => l.room_id || l.room_type_id);
+      const keepIds = keep.map(l => l.id).filter(Boolean) as string[];
+
+      const { data: existing } = await supabase
+        .from("rolos_booking_rooms")
+        .select("id")
+        .eq("booking_id", booking.id);
+      const stale = (existing || []).map(r => r.id).filter(id => !keepIds.includes(id));
+      if (stale.length) await supabase.from("rolos_booking_rooms").delete().in("id", stale);
+
+      for (const l of keep.filter(l => l.id)) {
+        const { error: upErr } = await supabase.from("rolos_booking_rooms").update(payload(l) as never).eq("id", l.id!);
+        if (upErr) console.warn("Room line update failed:", upErr);
+      }
+      const newRows = keep.filter(l => !l.id).map(l => ({ booking_id: booking.id, ...payload(l) }));
+      if (newRows.length) {
+        const { error: lineErr } = await supabase.from("rolos_booking_rooms").insert(newRows as never);
+        if (lineErr) console.warn("Room line insert failed:", lineErr);
       }
     }
 
@@ -450,6 +466,27 @@ export function BookingDetailsGrid({
             <span className={balance > 0 ? "font-bold text-destructive" : "font-bold text-emerald-600 dark:text-emerald-400"}>{money(balance)}</span>
           </div>
         </div>
+
+        {booking.property_id && (
+          <>
+            <Button variant="outline" size="sm" className="w-full" onClick={() => setViewRatesOpen(true)}>
+              <CalendarRange className="h-3.5 w-3.5 mr-1.5" />View Rates / Override
+            </Button>
+            <ViewRatesDialog
+              open={viewRatesOpen}
+              onOpenChange={setViewRatesOpen}
+              bookingId={booking.id}
+              propertyId={booking.property_id}
+              checkIn={form.check_in_date}
+              checkOut={form.check_out_date}
+              rooms={rooms}
+              onSaved={(total) => {
+                set("total_price", String(total));
+                onSaved();
+              }}
+            />
+          </>
+        )}
 
         <div>
           <Label className="text-[11px]">Booking Total (ZAR)</Label>
