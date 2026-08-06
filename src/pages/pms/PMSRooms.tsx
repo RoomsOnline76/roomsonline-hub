@@ -25,8 +25,9 @@ import { BLOCKED_ROOM_STATUSES, occupiesNight, type PlanRoom, type PlanRoomType,
 
 type ViewMode = "portfolio" | "single";
 
-/** Nights shown in the Room Type Plan. */
-const PLAN_NIGHTS = 14;
+/** Nights shown in the Room Type Plan — matched to the dashboard Room Plan window
+ *  so a reservation visible on the dashboard is never off-screen here. */
+const PLAN_NIGHTS = 30;
 /** Extra days of reservations loaded beyond the plan so search finds future stays. */
 const SEARCH_LOOKAHEAD_DAYS = 60;
 
