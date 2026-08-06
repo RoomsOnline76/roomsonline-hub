@@ -593,16 +593,19 @@ export default function PMSRooms() {
                   <RoomTypePlanGrid
                     dates={dates}
                     roomTypes={planTypes}
-                    rooms={pRooms}
+                    rooms={pRooms.filter(matchesFilters)}
                     bookings={pBookings}
                     onSelectBooking={setSelectedBooking}
                     onShiftWindow={shiftWindow}
                     onToday={goToday}
                     title={isPortfolio ? `${property.name} · ${planTitle}` : planTitle}
+                    displayStatusFor={displayStatusForRoom}
+                    onStatusChange={handleStatusChange}
+                    onEditRoom={openEditDialog}
                   />
 
                   {pTypes.length > 0 && (
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       {Array.from(grouped.entries()).map(([name, count]) => (
                         <Badge key={name} variant="outline" className="text-xs">
                           {name}: {count} room{count !== 1 ? "s" : ""}
@@ -622,7 +625,7 @@ export default function PMSRooms() {
                         </p>
                       </CardContent>
                     </Card>
-                  ) : filteredRooms.length === 0 ? (
+                  ) : !showCards ? null : filteredRooms.length === 0 ? (
                     <Card>
                       <CardContent className="py-6 text-center text-sm text-muted-foreground">
                         No rooms match the current filters.
@@ -630,6 +633,7 @@ export default function PMSRooms() {
                     </Card>
                   ) : (
                     renderRoomGrid(filteredRooms)
+
                   )}
                 </section>
               );
