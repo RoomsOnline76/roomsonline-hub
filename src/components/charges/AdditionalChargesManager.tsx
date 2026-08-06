@@ -49,7 +49,7 @@ import {
   getCalculationMethodLabel,
   type PropertyCharge,
   type ChargeCategory 
-} from "./ChargeCalculator";
+, getRevenueStreamLabel, normalizeRevenueStream } from "./ChargeCalculator";
 import { FormattedPrice } from "@/components/FormattedPrice";
 
 interface AdditionalChargesManagerProps {
@@ -258,9 +258,21 @@ export function AdditionalChargesManager({
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge className={CATEGORY_COLORS[charge.category]}>
-                        {getCategoryLabel(charge.category)}
-                      </Badge>
+                      <div className="flex flex-wrap items-center gap-1">
+                        <Badge className={CATEGORY_COLORS[charge.category]}>
+                          {getCategoryLabel(charge.category)}
+                        </Badge>
+                        {normalizeRevenueStream(charge.revenue_stream) !== 'accommodation' && (
+                          <Badge variant="outline" className="text-[10px]">
+                            {getRevenueStreamLabel(charge.revenue_stream)}
+                          </Badge>
+                        )}
+                        {charge.is_included_in_rate && (
+                          <Badge variant="outline" className="text-[10px] text-muted-foreground" title="Already inside the rate — not added on top of the guest total">
+                            In rate
+                          </Badge>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       {getCalculationMethodLabel(charge.calculation_method)}
