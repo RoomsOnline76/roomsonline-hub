@@ -1470,7 +1470,52 @@ export default function PMSDashboard() {
     refetchOverrides();
   };
 
+  // ─── Room Plan interactions ───
+  const refreshBookingQueries = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ["pms-cal-bookings"] });
+    queryClient.invalidateQueries({ queryKey: ["pms-portfolio-bookings"] });
+    queryClient.invalidateQueries({ queryKey: ["pms-arrivals"] });
+    queryClient.invalidateQueries({ queryKey: ["pms-departures"] });
+  }, [queryClient]);
+
+  const handleRoomPlanCreate = useCallback((payload: RoomPlanCreatePayload & { propertyId?: string | null }) => {
+    setRoomPlanPrefill({
+      propertyId: payload.propertyId || propertyId,
+      roomTypeId: payload.roomTypeId,
+      roomId: payload.roomId,
+      checkIn: payload.checkIn,
+      checkOut: payload.checkOut,
+    });
+    setManualBookingOpen(true);
+  }, [propertyId]);
+
+  const handleRoomPlanMove = useCallback(async ({ booking, roomId, checkIn, checkOut, datesChanged }: RoomPlanMovePayload) => {
+    try {
+      if (datesChanged) {
+        const { data, error } = await supabase.functions.invoke("modify-booking", {
+          body: { booking_id: booking.id, modifications: { check_in_date: checkIn, check_out_date: checkOut } },
+        });
+        if (error) throw new Error(await extractFunctionError(error, "Could not move the reservation"));
+        if (data && data.success === false) throw new Error(data.message || "Could not move the reservation");
+      }
+      const currentRooms = booking.rolos_room_ids || [];
+      const nextRooms = roomId ? [roomId] : [];
+      if (currentRooms.join(",") !== nextRooms.join(",")) {
+        const { error } = await supabase
+          .from("bookings")
+          .update({ rolos_room_ids: nextRooms.length ? nextRooms : null })
+          .eq("id", booking.id);
+        if (error) throw error;
+      }
+      toast.success("Reservation moved");
+      refreshBookingQueries();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not move the reservation");
+    }
+  }, [refreshBookingQueries]);
+
   const displayName = isPortfolioMode ? (portfolioName || "Portfolio") : (brandName || propertyData?.name || "");
+
 
   if (propLoading) {
     return (
