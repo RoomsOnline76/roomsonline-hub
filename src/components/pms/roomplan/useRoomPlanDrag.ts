@@ -31,6 +31,8 @@ export type RoomPlanDrag = RoomPlanCreateDrag | RoomPlanMoveDrag | null;
 interface UseRoomPlanDragOptions {
   colWidth: number;
   colCount: number;
+  /** Width of the sticky unit-label column that precedes the day cells. */
+  labelWidth: number;
   enabled: boolean;
   /** Should a candidate move be accepted? Called on every pointer move. */
   validateMove: (drag: Omit<RoomPlanMoveDrag, "valid">) => boolean;
@@ -55,6 +57,7 @@ const readRowTarget = (x: number, y: number): RoomPlanRowTarget | null => {
 export function useRoomPlanDrag({
   colWidth,
   colCount,
+  labelWidth,
   enabled,
   validateMove,
   onCreateCommit,
@@ -73,10 +76,12 @@ export function useRoomPlanDrag({
       const body = bodyRef.current;
       if (!body) return 0;
       const rect = body.getBoundingClientRect();
-      const x = clientX - rect.left + body.scrollLeft;
+      // The day grid starts after the sticky label column, so that offset has
+      // to come off the pointer position or every selection lands too far right.
+      const x = clientX - rect.left + body.scrollLeft - labelWidth;
       return Math.max(0, Math.min(colCount - 1, Math.floor(x / colWidth)));
     },
-    [colCount, colWidth]
+    [colCount, colWidth, labelWidth]
   );
 
   const beginCreate = useCallback(

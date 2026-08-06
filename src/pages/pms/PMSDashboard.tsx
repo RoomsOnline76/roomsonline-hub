@@ -1879,7 +1879,7 @@ export default function PMSDashboard() {
                     className="h-7 text-xs px-2"
                   >Month</Button>
                 </div>
-                {viewMode !== "roomplan" && (
+                {(
                   <Button
                     variant={showOnlyBookedDays ? "default" : "outline"}
                     onClick={() => setShowOnlyBookedDays((value) => !value)}
@@ -1931,6 +1931,12 @@ export default function PMSDashboard() {
                   {(portfolioProperties || []).map((prop) => {
                     const propData = portfolioDataByProperty.get(prop.id);
                     if (!propData || propData.roomTypes.length === 0) return null;
+                    const planBookedView = portfolioBookedViewByProperty.get(prop.id);
+                    const planDates = showOnlyBookedDays ? (planBookedView?.visibleDates || []) : dates;
+                    const planRoomTypes = showOnlyBookedDays
+                      ? (planBookedView?.visibleRoomTypes || [])
+                      : propData.roomTypes;
+                    if (planDates.length === 0 || planRoomTypes.length === 0) return null;
                     return (
                       <div key={prop.id}>
                         <div className="flex items-center gap-2 mb-1.5 px-1 py-1 bg-muted/30 rounded-md">
@@ -1938,8 +1944,8 @@ export default function PMSDashboard() {
                           <h3 className="text-xs font-semibold text-foreground">{prop.name}</h3>
                         </div>
                         <RoomPlanGrid
-                          dates={dates}
-                          roomTypes={propData.roomTypes}
+                          dates={planDates}
+                          roomTypes={planRoomTypes}
                           roomsByType={propData.roomsByType}
                           bookings={propData.bookings as unknown as RoomPlanBooking[]}
                           propertyName={prop.name}
@@ -1956,10 +1962,14 @@ export default function PMSDashboard() {
                     );
                   })}
                 </div>
+              ) : showOnlyBookedDays && (visibleDates.length === 0 || visibleRoomTypes.length === 0) ? (
+                <div className="flex items-center justify-center rounded-lg border bg-muted/20 py-10 text-sm text-muted-foreground">
+                  No booked days in this period.
+                </div>
               ) : (
                 <RoomPlanGrid
-                  dates={dates}
-                  roomTypes={roomTypes as RoomType[]}
+                  dates={visibleDates}
+                  roomTypes={visibleRoomTypes}
                   roomsByType={roomsByType}
                   bookings={bookings as unknown as RoomPlanBooking[]}
                   propertyName={displayName}

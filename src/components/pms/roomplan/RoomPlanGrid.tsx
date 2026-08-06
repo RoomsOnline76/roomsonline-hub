@@ -219,6 +219,7 @@ export function RoomPlanGrid({
   const { drag, bodyRef, beginCreate, beginMove } = useRoomPlanDrag({
     colWidth,
     colCount: dates.length,
+    labelWidth: ROOM_PLAN_LABEL_W,
     enabled: !dragDisabled,
     validateMove,
     onCreateCommit: handleCreateCommit,
