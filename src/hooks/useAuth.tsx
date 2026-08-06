@@ -134,7 +134,10 @@ export function useAuth() {
     staleTime: 1000 * 60 * 5,
     gcTime: 1000 * 60 * 30,
     refetchOnWindowFocus: false,
-    retry: 1,
+    // Transient edge-runtime failures (502/503 cold-start kills) should not
+    // leave the shell without roles — retry a couple of times with backoff.
+    retry: 2,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 4000),
   });
 
   const roles = context?.roles ?? [];

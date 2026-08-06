@@ -38,24 +38,31 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    const supabaseAuth = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
-      { global: { headers: { Authorization: authHeader } } }
-    );
-
     const token = authHeader.replace("Bearer ", "");
 
     let claims: Record<string, unknown> | null = null;
     try {
-      const { data: claimsData, error: claimsError } =
-        await supabaseAuth.auth.getClaims(token);
+      // Bound the upstream auth call so a hung/slow verify can never let the
+      // worker be killed before we return a response (which surfaced as 502).
+      const { data: claimsData, error: claimsError } = await Promise.race([
+        supabaseAdmin.auth.getClaims(token),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("auth_timeout")), 8000)
+        ),
+      ]) as Awaited<ReturnType<typeof supabaseAdmin.auth.getClaims>>;
       if (claimsError || !claimsData?.claims) {
         return jsonResponse({ error: "Unauthorized", code: "invalid_token" }, 401);
       }
       claims = claimsData.claims as Record<string, unknown>;
     } catch (authErr) {
       const message = String((authErr as Error)?.message ?? authErr);
+      if (message === "auth_timeout") {
+        console.warn("data-access-api auth verify timed out");
+        return jsonResponse(
+          { error: "Auth verification timed out", code: "auth_timeout" },
+          503
+        );
+      }
       const expired = /expired/i.test(message);
       console.warn("data-access-api auth rejected:", message);
       return jsonResponse(
@@ -70,7 +77,12 @@ Deno.serve(async (req) => {
 
     const userId = claims.sub as string;
 
-    const { action } = await req.json();
+    let action: string | undefined;
+    try {
+      ({ action } = await req.json());
+    } catch {
+      return jsonResponse({ error: "Invalid JSON body" }, 400);
+    }
 
     if (action === "get_user_context") {
       // Fetch roles, profile, and sales_rep_id in parallel
@@ -83,7 +95,7 @@ Deno.serve(async (req) => {
           .from("profiles")
           .select("id, email, full_name, avatar_url, role")
           .eq("id", userId)
-          .single(),
+          .maybeSingle(),
       ]);
 
       const roles: string[] =
