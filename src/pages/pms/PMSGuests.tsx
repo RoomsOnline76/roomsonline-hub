@@ -14,6 +14,9 @@ import { callPmsApi } from "@/hooks/usePmsApi";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { PmsPageSkeleton } from "@/components/pms/PmsPageSkeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { CrmAccountsTab } from "@/components/pms/crm/CrmAccountsTab";
+import { useCrmAccounts } from "@/hooks/useCrmAccounts";
 
 interface Guest {
   id: string;
@@ -39,7 +42,8 @@ interface GuestBooking {
 }
 
 export default function PMSGuests() {
-  const { propertyId, properties, portfolioProperties, showPortfolioToggle, switchProperty, loading: propertyLoading } = usePmsPropertyId();
+  const { propertyId, properties, portfolioProperties, portfolioIds, showPortfolioToggle, switchProperty, loading: propertyLoading } = usePmsPropertyId();
+  const crm = useCrmAccounts({ propertyId, portfolioIds });
   const [viewMode, setViewMode] = useState<"portfolio" | "single">(() =>
     (portfolioProperties && portfolioProperties.length > 1) ? "portfolio" : "single"
   );
