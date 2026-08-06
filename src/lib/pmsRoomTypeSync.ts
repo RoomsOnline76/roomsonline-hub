@@ -111,6 +111,8 @@ export async function syncRolosRoomTypesFromOverview(propertyId: string) {
   const updates: Array<{ id: string } & Omit<ExistingRolosRoomType, "id">> = [];
   const inserts: Array<Omit<ExistingRolosRoomType, "id"> & { property_id: string }> = [];
   let reactivated = 0;
+  const matchedIds = new Set<string>();
+
 
   for (const overviewType of overviewTypes) {
     const desired = {
