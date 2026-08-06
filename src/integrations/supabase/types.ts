@@ -766,7 +766,13 @@ export type Database = {
       bookings: {
         Row: {
           adults: number
+          agent_account_id: string | null
           ai_metadata: Json | null
+          booker_email: string | null
+          booker_id: string | null
+          booker_is_guest: boolean
+          booker_name: string | null
+          booker_phone: string | null
           booking_channel: string | null
           booking_made_by: string | null
           calculated_commission: number | null
@@ -776,9 +782,11 @@ export type Database = {
           check_in_date: string
           check_out_date: string
           children: number | null
+          comm_channel: string | null
           commission_calculated_at: string | null
           commission_rate_applied: number | null
           commission_type: string | null
+          company_account_id: string | null
           created_at: string | null
           deposit_amount: number
           deposit_due_date: string | null
@@ -799,8 +807,12 @@ export type Database = {
           infants: number | null
           integration_type: string | null
           internal_notes: string | null
+          invoice_to_address: string | null
+          invoice_to_name: string | null
+          invoice_to_vat: string | null
           last_modified_at: string | null
           lead_created_at: string | null
+          market_segment: string | null
           modification_notes: Json | null
           modified_by: string | null
           origin_portfolio_id: string | null
@@ -827,6 +839,7 @@ export type Database = {
           second_guest_email: string | null
           second_guest_name: string | null
           second_guest_phone: string | null
+          source_account_id: string | null
           source_url: string | null
           special_requests: string | null
           special_requests_parsed: Json | null
@@ -839,7 +852,13 @@ export type Database = {
         }
         Insert: {
           adults?: number
+          agent_account_id?: string | null
           ai_metadata?: Json | null
+          booker_email?: string | null
+          booker_id?: string | null
+          booker_is_guest?: boolean
+          booker_name?: string | null
+          booker_phone?: string | null
           booking_channel?: string | null
           booking_made_by?: string | null
           calculated_commission?: number | null
@@ -849,9 +868,11 @@ export type Database = {
           check_in_date: string
           check_out_date: string
           children?: number | null
+          comm_channel?: string | null
           commission_calculated_at?: string | null
           commission_rate_applied?: number | null
           commission_type?: string | null
+          company_account_id?: string | null
           created_at?: string | null
           deposit_amount?: number
           deposit_due_date?: string | null
@@ -872,8 +893,12 @@ export type Database = {
           infants?: number | null
           integration_type?: string | null
           internal_notes?: string | null
+          invoice_to_address?: string | null
+          invoice_to_name?: string | null
+          invoice_to_vat?: string | null
           last_modified_at?: string | null
           lead_created_at?: string | null
+          market_segment?: string | null
           modification_notes?: Json | null
           modified_by?: string | null
           origin_portfolio_id?: string | null
@@ -900,6 +925,7 @@ export type Database = {
           second_guest_email?: string | null
           second_guest_name?: string | null
           second_guest_phone?: string | null
+          source_account_id?: string | null
           source_url?: string | null
           special_requests?: string | null
           special_requests_parsed?: Json | null
@@ -912,7 +938,13 @@ export type Database = {
         }
         Update: {
           adults?: number
+          agent_account_id?: string | null
           ai_metadata?: Json | null
+          booker_email?: string | null
+          booker_id?: string | null
+          booker_is_guest?: boolean
+          booker_name?: string | null
+          booker_phone?: string | null
           booking_channel?: string | null
           booking_made_by?: string | null
           calculated_commission?: number | null
@@ -922,9 +954,11 @@ export type Database = {
           check_in_date?: string
           check_out_date?: string
           children?: number | null
+          comm_channel?: string | null
           commission_calculated_at?: string | null
           commission_rate_applied?: number | null
           commission_type?: string | null
+          company_account_id?: string | null
           created_at?: string | null
           deposit_amount?: number
           deposit_due_date?: string | null
@@ -945,8 +979,12 @@ export type Database = {
           infants?: number | null
           integration_type?: string | null
           internal_notes?: string | null
+          invoice_to_address?: string | null
+          invoice_to_name?: string | null
+          invoice_to_vat?: string | null
           last_modified_at?: string | null
           lead_created_at?: string | null
+          market_segment?: string | null
           modification_notes?: Json | null
           modified_by?: string | null
           origin_portfolio_id?: string | null
@@ -973,6 +1011,7 @@ export type Database = {
           second_guest_email?: string | null
           second_guest_name?: string | null
           second_guest_phone?: string | null
+          source_account_id?: string | null
           source_url?: string | null
           special_requests?: string | null
           special_requests_parsed?: Json | null
@@ -984,6 +1023,41 @@ export type Database = {
           voucher?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "bookings_agent_account_id_fkey"
+            columns: ["agent_account_id"]
+            isOneToOne: false
+            referencedRelation: "crm_account_stats"
+            referencedColumns: ["account_id"]
+          },
+          {
+            foreignKeyName: "bookings_agent_account_id_fkey"
+            columns: ["agent_account_id"]
+            isOneToOne: false
+            referencedRelation: "crm_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_booker_id_fkey"
+            columns: ["booker_id"]
+            isOneToOne: false
+            referencedRelation: "crm_bookers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_company_account_id_fkey"
+            columns: ["company_account_id"]
+            isOneToOne: false
+            referencedRelation: "crm_account_stats"
+            referencedColumns: ["account_id"]
+          },
+          {
+            foreignKeyName: "bookings_company_account_id_fkey"
+            columns: ["company_account_id"]
+            isOneToOne: false
+            referencedRelation: "crm_accounts"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "bookings_origin_portfolio_id_fkey"
             columns: ["origin_portfolio_id"]
@@ -1045,6 +1119,20 @@ export type Database = {
             columns: ["rolos_rate_plan_id"]
             isOneToOne: false
             referencedRelation: "rolos_rate_plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_source_account_id_fkey"
+            columns: ["source_account_id"]
+            isOneToOne: false
+            referencedRelation: "crm_account_stats"
+            referencedColumns: ["account_id"]
+          },
+          {
+            foreignKeyName: "bookings_source_account_id_fkey"
+            columns: ["source_account_id"]
+            isOneToOne: false
+            referencedRelation: "crm_accounts"
             referencedColumns: ["id"]
           },
         ]
@@ -1305,6 +1393,213 @@ export type Database = {
             columns: ["current_version_id"]
             isOneToOne: false
             referencedRelation: "contract_template_versions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      crm_accounts: {
+        Row: {
+          account_type: Database["public"]["Enums"]["crm_account_type"]
+          address_line1: string | null
+          address_line2: string | null
+          city: string | null
+          contact_first_name: string | null
+          contact_last_name: string | null
+          contact_title: string | null
+          country: string | null
+          created_at: string
+          created_by: string | null
+          currency: string | null
+          default_commission_rate: number | null
+          email: string | null
+          id: string
+          is_active: boolean
+          is_credit_account: boolean
+          name: string
+          notes: string | null
+          payment_terms_days: number | null
+          phone: string | null
+          portfolio_id: string | null
+          postal_code: string | null
+          property_id: string | null
+          registration_number: string | null
+          tags: string[] | null
+          updated_at: string
+          vat_number: string | null
+          website: string | null
+        }
+        Insert: {
+          account_type?: Database["public"]["Enums"]["crm_account_type"]
+          address_line1?: string | null
+          address_line2?: string | null
+          city?: string | null
+          contact_first_name?: string | null
+          contact_last_name?: string | null
+          contact_title?: string | null
+          country?: string | null
+          created_at?: string
+          created_by?: string | null
+          currency?: string | null
+          default_commission_rate?: number | null
+          email?: string | null
+          id?: string
+          is_active?: boolean
+          is_credit_account?: boolean
+          name: string
+          notes?: string | null
+          payment_terms_days?: number | null
+          phone?: string | null
+          portfolio_id?: string | null
+          postal_code?: string | null
+          property_id?: string | null
+          registration_number?: string | null
+          tags?: string[] | null
+          updated_at?: string
+          vat_number?: string | null
+          website?: string | null
+        }
+        Update: {
+          account_type?: Database["public"]["Enums"]["crm_account_type"]
+          address_line1?: string | null
+          address_line2?: string | null
+          city?: string | null
+          contact_first_name?: string | null
+          contact_last_name?: string | null
+          contact_title?: string | null
+          country?: string | null
+          created_at?: string
+          created_by?: string | null
+          currency?: string | null
+          default_commission_rate?: number | null
+          email?: string | null
+          id?: string
+          is_active?: boolean
+          is_credit_account?: boolean
+          name?: string
+          notes?: string | null
+          payment_terms_days?: number | null
+          phone?: string | null
+          portfolio_id?: string | null
+          postal_code?: string | null
+          property_id?: string | null
+          registration_number?: string | null
+          tags?: string[] | null
+          updated_at?: string
+          vat_number?: string | null
+          website?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crm_accounts_portfolio_id_fkey"
+            columns: ["portfolio_id"]
+            isOneToOne: false
+            referencedRelation: "property_portfolios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_accounts_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "crm_accounts_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_accounts_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      crm_bookers: {
+        Row: {
+          account_id: string | null
+          created_at: string
+          created_by: string | null
+          email: string | null
+          full_name: string
+          id: string
+          notes: string | null
+          phone: string | null
+          portfolio_id: string | null
+          property_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          account_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          email?: string | null
+          full_name: string
+          id?: string
+          notes?: string | null
+          phone?: string | null
+          portfolio_id?: string | null
+          property_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          account_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          email?: string | null
+          full_name?: string
+          id?: string
+          notes?: string | null
+          phone?: string | null
+          portfolio_id?: string | null
+          property_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crm_bookers_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "crm_account_stats"
+            referencedColumns: ["account_id"]
+          },
+          {
+            foreignKeyName: "crm_bookers_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "crm_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_bookers_portfolio_id_fkey"
+            columns: ["portfolio_id"]
+            isOneToOne: false
+            referencedRelation: "property_portfolios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_bookers_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "crm_bookers_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_bookers_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
             referencedColumns: ["id"]
           },
         ]
@@ -12489,6 +12784,16 @@ export type Database = {
           },
         ]
       }
+      crm_account_stats: {
+        Row: {
+          account_id: string | null
+          booking_count: number | null
+          last_booking_date: string | null
+          room_nights: number | null
+          total_revenue: number | null
+        }
+        Relationships: []
+      }
       dw_booking_pipeline: {
         Row: {
           avg_value: number | null
@@ -12835,6 +13140,10 @@ export type Database = {
         Args: { _property_id: string; _user_id: string }
         Returns: boolean
       }
+      can_access_crm_scope: {
+        Args: { _portfolio_id: string; _property_id: string; _user_id: string }
+        Returns: boolean
+      }
       can_access_property: {
         Args: { _property_id: string; _user_id: string }
         Returns: boolean
@@ -13060,6 +13369,7 @@ export type Database = {
         | "paid"
       commission_tier: "base" | "accelerated" | "elite"
       component_type: "pms" | "internal" | "external" | "infrastructure"
+      crm_account_type: "company" | "travel_agent" | "tour_operator" | "source"
       dev_task_priority: "low" | "medium" | "high" | "critical"
       dev_task_status: "new" | "started" | "testing" | "completed"
       event_status:
@@ -13343,6 +13653,7 @@ export const Constants = {
       ],
       commission_tier: ["base", "accelerated", "elite"],
       component_type: ["pms", "internal", "external", "infrastructure"],
+      crm_account_type: ["company", "travel_agent", "tour_operator", "source"],
       dev_task_priority: ["low", "medium", "high", "critical"],
       dev_task_status: ["new", "started", "testing", "completed"],
       event_status: [
