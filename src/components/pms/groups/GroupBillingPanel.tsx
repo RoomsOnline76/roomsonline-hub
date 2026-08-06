@@ -23,6 +23,12 @@ export interface GroupRecord {
   cutoff_date: string | null;
   master_folio_id: string | null;
   attrition_rate: number | null;
+  group_type: string | null;
+  check_in_date: string | null;
+  check_out_date: string | null;
+  total_rooms: number | null;
+  release_date: string | null;
+  contact_email: string | null;
 }
 
 interface GroupBillingPanelProps {

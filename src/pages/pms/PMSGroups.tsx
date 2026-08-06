@@ -166,8 +166,8 @@ export default function PMSGroups() {
         room_type_id: blockForm.room_type_id,
         blocked_count: parseInt(blockForm.blocked_count) || 1,
         rate_override: blockForm.rate_override ? parseFloat(blockForm.rate_override) : null,
-        start_date: blockForm.start_date || (selectedGroup as unknown as { check_in_date?: string }).check_in_date,
-        end_date: blockForm.end_date || (selectedGroup as unknown as { check_out_date?: string }).check_out_date,
+        start_date: blockForm.start_date || selectedGroup.check_in_date,
+        end_date: blockForm.end_date || selectedGroup.check_out_date,
         release_date: blockForm.release_date || null,
       });
     },
@@ -306,7 +306,7 @@ export default function PMSGroups() {
                 <div className="flex justify-between"><span className="text-muted-foreground">Type</span><span className="capitalize">{selectedGroup.group_type}</span></div>
                 <div className="flex justify-between"><span className="text-muted-foreground">Dates</span><span>{selectedGroup.check_in_date && selectedGroup.check_out_date ? `${format(new Date(selectedGroup.check_in_date), "MMM d")} – ${format(new Date(selectedGroup.check_out_date), "MMM d, yyyy")}` : "TBD"}</span></div>
                 <div className="flex justify-between"><span className="text-muted-foreground">Total Rooms</span><span>{selectedGroup.total_rooms}</span></div>
-                {selectedGroup.attrition_rate > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Attrition Rate</span><span>{selectedGroup.attrition_rate}%</span></div>}
+                {Number(selectedGroup.attrition_rate || 0) > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Attrition Rate</span><span>{selectedGroup.attrition_rate}%</span></div>}
                 {selectedGroup.release_date && <div className="flex justify-between"><span className="text-muted-foreground">Release Date</span><span>{format(new Date(selectedGroup.release_date), "MMM d, yyyy")}</span></div>}
               </div>
 
