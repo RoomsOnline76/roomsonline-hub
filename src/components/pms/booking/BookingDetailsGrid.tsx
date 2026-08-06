@@ -307,6 +307,19 @@ export function BookingDetailsGrid({
       teens: occ.teens,
       infants: occ.infants,
       rolos_room_ids: assignedRoomIds.length ? assignedRoomIds : null,
+      booker_is_guest: crm.booker_is_guest,
+      booker_name: crm.booker_is_guest ? null : (crm.booker_name || null),
+      booker_email: crm.booker_is_guest ? null : (crm.booker_email || null),
+      booker_phone: crm.booker_is_guest ? null : (crm.booker_phone || null),
+      company_account_id: crm.company_account_id,
+      agent_account_id: crm.agent_account_id,
+      source_account_id: crm.source_account_id,
+      market_segment: crm.market_segment || null,
+      comm_channel: crm.comm_channel || null,
+      invoice_to_name: invoiceTo.invoice_to_name || null,
+      invoice_to_vat: invoiceTo.invoice_to_vat || null,
+      invoice_to_address: invoiceTo.invoice_to_address || null,
+
     } as never).eq("id", booking.id);
 
     if (error) {
