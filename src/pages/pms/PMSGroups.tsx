@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 import { usePmsStaffRole } from "@/hooks/usePmsStaffRole";
@@ -7,7 +7,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,9 +16,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { UsersRound, Plus, MoreHorizontal, BedDouble, CalendarRange, Trash2 } from "lucide-react";
+import { UsersRound, Plus, MoreHorizontal, BedDouble } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { format } from "date-fns";
+import { callGroupsApi } from "@/lib/groupsApi";
+import GroupBlockGrid, { type GroupBlock } from "@/components/pms/groups/GroupBlockGrid";
+import GroupPickupDialog from "@/components/pms/groups/GroupPickupDialog";
+import RoomingListTable, { type RoomingRow } from "@/components/pms/groups/RoomingListTable";
+import GroupBillingPanel, { type GroupRecord } from "@/components/pms/groups/GroupBillingPanel";
 
 const GROUP_TYPES = ["corporate", "wedding", "tour", "conference", "family", "other"];
 const STATUS_BADGES: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
@@ -35,22 +40,25 @@ export default function PMSGroups() {
   const readOnly = access.readOnly;
   const qc = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
-  const [selectedGroup, setSelectedGroup] = useState<any>(null);
+  const [selectedGroup, setSelectedGroup] = useState<GroupRecord | null>(null);
   const [showBlockDialog, setShowBlockDialog] = useState(false);
+  const [pickupBlock, setPickupBlock] = useState<GroupBlock | null>(null);
+  const [pickupLine, setPickupLine] = useState<RoomingRow | null>(null);
+  const [busyBlockId, setBusyBlockId] = useState<string | null>(null);
   const [blockForm, setBlockForm] = useState({ room_type_id: "", blocked_count: "1", rate_override: "", start_date: "", end_date: "", release_date: "" });
-  const [form, setForm] = useState({ name: "", group_type: "corporate", contact_name: "", contact_email: "", contact_phone: "", total_rooms: "1", notes: "", check_in_date: "", check_out_date: "", attrition_rate: "0", release_date: "" });
+  const [form, setForm] = useState({ name: "", group_type: "corporate", contact_name: "", contact_email: "", contact_phone: "", total_rooms: "1", notes: "", check_in_date: "", check_out_date: "", attrition_rate: "0", release_date: "", billing_mode: "individual", cutoff_date: "" });
 
   const { data: groups = [], isLoading } = useQuery({
     queryKey: ["pms-groups", propertyId],
     enabled: !!propertyId,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("rolos_groups" as any)
+        .from("rolos_groups" as never)
         .select("*")
         .eq("property_id", propertyId!)
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return data as any[];
+      return (data || []) as unknown as GroupRecord[];
     },
   });
 
@@ -73,12 +81,12 @@ export default function PMSGroups() {
     enabled: !!selectedGroup?.id,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("rolos_group_room_blocks" as any)
+        .from("rolos_group_room_blocks" as never)
         .select("*, room_type:rolos_room_types!room_type_id(name)")
-        .eq("group_id", selectedGroup.id)
+        .eq("group_id", selectedGroup!.id)
         .order("start_date");
       if (error) throw error;
-      return data as any[];
+      return (data || []) as unknown as GroupBlock[];
     },
   });
 
@@ -87,18 +95,26 @@ export default function PMSGroups() {
     enabled: !!selectedGroup?.id,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("rolos_group_reservations" as any)
+        .from("rolos_group_reservations" as never)
         .select("*")
-        .eq("group_id", selectedGroup.id)
+        .eq("group_id", selectedGroup!.id)
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return data as any[];
+      return (data || []) as unknown as RoomingRow[];
     },
   });
 
+  const refreshGroupData = useCallback(() => {
+    refetchBlocks();
+    refetchReservations();
+    qc.invalidateQueries({ queryKey: ["pms-groups", propertyId] });
+    qc.invalidateQueries({ queryKey: ["group-master-folio"] });
+    qc.invalidateQueries({ queryKey: ["group-master-folio-txns"] });
+  }, [refetchBlocks, refetchReservations, qc, propertyId]);
+
   const createGroup = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from("rolos_groups" as any).insert({
+      const { error } = await supabase.from("rolos_groups" as never).insert({
         property_id: propertyId,
         name: form.name,
         group_type: form.group_type,
@@ -111,73 +127,77 @@ export default function PMSGroups() {
         check_out_date: form.check_out_date || null,
         attrition_rate: parseFloat(form.attrition_rate) || 0,
         release_date: form.release_date || null,
-      });
+        billing_mode: form.billing_mode,
+        cutoff_date: form.cutoff_date || null,
+      } as never);
       if (error) throw error;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["pms-groups", propertyId] });
       toast.success("Group created");
       setShowCreate(false);
-      setForm({ name: "", group_type: "corporate", contact_name: "", contact_email: "", contact_phone: "", total_rooms: "1", notes: "", check_in_date: "", check_out_date: "", attrition_rate: "0", release_date: "" });
+      setForm({ name: "", group_type: "corporate", contact_name: "", contact_email: "", contact_phone: "", total_rooms: "1", notes: "", check_in_date: "", check_out_date: "", attrition_rate: "0", release_date: "", billing_mode: "individual", cutoff_date: "" });
     },
-    onError: (err: any) => toast.error("Failed to create group", { description: err.message }),
+    onError: (err: Error) => toast.error("Failed to create group", { description: err.message }),
   });
 
   const updateStatus = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const { error } = await supabase.from("rolos_groups" as any).update({ status }).eq("id", id);
+      if (status === "cancelled") {
+        await callGroupsApi("group_cancel", { property_id: propertyId, group_id: id });
+        return;
+      }
+      const { error } = await supabase.from("rolos_groups" as never).update({ status } as never).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["pms-groups", propertyId] });
+      refreshGroupData();
       toast.success("Status updated");
     },
+    onError: (err: Error) => toast.error("Status change failed", { description: err.message }),
   });
 
   const addBlock = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from("rolos_group_room_blocks" as any).insert({
+      if (!selectedGroup) return;
+      await callGroupsApi("group_create_block", {
+        property_id: selectedGroup.property_id,
         group_id: selectedGroup.id,
         room_type_id: blockForm.room_type_id,
         blocked_count: parseInt(blockForm.blocked_count) || 1,
         rate_override: blockForm.rate_override ? parseFloat(blockForm.rate_override) : null,
-        start_date: blockForm.start_date || selectedGroup.check_in_date,
-        end_date: blockForm.end_date || selectedGroup.check_out_date,
+        start_date: blockForm.start_date || (selectedGroup as unknown as { check_in_date?: string }).check_in_date,
+        end_date: blockForm.end_date || (selectedGroup as unknown as { check_out_date?: string }).check_out_date,
         release_date: blockForm.release_date || null,
       });
-      if (error) throw error;
     },
     onSuccess: () => {
-      refetchBlocks();
-      toast.success("Room block added");
+      refreshGroupData();
+      toast.success("Rooms blocked — availability reduced");
       setShowBlockDialog(false);
       setBlockForm({ room_type_id: "", blocked_count: "1", rate_override: "", start_date: "", end_date: "", release_date: "" });
     },
-    onError: (err: any) => toast.error("Failed to add block", { description: err.message }),
+    onError: (err: Error) => toast.error("Failed to add block", { description: err.message }),
   });
 
   const releaseBlock = useMutation({
-    mutationFn: async (blockId: string) => {
-      const { error } = await supabase.from("rolos_group_room_blocks" as any).update({ status: "released" }).eq("id", blockId);
-      if (error) throw error;
-    },
-    onSuccess: () => { refetchBlocks(); toast.success("Block released"); },
-  });
-
-  const addGroupReservation = useMutation({
-    mutationFn: async (guestName: string) => {
-      const { error } = await supabase.from("rolos_group_reservations" as any).insert({
-        group_id: selectedGroup.id,
-        guest_name: guestName,
-        status: "pending",
+    mutationFn: async (block: GroupBlock) => {
+      setBusyBlockId(block.id);
+      return await callGroupsApi<{ released: number; attrition: number }>("group_release_block", {
+        property_id: selectedGroup?.property_id,
+        block_id: block.id,
       });
-      if (error) throw error;
     },
-    onSuccess: () => { refetchReservations(); toast.success("Reservation added to group"); },
-    onError: (err: any) => toast.error(err.message),
+    onSuccess: (res) => {
+      refreshGroupData();
+      toast.success(`Released ${res?.released ?? 0} room(s) back to inventory`, {
+        description: res?.attrition ? `Attrition of R${Number(res.attrition).toFixed(2)} posted to the master folio` : undefined,
+      });
+    },
+    onError: (err: Error) => toast.error("Release failed", { description: err.message }),
+    onSettled: () => setBusyBlockId(null),
   });
 
-  const [newGuestName, setNewGuestName] = useState("");
 
   return (
     <>
