@@ -471,6 +471,21 @@ export default function PMSGroups() {
                 <Label>Release Date</Label>
                 <Input type="date" value={form.release_date} onChange={(e) => setForm((f) => ({ ...f, release_date: e.target.value }))} />
               </div>
+              <div className="space-y-1.5">
+                <Label>Billing Mode</Label>
+                <Select value={form.billing_mode} onValueChange={(v) => setForm((f) => ({ ...f, billing_mode: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="individual">Individual folios</SelectItem>
+                    <SelectItem value="master">Master folio</SelectItem>
+                    <SelectItem value="hybrid">Hybrid</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Cut-off Date</Label>
+                <Input type="date" value={form.cutoff_date} onChange={(e) => setForm((f) => ({ ...f, cutoff_date: e.target.value }))} />
+              </div>
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setShowCreate(false)}>Cancel</Button>
@@ -479,6 +494,20 @@ export default function PMSGroups() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Pickup dialog */}
+      {selectedGroup && (
+        <GroupPickupDialog
+          open={!!pickupBlock}
+          onOpenChange={(o) => { if (!o) { setPickupBlock(null); setPickupLine(null); } }}
+          propertyId={selectedGroup.property_id}
+          groupId={selectedGroup.id}
+          block={pickupBlock}
+          roomingLine={pickupLine}
+          onDone={refreshGroupData}
+        />
+      )}
     </>
   );
 }
+
