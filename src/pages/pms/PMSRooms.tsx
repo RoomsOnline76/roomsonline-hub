@@ -190,6 +190,7 @@ export default function PMSRooms() {
 
     // `allTypes` (incl. archived) is only used for legacy booking → type matching.
     const allTypes = (allTypesRes.data || []) as PlanRoomType[];
+    setAllRoomTypes(allTypes);
     const activeTypes = (typesRes.data || []) as PlanRoomType[];
     const roomRows = (roomsRes.data || []) as any[];
 
