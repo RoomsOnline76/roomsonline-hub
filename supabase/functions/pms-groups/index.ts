@@ -144,7 +144,7 @@ async function releaseBlock(
   }
 
   let attritionAmount = 0;
-  const rate = Number(block.attrition_rate ?? group.attrition_rate ?? 0);
+  const rate = Number(group.attrition_rate ?? 0);
   const pastCutoff = group.cutoff_date ? new Date(group.cutoff_date) <= new Date() : true;
 
   if (opts.chargeAttrition && rate > 0 && remaining > 0 && !block.attrition_charged && pastCutoff) {
@@ -370,7 +370,7 @@ Deno.serve(async (req) => {
             special_requests: p.special_requests || null,
             internal_notes: `Group pickup — ${block.group?.name ?? ""}`.trim(),
           })
-          .select("id, booking_reference")
+          .select("id")
           .single();
         if (bookingErr) throw bookingErr;
 
@@ -424,7 +424,7 @@ Deno.serve(async (req) => {
           _units: 1,
         });
 
-        return json({ success: true, booking_id: booking.id, booking_reference: booking.booking_reference ?? null });
+        return json({ success: true, booking_id: booking.id });
       }
 
       // ------------------------------------------------------- rooming list
