@@ -56,7 +56,16 @@ interface ManualBookingDialogProps {
    *  When provided and non-empty, the dialog renders a Property selector and uses that property's
    *  roomTypes/rooms instead of the top-level props. */
   portfolioOptions?: PortfolioPropertyOption[];
+  /** Optional prefill, e.g. when the Room Plan opens the dialog from a dragged date span. */
+  initialValues?: {
+    propertyId?: string | null;
+    roomTypeId?: string | null;
+    roomId?: string | null;
+    checkIn?: Date | null;
+    checkOut?: Date | null;
+  } | null;
 }
+
 
 export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes, rooms, ratePlans, onCreated, getRateForDate, portfolioOptions }: ManualBookingDialogProps) {
   const [saving, setSaving] = useState(false);
