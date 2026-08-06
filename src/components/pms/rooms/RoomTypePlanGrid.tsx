@@ -1,8 +1,10 @@
+import { useState } from "react";
 import { format, isSameDay, parseISO } from "date-fns";
-import { ChevronLeft, ChevronRight, Users } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Pencil, Users } from "lucide-react";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { getSaHolidayName, isWeekendDay } from "@/lib/saPublicHolidays";
 import {
@@ -15,6 +17,7 @@ import {
   type PlanRoomType,
   type RoomsBooking,
 } from "./roomTypePlanLayout";
+import { buildUnitRows, SELECTABLE_ROOM_STATUSES, statusMeta } from "./roomUnitStatus";
 
 const COL_W = 62;
 const LABEL_W = 190;
@@ -29,11 +32,19 @@ interface Props {
   onToday?: () => void;
   /** Header label, e.g. "August 2026 · Week 32". */
   title?: string;
+  /** Resolves the status shown for a physical room (occupied overrides available). */
+  displayStatusFor?: (room: PlanRoom) => string;
+  /** Persists a housekeeping status change made inside a room line. */
+  onStatusChange?: (roomId: string, status: string) => void;
+  /** Opens the room edit dialog from a room line. */
+  onEditRoom?: (room: PlanRoom) => void;
 }
 
 /**
  * Protel-style Room Type Plan: room types down, nights across, free units in each
  * cell with heat colouring, and a hover card listing the reservations on that night.
+ * Each type expands into its physical room lines with inline status control and
+ * colour-coded night strips (available / occupied / dirty / maintenance).
  */
 export function RoomTypePlanGrid({
   dates,
@@ -44,10 +55,17 @@ export function RoomTypePlanGrid({
   onShiftWindow,
   onToday,
   title,
+  displayStatusFor,
+  onStatusChange,
+  onEditRoom,
 }: Props) {
   const rows = buildRoomTypePlan(dates, roomTypes, rooms, bookings);
   const weeks = groupIntoWeeks(dates);
   const today = new Date();
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const resolveStatus = displayStatusFor || ((room: PlanRoom) => room.status);
+  const toggleType = (id: string) => setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
+
 
   if (roomTypes.length === 0) {
     return (
