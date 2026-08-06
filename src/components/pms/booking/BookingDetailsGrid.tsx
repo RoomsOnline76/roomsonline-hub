@@ -103,6 +103,7 @@ export function BookingDetailsGrid({
   onOpenInvoice?: () => void;
 }) {
   const [saving, setSaving] = useState(false);
+  const [viewRatesOpen, setViewRatesOpen] = useState(false);
   const [lines, setLines] = useState<RoomLineRow[]>([]);
   const [linesLoaded, setLinesLoaded] = useState(false);
   const [account, setAccount] = useState({ extras: 0, payments: 0 });
