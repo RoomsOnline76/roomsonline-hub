@@ -133,12 +133,18 @@ Deno.serve(async (req) => {
       });
     }
     const token = authHeader.replace("Bearer ", "");
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-    if (authError || !user) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    // Internal service-to-service calls (e.g. the booking email pipeline) authenticate with the service role key
+    const isServiceCall = token === supabaseServiceKey;
+    let user: { id: string } | null = null;
+    if (!isServiceCall) {
+      const { data: { user: authUser }, error: authError } = await supabase.auth.getUser(token);
+      if (authError || !authUser) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      user = authUser;
     }
 
     const body = await req.json();
