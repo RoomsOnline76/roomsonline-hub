@@ -593,7 +593,7 @@ export default function PMSDashboard() {
       if (!propertyId) return { items: [] as BookingRow[], nextOffset: null as number | null };
       const { data, count } = await supabase
         .from("bookings")
-        .select("id, guest_name, guest_email, guest_phone, check_in_date, check_out_date, status, adults, children, infants, pets, teens, total_price, special_requests, special_requests_parsed, requires_intervention, booking_channel, payment_status, payment_method, rolos_check_in_time, rolos_check_out_time, rolos_room_ids, rolos_rate_plan_id, modification_notes, room_type_id, rolos_guest_id, integration_type, hold_expires_at, hold_released_at", { count: "exact" })
+        .select("id, guest_name, guest_email, guest_phone, check_in_date, check_out_date, status, adults, children, infants, pets, teens, total_price, special_requests, special_requests_parsed, requires_intervention, booking_channel, payment_status, payment_method, rolos_check_in_time, rolos_check_out_time, rolos_room_ids, rolos_rate_plan_id, modification_notes, room_type_id, rolos_guest_id, property_id, integration_type, hold_expires_at, hold_released_at, booker_is_guest, booker_name, booker_email, booker_phone, company_account_id, agent_account_id, source_account_id, market_segment, comm_channel, invoice_to_name, invoice_to_vat, invoice_to_address, guest_company, second_guest_name, booking_made_by, internal_notes, deposit_amount, payment_reference, created_at", { count: "exact" })
         .eq("property_id", propertyId)
         .neq("status", "cancelled")
         .lte("check_in_date", format(dateRange.end, "yyyy-MM-dd"))
@@ -898,7 +898,7 @@ export default function PMSDashboard() {
       if (!portfolioPropertyIds.length) return [];
       const { data } = await supabase
         .from("bookings")
-        .select("id, guest_name, guest_email, guest_phone, check_in_date, check_out_date, status, adults, children, infants, pets, teens, total_price, special_requests, special_requests_parsed, requires_intervention, booking_channel, payment_status, payment_method, rolos_check_in_time, rolos_check_out_time, rolos_room_ids, rolos_rate_plan_id, modification_notes, room_type_id, rolos_guest_id, property_id, integration_type, hold_expires_at, hold_released_at")
+        .select("id, guest_name, guest_email, guest_phone, check_in_date, check_out_date, status, adults, children, infants, pets, teens, total_price, special_requests, special_requests_parsed, requires_intervention, booking_channel, payment_status, payment_method, rolos_check_in_time, rolos_check_out_time, rolos_room_ids, rolos_rate_plan_id, modification_notes, room_type_id, rolos_guest_id, property_id, integration_type, hold_expires_at, hold_released_at, booker_is_guest, booker_name, booker_email, booker_phone, company_account_id, agent_account_id, source_account_id, market_segment, comm_channel, invoice_to_name, invoice_to_vat, invoice_to_address, guest_company, second_guest_name, booking_made_by, internal_notes, deposit_amount, payment_reference, created_at")
         .in("property_id", portfolioPropertyIds)
         .neq("status", "cancelled")
         .lte("check_in_date", format(dateRange.end, "yyyy-MM-dd"))

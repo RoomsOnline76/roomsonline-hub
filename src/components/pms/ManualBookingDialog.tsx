@@ -14,6 +14,12 @@ import { format, differenceInDays } from "date-fns";
 import { CalendarIcon, Plus, Trash2, BedDouble } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useCrmAccounts, useCrmScopeForProperty, type CrmAccount } from "@/hooks/useCrmAccounts";
+import {
+  BookerSegmentationFields,
+  emptyBookerSegmentation,
+  type BookerSegmentationValue,
+} from "@/components/pms/crm/BookerSegmentationFields";
 
 interface RoomType {
   id: string;
@@ -133,6 +139,23 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
 
   const [lines, setLines] = useState<RoomLine[]>([newLine()]);
 
+  // ───── Linked CRM profiles + segmentation ─────
+  const crmScope = useCrmScopeForProperty(effectivePropertyId || null);
+  const { accounts, isPortfolioScoped, saveAccount } = useCrmAccounts(crmScope);
+  const [crm, setCrm] = useState<BookerSegmentationValue>(emptyBookerSegmentation);
+  const [invoiceTo, setInvoiceTo] = useState({ name: "", vat: "", address: "" });
+
+  /** Linking a company fills the invoice identity for this booking. */
+  const applyCompany = useCallback((a: CrmAccount | null) => {
+    if (!a) return;
+    setInvoiceTo({
+      name: a.name,
+      vat: a.vat_number || "",
+      address: [a.address_line1, a.address_line2, a.city, a.postal_code, a.country].filter(Boolean).join(", "),
+    });
+    setForm(p => ({ ...p, guest_company: a.name }));
+  }, []);
+
   // Reset room lines when the active property changes so we never carry a room
   // type from a different property into the booking payload.
   useEffect(() => {
@@ -247,6 +270,8 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
       special_requests: "", internal_notes: "", booking_channel: "direct",
     });
     setLines([newLine()]);
+    setCrm(emptyBookerSegmentation());
+    setInvoiceTo({ name: "", vat: "", address: "" });
   };
 
   const handleSave = async () => {
@@ -341,6 +366,18 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
       internal_notes: form.internal_notes || null,
       booking_channel: form.booking_channel || "direct",
       integration_type: "rolos",
+      booker_is_guest: crm.booker_is_guest,
+      booker_name: crm.booker_is_guest ? null : (crm.booker_name || null),
+      booker_email: crm.booker_is_guest ? null : (crm.booker_email || null),
+      booker_phone: crm.booker_is_guest ? null : (crm.booker_phone || null),
+      company_account_id: crm.company_account_id,
+      agent_account_id: crm.agent_account_id,
+      source_account_id: crm.source_account_id,
+      market_segment: crm.market_segment || null,
+      comm_channel: crm.comm_channel || null,
+      invoice_to_name: invoiceTo.name || null,
+      invoice_to_vat: invoiceTo.vat || null,
+      invoice_to_address: invoiceTo.address || null,
     };
 
     const assignedRoomIds = validLines.map(l => l.room_id).filter(Boolean);
@@ -558,6 +595,35 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
                 <div>
                   <Label>Internal Notes (staff only)</Label>
                   <Textarea value={form.internal_notes} onChange={e => update("internal_notes", e.target.value)} rows={2} placeholder="Not shown to the guest" />
+                </div>
+              </div>
+
+              <Separator />
+
+              <div className="space-y-2">
+                <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Booker &amp; Segmentation</h4>
+                <BookerSegmentationFields
+                  compact
+                  value={crm}
+                  onChange={patch => setCrm(p => ({ ...p, ...patch }))}
+                  accounts={accounts}
+                  isPortfolioScoped={isPortfolioScoped}
+                  onSaveAccount={saveAccount}
+                  onCompanyLinked={applyCompany}
+                />
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label>Invoice To</Label>
+                    <Input value={invoiceTo.name} onChange={e => setInvoiceTo(p => ({ ...p, name: e.target.value }))} placeholder="Defaults to the guest" />
+                  </div>
+                  <div>
+                    <Label>Invoice VAT No.</Label>
+                    <Input value={invoiceTo.vat} onChange={e => setInvoiceTo(p => ({ ...p, vat: e.target.value }))} placeholder="Optional" />
+                  </div>
+                </div>
+                <div>
+                  <Label>Invoice Address</Label>
+                  <Textarea value={invoiceTo.address} onChange={e => setInvoiceTo(p => ({ ...p, address: e.target.value }))} rows={2} placeholder="Auto-filled when a company is linked" />
                 </div>
               </div>
             </div>

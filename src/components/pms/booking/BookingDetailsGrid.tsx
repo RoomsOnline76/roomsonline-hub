@@ -9,8 +9,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { BedDouble, Plus, Trash2, Save, User, Receipt, StickyNote, CalendarRange } from "lucide-react";
+import { BedDouble, Plus, Trash2, Save, User, Receipt, StickyNote, CalendarRange, Users2 } from "lucide-react";
 import { ViewRatesDialog } from "./ViewRatesDialog";
+import { useCrmAccounts, useCrmScopeForProperty, type CrmAccount } from "@/hooks/useCrmAccounts";
+import { BookerSegmentationFields, type BookerSegmentationValue } from "@/components/pms/crm/BookerSegmentationFields";
+
 
 export interface BookingDetailsGridBooking {
   id: string;
@@ -39,7 +42,20 @@ export interface BookingDetailsGridBooking {
   rolos_room_ids?: string[] | null;
   created_at?: string | null;
   property_id?: string | null;
+  booker_is_guest?: boolean | null;
+  booker_name?: string | null;
+  booker_email?: string | null;
+  booker_phone?: string | null;
+  company_account_id?: string | null;
+  agent_account_id?: string | null;
+  source_account_id?: string | null;
+  market_segment?: string | null;
+  comm_channel?: string | null;
+  invoice_to_name?: string | null;
+  invoice_to_vat?: string | null;
+  invoice_to_address?: string | null;
 }
+
 
 interface RoomOption {
   id: string;
@@ -128,6 +144,41 @@ export function BookingDetailsGrid({
   });
 
   const set = (key: keyof typeof form, value: string) => setForm(p => ({ ...p, [key]: value }));
+
+  // ───── Linked CRM profiles + segmentation ─────
+  const crmScope = useCrmScopeForProperty(booking.property_id);
+  const { accounts, isPortfolioScoped, saveAccount } = useCrmAccounts(crmScope);
+
+  const [crm, setCrm] = useState<BookerSegmentationValue>({
+    booker_is_guest: booking.booker_is_guest ?? true,
+    booker_name: booking.booker_name || "",
+    booker_email: booking.booker_email || "",
+    booker_phone: booking.booker_phone || "",
+    company_account_id: booking.company_account_id || null,
+    agent_account_id: booking.agent_account_id || null,
+    source_account_id: booking.source_account_id || null,
+    market_segment: booking.market_segment || "",
+    comm_channel: booking.comm_channel || "",
+  });
+  const [invoiceTo, setInvoiceTo] = useState({
+    invoice_to_name: booking.invoice_to_name || "",
+    invoice_to_vat: booking.invoice_to_vat || "",
+    invoice_to_address: booking.invoice_to_address || "",
+  });
+
+  /** Copy the company's billing identity onto the booking for invoicing. */
+  const applyCompany = (a: CrmAccount | null) => {
+    if (!a) return;
+    setInvoiceTo({
+      invoice_to_name: a.name,
+      invoice_to_vat: a.vat_number || "",
+      invoice_to_address: [a.address_line1, a.address_line2, a.city, a.postal_code, a.country]
+        .filter(Boolean)
+        .join(", "),
+    });
+    setForm(p => ({ ...p, guest_company: a.name }));
+  };
+
 
   const nights = useMemo(() => {
     try {
@@ -256,6 +307,19 @@ export function BookingDetailsGrid({
       teens: occ.teens,
       infants: occ.infants,
       rolos_room_ids: assignedRoomIds.length ? assignedRoomIds : null,
+      booker_is_guest: crm.booker_is_guest,
+      booker_name: crm.booker_is_guest ? null : (crm.booker_name || null),
+      booker_email: crm.booker_is_guest ? null : (crm.booker_email || null),
+      booker_phone: crm.booker_is_guest ? null : (crm.booker_phone || null),
+      company_account_id: crm.company_account_id,
+      agent_account_id: crm.agent_account_id,
+      source_account_id: crm.source_account_id,
+      market_segment: crm.market_segment || null,
+      comm_channel: crm.comm_channel || null,
+      invoice_to_name: invoiceTo.invoice_to_name || null,
+      invoice_to_vat: invoiceTo.invoice_to_vat || null,
+      invoice_to_address: invoiceTo.invoice_to_address || null,
+
     } as never).eq("id", booking.id);
 
     if (error) {
@@ -448,7 +512,55 @@ export function BookingDetailsGrid({
           <Label className="text-[11px]">Internal Notes (staff only)</Label>
           <Textarea rows={4} value={form.internal_notes} onChange={e => set("internal_notes", e.target.value)} placeholder="Not shown to the guest" />
         </div>
+
+        <Separator />
+
+        {/* ───── Linked Profiles & Segmentation ───── */}
+        <div className="space-y-2">
+          <h4 className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <Users2 className="h-3.5 w-3.5" />Linked Profiles &amp; Segmentation
+          </h4>
+          <BookerSegmentationFields
+            compact
+            value={crm}
+            onChange={patch => setCrm(p => ({ ...p, ...patch }))}
+            accounts={accounts}
+            isPortfolioScoped={isPortfolioScoped}
+            onSaveAccount={saveAccount}
+            onCompanyLinked={applyCompany}
+          />
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <Label className="text-[11px]">Invoice To</Label>
+              <Input
+                className="h-8"
+                value={invoiceTo.invoice_to_name}
+                onChange={e => setInvoiceTo(p => ({ ...p, invoice_to_name: e.target.value }))}
+                placeholder="Defaults to the guest"
+              />
+            </div>
+            <div>
+              <Label className="text-[11px]">Invoice VAT No.</Label>
+              <Input
+                className="h-8"
+                value={invoiceTo.invoice_to_vat}
+                onChange={e => setInvoiceTo(p => ({ ...p, invoice_to_vat: e.target.value }))}
+                placeholder="Optional"
+              />
+            </div>
+          </div>
+          <div>
+            <Label className="text-[11px]">Invoice Address</Label>
+            <Textarea
+              rows={2}
+              value={invoiceTo.invoice_to_address}
+              onChange={e => setInvoiceTo(p => ({ ...p, invoice_to_address: e.target.value }))}
+              placeholder="Auto-filled when a company is linked"
+            />
+          </div>
+        </div>
       </div>
+
 
       {/* ───── Account ───── */}
       <div className="space-y-3">

@@ -64,7 +64,7 @@ function generateInvoiceHTML(invoice: any, transactions: any[], property: any, b
 
   ${invoice.invoice_to || invoice.stay ? `
   <div style="display:flex;gap:32px;margin-bottom:24px;font-size:13px;color:#444;">
-    ${invoice.invoice_to ? `<div><div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#999;">Invoice To</div><div>${invoice.invoice_to}</div></div>` : ""}
+    ${invoice.invoice_to ? `<div><div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#999;">Invoice To</div><div>${invoice.invoice_to}</div>${invoice.bill_to?.address ? `<div style="font-size:12px;color:#666;">${invoice.bill_to.address}</div>` : ""}${invoice.bill_to?.vat_number ? `<div style="font-size:12px;color:#666;">VAT No: ${invoice.bill_to.vat_number}</div>` : ""}</div>` : ""}
     ${invoice.stay ? `<div><div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#999;">Stay</div><div>${invoice.stay.check_in} &rarr; ${invoice.stay.check_out}</div></div>` : ""}
     ${invoice.reference ? `<div><div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#999;">Reference</div><div>${invoice.reference}</div></div>` : ""}
   </div>` : ""}
@@ -231,7 +231,7 @@ Deno.serve(async (req) => {
         if (invBookingId) {
           const { data: bk } = await supabase
             .from("bookings")
-            .select("id, guest_name, guest_email, check_in_date, check_out_date, total_price, status, property_id")
+            .select("id, guest_name, guest_email, check_in_date, check_out_date, total_price, status, property_id, company_account_id, invoice_to_name, invoice_to_vat, invoice_to_address")
             .eq("id", invBookingId)
             .maybeSingle();
           bookingRow = bk;
@@ -344,6 +344,35 @@ Deno.serve(async (req) => {
           }
         }
 
+        // Resolve the invoice identity: explicit override, then the booking's
+        // invoice-to fields, then the linked company profile, then the guest.
+        let billTo: { name: string | null; vat_number: string | null; address: string | null } = {
+          name: bookingRow?.invoice_to_name || null,
+          vat_number: bookingRow?.invoice_to_vat || null,
+          address: bookingRow?.invoice_to_address || null,
+        };
+        if (bookingRow?.company_account_id && (!billTo.name || !billTo.address)) {
+          const { data: companyAccount } = await supabase
+            .from("crm_accounts")
+            .select("name, vat_number, address_line1, address_line2, city, postal_code, country")
+            .eq("id", bookingRow.company_account_id)
+            .maybeSingle();
+          if (companyAccount) {
+            const composed = [
+              companyAccount.address_line1,
+              companyAccount.address_line2,
+              companyAccount.city,
+              companyAccount.postal_code,
+              companyAccount.country,
+            ].filter(Boolean).join(", ");
+            billTo = {
+              name: billTo.name || companyAccount.name || null,
+              vat_number: billTo.vat_number || companyAccount.vat_number || null,
+              address: billTo.address || composed || null,
+            };
+          }
+        }
+
         const total = subtotal + taxTotal;
         const prefix = documentKind === "pro_forma" ? "PF" : "INV";
         const invoiceNumber = `${prefix}-${Date.now().toString(36).toUpperCase()}`;
@@ -365,7 +394,7 @@ Deno.serve(async (req) => {
             property_id: invPropId,
             booking_id: invBookingId || null,
             document_kind: documentKind,
-            invoice_to: invInvoiceTo || bookingRow?.guest_name || null,
+            invoice_to: invInvoiceTo || billTo.name || bookingRow?.guest_name || null,
             reference: invReference || null,
             invoice_number: invoiceNumber,
             subtotal,
@@ -392,7 +421,7 @@ Deno.serve(async (req) => {
           .maybeSingle();
 
         const html = generateInvoiceHTML(
-          { ...invoice, stay: bookingRow ? { check_in: bookingRow.check_in_date, check_out: bookingRow.check_out_date, guest: bookingRow.guest_name } : null },
+          { ...invoice, bill_to: billTo, stay: bookingRow ? { check_in: bookingRow.check_in_date, check_out: bookingRow.check_out_date, guest: bookingRow.guest_name } : null },
           transactions || [],
           property,
           branding,
