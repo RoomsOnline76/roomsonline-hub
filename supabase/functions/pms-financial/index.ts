@@ -195,17 +195,90 @@ Deno.serve(async (req) => {
         });
       }
 
-      // ==================== GENERATE INVOICE WITH PDF ====================
+      // ==================== GENERATE INVOICE / PRO FORMA ====================
       case "generate_invoice": {
-        const { folio_id: invFolioId, property_id: invPropId, notes: invNotes } = body;
+        const {
+          property_id: invPropId,
+          notes: invNotes,
+          booking_id: invBookingId,
+          invoice_to: invInvoiceTo,
+          reference: invReference,
+        } = body;
+        const documentKind: string = body.document_kind === "pro_forma" ? "pro_forma" : "tax_invoice";
+        let invFolioId: string | null = body.folio_id || null;
 
-        const { data: transactions } = await supabase
+        // Resolve booking + folio (creating the folio if the booking has none yet)
+        let bookingRow: any = null;
+        if (invBookingId) {
+          const { data: bk } = await supabase
+            .from("bookings")
+            .select("id, guest_name, guest_email, check_in_date, check_out_date, total_price, status, property_id")
+            .eq("id", invBookingId)
+            .maybeSingle();
+          bookingRow = bk;
+          if (!invFolioId) {
+            const { data: existingFolio } = await supabase
+              .from("rolos_folios")
+              .select("id")
+              .eq("booking_id", invBookingId)
+              .maybeSingle();
+            if (existingFolio?.id) {
+              invFolioId = existingFolio.id;
+            } else {
+              const { data: createdFolio } = await supabase
+                .from("rolos_folios")
+                .insert({ booking_id: invBookingId, property_id: invPropId })
+                .select("id")
+                .single();
+              invFolioId = createdFolio?.id || null;
+            }
+          }
+        }
+
+        if (!invFolioId) {
+          return new Response(JSON.stringify({ error: "folio_id or booking_id required" }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        // A final tax invoice may only be raised once the stay is over / guest checked out
+        if (documentKind === "tax_invoice" && bookingRow) {
+          const today = new Date().toISOString().split("T")[0];
+          const stayEnded = String(bookingRow.check_out_date || "") <= today;
+          const checkedOut = ["checked_out", "completed", "departed"].includes(String(bookingRow.status || "").toLowerCase());
+          if (!stayEnded && !checkedOut) {
+            return new Response(JSON.stringify({
+              error: "A tax invoice can only be generated after check-out. Issue a pro forma invoice instead.",
+              code: "STAY_NOT_COMPLETE",
+            }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+          }
+        }
+
+        const { data: transactionRows } = await supabase
           .from("rolos_folio_transactions")
           .select("*")
           .eq("folio_id", invFolioId)
           .order("created_at");
 
-        const charges = (transactions || []).filter((t: any) => (t.amount || 0) > 0);
+        const transactions: any[] = [...(transactionRows || [])];
+        const bookingTotal = Number(bookingRow?.total_price || 0);
+        const positives = transactions.filter((t: any) => (t.amount || 0) > 0);
+        const hasAccommodationLine = positives.some((t: any) => {
+          const text = `${t.transaction_type || ""} ${t.description || ""}`.toLowerCase();
+          return Math.abs(Number(t.amount || 0) - bookingTotal) < 0.01 ||
+            text.includes("accommodation") || text.includes("room rate") || text.includes("booking total");
+        });
+        if (bookingTotal > 0 && !hasAccommodationLine) {
+          transactions.unshift({
+            id: "accommodation-synthetic",
+            description: "Accommodation",
+            amount: bookingTotal,
+            transaction_type: "accommodation",
+          });
+        }
+
+        const charges = transactions.filter((t: any) => (t.amount || 0) > 0);
         const subtotal = charges.reduce((sum: number, t: any) => sum + Number(t.amount), 0);
 
         // Identify refundable deposit charges (excluded from VAT)
