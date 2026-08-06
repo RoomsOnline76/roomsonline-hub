@@ -15,9 +15,10 @@ import type {
   PropertyCharge, 
   ChargePreset, 
   ChargeCategory, 
-  ChargeCalculationMethod 
+  ChargeCalculationMethod,
+  RevenueStream
 } from "./ChargeCalculator";
-import { getCalculationMethodLabel, getCategoryLabel } from "./ChargeCalculator";
+import { getCalculationMethodLabel, getCategoryLabel, getRevenueStreamLabel, REVENUE_STREAMS, normalizeRevenueStream } from "./ChargeCalculator";
 
 interface ChargeEditorProps {
   open: boolean;
@@ -33,6 +34,8 @@ const DEFAULT_CHARGE: Omit<PropertyCharge, 'id' | 'property_id' | 'created_at' |
   name: '',
   internal_code: '',
   category: 'fee',
+  revenue_stream: 'accommodation',
+  is_included_in_rate: false,
   calculation_method: 'flat_per_stay',
   amount: 0,
   currency: 'ZAR',
@@ -91,6 +94,8 @@ export function ChargeEditor({
         name: charge.name,
         internal_code: charge.internal_code || '',
         category: charge.category,
+        revenue_stream: normalizeRevenueStream(charge.revenue_stream),
+        is_included_in_rate: charge.is_included_in_rate ?? false,
         calculation_method: charge.calculation_method,
         amount: charge.amount,
         currency: charge.currency,
@@ -210,6 +215,40 @@ export function ChargeEditor({
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="revenue_stream">Revenue stream *</Label>
+              <Select
+                value={formData.revenue_stream}
+                onValueChange={val => setFormData(prev => ({ ...prev, revenue_stream: val as RevenueStream }))}
+              >
+                <SelectTrigger id="revenue_stream">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {REVENUE_STREAMS.map(stream => (
+                    <SelectItem key={stream} value={stream}>{getRevenueStreamLabel(stream)}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Used for reporting only — lets you separate accommodation revenue from F&amp;B (e.g. breakfast).
+              </p>
+            </div>
+
+            <div className="flex items-start justify-between gap-4 rounded-md border border-border p-3">
+              <div className="space-y-1">
+                <Label htmlFor="is_included_in_rate">Included in rate</Label>
+                <p className="text-xs text-muted-foreground">
+                  The amount already sits inside the room rate. It is used to split revenue only and is never added on top of the guest total.
+                </p>
+              </div>
+              <Switch
+                id="is_included_in_rate"
+                checked={formData.is_included_in_rate}
+                onCheckedChange={checked => setFormData(prev => ({ ...prev, is_included_in_rate: checked }))}
+              />
             </div>
 
             <div className="space-y-2">
