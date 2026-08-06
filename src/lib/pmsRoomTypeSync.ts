@@ -97,7 +97,7 @@ export async function syncRolosRoomTypesFromOverview(propertyId: string) {
     : hostfullyRoomTypes;
 
   if (overviewTypes.length === 0) {
-    return { inserted: 0, updated: 0, reactivated: 0 };
+    return { inserted: 0, updated: 0, reactivated: 0, retired: 0 };
   }
 
   const { data: existingRolos, error: existingError } = await supabase
