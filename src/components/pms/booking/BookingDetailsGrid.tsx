@@ -42,7 +42,20 @@ export interface BookingDetailsGridBooking {
   rolos_room_ids?: string[] | null;
   created_at?: string | null;
   property_id?: string | null;
+  booker_is_guest?: boolean | null;
+  booker_name?: string | null;
+  booker_email?: string | null;
+  booker_phone?: string | null;
+  company_account_id?: string | null;
+  agent_account_id?: string | null;
+  source_account_id?: string | null;
+  market_segment?: string | null;
+  comm_channel?: string | null;
+  invoice_to_name?: string | null;
+  invoice_to_vat?: string | null;
+  invoice_to_address?: string | null;
 }
+
 
 interface RoomOption {
   id: string;
