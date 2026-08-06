@@ -1,0 +1,563 @@
+// ============================================================================
+// ROL'OS GROUPS ENGINE
+// Group room blocks, rooming lists, pickup, release/attrition, master folios.
+//
+// All inventory movements go through the atomic SQL routines:
+//   rolos_apply_block_inventory / rolos_convert_block_to_booked
+// and mirror into pms_availability_cache so the online engine + channels
+// stop selling blocked rooms.
+// ============================================================================
+
+import { createClient } from "npm:@supabase/supabase-js@2";
+import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
+import { z } from "npm:zod@3.23.8";
+
+const SOURCE = "roomsonline";
+
+// deno-lint-ignore no-explicit-any
+type Client = any;
+
+function json(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+function nightsBetween(start: string, end: string): string[] {
+  const out: string[] = [];
+  const s = new Date(`${start}T00:00:00Z`);
+  const e = new Date(`${end}T00:00:00Z`);
+  for (let d = new Date(s); d < e; d.setUTCDate(d.getUTCDate() + 1)) {
+    out.push(d.toISOString().split("T")[0]);
+  }
+  return out;
+}
+
+/** Mirror a block/release into the availability cache the booking engine reads. */
+async function adjustAvailabilityCache(
+  supabase: Client,
+  propertyId: string,
+  roomTypeId: string,
+  startDate: string,
+  endDate: string,
+  delta: number,
+): Promise<void> {
+  if (!delta) return;
+  const dates = nightsBetween(startDate, endDate);
+  if (!dates.length) return;
+
+  const { data: rows } = await supabase
+    .from("pms_availability_cache")
+    .select("id, date, available_units")
+    .eq("property_id", propertyId)
+    .eq("system_type", SOURCE)
+    .eq("external_room_type_id", roomTypeId)
+    .in("date", dates);
+
+  for (const row of (rows || [])) {
+    await supabase
+      .from("pms_availability_cache")
+      .update({
+        available_units: Math.max(0, (row.available_units || 0) + delta),
+        updated_at: new Date().toISOString(),
+        source_timestamp: new Date().toISOString(),
+      })
+      .eq("id", row.id);
+  }
+}
+
+async function ensureMasterFolio(
+  supabase: Client,
+  group: { id: string; property_id: string; name: string; master_folio_id: string | null },
+): Promise<string> {
+  if (group.master_folio_id) return group.master_folio_id;
+
+  const { data: existing } = await supabase
+    .from("rolos_folios")
+    .select("id")
+    .eq("group_id", group.id)
+    .maybeSingle();
+
+  let folioId = existing?.id as string | undefined;
+
+  if (!folioId) {
+    const { data: created, error } = await supabase
+      .from("rolos_folios")
+      .insert({
+        group_id: group.id,
+        property_id: group.property_id,
+        guest_name: `${group.name} (Master)`,
+        status: "open",
+        balance: 0,
+        currency: "ZAR",
+      })
+      .select("id")
+      .single();
+    if (error) throw error;
+    folioId = created.id;
+  }
+
+  await supabase.from("rolos_groups").update({ master_folio_id: folioId }).eq("id", group.id);
+  return folioId!;
+}
+
+async function refreshFolioBalance(supabase: Client, folioId: string): Promise<void> {
+  const { data: txns } = await supabase
+    .from("rolos_folio_transactions")
+    .select("amount")
+    .eq("folio_id", folioId);
+  const balance = (txns || []).reduce((sum: number, t: { amount: number }) => sum + Number(t.amount || 0), 0);
+  await supabase
+    .from("rolos_folios")
+    .update({ balance: Math.round(balance * 100) / 100, updated_at: new Date().toISOString() })
+    .eq("id", folioId);
+}
+
+/** Shared release path: restores inventory and optionally posts attrition. */
+async function releaseBlock(
+  supabase: Client,
+  blockId: string,
+  opts: { reason: string; chargeAttrition: boolean; userId: string | null },
+): Promise<{ released: number; attrition: number }> {
+  const { data: block, error: blockErr } = await supabase
+    .from("rolos_group_room_blocks")
+    .select("*, group:rolos_groups!group_id(id, property_id, name, attrition_rate, cutoff_date, billing_mode, master_folio_id)")
+    .eq("id", blockId)
+    .single();
+  if (blockErr || !block) throw blockErr || new Error("Block not found");
+  if (block.status !== "blocked") return { released: 0, attrition: 0 };
+
+  const group = block.group;
+  const propertyId = block.property_id || group.property_id;
+  const remaining = Math.max(0, (block.blocked_count || 0) - (block.picked_up_count || 0));
+
+  if (remaining > 0) {
+    await supabase.rpc("rolos_apply_block_inventory", {
+      _property_id: propertyId,
+      _room_type_id: block.room_type_id,
+      _start_date: block.start_date,
+      _end_date: block.end_date,
+      _delta: -remaining,
+    });
+    await adjustAvailabilityCache(supabase, propertyId, block.room_type_id, block.start_date, block.end_date, remaining);
+  }
+
+  let attritionAmount = 0;
+  const rate = Number(block.attrition_rate ?? group.attrition_rate ?? 0);
+  const pastCutoff = group.cutoff_date ? new Date(group.cutoff_date) <= new Date() : true;
+
+  if (opts.chargeAttrition && rate > 0 && remaining > 0 && !block.attrition_charged && pastCutoff) {
+    let nightlyRate = Number(block.rate_override || 0);
+    if (!nightlyRate) {
+      const { data: rt } = await supabase
+        .from("rolos_room_types")
+        .select("default_rate")
+        .eq("id", block.room_type_id)
+        .maybeSingle();
+      nightlyRate = Number(rt?.default_rate || 0);
+    }
+    const nights = nightsBetween(block.start_date, block.end_date).length;
+    attritionAmount = Math.round(remaining * nights * nightlyRate * (rate / 100) * 100) / 100;
+
+    if (attritionAmount > 0) {
+      const folioId = await ensureMasterFolio(supabase, group);
+      await supabase.from("rolos_folio_transactions").insert({
+        folio_id: folioId,
+        transaction_type: "charge",
+        description: `Attrition charge — ${remaining} unsold room(s) released (${rate}%)`,
+        amount: attritionAmount,
+        revenue_stream: "accommodation",
+        created_by: opts.userId,
+      });
+      await refreshFolioBalance(supabase, folioId);
+    }
+  }
+
+  await supabase
+    .from("rolos_group_room_blocks")
+    .update({
+      status: "released",
+      released_at: new Date().toISOString(),
+      attrition_charged: attritionAmount > 0 ? true : block.attrition_charged,
+    })
+    .eq("id", blockId);
+
+  console.log(`[pms-groups] Released block ${blockId} (${remaining} rooms, reason=${opts.reason})`);
+  return { released: remaining, attrition: attritionAmount };
+}
+
+// ============================== SCHEMAS =====================================
+
+const createBlockSchema = z.object({
+  property_id: z.string().uuid(),
+  group_id: z.string().uuid(),
+  room_type_id: z.string().uuid(),
+  blocked_count: z.number().int().min(1).max(500),
+  start_date: z.string().min(10),
+  end_date: z.string().min(10),
+  rate_override: z.number().nonnegative().nullable().optional(),
+  release_date: z.string().min(10).nullable().optional(),
+});
+
+const pickupSchema = z.object({
+  property_id: z.string().uuid(),
+  group_id: z.string().uuid(),
+  block_id: z.string().uuid(),
+  rooming_list_id: z.string().uuid().nullable().optional(),
+  guest_name: z.string().min(1).max(200),
+  guest_email: z.string().email().nullable().optional(),
+  guest_phone: z.string().max(50).nullable().optional(),
+  arrival_date: z.string().min(10).nullable().optional(),
+  departure_date: z.string().min(10).nullable().optional(),
+  adults: z.number().int().min(1).max(20).optional(),
+  children: z.number().int().min(0).max(20).optional(),
+  room_preference: z.string().max(200).nullable().optional(),
+  special_requests: z.string().max(2000).nullable().optional(),
+});
+
+const roomingRowSchema = z.object({
+  guest_name: z.string().min(1).max(200),
+  guest_email: z.string().max(200).nullable().optional(),
+  guest_phone: z.string().max(50).nullable().optional(),
+  arrival_date: z.string().nullable().optional(),
+  departure_date: z.string().nullable().optional(),
+  room_type_id: z.string().uuid().nullable().optional(),
+  block_id: z.string().uuid().nullable().optional(),
+  room_preference: z.string().max(200).nullable().optional(),
+  special_requests: z.string().max(2000).nullable().optional(),
+  adults: z.number().int().min(1).max(20).optional(),
+  children: z.number().int().min(0).max(20).optional(),
+});
+
+// ============================== HANDLER =====================================
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+
+  try {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, serviceKey);
+
+    const authHeader = req.headers.get("Authorization") || "";
+    const token = authHeader.replace("Bearer ", "").trim();
+    if (!token) return json({ error: "Missing authorization" }, 401);
+
+    const isServiceCall = token === serviceKey;
+    let userId: string | null = null;
+    if (!isServiceCall) {
+      const { data: { user }, error: authErr } = await supabase.auth.getUser(token);
+      if (authErr || !user) return json({ error: "Unauthorized" }, 401);
+      userId = user.id;
+    }
+
+    const body = await req.json();
+    const action = String(body?.action || "");
+
+    // Every non-service action is scoped to a property the caller can access.
+    const propertyId = body?.property_id as string | undefined;
+    if (!isServiceCall) {
+      if (!propertyId) return json({ error: "property_id is required" }, 400);
+      const { data: allowed, error: accessErr } = await supabase.rpc("can_access_property", {
+        _property_id: propertyId,
+        _user_id: userId,
+      });
+      if (accessErr || !allowed) return json({ error: "Forbidden: no access to this property" }, 403);
+    }
+
+    switch (action) {
+      // ---------------------------------------------------------------- block
+      case "group_create_block": {
+        const parsed = createBlockSchema.safeParse(body);
+        if (!parsed.success) return json({ error: parsed.error.flatten().fieldErrors }, 400);
+        const p = parsed.data;
+        if (nightsBetween(p.start_date, p.end_date).length === 0) {
+          return json({ error: "end_date must be after start_date" }, 400);
+        }
+
+        const { data: block, error } = await supabase
+          .from("rolos_group_room_blocks")
+          .insert({
+            group_id: p.group_id,
+            property_id: p.property_id,
+            room_type_id: p.room_type_id,
+            blocked_count: p.blocked_count,
+            picked_up_count: 0,
+            rate_override: p.rate_override ?? null,
+            start_date: p.start_date,
+            end_date: p.end_date,
+            release_date: p.release_date ?? null,
+            status: "blocked",
+          })
+          .select("*")
+          .single();
+        if (error) throw error;
+
+        await supabase.rpc("rolos_apply_block_inventory", {
+          _property_id: p.property_id,
+          _room_type_id: p.room_type_id,
+          _start_date: p.start_date,
+          _end_date: p.end_date,
+          _delta: p.blocked_count,
+        });
+        await adjustAvailabilityCache(supabase, p.property_id, p.room_type_id, p.start_date, p.end_date, -p.blocked_count);
+
+        return json({ success: true, block });
+      }
+
+      case "group_release_block": {
+        const blockId = String(body?.block_id || "");
+        if (!blockId) return json({ error: "block_id is required" }, 400);
+        const result = await releaseBlock(supabase, blockId, {
+          reason: body?.reason || "manual",
+          chargeAttrition: body?.charge_attrition !== false,
+          userId,
+        });
+        return json({ success: true, ...result });
+      }
+
+      // -------------------------------------------------------------- pickup
+      case "group_pickup_room": {
+        const parsed = pickupSchema.safeParse(body);
+        if (!parsed.success) return json({ error: parsed.error.flatten().fieldErrors }, 400);
+        const p = parsed.data;
+
+        const { data: block, error: blockErr } = await supabase
+          .from("rolos_group_room_blocks")
+          .select("*, group:rolos_groups!group_id(id, name, contact_email, property_id, billing_mode, master_folio_id)")
+          .eq("id", p.block_id)
+          .single();
+        if (blockErr || !block) return json({ error: "Room block not found" }, 404);
+
+        const remaining = (block.blocked_count || 0) - (block.picked_up_count || 0);
+        if (block.status === "released") return json({ error: "This block has been released" }, 409);
+        if (remaining <= 0) return json({ error: "No rooms left in this block" }, 409);
+
+        const arrival = p.arrival_date || block.start_date;
+        const departure = p.departure_date || block.end_date;
+        const nights = nightsBetween(arrival, departure);
+        if (!nights.length) return json({ error: "Departure must be after arrival" }, 400);
+
+        let nightlyRate = Number(block.rate_override || 0);
+        if (!nightlyRate) {
+          const { data: rt } = await supabase
+            .from("rolos_room_types")
+            .select("default_rate")
+            .eq("id", block.room_type_id)
+            .maybeSingle();
+          nightlyRate = Number(rt?.default_rate || 0);
+        }
+        const totalPrice = Math.round(nightlyRate * nights.length * 100) / 100;
+
+        const { data: booking, error: bookingErr } = await supabase
+          .from("bookings")
+          .insert({
+            property_id: p.property_id,
+            guest_name: p.guest_name,
+            guest_email: p.guest_email || block.group?.contact_email || "no-email@rolos.local",
+            guest_phone: p.guest_phone || null,
+            check_in_date: arrival,
+            check_out_date: departure,
+            room_type_id: block.room_type_id,
+            adults: p.adults ?? 1,
+            children: p.children ?? 0,
+            total_price: totalPrice,
+            status: "confirmed",
+            payment_status: block.group?.billing_mode === "individual" ? "pending" : "invoiced",
+            booking_channel: "group",
+            integration_type: "rolos",
+            special_requests: p.special_requests || null,
+            internal_notes: `Group pickup — ${block.group?.name ?? ""}`.trim(),
+          })
+          .select("id, booking_reference")
+          .single();
+        if (bookingErr) throw bookingErr;
+
+        await supabase.from("rolos_booking_rooms").insert({
+          booking_id: booking.id,
+          room_type_id: block.room_type_id,
+          rate_charged: totalPrice,
+          nightly_rate: nightlyRate || null,
+          adults: p.adults ?? 1,
+          children: p.children ?? 0,
+        });
+
+        // Rooming list line: update the placeholder if given, otherwise create one.
+        const roomingPayload = {
+          group_id: p.group_id,
+          block_id: p.block_id,
+          booking_id: booking.id,
+          room_type_id: block.room_type_id,
+          guest_name: p.guest_name,
+          guest_email: p.guest_email || null,
+          guest_phone: p.guest_phone || null,
+          arrival_date: arrival,
+          departure_date: departure,
+          adults: p.adults ?? 1,
+          children: p.children ?? 0,
+          room_preference: p.room_preference || null,
+          special_requests: p.special_requests || null,
+          status: "picked_up",
+        };
+        if (p.rooming_list_id) {
+          await supabase.from("rolos_group_reservations").update(roomingPayload).eq("id", p.rooming_list_id);
+        } else {
+          await supabase.from("rolos_group_reservations").insert(roomingPayload);
+        }
+
+        const newPickedUp = (block.picked_up_count || 0) + 1;
+        await supabase
+          .from("rolos_group_room_blocks")
+          .update({
+            picked_up_count: newPickedUp,
+            status: newPickedUp >= (block.blocked_count || 0) ? "picked_up" : "blocked",
+          })
+          .eq("id", p.block_id);
+
+        // Blocked -> booked: the cache was already reduced when the block was created.
+        await supabase.rpc("rolos_convert_block_to_booked", {
+          _property_id: p.property_id,
+          _room_type_id: block.room_type_id,
+          _start_date: arrival,
+          _end_date: departure,
+          _units: 1,
+        });
+
+        return json({ success: true, booking_id: booking.id, booking_reference: booking.booking_reference ?? null });
+      }
+
+      // ------------------------------------------------------- rooming list
+      case "group_import_rooming_list": {
+        const groupId = String(body?.group_id || "");
+        const rowsParsed = z.array(roomingRowSchema).min(1).max(500).safeParse(body?.rows);
+        if (!groupId || !rowsParsed.success) {
+          return json({ error: rowsParsed.success ? "group_id is required" : rowsParsed.error.flatten() }, 400);
+        }
+
+        const { data: blocks } = await supabase
+          .from("rolos_group_room_blocks")
+          .select("id, room_type_id, blocked_count, picked_up_count, status")
+          .eq("group_id", groupId)
+          .eq("status", "blocked");
+
+        const capacity = new Map<string, number>();
+        for (const b of (blocks || [])) {
+          capacity.set(b.room_type_id, (capacity.get(b.room_type_id) || 0) + Math.max(0, b.blocked_count - b.picked_up_count));
+        }
+
+        const accepted: Record<string, unknown>[] = [];
+        const rejected: { guest_name: string; reason: string }[] = [];
+
+        for (const row of rowsParsed.data) {
+          const blockId = row.block_id
+            || (row.room_type_id ? (blocks || []).find((b: { room_type_id: string }) => b.room_type_id === row.room_type_id)?.id : null)
+            || null;
+          const rtId = row.room_type_id
+            || (blockId ? (blocks || []).find((b: { id: string }) => b.id === blockId)?.room_type_id : null)
+            || null;
+
+          if (rtId) {
+            const left = capacity.get(rtId) ?? 0;
+            if (left <= 0) {
+              rejected.push({ guest_name: row.guest_name, reason: "No blocked rooms left for this room type" });
+              continue;
+            }
+            capacity.set(rtId, left - 1);
+          }
+
+          accepted.push({
+            group_id: groupId,
+            block_id: blockId,
+            room_type_id: rtId,
+            guest_name: row.guest_name,
+            guest_email: row.guest_email || null,
+            guest_phone: row.guest_phone || null,
+            arrival_date: row.arrival_date || null,
+            departure_date: row.departure_date || null,
+            room_preference: row.room_preference || null,
+            special_requests: row.special_requests || null,
+            adults: row.adults ?? 1,
+            children: row.children ?? 0,
+            status: "pending",
+          });
+        }
+
+        if (accepted.length) {
+          const { error } = await supabase.from("rolos_group_reservations").insert(accepted);
+          if (error) throw error;
+        }
+
+        return json({ success: true, imported: accepted.length, rejected });
+      }
+
+      // -------------------------------------------------------- master folio
+      case "group_ensure_master_folio": {
+        const groupId = String(body?.group_id || "");
+        if (!groupId) return json({ error: "group_id is required" }, 400);
+        const { data: group, error } = await supabase
+          .from("rolos_groups")
+          .select("id, property_id, name, master_folio_id")
+          .eq("id", groupId)
+          .single();
+        if (error || !group) return json({ error: "Group not found" }, 404);
+        const folioId = await ensureMasterFolio(supabase, group);
+        return json({ success: true, folio_id: folioId });
+      }
+
+      // ------------------------------------------------------- group cancel
+      case "group_cancel": {
+        const groupId = String(body?.group_id || "");
+        if (!groupId) return json({ error: "group_id is required" }, 400);
+        const { data: blocks } = await supabase
+          .from("rolos_group_room_blocks")
+          .select("id")
+          .eq("group_id", groupId)
+          .eq("status", "blocked");
+        let released = 0;
+        for (const b of (blocks || [])) {
+          const res = await releaseBlock(supabase, b.id, {
+            reason: "group_cancelled",
+            chargeAttrition: body?.charge_attrition === true,
+            userId,
+          });
+          released += res.released;
+        }
+        await supabase.from("rolos_groups").update({ status: "cancelled" }).eq("id", groupId);
+        return json({ success: true, released_rooms: released, blocks_released: (blocks || []).length });
+      }
+
+      // --------------------------------------- scheduled auto-release sweep
+      case "group_release_due_blocks": {
+        const today = new Date().toISOString().split("T")[0];
+        let query = supabase
+          .from("rolos_group_room_blocks")
+          .select("id, property_id")
+          .eq("status", "blocked")
+          .not("release_date", "is", null)
+          .lt("release_date", today);
+        if (propertyId) query = query.eq("property_id", propertyId);
+
+        const { data: due, error } = await query;
+        if (error) throw error;
+
+        const results: { block_id: string; released: number; attrition: number }[] = [];
+        for (const b of (due || [])) {
+          try {
+            const res = await releaseBlock(supabase, b.id, { reason: "release_date_passed", chargeAttrition: true, userId });
+            results.push({ block_id: b.id, ...res });
+          } catch (e) {
+            console.error(`[pms-groups] Auto-release failed for ${b.id}:`, e);
+          }
+        }
+        return json({ success: true, processed: results.length, results });
+      }
+
+      default:
+        return json({ error: `Unknown action: ${action}` }, 400);
+    }
+  } catch (error) {
+    console.error("[pms-groups] Error:", error);
+    return json({ error: error instanceof Error ? error.message : String(error) }, 500);
+  }
+});
