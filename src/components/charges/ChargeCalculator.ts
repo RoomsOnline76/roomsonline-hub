@@ -1,6 +1,26 @@
 // Types for charge calculations
 export type ChargeCategory = 'tax' | 'fee' | 'deposit' | 'surcharge' | 'custom';
 
+/**
+ * Revenue stream classification. Deliberately separate from ChargeCategory so
+ * existing tax/fee/deposit logic stays intact — this only affects reporting.
+ */
+export type RevenueStream = 'accommodation' | 'fnb' | 'other';
+
+export const REVENUE_STREAMS: RevenueStream[] = ['accommodation', 'fnb', 'other'];
+
+export function getRevenueStreamLabel(stream: RevenueStream | null | undefined): string {
+  switch (stream) {
+    case 'fnb': return 'F&B';
+    case 'other': return 'Other';
+    default: return 'Accommodation';
+  }
+}
+
+export function normalizeRevenueStream(value: unknown): RevenueStream {
+  return value === 'fnb' || value === 'other' ? value : 'accommodation';
+}
+
 export type ChargeCalculationMethod = 
   | 'flat_per_stay'
   | 'per_night'
@@ -15,6 +35,13 @@ export interface PropertyCharge {
   name: string;
   internal_code: string | null;
   category: ChargeCategory;
+  /** Reporting stream. Defaults to 'accommodation' for all legacy rows. */
+  revenue_stream: RevenueStream;
+  /**
+   * When true the amount is already contained in the rate total: it is used for
+   * the revenue-stream split only and is NEVER added on top of the guest total.
+   */
+  is_included_in_rate: boolean;
   calculation_method: ChargeCalculationMethod;
   amount: number;
   currency: string;
@@ -83,6 +110,8 @@ export interface ChargeTotals {
   refundableTotal: number;
   nonRefundableTotal: number;
 }
+
+export type StreamTotals = Record<RevenueStream, number>;
 
 function isChargeApplicable(
   charge: PropertyCharge,
@@ -257,10 +286,31 @@ export function calculateCharges(
   });
 }
 
+/** Charges that are actually added on top of the rate (excludes split markers) */
+export function getAddOnCharges(charges: CalculatedCharge[]): CalculatedCharge[] {
+  return charges.filter(c => !c.charge.is_included_in_rate);
+}
+
+/** Charges that are already inside the rate and only drive the revenue split */
+export function getIncludedCharges(charges: CalculatedCharge[]): CalculatedCharge[] {
+  return charges.filter(c => c.charge.is_included_in_rate);
+}
+
+/** Totals per revenue stream across all calculated charges (add-on + included) */
+export function getStreamTotals(charges: CalculatedCharge[]): StreamTotals {
+  const totals: StreamTotals = { accommodation: 0, fnb: 0, other: 0 };
+  for (const c of charges) {
+    totals[normalizeRevenueStream(c.charge.revenue_stream)] += c.calculatedAmount;
+  }
+  for (const key of REVENUE_STREAMS) totals[key] = Math.round(totals[key] * 100) / 100;
+  return totals;
+}
+
 /**
  * Group calculated charges by category for display
  */
-export function groupChargesByCategory(charges: CalculatedCharge[]): GroupedCharges {
+export function groupChargesByCategory(input: CalculatedCharge[]): GroupedCharges {
+  const charges = getAddOnCharges(input);
   return {
     taxes: charges.filter(c => c.charge.category === 'tax'),
     fees: charges.filter(c => c.charge.category === 'fee'),
@@ -274,8 +324,10 @@ export function groupChargesByCategory(charges: CalculatedCharge[]): GroupedChar
  * Calculate totals from calculated charges
  */
 export function getChargeTotals(charges: CalculatedCharge[]): ChargeTotals {
-  const total = charges.reduce((sum, c) => sum + c.calculatedAmount, 0);
-  const refundableTotal = charges
+  // Charges flagged as included in the rate are split markers, not add-ons.
+  const addOns = getAddOnCharges(charges);
+  const total = addOns.reduce((sum, c) => sum + c.calculatedAmount, 0);
+  const refundableTotal = addOns
     .filter(c => c.charge.is_refundable)
     .reduce((sum, c) => sum + c.calculatedAmount, 0);
   
