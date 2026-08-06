@@ -168,5 +168,44 @@ export async function syncRolosRoomTypesFromOverview(propertyId: string) {
     if (insertError) throw insertError;
   }
 
-  return { inserted: inserts.length, updated: updates.length, reactivated };
+  // Retire stale room types: active records that no longer match the Property
+  // Overview list and carry no physical units or bookings. Prevents archived /
+  // duplicate rows from cluttering the Room Type Plan.
+  const staleCandidates = existingRows.filter(
+    (row) => row.is_active === true && !matchedIds.has(row.id)
+  );
+  let retired = 0;
+
+  if (staleCandidates.length > 0) {
+    const candidateIds = staleCandidates.map((row) => row.id);
+    const [{ data: roomsForTypes }, { data: bookingsForTypes }] = await Promise.all([
+      supabase.from("rolos_rooms").select("room_type_id").in("room_type_id", candidateIds),
+      supabase.from("bookings").select("room_type_id").in("room_type_id", candidateIds),
+    ]);
+
+    const inUse = new Set<string>([
+      ...((roomsForTypes || []) as Array<{ room_type_id: string | null }>)
+        .map((r) => r.room_type_id)
+        .filter(Boolean) as string[],
+      ...((bookingsForTypes || []) as Array<{ room_type_id: string | null }>)
+        .map((b) => b.room_type_id)
+        .filter(Boolean) as string[],
+    ]);
+
+    const retireIds = candidateIds.filter((id) => !inUse.has(id));
+    if (retireIds.length > 0) {
+      const { error: retireError } = await supabase
+        .from("rolos_room_types")
+        .update({ is_active: false })
+        .in("id", retireIds);
+      if (retireError) {
+        console.warn("[pmsRoomTypeSync] Failed to retire stale room types:", retireError);
+      } else {
+        retired = retireIds.length;
+      }
+    }
+  }
+
+  return { inserted: inserts.length, updated: updates.length, reactivated, retired };
 }
+
