@@ -70,6 +70,8 @@ export default function PMSRooms() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [sleepsFilter, setSleepsFilter] = useState<string>("any");
+  const [showCards, setShowCards] = useState(false);
+
 
   const dates = useMemo(
     () => Array.from({ length: PLAN_NIGHTS }, (_, i) => addDays(anchorDate, i)),
