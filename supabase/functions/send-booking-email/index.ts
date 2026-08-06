@@ -1573,13 +1573,13 @@ Deno.serve(async (req) => {
     }
 
     // Send email with optional attachments
-    const htmlWithContact = appendContactFooterHtml(
-      accountDocBlock ? html.replace(/<\/body>/i, `${accountDocBlock}</body>`) === html
-        ? html + accountDocBlock
-        : html.replace(/<\/body>/i, `${accountDocBlock}</body>`)
-        : html,
-      identity,
-    );
+    let htmlWithDoc = html;
+    if (accountDocBlock) {
+      htmlWithDoc = /<\/body>/i.test(html)
+        ? html.replace(/<\/body>/i, `${accountDocBlock}</body>`)
+        : html + accountDocBlock;
+    }
+    const htmlWithContact = appendContactFooterHtml(htmlWithDoc, identity);
     const { data: emailData, error: emailError } = await resend.emails.send({
       from: fromEmail,
       to: [booking.guest_email],
