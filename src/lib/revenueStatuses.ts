@@ -22,6 +22,9 @@ export const ALL_REVENUE_PAYMENT_STATUSES: string[] = [
   ...PARTIAL_PAYMENT_STATUSES,
 ];
 
+/** Manual booking hold states — treated exactly like `pending` (no revenue). */
+export const PENDING_BOOKING_STATUSES = ["pending", "waiting_for_deposit"];
+
 /** Booking statuses that never count towards revenue. */
 export const NON_REVENUE_BOOKING_STATUSES = ["cancelled", "canceled", "failed"];
 

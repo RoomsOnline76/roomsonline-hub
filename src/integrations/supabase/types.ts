@@ -768,6 +768,7 @@ export type Database = {
           adults: number
           ai_metadata: Json | null
           booking_channel: string | null
+          booking_made_by: string | null
           calculated_commission: number | null
           cancellation_reason: string | null
           cancellation_reason_category: string | null
@@ -779,9 +780,14 @@ export type Database = {
           commission_rate_applied: number | null
           commission_type: string | null
           created_at: string | null
+          deposit_amount: number
+          deposit_due_date: string | null
           external_reservation_id: string | null
+          guest_company: string | null
           guest_email: string
           guest_email_encrypted: string | null
+          guest_first_name: string | null
+          guest_last_name: string | null
           guest_name: string
           guest_name_encrypted: string | null
           guest_nationality: string | null
@@ -792,6 +798,7 @@ export type Database = {
           id: string
           infants: number | null
           integration_type: string | null
+          internal_notes: string | null
           last_modified_at: string | null
           lead_created_at: string | null
           modification_notes: Json | null
@@ -817,6 +824,9 @@ export type Database = {
           rolos_room_ids: string[] | null
           room_type_id: string | null
           rooms: Json | null
+          second_guest_email: string | null
+          second_guest_name: string | null
+          second_guest_phone: string | null
           source_url: string | null
           special_requests: string | null
           special_requests_parsed: Json | null
@@ -831,6 +841,7 @@ export type Database = {
           adults?: number
           ai_metadata?: Json | null
           booking_channel?: string | null
+          booking_made_by?: string | null
           calculated_commission?: number | null
           cancellation_reason?: string | null
           cancellation_reason_category?: string | null
@@ -842,9 +853,14 @@ export type Database = {
           commission_rate_applied?: number | null
           commission_type?: string | null
           created_at?: string | null
+          deposit_amount?: number
+          deposit_due_date?: string | null
           external_reservation_id?: string | null
+          guest_company?: string | null
           guest_email: string
           guest_email_encrypted?: string | null
+          guest_first_name?: string | null
+          guest_last_name?: string | null
           guest_name: string
           guest_name_encrypted?: string | null
           guest_nationality?: string | null
@@ -855,6 +871,7 @@ export type Database = {
           id?: string
           infants?: number | null
           integration_type?: string | null
+          internal_notes?: string | null
           last_modified_at?: string | null
           lead_created_at?: string | null
           modification_notes?: Json | null
@@ -880,6 +897,9 @@ export type Database = {
           rolos_room_ids?: string[] | null
           room_type_id?: string | null
           rooms?: Json | null
+          second_guest_email?: string | null
+          second_guest_name?: string | null
+          second_guest_phone?: string | null
           source_url?: string | null
           special_requests?: string | null
           special_requests_parsed?: Json | null
@@ -894,6 +914,7 @@ export type Database = {
           adults?: number
           ai_metadata?: Json | null
           booking_channel?: string | null
+          booking_made_by?: string | null
           calculated_commission?: number | null
           cancellation_reason?: string | null
           cancellation_reason_category?: string | null
@@ -905,9 +926,14 @@ export type Database = {
           commission_rate_applied?: number | null
           commission_type?: string | null
           created_at?: string | null
+          deposit_amount?: number
+          deposit_due_date?: string | null
           external_reservation_id?: string | null
+          guest_company?: string | null
           guest_email?: string
           guest_email_encrypted?: string | null
+          guest_first_name?: string | null
+          guest_last_name?: string | null
           guest_name?: string
           guest_name_encrypted?: string | null
           guest_nationality?: string | null
@@ -918,6 +944,7 @@ export type Database = {
           id?: string
           infants?: number | null
           integration_type?: string | null
+          internal_notes?: string | null
           last_modified_at?: string | null
           lead_created_at?: string | null
           modification_notes?: Json | null
@@ -943,6 +970,9 @@ export type Database = {
           rolos_room_ids?: string[] | null
           room_type_id?: string | null
           rooms?: Json | null
+          second_guest_email?: string | null
+          second_guest_name?: string | null
+          second_guest_phone?: string | null
           source_url?: string | null
           special_requests?: string | null
           special_requests_parsed?: Json | null
@@ -6782,8 +6812,15 @@ export type Database = {
           children: number | null
           created_at: string | null
           id: string
+          infants: number
+          nightly_rate: number | null
+          pets: number
           rate_charged: number
+          rate_plan_id: string | null
           room_id: string | null
+          room_type_id: string | null
+          second_guest_name: string | null
+          teens: number
         }
         Insert: {
           adults?: number
@@ -6791,8 +6828,15 @@ export type Database = {
           children?: number | null
           created_at?: string | null
           id?: string
+          infants?: number
+          nightly_rate?: number | null
+          pets?: number
           rate_charged: number
+          rate_plan_id?: string | null
           room_id?: string | null
+          room_type_id?: string | null
+          second_guest_name?: string | null
+          teens?: number
         }
         Update: {
           adults?: number
@@ -6800,8 +6844,15 @@ export type Database = {
           children?: number | null
           created_at?: string | null
           id?: string
+          infants?: number
+          nightly_rate?: number | null
+          pets?: number
           rate_charged?: number
+          rate_plan_id?: string | null
           room_id?: string | null
+          room_type_id?: string | null
+          second_guest_name?: string | null
+          teens?: number
         }
         Relationships: [
           {
@@ -6819,10 +6870,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "rolos_booking_rooms_rate_plan_id_fkey"
+            columns: ["rate_plan_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_rate_plans"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "rolos_booking_rooms_room_id_fkey"
             columns: ["room_id"]
             isOneToOne: false
             referencedRelation: "rolos_rooms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_booking_rooms_room_type_id_fkey"
+            columns: ["room_type_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_room_types"
             referencedColumns: ["id"]
           },
         ]
