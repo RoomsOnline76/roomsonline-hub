@@ -9,7 +9,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { BedDouble, Plus, Trash2, Save, User, Receipt, StickyNote } from "lucide-react";
+import { BedDouble, Plus, Trash2, Save, User, Receipt, StickyNote, CalendarRange } from "lucide-react";
+import { ViewRatesDialog } from "./ViewRatesDialog";
 
 export interface BookingDetailsGridBooking {
   id: string;
@@ -37,6 +38,7 @@ export interface BookingDetailsGridBooking {
   booking_channel?: string | null;
   rolos_room_ids?: string[] | null;
   created_at?: string | null;
+  property_id?: string | null;
 }
 
 interface RoomOption {
