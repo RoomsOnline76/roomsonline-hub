@@ -35,6 +35,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import { isRevenuePaymentStatus } from "@/lib/revenueStatuses";
 import { format, parseISO, subDays, addDays } from "date-fns";
 
 interface Property {
@@ -570,8 +571,8 @@ const Bookings = () => {
     const isPaid = (b: Booking) => {
       const status = normalizeStatus(b.status);
       if (status === "cancelled") return false;
-      // Internal bookings carry an explicit payment_status; treat 'paid' as paid.
-      if ((b.payment_status || "").toLowerCase() === "paid") return true;
+      // Shared revenue definition — includes channel-collected funds (paid_externally).
+      if (isRevenuePaymentStatus(b.payment_status)) return true;
       // PMS reservations don't expose payment_status but reach confirmed/guaranteed/checked-in only after payment.
       if (b.source === "pms" && CONFIRMED_STATUSES.includes(status)) return true;
       return false;

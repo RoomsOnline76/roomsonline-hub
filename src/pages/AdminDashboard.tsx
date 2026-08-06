@@ -20,6 +20,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { format, subDays } from "date-fns";
 import { NarrativeSummary } from "@/components/dashboard/NarrativeSummary";
 import { SystemAlertsPanel } from "@/components/dashboard/SystemAlertsPanel";
+import { ALL_REVENUE_PAYMENT_STATUSES } from "@/lib/revenueStatuses";
 
 interface DashboardStats {
   paidBookings: number;
@@ -64,8 +65,8 @@ export default function AdminDashboard() {
       ] = await Promise.all([
         // Paid bookings must exclude cancelled/failed reservations — a refunded
         // or cancelled booking is not revenue.
-        supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('payment_status', 'paid').not('status', 'in', '(cancelled,failed)'),
-        supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('payment_status', 'paid').eq('status', 'confirmed'),
+        supabase.from('bookings').select('*', { count: 'exact', head: true }).in('payment_status', ALL_REVENUE_PAYMENT_STATUSES).not('status', 'in', '(cancelled,failed)'),
+        supabase.from('bookings').select('*', { count: 'exact', head: true }).in('payment_status', ALL_REVENUE_PAYMENT_STATUSES).eq('status', 'confirmed'),
         supabase.from('properties').select('*', { count: 'exact', head: true }),
         supabase.from('properties').select('*', { count: 'exact', head: true }).eq('is_active', true),
         supabase.from('access_requests').select('*', { count: 'exact', head: true }).eq('status', 'pending'),

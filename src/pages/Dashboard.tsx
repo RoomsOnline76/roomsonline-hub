@@ -21,6 +21,7 @@ import { cn } from "@/lib/utils";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend, LineChart, Line, ComposedChart, Cell, ReferenceLine, PieChart, Pie } from "recharts";
 import { DateRange } from "react-day-picker";
 import { toast } from "sonner";
+import { isRevenuePaymentStatus, isChannelSettled } from "@/lib/revenueStatuses";
 
 // Colors for pie charts - using HSL values that work in both light/dark modes
 const PIE_COLORS = [
@@ -503,8 +504,11 @@ const Dashboard = () => {
   // Helper to get display status prioritizing payment info
   const getBookingDisplayStatus = (booking: any) => {
     // Payment status takes priority
-    if (booking.payment_status === "paid") {
-      return { label: "paid", variant: "success" };
+    if (isRevenuePaymentStatus(booking.payment_status, false)) {
+      return {
+        label: isChannelSettled(booking.payment_status) ? "paid (channel)" : "paid",
+        variant: "success",
+      };
     }
     if (booking.payment_status === "pending") {
       return { label: "paying...", variant: "info" };

@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import {
+import { ALL_REVENUE_PAYMENT_STATUSES } from '@/lib/revenueStatuses';
   CommissionType,
   resolveBookingCommission,
   CommissionConfigLike,
@@ -76,7 +77,7 @@ const SETTLED_TX_STATUSES = ['paid', 'completed', 'succeeded', 'success'];
 // Cancelled/refunded stays are never paid out to the property.
 const EXCLUDED_BOOKING_STATUSES = ['cancelled', 'canceled', 'refunded', 'no_show'];
 // Booking-level paid markers used when no gateway transaction exists.
-const PAID_BOOKING_STATUSES = ['paid', 'settled', 'completed'];
+const PAID_BOOKING_STATUSES = ALL_REVENUE_PAYMENT_STATUSES;
 
 
 const BOOKING_ORIGIN_FIELDS =
