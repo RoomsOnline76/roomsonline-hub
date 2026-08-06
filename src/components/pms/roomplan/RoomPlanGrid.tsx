@@ -358,8 +358,14 @@ export function RoomPlanGrid({
                           className="sticky left-0 z-20 flex shrink-0 items-center gap-1 border-r bg-background px-2"
                           style={{ width: ROOM_PLAN_LABEL_W }}
                         >
-                          <span className={cn("truncate text-[11px]", !row.roomId && "italic text-muted-foreground")}>
-                            {row.label}
+                          <span
+                            className={cn(
+                              "truncate text-[11px]",
+                              !row.roomId && "italic text-muted-foreground",
+                              row.hideLabel && "text-[9px] italic text-muted-foreground"
+                            )}
+                          >
+                            {row.hideLabel ? "unit" : row.label}
                           </span>
                           {row.sublabel && <span className="shrink-0 text-[9px] text-muted-foreground">{row.sublabel}</span>}
                         </div>
