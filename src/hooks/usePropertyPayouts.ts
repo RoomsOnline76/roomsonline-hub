@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { ALL_REVENUE_PAYMENT_STATUSES } from "@/lib/revenueStatuses";
 import {
-import { ALL_REVENUE_PAYMENT_STATUSES } from '@/lib/revenueStatuses';
   CommissionType,
   resolveBookingCommission,
   CommissionConfigLike,
