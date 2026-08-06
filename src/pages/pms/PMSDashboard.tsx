@@ -1962,6 +1962,10 @@ export default function PMSDashboard() {
                     );
                   })}
                 </div>
+              ) : showOnlyBookedDays && (visibleDates.length === 0 || visibleRoomTypes.length === 0) ? (
+                <div className="flex items-center justify-center rounded-lg border bg-muted/20 py-10 text-sm text-muted-foreground">
+                  No booked days in this period.
+                </div>
               ) : (
                 <RoomPlanGrid
                   dates={visibleDates}
