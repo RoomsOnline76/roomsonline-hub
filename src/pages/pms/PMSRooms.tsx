@@ -168,13 +168,18 @@ export default function PMSRooms() {
         .in("property_id", activePropertyIds),
       (supabase.from("bookings") as any)
         .select(
-          "id, property_id, guest_name, guest_email, guest_phone, booking_reference, check_in_date, check_out_date, status, adults, children, teens, infants, pets, total_price, special_requests, requires_intervention, payment_status, room_type_id, rolos_room_ids"
+          "id, property_id, guest_name, guest_email, guest_phone, booking_reference:external_reservation_id, check_in_date, check_out_date, status, adults, children, teens, infants, pets, total_price, special_requests, requires_intervention, payment_status, room_type_id, rolos_room_ids"
         )
         .in("property_id", activePropertyIds)
         .gte("check_out_date", windowStart)
         .lte("check_in_date", windowEnd)
         .in("status", ACTIVE_BOOKING_STATUSES),
     ]);
+
+    if (bookingsRes.error) {
+      console.error("[PMSRooms] reservation query failed:", bookingsRes.error);
+      toast.error("Reservations could not be loaded. Please refresh and try again.");
+    }
 
     const rawBookings = (bookingsRes.data || []) as RoomsBooking[];
     const bookingIds = rawBookings.map((b) => b.id);
