@@ -31,6 +31,7 @@ import { BillingPulseCard } from "./BillingPulseCard";
 import { BankExportDashboard } from "@/components/bank-export";
 import { InsightPanelTrigger } from "@/components/InsightPanel";
 import { supabase } from "@/integrations/supabase/client";
+import { useRevenueStreamTotals } from "@/hooks/useRevenueStreamTotals";
 import { toast } from "sonner";
 
 const formatCurrency = (value: number) => {
@@ -70,6 +71,7 @@ export function ROLRevenuePulse() {
   const [showYoY, setShowYoY] = useState(false);
 
   const { data, isLoading, error } = useROLPulseData(dateRange, showYoY);
+  const { data: streams, isLoading: streamsLoading } = useRevenueStreamTotals(dateRange);
 
   const handleDateSelect = (range: CalendarRange | undefined) => {
     if (range?.from && range?.to) {
@@ -198,6 +200,33 @@ export function ROLRevenuePulse() {
           isLoading={isLoading}
         />
       </div>
+
+      {/* Revenue stream split — appears once F&B revenue is posted */}
+      {streams?.hasSplit && (
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 xl:gap-4">
+          <ROLKPICard
+            title="Net Accommodation"
+            value={formatCompactCurrency(streams.accommodation)}
+            subtitle="Excl. F&B"
+            icon={DollarSign}
+            isLoading={streamsLoading}
+          />
+          <ROLKPICard
+            title="F&B Revenue"
+            value={formatCompactCurrency(streams.fnb)}
+            subtitle="Breakfast & food"
+            icon={Receipt}
+            isLoading={streamsLoading}
+          />
+          <ROLKPICard
+            title="Other Revenue"
+            value={formatCompactCurrency(streams.other)}
+            subtitle="Non-room streams"
+            icon={Hash}
+            isLoading={streamsLoading}
+          />
+        </div>
+      )}
 
       {/* Revenue Timeline Chart */}
       <Card>
