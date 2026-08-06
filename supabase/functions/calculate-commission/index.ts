@@ -1,4 +1,9 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import {
+  ALL_REVENUE_PAYMENT_STATUSES,
+  isRevenuePaymentStatus,
+  isChannelSettled,
+} from "../_shared/revenueStatuses.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -7,6 +12,7 @@ const corsHeaders = {
 
 interface BookingInput {
   id: string;
+  payment_status?: string | null;
   property_id: string;
   total_price: number;
   check_in_date: string;
@@ -51,8 +57,9 @@ Deno.serve(async (req) => {
     if (recalculate_all) {
       const { data: bookings, error: fetchError } = await supabase
         .from("bookings")
-        .select("id, property_id, total_price, check_in_date, integration_type, booking_channel, source_url")
-        .eq("payment_status", "paid")
+        .select("id, property_id, total_price, check_in_date, payment_status, integration_type, booking_channel, source_url")
+        .in("payment_status", ALL_REVENUE_PAYMENT_STATUSES)
+        .not("status", "in", '("cancelled","failed")')
         .is("calculated_commission", null);
 
       if (fetchError) throw fetchError;
@@ -89,7 +96,10 @@ Deno.serve(async (req) => {
       );
     }
 
-    if (booking.payment_status !== "paid") {
+    // Channel-collected funds (payment_status 'paid_externally', e.g. Rentals
+    // United) are real revenue — commission is owed to ROL even though the
+    // money never passed through our gateway.
+    if (!isRevenuePaymentStatus(booking.payment_status)) {
       return new Response(
         JSON.stringify({ success: false, message: "Booking is not paid yet", booking_id }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -155,5 +165,8 @@ async function calculateAndUpdateCommission(
     commission_rate: rate,
     calculated_commission: commission,
     source: term ? "commercial_term" : "default",
+    // Flags commission that must be invoiced rather than netted off a payout,
+    // because the channel/BYO gateway holds the guest funds.
+    channel_settled: isChannelSettled(booking.payment_status),
   };
 }
