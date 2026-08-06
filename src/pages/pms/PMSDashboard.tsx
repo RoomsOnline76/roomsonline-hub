@@ -1621,9 +1621,11 @@ export default function PMSDashboard() {
           </div>
         </div>
 
-        {/* Today's Arrivals & Departures — surfaced top of page */}
-        {(effectiveArrivals.length > 0 || effectiveDepartures.length > 0) && (
-          <div className="grid md:grid-cols-2 gap-3">
+        {/* Today's Arrivals & Departures — expanded from the counter strip above */}
+        {(openPanel === "arrivals" || openPanel === "departures") && (
+          <div className="grid gap-3">
+            {openPanel === "arrivals" && (
+
             <Card className="border-amber-500/30">
               <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
                 <CardTitle className="text-sm flex items-center gap-2">
