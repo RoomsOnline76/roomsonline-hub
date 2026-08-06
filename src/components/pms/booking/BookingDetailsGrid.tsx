@@ -9,8 +9,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { BedDouble, Plus, Trash2, Save, User, Receipt, StickyNote, CalendarRange } from "lucide-react";
+import { BedDouble, Plus, Trash2, Save, User, Receipt, StickyNote, CalendarRange, Users2 } from "lucide-react";
 import { ViewRatesDialog } from "./ViewRatesDialog";
+import { useCrmAccounts, useCrmScopeForProperty, type CrmAccount } from "@/hooks/useCrmAccounts";
+import { BookerSegmentationFields, type BookerSegmentationValue } from "@/components/pms/crm/BookerSegmentationFields";
+
 
 export interface BookingDetailsGridBooking {
   id: string;
