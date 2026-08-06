@@ -618,10 +618,17 @@ Deno.serve(async (req) => {
     logPropertyId = typeof body.property_id === "string" ? body.property_id : null;
 
 
-    // Property-scoped users (ROLOS owners / staff) may read the readiness
-    // scorecard for a property they can access — everything else is admin-only.
+    // Property-scoped users (ROLOS owners / staff) may read status/readiness
+    // information for a property they can access — everything else is admin-only.
+    const PROPERTY_SCOPED_READ_ACTIONS = [
+      "property_readiness",
+      "phase_status",
+      "property_ru_identity",
+      "lnm_status",
+      "resolve_ru_property_ids",
+    ];
     if (!allowed) {
-      if (!["property_readiness", "phase_status"].includes(action) || !body.property_id) {
+      if (!PROPERTY_SCOPED_READ_ACTIONS.includes(action) || !body.property_id) {
         return json({ success: false, error: { code: "FORBIDDEN", message: "Admin access required" } }, 403);
       }
       const { data: canAccess } = await userClient.rpc("can_access_property", {
