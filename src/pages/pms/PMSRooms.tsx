@@ -102,13 +102,24 @@ export default function PMSRooms() {
           if (allRolosTypes && allRolosTypes.length > 0) {
             const { data: existingPhysical } = await supabase
               .from("rolos_rooms")
-              .select("room_type_id")
+              .select("room_type_id, room_number")
               .eq("property_id", pid);
 
             const hasPhysical = new Set(
               (existingPhysical || []).map((room) => room.room_type_id).filter(Boolean)
             );
-            const missingPhysical = allRolosTypes.filter((roomType) => !hasPhysical.has(roomType.id));
+            // Never create a second unit for a duplicate room type that shares a
+            // name with an existing unit — that is how archived duplicates leak in.
+            const takenNames = new Set(
+              (existingPhysical || [])
+                .map((room) => (room.room_number || "").trim().toLowerCase())
+                .filter(Boolean)
+            );
+            const missingPhysical = allRolosTypes.filter(
+              (roomType) =>
+                !hasPhysical.has(roomType.id) &&
+                !takenNames.has((roomType.name || "").trim().toLowerCase())
+            );
 
             if (missingPhysical.length > 0) {
               const backfillRooms = missingPhysical.map((roomType) => ({
@@ -121,6 +132,7 @@ export default function PMSRooms() {
               await supabase.from("rolos_rooms").insert(backfillRooms);
             }
           }
+
         } catch (err) {
           console.warn(`[PMSRooms] sync failed for property ${pid}:`, err);
         }
@@ -173,20 +185,46 @@ export default function PMSRooms() {
       linkedRoomIdsByBooking.set(link.booking_id, [...(linkedRoomIdsByBooking.get(link.booking_id) || []), link.room_id]);
     }
 
+    // `allTypes` (incl. archived) is only used for legacy booking → type matching.
     const allTypes = (allTypesRes.data || []) as PlanRoomType[];
-    const types = ((typesRes.data || []) as PlanRoomType[]).length ? (typesRes.data || []) as PlanRoomType[] : allTypes;
+    const activeTypes = (typesRes.data || []) as PlanRoomType[];
+    const roomRows = (roomsRes.data || []) as any[];
+
+    // Collapse same-named duplicates per property, preferring the record that
+    // actually owns physical units — archived/duplicate leftovers drop out.
+    const typeIdsWithUnits = new Set(
+      roomRows.map((r) => r.room_type_id).filter(Boolean) as string[]
+    );
+    const dedupedTypes: PlanRoomType[] = [];
+    const seenByKey = new Map<string, number>();
+    for (const type of activeTypes) {
+      const key = `${type.property_id}::${(type.name || "").trim().toLowerCase()}`;
+      const existingIndex = seenByKey.get(key);
+      if (existingIndex === undefined) {
+        seenByKey.set(key, dedupedTypes.length);
+        dedupedTypes.push(type);
+        continue;
+      }
+      const existing = dedupedTypes[existingIndex];
+      if (!typeIdsWithUnits.has(existing.id) && typeIdsWithUnits.has(type.id)) {
+        dedupedTypes[existingIndex] = type;
+      }
+    }
+
+    const types = dedupedTypes;
     setRoomTypes(types);
 
     const activeTypeIds = new Set(types.map((t) => t.id));
     const typeMap = new Map(types.map((t) => [t.id, t.name]));
 
-    const visibleRooms = ((roomsRes.data || []) as any[])
+    const visibleRooms = roomRows
       .filter((r: any) => !r.room_type_id || activeTypeIds.has(r.room_type_id))
       .map((r: any) => ({
         ...r,
         room_type_name: r.room_type_id ? typeMap.get(r.room_type_id) : undefined,
       })) as PlanRoom[];
     setRooms(visibleRooms);
+
 
     const assignedBookings = autoAssignBookings(
       rawBookings.map((booking) => {
