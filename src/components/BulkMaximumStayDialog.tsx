@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { syncRestrictionsToChannels } from "@/lib/restrictionSync";
 import { format, eachDayOfInterval, getDay } from "date-fns";
 import {
   PropertyScopeSelector,
@@ -150,7 +151,7 @@ export function BulkMaximumStayDialog({
               property_id: pid,
               room_type: roomType,
               date: format(date, "yyyy-MM-dd"),
-              max_stay: maxStay,
+              maximum_stay: maxStay,
               external_system: 'manual',
             });
           }
@@ -167,6 +168,7 @@ export function BulkMaximumStayDialog({
       if (error) throw error;
 
       toast.success(`Set maximum stay to ${maxStay} nights for ${filteredDates.length} dates`);
+      await syncRestrictionsToChannels(targetPropertyIds, "maximum_stay");
       onRuleCreated?.();
       onOpenChange(false);
     } catch (error: any) {

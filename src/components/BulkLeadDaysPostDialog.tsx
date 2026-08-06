@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { syncRestrictionsToChannels } from "@/lib/restrictionSync";
 import { format, eachDayOfInterval, getDay } from "date-fns";
 import {
   PropertyScopeSelector,
@@ -167,6 +168,7 @@ export function BulkLeadDaysPostDialog({
       if (error) throw error;
 
       toast.success(`Set post lead days to ${leadDays} for ${filteredDates.length} dates`);
+      await syncRestrictionsToChannels(targetPropertyIds, "lead_days");
       onRuleCreated?.();
       onOpenChange(false);
     } catch (error: any) {

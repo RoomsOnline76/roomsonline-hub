@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { syncRestrictionsToChannels } from "@/lib/restrictionSync";
 import { format, eachDayOfInterval, getDay } from "date-fns";
 import {
   PropertyScopeSelector,
@@ -150,7 +151,7 @@ export function BulkMinimumStayDialog({
               property_id: pid,
               room_type: roomType,
               date: format(date, "yyyy-MM-dd"),
-              min_stay: minStay,
+              minimum_stay: minStay,
               external_system: 'manual',
             });
           }
@@ -167,6 +168,7 @@ export function BulkMinimumStayDialog({
       if (error) throw error;
 
       toast.success(`Set minimum stay to ${minStay} nights for ${filteredDates.length} dates`);
+      await syncRestrictionsToChannels(targetPropertyIds, "minimum_stay");
       onRuleCreated?.();
       onOpenChange(false);
     } catch (error: any) {
