@@ -318,11 +318,13 @@ const STATUS_COLORS: Record<string, { bg: string; text: string; border: string }
 const STATUS_BADGE_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
   confirmed: "default",
   pending: "secondary",
+  waiting_for_deposit: "secondary",
   checked_in: "default",
   checked_out: "outline",
   cancelled: "destructive",
   no_show: "destructive",
 };
+
 
 function getStatusColor(status: string) {
   return STATUS_COLORS[status] || STATUS_COLORS.pending;
