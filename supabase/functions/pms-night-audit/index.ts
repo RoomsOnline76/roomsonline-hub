@@ -5,6 +5,7 @@
 // ============================================================================
 
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { resolveBreakfastConfig, breakfastPortion, splitAccommodationAmount } from "../_shared/revenueStreams.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -119,7 +120,7 @@ Deno.serve(async (req) => {
         // ========================================
         const { data: checkedInBookings } = await supabase
           .from("bookings")
-          .select("id, total_price, check_in_date, check_out_date, rolos_folio_id, rolos_rate_plan_id, rolos_room_ids, rooms")
+          .select("id, total_price, check_in_date, check_out_date, rolos_folio_id, rolos_rate_plan_id, rolos_room_ids, rooms, adults, children")
           .eq("property_id", property.id)
           .lte("check_in_date", auditDateStr)
           .gt("check_out_date", auditDateStr)
@@ -146,14 +147,32 @@ Deno.serve(async (req) => {
 
             if (nightlyRate <= 0) continue;
 
-            const { error: chargeErr } = await supabase
-              .from("rolos_folio_transactions")
-              .insert({
-                folio_id: booking.rolos_folio_id,
-                transaction_type: "charge",
-                description: `Room charge — ${auditDateStr}`,
-                amount: nightlyRate,
-              });
+            // Breakfast / F&B split — resolves to a single accommodation line
+            // when the property has no breakfast configuration (legacy behaviour).
+            const breakfastConfig = await resolveBreakfastConfig(supabase, booking.id, property.id);
+            const guests = (booking.adults || 1) + (booking.children || 0);
+            const nightlyBreakfast = breakfastConfig
+              ? breakfastPortion(breakfastConfig, { nights: 1, guests }) /
+                (breakfastConfig.basis === "per_stay" ? Math.max(1, nights) : 1)
+              : 0;
+            const streamLines = splitAccommodationAmount(nightlyRate, Math.round(nightlyBreakfast * 100) / 100, {
+              accommodation: `Room charge — ${auditDateStr}`,
+              fnb: `${breakfastConfig?.label || "Breakfast"} — ${auditDateStr}`,
+            });
+
+            let chargeErr: unknown = null;
+            for (const line of streamLines) {
+              const { error } = await supabase
+                .from("rolos_folio_transactions")
+                .insert({
+                  folio_id: booking.rolos_folio_id,
+                  transaction_type: "charge",
+                  description: line.description,
+                  amount: line.amount,
+                  revenue_stream: line.stream,
+                });
+              if (error) chargeErr = error;
+            }
 
             if (!chargeErr) {
               chargesPosted++;
@@ -174,6 +193,7 @@ Deno.serve(async (req) => {
                       transaction_type: "charge",
                       description: `${rule.name} (${rule.rate}%) — ${auditDateStr}`,
                       amount: taxAmount,
+                      revenue_stream: "accommodation",
                     });
                     taxPosted += taxAmount;
                   }

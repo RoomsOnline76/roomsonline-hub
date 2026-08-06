@@ -516,6 +516,43 @@ export default function PMSRevenue() {
     enabled: queryEnabled,
   });
 
+  // === Revenue stream split (folio postings) ===
+  // Only present for properties that configured an F&B / breakfast split.
+  const { data: streamRows = [] } = useQuery({
+    queryKey: ["rev-streams", activeIdsKey, historyStart, today],
+    queryFn: async () => {
+      const { data: folios } = await supabase
+        .from("rolos_folios" as any)
+        .select("id, booking:bookings!inner(id, property_id, check_in_date)")
+        .in("property_id", activeIds);
+      const folioIds = (folios || [])
+        .filter((f: any) => {
+          const d = f.booking?.check_in_date;
+          return !d || (d >= historyStart && d <= today);
+        })
+        .map((f: any) => f.id);
+      if (!folioIds.length) return [];
+      const { data } = await supabase
+        .from("rolos_folio_transactions" as any)
+        .select("amount, revenue_stream, transaction_type")
+        .in("folio_id", folioIds);
+      return data || [];
+    },
+    enabled: queryEnabled,
+  });
+
+  const streamMetrics = useMemo(() => {
+    const totals = { accommodation: 0, fnb: 0, other: 0 };
+    (streamRows as any[]).forEach((r) => {
+      const amt = Number(r.amount || 0);
+      if (amt <= 0 || r.transaction_type === "payment") return;
+      const key = r.revenue_stream === "fnb" || r.revenue_stream === "other" ? r.revenue_stream : "accommodation";
+      totals[key as keyof typeof totals] += amt;
+    });
+    const hasSplit = totals.fnb > 0 || totals.other > 0;
+    return { ...totals, hasSplit };
+  }, [streamRows]);
+
   // Fetch rate plans
   const { data: ratePlans = [] } = useQuery({
     queryKey: ["rev-rate-plans", activeIdsKey],
@@ -545,6 +582,8 @@ export default function PMSRevenue() {
     const gbv = active.reduce((s: number, b: any) => s + Number(b.total_price || 0), 0);
     const commission = active.reduce((s: number, b: any) => s + Number(b.calculated_commission || 0), 0);
     const avgAdr = active.length > 0 ? gbv / active.length : 0;
+    const accommodationBase = streamMetrics.hasSplit ? streamMetrics.accommodation : gbv;
+    const netAdr = active.length > 0 ? accommodationBase / active.length : 0;
 
     // Channel breakdown
     const channels: Record<string, { count: number; revenue: number }> = {};
@@ -568,8 +607,8 @@ export default function PMSRevenue() {
     });
     const timeline = Object.values(monthly).sort((a, b) => a.date.localeCompare(b.date));
 
-    return { gbv, commission, avgAdr, totalBookings: active.length, channelBreakdown, timeline };
-  }, [historyBookings]);
+    return { gbv, commission, avgAdr, netAdr, accommodationBase, totalBookings: active.length, channelBreakdown, timeline };
+  }, [historyBookings, streamMetrics]);
 
   // Generate daily forecast
   const forecast = useMemo<DayForecast[]>(() => {
@@ -911,9 +950,16 @@ export default function PMSRevenue() {
               </Card>
               <Card>
                 <CardContent className="pt-4">
-                  <p className="text-xs text-muted-foreground mb-1">Average ADR</p>
+                  <p className="text-xs text-muted-foreground mb-1">
+                    {streamMetrics.hasSplit ? "ADR (accommodation)" : "Average ADR"}
+                  </p>
                   {historyLoading ? <Skeleton className="h-7 w-20" /> : (
-                    <p className="text-xl font-bold tabular-nums">R{fmt(historyMetrics.avgAdr)}</p>
+                    <p className="text-xl font-bold tabular-nums">
+                      R{fmt(streamMetrics.hasSplit ? historyMetrics.netAdr : historyMetrics.avgAdr)}
+                    </p>
+                  )}
+                  {streamMetrics.hasSplit && (
+                    <p className="text-[10px] text-muted-foreground mt-0.5">Gross R{fmt(historyMetrics.avgAdr)}</p>
                   )}
                 </CardContent>
               </Card>
@@ -926,6 +972,30 @@ export default function PMSRevenue() {
                 </CardContent>
               </Card>
             </div>
+
+            {/* Revenue stream split — only shown once a property posts F&B revenue */}
+            {streamMetrics.hasSplit && (
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                <Card>
+                  <CardContent className="pt-4">
+                    <p className="text-xs text-muted-foreground mb-1">Net accommodation revenue</p>
+                    <p className="text-xl font-bold tabular-nums">{fmtCompact(streamMetrics.accommodation)}</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-4">
+                    <p className="text-xs text-muted-foreground mb-1">F&amp;B revenue</p>
+                    <p className="text-xl font-bold tabular-nums text-primary">{fmtCompact(streamMetrics.fnb)}</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-4">
+                    <p className="text-xs text-muted-foreground mb-1">Other revenue</p>
+                    <p className="text-xl font-bold tabular-nums">{fmtCompact(streamMetrics.other)}</p>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
 
             <div className="grid lg:grid-cols-2 gap-4">
               {/* Revenue Timeline */}

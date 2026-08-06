@@ -19,6 +19,7 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { z } from "npm:zod@3.23.8";
+import { normalizeRevenueStream, resolveBreakfastConfig, breakfastPortion, splitAccommodationAmount } from "../_shared/revenueStreams.ts";
 
 // ============================================================================
 // CORS & CONSTANTS
@@ -2402,6 +2403,9 @@ async function handleApplyServiceCharges(body: any, supabase: any): Promise<Resp
     folio = newFolio;
   }
 
+  // Breakfast / F&B split configuration (null for properties that never configure it)
+  const breakfastConfig = await resolveBreakfastConfig(supabase, booking_id, booking.property_id);
+
   const applied: any[] = [];
   for (const charge of charges) {
     // Check room type applicability
@@ -2455,14 +2459,24 @@ async function handleApplyServiceCharges(body: any, supabase: any): Promise<Resp
     amount = Math.round(amount * 100) / 100;
     if (amount <= 0) continue;
 
-    // Create folio transaction
-    const txType = charge.category === "tax" ? "tax" : charge.category === "deposit" ? "deposit" : "charge";
-    const { data: tx } = await supabase.from("rolos_folio_transactions").insert({
-      folio_id: folio.id,
-      transaction_type: txType,
-      description: `${charge.name}${charge.description ? ` - ${charge.description}` : ""}`,
-      amount,
-    }).select("id").single();
+    const stream = normalizeRevenueStream(charge.revenue_stream);
+    const includedInRate = charge.is_included_in_rate === true;
+
+    // Charges marked "included in rate" are already inside the guest total.
+    // They must never post a folio transaction (that would double-charge) —
+    // they are recorded as split markers only.
+    let tx: { id: string } | null = null;
+    if (!includedInRate) {
+      const txType = charge.category === "tax" ? "tax" : charge.category === "deposit" ? "deposit" : "charge";
+      const { data: inserted } = await supabase.from("rolos_folio_transactions").insert({
+        folio_id: folio.id,
+        transaction_type: txType,
+        description: `${charge.name}${charge.description ? ` - ${charge.description}` : ""}`,
+        amount,
+        revenue_stream: stream,
+      }).select("id").single();
+      tx = inserted;
+    }
 
     // Record in booking charges
     const { data: bc } = await supabase.from("rolos_booking_charges").insert({
@@ -2474,13 +2488,42 @@ async function handleApplyServiceCharges(body: any, supabase: any): Promise<Resp
       category: charge.category,
       calculation_method: method,
       amount,
+      revenue_stream: stream,
       is_refundable: charge.is_refundable || false,
       refund_timing: charge.refund_timing || null,
       refund_status: charge.is_refundable ? "pending" : null,
-      breakdown,
+      breakdown: includedInRate ? `${breakdown} (included in rate)` : breakdown,
     }).select().single();
 
     applied.push(bc);
+  }
+
+  // Post the accommodation / F&B split for the room revenue when breakfast is
+  // included in the rate. Total posted equals the original accommodation total.
+  if (breakfastConfig) {
+    const { data: existingRoomLines } = await supabase.from("rolos_folio_transactions")
+      .select("id").eq("folio_id", folio.id).eq("transaction_type", "charge")
+      .like("description", "Accommodation%").limit(1);
+
+    if (!existingRoomLines?.length) {
+      const fnbPortion = breakfastPortion(breakfastConfig, { nights, guests: totalGuests });
+      const lines = splitAccommodationAmount(subtotal, fnbPortion, {
+        accommodation: `Accommodation (${nights} night${nights === 1 ? "" : "s"})`,
+        fnb: `${breakfastConfig.label} (included in rate)`,
+      });
+      if (lines.length > 1) {
+        for (const line of lines) {
+          await supabase.from("rolos_folio_transactions").insert({
+            folio_id: folio.id,
+            transaction_type: "charge",
+            description: line.description,
+            amount: line.amount,
+            revenue_stream: line.stream,
+          });
+        }
+        applied.push({ split: lines });
+      }
+    }
   }
 
   return new Response(JSON.stringify(createSuccessResponse({ applied, count: applied.length }, "apply_service_charges")),
