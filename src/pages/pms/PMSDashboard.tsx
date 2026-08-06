@@ -1538,15 +1538,19 @@ export default function PMSDashboard() {
     );
   }
 
-  const statCards = [
+  const statCards: Array<{ label: string; value: string | number; icon: typeof Building2; color: string; panel?: Exclude<DashboardPanel, null> }> = [
     { label: "Total Rooms", value: effectiveStats.totalRooms, icon: Building2, color: "text-foreground" },
     { label: "Available", value: effectiveStats.available, icon: BedDouble, color: "text-success" },
     { label: "Occupied", value: `${effectiveStats.occupied} (${effectiveStats.occupancyPct}%)`, icon: Users, color: "text-info" },
-    { label: "Arrivals Today", value: effectiveArrivals.length, icon: CalendarCheck, color: "text-warning" },
-    { label: "Departures Today", value: effectiveDepartures.length, icon: TrendingUp, color: "text-purple-600" },
+    { label: "Arrivals Today", value: effectiveArrivals.length, icon: CalendarCheck, color: "text-warning", panel: "arrivals" },
+    { label: "Departures Today", value: effectiveDepartures.length, icon: TrendingUp, color: "text-purple-600", panel: "departures" },
+    ...(!isPortfolioMode && recentBookings.length > 0
+      ? [{ label: "Recent", value: recentBookings.length, icon: CalendarCheck, color: "text-primary", panel: "recent" as const }]
+      : []),
     ...(effectiveStats.dirty > 0 ? [{ label: "Dirty", value: effectiveStats.dirty, icon: AlertTriangle, color: "text-amber-500" }] : []),
     ...(effectiveStats.maintenance > 0 ? [{ label: "Maintenance", value: effectiveStats.maintenance, icon: Ban, color: "text-destructive" }] : []),
   ];
+
 
   return (
     <>
