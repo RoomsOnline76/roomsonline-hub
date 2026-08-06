@@ -678,12 +678,10 @@ export default function PMSRooms() {
               <Select value={form.room_type_id} onValueChange={(v) => setForm((p) => ({ ...p, room_type_id: v }))}>
                 <SelectTrigger><SelectValue placeholder="Select room type" /></SelectTrigger>
                 <SelectContent>
-                  {roomTypes.length === 0 ? (
+                  {dialogRoomTypeOptions.length === 0 ? (
                     <SelectItem value="none" disabled>No room types — add them in Property Overview first</SelectItem>
                   ) : (
-                    roomTypes
-                      .filter((rt) => !propertyId || rt.property_id === propertyId)
-                      .map((rt) => <SelectItem key={rt.id} value={rt.id}>{rt.name}</SelectItem>)
+                    dialogRoomTypeOptions.map((rt) => <SelectItem key={rt.id} value={rt.id}>{rt.name}</SelectItem>)
                   )}
                 </SelectContent>
               </Select>
