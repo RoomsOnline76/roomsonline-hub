@@ -1737,8 +1737,9 @@ export default function PMSDashboard() {
           </div>
         )}
 
-        {/* Recent bookings — always shows the newest reservations, even if outside the calendar window */}
-        {!isPortfolioMode && recentBookings.length > 0 && (
+        {/* Recent reservations — expanded from the "Recent" counter */}
+        {openPanel === "recent" && !isPortfolioMode && recentBookings.length > 0 && (
+
           <Card>
             <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
               <CardTitle className="text-sm flex items-center gap-2">
