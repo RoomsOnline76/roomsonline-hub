@@ -52,6 +52,9 @@ export interface RatePlan {
   breakfast_included: boolean | null;
   breakfast_amount: number | null;
   breakfast_basis: string | null;
+  is_primary_sell?: boolean | null;
+  push_to_channels?: boolean | null;
+  sell_priority?: number | null;
 }
 
 interface RoomType {
@@ -126,7 +129,7 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
       const [plansRes, roomTypesRes, propsRes] = await Promise.all([
         supabase
           .from("rolos_rate_plans")
-          .select("id, property_id, name, code, description, is_active, min_stay, max_stay, min_advance_days, requires_deposit, deposit_percentage, base_rate, pricing_model, breakfast_included, breakfast_amount, breakfast_basis")
+          .select("id, property_id, name, code, description, is_active, min_stay, max_stay, min_advance_days, requires_deposit, deposit_percentage, base_rate, pricing_model, breakfast_included, breakfast_amount, breakfast_basis, is_primary_sell, push_to_channels, sell_priority")
           .in("property_id", ids)
           .is("deleted_at", null)
           .order("name"),
@@ -276,6 +279,12 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
       const pricedSeasons = seasonCounts[plan.id] ?? 0;
       const planRateRows = seasonRateRows.filter((r) => r.rate_plan_id === plan.id);
       const gridUnits = linkedIds.map((id) => ({ id, name: getRoomTypeName(id) }));
+      // Warn when a property sells several plans but none is nominated as the live rate.
+      const siblingActive = plans.filter(
+        (pl) => pl.property_id === plan.property_id && pl.is_active !== false,
+      );
+      const needsPrimaryChoice =
+        plan.is_active !== false && siblingActive.length > 1 && !siblingActive.some((pl) => pl.is_primary_sell);
       
       const openEditor = readOnly
         ? undefined
@@ -290,6 +299,25 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
                 <Badge variant="secondary" className="ml-2 align-middle text-xs font-normal">
                   {PRICING_MODELS.find((m) => m.value === canonicalPricingModel(plan.pricing_model))?.label}
                 </Badge>
+                {plan.is_primary_sell && (
+                  <Badge className="ml-2 align-middle text-xs font-normal" title="Prices the website and checkout">
+                    Live rate
+                  </Badge>
+                )}
+                {plan.push_to_channels !== false ? (
+                  <Badge variant="outline" className="ml-2 align-middle text-xs font-normal" title="Priced for the Channel Manager and OTAs">
+                    Channels
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="ml-2 align-middle text-xs font-normal text-muted-foreground">
+                    Direct only
+                  </Badge>
+                )}
+                {needsPrimaryChoice && (
+                  <Badge variant="destructive" className="ml-2 align-middle text-xs font-normal" title="Several active plans and no live rate chosen — open the plan and set the live/direct rate">
+                    No live rate set
+                  </Badge>
+                )}
                 {plan.is_active === false && (
                   <Badge variant="outline" className="ml-2 text-xs text-muted-foreground">Inactive</Badge>
                 )}

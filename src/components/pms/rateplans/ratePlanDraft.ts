@@ -58,6 +58,12 @@ export interface RatePlanDraft {
   breakfast_amount: string;
   breakfast_basis: string;
   policy_id: string | null;
+  /** This plan supplies the live/direct rate for its property (one per property). */
+  is_primary_sell: boolean;
+  /** Include this plan when pricing the Channel Manager / OTA push. */
+  push_to_channels: boolean;
+  /** Tie-break when several plans price the same unit — lower wins. */
+  sell_priority: string;
   units: DraftUnit[];
   season_rates: DraftSeasonRate[];
 }
@@ -79,6 +85,9 @@ export const emptyDraft = (): RatePlanDraft => ({
   breakfast_amount: "",
   breakfast_basis: "per_person_per_night",
   policy_id: null,
+  is_primary_sell: false,
+  push_to_channels: true,
+  sell_priority: "100",
   units: [],
   season_rates: [],
 });
@@ -376,6 +385,9 @@ export function draftToPayload(draft: RatePlanDraft) {
     breakfast_amount: numeric(draft.breakfast_amount),
     breakfast_basis: draft.breakfast_basis,
     policy_id: draft.policy_id,
+    is_primary_sell: draft.is_primary_sell,
+    push_to_channels: draft.push_to_channels,
+    sell_priority: numeric(draft.sell_priority) ?? 100,
     units: draft.units.map((u) => ({
       room_type_id: u.room_type_id,
       differential_type: u.differential_type,
