@@ -25,7 +25,6 @@ import {
   Gauge,
   Radar,
   SlidersHorizontal,
-  Brain,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
