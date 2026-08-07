@@ -140,22 +140,47 @@ export function EmbedDatePicker({
         {label}
       </button>
 
+      {/* Mobile backdrop */}
+      {isOpen && isMobile && (
+        <div
+          onClick={() => setIsOpen(false)}
+          style={{ position: "fixed", inset: 0, zIndex: 9998, background: "rgba(0,0,0,0.45)" }}
+        />
+      )}
+
       {/* Calendar dropdown */}
       {isOpen && (
         <div
-          style={{
-            position: "absolute",
-            top: "100%",
-            left: 0,
-            zIndex: 50,
-            marginTop: "6px",
-            width: "310px",
-            background: "#fff",
-            borderRadius: "14px",
-            boxShadow: "0 16px 48px rgba(0,0,0,0.14), 0 4px 12px rgba(0,0,0,0.06)",
-            overflow: "hidden",
-          }}
+          style={
+            isMobile
+              ? {
+                  position: "fixed",
+                  left: "50%",
+                  top: "50%",
+                  transform: "translate(-50%, -50%)",
+                  zIndex: 9999,
+                  width: "min(340px, calc(100vw - 24px))",
+                  maxHeight: "calc(100vh - 48px)",
+                  overflowY: "auto",
+                  background: "#fff",
+                  borderRadius: "16px",
+                  boxShadow: "0 16px 48px rgba(0,0,0,0.28)",
+                }
+              : {
+                  position: "absolute",
+                  top: "100%",
+                  left: 0,
+                  zIndex: 50,
+                  marginTop: "6px",
+                  width: "310px",
+                  background: "#fff",
+                  borderRadius: "14px",
+                  boxShadow: "0 16px 48px rgba(0,0,0,0.14), 0 4px 12px rgba(0,0,0,0.06)",
+                  overflow: "hidden",
+                }
+          }
         >
+
           {/* Month nav */}
           <div style={{ padding: "14px 16px 8px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <MonthNavBtn label="‹" onClick={() => setCurrentMonth(subMonths(currentMonth, 1))} />
