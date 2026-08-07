@@ -24,6 +24,7 @@ import {
   Building2,
   Gauge,
   Radar,
+  BookOpen,
   SlidersHorizontal,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
