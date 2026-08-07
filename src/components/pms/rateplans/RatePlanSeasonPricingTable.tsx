@@ -121,7 +121,7 @@ export const RatePlanSeasonPricingTable = memo(function RatePlanSeasonPricingTab
               </th>
               {seasons.map((season) => {
                 const rate = seasonRateFor(draft, season.calendar_season_id);
-                const suggestions = legacySeasonRates?.get(season.calendar_season_id) ?? [];
+                const live = liveMatrix?.get(season.calendar_season_id);
                 return (
                   <th
                     key={season.calendar_season_id}
