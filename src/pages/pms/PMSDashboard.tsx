@@ -3360,7 +3360,7 @@ function BookingDetail({
 
         {/* Folio Tab */}
         <TabsContent value="folio" className="mt-3">
-          <BookingFolioTab bookingId={b.id} />
+          <BookingFolioTab bookingId={b.id} propertyId={b.property_id ?? propertyId} />
         </TabsContent>
 
         {/* Invoice Tab */}

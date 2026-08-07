@@ -21,6 +21,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { z } from "npm:zod@3.23.8";
 import { normalizeRevenueStream, resolveBreakfastConfig, postBookingStreamSplit } from "../_shared/revenueStreams.ts";
 import { applyBookedInventory } from "../_shared/availabilityCache.ts";
+import { expandPackageById, packageAddOnTotal } from "../_shared/packages.ts";
 
 // ============================================================================
 // CORS & CONSTANTS
@@ -113,6 +114,7 @@ const baseRequestSchema = z.object({
     "get_daily_metrics",
     // Service Charges & Refunds
     "apply_service_charges",
+    "apply_package",
     "backfill_revenue_streams",
     "process_checkout_refunds",
     "get_booking_charges",
@@ -502,6 +504,9 @@ Deno.serve(async (req) => {
         break;
       case "apply_service_charges":
         result = await handleApplyServiceCharges(body, supabase);
+        break;
+      case "apply_package":
+        result = await handleApplyPackage(body, supabase);
         break;
       case "backfill_revenue_streams":
         result = await handleBackfillRevenueStreams(body, supabase);
@@ -2318,8 +2323,112 @@ function getDateRange(startDate: string, endDate: string): string[] {
 }
 
 // ============================================================================
+// PACKAGES (non-group bookings)
+// Same expansion logic the group pickup path uses, so packages produce
+// stream-tagged folio lines for ordinary reservations too.
+// ============================================================================
+
+// deno-lint-ignore no-explicit-any
+async function handleApplyPackage(body: any, supabase: any): Promise<Response> {
+  const jsonRes = (payload: unknown, status = 200) =>
+    new Response(JSON.stringify(payload), { headers: { ...corsHeaders, "Content-Type": "application/json" }, status });
+
+  const bookingId = body?.booking_id as string | undefined;
+  const packageId = body?.package_id as string | undefined;
+  if (!bookingId || !packageId) {
+    return jsonRes(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "booking_id and package_id are required", "apply_package"), 400);
+  }
+
+  const { data: booking, error: bErr } = await supabase
+    .from("bookings")
+    .select("id, property_id, check_in_date, check_out_date, adults, children, total_price, rolos_room_ids")
+    .eq("id", bookingId)
+    .single();
+  if (bErr || !booking) {
+    return jsonRes(createErrorResponse(ERROR_CODES.NOT_FOUND, "Booking not found", "apply_package"), 404);
+  }
+
+  // Idempotent: never post the same package twice on the same booking.
+  let { data: folio } = await supabase.from("rolos_folios").select("id").eq("booking_id", bookingId).maybeSingle();
+  if (!folio) {
+    const { data: newFolio } = await supabase.from("rolos_folios").insert({ booking_id: bookingId, property_id: booking.property_id }).select("id").single();
+    folio = newFolio;
+  }
+  if (!folio?.id) {
+    return jsonRes(createErrorResponse(ERROR_CODES.INTERNAL_ERROR, "Could not open a folio for this booking", "apply_package"), 500);
+  }
+
+  const { data: already } = await supabase
+    .from("rolos_folio_transactions")
+    .select("id")
+    .eq("folio_id", folio.id)
+    .eq("reference", `package:${packageId}`)
+    .limit(1);
+  if (already?.length) {
+    return jsonRes(createSuccessResponse({ message: "Package already applied", skipped: true }, "apply_package"));
+  }
+
+  const nights = Math.max(
+    1,
+    Math.ceil((new Date(booking.check_out_date).getTime() - new Date(booking.check_in_date).getTime()) / 86400000),
+  );
+  const { data: rooms } = await supabase
+    .from("rolos_booking_rooms")
+    .select("id")
+    .eq("booking_id", bookingId);
+  const roomCount = rooms?.length || booking.rolos_room_ids?.length || 1;
+
+  const { name: packageName, lines } = await expandPackageById(supabase, packageId, {
+    subtotal: Number(booking.total_price || 0),
+    nights,
+    rooms: roomCount,
+    adults: booking.adults || 1,
+    children: booking.children || 0,
+  });
+  const addOn = packageAddOnTotal(lines);
+
+  if (lines.length) {
+    const { error: txErr } = await supabase.from("rolos_folio_transactions").insert(
+      lines.map((l) => ({
+        folio_id: folio.id,
+        transaction_type: "charge",
+        description: `${packageName} — ${l.name}${l.includedInRate ? " (included)" : ""}`,
+        amount: l.includedInRate ? 0 : l.amount,
+        revenue_stream: l.stream,
+        reference: `package:${packageId}`,
+      })),
+    );
+    if (txErr) {
+      return jsonRes(createErrorResponse(ERROR_CODES.INTERNAL_ERROR, txErr.message, "apply_package"), 500);
+    }
+
+    const { data: txns } = await supabase.from("rolos_folio_transactions").select("amount").eq("folio_id", folio.id);
+    const balance = (txns || []).reduce((s: number, t: { amount: number | null }) => s + Number(t.amount || 0), 0);
+    await supabase
+      .from("rolos_folios")
+      .update({ balance: Math.round(balance * 100) / 100, updated_at: new Date().toISOString() })
+      .eq("id", folio.id);
+  }
+
+  // Record the package on the booking's room lines and lift the total by add-ons.
+  await supabase.from("rolos_booking_rooms").update({ package_id: packageId }).eq("booking_id", bookingId);
+  if (addOn > 0) {
+    await supabase
+      .from("bookings")
+      .update({ total_price: Math.round((Number(booking.total_price || 0) + addOn) * 100) / 100 })
+      .eq("id", bookingId);
+  }
+
+  return jsonRes(createSuccessResponse(
+    { package_name: packageName, lines, add_on_total: addOn, folio_id: folio.id },
+    "apply_package",
+  ));
+}
+
+// ============================================================================
 // SERVICE CHARGES & REFUNDS
 // ============================================================================
+
 
 // deno-lint-ignore no-explicit-any
 async function handleApplyServiceCharges(body: any, supabase: any): Promise<Response> {

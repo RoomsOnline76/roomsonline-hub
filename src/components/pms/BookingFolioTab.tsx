@@ -8,6 +8,7 @@ import { callPmsApi } from "@/hooks/usePmsApi";
 import { toast } from "sonner";
 import { Plus, CreditCard, Receipt, Zap, RotateCcw, ShieldCheck } from "lucide-react";
 import { getRevenueStreamLabel, normalizeRevenueStream, type RevenueStream } from "@/components/charges/ChargeCalculator";
+import { useActivePackages } from "@/hooks/useActivePackages";
 
 interface Transaction {
   id: string;
@@ -36,7 +37,10 @@ interface BookingCharge {
 
 interface BookingFolioTabProps {
   bookingId: string;
+  /** Enables the package attach control — packages are property-scoped. */
+  propertyId?: string | null;
 }
+
 
 const STREAM_COLORS: Record<RevenueStream, string> = {
   accommodation: "bg-sky-500/15 text-info border-info-border",
@@ -54,7 +58,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   custom: "bg-slate-500/15 text-foreground/80 border-border",
 };
 
-export function BookingFolioTab({ bookingId }: BookingFolioTabProps) {
+export function BookingFolioTab({ bookingId, propertyId }: BookingFolioTabProps) {
   const [loading, setLoading] = useState(true);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [bookingCharges, setBookingCharges] = useState<BookingCharge[]>([]);
@@ -64,6 +68,10 @@ export function BookingFolioTab({ bookingId }: BookingFolioTabProps) {
   const [saving, setSaving] = useState(false);
   const [applyingCharges, setApplyingCharges] = useState(false);
   const [processingRefund, setProcessingRefund] = useState<string | null>(null);
+  const { packages } = useActivePackages(propertyId);
+  const [packageId, setPackageId] = useState("none");
+  const [applyingPackage, setApplyingPackage] = useState(false);
+
 
   const [chargeForm, setChargeForm] = useState<{ description: string; amount: string; type: string; revenue_stream: RevenueStream }>({ description: "", amount: "", type: "charge", revenue_stream: "accommodation" });
   const [paymentForm, setPaymentForm] = useState({ amount: "", method: "cash", reference: "" });
@@ -164,6 +172,25 @@ export function BookingFolioTab({ bookingId }: BookingFolioTabProps) {
     setApplyingCharges(false);
   };
 
+  const handleApplyPackage = async () => {
+    if (packageId === "none") return;
+    setApplyingPackage(true);
+    try {
+      const res = await callPmsApi<{ package_name: string; add_on_total: number; skipped?: boolean }>("apply_package", {
+        booking_id: bookingId,
+        package_id: packageId,
+      });
+      if (res.success && res.data) {
+        if (res.data.skipped) toast.info("That package is already on this folio");
+        else toast.success(`${res.data.package_name} applied`);
+        setPackageId("none");
+        fetchFolio();
+      }
+    } catch (e: any) { toast.error(e.message); }
+    setApplyingPackage(false);
+  };
+
+
   const handleProcessRefund = async (chargeId: string) => {
     setProcessingRefund(chargeId);
     try {
@@ -262,6 +289,24 @@ export function BookingFolioTab({ bookingId }: BookingFolioTabProps) {
           </Button>
         </div>
       )}
+
+      {folioStatus !== "closed" && packages.length > 0 && (
+        <div className="flex gap-2 items-center">
+          <Select value={packageId} onValueChange={setPackageId}>
+            <SelectTrigger className="flex-1"><SelectValue placeholder="Attach a package" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">No package</SelectItem>
+              {packages.map(pkg => (
+                <SelectItem key={pkg.id} value={pkg.id}>{pkg.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button size="sm" variant="outline" onClick={handleApplyPackage} disabled={applyingPackage || packageId === "none"}>
+            <Plus className="h-3 w-3 mr-1" />{applyingPackage ? "Applying..." : "Apply Package"}
+          </Button>
+        </div>
+      )}
+
 
       {showChargeForm && (
         <div className="border border-border rounded-md p-3 space-y-2">

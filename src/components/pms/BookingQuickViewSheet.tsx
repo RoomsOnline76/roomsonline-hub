@@ -8,10 +8,12 @@ import type { CalendarBookingRow } from "./bookingCalendarHelpers";
 
 interface Props {
   booking: CalendarBookingRow | null;
+  /** Property scope for the folio's package picker. */
+  propertyId?: string | null;
   onOpenChange: (open: boolean) => void;
 }
 
-export function BookingQuickViewSheet({ booking, onOpenChange }: Props) {
+export function BookingQuickViewSheet({ booking, propertyId, onOpenChange }: Props) {
   const open = !!booking;
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -78,7 +80,7 @@ export function BookingQuickViewSheet({ booking, onOpenChange }: Props) {
               </TabsContent>
 
               <TabsContent value="charges" className="mt-3">
-                <BookingFolioTab bookingId={booking.id} />
+                <BookingFolioTab bookingId={booking.id} propertyId={propertyId} />
               </TabsContent>
             </Tabs>
           </>

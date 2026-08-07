@@ -679,6 +679,7 @@ export default function PMSRooms() {
       {/* Reservation detail — same sheet the dashboard uses */}
       <BookingQuickViewSheet
         booking={selectedBooking}
+        propertyId={propertyId}
         onOpenChange={(open) => { if (!open) setSelectedBooking(null); }}
       />
 
