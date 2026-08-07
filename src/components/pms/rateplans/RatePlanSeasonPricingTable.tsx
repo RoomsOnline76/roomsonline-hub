@@ -4,7 +4,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { CalendarDays, ChevronsRight, Wand2 } from "lucide-react";
-import type { CalendarSeason, DraftSeasonRate, RatePlanDraft, SeasonPricingMode } from "./ratePlanDraft";
+import type {
+  CalendarSeason,
+  DraftSeasonRate,
+  LiveSeasonMatrix,
+  RatePlanDraft,
+  SeasonPricingMode,
+} from "./ratePlanDraft";
 import { seasonRateFor, seasonUnitRate } from "./ratePlanDraft";
 
 interface RoomTypeOption {
@@ -16,12 +22,15 @@ interface Props {
   draft: RatePlanDraft;
   seasons: CalendarSeason[];
   roomTypes: RoomTypeOption[];
-  /** Nightly rates already captured on the Calendar for this plan, per calendar season id. */
-  legacySeasonRates?: Map<string, number[]>;
+  /** Rates the live booking engine resolves today, per season per unit. */
+  liveMatrix?: LiveSeasonMatrix;
+  liveMatrixLoading?: boolean;
   onChange: (calendarSeasonId: string, patch: Partial<DraftSeasonRate>) => void;
   onCellChange: (calendarSeasonId: string, roomTypeId: string, value: string) => void;
   onFillColumn: (calendarSeasonId: string, value: string) => void;
   onFillRow: (roomTypeId: string, sourceCalendarSeasonId: string) => void;
+  /** Pull live rates into the matrix. Omit the season id to seed every season. */
+  onSeedFromLive: (calendarSeasonId?: string) => void;
 }
 
 const fmtRange = (season: CalendarSeason) =>
@@ -30,6 +39,7 @@ const fmtRange = (season: CalendarSeason) =>
     .join(", ");
 
 const fmtMoney = (n: number) => `R${n.toLocaleString("en-ZA", { maximumFractionDigits: 0 })}`;
+
 
 /**
  * Pricing by Season — a unit (rows) x Calendar season (columns) matrix.
