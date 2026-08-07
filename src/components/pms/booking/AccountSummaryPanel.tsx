@@ -252,16 +252,27 @@ export function AccountSummaryPanel({
         <div className="grid gap-4 p-3 md:grid-cols-[1.4fr_1fr]">
           {/* Details */}
           <div className="space-y-3">
+            <InvoiceBillingPartySelector
+              value={party}
+              onChange={setParty}
+              accounts={accounts || []}
+              bookingChannel={bookingChannel}
+              guestName={guestName}
+            />
+
             <div className="grid gap-2 sm:grid-cols-2">
-              <div className="space-y-1">
-                <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Invoice To</Label>
-                <Input value={invoiceTo} onChange={e => setInvoiceTo(e.target.value)} placeholder={guestName} className="h-8 text-xs" />
-              </div>
+              {party.billToType === "guest" && (
+                <div className="space-y-1">
+                  <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Invoice To</Label>
+                  <Input value={invoiceTo} onChange={e => setInvoiceTo(e.target.value)} placeholder={guestName} className="h-8 text-xs" />
+                </div>
+              )}
               <div className="space-y-1">
                 <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Reference</Label>
                 <Input value={reference} onChange={e => setReference(e.target.value)} placeholder="Enter reference here" className="h-8 text-xs" />
               </div>
             </div>
+
 
             <Separator />
 
