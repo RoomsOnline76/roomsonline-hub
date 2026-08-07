@@ -364,7 +364,7 @@ async function previewSavedPlan(
     out.push({
       room_type_id: rolosId,
       name: String(room?.name ?? ctx.name),
-      days: days.map((d) => ({ date: d.date, price: d.price, source: d.source })),
+      days: days.map((d) => ({ date: d.date, price: d.price, source: d.source, season_name: d.season_name })),
     });
   }
 
