@@ -325,7 +325,7 @@ export function AIConciergePanel({
       numberOfAdults: proposal.guests.adults,
       numberOfChildren: proposal.guests.children,
       numberOfInfants: proposal.guests.infants,
-      ...(proposal.rooms[0］ ? { roomTypeId: proposal.rooms[0].room_type_id } : {}),
+      ...(proposal.rooms[0] ? { roomTypeId: proposal.rooms[0].room_type_id } : {}),
     });
     if (proposal.voucher_code) {
       try {
