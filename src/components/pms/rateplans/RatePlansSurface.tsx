@@ -23,6 +23,7 @@ import { RatePlan7DayRates } from "@/components/pms/rateplans/RatePlan7DayRates"
 import { PropertyLegacyRatesBanner } from "@/components/pms/rateplans/PropertyLegacyRatesBanner";
 import { RatePlanSeasonGrid, type SeasonRateRow } from "@/components/pms/rateplans/RatePlanSeasonGrid";
 import { seasonColor, buildSeasonColorMap, type SeasonColorMap } from "@/lib/seasonColors";
+import { canonicalPricingModel } from "@/components/pms/rateplans/ratePlanDraft";
 
 export const PRICING_MODELS = [
   { value: "per_room", label: "Per Room", suffix: "/room", desc: "Flat rate per room per night" },
