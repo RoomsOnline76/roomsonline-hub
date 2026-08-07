@@ -92,6 +92,7 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
     const [roomTypes, setRoomTypes] = useState<RoomType[]>([]);
     const [links, setLinks] = useState<RatePlanRoomLink[]>([]);
     const [seasonCounts, setSeasonCounts] = useState<Record<string, number>>({});
+    const [seasonRates, setSeasonRates] = useState<Record<string, { name: string; min: number; max: number }[]>>({});
     const [loading, setLoading] = useState(true);
     const [stopSellPlan, setStopSellPlan] = useState<RatePlan | null>(null);
     const [syncPlan, setSyncPlan] = useState<RatePlan | null>(null);
@@ -132,16 +133,38 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
             supabase.from("rolos_rate_plan_room_types").select("rate_plan_id, room_type_id").in("rate_plan_id", planIds),
             supabase
               .from("rolos_rate_plan_season_rates")
-              .select("rate_plan_id, shared_season_id")
+              .select("rate_plan_id, shared_season_id, base_rate, rolos_shared_seasons(name)")
               .in("rate_plan_id", planIds)
               .is("deleted_at", null),
           ])
         : [{ data: [] as RatePlanRoomLink[] }, { data: [] as { rate_plan_id: string }[] }];
 
       const counts: Record<string, number> = {};
-      for (const row of (seasonRatesRes.data || []) as { rate_plan_id: string }[]) {
+      const rateSummary: Record<string, Record<string, { name: string; min: number; max: number }>> = {};
+      type SeasonRateRow = {
+        rate_plan_id: string;
+        base_rate: number | null;
+        rolos_shared_seasons?: { name: string | null } | null;
+      };
+      for (const row of (seasonRatesRes.data || []) as SeasonRateRow[]) {
         counts[row.rate_plan_id] = (counts[row.rate_plan_id] ?? 0) + 1;
+        const name = row.rolos_shared_seasons?.name?.trim();
+        const rate = Number(row.base_rate ?? 0);
+        if (!name || !(rate > 0)) continue;
+        const bucket = (rateSummary[row.rate_plan_id] ??= {});
+        const hit = bucket[name];
+        bucket[name] = hit
+          ? { name, min: Math.min(hit.min, rate), max: Math.max(hit.max, rate) }
+          : { name, min: rate, max: rate };
       }
+      setSeasonRates(
+        Object.fromEntries(
+          Object.entries(rateSummary).map(([planId, byName]) => [
+            planId,
+            Object.values(byName).sort((a, b) => a.min - b.min),
+          ]),
+        ),
+      );
 
       setPlans((plansRes.data || []) as RatePlan[]);
       setRoomTypes((roomTypesRes.data || []) as RoomType[]);
