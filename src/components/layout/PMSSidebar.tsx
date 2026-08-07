@@ -24,6 +24,7 @@ import {
   Building2,
   Gauge,
   Radar,
+  BookOpen,
   SlidersHorizontal,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -62,6 +63,7 @@ export const pmsNavGroups: NavGroup[] = [
     label: "Operations",
     items: [
       { title: "Dashboard", icon: LayoutDashboard, href: "/pms", module: "dashboard" },
+      { title: "Bookings", icon: BookOpen, href: "/pms/bookings", module: "bookings" },
       { title: "Command Centre", icon: Radar, href: "/pms/command-centre", module: "command-centre" },
       { title: "Rooms", icon: BedDouble, href: "/pms/rooms", module: "rooms" },
       { title: "Guests", icon: Users, href: "/pms/guests", module: "guests" },
