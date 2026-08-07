@@ -130,6 +130,7 @@ function generateInvoiceHTML(invoice: any, transactions: any[], property: any, b
 
   <div style="display:flex;justify-content:flex-end;margin-bottom:24px;">
     <table style="border-collapse:collapse;min-width:280px;">
+      ${streamSummaryRows}
       <tr>
         <td style="padding:6px 16px;font-weight:600;">Subtotal</td>
         <td style="padding:6px 16px;text-align:right;">${Number(invoice.subtotal).toFixed(2)}</td>
