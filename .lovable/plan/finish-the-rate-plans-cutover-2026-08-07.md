@@ -4,7 +4,7 @@ The Calendar no longer captures rates and Rate Plans now outrank the legacy Cale
 
 ## What owners will see
 
-1. **A legacy-rates banner in Pricing by season.** When a rate plan still depends on rates that live only in the old Calendar grid, the section shows a short notice: how many unit/season cells are still legacy, and a single **Move these rates into this plan** button. After the move the banner disappears for good.
+1. **A legacy-rates banner in Pricing by season.** When a rate plan still depends on rates that live only in the old Calendar grid, the section shows a short notice: how many unit/season cells are still legacy, and a single **Move these rates into this plan** button. After the move the banner disappears for good.  import legacy rates fro all proerties/units to new rate plans UI & logic.
 2. **Import button only when it is useful.** Today "Import legacy Calendar rates" shows whenever the resolver returns any price, so it appears even for plans that are already fully priced here. It becomes driven by the audit — visible only while legacy cells are actually pending, hidden once nothing is left to import.
 3. **Nothing is overwritten.** Cells already priced in Rate Plans are left exactly as they are; only empty cells that legacy pricing was covering get filled. Values land in the draft so the owner reviews and saves them.
 4. **Property-level sweep for admins.** On the Rate Plans list, an admin-only line shows how many plans on the selected property still lean on legacy Calendar rates, with a link into each one. No bulk silent writes.
