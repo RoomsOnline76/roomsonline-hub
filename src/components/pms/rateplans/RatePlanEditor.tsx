@@ -82,6 +82,8 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
         supabase.from("rolos_shared_seasons").select("id, calendar_season_id").eq("property_id", propertyId),
       ]);
       const calendarSeasons = readCalendarSeasons(property?.amenities);
+      const legacyRates = readLegacySeasonRates(property?.amenities, ratePlanId);
+
       const calendarIdBySharedId = new Map<string, string>(
         (seasonRows.data ?? [])
           .filter((r) => r.calendar_season_id)
