@@ -163,7 +163,7 @@ export function ratePlanDraftReducer(state: RatePlanDraft, action: DraftAction):
 
     case "season_unit_rate": {
       const existing = state.season_rates.find((s) => s.calendar_season_id === action.calendarSeasonId);
-      const current = existing ?? emptySeasonRate(action.calendarSeasonId);
+      const current = promoted(existing ?? emptySeasonRate(action.calendarSeasonId), action.value);
       const unit_rates = { ...current.unit_rates };
       if (action.value === "") delete unit_rates[action.roomTypeId];
       else unit_rates[action.roomTypeId] = action.value;
@@ -178,7 +178,7 @@ export function ratePlanDraftReducer(state: RatePlanDraft, action: DraftAction):
 
     case "fill_season_column": {
       const existing = state.season_rates.find((s) => s.calendar_season_id === action.calendarSeasonId);
-      const current = existing ?? emptySeasonRate(action.calendarSeasonId);
+      const current = promoted(existing ?? emptySeasonRate(action.calendarSeasonId), action.value);
       const unit_rates: Record<string, string> = { ...current.unit_rates };
       for (const id of action.roomTypeIds) {
         if (action.value === "") delete unit_rates[id];
@@ -192,6 +192,32 @@ export function ratePlanDraftReducer(state: RatePlanDraft, action: DraftAction):
           : [...state.season_rates, next],
       };
     }
+
+    case "seed_matrix": {
+      const seasonIds = action.calendarSeasonId
+        ? [action.calendarSeasonId].filter((id) => action.matrix.has(id))
+        : [...action.matrix.keys()];
+      if (seasonIds.length === 0) return state;
+      let season_rates = state.season_rates;
+      for (const seasonId of seasonIds) {
+        const cells = action.matrix.get(seasonId);
+        if (!cells || cells.size === 0) continue;
+        const existing = season_rates.find((s) => s.calendar_season_id === seasonId);
+        const current = existing ?? emptySeasonRate(seasonId);
+        const unit_rates = { ...current.unit_rates };
+        for (const [roomTypeId, amount] of cells) {
+          if (!Number.isFinite(amount) || amount <= 0) continue;
+          unit_rates[roomTypeId] = String(amount);
+        }
+        // Seeded values are absolute nightly rates, never differences.
+        const next: DraftSeasonRate = { ...current, mode: "absolute", unit_rates };
+        season_rates = existing
+          ? season_rates.map((s) => (s.calendar_season_id === seasonId ? next : s))
+          : [...season_rates, next];
+      }
+      return season_rates === state.season_rates ? state : { ...state, season_rates };
+    }
+
 
     case "fill_unit_row": {
       const ordered = action.calendarSeasonIds
