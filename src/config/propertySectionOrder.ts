@@ -39,12 +39,11 @@ import {
 } from "lucide-react";
 
 export type PropertySectionKey =
-  | "general"           // Identity + Location + Contact + Business (dense, collapsible blocks)
-  | "info-facilities"   // Facilities & amenities
-  | "rooms"             // Rooms overview
-  | "images"            // Media
-  
-  | "rates"             // Calendar / Seasons
+  | "general" // Identity + Location + Contact + Business (dense, collapsible blocks)
+  | "info-facilities" // Facilities & amenities
+  | "rooms" // Rooms overview
+  | "images" // Media
+  | "rates" // Calendar / Seasons
   | "policies"
   | "charges"
   | "packages"
@@ -52,12 +51,12 @@ export type PropertySectionKey =
   | "addons"
   | "templates"
   | "announcements"
-  | "contacts"          // Public contacts (ROLOS setup)
+  | "contacts" // Public contacts (ROLOS setup)
   | "branding"
   | "rol-spec"
   | "integrations"
-  | "admin"             // Admin-only advanced
-  | "onboarding";       // Wizard entry
+  | "admin" // Admin-only advanced
+  | "onboarding"; // Wizard entry
 
 export interface PropertySectionDef {
   key: PropertySectionKey;
@@ -94,10 +93,9 @@ export const PROPERTY_SECTION_ORDER: PropertySectionDef[] = [
     description: "Property gallery and hero images.",
   },
   {
-
     key: "rates",
     label: "Calendar / Seasons",
-    description: "Season calendar, season dates and (non-ROL'OS) rate types.",
+    description: "Season calendar | Season dates",
     rolosManaged: true,
   },
   {
@@ -214,7 +212,6 @@ export const SECTION_ICON_MAP: Record<string, LucideIcon> = {
   policies: ShieldCheck,
   charges: Wallet,
 
-
   packages: Package,
   specials: Sparkles,
   addons: Package,
@@ -258,7 +255,6 @@ export const SECTION_HINTS: Partial<Record<PropertySectionKey, SectionHint[]>> =
   ],
 };
 
-
 export interface RailSection {
   key: string;
   label: string;
@@ -294,4 +290,3 @@ export function buildSectionGroups(allowedKeys: Iterable<string>): RailGroup[] {
       }),
   })).filter((g) => g.sections.length > 0);
 }
-
