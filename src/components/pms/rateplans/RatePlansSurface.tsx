@@ -381,12 +381,13 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
                 </span>
               </div>
             ) : null}
-            {/* Units stacked one per row, priced by season — mirrors the sample strip rows. */}
+            {/* One row per unit: authored season prices and live sample nights aligned in the same row. */}
             <div className="mt-2 flex items-center gap-1 text-xs text-muted-foreground">
               <BedDouble className="h-3 w-3" />
               <span>{gridUnits.length} {gridUnits.length === 1 ? "unit" : "units"} · rate by season</span>
             </div>
-            <RatePlanSeasonGrid
+            <RatePlanRateMatrix
+              ratePlanId={plan.id}
               units={gridUnits}
               rows={planRateRows}
               baseRate={plan.base_rate}
@@ -394,17 +395,10 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
             />
           </CardContent>
         </Card>
-        {linkedIds.length > 0 && (
-          <RatePlan7DayRates
-            ratePlanId={plan.id}
-            seasonColors={seasonColors}
-            unitOrder={linkedIds}
-            hideUnitNames
-          />
-        )}
         </div>
       );
     };
+
 
 
     if (loading) {
