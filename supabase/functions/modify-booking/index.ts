@@ -663,7 +663,7 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({
         code: "INTERNAL_ERROR",
-        message: error.message || "Unexpected error",
+        message: (error as Error)?.message || "Unexpected error",
       }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
