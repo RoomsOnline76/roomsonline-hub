@@ -448,7 +448,7 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="rp-base">Base nightly rate</Label>
+            <Label htmlFor="rp-base">Base rate ({noun.perNight})</Label>
             <Input
               id="rp-base"
               type="number"
