@@ -19,6 +19,7 @@ import { PackagesManager } from "@/components/pms/packages/PackagesManager";
 import { BREAKFAST_BASIS_LABELS } from "@/components/charges/ChargeCalculator";
 import { RatePlanEditor } from "@/components/pms/rateplans/RatePlanEditor";
 import { RatePlanSyncToOthersDialog } from "@/components/pms/rateplans/RatePlanSyncToOthersDialog";
+import { RatePlan7DayRates } from "@/components/pms/rateplans/RatePlan7DayRates";
 
 export const PRICING_MODELS = [
   { value: "per_room", label: "Per Room", suffix: "/room", desc: "Flat rate per room per night" },
