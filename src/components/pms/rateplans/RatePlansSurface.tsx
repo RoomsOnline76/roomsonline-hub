@@ -337,8 +337,11 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
             )}
           </CardContent>
         </Card>
+        {linkedIds.length > 0 && <RatePlan7DayRates ratePlanId={plan.id} />}
+        </div>
       );
     };
+
 
     if (loading) {
       return (
