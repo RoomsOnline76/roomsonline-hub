@@ -204,16 +204,16 @@ export default function PMSGroups() {
 
   const bulkStay = useMutation({
     mutationFn: async (direction: "in" | "out") => {
-      if (!selectedGroup) return { processed: 0, skipped: 0 };
-      return await callGroupsApi<{ processed: number; skipped: number }>(
+      if (!selectedGroup) return { processed: 0, succeeded: 0, failed: 0 };
+      return await callGroupsApi<{ processed: number; succeeded: number; failed: number }>(
         direction === "in" ? "group_bulk_check_in" : "group_bulk_check_out",
         { property_id: selectedGroup.property_id, group_id: selectedGroup.id },
       );
     },
     onSuccess: (res) => {
       refreshGroupData();
-      toast.success(`${res?.processed ?? 0} reservation(s) updated`, {
-        description: res?.skipped ? `${res.skipped} skipped (wrong status or not picked up)` : undefined,
+      toast.success(`${res?.succeeded ?? 0} of ${res?.processed ?? 0} reservation(s) updated`, {
+        description: res?.failed ? `${res.failed} could not be processed — check statuses` : undefined,
       });
     },
     onError: (err: Error) => toast.error("Bulk action failed", { description: err.message }),
