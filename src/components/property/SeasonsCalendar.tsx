@@ -684,9 +684,13 @@ export default function SeasonsCalendar({
           </Card>
         )}
 
-        {seasons.length === 0 && !isAdding && (
+        {visibleSeasons.length === 0 && !isAdding && (
           <div className="text-center py-8 text-sm text-muted-foreground">
-            {isReadOnly ? "No seasons synced from PMS." : "No seasons defined. Click \"Add Season\" to get started."}
+            {expiredSeasonIds.size > 0
+              ? "No current seasons — only past seasons exist. Use \"Show past seasons\" to review them."
+              : isReadOnly
+                ? "No seasons synced from PMS."
+                : "No seasons defined. Click \"Add Season\" to get started."}
           </div>
         )}
       </div>
@@ -694,7 +698,7 @@ export default function SeasonsCalendar({
       {/* ═══════════════════════════════════════════════════════════════ */}
       {/* SECTION 2: ROOM RATES BY SEASON (per room/unit)               */}
       {/* ═══════════════════════════════════════════════════════════════ */}
-      {seasons.length > 0 && (
+      {visibleSeasons.length > 0 && (
         <div className="space-y-4">
           <div className="border-t pt-4">
             <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
