@@ -136,7 +136,6 @@ export default function SeasonsCalendar({
   mealTypeSuggestions = [],
   onSeasonsChange,
   onSeasonRatesChange,
-  onSelectedRoomTypeChange,
 }: SeasonsCalendarProps) {
   const { toast } = useToast();
   const [year, setYear] = useState(new Date().getFullYear());
