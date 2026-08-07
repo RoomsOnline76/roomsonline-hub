@@ -304,6 +304,63 @@ async function previewDraft(
 }
 
 /**
+ * Price a SAVED rate plan with stored data only — no draft overrides. This is exactly
+ * what the booking engine quotes today, used for the dense strip on the plan cards.
+ */
+async function previewSavedPlan(
+  sb: any,
+  ratePlanId: string,
+  window: { from: string; to: string },
+) {
+  const { data: plan } = await sb
+    .from("rolos_rate_plans")
+    .select("id, property_id")
+    .eq("id", ratePlanId)
+    .maybeSingle();
+  if (!plan) return { error: "Rate plan not found" };
+  const propertyId = String(plan.property_id);
+
+  const [{ data: property }, { data: links }, { data: roomTypes }] = await Promise.all([
+    sb.from("properties").select("amenities").eq("id", propertyId).maybeSingle(),
+    sb
+      .from("rolos_rate_plan_room_types")
+      .select("room_type_id, sort_order")
+      .eq("rate_plan_id", ratePlanId)
+      .eq("is_active", true),
+    sb.from("rolos_room_types").select("id, name, is_active").eq("property_id", propertyId),
+  ]);
+
+  const amenities = (property?.amenities ?? {}) as Record<string, any>;
+  const resolver = await createRateResolver(sb, propertyId, { amenities, window });
+  const inputs = resolver.pricingInputs as PricingInputs;
+  const roomById = new Map<string, any>(((roomTypes ?? []) as any[]).map((r) => [String(r.id), r]));
+
+  const out: { room_type_id: string; name: string; days: { date: string; price: number; source: string }[] }[] = [];
+  const ordered = ((links ?? []) as any[]).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+  for (const link of ordered) {
+    const rolosId = String(link.room_type_id);
+    const room = roomById.get(rolosId);
+    if (!room || room.is_active === false) continue;
+    const ctx: UnitRateContext =
+      resolver.units.find((u: any) => String(u.linked_rolos_id ?? "") === rolosId) ?? {
+        id: rolosId,
+        name: String(room?.name ?? "Unit"),
+        linked_rolos_id: rolosId,
+      };
+    const days = resolveNightRates(inputs, ctx, window.from, window.to);
+    out.push({
+      room_type_id: rolosId,
+      name: String(room?.name ?? ctx.name),
+      days: days.map((d) => ({ date: d.date, price: d.price, source: d.source })),
+    });
+  }
+
+  return { units: out, window };
+}
+
+
+
+/**
  * Write authored season prices back into properties.amenities.season_rates so the
  * existing booking engine, ARI builders and channel pushes read the same number.
  */
@@ -664,6 +721,21 @@ Deno.serve(async (req) => {
       const result = await previewDraft(sb, propertyId, (body?.draft ?? {}) as Draft, { from, to });
       return json(result);
     }
+
+    if (action === "preview_plan") {
+      const ratePlanId = String(body?.rate_plan_id ?? "");
+      if (!ratePlanId) return json({ error: "A rate plan is required" }, 400);
+      const { data: plan } = await sb.from("rolos_rate_plans").select("property_id").eq("id", ratePlanId).maybeSingle();
+      const denied = await assertAccess(String(plan?.property_id ?? ""));
+      if (denied) return json({ error: denied }, 403);
+      const from = String(body?.window?.from ?? today());
+      const to = String(body?.window?.to ?? addDays(from, 6));
+      const result = await previewSavedPlan(sb, ratePlanId, { from, to });
+      if ((result as any).error) return json(result, 400);
+      return json(result);
+    }
+
+
 
     if (action === "save_plan") {
       const propertyId = String(body?.property_id ?? "");

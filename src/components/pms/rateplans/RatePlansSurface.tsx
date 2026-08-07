@@ -19,6 +19,7 @@ import { PackagesManager } from "@/components/pms/packages/PackagesManager";
 import { BREAKFAST_BASIS_LABELS } from "@/components/charges/ChargeCalculator";
 import { RatePlanEditor } from "@/components/pms/rateplans/RatePlanEditor";
 import { RatePlanSyncToOthersDialog } from "@/components/pms/rateplans/RatePlanSyncToOthersDialog";
+import { RatePlan7DayRates } from "@/components/pms/rateplans/RatePlan7DayRates";
 
 export const PRICING_MODELS = [
   { value: "per_room", label: "Per Room", suffix: "/room", desc: "Flat rate per room per night" },
@@ -225,7 +226,8 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
         ? undefined
         : () => setEditor({ propertyId: plan.property_id, ratePlanId: plan.id });
       return (
-        <Card key={plan.id} className={`group ${plan.is_active === false ? "opacity-50" : ""}`}>
+        <div key={plan.id} className="flex items-stretch gap-2">
+        <Card className={`group min-w-0 flex-1 ${plan.is_active === false ? "opacity-50" : ""}`}>
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle className="text-lg">
@@ -336,8 +338,11 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
             )}
           </CardContent>
         </Card>
+        {linkedIds.length > 0 && <RatePlan7DayRates ratePlanId={plan.id} />}
+        </div>
       );
     };
+
 
     if (loading) {
       return (
@@ -390,7 +395,7 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
               {section.plans.length === 0 ? (
                 plans.length > 0 ? <p className="text-sm text-muted-foreground italic">No rate plans for this property.</p> : null
               ) : (
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                <div className="grid gap-4 xl:grid-cols-2">
                   {section.plans.map(renderPlanCard)}
                 </div>
               )}
