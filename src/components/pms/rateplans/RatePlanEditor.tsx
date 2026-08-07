@@ -105,6 +105,31 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
       dispatch({ type: "season", calendarSeasonId, patch }),
     [],
   );
+  const onSeasonCellChange = useCallback(
+    (calendarSeasonId: string, roomTypeId: string, value: string) =>
+      dispatch({ type: "season_unit_rate", calendarSeasonId, roomTypeId, value }),
+    [],
+  );
+  const onFillSeasonColumn = useCallback(
+    (calendarSeasonId: string, value: string) =>
+      dispatch({
+        type: "fill_season_column",
+        calendarSeasonId,
+        value,
+        roomTypeIds: draftUnitIdsRef.current,
+      }),
+    [],
+  );
+  const onFillUnitRow = useCallback(
+    (roomTypeId: string, sourceCalendarSeasonId: string) =>
+      dispatch({
+        type: "fill_unit_row",
+        roomTypeId,
+        sourceCalendarSeasonId,
+        calendarSeasonIds: seasonIdsRef.current,
+      }),
+    [],
+  );
   const onToggleUnit = useCallback((roomTypeId: string) => dispatch({ type: "toggle_unit", roomTypeId }), []);
   const onUnitDifferential = useCallback(
     (roomTypeId: string, patch: { differential_type?: DifferentialType; differential_value?: string }) =>
