@@ -1180,12 +1180,16 @@ const Booking = () => {
             const childAmount = rate.child_amount || rate.childAmount || 0;
             const infantAmount = rate.infant_amount || rate.infantAmount || 0;
 
+            // Per person sharing publishes an explicit extra-adult amount: the base
+            // covers 2 guests and each additional adult is billed at that rate.
+            const extraAdultAmount = rate.extra_adult_amount ?? rate.extraAdultAmount ?? adultAmount1;
+
             if (room.numberOfAdults === 1) {
               totalAdultAmount += adultAmount1;
             } else if (room.numberOfAdults === 2) {
               totalAdultAmount += adultAmount2;
             } else if (room.numberOfAdults > 2) {
-              totalAdultAmount += adultAmount2 + (adultAmount1 * (room.numberOfAdults - 2));
+              totalAdultAmount += adultAmount2 + (extraAdultAmount * (room.numberOfAdults - 2));
             }
 
             if (room.numberOfTeens > 0) {
