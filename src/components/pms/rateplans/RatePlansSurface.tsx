@@ -294,10 +294,7 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
                   <Badge variant="outline" className="ml-2 text-xs text-muted-foreground">Inactive</Badge>
                 )}
               </CardTitle>
-              {/* Property-level extras that apply on top of the nightly rates. */}
-              <div className="min-w-0 flex-1">
-                <RatePlanExtrasSummary propertyId={plan.property_id} />
-              </div>
+
 
               {readOnly ? (
                 <Badge variant="outline" className="text-xs">
@@ -363,37 +360,46 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
             {plan.description && !plan.description.toLowerCase().includes("configure rate amount") && (
               <p className="text-sm text-muted-foreground mb-2">{plan.description}</p>
             )}
-            <div className="flex flex-wrap gap-2 text-xs text-muted-foreground mb-2">
-              {pricedSeasons > 0 && (
-                <span className="flex items-center gap-1">
-                  <CalendarRange className="h-3 w-3" />
-                  {`${pricedSeasons} season${pricedSeasons === 1 ? "" : "s"} priced`}
-                </span>
-              )}
-              <span>Min stay: {plan.min_stay}n</span>
+            {/* Two columns: plan meta on the left, property-level extras on the right. */}
+            <div className="grid gap-x-4 gap-y-2 sm:grid-cols-2">
+              <div className="min-w-0">
+                <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                  {pricedSeasons > 0 && (
+                    <span className="flex items-center gap-1">
+                      <CalendarRange className="h-3 w-3" />
+                      {`${pricedSeasons} season${pricedSeasons === 1 ? "" : "s"} priced`}
+                    </span>
+                  )}
+                  <span>Min stay: {plan.min_stay}n</span>
 
-              {plan.max_stay ? <span>Max stay: {plan.max_stay}n</span> : null}
-              {plan.min_advance_days ? <span>{plan.min_advance_days}d advance</span> : null}
-              {plan.requires_deposit && <Badge variant="outline" className="text-xs">Deposit</Badge>}
-              {plan.breakfast_included && (
-                <Badge variant="outline" className="text-xs border-success-border text-success">
-                  Breakfast included{plan.breakfast_amount ? ` · R${Number(plan.breakfast_amount).toLocaleString()} ${BREAKFAST_BASIS_LABELS[plan.breakfast_basis || "per_person_per_night"] || ""}` : ""}
-                </Badge>
-              )}
-            </div>
-            {plan.base_rate && plan.base_rate > 0 ? (
-              <div className="mt-2 flex flex-wrap items-center gap-1 text-xs">
-                <span className="flex items-center gap-1 rounded border border-dashed px-1.5 py-0.5 text-muted-foreground">
-                  {pricingNoun(plan.pricing_model).Singular} Base fallback Rate
-                  <span className="font-mono font-semibold text-foreground">R{plan.base_rate.toLocaleString()}</span>
-                </span>
+                  {plan.max_stay ? <span>Max stay: {plan.max_stay}n</span> : null}
+                  {plan.min_advance_days ? <span>{plan.min_advance_days}d advance</span> : null}
+                  {plan.requires_deposit && <Badge variant="outline" className="text-xs">Deposit</Badge>}
+                  {plan.breakfast_included && (
+                    <Badge variant="outline" className="text-xs border-success-border text-success">
+                      Breakfast included{plan.breakfast_amount ? ` · R${Number(plan.breakfast_amount).toLocaleString()} ${BREAKFAST_BASIS_LABELS[plan.breakfast_basis || "per_person_per_night"] || ""}` : ""}
+                    </Badge>
+                  )}
+                </div>
+                {plan.base_rate && plan.base_rate > 0 ? (
+                  <div className="mt-2 flex flex-wrap items-center gap-1 text-xs">
+                    <span className="flex items-center gap-1 rounded border border-dashed px-1.5 py-0.5 text-muted-foreground">
+                      {pricingNoun(plan.pricing_model).Singular} Base fallback Rate
+                      <span className="font-mono font-semibold text-foreground">R{plan.base_rate.toLocaleString()}</span>
+                    </span>
+                  </div>
+                ) : null}
+                {/* One row per unit: authored season prices and live sample nights aligned in the same row. */}
+                <div className="mt-2 flex items-center gap-1 text-xs text-muted-foreground">
+                  <BedDouble className="h-3 w-3" />
+                  <span>{gridUnits.length} {gridUnits.length === 1 ? "unit" : "units"} · rate by season</span>
+                </div>
               </div>
-            ) : null}
-            {/* One row per unit: authored season prices and live sample nights aligned in the same row. */}
-            <div className="mt-2 flex items-center gap-1 text-xs text-muted-foreground">
-              <BedDouble className="h-3 w-3" />
-              <span>{gridUnits.length} {gridUnits.length === 1 ? "unit" : "units"} · rate by season</span>
+              <div className="min-w-0">
+                <RatePlanExtrasSummary propertyId={plan.property_id} />
+              </div>
             </div>
+
             {/* Own click space: date navigation must not bubble up to the card's edit handler. */}
             <div onClick={(e) => e.stopPropagation()} role="presentation">
               <RatePlanRateMatrix
