@@ -56,8 +56,8 @@ Deno.test("shared Calendar season prices sibling units at their own rates", () =
   const hutDay = resolveNightRate(i, hut, "2026-12-20");
   const dassieDay = resolveNightRate(i, dassie, "2026-12-20");
 
-  assertEquals(hutDay, { date: "2026-12-20", price: 2400, extra_guest_price: 250, source: "calendar_season" });
-  assertEquals(dassieDay, { date: "2026-12-20", price: 1350, extra_guest_price: 180, source: "calendar_season" });
+  assertEquals(hutDay, { date: "2026-12-20", price: 2400, extra_guest_price: 250, source: "calendar_season", season_name: undefined });
+  assertEquals(dassieDay, { date: "2026-12-20", price: 1350, extra_guest_price: 180, source: "calendar_season", season_name: undefined });
 });
 
 Deno.test("shared season with a single plan rate + per-unit differentials", () => {
@@ -105,7 +105,7 @@ Deno.test("base rate with a unit differential", () => {
 // 3. Season override
 // ---------------------------------------------------------------------------
 
-Deno.test("plan season rate beats the base rate; calendar season rate beats the plan season rate", () => {
+Deno.test("plan season rate beats the base rate and beats the legacy calendar season rate", () => {
   const withPlanSeason = inputs({
     ratePlans: { "rolos-hut": plan({ base_rate: 900 }) },
     planSeasonRates: { "rolos-hut": [{ calendar_season_id: SEASON_ID, base_rate: 1800 }] },
@@ -121,8 +121,8 @@ Deno.test("plan season rate beats the base rate; calendar season rate beats the 
     ratePlans: { "rolos-hut": plan({ base_rate: 900 }) },
     planSeasonRates: { "rolos-hut": [{ calendar_season_id: SEASON_ID, base_rate: 1800 }] },
   });
-  assertEquals(resolveNightRate(withCalendar, hut, "2026-12-20")?.price, 2100);
-  assertEquals(resolveNightRate(withCalendar, hut, "2026-12-20")?.source, "calendar_season");
+  assertEquals(resolveNightRate(withCalendar, hut, "2026-12-20")?.price, 1800);
+  assertEquals(resolveNightRate(withCalendar, hut, "2026-12-20")?.source, "plan_season");
 });
 
 Deno.test("plan season differential is computed off the plan base rate", () => {
@@ -159,9 +159,9 @@ Deno.test("a Calendar daily override wins over every other tier", () => {
 
   const days = resolveNightRates(i, hut, "2026-12-19", "2026-12-21");
   assertEquals(days.map((d) => [d.date, d.price, d.source]), [
-    ["2026-12-19", 2100, "calendar_season"],
+    ["2026-12-19", 2300, "plan_season"],
     ["2026-12-20", 3500, "daily_override"],
-    ["2026-12-21", 2100, "calendar_season"],
+    ["2026-12-21", 2300, "plan_season"],
   ]);
   // The override is final — the unit differential must NOT be applied to it.
   assertEquals(days[1].extra_guest_price, 400);

@@ -6,11 +6,12 @@
  *   preview      : price a draft plan with the SAME pure engine booking/ARI use.
  *   save_plan    : persist a plan and keep every backward-compatible store in step.
  *   copy_plan    : copy a plan (+ season pricing, units, restrictions) to sibling properties.
+ *   legacy_rate_audit      : does this plan still rely on rates authored in the old Calendar grid?
+ *   migrate_calendar_rates : copy those legacy Calendar rates into the plan matrix (once).
  *
- * Backward compatibility is the whole point of doing saves here: the Calendar season
- * rate outranks the plan season rate in the resolver, so authored season prices are
- * ALSO written back into properties.amenities.season_rates. Without that write-back an
- * edit made on this page would be invisible to today's booking engine and channels.
+ * Rate Plans are the authoring surface and the plan season rate now outranks the legacy
+ * Calendar season rate. Saves still mirror authored amounts into
+ * properties.amenities.season_rates so any reader still on the legacy store stays in step.
  */
 
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -669,6 +670,149 @@ async function savePlan(sb: any, propertyId: string, draft: Draft) {
   return { rate_plan_id: planId, calendar_rates_written: writtenBack };
 }
 
+// ---------------------------------------------------------------------------
+// Legacy Calendar rate migration
+//
+// The Calendar used to be a rate editor (properties.amenities.season_rates).
+// Rate Plans are now the only authoring surface, so those values are copied
+// into rolos_rate_plan_season_rates once and the Calendar grid is retired.
+// ---------------------------------------------------------------------------
+
+interface LegacyCell {
+  calendar_season_id: string;
+  season_name: string;
+  room_type_id: string;
+  room_name: string;
+  room_amount: number;
+  adult_amount: number | null;
+  action: "insert" | "skip_existing";
+}
+
+/** The legacy Calendar amount authored for one unit in one season, if any. */
+function legacyAmountFor(
+  seasonRates: Record<string, any>,
+  keys: string[],
+  calendarSeasonId: string,
+): { room: number; adult: number | null } | null {
+  for (const key of keys) {
+    const bucket = seasonRates?.[key];
+    if (!bucket || typeof bucket !== "object") continue;
+    for (const [bucketKey, value] of Object.entries(bucket as Record<string, any>)) {
+      if (bucketKey !== calendarSeasonId && !bucketKey.startsWith(`${calendarSeasonId}-`)) continue;
+      const room = positive((value as any)?.roomAmount);
+      if (!room) continue;
+      return { room, adult: positive((value as any)?.adultAmount) };
+    }
+  }
+  return null;
+}
+
+/**
+ * Compare the legacy Calendar rate grid with the plan's season pricing matrix.
+ * Never overwrites a rate already authored in Rate Plans.
+ */
+async function planLegacyCells(sb: any, propertyId: string, ratePlanId: string) {
+  const { data: property } = await sb
+    .from("properties")
+    .select("amenities")
+    .eq("id", propertyId)
+    .maybeSingle();
+  const amenities = (property?.amenities ?? {}) as Record<string, any>;
+  const seasonRates = (amenities.season_rates && typeof amenities.season_rates === "object"
+    ? amenities.season_rates
+    : {}) as Record<string, any>;
+
+  const shared = await syncSharedSeasons(sb, propertyId, amenities);
+  const sharedByCalendarId = new Map<string, { shared_season_id: string; name: string }>();
+  for (const s of shared) {
+    if (!sharedByCalendarId.has(s.calendar_season_id)) {
+      sharedByCalendarId.set(s.calendar_season_id, { shared_season_id: s.shared_season_id, name: s.name });
+    }
+  }
+
+  const [{ data: links }, { data: rolosRooms }, { data: hfRooms }, { data: existingRates }] = await Promise.all([
+    sb.from("rolos_rate_plan_room_types").select("room_type_id").eq("rate_plan_id", ratePlanId).eq("is_active", true),
+    sb.from("rolos_room_types").select("id, name").eq("property_id", propertyId),
+    sb.from("hostfully_room_types").select("id, name, linked_rolos_id").eq("property_id", propertyId),
+    sb
+      .from("rolos_rate_plan_season_rates")
+      .select("room_type_id, base_rate, differential_type, differential_value, shared_season_id")
+      .eq("rate_plan_id", ratePlanId)
+      .is("deleted_at", null),
+  ]);
+
+  const nameById = new Map<string, string>(((rolosRooms ?? []) as any[]).map((r) => [String(r.id), String(r.name ?? "Unit")]));
+  const priced = new Set<string>();
+  for (const row of (existingRates ?? []) as any[]) {
+    const hasValue = positive(row.base_rate) ||
+      (row.differential_type && row.differential_type !== "none" && num(row.differential_value) !== null);
+    if (hasValue) priced.add(`${row.shared_season_id}|${row.room_type_id}`);
+  }
+
+  const cells: LegacyCell[] = [];
+  for (const link of (links ?? []) as any[]) {
+    const rolosId = String(link.room_type_id);
+    const hf = ((hfRooms ?? []) as any[]).find((r) => String(r.linked_rolos_id ?? "") === rolosId);
+    const ctx: UnitRateContext = hf
+      ? { id: hf.id, name: hf.name, linked_rolos_id: hf.linked_rolos_id }
+      : { id: rolosId, name: nameById.get(rolosId) ?? "", linked_rolos_id: rolosId };
+    const keys = seasonRateLookupKeys(ctx, amenities);
+
+    for (const [calendarSeasonId, season] of sharedByCalendarId.entries()) {
+      const legacy = legacyAmountFor(seasonRates, keys, calendarSeasonId);
+      if (!legacy) continue;
+      cells.push({
+        calendar_season_id: calendarSeasonId,
+        season_name: season.name,
+        room_type_id: rolosId,
+        room_name: nameById.get(rolosId) ?? ctx.name ?? "Unit",
+        room_amount: legacy.room,
+        adult_amount: legacy.adult,
+        action: priced.has(`${season.shared_season_id}|${rolosId}`) ? "skip_existing" : "insert",
+      });
+    }
+  }
+
+  return { cells, sharedByCalendarId };
+}
+
+/** Does this plan still depend on rates that only exist in the Calendar? */
+async function legacyRateAudit(sb: any, propertyId: string, ratePlanId: string) {
+  const { cells } = await planLegacyCells(sb, propertyId, ratePlanId);
+  const pending = cells.filter((c) => c.action === "insert");
+  return {
+    legacy_cells: cells.length,
+    pending_cells: pending.length,
+    pending: pending,
+  };
+}
+
+/** Copy the legacy Calendar rates into the plan's season pricing matrix. */
+async function migrateCalendarRates(sb: any, propertyId: string, ratePlanId: string, dryRun: boolean) {
+  const { cells, sharedByCalendarId } = await planLegacyCells(sb, propertyId, ratePlanId);
+  const pending = cells.filter((c) => c.action === "insert");
+  if (dryRun || pending.length === 0) {
+    return { dry_run: dryRun, migrated: 0, skipped: cells.length - pending.length, pending };
+  }
+
+  const rows = pending.map((c) => ({
+    rate_plan_id: ratePlanId,
+    shared_season_id: sharedByCalendarId.get(c.calendar_season_id)?.shared_season_id,
+    room_type_id: c.room_type_id,
+    base_rate: c.room_amount,
+    extra_adult_rate: c.adult_amount,
+    differential_type: "none",
+    differential_value: null,
+    is_active: true,
+  })).filter((r) => r.shared_season_id);
+
+  const { error } = await sb.from("rolos_rate_plan_season_rates").insert(rows);
+  if (error) return { error: `Could not import the Calendar rates: ${error.message}` };
+  return { dry_run: false, migrated: rows.length, skipped: cells.length - pending.length, pending: [] };
+}
+
+
+
 /** Copy a plan and everything attached to it onto sibling properties. */
 async function copyPlan(sb: any, ratePlanId: string, targetPropertyIds: string[]) {
   const { data: plan } = await sb.from("rolos_rate_plans").select("*").eq("id", ratePlanId).maybeSingle();
@@ -871,6 +1015,28 @@ Deno.serve(async (req) => {
       const result = await seasonRateMatrix(sb, propertyId, (body?.draft ?? {}) as Draft);
       return json(result);
     }
+
+    if (action === "legacy_rate_audit") {
+      const propertyId = String(body?.property_id ?? "");
+      const ratePlanId = String(body?.rate_plan_id ?? "");
+      const denied = await assertAccess(propertyId);
+      if (denied) return json({ error: denied }, 403);
+      if (!ratePlanId) return json({ legacy_cells: 0, pending_cells: 0, pending: [] });
+      return json(await legacyRateAudit(sb, propertyId, ratePlanId));
+    }
+
+    if (action === "migrate_calendar_rates") {
+      const propertyId = String(body?.property_id ?? "");
+      const ratePlanId = String(body?.rate_plan_id ?? "");
+      const denied = await assertAccess(propertyId);
+      if (denied) return json({ error: denied }, 403);
+      if (!ratePlanId) return json({ error: "Save the rate plan before importing Calendar rates" }, 400);
+      const result = await migrateCalendarRates(sb, propertyId, ratePlanId, body?.dry_run === true);
+      if ((result as any).error) return json(result, 400);
+      return json(result);
+    }
+
+
 
 
     if (action === "save_plan") {

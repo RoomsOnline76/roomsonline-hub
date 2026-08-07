@@ -51,13 +51,23 @@ Deno.test("tier 1 beats everything: a daily override wins over an in-season cale
   assertEquals(price(i, "2026-12-21")?.source, "calendar_season");
 });
 
-Deno.test("tier 2 beats tier 3: an authored calendar season rate wins over a plan season rate", () => {
+Deno.test("plan season rate wins over a legacy calendar season rate", () => {
   const i = inputs({
     seasonRates: { "unit-1": { "high-plan-1": { roomAmount: 2000, adultAmount: 150 } } },
     seasonRateKeys: { "unit-1": ["unit-1"] },
     planSeasonRates: { "rolos-1": [{ calendar_season_id: "high", base_rate: 9999 }] },
   });
-  assertEquals(price(i, "2026-12-20"), { date: "2026-12-20", price: 2000, extra_guest_price: 150, source: "calendar_season" });
+  assertEquals(price(i, "2026-12-20")?.price, 9999);
+  assertEquals(price(i, "2026-12-20")?.source, "plan_season");
+});
+
+Deno.test("a legacy calendar season rate still prices the night when the plan has no season rate", () => {
+  const i = inputs({
+    seasonRates: { "unit-1": { "high-plan-1": { roomAmount: 2000, adultAmount: 150 } } },
+    seasonRateKeys: { "unit-1": ["unit-1"] },
+  });
+  assertEquals(price(i, "2026-12-20")?.price, 2000);
+  assertEquals(price(i, "2026-12-20")?.source, "calendar_season");
 });
 
 Deno.test("tier 3: plan season absolute rate, then percent, then amount differential off base", () => {
@@ -67,7 +77,8 @@ Deno.test("tier 3: plan season absolute rate, then percent, then amount differen
   const pct = inputs({
     planSeasonRates: { "rolos-1": [{ calendar_season_id: "high", differential_type: "percent", differential_value: 25 }] },
   });
-  assertEquals(price(pct, "2026-12-20"), { date: "2026-12-20", price: 1250, extra_guest_price: undefined, source: "plan_season" });
+  assertEquals(price(pct, "2026-12-20")?.price, 1250);
+  assertEquals(price(pct, "2026-12-20")?.source, "plan_season");
 
   const amt = inputs({
     planSeasonRates: { "rolos-1": [{ calendar_season_id: "high", differential_type: "amount", differential_value: 350 }] },
@@ -88,7 +99,8 @@ Deno.test("tier 3: a windowed plan rate applies outside any calendar season", ()
   const i = inputs({
     planSeasonRates: { "rolos-1": [{ start_date: "2026-09-01", end_date: "2026-09-30", base_rate: 800 }] },
   });
-  assertEquals(price(i, "2026-09-15"), { date: "2026-09-15", price: 800, extra_guest_price: undefined, source: "plan_season" });
+  assertEquals(price(i, "2026-09-15")?.price, 800);
+  assertEquals(price(i, "2026-09-15")?.source, "plan_season");
   assertEquals(price(i, "2026-10-15")?.source, "rack_rate");
 });
 
