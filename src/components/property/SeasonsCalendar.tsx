@@ -131,8 +131,6 @@ export default function SeasonsCalendar({
   roomTypes,
   selectedRoomType,
   pmsRateTypes,
-  pricingModel,
-  currency,
   isReadOnly,
   externalSystem,
   mealTypeSuggestions = [],
