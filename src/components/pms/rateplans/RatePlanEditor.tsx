@@ -330,7 +330,13 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <RatePlanSeasonPricingTable draft={draft} seasons={seasons} onChange={onSeasonChange} />
+          <RatePlanSeasonPricingTable
+            draft={draft}
+            seasons={seasons}
+            legacySeasonRates={legacySeasonRates}
+            onChange={onSeasonChange}
+          />
+
         </CardContent>
       </Card>
 
