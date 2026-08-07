@@ -55,6 +55,12 @@
 - ❌ A review platform
 - ❌ The source of truth for availability or rates (except for ROL-native properties)
 
+> **Rate authoring (ROL-native / ROL'OS properties):** Calendar = seasons only (when).
+> Rate Plans (`/pms/rate-plans`) = commercial rates and unit links (what it costs), and is
+> the single configurator. Admin → Edit Property → Rates & Pricing is read-only for ROL'OS
+> properties. See `docs/architecture/rate-plans-adapter-note.md`.
+
+
 ### Domains
 | Zone | Domain Pattern |
 |------|---------------|
