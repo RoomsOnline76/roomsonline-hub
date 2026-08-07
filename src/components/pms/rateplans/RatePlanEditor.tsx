@@ -19,11 +19,13 @@ import {
   emptyDraft,
   ratePlanDraftReducer,
   readCalendarSeasons,
+  readLegacySeasonRates,
   type CalendarSeason,
   type DifferentialType,
   type DraftSeasonRate,
   type RatePlanDraft,
 } from "./ratePlanDraft";
+
 
 const PRICING_MODELS = [
   { value: "per_room", label: "Per room", desc: "Flat rate per room per night" },
