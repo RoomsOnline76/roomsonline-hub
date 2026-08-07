@@ -1015,6 +1015,28 @@ Deno.serve(async (req) => {
       return json(result);
     }
 
+    if (action === "legacy_rate_audit") {
+      const propertyId = String(body?.property_id ?? "");
+      const ratePlanId = String(body?.rate_plan_id ?? "");
+      const denied = await assertAccess(propertyId);
+      if (denied) return json({ error: denied }, 403);
+      if (!ratePlanId) return json({ legacy_cells: 0, pending_cells: 0, pending: [] });
+      return json(await legacyRateAudit(sb, propertyId, ratePlanId));
+    }
+
+    if (action === "migrate_calendar_rates") {
+      const propertyId = String(body?.property_id ?? "");
+      const ratePlanId = String(body?.rate_plan_id ?? "");
+      const denied = await assertAccess(propertyId);
+      if (denied) return json({ error: denied }, 403);
+      if (!ratePlanId) return json({ error: "Save the rate plan before importing Calendar rates" }, 400);
+      const result = await migrateCalendarRates(sb, propertyId, ratePlanId, body?.dry_run === true);
+      if ((result as any).error) return json(result, 400);
+      return json(result);
+    }
+
+
+
 
     if (action === "save_plan") {
       const propertyId = String(body?.property_id ?? "");
