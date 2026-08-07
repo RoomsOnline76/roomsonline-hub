@@ -4687,6 +4687,7 @@ export type Database = {
           pricelabs_config: Json
           property_type: string
           property_url: string | null
+          rate_resolution_mode: string
           rentalsunited_building_id: string | null
           rentalsunited_property_id: string | null
           review_sentiment: Json | null
@@ -4789,6 +4790,7 @@ export type Database = {
           pricelabs_config?: Json
           property_type: string
           property_url?: string | null
+          rate_resolution_mode?: string
           rentalsunited_building_id?: string | null
           rentalsunited_property_id?: string | null
           review_sentiment?: Json | null
@@ -4891,6 +4893,7 @@ export type Database = {
           pricelabs_config?: Json
           property_type?: string
           property_url?: string | null
+          rate_resolution_mode?: string
           rentalsunited_building_id?: string | null
           rentalsunited_property_id?: string | null
           review_sentiment?: Json | null
@@ -9802,18 +9805,21 @@ export type Database = {
         Row: {
           created_at: string | null
           id: string
+          link_source: string | null
           rate_plan_id: string
           room_type_id: string
         }
         Insert: {
           created_at?: string | null
           id?: string
+          link_source?: string | null
           rate_plan_id: string
           room_type_id: string
         }
         Update: {
           created_at?: string | null
           id?: string
+          link_source?: string | null
           rate_plan_id?: string
           room_type_id?: string
         }
@@ -9913,10 +9919,13 @@ export type Database = {
           is_tax_inclusive: boolean | null
           max_stay: number | null
           min_stay: number | null
+          min_stay_authority: string | null
           name: string
           pricing_model: string
+          pricing_model_normalised: string | null
           property_id: string
           requires_deposit: boolean | null
+          source_of_truth: string | null
           teen_rate: number | null
           updated_at: string | null
         }
@@ -9942,10 +9951,13 @@ export type Database = {
           is_tax_inclusive?: boolean | null
           max_stay?: number | null
           min_stay?: number | null
+          min_stay_authority?: string | null
           name: string
           pricing_model?: string
+          pricing_model_normalised?: string | null
           property_id: string
           requires_deposit?: boolean | null
+          source_of_truth?: string | null
           teen_rate?: number | null
           updated_at?: string | null
         }
@@ -9971,10 +9983,13 @@ export type Database = {
           is_tax_inclusive?: boolean | null
           max_stay?: number | null
           min_stay?: number | null
+          min_stay_authority?: string | null
           name?: string
           pricing_model?: string
+          pricing_model_normalised?: string | null
           property_id?: string
           requires_deposit?: boolean | null
+          source_of_truth?: string | null
           teen_rate?: number | null
           updated_at?: string | null
         }
@@ -10056,6 +10071,66 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      rolos_rate_resolution_audit: {
+        Row: {
+          consumer: string | null
+          created_at: string
+          currency: string | null
+          delta: number | null
+          id: string
+          legacy_rate: number | null
+          legacy_tier: string | null
+          notes: Json | null
+          property_id: string
+          rate_plan_id: string | null
+          resolved_rate: number | null
+          resolved_tier: string | null
+          resolver_version: string
+          room_type_id: string | null
+          run_id: string
+          stay_date: string
+          updated_at: string
+        }
+        Insert: {
+          consumer?: string | null
+          created_at?: string
+          currency?: string | null
+          delta?: number | null
+          id?: string
+          legacy_rate?: number | null
+          legacy_tier?: string | null
+          notes?: Json | null
+          property_id: string
+          rate_plan_id?: string | null
+          resolved_rate?: number | null
+          resolved_tier?: string | null
+          resolver_version?: string
+          room_type_id?: string | null
+          run_id: string
+          stay_date: string
+          updated_at?: string
+        }
+        Update: {
+          consumer?: string | null
+          created_at?: string
+          currency?: string | null
+          delta?: number | null
+          id?: string
+          legacy_rate?: number | null
+          legacy_tier?: string | null
+          notes?: Json | null
+          property_id?: string
+          rate_plan_id?: string | null
+          resolved_rate?: number | null
+          resolved_tier?: string | null
+          resolver_version?: string
+          room_type_id?: string | null
+          run_id?: string
+          stay_date?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       rolos_rate_seasons: {
         Row: {
@@ -10864,6 +10939,63 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      rolos_stay_restrictions: {
+        Row: {
+          closed_to_arrival: boolean
+          closed_to_departure: boolean
+          conflict_notes: Json | null
+          created_at: string
+          end_date: string | null
+          has_conflict: boolean
+          id: string
+          max_stay: number | null
+          min_stay: number | null
+          property_id: string
+          rate_plan_id: string | null
+          room_type_id: string | null
+          source: string
+          source_ref: string | null
+          start_date: string | null
+          updated_at: string
+        }
+        Insert: {
+          closed_to_arrival?: boolean
+          closed_to_departure?: boolean
+          conflict_notes?: Json | null
+          created_at?: string
+          end_date?: string | null
+          has_conflict?: boolean
+          id?: string
+          max_stay?: number | null
+          min_stay?: number | null
+          property_id: string
+          rate_plan_id?: string | null
+          room_type_id?: string | null
+          source: string
+          source_ref?: string | null
+          start_date?: string | null
+          updated_at?: string
+        }
+        Update: {
+          closed_to_arrival?: boolean
+          closed_to_departure?: boolean
+          conflict_notes?: Json | null
+          created_at?: string
+          end_date?: string | null
+          has_conflict?: boolean
+          id?: string
+          max_stay?: number | null
+          min_stay?: number | null
+          property_id?: string
+          rate_plan_id?: string | null
+          room_type_id?: string | null
+          source?: string
+          source_ref?: string | null
+          start_date?: string | null
+          updated_at?: string
+        }
+        Relationships: []
       }
       rolos_tax_rules: {
         Row: {
@@ -13435,6 +13567,20 @@ export type Database = {
           property_url?: string | null
           slug?: string | null
           updated_at?: string | null
+        }
+        Relationships: []
+      }
+      rolos_v_effective_rates: {
+        Row: {
+          currency: string | null
+          property_id: string | null
+          rate: number | null
+          rate_plan_id: string | null
+          resolved_at: string | null
+          resolver_version: string | null
+          room_type_id: string | null
+          stay_date: string | null
+          tier: string | null
         }
         Relationships: []
       }
