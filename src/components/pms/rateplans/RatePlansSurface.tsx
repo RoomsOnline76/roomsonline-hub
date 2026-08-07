@@ -257,7 +257,7 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
       const linkedIds = getLinkedRoomTypes(plan.id).filter((id) => roomTypes.some((rt) => rt.id === id));
       const pricedSeasons = seasonCounts[plan.id] ?? 0;
       const planSeasonRates = seasonRates[plan.id] ?? [];
-      const model = PRICING_MODELS.find((m) => m.value === plan.pricing_model);
+      
       const openEditor = readOnly
         ? undefined
         : () => setEditor({ propertyId: plan.property_id, ratePlanId: plan.id });
