@@ -428,36 +428,107 @@ Deno.serve(async (req) => {
           }
         }
 
-        // Resolve the invoice identity: explicit override, then the booking's
-        // invoice-to fields, then the linked company profile, then the guest.
-        let billTo: { name: string | null; vat_number: string | null; address: string | null } = {
+        // ---------------------------------------------------------------------
+        // Billing party resolution.
+        //
+        // Order: what the operator explicitly chose on this document, then the
+        // account links already on the booking, then the guest. The resolved
+        // identity is *snapshotted* onto the invoice so later CRM edits never
+        // rewrite an issued document.
+        // ---------------------------------------------------------------------
+        let billToType = reqBillToType;
+        let billToAccountId: string | null = reqBillToAccountId || null;
+        if (!body.bill_to_type) {
+          if (bookingRow?.company_account_id) {
+            billToType = "company";
+            billToAccountId = bookingRow.company_account_id;
+          } else if (bookingRow?.agent_account_id) {
+            billToType = "agent";
+            billToAccountId = bookingRow.agent_account_id;
+          }
+        }
+        if (billToType === "guest" || billToType === "channel") billToAccountId = billToAccountId || null;
+
+        const channelKey: string | null = billToType === "channel"
+          ? (reqChannelKey || bookingRow?.booking_channel || bookingRow?.comm_channel || "direct")
+          : (reqChannelKey || bookingRow?.booking_channel || null);
+
+        let billTo: {
+          name: string | null;
+          vat_number: string | null;
+          address: string | null;
+          terms_days: number | null;
+        } = {
           name: bookingRow?.invoice_to_name || null,
           vat_number: bookingRow?.invoice_to_vat || null,
           address: bookingRow?.invoice_to_address || null,
+          terms_days: null,
         };
-        if (bookingRow?.company_account_id && (!billTo.name || !billTo.address)) {
-          const { data: companyAccount } = await supabase
+
+        let accountRow: any = null;
+        if (billToAccountId) {
+          const { data: acct } = await supabase
             .from("crm_accounts")
-            .select("name, vat_number, address_line1, address_line2, city, postal_code, country")
-            .eq("id", bookingRow.company_account_id)
+            .select("id, name, account_type, vat_number, address_line1, address_line2, city, postal_code, country, default_commission_rate, payment_terms_days")
+            .eq("id", billToAccountId)
             .maybeSingle();
-          if (companyAccount) {
+          accountRow = acct;
+          if (acct) {
             const composed = [
-              companyAccount.address_line1,
-              companyAccount.address_line2,
-              companyAccount.city,
-              companyAccount.postal_code,
-              companyAccount.country,
+              acct.address_line1,
+              acct.address_line2,
+              acct.city,
+              acct.postal_code,
+              acct.country,
             ].filter(Boolean).join(", ");
             billTo = {
-              name: billTo.name || companyAccount.name || null,
-              vat_number: billTo.vat_number || companyAccount.vat_number || null,
-              address: billTo.address || composed || null,
+              name: acct.name || billTo.name || null,
+              vat_number: acct.vat_number || billTo.vat_number || null,
+              address: composed || billTo.address || null,
+              terms_days: acct.payment_terms_days ?? null,
             };
           }
         }
+        if (billToType === "guest") {
+          billTo = {
+            name: invInvoiceTo || bookingRow?.guest_name || billTo.name || null,
+            vat_number: bookingRow?.invoice_to_vat || null,
+            address: bookingRow?.invoice_to_address || null,
+            terms_days: null,
+          };
+        }
+        if (billToType === "channel" && !billTo.name) {
+          billTo.name = channelLabel(channelKey);
+        }
 
         const total = subtotal + taxTotal;
+
+        // Commission held against this document, for channel/agent settlement.
+        let commissionRate: number | null = reqCommissionRate;
+        if (commissionRate == null) {
+          if ((billToType === "agent" || billToType === "company") && accountRow?.default_commission_rate != null) {
+            commissionRate = Number(accountRow.default_commission_rate);
+          } else if (billToType === "channel") {
+            if (bookingRow?.commission_rate_applied != null) {
+              commissionRate = Number(bookingRow.commission_rate_applied);
+            } else {
+              const { data: billingCfg } = await supabase
+                .from("property_billing_configs")
+                .select("commission_rate, listing_commission_rate")
+                .eq("property_id", invPropId)
+                .maybeSingle();
+              const cfgRate = billingCfg?.listing_commission_rate ?? billingCfg?.commission_rate;
+              if (cfgRate != null) commissionRate = Number(cfgRate);
+            }
+          }
+        }
+        const commissionAmount = commissionRate != null && commissionRate > 0
+          ? Math.round(total * (commissionRate / 100) * 100) / 100
+          : null;
+        const netPayable = commissionAmount != null
+          ? Math.round((total - commissionAmount) * 100) / 100
+          : null;
+
         const prefix = documentKind === "pro_forma" ? "PF" : "INV";
         const invoiceNumber = `${prefix}-${Date.now().toString(36).toUpperCase()}`;
 
@@ -471,6 +542,8 @@ Deno.serve(async (req) => {
             .neq("status", "cancelled");
         }
 
+        const resolvedInvoiceTo = invInvoiceTo || billTo.name || bookingRow?.guest_name || null;
+
         const { data: invoice, error: invErr } = await supabase
           .from("rolos_invoices")
           .insert({
@@ -478,7 +551,20 @@ Deno.serve(async (req) => {
             property_id: invPropId,
             booking_id: invBookingId || null,
             document_kind: documentKind,
-            invoice_to: invInvoiceTo || billTo.name || bookingRow?.guest_name || null,
+            invoice_to: resolvedInvoiceTo,
+            bill_to_type: billToType,
+            bill_to_account_id: billToAccountId,
+            bill_to_name: resolvedInvoiceTo,
+            bill_to_vat: billTo.vat_number,
+            bill_to_address: billTo.address,
+            bill_to_terms_days: billTo.terms_days,
+            channel_key: channelKey,
+            commission_rate: commissionRate,
+            commission_amount: commissionAmount,
+            net_payable: netPayable,
+            due_date: billTo.terms_days
+              ? new Date(Date.now() + billTo.terms_days * 86400000).toISOString().split("T")[0]
+              : null,
             reference: invReference || null,
             invoice_number: invoiceNumber,
             subtotal,
@@ -491,6 +577,7 @@ Deno.serve(async (req) => {
           .select()
           .single();
         if (invErr) throw invErr;
+
 
         const { data: property } = await supabase
           .from("properties")
