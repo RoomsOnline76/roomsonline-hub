@@ -389,13 +389,16 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
               <BedDouble className="h-3 w-3" />
               <span>{gridUnits.length} {gridUnits.length === 1 ? "unit" : "units"} · rate by season</span>
             </div>
-            <RatePlanRateMatrix
-              ratePlanId={plan.id}
-              units={gridUnits}
-              rows={planRateRows}
-              baseRate={plan.base_rate}
-              seasonColors={seasonColors}
-            />
+            {/* Own click space: date navigation must not bubble up to the card's edit handler. */}
+            <div onClick={(e) => e.stopPropagation()} role="presentation">
+              <RatePlanRateMatrix
+                ratePlanId={plan.id}
+                units={gridUnits}
+                rows={planRateRows}
+                baseRate={plan.base_rate}
+                seasonColors={seasonColors}
+              />
+            </div>
           </CardContent>
         </Card>
         </div>
