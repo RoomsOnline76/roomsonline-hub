@@ -436,8 +436,66 @@ Deno.serve(async (req) => {
           throw convertErr;
         }
 
+        // Package expansion: post component lines already tagged by revenue stream.
+        const packageId = p.package_id || block.package_id || null;
+        let packageAddOn = 0;
+        if (packageId) {
+          try {
+            const { name: packageName, lines } = await expandPackageById(supabase, packageId, {
+              subtotal: totalPrice,
+              nights: nights.length,
+              rooms: 1,
+              adults: p.adults ?? 1,
+              children: p.children ?? 0,
+            });
+            packageAddOn = packageAddOnTotal(lines);
 
-        return json({ success: true, booking_id: booking.id });
+            const useMaster = block.group?.billing_mode === "master" || block.group?.billing_mode === "hybrid";
+            let folioId: string | null = null;
+            if (useMaster) {
+              folioId = await ensureMasterFolio(supabase, {
+                id: p.group_id,
+                property_id: p.property_id,
+                name: block.group?.name || "Group",
+                master_folio_id: block.group?.master_folio_id ?? null,
+              });
+            } else {
+              const { data: folio } = await supabase
+                .from("rolos_folios")
+                .select("id")
+                .eq("booking_id", booking.id)
+                .maybeSingle();
+              folioId = folio?.id ?? null;
+            }
+
+            if (folioId && lines.length) {
+              const { error: txErr } = await supabase.from("rolos_folio_transactions").insert(
+                lines.map((l) => ({
+                  folio_id: folioId,
+                  transaction_type: "charge",
+                  description: `${packageName} — ${l.name}${l.includedInRate ? " (included)" : ""}`,
+                  amount: l.includedInRate ? 0 : l.amount,
+                  revenue_stream: l.stream,
+                  reference: `package:${packageId}`,
+                  created_by: userId,
+                })),
+              );
+              if (txErr) console.error("pickup: package folio lines failed", txErr);
+              else await refreshFolioBalance(supabase, folioId);
+            }
+
+            if (packageAddOn > 0) {
+              await supabase
+                .from("bookings")
+                .update({ total_price: Math.round((totalPrice + packageAddOn) * 100) / 100 })
+                .eq("id", booking.id);
+            }
+          } catch (pkgErr) {
+            console.error("pickup: package expansion failed", pkgErr);
+          }
+        }
+
+        return json({ success: true, booking_id: booking.id, package_add_on: packageAddOn });
       }
 
       // ------------------------------------------------------- rooming list
