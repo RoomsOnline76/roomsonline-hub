@@ -17,7 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { UsersRound, Plus, MoreHorizontal, BedDouble } from "lucide-react";
+import { UsersRound, Plus, MoreHorizontal, BedDouble, LogIn, LogOut } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { format } from "date-fns";
 import { callGroupsApi } from "@/lib/groupsApi";
@@ -25,6 +25,7 @@ import GroupBlockGrid, { type GroupBlock } from "@/components/pms/groups/GroupBl
 import GroupPickupDialog from "@/components/pms/groups/GroupPickupDialog";
 import RoomingListTable, { type RoomingRow } from "@/components/pms/groups/RoomingListTable";
 import GroupBillingPanel, { type GroupRecord } from "@/components/pms/groups/GroupBillingPanel";
+import GroupPortalShareCard from "@/components/pms/groups/GroupPortalShareCard";
 
 const GROUP_TYPES = ["corporate", "wedding", "tour", "conference", "family", "other"];
 const STATUS_BADGES: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
@@ -338,6 +339,28 @@ export default function PMSGroups() {
 
                 {/* Rooming list */}
                 <TabsContent value="rooming" className="space-y-3 mt-3">
+                  {!readOnly && (
+                    <div className="flex flex-wrap gap-2">
+                      <Button size="sm" variant="outline" disabled={bulkStay.isPending} onClick={() => bulkStay.mutate("in")}>
+                        <LogIn className="h-4 w-4 mr-1" /> Bulk check-in
+                      </Button>
+                      <Button size="sm" variant="outline" disabled={bulkStay.isPending} onClick={() => bulkStay.mutate("out")}>
+                        <LogOut className="h-4 w-4 mr-1" /> Bulk check-out
+                      </Button>
+                    </div>
+                  )}
+                  <GroupPortalShareCard
+                    propertyId={selectedGroup.property_id}
+                    groupId={selectedGroup.id}
+                    portalToken={selectedGroup.portal_token ?? null}
+                    portalEnabled={!!selectedGroup.portal_enabled}
+                    portalExpiresAt={selectedGroup.portal_expires_at ?? null}
+                    readOnly={readOnly}
+                    onChanged={() => {
+                      queryClient.invalidateQueries({ queryKey: ["pms-groups", propertyId] });
+                      refreshGroupData();
+                    }}
+                  />
                   <RoomingListTable
                     propertyId={selectedGroup.property_id}
                     groupId={selectedGroup.id}
