@@ -60,37 +60,47 @@ export interface NavGroup {
 /** ROL'OS navigation, shared by the desktop sidebar and the mobile bottom nav. */
 export const pmsNavGroups: NavGroup[] = [
   {
-    label: "Operations",
+    label: "Front Desk",
     items: [
       { title: "Dashboard", icon: LayoutDashboard, href: "/pms", module: "dashboard" },
       { title: "Bookings", icon: BookOpen, href: "/pms/bookings", module: "bookings" },
-      { title: "Command Centre", icon: Radar, href: "/pms/command-centre", module: "command-centre" },
-      { title: "Rooms", icon: BedDouble, href: "/pms/rooms", module: "rooms" },
+      { title: "Groups", icon: UsersRound, href: "/pms/groups", module: "groups" },
       { title: "Guests", icon: Users, href: "/pms/guests", module: "guests" },
-      { title: "Housekeeping", icon: Sparkles, href: "/pms/housekeeping", module: "housekeeping" },
+      { title: "Messaging", icon: MessageSquare, href: "/pms/messaging", module: "messaging" },
     ],
   },
   {
-    label: "Revenue",
+    label: "Operations",
     items: [
-      { title: "Property Setup", icon: SlidersHorizontal, href: "/pms/property-setup", module: "property-setup" },
+      { title: "Rooms", icon: BedDouble, href: "/pms/rooms", module: "rooms" },
+      { title: "Housekeeping", icon: Sparkles, href: "/pms/housekeeping", module: "housekeeping" },
+      { title: "Events", icon: CalendarHeart, href: "/pms/events", module: "events" },
+      { title: "Night Audit", icon: Moon, href: "/pms/night-audit", module: "night-audit" },
+    ],
+  },
+  {
+    label: "Revenue & Distribution",
+    items: [
       { title: "Rate Plans", icon: TrendingUp, href: "/pms/rate-plans", module: "rate-plans" },
       { title: "Revenue Mgmt", icon: Gauge, href: "/pms/revenue", module: "revenue" },
       { title: "Channels", icon: Radio, href: "/pms/channels", module: "channels" },
-      { title: "Groups", icon: UsersRound, href: "/pms/groups", module: "groups" },
-      { title: "Events", icon: CalendarHeart, href: "/pms/events", module: "events" },
+      { title: "Command Centre", icon: Radar, href: "/pms/command-centre", module: "command-centre" },
     ],
   },
   {
-    label: "Management",
+    label: "Reporting",
     items: [
-      { title: "Portfolio", icon: Building2, href: "/pms/portfolio", module: "portfolio" },
-      { title: "Night Audit", icon: Moon, href: "/pms/night-audit", module: "night-audit" },
-      { title: "Messaging", icon: MessageSquare, href: "/pms/messaging", module: "messaging" },
       { title: "Reports", icon: BarChart3, href: "/pms/reports", module: "reports" },
+      { title: "Portfolio", icon: Building2, href: "/pms/portfolio", module: "portfolio" },
       // Intelligence lives in the admin menu only — never in the ROL'OS sidebar.
-      { title: "Staff", icon: UserCog, href: "/pms/staff", module: "staff" },
+    ],
+  },
+  {
+    label: "Settings",
+    items: [
+      { title: "Property Setup", icon: SlidersHorizontal, href: "/pms/property-setup", module: "property-setup" },
       { title: "Branding", icon: Palette, href: "/pms/branding", module: "branding" },
+      { title: "Staff", icon: UserCog, href: "/pms/staff", module: "staff" },
       { title: "Integrations", icon: Code2, href: "/pms/integrations", module: "integrations" },
     ],
   },
