@@ -1145,9 +1145,10 @@ Deno.serve(async (req) => {
     const offers = await fetchOffers(supabase, property_id);
     const offerSummaries = summariseOffers(offers, context.currency);
 
-    const effectiveDates = intent.date_range?.check_in && intent.date_range?.check_out
-      ? { check_in: intent.date_range.check_in, check_out: intent.date_range.check_out }
-      : current_dates;
+    const effectiveDates = current_dates?.check_in && current_dates?.check_out
+      ? current_dates
+      : (intent.date_range ? { check_in: intent.date_range.start, check_out: intent.date_range.end } : undefined);
+
 
     const missingSlots = computeMissingSlots(
       intent,
