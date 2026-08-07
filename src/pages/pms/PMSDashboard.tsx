@@ -1999,6 +1999,7 @@ export default function PMSDashboard() {
                   roomTypes={visibleRoomTypes}
                   roomsByType={roomsByType}
                   bookings={bookings as unknown as RoomPlanBooking[]}
+                  groupBlocks={groupBlocks}
                   propertyName={displayName}
                   bookingsLoading={bookingsLoading}
                   isHoliday={getHolidayName}
