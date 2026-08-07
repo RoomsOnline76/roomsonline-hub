@@ -182,59 +182,11 @@ export function seasonRateLookupKeys(
   return [...new Set(keys.filter(Boolean))];
 }
 
-function pickSeasonRate(
-  seasonRates: Record<string, any>,
-  seasonId: string,
-  keys: string[],
-  preferredRatePlanId?: string,
-): { price: number; extra_guest_price?: number } | null {
-  const readBucket = (bucket: any): { price: number; extra_guest_price?: number } | null => {
-    if (!bucket || typeof bucket !== "object") return null;
-    if (preferredRatePlanId) {
-      const direct = bucket[`${seasonId}-${preferredRatePlanId}`];
-      const amount = Number(direct?.roomAmount);
-      if (Number.isFinite(amount) && amount > 0) {
-        const extra = Number(direct?.adultAmount);
-        return { price: amount, extra_guest_price: Number.isFinite(extra) && extra > 0 ? extra : undefined };
-      }
-    }
-    let best = 0;
-    let bestExtra: number | undefined;
-    for (const [subKey, subData] of Object.entries(bucket as Record<string, any>)) {
-      if (!subKey.startsWith(`${seasonId}-`)) continue;
-      const amount = Number((subData as any)?.roomAmount);
-      if (Number.isFinite(amount) && amount > best) {
-        best = amount;
-        const extra = Number((subData as any)?.adultAmount);
-        bestExtra = Number.isFinite(extra) && extra > 0 ? extra : undefined;
-      }
-    }
-    return best > 0 ? { price: best, extra_guest_price: bestExtra } : null;
-  };
+// The season_rates reader lives in ratePricing.ts (pure + unit tested); it is
+// re-exported here so existing importers keep working.
+export { pickCalendarSeasonRate as pickSeasonRate } from "./ratePricing.ts";
 
-  for (const key of keys) {
-    const hit = readBucket(seasonRates[key]);
-    if (hit) return hit;
-  }
 
-  // No key matched (legacy single-unit properties, or renamed rooms): fall back to the
-  // lowest positive rate configured for this season across every bucket.
-  let lowest = Infinity;
-  let lowestExtra: number | undefined;
-  for (const bucket of Object.values(seasonRates)) {
-    if (!bucket || typeof bucket !== "object") continue;
-    for (const [subKey, subData] of Object.entries(bucket as Record<string, any>)) {
-      if (!subKey.startsWith(`${seasonId}-`)) continue;
-      const amount = Number((subData as any)?.roomAmount);
-      if (Number.isFinite(amount) && amount > 0 && amount < lowest) {
-        lowest = amount;
-        const extra = Number((subData as any)?.adultAmount);
-        lowestExtra = Number.isFinite(extra) && extra > 0 ? extra : undefined;
-      }
-    }
-  }
-  return lowest < Infinity ? { price: lowest, extra_guest_price: lowestExtra } : null;
-}
 
 
 /**
