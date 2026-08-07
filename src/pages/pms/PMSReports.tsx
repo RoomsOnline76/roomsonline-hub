@@ -330,7 +330,24 @@ export default function PMSReports() {
     if (chartData.length === 0) return;
     const headers = "Date,Bookings,Revenue,Occupancy %,ADR";
     const rows = chartData.map(d => `${d.date},${d.bookings},${d.revenue.toFixed(2)},${d.occupancy.toFixed(1)},${d.adr.toFixed(2)}`);
-    const blob = new Blob([headers + "\n" + rows.join("\n")], { type: "text/csv" });
+
+    // Revenue mix summary — posted folio revenue split by stream, plus per-property rows.
+    const mixLines: string[] = [];
+    if (revenueMix && revenueMix.total > 0) {
+      mixLines.push(
+        "",
+        "Revenue mix (posted folio revenue)",
+        "Property,Total,Accommodation,Food & Beverage,Other,Room nights,Accom ADR",
+        ...revenueMix.byProperty.map(
+          (p) =>
+            `"${p.propertyName.replace(/"/g, '""')}",${p.total.toFixed(2)},${p.accommodation.toFixed(2)},${p.fnb.toFixed(2)},${p.other.toFixed(2)},${p.nights},${p.accomAdr.toFixed(2)}`,
+        ),
+        `TOTAL,${revenueMix.total.toFixed(2)},${revenueMix.accommodation.toFixed(2)},${revenueMix.fnb.toFixed(2)},${revenueMix.other.toFixed(2)},${revenueMix.nights},${revenueMix.accomAdr.toFixed(2)}`,
+      );
+    }
+
+    const blob = new Blob([[headers, ...rows, ...mixLines].join("\n")], { type: "text/csv" });
+
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
