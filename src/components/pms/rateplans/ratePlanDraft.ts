@@ -87,7 +87,13 @@ export type DraftAction =
   | { type: "field"; key: keyof RatePlanDraft; value: RatePlanDraft[keyof RatePlanDraft] }
   | { type: "toggle_unit"; roomTypeId: string }
   | { type: "unit_differential"; roomTypeId: string; differential_type?: DifferentialType; differential_value?: string }
-  | { type: "season"; calendarSeasonId: string; patch: Partial<DraftSeasonRate> };
+  | { type: "season"; calendarSeasonId: string; patch: Partial<DraftSeasonRate> }
+  /** One cell of the unit x season matrix. */
+  | { type: "season_unit_rate"; calendarSeasonId: string; roomTypeId: string; value: string }
+  /** Push one value into every unit of a season column. */
+  | { type: "fill_season_column"; calendarSeasonId: string; value: string; roomTypeIds: string[] }
+  /** Push one unit's value across every priced season (copy to the right). */
+  | { type: "fill_unit_row"; roomTypeId: string; sourceCalendarSeasonId: string; calendarSeasonIds: string[] };
 
 const emptySeasonRate = (calendarSeasonId: string): DraftSeasonRate => ({
   calendar_season_id: calendarSeasonId,
@@ -96,6 +102,7 @@ const emptySeasonRate = (calendarSeasonId: string): DraftSeasonRate => ({
   differential_type: "amount",
   differential_value: "",
   extra_adult_rate: "",
+  unit_rates: {},
 });
 
 export function ratePlanDraftReducer(state: RatePlanDraft, action: DraftAction): RatePlanDraft {
