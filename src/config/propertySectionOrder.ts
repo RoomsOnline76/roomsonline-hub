@@ -243,13 +243,7 @@ export const SECTION_HINTS: Partial<Record<PropertySectionKey, SectionHint[]>> =
   ],
   rates: [
     { key: "seasons", label: "Seasons", icon: CalendarRange },
-    { key: "types", label: "Rate Types", icon: Layers },
     { key: "calendar", label: "Calendar", icon: Calendar },
-    { key: "breakdown", label: "Breakdown", icon: LayoutList },
-    { key: "charges", label: "Charges", icon: Wallet },
-    { key: "policies", label: "Policies", icon: ShieldCheck },
-    { key: "providers", label: "Providers", icon: CreditCard },
-    { key: "overview", label: "Overview", icon: Receipt },
   ],
   general: [
     { key: "identity", label: "Identity", icon: Home },
