@@ -201,7 +201,12 @@ export { pickCalendarSeasonRate as pickSeasonRate } from "./ratePricing.ts";
 export async function createRateResolver(
   supabase: any,
   propertyId: string,
-  opts: { amenities?: Record<string, any> | null; window?: { from: string; to: string } } = {},
+  opts: {
+    amenities?: Record<string, any> | null;
+    window?: { from: string; to: string };
+    /** "direct" prices the website/checkout, "channels" the Channel Manager / OTA push. */
+    audience?: "direct" | "channels";
+  } = {},
 ): Promise<RateResolver> {
   let amenities = opts.amenities ?? null;
   if (!amenities) {
@@ -345,8 +350,10 @@ export async function createRateResolver(
         };
         if (!entry.calendar_season_id && (!entry.start_date || !entry.end_date)) continue;
         const roomKey = row.room_type_id ? String(row.room_type_id) : null;
-        // A row without a room type applies to every unit linked to the plan.
-        const targets = roomKey ? [roomKey] : (planToRooms[row.rate_plan_id] ?? []);
+        const planRooms = planToRooms[row.rate_plan_id] ?? [];
+        // A row without a room type applies to every unit the plan won; a room-scoped
+        // row only counts when this plan is the selected plan for that unit.
+        const targets = roomKey ? (planRooms.includes(roomKey) ? [roomKey] : []) : planRooms;
         for (const target of targets) (planSeasonRates[target] ||= []).push(entry);
       }
     }
@@ -373,8 +380,9 @@ export async function createRateResolver(
           if (!season?.start_date || !season?.end_date) continue;
           if (!Number.isFinite(base) || base <= 0) continue;
           const roomKey = price.room_type_id ? String(price.room_type_id) : null;
-          // A price row without a room type applies to every unit linked to the plan.
-          const targets = roomKey ? [roomKey] : (planToRooms[season.rate_plan_id] ?? []);
+          const planRooms = planToRooms[season.rate_plan_id] ?? [];
+          // Only the plan selected for a unit may price it.
+          const targets = roomKey ? (planRooms.includes(roomKey) ? [roomKey] : []) : planRooms;
           const extra = Number(price?.extra_adult_rate);
           for (const target of targets) {
             (relationalSeasonRates[target] ||= []).push({
