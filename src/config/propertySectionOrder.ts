@@ -244,10 +244,8 @@ export const SECTION_HINTS: Partial<Record<PropertySectionKey, SectionHint[]>> =
     { key: "images", label: "Images", icon: ImageIcon },
     { key: "agreement", label: "Agreement", icon: FileText },
   ],
-  rates: [
-    { key: "seasons", label: "Seasons", icon: CalendarRange },
-    { key: "calendar", label: "Calendar", icon: Calendar },
-  ],
+  rates: [],
+
   general: [
     { key: "identity", label: "Identity", icon: Home },
     { key: "location", label: "Location", icon: Building2 },
