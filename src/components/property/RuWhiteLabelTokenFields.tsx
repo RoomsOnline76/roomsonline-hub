@@ -56,7 +56,7 @@ export function RuWhiteLabelTokenFields({
     <div className="space-y-2">
       <p className="text-xs font-medium text-foreground">White Label Channel Manager tokens</p>
       <p className="text-xs text-muted-foreground">
-        Paste the sub-user token pair from Rentals United to activate the embedded Channel Manager on the
+        Paste the sub-user token pair from the Channel Manager to activate the embedded Channel Manager on the
         ROL'OS Channels page. Leave blank if the tokens are minted from the stored portal login.
       </p>
       <div className="grid gap-2 sm:grid-cols-2">

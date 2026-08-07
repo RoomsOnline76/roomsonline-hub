@@ -112,10 +112,10 @@ export function PropertyRuOwnerPanel({ propertyId, pmsSystem, readOnly = false }
         body: { action: "property_ru_identity", property_id: propertyId },
       });
       if (error) throw new Error(await extractFunctionError(error));
-      if (!data?.success) throw new Error(data?.error?.message ?? "Could not load the RU owner identity");
+      if (!data?.success) throw new Error(data?.error?.message ?? "Could not load the distribution account identity");
       setIdentity(data as RuOwnerIdentity);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not load the RU owner identity");
+      toast.error(err instanceof Error ? err.message : "Could not load the distribution account identity");
     } finally {
       setLoading(false);
     }
@@ -132,12 +132,12 @@ export function PropertyRuOwnerPanel({ propertyId, pmsSystem, readOnly = false }
         body: { action: "ensure_owner_account", property_id: propertyId },
       });
       if (error) throw new Error(await extractFunctionError(error));
-      if (!data?.success) throw new Error(data?.error?.message ?? "RU sub-account creation failed");
-      toast.success("RU sub-account linked to this owner");
+      if (!data?.success) throw new Error(data?.error?.message ?? "Distribution account creation failed");
+      toast.success("Distribution account linked to this owner");
       setConfirmCreate(false);
       await load();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "RU sub-account creation failed");
+      toast.error(err instanceof Error ? err.message : "Distribution account creation failed");
     } finally {
       setCreating(false);
     }
@@ -160,7 +160,7 @@ export function PropertyRuOwnerPanel({ propertyId, pmsSystem, readOnly = false }
       });
       if (error) throw new Error(await extractFunctionError(error));
       if (!data?.success) throw new Error(data?.error?.message ?? "Could not save the API keys");
-      toast.success("API keys saved — RU push/pull is now unlocked for this owner");
+      toast.success("API keys saved — Channel Manager push/pull is now unlocked for this owner");
       setAccessKey("");
       setSecretKey("");
       setEditingKeys(false);
@@ -186,7 +186,7 @@ export function PropertyRuOwnerPanel({ propertyId, pmsSystem, readOnly = false }
       });
       if (error) throw new Error(await extractFunctionError(error));
       if (!data?.success) throw new Error(data?.error?.message ?? "Verification failed");
-      toast.success("Rentals United accepted the sub-account keys");
+      toast.success("The Channel Manager accepted the distribution account keys");
       await load();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Verification failed");
@@ -214,7 +214,7 @@ export function PropertyRuOwnerPanel({ propertyId, pmsSystem, readOnly = false }
           <div>
             <CardTitle className="text-sm flex items-center gap-2">
               <ShieldCheck className="h-4 w-4 text-primary" />
-              Rentals United owner sub-account
+              Channel Manager distribution account
               {linked ? (
                 <Badge variant="secondary" className="text-[10px]">OwnerID {account?.ru_owner_id}</Badge>
               ) : (
@@ -225,7 +225,7 @@ export function PropertyRuOwnerPanel({ propertyId, pmsSystem, readOnly = false }
               )}
             </CardTitle>
             <CardDescription className="text-xs">
-              One sub-account per owner, shared by every ROL'OS property in their portfolio. RU push and pull stay
+              One distribution account per owner, shared by every ROL'OS property in their portfolio. Channel Manager push and pull stay
               blocked until the sub-account's own API key and secret are captured here.
             </CardDescription>
           </div>
@@ -255,7 +255,7 @@ export function PropertyRuOwnerPanel({ propertyId, pmsSystem, readOnly = false }
         {gated && identity?.gate_reason && (
           <Alert variant="default" className="py-2">
             <AlertTriangle className="h-4 w-4" />
-            <AlertTitle className="text-xs">RU push/pull gated</AlertTitle>
+            <AlertTitle className="text-xs">Channel Manager push/pull gated</AlertTitle>
             <AlertDescription className="text-xs">{identity.gate_reason}</AlertDescription>
           </Alert>
         )}
@@ -281,7 +281,7 @@ export function PropertyRuOwnerPanel({ propertyId, pmsSystem, readOnly = false }
               <div className="font-medium">{account?.company_details_sent ? "Yes" : "Not yet"}</div>
             </div>
             <div>
-              <span className="text-muted-foreground">RU PropertyID for this property</span>
+              <span className="text-muted-foreground">Channel Manager PropertyID for this property</span>
               <div className="font-medium">{identity?.property.ru_property_id ?? "Not pushed yet"}</div>
             </div>
           </div>
@@ -291,7 +291,7 @@ export function PropertyRuOwnerPanel({ propertyId, pmsSystem, readOnly = false }
         {!linked && identity && (
           <div className="space-y-2">
             <p className="text-xs text-muted-foreground">
-              No Rentals United sub-account exists for this owner. Complete the checks below, then create it — the new
+              No distribution account exists for this owner. Complete the checks below, then create it — the new
               account is linked to this property and shared with its portfolio siblings.
             </p>
             <ul className="space-y-1">
@@ -313,7 +313,7 @@ export function PropertyRuOwnerPanel({ propertyId, pmsSystem, readOnly = false }
               confirmCreate ? (
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-xs">
-                    Create an RU sub-account for {identity.property.owner_email ?? "this owner"}?
+                    Create a distribution account for {identity.property.owner_email ?? "this owner"}?
                   </span>
                   <Button size="sm" onClick={() => void createSubAccount()} disabled={creating} className="gap-1.5">
                     {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UserPlus className="h-3.5 w-3.5" />}
@@ -332,7 +332,7 @@ export function PropertyRuOwnerPanel({ propertyId, pmsSystem, readOnly = false }
                   onClick={() => setConfirmCreate(true)}
                 >
                   <UserPlus className="h-3.5 w-3.5" />
-                  Create RU sub-account
+                  Create distribution account
                 </Button>
               )
             )}
@@ -364,7 +364,7 @@ export function PropertyRuOwnerPanel({ propertyId, pmsSystem, readOnly = false }
                 <>
                   <ol className="text-xs text-muted-foreground space-y-1 list-decimal pl-4">
                     <li>
-                      Sign in to Rentals United as the sub-user{" "}
+                      Sign in to the Channel Manager as the sub-user{" "}
                       <span className="font-medium text-foreground">
                         {account?.ru_login_email ?? account?.owner_email ?? "—"}
                       </span>
@@ -408,7 +408,7 @@ export function PropertyRuOwnerPanel({ propertyId, pmsSystem, readOnly = false }
                           id="ru_access_key"
                           value={accessKey}
                           onChange={(e) => setAccessKey(e.target.value)}
-                          placeholder="RU AccessKey"
+                          placeholder="Channel Manager AccessKey"
                           className="h-7 text-xs"
                           autoComplete="off"
                         />
@@ -420,7 +420,7 @@ export function PropertyRuOwnerPanel({ propertyId, pmsSystem, readOnly = false }
                           type="password"
                           value={secretKey}
                           onChange={(e) => setSecretKey(e.target.value)}
-                          placeholder="RU SecretKey"
+                          placeholder="Channel Manager SecretKey"
                           className="h-7 text-xs"
                           autoComplete="off"
                         />
@@ -470,7 +470,7 @@ export function PropertyRuOwnerPanel({ propertyId, pmsSystem, readOnly = false }
                         disabled={verifying || !identity?.keys_captured}
                       >
                         {verifying ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />}
-                        Verify with RU
+                        Verify with Channel Manager
                       </Button>
                     </div>
                   )}

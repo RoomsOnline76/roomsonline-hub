@@ -300,18 +300,18 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
       const failed = res?.failed ?? 0;
       if (failed > 0) {
         toast.error(
-          `${failed} of ${res?.affected ?? 0} propert${(res?.affected ?? 0) === 1 ? "y" : "ies"} could not be ${enabled ? "re-activated" : "archived"} at Rentals United.`
+          `${failed} of ${res?.affected ?? 0} propert${(res?.affected ?? 0) === 1 ? "y" : "ies"} could not be ${enabled ? "re-activated" : "archived"} at the Channel Manager.`
         );
       } else {
         toast.success(
           enabled
-            ? `Channel Manager enabled — ${res?.affected ?? 0} listing(s) re-activated at Rentals United.`
-            : `Channel Manager disabled — ${res?.affected ?? 0} listing(s) archived at Rentals United.`
+            ? `Channel Manager enabled — ${res?.affected ?? 0} listing(s) re-activated at the Channel Manager.`
+            : `Channel Manager disabled — ${res?.affected ?? 0} listing(s) archived at the Channel Manager.`
         );
       }
     } catch (e) {
       toast.error(
-        e instanceof Error ? e.message : "Rentals United status update failed — retry from the RU console."
+        e instanceof Error ? e.message : "Channel Manager status update failed — retry from the admin integrations console."
       );
     } finally {
       setCmSyncing(false);
@@ -540,7 +540,7 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
                   <p>
                     All {isPortfolioScope ? `${scope.siblingPropertyIds.length} portfolio ` : ""}
                     propert{isPortfolioScope && scope.siblingPropertyIds.length !== 1 ? "ies" : "y"} will be{" "}
-                    <strong>re-activated at Rentals United</strong> and the ROL'OS Channel Manager screen unlocks.
+                    <strong>re-activated at the Channel Manager</strong> and the ROL'OS Channel Manager screen unlocks.
                   </p>
                   <p>Per-unit channel billing resumes for every synced unit.</p>
                 </>
@@ -549,7 +549,7 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
                   <p>
                     All {isPortfolioScope ? `${scope.siblingPropertyIds.length} portfolio ` : ""}
                     propert{isPortfolioScope && scope.siblingPropertyIds.length !== 1 ? "ies" : "y"} will be{" "}
-                    <strong>archived at Rentals United</strong>, ARI pushes stop, and the ROL'OS Channel Manager
+                    <strong>archived at the Channel Manager</strong>, ARI pushes stop, and the ROL'OS Channel Manager
                     screen is locked for the owner.
                   </p>
                   <p>Per-unit channel billing stops from the next invoice run.</p>

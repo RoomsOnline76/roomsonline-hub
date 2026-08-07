@@ -122,7 +122,7 @@ export default function RuImageTagPicker({
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search 210 RU photo tags..."
+              placeholder="Search 210 channel photo tags..."
               className="h-8 pl-7 text-xs"
             />
           </div>
@@ -153,7 +153,7 @@ export default function RuImageTagPicker({
             )}
           </ScrollArea>
           <p className="mt-2 border-t pt-2 text-[10px] leading-tight text-muted-foreground">
-            The first tag is pushed to Rentals United as the photo's type; extras sync as additional tags.
+            The first tag is pushed to the Channel Manager as the photo's type; extras sync as additional tags.
           </p>
         </PopoverContent>
       </Popover>

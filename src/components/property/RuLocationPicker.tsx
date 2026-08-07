@@ -59,7 +59,7 @@ export function RuLocationPicker({
   value,
   onChange,
   typeFilter,
-  placeholder = "Search Rentals United locations…",
+  placeholder = "Search Channel Manager locations…",
   initialQuery = "",
   className,
   disabled,
@@ -132,8 +132,8 @@ export function RuLocationPicker({
       const ruStatus = data?.error?.ru_status_id ? ` (RU status ${data.error.ru_status_id})` : "";
       toast.error(
         detail
-          ? `RU location register: ${detail}${ruStatus}`
-          : "Could not refresh the RU location register",
+          ? `Channel Manager location register: ${detail}${ruStatus}`
+          : "Could not refresh the Channel Manager location register",
       );
       return;
     }
@@ -141,11 +141,11 @@ export function RuLocationPicker({
     if (data.endpoint_disabled) {
       toast.warning(
         data.note ||
-          "Rentals United has not enabled the location dictionary for this integration — locations stay name-resolved at push time.",
+          "The Channel Manager has not enabled the location dictionary for this integration — locations stay name-resolved at push time.",
       );
       return;
     }
-    toast.success(`RU location register refreshed — ${data.upserted} locations cached`);
+    toast.success(`Channel Manager location register refreshed — ${data.upserted} locations cached`);
     void search(query);
   }, [query, search]);
 
@@ -180,7 +180,7 @@ export function RuLocationPicker({
             <CommandList>
               {loading && (
                 <div className="flex items-center gap-2 px-3 py-3 text-xs text-muted-foreground">
-                  <Loader2 className="h-3 w-3 animate-spin" /> Searching the RU register…
+                  <Loader2 className="h-3 w-3 animate-spin" /> Searching the Channel Manager register…
                 </div>
               )}
               {!loading && (
@@ -188,11 +188,11 @@ export function RuLocationPicker({
                   <div className="space-y-2 px-3 py-3 text-left text-xs text-muted-foreground">
                     {emptyRegister ? (
                       <p>
-                        The Rentals United location register is empty. Refresh it to pull RU's
+                        The Channel Manager location register is empty. Refresh it to pull the Channel Manager's
                         location tree (Pull_ListLocations_RQ).
                       </p>
                     ) : (
-                      <p>No cached RU location matches that search.</p>
+                      <p>No cached Channel Manager location matches that search.</p>
                     )}
                     {allowRefresh && (
                       <Button
@@ -260,7 +260,7 @@ export function RuLocationPicker({
                 onChange(null, null);
                 setSelected(null);
               }}
-              aria-label="Clear RU location"
+              aria-label="Clear Channel Manager location"
             >
               <X className="h-3 w-3" />
             </Button>

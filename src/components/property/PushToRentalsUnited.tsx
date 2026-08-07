@@ -231,11 +231,11 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
       .update({ rentalsunited_property_id: newId })
       .eq("id", propertyId);
     if (err) {
-      toast.error("Failed to save RU ID");
+      toast.error("Failed to save Channel Manager ID");
     } else {
       setRuPropertyId(newId);
       setEditingRuId(false);
-      toast.success("RU ID saved");
+      toast.success("Channel Manager ID saved");
     }
     setSavingRuId(false);
   };
@@ -248,7 +248,7 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
       .update({ rentalsunited_property_id: newId })
       .eq("id", roomTypeId);
     if (err) {
-      toast.error("Failed to save unit RU ID");
+      toast.error("Failed to save unit Channel Manager ID");
     } else {
       setUnits((prev) =>
         prev.map((u) =>
@@ -256,7 +256,7 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
         )
       );
       setEditingUnitRuId(null);
-      toast.success("Unit RU ID saved");
+      toast.success("Unit Channel Manager ID saved");
     }
     setSavingUnitRuId(false);
   };
@@ -291,8 +291,8 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
       const { data, error: fnErr } = await supabase.functions.invoke("ru-cert-portal", {
         body: { action: "resolve_ru_property_ids", property_id: propertyId },
       });
-      if (fnErr) throw new Error(await extractFunctionError(fnErr, "Could not read the Rentals United property list"));
-      if (!data?.success) throw new Error(data?.error?.message ?? "Could not read the Rentals United property list");
+      if (fnErr) throw new Error(await extractFunctionError(fnErr, "Could not read the Channel Manager property list"));
+      if (!data?.success) throw new Error(data?.error?.message ?? "Could not read the Channel Manager property list");
 
       if (data.ru_owner_label) setRuOwnerLabel(String(data.ru_owner_label));
       else if (data.ru_owner_id) setRuOwnerLabel(`OwnerID ${data.ru_owner_id}`);
@@ -318,12 +318,12 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
         toast.warning(`No matching listings on ${acct} (${data.remote_count ?? 0} listing(s) scanned)`);
       } else {
         toast.success(
-          `Linked ${matched.length} Rentals United ID${matched.length === 1 ? "" : "s"} from ${acct}${unmatched.length ? ` — ${unmatched.length} still unmatched` : ""}`,
+          `Linked ${matched.length} Channel Manager ID${matched.length === 1 ? "" : "s"} from ${acct}${unmatched.length ? ` — ${unmatched.length} still unmatched` : ""}`,
         );
       }
 
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to capture the Rentals United ID");
+      toast.error(err instanceof Error ? err.message : "Failed to capture the Channel Manager ID");
     } finally {
       setResolvingIds(false);
     }
@@ -355,9 +355,9 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
 
       const v = data.validation;
       if (v.meets_minimum_images && v.meets_minimum_amenities && v.has_coordinates) {
-        toast.success(data.multi_unit ? `All ${v.total_units} units ready to push` : "Property is ready to push to Rentals United");
+        toast.success(data.multi_unit ? `All ${v.total_units} units ready to push` : "Property is ready to publish to the Channel Manager");
       } else {
-        toast.warning("Property needs attention before pushing to RU");
+        toast.warning("Property needs attention before publishing to the Channel Manager");
       }
     } catch (err) {
       setError({ code: "EXCEPTION", message: err instanceof Error ? err.message : "Unknown error" });
@@ -403,7 +403,7 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
           );
         }
         const successCount = (data.units || []).filter((u: any) => u.success).length;
-        toast.success(`Building + ${successCount}/${(data.units || []).length} units pushed to RU`);
+        toast.success(`Building + ${successCount}/${(data.units || []).length} units published to the Channel Manager`);
       } else {
         setRuPropertyId(data.rentalsunited_property_id);
         toast.success(`Property pushed to Rentals United (ID: ${data.rentalsunited_property_id})`);
@@ -443,16 +443,16 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
         validation.has_description === false && "Description missing",
         validation.has_description !== false &&
           validation.description_meets_recommended === false &&
-          `Description is short (${validation.description_length ?? 0} chars) — 100+ recommended (not an RU requirement)`,
+          `Description is short (${validation.description_length ?? 0} chars) — 100+ recommended (not a Channel Manager requirement)`,
         validation.has_payment_methods === false && "No payment method configured",
         validation.has_cancellation_policies === false && "No cancellation policy configured",
         validation.beds_cover_half === false &&
-          `Beds (${validation.total_beds ?? 0}) cover less than 50% of max guests (${validation.max_guests ?? 0}) — RU minimum`,
+          `Beds (${validation.total_beds ?? 0}) cover less than 50% of max guests (${validation.max_guests ?? 0}) — Channel Manager minimum`,
         validation.beds_cover_half !== false &&
           validation.beds_meet_max_guests === false &&
           `Beds (${validation.total_beds ?? 0}) do not cover every guest (${validation.max_guests ?? 0}) — recommended, not required`,
         validation.amenities_padded === true &&
-          `${validation.amenities_padded_count ?? 0} amenity(ies) auto-filled to reach RU's minimum of 10 — confirm or replace`,
+          `${validation.amenities_padded_count ?? 0} amenity(ies) auto-filled to reach the Channel Manager's minimum of 10 — confirm or replace`,
         validation.payment_methods_is_default === true &&
           "Payment methods fell back to Cash + credit card — confirm in Policies → Accepted payment methods",
         validation.cancellation_policies_is_default === true &&
@@ -470,7 +470,7 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Upload className="h-4 w-4 text-primary" />
-            <CardTitle className="text-sm">Push to Rentals United</CardTitle>
+            <CardTitle className="text-sm">Publish to Channel Manager</CardTitle>
             {autoManaged && (
               <Badge variant="secondary" className="text-[10px] h-5 gap-1">
                 <CheckCircle className="h-3 w-3" />
@@ -498,7 +498,7 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
                   className="h-6 px-1.5 text-[10px]"
                   onClick={clearBuildingId}
                   disabled={savingBuildingId}
-                  title="Units are pushed as standalone RU properties — clear the stale building link"
+                  title="Units are pushed as standalone Channel Manager properties — clear the stale building link"
                 >
                   {savingBuildingId ? <Loader2 className="h-3 w-3 animate-spin" /> : <X className="h-3 w-3" />}
                   <span className="ml-1">Clear</span>
@@ -508,7 +508,7 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
             {!isMultiUnit && (
               editingRuId ? (
                 <div className="flex items-center gap-1">
-                  <Input value={ruIdDraft} onChange={(e) => setRuIdDraft(e.target.value)} placeholder="RU Property ID" className="h-6 w-28 text-xs px-1.5" />
+                  <Input value={ruIdDraft} onChange={(e) => setRuIdDraft(e.target.value)} placeholder="Channel Manager Property ID" className="h-6 w-28 text-xs px-1.5" />
                   <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={saveRuId} disabled={savingRuId}>
                     {savingRuId ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
                   </Button>
@@ -518,14 +518,14 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
                 </div>
               ) : (
                 <Badge variant="outline" className="text-xs cursor-pointer hover:bg-accent" onClick={() => { setRuIdDraft(ruPropertyId || ""); setEditingRuId(true); }}>
-                  {ruPropertyId ? `RU ID: ${ruPropertyId}` : "No RU ID — click to set"}
+                  {ruPropertyId ? `Channel Manager ID: ${ruPropertyId}` : "No Channel Manager ID — click to set"}
                 </Badge>
               )
             )}
           </div>
           <div className="flex items-center gap-2">
             {(ruOwnerLabel || ruOwnerAccount?.ru_owner_id) && (
-              <Badge variant="outline" className="text-[10px] h-5 gap-1" title="RU sub-account the IDs are fetched from">
+              <Badge variant="outline" className="text-[10px] h-5 gap-1" title="Distribution account the IDs are fetched from">
                 <User className="h-3 w-3" />
                 {ruOwnerLabel ?? `OwnerID ${ruOwnerAccount?.ru_owner_id}`}
               </Badge>
@@ -544,12 +544,12 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
               disabled={resolvingIds || loading || dryRunning || identityGate.gated}
               title={
                 identityGate.gated
-                  ? identityGate.reason ?? "Link the RU sub-account and capture its API keys on the Identity tab first"
-                  : "Read the Rentals United listing IDs for this property's sub-user account and store them here"
+                  ? identityGate.reason ?? "Link the distribution account and capture its API keys on the Identity tab first"
+                  : "Read the Channel Manager listing IDs for this property's distribution account and store them here"
               }
             >
               {resolvingIds ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
-              {resolvingIds ? "Fetching..." : "Fetch RU IDs"}
+              {resolvingIds ? "Fetching..." : "Fetch Channel Manager IDs"}
             </Button>
             <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={runDryRun} disabled={dryRunning || loading}>
               {dryRunning ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle className="h-3 w-3" />}
@@ -568,9 +568,9 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
               }
               title={
                 identityGate.gated
-                  ? identityGate.reason ?? "Link the RU sub-account and capture its API keys on the Identity tab first"
+                  ? identityGate.reason ?? "Link the distribution account and capture its API keys on the Identity tab first"
                   : readiness?.blocked
-                    ? "Complete the RU readiness checklist below before syncing"
+                    ? "Complete the channel readiness checklist below before syncing"
                     : undefined
               }
             >
@@ -583,7 +583,7 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
                     ? "Sync blocked"
                     : isMultiUnit
                       ? "Push Building + Units"
-                      : "Push to RU"}
+                      : "Publish to Channel Manager"}
             </Button>
 
           </div>
@@ -634,7 +634,7 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
               </AlertTitle>
               <AlertDescription className="text-xs">
                 <p className="mb-1 text-muted-foreground">
-                  Rentals United can reject or hide White-Label inventory that is missing these fields.
+                  The Channel Manager can reject or hide White-Label inventory that is missing these fields.
                 </p>
                 <ul className="list-disc list-inside space-y-0.5">
                   {wlGaps.map((g, i) => <li key={i}>{g}</li>)}
@@ -670,7 +670,7 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
                       <span className="font-medium">{unit.name}</span>
                       {editingUnitRuId === unit.room_type_id ? (
                         <div className="flex items-center gap-1">
-                          <Input value={unitRuIdDraft} onChange={(e) => setUnitRuIdDraft(e.target.value)} placeholder="RU Property ID" className="h-6 w-28 text-xs px-1.5" />
+                          <Input value={unitRuIdDraft} onChange={(e) => setUnitRuIdDraft(e.target.value)} placeholder="Channel Manager Property ID" className="h-6 w-28 text-xs px-1.5" />
                           <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => saveUnitRuId(unit.room_type_id)} disabled={savingUnitRuId}>
                             {savingUnitRuId ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
                           </Button>
@@ -763,7 +763,7 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
             <div className="border rounded px-3 py-2 space-y-1 bg-muted/20">
               <div className="flex items-center gap-1.5">
                 <User className="h-3.5 w-3.5 text-primary" />
-                <span className="text-xs font-medium">Rentals United Sub-Account</span>
+                <span className="text-xs font-medium">Distribution account</span>
                 {ruOwnerAccount.ru_owner_id && (
                   <Badge variant="secondary" className="text-[10px] h-4 px-1">Owner: {ruOwnerAccount.ru_owner_id}</Badge>
                 )}
@@ -790,7 +790,7 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
                   className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline"
                 >
                   <ExternalLink className="h-3 w-3" />
-                  Open Rentals United Portal
+                  Open Channel Manager Portal
                 </a>
               )}
             </div>

@@ -3705,8 +3705,8 @@ export default function PropertyForm({
           .then(({ data: ruCheck }) => {
             if (ruCheck?.rentalsunited_property_id) {
               toast({
-                title: "Syncing to Rentals United...",
-                description: "Property data is being pushed to RU in the background.",
+                title: "Syncing to Channel Manager...",
+                description: "Property data is being pushed to the Channel Manager in the background.",
               });
               supabase.functions
                 .invoke("push-property-to-ru", {
@@ -6257,7 +6257,7 @@ export default function PropertyForm({
                   </div>
                   {(propBathrooms === null || propToilets === null) && (
                     <p className="mt-2 text-[11px] text-destructive">
-                      Bathrooms and toilets are mandatory for Rentals United and OTA distribution.
+                      Bathrooms and toilets are mandatory for Channel Manager and OTA distribution.
                       Capture them per unit in the Rooms tab, or here as the property-wide fallback.
                     </p>
                   )}
@@ -6273,7 +6273,7 @@ export default function PropertyForm({
                     <div className="flex items-center gap-3">
                       <div className="text-xs text-muted-foreground flex items-center gap-1">
                         <Info className="h-3 w-3" />
-                        Channel amenities first — the selection is pushed to Rentals United and OTAs
+                        Channel amenities first — the selection is pushed to the Channel Manager and OTAs
                       </div>
                       <Button
                         type="button"

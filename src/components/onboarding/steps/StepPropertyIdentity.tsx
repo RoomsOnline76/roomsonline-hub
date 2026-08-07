@@ -339,11 +339,11 @@ export function StepPropertyIdentity({
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">
-              Rentals United requires the exact format UTC±HH:MM (South Africa: UTC+02:00).
+              The Channel Manager requires the exact format UTC±HH:MM (South Africa: UTC+02:00).
             </p>
             {rawTimeZone && !normalizedTimeZone && (
               <p className="text-xs text-destructive">
-                Stored value “{rawTimeZone}” is not a valid RU time zone — pick one above.
+                Stored value “{rawTimeZone}” is not a valid Channel Manager time zone — pick one above.
               </p>
             )}
           </div>

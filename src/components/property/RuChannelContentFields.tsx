@@ -75,7 +75,7 @@ export const RuChannelContentFields: React.FC<RuChannelContentFieldsProps> = ({
         onChange={(e) => onSizeChange(e.target.value ? Number(e.target.value) : null)}
       />
       <p className="text-[10px] text-muted-foreground">
-        Fallback for Rentals United "Space". Room-level sizes in the Rooms tab take priority.
+        Fallback for the Channel Manager "Space". Room-level sizes in the Rooms tab take priority.
       </p>
     </div>
   </div>

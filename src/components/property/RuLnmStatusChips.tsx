@@ -111,8 +111,8 @@ export function RuLnmStatusChips({ propertyId }: { propertyId: string }) {
       if (error) throw new Error(error.message);
       if (data?.success !== true) throw new Error(data?.error?.message ?? "The duplicate-order test could not run");
       setDupResult(data as Record<string, unknown>);
-      if (data.passed) toast.success("Rentals United accepted both quality-check orders");
-      else if (data.lnm_not_subscribed) toast.error("RU status 280 — subscribe the account to LNM first");
+      if (data.passed) toast.success("The Channel Manager accepted both quality-check orders");
+      else if (data.lnm_not_subscribed) toast.error("Channel status 280 — subscribe the account to LNM first");
       else if (data.ru_internal_error) toast.error("RU status 17 — RU-side fault, escalate with the ResponseID");
       else toast.error("Duplicate-order test failed");
       await load();
@@ -128,7 +128,7 @@ export function RuLnmStatusChips({ propertyId }: { propertyId: string }) {
   if (loading && !status) {
     return (
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
-        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Reading live notification status from Rentals United…
+        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Reading live notification status from the Channel Manager…
       </div>
     );
   }
@@ -203,7 +203,7 @@ export function RuLnmStatusChips({ propertyId }: { propertyId: string }) {
           {status.lnm.actual && (
             <div className="space-y-1 text-muted-foreground">
               <p className="font-mono break-all">
-                UrlBase at RU: {status.lnm.actual.url_base ?? "(none)"}
+                UrlBase at the Channel Manager: {status.lnm.actual.url_base ?? "(none)"}
                 {drift && !drift.url_matches && (
                   <span className="text-destructive"> — expected {status.lnm.desired.url_base}</span>
                 )}
@@ -215,7 +215,7 @@ export function RuLnmStatusChips({ propertyId }: { propertyId: string }) {
                 <p className="text-destructive">Missing observed OwnerIDs: {drift.missing_owners.join(", ")}</p>
               )}
               <p>
-                Observed OwnerIDs at RU:{" "}
+                Observed OwnerIDs at the Channel Manager:{" "}
                 {status.lnm.actual.observed_owners.length ? status.lnm.actual.observed_owners.join(", ") : "(none)"}
               </p>
             </div>
