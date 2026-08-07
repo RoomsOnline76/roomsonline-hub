@@ -1021,8 +1021,8 @@ Deno.serve(async (req) => {
       const ratePlanId = String(body?.rate_plan_id ?? "");
       const denied = await assertAccess(propertyId);
       if (denied) return json({ error: denied }, 403);
-      if (!ratePlanId) return json({ legacy_cells: 0, pending_cells: 0, pending: [] });
-      return json(await legacyRateAudit(sb, propertyId, ratePlanId));
+      if (ratePlanId) return json(await legacyRateAudit(sb, propertyId, ratePlanId));
+      return json(await propertyLegacyRateAudit(sb, propertyId));
     }
 
     if (action === "migrate_calendar_rates") {
@@ -1030,11 +1030,17 @@ Deno.serve(async (req) => {
       const ratePlanId = String(body?.rate_plan_id ?? "");
       const denied = await assertAccess(propertyId);
       if (denied) return json({ error: denied }, 403);
-      if (!ratePlanId) return json({ error: "Save the rate plan before importing Calendar rates" }, 400);
-      const result = await migrateCalendarRates(sb, propertyId, ratePlanId, body?.dry_run === true);
+      const dryRun = body?.dry_run === true;
+      if (!ratePlanId) {
+        const result = await migratePropertyCalendarRates(sb, propertyId, dryRun);
+        if ((result as any).error) return json(result, 400);
+        return json(result);
+      }
+      const result = await migrateCalendarRates(sb, propertyId, ratePlanId, dryRun);
       if ((result as any).error) return json(result, 400);
       return json(result);
     }
+
 
 
 
