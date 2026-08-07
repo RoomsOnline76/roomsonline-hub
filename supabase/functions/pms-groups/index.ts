@@ -35,38 +35,68 @@ function nightsBetween(start: string, end: string): string[] {
   return out;
 }
 
-/** Mirror a block/release into the availability cache the booking engine reads. */
-async function adjustAvailabilityCache(
+/**
+ * Mirror the authoritative inventory calendar into the availability cache the
+ * booking engine + channel pushes read. Derived (not delta-applied) so blocks,
+ * releases and pickups can never drift, and rows are created when missing —
+ * a property with no cache rows yet would otherwise keep selling blocked rooms.
+ */
+async function syncAvailabilityCache(
   supabase: Client,
   propertyId: string,
   roomTypeId: string,
   startDate: string,
   endDate: string,
-  delta: number,
-): Promise<void> {
-  if (!delta) return;
+): Promise<number> {
   const dates = nightsBetween(startDate, endDate);
-  if (!dates.length) return;
+  if (!dates.length) return 0;
 
-  const { data: rows } = await supabase
+  const { data: calendar, error } = await supabase
+    .from("rolos_inventory_calendar")
+    .select("date, available_units")
+    .eq("property_id", propertyId)
+    .eq("room_type_id", roomTypeId)
+    .in("date", dates);
+  if (error) {
+    console.error("[pms-groups] inventory calendar read failed", error);
+    return 0;
+  }
+  if (!calendar?.length) return 0;
+
+  const now = new Date().toISOString();
+  const { data: existing } = await supabase
     .from("pms_availability_cache")
-    .select("id, date, available_units")
+    .select("date, restrictions")
     .eq("property_id", propertyId)
     .eq("system_type", SOURCE)
     .eq("external_room_type_id", roomTypeId)
     .in("date", dates);
+  const restrictionsByDate = new Map<string, unknown>(
+    (existing || []).map((r: { date: string; restrictions: unknown }) => [r.date, r.restrictions]),
+  );
 
-  for (const row of (rows || [])) {
-    await supabase
-      .from("pms_availability_cache")
-      .update({
-        available_units: Math.max(0, (row.available_units || 0) + delta),
-        updated_at: new Date().toISOString(),
-        source_timestamp: new Date().toISOString(),
-      })
-      .eq("id", row.id);
+  const rows = calendar.map((c: { date: string; available_units: number | null }) => ({
+    property_id: propertyId,
+    system_type: SOURCE,
+    external_room_type_id: roomTypeId,
+    date: c.date,
+    available_units: Math.max(0, Number(c.available_units || 0)),
+    restrictions: restrictionsByDate.get(c.date) ?? {},
+    fetched_at: now,
+    source_timestamp: now,
+    updated_at: now,
+  }));
+
+  const { error: upsertErr } = await supabase
+    .from("pms_availability_cache")
+    .upsert(rows, { onConflict: "property_id,system_type,external_room_type_id,date", ignoreDuplicates: false });
+  if (upsertErr) {
+    console.error("[pms-groups] availability cache sync failed", upsertErr);
+    return 0;
   }
+  return rows.length;
 }
+
 
 async function ensureMasterFolio(
   supabase: Client,
