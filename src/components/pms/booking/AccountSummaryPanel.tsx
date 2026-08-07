@@ -13,6 +13,14 @@ import { callPmsApi } from "@/hooks/usePmsApi";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { FileText, Download, RefreshCw, Mail, Receipt } from "lucide-react";
+import { useCrmAccounts, useCrmScopeForProperty } from "@/hooks/useCrmAccounts";
+
+import {
+  InvoiceBillingPartySelector,
+  type BillingPartyState,
+} from "@/components/pms/booking/InvoiceBillingPartySelector";
+import { channelSourceLabel } from "@/lib/channelVocabulary";
+
 
 interface FolioTransaction {
   id: string;
@@ -28,7 +36,14 @@ interface InvoiceDoc {
   total: number;
   pdf_url: string | null;
   created_at: string;
+  bill_to_type?: string | null;
+  bill_to_name?: string | null;
+  channel_key?: string | null;
+  commission_rate?: number | null;
+  commission_amount?: number | null;
+  net_payable?: number | null;
 }
+
 
 interface AccountSummaryPanelProps {
   bookingId: string;
@@ -75,6 +90,15 @@ export function AccountSummaryPanel({
   const [invoiceTo, setInvoiceTo] = useState(guestName || "");
   const [reference, setReference] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
+  const [bookingChannel, setBookingChannel] = useState<string | null>(null);
+  const [party, setParty] = useState<BillingPartyState>({
+    billToType: "guest",
+    accountId: null,
+    commissionRate: null,
+  });
+
+  const crmScope = useCrmScopeForProperty(propertyId);
+  const { accounts } = useCrmAccounts(crmScope);
 
   const loadDocs = useCallback(async () => {
     const { data, error } = await supabase.functions.invoke("pms-financial", {
@@ -94,20 +118,37 @@ export function AccountSummaryPanel({
     let cancelled = false;
     const load = async () => {
       setLoading(true);
-      const [folioRes, payRes] = await Promise.all([
+      const [folioRes, payRes, bookingRes] = await Promise.all([
         callPmsApi<{ transactions: FolioTransaction[] }>("get_folio", { booking_id: bookingId }),
         supabase.from("payment_transactions").select("amount, status").eq("booking_id", bookingId),
+        supabase
+          .from("bookings")
+          .select("company_account_id, agent_account_id, booking_channel, commission_rate_applied")
+          .eq("id", bookingId)
+          .maybeSingle(),
       ]);
       if (cancelled) return;
       if (folioRes.success && folioRes.data) setTransactions(folioRes.data.transactions || []);
       const settled = (payRes.data || []).filter(p => PAID_STATUSES.includes(String(p.status || "").toLowerCase()));
       setGatewayPaid(settled.reduce((sum, p) => sum + Number(p.amount || 0), 0));
+
+      // Default the billing party from whatever the reservation already links to.
+      const bk = bookingRes.data;
+      if (bk) {
+        setBookingChannel(bk.booking_channel ?? null);
+        setParty({
+          billToType: bk.company_account_id ? "company" : bk.agent_account_id ? "agent" : "guest",
+          accountId: bk.company_account_id || bk.agent_account_id || null,
+          commissionRate: bk.commission_rate_applied != null ? Number(bk.commission_rate_applied) : null,
+        });
+      }
       await loadDocs();
       if (!cancelled) setLoading(false);
     };
     load();
     return () => { cancelled = true; };
   }, [bookingId, loadDocs]);
+
 
   const totals = useMemo(() => {
     const charges = transactions.filter(t => Number(t.amount) > 0);
@@ -133,6 +174,9 @@ export function AccountSummaryPanel({
 
   const proForma = docs.find(d => d.document_kind === "pro_forma") || null;
   const finalInvoice = docs.find(d => d.document_kind === "tax_invoice") || null;
+  /** Latest live document — its attribution is what reconciliation reads. */
+  const issued = finalInvoice || proForma;
+
 
   const today = new Date().toISOString().split("T")[0];
   const stayEnded = String(checkOut || "") <= today;
@@ -145,7 +189,13 @@ export function AccountSummaryPanel({
       ? "Pro Forma issued"
       : "Uninvoiced";
 
+  const partyIncomplete = (party.billToType === "company" || party.billToType === "agent") && !party.accountId;
+
   const generate = async (kind: "pro_forma" | "tax_invoice") => {
+    if (partyIncomplete) {
+      toast.error("Select the profile this invoice is billed to");
+      return;
+    }
     setBusy(kind);
     try {
       const { data, error } = await supabase.functions.invoke("pms-financial", {
@@ -154,9 +204,14 @@ export function AccountSummaryPanel({
           booking_id: bookingId,
           property_id: propertyId,
           document_kind: kind,
-          invoice_to: invoiceTo || guestName,
+          invoice_to: party.billToType === "guest" ? (invoiceTo || guestName) : null,
           reference: reference || null,
+          bill_to_type: party.billToType,
+          bill_to_account_id: party.accountId,
+          channel_key: party.billToType === "channel" ? (bookingChannel || "direct") : null,
+          commission_rate: party.commissionRate,
         },
+
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
@@ -200,16 +255,27 @@ export function AccountSummaryPanel({
         <div className="grid gap-4 p-3 md:grid-cols-[1.4fr_1fr]">
           {/* Details */}
           <div className="space-y-3">
+            <InvoiceBillingPartySelector
+              value={party}
+              onChange={setParty}
+              accounts={accounts || []}
+              bookingChannel={bookingChannel}
+              guestName={guestName}
+            />
+
             <div className="grid gap-2 sm:grid-cols-2">
-              <div className="space-y-1">
-                <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Invoice To</Label>
-                <Input value={invoiceTo} onChange={e => setInvoiceTo(e.target.value)} placeholder={guestName} className="h-8 text-xs" />
-              </div>
+              {party.billToType === "guest" && (
+                <div className="space-y-1">
+                  <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Invoice To</Label>
+                  <Input value={invoiceTo} onChange={e => setInvoiceTo(e.target.value)} placeholder={guestName} className="h-8 text-xs" />
+                </div>
+              )}
               <div className="space-y-1">
                 <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Reference</Label>
                 <Input value={reference} onChange={e => setReference(e.target.value)} placeholder="Enter reference here" className="h-8 text-xs" />
               </div>
             </div>
+
 
             <Separator />
 
@@ -287,7 +353,36 @@ export function AccountSummaryPanel({
               <span>Outstanding</span>
               <span className={`font-mono ${totals.outstanding > 0 ? "text-destructive" : "text-success"}`}>R {money(totals.outstanding)}</span>
             </div>
+
+            {/* Attribution on the latest issued document — the recon view. */}
+            {issued && (
+              <>
+                <Separator className="my-1.5" />
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Attribution</p>
+                <div className="flex justify-between gap-2">
+                  <span>Billed to</span>
+                  <span className="text-right font-medium">
+                    {issued.bill_to_name || (issued.bill_to_type === "channel"
+                      ? channelSourceLabel(issued.channel_key)
+                      : guestName)}
+                  </span>
+                </div>
+                {issued.commission_amount != null && issued.commission_amount > 0 && (
+                  <>
+                    <div className="flex justify-between">
+                      <span>Commission{issued.commission_rate ? ` (${issued.commission_rate}%)` : ""}</span>
+                      <span className="font-mono text-destructive">R {money(Number(issued.commission_amount))}</span>
+                    </div>
+                    <div className="flex justify-between font-semibold">
+                      <span>Net payable</span>
+                      <span className="font-mono">R {money(Number(issued.net_payable ?? issued.total))}</span>
+                    </div>
+                  </>
+                )}
+              </>
+            )}
           </div>
+
         </div>
       </div>
     </TooltipProvider>

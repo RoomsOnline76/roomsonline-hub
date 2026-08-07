@@ -8878,7 +8878,16 @@ export type Database = {
       }
       rolos_invoices: {
         Row: {
+          bill_to_account_id: string | null
+          bill_to_address: string | null
+          bill_to_name: string | null
+          bill_to_terms_days: number | null
+          bill_to_type: string
+          bill_to_vat: string | null
           booking_id: string | null
+          channel_key: string | null
+          commission_amount: number | null
+          commission_rate: number | null
           created_at: string
           created_by: string | null
           document_kind: string
@@ -8888,6 +8897,7 @@ export type Database = {
           invoice_number: string
           invoice_to: string | null
           issued_date: string
+          net_payable: number | null
           notes: string | null
           pdf_url: string | null
           property_id: string
@@ -8899,7 +8909,16 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          bill_to_account_id?: string | null
+          bill_to_address?: string | null
+          bill_to_name?: string | null
+          bill_to_terms_days?: number | null
+          bill_to_type?: string
+          bill_to_vat?: string | null
           booking_id?: string | null
+          channel_key?: string | null
+          commission_amount?: number | null
+          commission_rate?: number | null
           created_at?: string
           created_by?: string | null
           document_kind?: string
@@ -8909,6 +8928,7 @@ export type Database = {
           invoice_number: string
           invoice_to?: string | null
           issued_date?: string
+          net_payable?: number | null
           notes?: string | null
           pdf_url?: string | null
           property_id: string
@@ -8920,7 +8940,16 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          bill_to_account_id?: string | null
+          bill_to_address?: string | null
+          bill_to_name?: string | null
+          bill_to_terms_days?: number | null
+          bill_to_type?: string
+          bill_to_vat?: string | null
           booking_id?: string | null
+          channel_key?: string | null
+          commission_amount?: number | null
+          commission_rate?: number | null
           created_at?: string
           created_by?: string | null
           document_kind?: string
@@ -8930,6 +8959,7 @@ export type Database = {
           invoice_number?: string
           invoice_to?: string | null
           issued_date?: string
+          net_payable?: number | null
           notes?: string | null
           pdf_url?: string | null
           property_id?: string
@@ -8941,6 +8971,20 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "rolos_invoices_bill_to_account_id_fkey"
+            columns: ["bill_to_account_id"]
+            isOneToOne: false
+            referencedRelation: "crm_account_stats"
+            referencedColumns: ["account_id"]
+          },
+          {
+            foreignKeyName: "rolos_invoices_bill_to_account_id_fkey"
+            columns: ["bill_to_account_id"]
+            isOneToOne: false
+            referencedRelation: "crm_accounts"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "rolos_invoices_booking_id_fkey"
             columns: ["booking_id"]

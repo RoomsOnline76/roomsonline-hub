@@ -11,7 +11,29 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+/**
+ * Human label for a distribution channel key. ROL'OS surfaces never name the
+ * upstream vendor — channel-manager bookings collapse to "ROL'OS Channels".
+ */
+function channelLabel(key: string | null | undefined): string {
+  const k = String(key || "").toLowerCase();
+  if (!k) return "Direct";
+  const map: Record<string, string> = {
+    direct: "Direct",
+    legacy_direct: "Direct",
+    embed: "Website widget",
+    rol_itinerary: "ROL Itinerary",
+    rentals_united: "ROL'OS Channels",
+    rentalsunited: "ROL'OS Channels",
+    channel_manager: "ROL'OS Channels",
+    ota: "OTA",
+    manual: "Manual / Front desk",
+  };
+  return map[k] || key!;
+}
+
 function generateInvoiceHTML(invoice: any, transactions: any[], property: any, branding: any): string {
+
   const isProForma = invoice?.document_kind === "pro_forma";
   const businessName = branding?.business_name || property?.name || "Property";
   const businessAddress = branding?.business_address || "";
@@ -87,6 +109,29 @@ function generateInvoiceHTML(invoice: any, transactions: any[], property: any, b
 
   const docTitle = isProForma ? "PRO FORMA INVOICE" : (isVatRegistered ? "TAX INVOICE" : "INVOICE");
 
+  // Who is being billed — printed next to the name so an accounts team can file it.
+  const billToKindLabel = ({
+    guest: "Guest",
+    company: "Company",
+    agent: "Travel agent / operator",
+    channel: "Channel",
+  } as Record<string, string>)[String(invoice.bill_to_type || "guest")] || "";
+
+  const commissionRate = Number(invoice.commission_rate || 0);
+  const commissionAmount = Number(invoice.commission_amount || 0);
+  const netPayable = invoice.net_payable != null ? Number(invoice.net_payable) : null;
+  const commissionRows = commissionAmount > 0 ? `
+      <tr>
+        <td style="padding:6px 16px;font-size:12px;color:#666;">Commission${commissionRate > 0 ? ` (${commissionRate.toFixed(2)}%)` : ""}</td>
+        <td style="padding:6px 16px;text-align:right;font-size:12px;color:#666;">(${commissionAmount.toFixed(2)})</td>
+      </tr>
+      ${netPayable != null ? `<tr>
+        <td style="padding:6px 16px;font-weight:600;">Net payable</td>
+        <td style="padding:6px 16px;text-align:right;font-weight:600;">${netPayable.toFixed(2)}</td>
+      </tr>` : ""}
+  ` : "";
+
+
   return `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><title>${docTitle} ${invoice.invoice_number}</title></head>
@@ -110,10 +155,12 @@ function generateInvoiceHTML(invoice: any, transactions: any[], property: any, b
 
   ${invoice.invoice_to || invoice.stay ? `
   <div style="display:flex;gap:32px;margin-bottom:24px;font-size:13px;color:#444;">
-    ${invoice.invoice_to ? `<div><div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#999;">Invoice To</div><div>${invoice.invoice_to}</div>${invoice.bill_to?.address ? `<div style="font-size:12px;color:#666;">${invoice.bill_to.address}</div>` : ""}${invoice.bill_to?.vat_number ? `<div style="font-size:12px;color:#666;">VAT No: ${invoice.bill_to.vat_number}</div>` : ""}</div>` : ""}
-    ${invoice.stay ? `<div><div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#999;">Stay</div><div>${invoice.stay.check_in} &rarr; ${invoice.stay.check_out}</div></div>` : ""}
+    ${invoice.invoice_to ? `<div><div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#999;">Invoice To${billToKindLabel ? ` &middot; ${billToKindLabel}` : ""}</div><div style="font-weight:600;">${invoice.invoice_to}</div>${invoice.bill_to?.address ? `<div style="font-size:12px;color:#666;">${invoice.bill_to.address}</div>` : ""}${invoice.bill_to?.vat_number ? `<div style="font-size:12px;color:#666;">VAT No: ${invoice.bill_to.vat_number}</div>` : ""}${invoice.bill_to?.terms_days ? `<div style="font-size:12px;color:#666;">Payment terms: ${invoice.bill_to.terms_days} days</div>` : ""}</div>` : ""}
+    ${invoice.stay ? `<div><div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#999;">Stay</div><div>${invoice.stay.check_in} &rarr; ${invoice.stay.check_out}</div>${invoice.stay.guest ? `<div style="font-size:12px;color:#666;">Guest: ${invoice.stay.guest}</div>` : ""}</div>` : ""}
+    ${invoice.channel_label ? `<div><div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#999;">Channel</div><div>${invoice.channel_label}</div></div>` : ""}
     ${invoice.reference ? `<div><div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#999;">Reference</div><div>${invoice.reference}</div></div>` : ""}
   </div>` : ""}
+
 
 
   <table style="width:100%;border-collapse:collapse;margin-bottom:24px;">
@@ -143,6 +190,8 @@ function generateInvoiceHTML(invoice: any, transactions: any[], property: any, b
         <td style="padding:10px 16px;font-weight:700;font-size:16px;">Total</td>
         <td style="padding:10px 16px;text-align:right;font-weight:700;font-size:16px;">${invoice.currency || "ZAR"} ${Number(invoice.total).toFixed(2)}</td>
       </tr>
+      ${commissionRows}
+
     </table>
   </div>
 
@@ -269,7 +318,16 @@ Deno.serve(async (req) => {
           booking_id: invBookingId,
           invoice_to: invInvoiceTo,
           reference: invReference,
+          bill_to_account_id: reqBillToAccountId,
+          channel_key: reqChannelKey,
         } = body;
+        const ALLOWED_BILL_TO = ["guest", "company", "agent", "channel"];
+        const reqBillToType: string = ALLOWED_BILL_TO.includes(String(body.bill_to_type || ""))
+          ? String(body.bill_to_type)
+          : "guest";
+        const reqCommissionRate = body.commission_rate != null && !Number.isNaN(Number(body.commission_rate))
+          ? Number(body.commission_rate)
+          : null;
         const documentKind: string = body.document_kind === "pro_forma" ? "pro_forma" : "tax_invoice";
         let invFolioId: string | null = body.folio_id || null;
 
@@ -278,9 +336,10 @@ Deno.serve(async (req) => {
         if (invBookingId) {
           const { data: bk } = await supabase
             .from("bookings")
-            .select("id, guest_name, guest_email, check_in_date, check_out_date, total_price, status, property_id, company_account_id, invoice_to_name, invoice_to_vat, invoice_to_address")
+            .select("id, guest_name, guest_email, check_in_date, check_out_date, total_price, status, property_id, company_account_id, agent_account_id, source_account_id, booking_channel, comm_channel, commission_rate_applied, calculated_commission, invoice_to_name, invoice_to_vat, invoice_to_address")
             .eq("id", invBookingId)
             .maybeSingle();
+
           bookingRow = bk;
           if (!invFolioId) {
             const { data: existingFolio } = await supabase
@@ -391,36 +450,107 @@ Deno.serve(async (req) => {
           }
         }
 
-        // Resolve the invoice identity: explicit override, then the booking's
-        // invoice-to fields, then the linked company profile, then the guest.
-        let billTo: { name: string | null; vat_number: string | null; address: string | null } = {
+        // ---------------------------------------------------------------------
+        // Billing party resolution.
+        //
+        // Order: what the operator explicitly chose on this document, then the
+        // account links already on the booking, then the guest. The resolved
+        // identity is *snapshotted* onto the invoice so later CRM edits never
+        // rewrite an issued document.
+        // ---------------------------------------------------------------------
+        let billToType = reqBillToType;
+        let billToAccountId: string | null = reqBillToAccountId || null;
+        if (!body.bill_to_type) {
+          if (bookingRow?.company_account_id) {
+            billToType = "company";
+            billToAccountId = bookingRow.company_account_id;
+          } else if (bookingRow?.agent_account_id) {
+            billToType = "agent";
+            billToAccountId = bookingRow.agent_account_id;
+          }
+        }
+        if (billToType === "guest" || billToType === "channel") billToAccountId = billToAccountId || null;
+
+        const channelKey: string | null = billToType === "channel"
+          ? (reqChannelKey || bookingRow?.booking_channel || bookingRow?.comm_channel || "direct")
+          : (reqChannelKey || bookingRow?.booking_channel || null);
+
+        let billTo: {
+          name: string | null;
+          vat_number: string | null;
+          address: string | null;
+          terms_days: number | null;
+        } = {
           name: bookingRow?.invoice_to_name || null,
           vat_number: bookingRow?.invoice_to_vat || null,
           address: bookingRow?.invoice_to_address || null,
+          terms_days: null,
         };
-        if (bookingRow?.company_account_id && (!billTo.name || !billTo.address)) {
-          const { data: companyAccount } = await supabase
+
+        let accountRow: any = null;
+        if (billToAccountId) {
+          const { data: acct } = await supabase
             .from("crm_accounts")
-            .select("name, vat_number, address_line1, address_line2, city, postal_code, country")
-            .eq("id", bookingRow.company_account_id)
+            .select("id, name, account_type, vat_number, address_line1, address_line2, city, postal_code, country, default_commission_rate, payment_terms_days")
+            .eq("id", billToAccountId)
             .maybeSingle();
-          if (companyAccount) {
+          accountRow = acct;
+          if (acct) {
             const composed = [
-              companyAccount.address_line1,
-              companyAccount.address_line2,
-              companyAccount.city,
-              companyAccount.postal_code,
-              companyAccount.country,
+              acct.address_line1,
+              acct.address_line2,
+              acct.city,
+              acct.postal_code,
+              acct.country,
             ].filter(Boolean).join(", ");
             billTo = {
-              name: billTo.name || companyAccount.name || null,
-              vat_number: billTo.vat_number || companyAccount.vat_number || null,
-              address: billTo.address || composed || null,
+              name: acct.name || billTo.name || null,
+              vat_number: acct.vat_number || billTo.vat_number || null,
+              address: composed || billTo.address || null,
+              terms_days: acct.payment_terms_days ?? null,
             };
           }
         }
+        if (billToType === "guest") {
+          billTo = {
+            name: invInvoiceTo || bookingRow?.guest_name || billTo.name || null,
+            vat_number: bookingRow?.invoice_to_vat || null,
+            address: bookingRow?.invoice_to_address || null,
+            terms_days: null,
+          };
+        }
+        if (billToType === "channel" && !billTo.name) {
+          billTo.name = channelLabel(channelKey);
+        }
 
         const total = subtotal + taxTotal;
+
+        // Commission held against this document, for channel/agent settlement.
+        let commissionRate: number | null = reqCommissionRate;
+        if (commissionRate == null) {
+          if ((billToType === "agent" || billToType === "company") && accountRow?.default_commission_rate != null) {
+            commissionRate = Number(accountRow.default_commission_rate);
+          } else if (billToType === "channel") {
+            if (bookingRow?.commission_rate_applied != null) {
+              commissionRate = Number(bookingRow.commission_rate_applied);
+            } else {
+              const { data: billingCfg } = await supabase
+                .from("property_billing_configs")
+                .select("commission_rate, listing_commission_rate")
+                .eq("property_id", invPropId)
+                .maybeSingle();
+              const cfgRate = billingCfg?.listing_commission_rate ?? billingCfg?.commission_rate;
+              if (cfgRate != null) commissionRate = Number(cfgRate);
+            }
+          }
+        }
+        const commissionAmount = commissionRate != null && commissionRate > 0
+          ? Math.round(total * (commissionRate / 100) * 100) / 100
+          : null;
+        const netPayable = commissionAmount != null
+          ? Math.round((total - commissionAmount) * 100) / 100
+          : null;
+
         const prefix = documentKind === "pro_forma" ? "PF" : "INV";
         const invoiceNumber = `${prefix}-${Date.now().toString(36).toUpperCase()}`;
 
@@ -434,6 +564,8 @@ Deno.serve(async (req) => {
             .neq("status", "cancelled");
         }
 
+        const resolvedInvoiceTo = invInvoiceTo || billTo.name || bookingRow?.guest_name || null;
+
         const { data: invoice, error: invErr } = await supabase
           .from("rolos_invoices")
           .insert({
@@ -441,7 +573,20 @@ Deno.serve(async (req) => {
             property_id: invPropId,
             booking_id: invBookingId || null,
             document_kind: documentKind,
-            invoice_to: invInvoiceTo || billTo.name || bookingRow?.guest_name || null,
+            invoice_to: resolvedInvoiceTo,
+            bill_to_type: billToType,
+            bill_to_account_id: billToAccountId,
+            bill_to_name: resolvedInvoiceTo,
+            bill_to_vat: billTo.vat_number,
+            bill_to_address: billTo.address,
+            bill_to_terms_days: billTo.terms_days,
+            channel_key: channelKey,
+            commission_rate: commissionRate,
+            commission_amount: commissionAmount,
+            net_payable: netPayable,
+            due_date: billTo.terms_days
+              ? new Date(Date.now() + billTo.terms_days * 86400000).toISOString().split("T")[0]
+              : null,
             reference: invReference || null,
             invoice_number: invoiceNumber,
             subtotal,
@@ -454,6 +599,7 @@ Deno.serve(async (req) => {
           .select()
           .single();
         if (invErr) throw invErr;
+
 
         const { data: property } = await supabase
           .from("properties")
@@ -468,7 +614,13 @@ Deno.serve(async (req) => {
           .maybeSingle();
 
         const html = generateInvoiceHTML(
-          { ...invoice, bill_to: billTo, stay: bookingRow ? { check_in: bookingRow.check_in_date, check_out: bookingRow.check_out_date, guest: bookingRow.guest_name } : null },
+          {
+            ...invoice,
+            bill_to: billTo,
+            channel_label: channelKey ? channelLabel(channelKey) : null,
+            stay: bookingRow ? { check_in: bookingRow.check_in_date, check_out: bookingRow.check_out_date, guest: bookingRow.guest_name } : null,
+          },
+
           transactions || [],
           property,
           branding,
@@ -534,6 +686,72 @@ Deno.serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
+
+      // ==================== INVOICE LEDGER (recon by billing party / channel) ====================
+      case "list_invoices": {
+        const {
+          property_id: liPropId,
+          bill_to_type: liType,
+          channel_key: liChannel,
+          from_date: liFrom,
+          to_date: liTo,
+        } = body;
+        if (!liPropId) {
+          return new Response(JSON.stringify({ error: "property_id required" }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        let q = supabase
+          .from("rolos_invoices")
+          .select("id, invoice_number, document_kind, status, subtotal, tax_total, total, bill_to_type, bill_to_account_id, bill_to_name, bill_to_vat, bill_to_terms_days, channel_key, commission_rate, commission_amount, net_payable, due_date, booking_id, created_at")
+          .eq("property_id", liPropId)
+          .neq("status", "cancelled")
+          .order("created_at", { ascending: false })
+          .limit(500);
+        if (liType && ["guest", "company", "agent", "channel"].includes(String(liType))) {
+          q = q.eq("bill_to_type", liType);
+        }
+        if (liChannel) q = q.eq("channel_key", liChannel);
+        if (liFrom) q = q.gte("created_at", liFrom);
+        if (liTo) q = q.lte("created_at", liTo);
+
+        const { data: ledger, error: liErr } = await q;
+        if (liErr) throw liErr;
+
+        // Roll up per billing party so commission owed is visible at a glance.
+        const groups: Record<string, { bill_to_type: string; label: string; channel_key: string | null; count: number; total: number; commission: number; net: number }> = {};
+        for (const row of ledger || []) {
+          const label = row.bill_to_name || (row.bill_to_type === "channel" ? channelLabel(row.channel_key) : "Guest");
+          const key = `${row.bill_to_type}::${row.bill_to_account_id || row.channel_key || label}`;
+          const g = groups[key] ||= {
+            bill_to_type: row.bill_to_type,
+            label,
+            channel_key: row.channel_key ?? null,
+            count: 0,
+            total: 0,
+            commission: 0,
+            net: 0,
+          };
+          g.count += 1;
+          g.total += Number(row.total || 0);
+          g.commission += Number(row.commission_amount || 0);
+          g.net += Number(row.net_payable ?? row.total ?? 0);
+        }
+
+        return new Response(JSON.stringify({
+          success: true,
+          invoices: (ledger || []).map((r) => ({
+            ...r,
+            channel_label: r.channel_key ? channelLabel(r.channel_key) : null,
+          })),
+          summary: Object.values(groups).sort((a, b) => b.total - a.total),
+        }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
 
       // ==================== APPLY TAX ====================
       case "apply_tax": {
