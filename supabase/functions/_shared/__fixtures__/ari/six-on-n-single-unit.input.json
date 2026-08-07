@@ -1,0 +1,1492 @@
+{
+  "name": "SIX ON N",
+  "property_id": "b6ef9ec6-c188-452a-a746-90d62784ad69",
+  "rate_plans": [
+    {
+      "base_rate": 0,
+      "is_active": true,
+      "max_stay": null,
+      "min_stay": 1,
+      "name": "Per Unit Rate",
+      "pricing_model": "per-unit",
+      "rate_plan_id": "439da50c-7609-432c-af40-779ca3022f7c"
+    },
+    {
+      "base_rate": null,
+      "is_active": true,
+      "max_stay": 0,
+      "min_stay": 1,
+      "name": "Per Unit Rate",
+      "pricing_model": "per-unit",
+      "rate_plan_id": "35b81fe6-34d8-4648-9ad4-9d7e9d501360"
+    }
+  ],
+  "season_rates": {},
+  "seasons": [
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    },
+    {
+      "active": true,
+      "name": null
+    }
+  ],
+  "units": []
+}

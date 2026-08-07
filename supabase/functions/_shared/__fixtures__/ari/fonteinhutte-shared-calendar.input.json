@@ -1,0 +1,549 @@
+{
+  "name": "Fonteinhutte Self-Catering Chalets",
+  "property_id": "00015d06-a9cb-4e82-a62e-a7685e5d7c33",
+  "rate_plans": [
+    {
+      "base_rate": 1000,
+      "is_active": true,
+      "max_stay": 0,
+      "min_stay": 1,
+      "name": "Rack",
+      "pricing_model": "UnitRate",
+      "rate_plan_id": "9cc07b7e-afb2-4f31-80ae-6a4cab0cefec"
+    }
+  ],
+  "season_rates": {
+    "1775235367684": {
+      "1775218225666-38d6a957-f769-4898-abd5-3616b346272e": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 2120,
+        "teenAmount": 0
+      },
+      "1775218225666-9cc07b7e-afb2-4f31-80ae-6a4cab0cefec": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 2120,
+        "teenAmount": 0
+      },
+      "1775218344333-38d6a957-f769-4898-abd5-3616b346272e": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 1230,
+        "teenAmount": 0
+      },
+      "1775218344333-9cc07b7e-afb2-4f31-80ae-6a4cab0cefec": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 1230,
+        "teenAmount": 0
+      },
+      "1775218489478-38d6a957-f769-4898-abd5-3616b346272e": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 1010,
+        "teenAmount": 0
+      },
+      "1775218489478-9cc07b7e-afb2-4f31-80ae-6a4cab0cefec": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 1010,
+        "teenAmount": 0
+      }
+    },
+    "1775235474041": {
+      "1775218225666-38d6a957-f769-4898-abd5-3616b346272e": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 2120,
+        "teenAmount": 0
+      },
+      "1775218225666-9cc07b7e-afb2-4f31-80ae-6a4cab0cefec": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 2120,
+        "teenAmount": 0
+      },
+      "1775218344333-38d6a957-f769-4898-abd5-3616b346272e": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 1230,
+        "teenAmount": 0
+      },
+      "1775218344333-9cc07b7e-afb2-4f31-80ae-6a4cab0cefec": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 1230,
+        "teenAmount": 0
+      },
+      "1775218489478-38d6a957-f769-4898-abd5-3616b346272e": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 1010,
+        "teenAmount": 0
+      },
+      "1775218489478-9cc07b7e-afb2-4f31-80ae-6a4cab0cefec": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 1010,
+        "teenAmount": 0
+      }
+    },
+    "1775235564660": {
+      "1775218225666-38d6a957-f769-4898-abd5-3616b346272e": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 2120,
+        "teenAmount": 0
+      },
+      "1775218225666-9cc07b7e-afb2-4f31-80ae-6a4cab0cefec": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 2120,
+        "teenAmount": 0
+      },
+      "1775218344333-38d6a957-f769-4898-abd5-3616b346272e": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 1230,
+        "teenAmount": 0
+      },
+      "1775218344333-9cc07b7e-afb2-4f31-80ae-6a4cab0cefec": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 1230,
+        "teenAmount": 0
+      },
+      "1775218489478-38d6a957-f769-4898-abd5-3616b346272e": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 1010,
+        "teenAmount": 0
+      },
+      "1775218489478-9cc07b7e-afb2-4f31-80ae-6a4cab0cefec": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 1010,
+        "teenAmount": 0
+      }
+    },
+    "1775235605653": {
+      "1775218225666-38d6a957-f769-4898-abd5-3616b346272e": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 2120,
+        "teenAmount": 0
+      },
+      "1775218225666-9cc07b7e-afb2-4f31-80ae-6a4cab0cefec": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 2120,
+        "teenAmount": 0
+      },
+      "1775218344333-38d6a957-f769-4898-abd5-3616b346272e": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 1230,
+        "teenAmount": 0
+      },
+      "1775218344333-9cc07b7e-afb2-4f31-80ae-6a4cab0cefec": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 1230,
+        "teenAmount": 0
+      },
+      "1775218489478-38d6a957-f769-4898-abd5-3616b346272e": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 1010,
+        "teenAmount": 0
+      },
+      "1775218489478-9cc07b7e-afb2-4f31-80ae-6a4cab0cefec": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 1010,
+        "teenAmount": 0
+      }
+    },
+    "1775235996501": {
+      "1775218225666-38d6a957-f769-4898-abd5-3616b346272e": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 1460,
+        "teenAmount": 0
+      },
+      "1775218225666-9cc07b7e-afb2-4f31-80ae-6a4cab0cefec": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 1460,
+        "teenAmount": 0
+      },
+      "1775218344333-38d6a957-f769-4898-abd5-3616b346272e": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 740,
+        "teenAmount": 0
+      },
+      "1775218344333-9cc07b7e-afb2-4f31-80ae-6a4cab0cefec": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 740,
+        "teenAmount": 0
+      },
+      "1775218489478-38d6a957-f769-4898-abd5-3616b346272e": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 610,
+        "teenAmount": 0
+      },
+      "1775218489478-9cc07b7e-afb2-4f31-80ae-6a4cab0cefec": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 610,
+        "teenAmount": 0
+      }
+    },
+    "1775236125687": {
+      "1775218225666-38d6a957-f769-4898-abd5-3616b346272e": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 1550,
+        "teenAmount": 0
+      },
+      "1775218225666-9cc07b7e-afb2-4f31-80ae-6a4cab0cefec": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 1550,
+        "teenAmount": 0
+      },
+      "1775218344333-38d6a957-f769-4898-abd5-3616b346272e": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 850,
+        "teenAmount": 0
+      },
+      "1775218344333-9cc07b7e-afb2-4f31-80ae-6a4cab0cefec": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 850,
+        "teenAmount": 0
+      },
+      "1775218489478-38d6a957-f769-4898-abd5-3616b346272e": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 700,
+        "teenAmount": 0
+      },
+      "1775218489478-9cc07b7e-afb2-4f31-80ae-6a4cab0cefec": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 700,
+        "teenAmount": 0
+      }
+    },
+    "1775236217484": {
+      "1775218225666-38d6a957-f769-4898-abd5-3616b346272e": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 1670,
+        "teenAmount": 0
+      },
+      "1775218225666-9cc07b7e-afb2-4f31-80ae-6a4cab0cefec": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 1670,
+        "teenAmount": 0
+      },
+      "1775218344333-38d6a957-f769-4898-abd5-3616b346272e": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 1050,
+        "teenAmount": 0
+      },
+      "1775218344333-9cc07b7e-afb2-4f31-80ae-6a4cab0cefec": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 1050,
+        "teenAmount": 0
+      },
+      "1775218489478-38d6a957-f769-4898-abd5-3616b346272e": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 850,
+        "teenAmount": 0
+      },
+      "1775218489478-9cc07b7e-afb2-4f31-80ae-6a4cab0cefec": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 850,
+        "teenAmount": 0
+      }
+    },
+    "1775236314214": {
+      "1775218225666-38d6a957-f769-4898-abd5-3616b346272e": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 1950,
+        "teenAmount": 0
+      },
+      "1775218225666-9cc07b7e-afb2-4f31-80ae-6a4cab0cefec": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 1950,
+        "teenAmount": 0
+      },
+      "1775218344333-38d6a957-f769-4898-abd5-3616b346272e": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 1150,
+        "teenAmount": 0
+      },
+      "1775218344333-9cc07b7e-afb2-4f31-80ae-6a4cab0cefec": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 1150,
+        "teenAmount": 0
+      },
+      "1775218489478-38d6a957-f769-4898-abd5-3616b346272e": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 910,
+        "teenAmount": 0
+      },
+      "1775218489478-9cc07b7e-afb2-4f31-80ae-6a4cab0cefec": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 910,
+        "teenAmount": 0
+      }
+    },
+    "1775236390684": {
+      "1775218225666-38d6a957-f769-4898-abd5-3616b346272e": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 1770,
+        "teenAmount": 0
+      },
+      "1775218225666-9cc07b7e-afb2-4f31-80ae-6a4cab0cefec": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 1770,
+        "teenAmount": 0
+      },
+      "1775218344333-38d6a957-f769-4898-abd5-3616b346272e": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 1220,
+        "teenAmount": 0
+      },
+      "1775218344333-9cc07b7e-afb2-4f31-80ae-6a4cab0cefec": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 1120,
+        "teenAmount": 0
+      },
+      "1775218489478-38d6a957-f769-4898-abd5-3616b346272e": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 900,
+        "teenAmount": 0
+      },
+      "1775218489478-9cc07b7e-afb2-4f31-80ae-6a4cab0cefec": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 900,
+        "teenAmount": 0
+      }
+    }
+  },
+  "seasons": [
+    {
+      "color": "red",
+      "from": "2026-02-02",
+      "id": "1775218225666",
+      "maxStay": 30,
+      "minStay": 1,
+      "name": "HIGH",
+      "periods": [
+        {
+          "from": "2026-02-02",
+          "to": "2026-02-06"
+        },
+        {
+          "from": "2026-12-11",
+          "to": "2027-01-03"
+        },
+        {
+          "from": "2027-04-16",
+          "to": "2027-04-25"
+        }
+      ],
+      "title": "HIGH",
+      "to": "2026-02-06"
+    },
+    {
+      "color": "amber",
+      "from": "2026-03-27",
+      "id": "1775218344333",
+      "maxStay": 30,
+      "minStay": 1,
+      "name": "MIDDLE",
+      "periods": [
+        {
+          "from": "2026-03-27",
+          "to": "2026-04-06"
+        },
+        {
+          "from": "2026-08-07",
+          "to": "2026-08-10"
+        },
+        {
+          "from": "2026-10-02",
+          "to": "2026-10-11"
+        },
+        {
+          "from": "2027-01-04",
+          "to": "2027-01-10"
+        },
+        {
+          "from": "2027-05-15",
+          "to": "2027-06-15"
+        },
+        {
+          "from": "2027-12-05",
+          "to": "2027-12-15"
+        }
+      ],
+      "title": "MIDDLE",
+      "to": "2026-04-06"
+    },
+    {
+      "color": "green",
+      "from": "2026-01-15",
+      "id": "1775218489478",
+      "maxStay": 30,
+      "minStay": 1,
+      "name": "LOW",
+      "periods": [
+        {
+          "from": "2026-01-15",
+          "to": "2026-02-01"
+        },
+        {
+          "from": "2026-02-07",
+          "to": "2026-03-26"
+        },
+        {
+          "from": "2026-04-07",
+          "to": "2026-08-06"
+        },
+        {
+          "from": "2026-08-11",
+          "to": "2026-10-01"
+        },
+        {
+          "from": "2026-10-12",
+          "to": "2026-12-10"
+        },
+        {
+          "from": "2027-01-11",
+          "to": "2027-12-31"
+        }
+      ],
+      "title": "LOW",
+      "to": "2026-02-01"
+    }
+  ],
+  "units": [
+    {
+      "daily_rate": 1000,
+      "id": "b03b031a-9218-45a0-97c3-8a94abb0f658",
+      "linked_rolos_id": "5b771bd9-388d-4028-a943-d538e57f7870",
+      "name": "BLAASOPPIE"
+    },
+    {
+      "daily_rate": 1000,
+      "id": "a05002bb-0909-4090-aaa8-cd4e1cdf490a",
+      "linked_rolos_id": "cf368e65-ed79-4991-b3fc-ca6ee4ea4b9f",
+      "name": "KAAPSE NOOINTJIE"
+    },
+    {
+      "daily_rate": 1000,
+      "id": "d6ca395e-7615-4eb1-a023-450894fca796",
+      "linked_rolos_id": "0be6c9aa-c22f-4b67-873c-f3aa17c36ec5",
+      "name": "KAREL GROOTOOG"
+    },
+    {
+      "daily_rate": 1000,
+      "id": "b3c86848-a493-44d3-a802-b0b39129a087",
+      "linked_rolos_id": "be5ac8cb-c22f-4595-8b24-d71ff04845fe",
+      "name": "PEREKIL"
+    },
+    {
+      "daily_rate": 1000,
+      "id": "0a4d6054-c1e1-4e39-8b1d-565e4a227478",
+      "linked_rolos_id": "fc09bc85-a1b6-4a93-9199-a9319950db65",
+      "name": "ROMAN"
+    },
+    {
+      "daily_rate": 1000,
+      "id": "891de6c5-dd5c-4047-bb8d-dd768f713110",
+      "linked_rolos_id": "9b214feb-3423-4006-a62f-59c6e1aa808a",
+      "name": "STEENBRAS"
+    }
+  ]
+}
