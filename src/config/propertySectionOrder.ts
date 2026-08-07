@@ -96,8 +96,20 @@ export const PROPERTY_SECTION_ORDER: PropertySectionDef[] = [
   {
 
     key: "rates",
-    label: "Rates & Pricing",
-    description: "Seasons, rate types, calendar, charges, providers.",
+    label: "Calendar / Seasons",
+    description: "Season calendar, season dates and (non-ROL'OS) rate types.",
+    rolosManaged: true,
+  },
+  {
+    key: "policies",
+    label: "Policies",
+    description: "Cancellation & reservation policies, house rules and stay terms.",
+    rolosManaged: true,
+  },
+  {
+    key: "charges",
+    label: "Charges",
+    description: "Taxes, fees, deposits and surcharges.",
     rolosManaged: true,
   },
   {
