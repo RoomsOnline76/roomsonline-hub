@@ -318,7 +318,62 @@ export function AIConciergePanel({
     }
   };
 
+  // TOBI's proposal → pre-fill the booking selection so the guest only confirms
+  const applyProposal = (proposal: BookingProposal) => {
+    setDates(proposal.check_in, proposal.check_out);
+    updateRoom(0, {
+      numberOfAdults: proposal.guests.adults,
+      numberOfChildren: proposal.guests.children,
+      numberOfInfants: proposal.guests.infants,
+      ...(proposal.rooms[0］ ? { roomTypeId: proposal.rooms[0].room_type_id } : {}),
+    });
+    if (proposal.voucher_code) {
+      try {
+        sessionStorage.setItem(`rol_tobi_voucher_${propertyId}`, proposal.voucher_code);
+      } catch { /* storage unavailable */ }
+    }
+  };
+
+  // Guest confirms TOBI's proposal → add it to the journey / hand off to booking
+  const handleConfirmProposal = (proposal: BookingProposal) => {
+    const room = proposal.rooms[0];
+    if (!room) return;
+
+    addStay({
+      property_id: propertyId,
+      property_name: propertyName,
+      property_slug: propertySlug,
+      property_image: propertyImage || '',
+      external_system: externalSystem || 'none',
+      dates: { check_in: proposal.check_in, check_out: proposal.check_out },
+      rooms: [{
+        room_type_id: room.room_type_id,
+        room_type_name: room.room_type_name,
+        quantity: 1,
+        rate_per_night: room.rate_per_night,
+        total_price: room.total,
+      }],
+      guests: proposal.guests,
+      price_breakdown: { subtotal: proposal.total, fees: [], taxes: [], total: proposal.total },
+      availability_status: 'available',
+      nights: proposal.nights,
+    });
+
+    toast.success(
+      proposal.voucher_code
+        ? `Locked in — voucher ${proposal.voucher_code} will be applied at checkout`
+        : `Locked in — ${room.room_type_name} added to your journey!`
+    );
+
+    onRoomSelected?.(
+      room.room_type_id,
+      { check_in: proposal.check_in, check_out: proposal.check_out },
+      proposal.guests
+    );
+  };
+
   // Handle suggestion selection
+
   const handleSelectSuggestion = (suggestion: ConciergeSuggestion) => {
     if (suggestion.dates) {
       setDates(suggestion.dates.check_in, suggestion.dates.check_out);
