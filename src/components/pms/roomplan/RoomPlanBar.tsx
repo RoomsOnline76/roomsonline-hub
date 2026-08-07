@@ -3,7 +3,10 @@ import { format, parseISO } from "date-fns";
 import { AlertTriangle, CalendarClock, LogIn, LogOut, Radio, XCircle } from "lucide-react";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { CHANNEL_SOURCE_BADGE } from "@/lib/channelVocabulary";
+import { resolveRuSourceChannel, ChannelLogo } from "@/lib/ruChannelDisplay";
 import {
   BarGeometry,
   ROOM_PLAN_ROW_H,
@@ -32,6 +35,7 @@ export interface RoomPlanBooking {
   rolos_room_ids?: string[] | null;
   room_type_id?: string | null;
   property_id?: string | null;
+  modification_notes?: Record<string, unknown>[] | null;
 }
 
 interface RoomPlanBarProps {
@@ -147,8 +151,22 @@ export const RoomPlanBar = memo(function RoomPlanBar({
             <p>
               R{Number(booking.total_price || 0).toLocaleString()}
               <span className="text-slate-400"> · {(booking.payment_status || "unpaid").replace(/_/g, " ")}</span>
-              {booking.booking_channel && <span className="text-slate-400"> · {booking.booking_channel}</span>}
             </p>
+            {isChannelBooking(booking) && (
+              <div className="flex items-center gap-1.5 pt-0.5">
+                {(() => {
+                  const source = resolveRuSourceChannel(booking.modification_notes, booking.booking_channel, booking.integration_type);
+                  if (!source.hasSpecificSource) return null;
+                  return (
+                    <>
+                      <ChannelLogo channelName={source.channelLogoKey} size="sm" />
+                      <span className="text-slate-200">{source.label}</span>
+                    </>
+                  );
+                })()}
+                <Badge className="bg-orange-500 hover:bg-orange-600 text-white text-[10px] px-1.5 py-0 font-bold">{CHANNEL_SOURCE_BADGE}</Badge>
+              </div>
+            )}
           </div>
 
           <div className="flex flex-wrap gap-1 pt-1">

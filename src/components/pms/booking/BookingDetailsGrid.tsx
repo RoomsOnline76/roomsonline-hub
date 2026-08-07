@@ -13,6 +13,7 @@ import { BedDouble, Plus, Trash2, Save, User, Receipt, StickyNote, CalendarRange
 import { ViewRatesDialog } from "./ViewRatesDialog";
 import { useCrmAccounts, useCrmScopeForProperty, type CrmAccount } from "@/hooks/useCrmAccounts";
 import { BookerSegmentationFields, type BookerSegmentationValue } from "@/components/pms/crm/BookerSegmentationFields";
+import { resolveRuSourceChannel, ChannelLogo } from "@/lib/ruChannelDisplay";
 
 
 export interface BookingDetailsGridBooking {
@@ -54,6 +55,7 @@ export interface BookingDetailsGridBooking {
   invoice_to_name?: string | null;
   invoice_to_vat?: string | null;
   invoice_to_address?: string | null;
+  modification_notes?: Record<string, unknown>[] | null;
 }
 
 
@@ -492,7 +494,23 @@ export function BookingDetailsGrid({
 
         <div className="rounded-md border border-border bg-muted/30 p-2 space-y-1 text-[11px]">
           <div className="flex justify-between"><span className="text-muted-foreground">Booking made</span><span>{booking.created_at ? format(parseISO(booking.created_at), "d MMM yyyy HH:mm") : "—"}</span></div>
-          <div className="flex justify-between"><span className="text-muted-foreground">Channel</span><span className="capitalize">{(booking.booking_channel || "direct").replace(/_/g, " ")}</span></div>
+          <div className="flex justify-between items-center">
+            <span className="text-muted-foreground">Channel</span>
+            <div className="flex items-center gap-1.5">
+              <span className="capitalize">{(booking.booking_channel || "direct").replace(/_/g, " ")}</span>
+              {(() => {
+                const source = resolveRuSourceChannel(booking.modification_notes, booking.booking_channel);
+                if (!source.isRuSourced || !source.hasSpecificSource) return null;
+                return (
+                  <>
+                    <span className="text-muted-foreground">·</span>
+                    <ChannelLogo channelName={source.channelLogoKey} size="sm" />
+                    <span>{source.label}</span>
+                  </>
+                );
+              })()}
+            </div>
+          </div>
           <div className="flex justify-between"><span className="text-muted-foreground">Reference</span><span>#{booking.id.slice(0, 8)}</span></div>
         </div>
 
