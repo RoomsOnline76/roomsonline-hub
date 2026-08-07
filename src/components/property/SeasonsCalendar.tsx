@@ -176,7 +176,10 @@ export default function SeasonsCalendar({
     }
   }, []); // only on mount
 
-  const selectedSeason = useMemo(() => seasons.find((s) => s.id === selectedSeasonId) || null, [seasons, selectedSeasonId]);
+  const selectedSeason = useMemo(
+    () => visibleSeasons.find((s) => s.id === selectedSeasonId) || null,
+    [visibleSeasons, selectedSeasonId],
+  );
   const currentRoom = useMemo(() => roomTypes.find((r) => r.id === selectedRoomType), [roomTypes, selectedRoomType]);
   const linkedRateTypes = useMemo(() => {
     const linked = currentRoom?.linkedRateTypes || [];
