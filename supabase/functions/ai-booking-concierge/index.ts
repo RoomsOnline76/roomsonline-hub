@@ -571,8 +571,12 @@ async function generateAINarrative(
   intent: ParsedIntent,
   crossSellProperties: { name: string; slug: string; city: string; available: boolean }[],
   allRoomDetails: { name: string; rate: number; total: number; description?: string }[],
-  conversationHistory?: { role: string; content: string }[]
+  conversationHistory?: { role: string; content: string }[],
+  offerSummaries?: { specials: OfferSummary[]; vouchers: OfferSummary[] },
+  nextQuestion?: string,
+  proposal?: BookingProposal,
 ): Promise<string> {
+
   const hasAiKey = Deno.env.get("LOVABLE_API_KEY") || Deno.env.get("LOVABLE_API_KEY");
   if (!hasAiKey) {
     console.warn("[Concierge] No AI keys configured — falling back to template");
