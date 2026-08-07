@@ -127,7 +127,6 @@ export const RatePlan7DayRates = memo(function RatePlan7DayRates({ ratePlanId }:
             {dates.map((d) => (
               <th
                 key={d}
-                title={d}
                 title={holidayName(d) ? `${d} · ${holidayName(d)}` : d}
                 className={`px-0.5 py-0.5 text-center font-normal ${columnTint(d)} ${
                   isWeekend(d) || isSunday(d) || holidayName(d) ? "text-foreground font-medium" : ""
