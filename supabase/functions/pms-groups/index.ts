@@ -290,6 +290,7 @@ Deno.serve(async (req) => {
             start_date: p.start_date,
             end_date: p.end_date,
             release_date: p.release_date ?? null,
+            package_id: p.package_id ?? null,
             status: "blocked",
           })
           .select("*")
