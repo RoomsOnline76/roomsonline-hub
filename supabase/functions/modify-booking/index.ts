@@ -1,6 +1,13 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { isRuBooking, modifyRuStay } from "../_shared/ruBookingSync.ts";
 import { queueRuAriDelta } from "../_shared/ruAriDelta.ts";
+import { addDays, createRateResolver } from "../_shared/rateResolution.ts";
+import {
+  getRateResolutionMode,
+  logRateParity,
+  pickServedRate,
+  type ParityRow,
+} from "../_shared/rateParity.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
