@@ -500,7 +500,7 @@ export function BookingDetailsGrid({
               <span className="capitalize">{(booking.booking_channel || "direct").replace(/_/g, " ")}</span>
               {(() => {
                 const source = resolveRuSourceChannel(booking.modification_notes, booking.booking_channel);
-                if (!source.isRuSourced) return null;
+                if (!source.isRuSourced || !source.hasSpecificSource) return null;
                 return (
                   <>
                     <span className="text-muted-foreground">·</span>
