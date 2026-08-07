@@ -2,6 +2,7 @@ import { useCallback, useState } from "react";
 
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 import { usePmsStaffRole } from "@/hooks/usePmsStaffRole";
+import { useActivePackages } from "@/hooks/useActivePackages";
 import { getModuleAccess } from "@/lib/pmsPermissions";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -36,6 +37,7 @@ const STATUS_BADGES: Record<string, "default" | "secondary" | "destructive" | "o
 export default function PMSGroups() {
   const { propertyId } = usePmsPropertyId();
   const { staffRole } = usePmsStaffRole(propertyId);
+  const { packages } = useActivePackages(propertyId);
   const access = getModuleAccess(staffRole, "groups");
   const readOnly = access.readOnly;
   const qc = useQueryClient();
