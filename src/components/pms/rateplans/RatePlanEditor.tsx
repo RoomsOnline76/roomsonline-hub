@@ -48,6 +48,8 @@ const str = (v: unknown): string => (v === null || v === undefined ? "" : String
 export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes, onSaved, onCancel }: Props) {
   const [draft, dispatch] = useReducer(ratePlanDraftReducer, emptyDraft());
   const [seasons, setSeasons] = useState<CalendarSeason[]>([]);
+  const [legacySeasonRates, setLegacySeasonRates] = useState<Map<string, number[]>>(() => new Map());
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const { policies } = useReservationPolicies(propertyId);
