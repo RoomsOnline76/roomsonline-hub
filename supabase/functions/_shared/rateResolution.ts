@@ -224,28 +224,47 @@ export async function createRateResolver(
   const rackRates: Record<string, RackRate> = {};
   const closedDates: Record<string, Set<string>> = {};
   const relationalSeasonRates: Record<string, RelationalSeasonRate[]> = {};
+  const ratePlans: Record<string, PricingRatePlan> = {};
+  const planSeasonRates: Record<string, PlanSeasonRate[]> = {};
+  const dailyOverrides: Record<string, Record<string, never>> = {};
 
   if (rolosIds.length > 0) {
     const { data: planLinks } = await supabase
       .from("rolos_rate_plan_room_types")
-      .select("room_type_id, rate_plan_id, rolos_rate_plans!inner(id, base_rate, pricing_model, adult_1_rate, adult_2_rate, is_active)")
+      .select(
+        "room_type_id, rate_plan_id, is_active, differential_type, differential_value, rolos_rate_plans!inner(id, base_rate, pricing_model, adult_1_rate, adult_2_rate, is_active, min_stay, max_stay)",
+      )
       .in("room_type_id", rolosIds)
       .eq("rolos_rate_plans.is_active", true);
 
     const planToRooms: Record<string, string[]> = {};
     for (const entry of (planLinks ?? []) as any[]) {
       const plan = entry.rolos_rate_plans;
+      // A soft-deleted or deactivated link prices nothing — fall through to the next tier.
+      if (entry.is_active === false) continue;
       if (entry.rate_plan_id) (planToRooms[entry.rate_plan_id] ||= []).push(entry.room_type_id);
       const base = Number(plan?.base_rate);
       if (!Number.isFinite(base) || base <= 0) continue;
       const existing = rackRates[entry.room_type_id];
       if (existing && existing.base_rate >= base) continue;
+      const adult1 = Number.isFinite(Number(plan?.adult_1_rate)) && Number(plan?.adult_1_rate) > 0 ? Number(plan.adult_1_rate) : undefined;
       rackRates[entry.room_type_id] = {
         base_rate: base,
         pricing_model: plan?.pricing_model || "per_unit",
         rate_plan_id: plan?.id,
-        adult_1_rate: Number.isFinite(Number(plan?.adult_1_rate)) && Number(plan?.adult_1_rate) > 0 ? Number(plan.adult_1_rate) : undefined,
+        adult_1_rate: adult1,
         adult_2_rate: Number.isFinite(Number(plan?.adult_2_rate)) && Number(plan?.adult_2_rate) > 0 ? Number(plan.adult_2_rate) : undefined,
+      };
+      ratePlans[entry.room_type_id] = {
+        rate_plan_id: String(plan?.id ?? entry.rate_plan_id),
+        base_rate: base,
+        pricing_model: plan?.pricing_model || "per_unit",
+        is_active: plan?.is_active !== false,
+        extra_adult_rate: adult1,
+        min_stay: plan?.min_stay ?? null,
+        max_stay: plan?.max_stay ?? null,
+        differential_type: (entry.differential_type as DifferentialType) ?? "none",
+        differential_value: entry.differential_value ?? null,
       };
     }
 
@@ -264,9 +283,42 @@ export async function createRateResolver(
       }
     }
 
-    // Tier 2 — relational seasons (rolos_rate_seasons + rolos_rate_prices).
-    // Sits BETWEEN the calendar and the rack rate: it never overrides a calendar
-    // rate, it only fills dates the calendar does not price.
+    // Tier 3 — plan season rates (rolos_rate_plan_season_rates). Keyed either to a
+    // Calendar season (through rolos_shared_seasons.calendar_season_id) or to a
+    // legacy relational season window. Absolute rate wins over a differential.
+    if (planIds.length > 0) {
+      const { data: planSeasonRows } = await supabase
+        .from("rolos_rate_plan_season_rates")
+        .select(
+          "rate_plan_id, room_type_id, base_rate, extra_adult_rate, differential_type, differential_value, is_active, deleted_at, shared_season_id, legacy_season_id, rolos_shared_seasons(calendar_season_id, start_date, end_date), rolos_rate_seasons(start_date, end_date, min_stay_override)",
+        )
+        .in("rate_plan_id", planIds)
+        .is("deleted_at", null);
+
+      for (const row of (planSeasonRows ?? []) as any[]) {
+        if (row?.is_active === false) continue;
+        const shared = row.rolos_shared_seasons;
+        const legacy = row.rolos_rate_seasons;
+        const entry: PlanSeasonRate = {
+          calendar_season_id: shared?.calendar_season_id ? String(shared.calendar_season_id) : null,
+          start_date: shared?.start_date ?? legacy?.start_date ?? null,
+          end_date: shared?.end_date ?? legacy?.end_date ?? null,
+          base_rate: row.base_rate ?? null,
+          extra_adult_rate: row.extra_adult_rate ?? null,
+          differential_type: (row.differential_type as DifferentialType) ?? "none",
+          differential_value: row.differential_value ?? null,
+          min_stay: legacy?.min_stay_override ?? null,
+        };
+        if (!entry.calendar_season_id && (!entry.start_date || !entry.end_date)) continue;
+        const roomKey = row.room_type_id ? String(row.room_type_id) : null;
+        // A row without a room type applies to every unit linked to the plan.
+        const targets = roomKey ? [roomKey] : (planToRooms[row.rate_plan_id] ?? []);
+        for (const target of targets) (planSeasonRates[target] ||= []).push(entry);
+      }
+    }
+
+    // Tier 4 — relational seasons (rolos_rate_seasons + rolos_rate_prices).
+    // Never overrides a calendar or plan season rate, it only fills dates they leave unpriced.
     if (planIds.length > 0) {
       const { data: relSeasons } = await supabase
         .from("rolos_rate_seasons")
@@ -304,79 +356,53 @@ export async function createRateResolver(
     }
   }
 
-  const seasonForDate = (date: string): SeasonEntry | null => {
-    for (const s of seasons) {
-      for (const p of s.periods) {
-        if (date >= p.from && date <= p.to) return s;
-      }
-    }
-    return null;
-  };
-
-  const resolveDays = (unit: UnitRateContext, from: string, to: string): DayRate[] => {
-    const keys = seasonRateLookupKeys(unit, amen);
-    const rolosId = unit.linked_rolos_id ? String(unit.linked_rolos_id) : null;
-    const rack = rolosId ? rackRates[rolosId] : undefined;
-    const relational = rolosId ? relationalSeasonRates[rolosId] : undefined;
-    const unitDaily = unitDailyRates[unit.id];
-    const seasonCache = new Map<string, { price: number; extra_guest_price?: number } | null>();
-
-    const relationalForDate = (date: string): RelationalSeasonRate | null => {
-      if (!relational || relational.length === 0) return null;
-      for (const r of relational) {
-        if (date >= r.start_date && date <= r.end_date) return r;
-      }
-      return null;
-    };
-
-    const out: DayRate[] = [];
-    for (const date of eachDate(from, to)) {
-      const season = seasonForDate(date);
-      let calendar: { price: number; extra_guest_price?: number } | null = null;
-      if (season) {
-        if (!seasonCache.has(season.id)) {
-          seasonCache.set(season.id, pickSeasonRate(seasonRates, season.id, keys, rack?.rate_plan_id));
-        }
-        calendar = seasonCache.get(season.id) ?? null;
-      }
-
-      const rel = calendar ? null : relationalForDate(date);
-
-      if (calendar) {
-        out.push({ date, price: calendar.price, extra_guest_price: calendar.extra_guest_price, source: "calendar_season" });
-      } else if (rel) {
-        out.push({ date, price: rel.base_rate, extra_guest_price: rel.extra_adult_rate, source: "relational_season" });
-      } else if (rack) {
-        out.push({ date, price: rack.base_rate, extra_guest_price: rack.adult_1_rate, source: "rack_rate" });
-      } else if (Number.isFinite(unitDaily) && unitDaily > 0) {
-        out.push({ date, price: unitDaily, source: "unit_daily_rate" });
-      }
-      // No rate at all for this date: omitted, surfaced through coverage().
-    }
-    return out;
-  };
-
-  const coverage = (days: DayRate[]): RateCoverage => {
-    const calendar_days = days.filter((d) => d.source === "calendar_season").length;
-    const relational_days = days.filter((d) => d.source === "relational_season").length;
-    const rack_days = days.filter((d) => d.source === "rack_rate").length;
-    const unit_daily_days = days.filter((d) => d.source === "unit_daily_rate").length;
-    return {
-      total_days: days.length,
-      priced_days: days.length,
-      calendar_days,
-      relational_days,
-      rack_days,
-      unit_daily_days,
-      unpriced_days: 0,
-    };
-  };
-
   const units: UnitRateContext[] = ((hfRooms ?? []) as any[]).map((r) => ({
     id: r.id,
     name: r.name,
     linked_rolos_id: r.linked_rolos_id,
   }));
+
+  const seasonRateKeys: Record<string, string[]> = {};
+  for (const unit of units) seasonRateKeys[unit.id] = seasonRateLookupKeys(unit, amen);
+
+  // The snapshot handed to the pure calculation layer. Everything below this line
+  // is side-effect free: no query, no clock, no mutation.
+  const pricingInputs: PricingInputs = normalizePricingInputs({
+    seasons: seasons as PricingSeason[],
+    seasonRates,
+    seasonRateKeys,
+    ratePlans,
+    planSeasonRates,
+    relationalSeasonRates,
+    unitDailyRates,
+    // No Calendar-owned per-date rate override store exists yet; the engine already
+    // honours this tier as soon as one is wired in.
+    dailyOverrides: dailyOverrides as Record<string, Record<string, never>>,
+    closedDates,
+  });
+
+  const resolveDays = (unit: UnitRateContext, from: string, to: string): DayRate[] => {
+    const keys = seasonRateKeys[unit.id] ?? seasonRateLookupKeys(unit, amen);
+    const inputs = keys === pricingInputs.seasonRateKeys[unit.id]
+      ? pricingInputs
+      : { ...pricingInputs, seasonRateKeys: { ...pricingInputs.seasonRateKeys, [unit.id]: keys } };
+    return resolveNightRates(inputs, unit, from, to);
+  };
+
+  const coverage = (days: DayRate[]): RateCoverage => {
+    const count = (source: RateSource) => days.filter((d) => d.source === source).length;
+    return {
+      total_days: days.length,
+      priced_days: days.length,
+      calendar_days: count("calendar_season"),
+      daily_override_days: count("daily_override"),
+      plan_season_days: count("plan_season"),
+      relational_days: count("relational_season"),
+      rack_days: count("rack_rate"),
+      unit_daily_days: count("unit_daily_rate"),
+      unpriced_days: 0,
+    };
+  };
 
   return {
     seasons,
@@ -385,9 +411,11 @@ export async function createRateResolver(
     unitDailyRates,
     closedDates,
     units,
+    pricingInputs,
     resolveDays,
     coverage,
   };
+
 
 }
 
