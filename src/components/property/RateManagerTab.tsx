@@ -292,7 +292,6 @@ export function RateManagerTab({
             {!isRolosProperty && <TabsTrigger value="rate-breakdown">Rate Breakdown</TabsTrigger>}
             <TabsTrigger value="charges">Charges</TabsTrigger>
             <TabsTrigger value="policies">Policies</TabsTrigger>
-            <TabsTrigger value="overview">Overview</TabsTrigger>
           </TabsList>
 
           {/* ── Rate Plans Sub-tab (mirror of the ROL'OS configurator) ────── */}
