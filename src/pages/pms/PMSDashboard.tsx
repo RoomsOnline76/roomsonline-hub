@@ -41,6 +41,7 @@ import { RoomPlanGrid, type RoomPlanCreatePayload, type RoomPlanMovePayload, typ
 import type { RoomPlanBooking } from "@/components/pms/roomplan/RoomPlanBar";
 import { extractFunctionError } from "@/lib/functionError";
 import { CHANNEL_SOURCE_BADGE, channelSourceLabel } from "@/lib/channelVocabulary";
+import { resolveRuSourceChannel, ChannelLogo } from "@/lib/ruChannelDisplay";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 
@@ -3286,11 +3287,20 @@ function BookingDetail({
     );
   };
 
+  const sourceChannel = resolveRuSourceChannel(b.modification_notes, b.booking_channel, b.integration_type);
+
   return (
     <>
       <SheetHeader>
         <SheetTitle className="flex items-center gap-2">
           <User className="h-4 w-4" />{b.guest_name}
+          {sourceChannel.isRuSourced && (
+            <div className="flex items-center gap-1.5 ml-2">
+              <ChannelLogo channelName={sourceChannel.channelLogoKey} size="sm" />
+              <span className="text-sm font-normal text-muted-foreground">{sourceChannel.label}</span>
+              <Badge className="bg-orange-500 hover:bg-orange-600 text-white text-[10px] px-1.5 py-0 font-bold">{CHANNEL_SOURCE_BADGE}</Badge>
+            </div>
+          )}
         </SheetTitle>
         <SheetDescription className="flex items-center justify-between">
           <span>Booking #{b.id.slice(0, 8)}</span>
@@ -3370,6 +3380,13 @@ function BookingDetail({
                   <div className="flex items-center gap-2 text-sm">
                     <Globe className="h-3.5 w-3.5 text-muted-foreground" />
                     <span className="capitalize">{channelSourceLabel(b.booking_channel)}</span>
+                    {sourceChannel.isRuSourced && (
+                      <>
+                        <span className="text-muted-foreground">·</span>
+                        <ChannelLogo channelName={sourceChannel.channelLogoKey} size="sm" />
+                        <span>{sourceChannel.label}</span>
+                      </>
+                    )}
                     {b.booking_channel === 'rentals_united' && (
                       <Badge className="bg-orange-500 hover:bg-orange-600 text-white text-[10px] px-1.5 py-0 font-bold">{CHANNEL_SOURCE_BADGE}</Badge>
                     )}
