@@ -1174,11 +1174,13 @@ export function AIConciergePanel({
                           ))}
                         </div>
                       )}
+                      {msg.proposal && renderProposalCard(msg.proposal)}
                       {msg.suggestions && msg.suggestions.length > 0 && (
                         <div className="mt-2 space-y-2">
                           {msg.suggestions.map(renderSuggestionCard)}
                         </div>
                       )}
+
                     </div>
                   </div>
                 ))}
