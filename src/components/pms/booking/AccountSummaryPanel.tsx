@@ -90,6 +90,15 @@ export function AccountSummaryPanel({
   const [invoiceTo, setInvoiceTo] = useState(guestName || "");
   const [reference, setReference] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
+  const [bookingChannel, setBookingChannel] = useState<string | null>(null);
+  const [party, setParty] = useState<BillingPartyState>({
+    billToType: "guest",
+    accountId: null,
+    commissionRate: null,
+  });
+
+  const crmScope = useCrmScopeForProperty(propertyId);
+  const { accounts } = useCrmAccounts(crmScope);
 
   const loadDocs = useCallback(async () => {
     const { data, error } = await supabase.functions.invoke("pms-financial", {
@@ -109,20 +118,37 @@ export function AccountSummaryPanel({
     let cancelled = false;
     const load = async () => {
       setLoading(true);
-      const [folioRes, payRes] = await Promise.all([
+      const [folioRes, payRes, bookingRes] = await Promise.all([
         callPmsApi<{ transactions: FolioTransaction[] }>("get_folio", { booking_id: bookingId }),
         supabase.from("payment_transactions").select("amount, status").eq("booking_id", bookingId),
+        supabase
+          .from("bookings")
+          .select("company_account_id, agent_account_id, booking_channel, commission_rate_applied")
+          .eq("id", bookingId)
+          .maybeSingle(),
       ]);
       if (cancelled) return;
       if (folioRes.success && folioRes.data) setTransactions(folioRes.data.transactions || []);
       const settled = (payRes.data || []).filter(p => PAID_STATUSES.includes(String(p.status || "").toLowerCase()));
       setGatewayPaid(settled.reduce((sum, p) => sum + Number(p.amount || 0), 0));
+
+      // Default the billing party from whatever the reservation already links to.
+      const bk = bookingRes.data;
+      if (bk) {
+        setBookingChannel(bk.booking_channel ?? null);
+        setParty({
+          billToType: bk.company_account_id ? "company" : bk.agent_account_id ? "agent" : "guest",
+          accountId: bk.company_account_id || bk.agent_account_id || null,
+          commissionRate: bk.commission_rate_applied != null ? Number(bk.commission_rate_applied) : null,
+        });
+      }
       await loadDocs();
       if (!cancelled) setLoading(false);
     };
     load();
     return () => { cancelled = true; };
   }, [bookingId, loadDocs]);
+
 
   const totals = useMemo(() => {
     const charges = transactions.filter(t => Number(t.amount) > 0);
