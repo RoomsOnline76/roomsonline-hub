@@ -13,8 +13,8 @@ import { callPmsApi } from "@/hooks/usePmsApi";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { FileText, Download, RefreshCw, Mail, Receipt } from "lucide-react";
-import { useCrmAccounts } from "@/hooks/useCrmAccounts";
-import { useCrmScopeForProperty } from "@/hooks/useCrmScopeForProperty";
+import { useCrmAccounts, useCrmScopeForProperty } from "@/hooks/useCrmAccounts";
+
 import {
   InvoiceBillingPartySelector,
   type BillingPartyState,
