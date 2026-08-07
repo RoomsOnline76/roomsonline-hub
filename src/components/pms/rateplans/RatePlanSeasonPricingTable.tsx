@@ -25,14 +25,14 @@ interface Props {
   /** Season name -> Calendar-authored colour, so columns match the Calendar. */
   seasonColors?: SeasonColorMap;
   roomTypes: RoomTypeOption[];
-  /** Rates the live booking engine resolves today, per season per unit. */
+  /** Legacy Calendar-authored rates, per season per unit — import source only. */
   liveMatrix?: LiveSeasonMatrix;
   liveMatrixLoading?: boolean;
   onChange: (calendarSeasonId: string, patch: Partial<DraftSeasonRate>) => void;
   onCellChange: (calendarSeasonId: string, roomTypeId: string, value: string) => void;
   onFillColumn: (calendarSeasonId: string, value: string) => void;
   onFillRow: (roomTypeId: string, sourceCalendarSeasonId: string) => void;
-  /** Pull live rates into the matrix. Omit the season id to seed every season. */
+  /** Import legacy Calendar rates into the matrix. Omit the season id for every season. */
   onSeedFromLive: (calendarSeasonId?: string) => void;
 }
 
@@ -115,6 +115,7 @@ export const RatePlanSeasonPricingTable = memo(function RatePlanSeasonPricingTab
           Rows are the units this plan sells, columns are the seasons the Calendar painted (read-only). Type a nightly
           rate into any cell — the season switches to <strong>Fixed rate</strong> automatically. Use{" "}
           <strong>Difference</strong> to price off the plan base rate, or <strong>Not priced</strong> to fall back to it.
+          This is the only place nightly rates are captured; the Calendar sets season dates only.
         </p>
         {hasLive && (
           <Button
@@ -123,10 +124,11 @@ export const RatePlanSeasonPricingTable = memo(function RatePlanSeasonPricingTab
             variant="secondary"
             className="h-7 shrink-0 gap-1.5 text-xs"
             disabled={liveMatrixLoading}
+            title="One-time import: copies the rates still stored on the old Calendar grid into this matrix. Nothing is overwritten."
             onClick={() => onSeedFromLive()}
           >
             <Wand2 className="h-3.5 w-3.5" />
-            Bring in live rates
+            Import legacy Calendar rates
           </Button>
         )}
       </div>
@@ -246,11 +248,11 @@ export const RatePlanSeasonPricingTable = memo(function RatePlanSeasonPricingTab
                           size="sm"
                           variant="secondary"
                           className="h-5 gap-1 px-1.5 text-[10px] font-normal"
-                          title="Fill this season's cells with the rates the live booking engine uses today"
+                          title="Copy the legacy Calendar rates for this season into its cells"
                           onClick={() => onSeedFromLive(season.calendar_season_id)}
                         >
                           <Wand2 className="h-3 w-3" />
-                          Use live rates
+                          Import legacy
                         </Button>
                       )}
 
@@ -292,7 +294,7 @@ export const RatePlanSeasonPricingTable = memo(function RatePlanSeasonPricingTab
                       : rate.mode === "differential"
                         ? "0"
                         : liveValue && liveValue > 0
-                          ? `${fmtMoney(liveValue)} live`
+                          ? `${fmtMoney(liveValue)} legacy`
                           : planBase > 0
                             ? `${fmtMoney(planBase)} base`
                             : "Rate";
