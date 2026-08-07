@@ -360,8 +360,12 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
           <RatePlanSeasonPricingTable
             draft={draft}
             seasons={seasons}
+            roomTypes={roomTypes}
             legacySeasonRates={legacySeasonRates}
             onChange={onSeasonChange}
+            onCellChange={onSeasonCellChange}
+            onFillColumn={onFillSeasonColumn}
+            onFillRow={onFillUnitRow}
           />
 
         </CardContent>
