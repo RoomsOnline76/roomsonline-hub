@@ -7,7 +7,21 @@ interface Day {
   date: string;
   price: number;
   source: string;
+  season_name?: string;
 }
+
+const SOURCE_LABELS: Record<string, string> = {
+  daily_override: "Daily override",
+  calendar_season: "Season",
+  plan_season: "Season",
+  relational_season: "Season",
+  rack_rate: "Rack rate",
+  unit_daily_rate: "Unit rate",
+};
+
+/** Prefer the authored season name; fall back to a friendly source label. */
+const sourceLabel = (day: Day) =>
+  day.season_name?.trim() || SOURCE_LABELS[day.source] || day.source;
 interface Unit {
   room_type_id: string;
   name: string;
@@ -152,7 +166,7 @@ export const RatePlan7DayRates = memo(function RatePlan7DayRates({ ratePlanId }:
                 return (
                   <td
                     key={d}
-                    title={`${u.name} · ${d}${holidayName(d) ? ` · ${holidayName(d)}` : ""}${day ? ` · R${day.price.toLocaleString()} (${day.source})` : ""}`}
+                    title={`${u.name} · ${d}${holidayName(d) ? ` · ${holidayName(d)}` : ""}${day ? ` · R${day.price.toLocaleString()} (${sourceLabel(day)})` : ""}`}
                     className={`px-0.5 py-0.5 text-center font-mono tabular-nums ${columnTint(d)} ${
                       day?.source === "daily_override" ? "text-warning-foreground font-semibold" : ""
                     }`}

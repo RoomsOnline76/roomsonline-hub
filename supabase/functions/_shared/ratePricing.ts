@@ -36,6 +36,7 @@ export interface PricingSeasonPeriod {
 /** A Calendar-owned season. The Calendar is the ONLY authority for these. */
 export interface PricingSeason {
   id: string;
+  name?: string;
   min_stay: number;
   periods: PricingSeasonPeriod[];
 }
@@ -350,6 +351,7 @@ export function resolveNightRate(
         price: calendar.price,
         extra_guest_price: calendar.extra_guest_price,
         source: "calendar_season",
+        season_name: season.name,
       };
     }
   }
@@ -369,6 +371,7 @@ export function resolveNightRate(
           price: applyDifferential(raw, diffType, diffValue),
           extra_guest_price: positive(planSeason.extra_adult_rate) ?? positive(plan.extra_adult_rate),
           source: "plan_season" as RateSource,
+          season_name: season?.name,
         };
       }
     }

@@ -45,6 +45,8 @@ export interface DayRate {
   price: number;
   extra_guest_price?: number;
   source: RateSource;
+  /** Human-readable season name as authored in the Calendar, when the night is seasonal. */
+  season_name?: string;
 }
 
 export interface RatePeriod {
@@ -86,6 +88,7 @@ interface SeasonPeriod {
 
 interface SeasonEntry {
   id: string;
+  name?: string;
   min_stay: number;
   periods: SeasonPeriod[];
 }
@@ -151,7 +154,7 @@ function normalizeSeasons(amenities: Record<string, any>): SeasonEntry[] {
       if (from && to) periods.push({ from: String(from), to: String(to) });
     }
     if (periods.length > 0) {
-      seasons.push({ id: String(s.id), min_stay: Number(s.minStay ?? s.min_stay ?? 1) || 1, periods });
+      seasons.push({ id: String(s.id), name: s.name ? String(s.name) : (s.label ? String(s.label) : undefined), min_stay: Number(s.minStay ?? s.min_stay ?? 1) || 1, periods });
     }
   }
   return seasons;
