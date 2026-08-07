@@ -456,6 +456,7 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
           <RatePlanSeasonPricingTable
             draft={draft}
             seasons={seasons}
+            seasonColors={seasonColors}
             roomTypes={roomTypes}
             liveMatrix={liveMatrix}
             liveMatrixLoading={liveMatrixLoading}
