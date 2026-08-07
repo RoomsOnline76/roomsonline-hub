@@ -335,7 +335,7 @@ Deno.serve(async (req) => {
           _end_date: p.end_date,
           _delta: p.blocked_count,
         });
-        await adjustAvailabilityCache(supabase, p.property_id, p.room_type_id, p.start_date, p.end_date, -p.blocked_count);
+        await syncAvailabilityCache(supabase, p.property_id, p.room_type_id, p.start_date, p.end_date);
 
         return json({ success: true, block });
       }
