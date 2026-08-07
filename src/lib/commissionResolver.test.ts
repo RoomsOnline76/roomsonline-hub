@@ -12,9 +12,24 @@ import {
  * configuration only — the rate hierarchy work must not be able to move it.
  */
 describe("commission type", () => {
-  it("classifies channel, direct PMS and marketplace bookings", () => {
-    expect(resolveCommissionType({ payment_status: "paid_externally" } as never)).toBe("external");
-    expect(resolveCommissionType(null)).toBeTruthy();
+  it("classifies third-party channel reservations as external", () => {
+    expect(resolveCommissionType({ booking_channel: "rentalsunited" } as never)).toBe("external");
+    expect(resolveCommissionType({ integration_type: "channel" } as never)).toBe("external");
+  });
+
+  it("classifies widget / white-label surfaces as the property's own PMS booking", () => {
+    expect(resolveCommissionType({ source_url: "https://x.co.za/widget?wl=1" } as never)).toBe("pms");
+    expect(resolveCommissionType({} as never)).toBe("pms");
+  });
+
+  it("classifies marketplace surfaces as listing, and an unknown booking as listing", () => {
+    expect(resolveCommissionType({ booking_channel: "sleepinafrica" } as never)).toBe("listing");
+    expect(resolveCommissionType(null)).toBe("listing");
+  });
+
+  it("honours a deliberately stored commission type", () => {
+    expect(resolveCommissionType({ commission_type: "external" } as never)).toBe("external");
+    expect(resolveCommissionType({ commission_type: "listing", booking_channel: "journey" } as never)).toBe("listing");
   });
 });
 
