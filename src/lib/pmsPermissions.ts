@@ -32,7 +32,8 @@ export type PmsModule =
   | "portfolio"
   | "revenue"
   | "command-centre"
-  | "property-setup";
+  | "property-setup"
+  | "intelligence";
 
 export interface ModuleAccess {
   visible: boolean;
@@ -49,49 +50,49 @@ const PERMISSION_MATRIX: Record<PmsStaffRole, Record<PmsModule, ModuleAccess>> =
     dashboard: FULL, rooms: FULL, "rate-plans": FULL, guests: FULL,
     housekeeping: FULL, reports: FULL, branding: FULL, integrations: FULL,
     staff: FULL, calendar: FULL, channels: FULL, groups: FULL, events: FULL, "night-audit": FULL, messaging: FULL,
-    portfolio: FULL, revenue: FULL, "command-centre": FULL, "property-setup": FULL,
+    portfolio: FULL, revenue: FULL, "command-centre": FULL, "property-setup": FULL, intelligence: FULL,
   },
   general_manager: {
     dashboard: FULL, rooms: FULL, "rate-plans": FULL, guests: FULL,
     housekeeping: FULL, reports: FULL, branding: FULL, integrations: FULL,
     staff: FULL, calendar: FULL, channels: FULL, groups: FULL, events: FULL, "night-audit": FULL, messaging: FULL,
-    portfolio: FULL, revenue: FULL, "command-centre": FULL, "property-setup": FULL,
+    portfolio: FULL, revenue: FULL, "command-centre": FULL, "property-setup": FULL, intelligence: FULL,
   },
   front_desk: {
     dashboard: FULL, rooms: RO, "rate-plans": NONE, guests: FULL,
     housekeeping: RO, reports: NONE, branding: NONE, integrations: NONE,
     staff: NONE, calendar: FULL, channels: RO, groups: RO, events: RO, "night-audit": NONE, messaging: RO,
-    portfolio: NONE, revenue: NONE, "command-centre": NONE, "property-setup": NONE,
+    portfolio: NONE, revenue: NONE, "command-centre": NONE, "property-setup": NONE, intelligence: NONE,
   },
   housekeeping: {
     dashboard: NONE, rooms: RO, "rate-plans": NONE, guests: NONE,
     housekeeping: FULL, reports: NONE, branding: NONE, integrations: NONE,
     staff: NONE, calendar: NONE, channels: NONE, groups: NONE, events: NONE, "night-audit": NONE, messaging: NONE,
-    portfolio: NONE, revenue: NONE, "command-centre": NONE, "property-setup": NONE,
+    portfolio: NONE, revenue: NONE, "command-centre": NONE, "property-setup": NONE, intelligence: NONE,
   },
   maintenance: {
     dashboard: NONE, rooms: NONE, "rate-plans": NONE, guests: NONE,
     housekeeping: RO, reports: NONE, branding: NONE, integrations: NONE,
     staff: NONE, calendar: NONE, channels: NONE, groups: NONE, events: NONE, "night-audit": NONE, messaging: NONE,
-    portfolio: NONE, revenue: NONE, "command-centre": NONE, "property-setup": NONE,
+    portfolio: NONE, revenue: NONE, "command-centre": NONE, "property-setup": NONE, intelligence: NONE,
   },
   accountant: {
     dashboard: NONE, rooms: NONE, "rate-plans": NONE, guests: RO,
     housekeeping: NONE, reports: FULL, branding: NONE, integrations: NONE,
     staff: NONE, calendar: NONE, channels: NONE, groups: RO, events: NONE, "night-audit": RO, messaging: NONE,
-    portfolio: RO, revenue: RO, "command-centre": NONE, "property-setup": NONE,
+    portfolio: RO, revenue: RO, "command-centre": NONE, "property-setup": NONE, intelligence: RO,
   },
   auditor: {
     dashboard: RO, rooms: RO, "rate-plans": RO, guests: RO,
     housekeeping: RO, reports: RO, branding: RO, integrations: NONE,
     staff: NONE, calendar: RO, channels: RO, groups: RO, events: RO, "night-audit": RO, messaging: RO,
-    portfolio: RO, revenue: RO, "command-centre": NONE, "property-setup": RO,
+    portfolio: RO, revenue: RO, "command-centre": NONE, "property-setup": RO, intelligence: RO,
   },
   agent: {
     dashboard: RO, rooms: RO, "rate-plans": NONE, guests: NONE,
     housekeeping: NONE, reports: NONE, branding: NONE, integrations: NONE,
     staff: NONE, calendar: RO, channels: NONE, groups: RO, events: NONE, "night-audit": NONE, messaging: NONE,
-    portfolio: NONE, revenue: NONE, "command-centre": FULL, "property-setup": NONE,
+    portfolio: NONE, revenue: NONE, "command-centre": FULL, "property-setup": NONE, intelligence: NONE,
   },
 };
 

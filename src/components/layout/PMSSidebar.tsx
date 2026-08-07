@@ -25,6 +25,7 @@ import {
   Gauge,
   Radar,
   SlidersHorizontal,
+  Brain,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -46,12 +47,15 @@ export interface NavItem {
   icon: React.ElementType;
   href: string;
   module: PmsModule;
+  /** Route is gated to platform users (admin/dev/fearless) — hidden from owners & staff. */
+  platformOnly?: boolean;
 }
 
 export interface NavGroup {
   label: string;
   items: NavItem[];
 }
+
 
 /** ROL'OS navigation, shared by the desktop sidebar and the mobile bottom nav. */
 export const pmsNavGroups: NavGroup[] = [
@@ -83,6 +87,7 @@ export const pmsNavGroups: NavGroup[] = [
       { title: "Night Audit", icon: Moon, href: "/pms/night-audit", module: "night-audit" },
       { title: "Messaging", icon: MessageSquare, href: "/pms/messaging", module: "messaging" },
       { title: "Reports", icon: BarChart3, href: "/pms/reports", module: "reports" },
+      { title: "Intelligence", icon: Brain, href: "/dashboard/insights", module: "intelligence", platformOnly: true },
       { title: "Staff", icon: UserCog, href: "/pms/staff", module: "staff" },
       { title: "Branding", icon: Palette, href: "/pms/branding", module: "branding" },
       { title: "Integrations", icon: Code2, href: "/pms/integrations", module: "integrations" },
@@ -258,7 +263,10 @@ export function PMSSidebar() {
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-4">
         {pmsNavGroups.map((group) => {
-          const visibleItems = group.items.filter((item) => visibleModules.includes(item.module));
+          const visibleItems = group.items.filter(
+            (item) =>
+              (item.platformOnly ? isPlatformUser : true) && (isPlatformUser || visibleModules.includes(item.module))
+          );
           if (visibleItems.length === 0) return null;
           return (
             <div key={group.label}>
@@ -285,8 +293,8 @@ export function PMSSidebar() {
 
       {/* Footer */}
       <div className="p-2 space-y-2 border-t border-border">
-        {/* Back to ROL — only for platform users (admin/dev/fearless) and property owners, not staff */}
-        {(isPlatformUser || !staffRole) && (
+        {/* Back to ROL — platform users, property owners (with or without a staff record), not other staff */}
+        {(isPlatformUser || !staffRole || staffRole === "property_owner") && (
           <button
             onClick={() => navigate("/admin/property-overview")}
             className={cn(

@@ -38,7 +38,9 @@ export function PmsMobileBottomNav() {
     .map((group) => ({
       ...group,
       items: group.items.filter(
-        (item) => isPlatformUser || visibleModules.includes(item.module),
+        (item) =>
+          (item.platformOnly ? isPlatformUser : true) &&
+          (isPlatformUser || visibleModules.includes(item.module)),
       ),
     }))
     .filter((group) => group.items.length > 0);
