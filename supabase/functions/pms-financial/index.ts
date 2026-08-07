@@ -592,7 +592,13 @@ Deno.serve(async (req) => {
           .maybeSingle();
 
         const html = generateInvoiceHTML(
-          { ...invoice, bill_to: billTo, stay: bookingRow ? { check_in: bookingRow.check_in_date, check_out: bookingRow.check_out_date, guest: bookingRow.guest_name } : null },
+          {
+            ...invoice,
+            bill_to: billTo,
+            channel_label: channelKey ? channelLabel(channelKey) : null,
+            stay: bookingRow ? { check_in: bookingRow.check_in_date, check_out: bookingRow.check_out_date, guest: bookingRow.guest_name } : null,
+          },
+
           transactions || [],
           property,
           branding,
