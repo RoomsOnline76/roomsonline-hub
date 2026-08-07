@@ -1,16 +1,35 @@
 /**
- * Shared rate resolution — the single source of truth for "what does a night cost".
+ * Shared rate resolution — the LOADER around the pure calculation layer.
+ *
+ * This module fetches everything needed to price a property and hands it to
+ * `ratePricing.ts`, which contains the actual (pure, unit-tested) decision logic.
  *
  * Hierarchy (identical for the ROL booking engine, Rentals United and every channel):
- *   1. Calendar season rate  — properties.amenities.seasons + season_rates (admin/ROLOS calendar)
- *   2. Rack rate             — Rate Manager rate plan linked to the unit (rolos_rate_plans.base_rate)
- *   3. Unit daily rate       — hostfully_room_types.daily_rate (last resort)
+ *   1. Daily override        — Calendar-owned manual price for an exact date
+ *   2. Calendar season rate  — properties.amenities.seasons + season_rates
+ *   3. Rate plan season rate — rolos_rate_plan_season_rates (absolute or differential)
+ *   4. Relational season     — rolos_rate_seasons + rolos_rate_prices (legacy tier)
+ *   5. Rack rate             — rolos_rate_plans.base_rate
+ *   6. Unit daily rate       — hostfully_room_types.daily_rate (last resort)
  *
- * The calendar is ALWAYS first. The rack rate only fills dates the calendar does not price.
+ * The calendar is ALWAYS ahead of the rate plan. Lower tiers only fill dates the
+ * higher tiers do not price.
  */
 
+import {
+  normalizePricingInputs,
+  resolveNightRates,
+  type DifferentialType,
+  type PlanSeasonRate,
+  type PricingInputs,
+  type PricingRatePlan,
+  type PricingSeason,
+} from "./ratePricing.ts";
+
 export type RateSource =
+  | "daily_override"
   | "calendar_season"
+  | "plan_season"
   | "relational_season"
   | "rack_rate"
   | "unit_daily_rate";
@@ -40,12 +59,17 @@ export interface RateCoverage {
   total_days: number;
   priced_days: number;
   calendar_days: number;
-  /** Days priced from rolos_rate_seasons + rolos_rate_prices (tier 2). */
+  /** Days priced from a Calendar-owned manual daily override (tier 1). */
+  daily_override_days: number;
+  /** Days priced from rolos_rate_plan_season_rates (tier 3). */
+  plan_season_days: number;
+  /** Days priced from rolos_rate_seasons + rolos_rate_prices (tier 4). */
   relational_days: number;
   rack_days: number;
   unit_daily_days: number;
   unpriced_days: number;
 }
+
 
 export interface RackRate {
   base_rate: number;
