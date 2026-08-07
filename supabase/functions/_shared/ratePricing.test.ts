@@ -56,8 +56,8 @@ Deno.test("shared Calendar season prices sibling units at their own rates", () =
   const hutDay = resolveNightRate(i, hut, "2026-12-20");
   const dassieDay = resolveNightRate(i, dassie, "2026-12-20");
 
-  assertEquals(hutDay, { date: "2026-12-20", price: 2400, extra_guest_price: 250, source: "calendar_season" });
-  assertEquals(dassieDay, { date: "2026-12-20", price: 1350, extra_guest_price: 180, source: "calendar_season" });
+  assertEquals(hutDay, { date: "2026-12-20", price: 2400, extra_guest_price: 250, source: "calendar_season", season_name: undefined });
+  assertEquals(dassieDay, { date: "2026-12-20", price: 1350, extra_guest_price: 180, source: "calendar_season", season_name: undefined });
 });
 
 Deno.test("shared season with a single plan rate + per-unit differentials", () => {
