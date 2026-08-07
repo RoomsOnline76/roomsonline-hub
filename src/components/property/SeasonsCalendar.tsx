@@ -149,6 +149,19 @@ export default function SeasonsCalendar({
   const [selectionEnd, setSelectionEnd] = useState<Date | null>(null);
   const [editForm, setEditForm] = useState({ name: "", color: "red", minStay: 1, maxStay: 30 });
   const [selectedRateTypeId, setSelectedRateTypeId] = useState<string>("");
+  /** Past seasons are hidden by default — they can no longer be sold. */
+  const [showPastSeasons, setShowPastSeasons] = useState(false);
+
+  const expiredSeasonIds = useMemo(
+    () => new Set(seasons.filter((s) => isSeasonExpired(s)).map((s) => s.id)),
+    [seasons],
+  );
+  /** Seasons the owner can still sell (plus past ones while the toggle is on). */
+  const visibleSeasons = useMemo(
+    () => (showPastSeasons ? seasons : seasons.filter((s) => !expiredSeasonIds.has(s.id))),
+    [seasons, expiredSeasonIds, showPastSeasons],
+  );
+
 
   // Normalize legacy seasons that don't have periods array on first render
   React.useEffect(() => {
