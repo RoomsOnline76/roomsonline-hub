@@ -319,19 +319,32 @@ export function RoomPlanGrid({
                     </div>
                     {dates.map((date) => {
                       const rate = getRateForDate?.(group.type.id, date) ?? null;
+                      const held = heldOn(group.type, date);
                       return (
                         <div
                           key={date.toISOString()}
+                          title={held ? `${held.rooms} room${held.rooms === 1 ? "" : "s"} held — ${held.labels}` : undefined}
                           className={cn(
-                            "shrink-0 border-r text-center text-[9px] leading-[22px] text-muted-foreground last:border-r-0",
-                            isWeekend(date) && "bg-muted/40"
+                            "relative shrink-0 border-r text-center text-[9px] leading-[22px] text-muted-foreground last:border-r-0",
+                            isWeekend(date) && "bg-muted/40",
+                            held && "text-foreground/80"
                           )}
-                          style={{ width: colWidth, height: 22 }}
+                          style={{
+                            width: colWidth,
+                            height: 22,
+                            ...(held
+                              ? {
+                                  backgroundImage:
+                                    "repeating-linear-gradient(45deg, hsl(var(--warning) / 0.28) 0 3px, transparent 3px 6px)",
+                                }
+                              : null),
+                          }}
                         >
-                          {rate ? Math.round(rate).toLocaleString() : ""}
+                          {held ? `${held.rooms}·` : ""}{rate ? Math.round(rate).toLocaleString() : ""}
                         </div>
                       );
                     })}
+
                   </div>
 
                   {/* Unit rows */}
