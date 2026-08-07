@@ -608,20 +608,32 @@ async function copyPlan(sb: any, ratePlanId: string, targetPropertyIds: string[]
     .eq("property_id", plan.property_id);
   const sourceNameById = new Map<string, string>(((sourceRooms ?? []) as any[]).map((r) => [String(r.id), String(r.name ?? "").trim().toLowerCase()]));
 
-  // De-duplicate season rates by calendar season (they are stored per unit).
+  // De-duplicate season rates by calendar season (they are stored per unit), while
+  // keeping each unit's own value keyed by unit NAME so it can be re-mapped per target.
   const seasonDraft = new Map<string, DraftSeasonRate>();
+  const seasonValueByName = new Map<string, Map<string, number>>();
   for (const row of (seasonRates ?? []) as any[]) {
     const calId = row?.rolos_shared_seasons?.calendar_season_id;
-    if (!calId || seasonDraft.has(String(calId))) continue;
+    if (!calId) continue;
+    const key = String(calId);
     const isDiff = row.differential_type && row.differential_type !== "none";
-    seasonDraft.set(String(calId), {
-      calendar_season_id: String(calId),
-      mode: isDiff ? "differential" : "absolute",
-      base_rate: row.base_rate,
-      differential_type: row.differential_type,
-      differential_value: row.differential_value,
-      extra_adult_rate: row.extra_adult_rate,
-    });
+    if (!seasonDraft.has(key)) {
+      seasonDraft.set(key, {
+        calendar_season_id: key,
+        mode: isDiff ? "differential" : "absolute",
+        base_rate: row.base_rate,
+        differential_type: row.differential_type,
+        differential_value: row.differential_value,
+        extra_adult_rate: row.extra_adult_rate,
+      });
+    }
+    const name = sourceNameById.get(String(row.room_type_id ?? ""));
+    const value = num(isDiff ? row.differential_value : row.base_rate);
+    if (name && value !== null) {
+      const bucket = seasonValueByName.get(key) ?? new Map<string, number>();
+      bucket.set(name, value);
+      seasonValueByName.set(key, bucket);
+    }
   }
 
   const results: { property_id: string; rate_plan_id?: string; error?: string; units: number }[] = [];
