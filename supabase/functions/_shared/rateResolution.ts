@@ -6,14 +6,14 @@
  *
  * Hierarchy (identical for the ROL booking engine, Rentals United and every channel):
  *   1. Daily override        — Calendar-owned manual price for an exact date
- *   2. Calendar season rate  — properties.amenities.seasons + season_rates
- *   3. Rate plan season rate — rolos_rate_plan_season_rates (absolute or differential)
+ *   2. Rate plan season rate — rolos_rate_plan_season_rates (absolute or differential)
+ *   3. Calendar season rate  — properties.amenities.season_rates (legacy grid, read-only)
  *   4. Relational season     — rolos_rate_seasons + rolos_rate_prices (legacy tier)
  *   5. Rack rate             — rolos_rate_plans.base_rate
  *   6. Unit daily rate       — hostfully_room_types.daily_rate (last resort)
  *
- * The calendar is ALWAYS ahead of the rate plan. Lower tiers only fill dates the
- * higher tiers do not price.
+ * The Calendar owns season DATES and manual daily overrides only; Rate Plans own the
+ * amounts. Lower tiers only fill dates the higher tiers do not price.
  */
 
 import {

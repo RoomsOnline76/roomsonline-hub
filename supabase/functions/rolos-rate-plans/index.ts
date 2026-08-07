@@ -6,11 +6,12 @@
  *   preview      : price a draft plan with the SAME pure engine booking/ARI use.
  *   save_plan    : persist a plan and keep every backward-compatible store in step.
  *   copy_plan    : copy a plan (+ season pricing, units, restrictions) to sibling properties.
+ *   legacy_rate_audit      : does this plan still rely on rates authored in the old Calendar grid?
+ *   migrate_calendar_rates : copy those legacy Calendar rates into the plan matrix (once).
  *
- * Backward compatibility is the whole point of doing saves here: the Calendar season
- * rate outranks the plan season rate in the resolver, so authored season prices are
- * ALSO written back into properties.amenities.season_rates. Without that write-back an
- * edit made on this page would be invisible to today's booking engine and channels.
+ * Rate Plans are the authoring surface and the plan season rate now outranks the legacy
+ * Calendar season rate. Saves still mirror authored amounts into
+ * properties.amenities.season_rates so any reader still on the legacy store stays in step.
  */
 
 import { createClient } from "npm:@supabase/supabase-js@2";
