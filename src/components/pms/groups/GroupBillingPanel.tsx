@@ -29,6 +29,9 @@ export interface GroupRecord {
   total_rooms: number | null;
   release_date: string | null;
   contact_email: string | null;
+  portal_token?: string | null;
+  portal_enabled?: boolean | null;
+  portal_expires_at?: string | null;
 }
 
 interface GroupBillingPanelProps {

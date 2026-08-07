@@ -7,7 +7,10 @@ export type GroupActionName =
   | "group_import_rooming_list"
   | "group_ensure_master_folio"
   | "group_cancel"
-  | "group_release_due_blocks";
+  | "group_release_due_blocks"
+  | "group_bulk_check_in"
+  | "group_bulk_check_out"
+  | "group_portal_token";
 
 /**
  * Single entry point for every group side-effect (inventory, folios, pickups).

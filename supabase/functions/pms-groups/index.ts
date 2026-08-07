@@ -625,6 +625,83 @@ Deno.serve(async (req) => {
         return json({ success: true, processed: results.length, results });
       }
 
+      // ------------------------------------------- bulk check-in / check-out
+      case "group_bulk_check_in":
+      case "group_bulk_check_out": {
+        const groupId = String(body?.group_id || "");
+        if (!groupId) return json({ error: "group_id is required" }, 400);
+        const isCheckIn = action === "group_bulk_check_in";
+
+        const { data: lines, error: linesErr } = await supabase
+          .from("rolos_group_reservations")
+          .select("id, guest_name, booking_id, booking:bookings!booking_id(id, status, guest_name)")
+          .eq("group_id", groupId)
+          .not("booking_id", "is", null);
+        if (linesErr) throw linesErr;
+
+        const eligible = (lines || []).filter((l: Record<string, unknown>) => {
+          const status = (l.booking as { status?: string } | null)?.status;
+          return isCheckIn
+            ? status === "confirmed" || status === "pending"
+            : status === "checked_in";
+        });
+
+        const results: { booking_id: string; guest_name: string; ok: boolean; error?: string }[] = [];
+        for (const line of eligible) {
+          const bookingId = String(line.booking_id);
+          const guestName = String(line.guest_name || (line.booking as { guest_name?: string } | null)?.guest_name || "Guest");
+          try {
+            const res = await fetch(`${supabaseUrl}/functions/v1/roomsonline-pms-api`, {
+              method: "POST",
+              headers: { Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json" },
+              body: JSON.stringify({ action: isCheckIn ? "check_in" : "check_out", booking_id: bookingId }),
+            });
+            const payload = await res.json().catch(() => null);
+            const ok = res.ok && payload?.success !== false;
+            results.push({
+              booking_id: bookingId,
+              guest_name: guestName,
+              ok,
+              error: ok ? undefined : payload?.error?.message || `HTTP ${res.status}`,
+            });
+          } catch (e) {
+            results.push({ booking_id: bookingId, guest_name: guestName, ok: false, error: e instanceof Error ? e.message : String(e) });
+          }
+        }
+
+        const succeeded = results.filter((r) => r.ok).length;
+        console.log(`[pms-groups] ${action} group=${groupId} ok=${succeeded}/${results.length}`);
+        return json({ success: true, processed: results.length, succeeded, failed: results.length - succeeded, results });
+      }
+
+      // ------------------------------------------------ rooming-list portal
+      case "group_portal_token": {
+        const groupId = String(body?.group_id || "");
+        const mode = String(body?.mode || "enable"); // enable | rotate | disable
+        if (!groupId) return json({ error: "group_id is required" }, 400);
+
+        const { data: group, error: gErr } = await supabase
+          .from("rolos_groups")
+          .select("id, portal_token")
+          .eq("id", groupId)
+          .single();
+        if (gErr || !group) return json({ error: "Group not found" }, 404);
+
+        if (mode === "disable") {
+          await supabase.from("rolos_groups").update({ portal_enabled: false }).eq("id", groupId);
+          return json({ success: true, portal_enabled: false, portal_token: null });
+        }
+
+        const token = mode === "rotate" || !group.portal_token ? crypto.randomUUID() : group.portal_token;
+        const expiresAt = body?.expires_at ? String(body.expires_at) : null;
+        const { error: upErr } = await supabase
+          .from("rolos_groups")
+          .update({ portal_token: token, portal_enabled: true, portal_expires_at: expiresAt })
+          .eq("id", groupId);
+        if (upErr) throw upErr;
+        return json({ success: true, portal_enabled: true, portal_token: token, portal_expires_at: expiresAt });
+      }
+
       default:
         return json({ error: `Unknown action: ${action}` }, 400);
     }

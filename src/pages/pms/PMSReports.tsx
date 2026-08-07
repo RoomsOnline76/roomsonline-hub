@@ -5,8 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { BarChart3, BedDouble, Percent, RefreshCw, Download, Loader2, Receipt, LayoutGrid, Building2, XCircle } from "lucide-react";
+import { BarChart3, BedDouble, Percent, RefreshCw, Download, Loader2, Receipt, LayoutGrid, Building2, XCircle, UsersRound } from "lucide-react";
 import { PMSFoliosManager } from "@/components/pms/PMSFoliosManager";
+import { GroupPerformancePanel } from "@/components/pms/GroupPerformancePanel";
 import { CrossPropertyPipelineCard } from "@/components/pms/CrossPropertyPipelineCard";
 import { supabase } from "@/integrations/supabase/client";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -343,6 +344,7 @@ export default function PMSReports() {
         <Tabs defaultValue="analytics" className="space-y-4">
           <TabsList>
             <TabsTrigger value="analytics"><BarChart3 className="w-4 h-4 mr-1" />Analytics</TabsTrigger>
+            <TabsTrigger value="groups"><UsersRound className="w-4 h-4 mr-1" />Groups</TabsTrigger>
             <TabsTrigger value="folios"><Receipt className="w-4 h-4 mr-1" />Folios</TabsTrigger>
           </TabsList>
 
@@ -587,6 +589,10 @@ export default function PMSReports() {
             </CardContent>
           </Card>
         )}
+          </TabsContent>
+
+          <TabsContent value="groups">
+            <GroupPerformancePanel propertyIds={activePropertyIds} startDate={fromStr} endDate={toStr} />
           </TabsContent>
 
           <TabsContent value="folios">
