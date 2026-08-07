@@ -25,12 +25,58 @@ function generateInvoiceHTML(invoice: any, transactions: any[], property: any, b
   const charges = transactions.filter((t: any) => (t.amount || 0) > 0);
   const payments = transactions.filter((t: any) => (t.amount || 0) < 0);
 
-  const chargeRows = charges.map((t: any) => `
+  // Guest-facing line clarity: group charges by revenue stream so the guest (or
+  // their accounts team) can see accommodation separately from food & beverage.
+  const streamOf = (t: any): "accommodation" | "fnb" | "other" => {
+    const raw = String(t.revenue_stream || "").toLowerCase();
+    if (raw === "fnb" || raw === "other" || raw === "accommodation") return raw as any;
+    const text = `${t.transaction_type || ""} ${t.description || ""}`.toLowerCase();
+    if (/breakfast|dinner|lunch|meal|restaurant|bar |beverage|food/.test(text)) return "fnb";
+    if (/accommodation|room rate|stay charge|booking total|night/.test(text)) return "accommodation";
+    return "other";
+  };
+  const sectionMeta: Array<{ key: "accommodation" | "fnb" | "other"; label: string }> = [
+    { key: "accommodation", label: "Accommodation" },
+    { key: "fnb", label: "Food &amp; Beverage" },
+    { key: "other", label: "Other Charges" },
+  ];
+  const grouped = sectionMeta
+    .map((s) => {
+      const items = charges.filter((t: any) => streamOf(t) === s.key);
+      return { ...s, items, total: items.reduce((sum: number, t: any) => sum + Number(t.amount || 0), 0) };
+    })
+    .filter((s) => s.items.length > 0);
+  const showSections = grouped.length > 1;
+
+  const lineRow = (t: any) => `
     <tr>
-      <td style="padding:8px 12px;border-bottom:1px solid #eee;">${t.description || "Charge"}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #eee;${showSections ? "padding-left:24px;" : ""}">${t.description || "Charge"}</td>
       <td style="padding:8px 12px;border-bottom:1px solid #eee;text-align:right;">${Number(t.amount).toFixed(2)}</td>
     </tr>
-  `).join("");
+  `;
+
+  const chargeRows = showSections
+    ? grouped.map((s) => `
+    <tr>
+      <td style="padding:10px 12px;border-bottom:1px solid #eee;font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:0.6px;color:#666;">${s.label}</td>
+      <td style="padding:10px 12px;border-bottom:1px solid #eee;"></td>
+    </tr>
+    ${s.items.map(lineRow).join("")}
+    <tr>
+      <td style="padding:6px 12px;border-bottom:1px solid #eee;font-size:12px;color:#666;">${s.label} subtotal</td>
+      <td style="padding:6px 12px;border-bottom:1px solid #eee;text-align:right;font-size:12px;font-weight:600;color:#666;">${s.total.toFixed(2)}</td>
+    </tr>
+  `).join("")
+    : charges.map(lineRow).join("");
+
+  const streamSummaryRows = showSections
+    ? grouped.map((s) => `
+      <tr>
+        <td style="padding:4px 16px;font-size:12px;color:#666;">${s.label}</td>
+        <td style="padding:4px 16px;text-align:right;font-size:12px;color:#666;">${s.total.toFixed(2)}</td>
+      </tr>
+    `).join("")
+    : "";
 
   const paymentRows = payments.map((t: any) => `
     <tr>
