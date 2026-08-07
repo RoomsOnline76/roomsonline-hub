@@ -1140,10 +1140,75 @@ Deno.serve(async (req) => {
     }
 
     // =====================================================================
+    // OFFERS + SLOT FILLING + BOOKING PROPOSAL
+    // =====================================================================
+    const offers = await fetchOffers(supabase, property_id);
+    const offerSummaries = summariseOffers(offers, context.currency);
+
+    const effectiveDates = intent.date_range?.check_in && intent.date_range?.check_out
+      ? { check_in: intent.date_range.check_in, check_out: intent.date_range.check_out }
+      : current_dates;
+
+    const missingSlots = computeMissingSlots(
+      intent,
+      effectiveDates,
+      current_guests,
+      !!portfolio_slug || crossSellProperties.length > 0,
+      conversation_history,
+    );
+    const nextQuestion = missingSlots.length > 0 ? SLOT_QUESTIONS[missingSlots[0]] : undefined;
+
+    // Build a concrete proposal once we know the party and the dates, and we have rooms.
+    let bookingProposal: BookingProposal | undefined;
+    const proposalGuests = intent.guests || current_guests;
+    const bestSuggestion = filteredSuggestions.find(s => s.room && s.dates?.check_in && s.dates?.check_out)
+      || filteredSuggestions.find(s => s.room);
+    if (proposalGuests?.adults && bestSuggestion?.room) {
+      const pDates = bestSuggestion.dates?.check_in && bestSuggestion.dates?.check_out
+        ? bestSuggestion.dates
+        : effectiveDates;
+      if (pDates?.check_in && pDates?.check_out) {
+        const nights = daysBetween(pDates.check_in, pDates.check_out);
+        const eligibleSpecial = offers.specials.find(s => isSpecialEligibleForStay(s, pDates));
+        const usableVoucher = offers.vouchers.find(v => isVoucherUsableForStay(v, pDates));
+        const partyText = [
+          `${proposalGuests.adults} adult${proposalGuests.adults === 1 ? '' : 's'}`,
+          proposalGuests.children ? `${proposalGuests.children} children` : null,
+          proposalGuests.infants ? `${proposalGuests.infants} infants` : null,
+        ].filter(Boolean).join(', ');
+
+        bookingProposal = {
+          check_in: pDates.check_in,
+          check_out: pDates.check_out,
+          nights,
+          guests: {
+            adults: proposalGuests.adults,
+            children: proposalGuests.children || 0,
+            infants: proposalGuests.infants || 0,
+          },
+          currency: context.currency,
+          rooms: [{
+            room_type_id: bestSuggestion.room.id,
+            room_type_name: bestSuggestion.room.name,
+            rate_per_night: bestSuggestion.room.price_per_night,
+            total: bestSuggestion.room.total,
+          }],
+          total: bestSuggestion.room.total,
+          voucher_code: usableVoucher?.code,
+          qualifying_special: eligibleSpecial
+            ? { id: eligibleSpecial.id, name: eligibleSpecial.name, label: specialLabelText(eligibleSpecial, eligibleSpecial.currency || context.currency) }
+            : null,
+          recap: `${nights} night${nights === 1 ? '' : 's'} in the ${bestSuggestion.room.name} for ${partyText}, ${pDates.check_in} to ${pDates.check_out} — ${context.currency} ${Math.round(bestSuggestion.room.total)} total${eligibleSpecial ? ` (${specialLabelText(eligibleSpecial, eligibleSpecial.currency || context.currency)} via ${eligibleSpecial.name})` : ''}${usableVoucher ? ` with voucher ${usableVoucher.code}` : ''}`,
+        };
+      }
+    }
+
+    // =====================================================================
     // AI NARRATIVE: Replace templates with Lovable AI
     // =====================================================================
     const narrativeResponse = await generateAINarrative(
-      user_query, context, filteredSuggestions, intent, crossSellProperties, allRoomDetails, conversation_history
+      user_query, context, filteredSuggestions, intent, crossSellProperties, allRoomDetails, conversation_history,
+      offerSummaries, nextQuestion, bookingProposal,
     );
 
     // Surprise & Delight
@@ -1158,7 +1223,13 @@ Deno.serve(async (req) => {
       suggestions: filteredSuggestions.slice(0, 6),
       narrative_response: narrativeResponse,
       parsed_intent: intent,
+      missing_slots: missingSlots,
+      next_question: nextQuestion,
+      offers_considered: offerSummaries,
     };
+
+    if (bookingProposal) response.booking_proposal = bookingProposal;
+
 
     if (surpriseGift) response.surprise_gift = surpriseGift;
 
