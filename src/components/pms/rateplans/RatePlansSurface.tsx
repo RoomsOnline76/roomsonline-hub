@@ -1,0 +1,471 @@
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
+  Plus, TrendingUp, Pencil, DollarSign, Trash2, Building2, Ban, CalendarRange, Copy, BedDouble,
+} from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { RatePlanStopSellDialog } from "@/components/restrictions/RatePlanStopSellDialog";
+import { PackagesManager } from "@/components/pms/packages/PackagesManager";
+import { BREAKFAST_BASIS_LABELS } from "@/components/charges/ChargeCalculator";
+import { RatePlanEditor } from "@/components/pms/rateplans/RatePlanEditor";
+import { RatePlanSyncToOthersDialog } from "@/components/pms/rateplans/RatePlanSyncToOthersDialog";
+
+export const PRICING_MODELS = [
+  { value: "per_room", label: "Per Room", suffix: "/room", desc: "Flat rate per room per night" },
+  { value: "per_person", label: "Per Person", suffix: "/pp", desc: "Rate × guests × nights" },
+  { value: "per_person_sharing", label: "Per Person Sharing", suffix: "/pps", desc: "Base for 2 guests, extra per additional" },
+  { value: "per_unit", label: "Per Unit", suffix: "/unit", desc: "Rate × units × nights" },
+] as const;
+
+export interface RatePlan {
+  id: string;
+  property_id: string;
+  name: string;
+  code: string | null;
+  description: string | null;
+  is_active: boolean;
+  min_stay: number;
+  max_stay: number | null;
+  min_advance_days: number | null;
+  requires_deposit: boolean;
+  deposit_percentage: number | null;
+  base_rate: number | null;
+  pricing_model: string;
+  breakfast_included: boolean | null;
+  breakfast_amount: number | null;
+  breakfast_basis: string | null;
+}
+
+interface RoomType {
+  id: string;
+  property_id: string;
+  name: string;
+}
+
+interface RatePlanRoomLink {
+  rate_plan_id: string;
+  room_type_id: string;
+}
+
+export interface RatePlansSurfaceHandle {
+  refresh: () => void;
+  openNewPlan: (propertyId?: string) => void;
+}
+
+export interface RatePlansSurfaceProps {
+  /** Properties in scope. One entry = single-property mode, more = grouped sections. */
+  properties: { id: string; name: string }[];
+  /** Read-only mirror: no create / edit / delete / toggle / sync / stop-sell, and no writes at all. */
+  readOnly?: boolean;
+  /** Render the Packages manager under each property section. */
+  showPackages?: boolean;
+  /** Show a per-section heading (used by portfolio views). */
+  showSectionHeadings?: boolean;
+  /** Empty-state CTA replacement (e.g. the "Manage in ROL'OS" button). */
+  emptyStateExtra?: React.ReactNode;
+  onLoadingChange?: (loading: boolean) => void;
+}
+
+/**
+ * Shared Rate Plans surface — the card list plus the full configurator.
+ *
+ * Used by the ROL'OS Rate Plans page (editable) and by Admin → Rates & Pricing
+ * (editable for admin-managed properties, read-only for ROL'OS properties).
+ */
+export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurfaceProps>(
+  function RatePlansSurface(
+    { properties, readOnly = false, showPackages = false, showSectionHeadings = false, emptyStateExtra, onLoadingChange },
+    ref,
+  ) {
+    const [plans, setPlans] = useState<RatePlan[]>([]);
+    const [roomTypes, setRoomTypes] = useState<RoomType[]>([]);
+    const [links, setLinks] = useState<RatePlanRoomLink[]>([]);
+    const [seasonCounts, setSeasonCounts] = useState<Record<string, number>>({});
+    const [loading, setLoading] = useState(true);
+    const [stopSellPlan, setStopSellPlan] = useState<RatePlan | null>(null);
+    const [syncPlan, setSyncPlan] = useState<RatePlan | null>(null);
+    const [editor, setEditor] = useState<{ propertyId: string; ratePlanId: string | null } | null>(null);
+
+    const propertyIdsKey = useMemo(() => properties.map((p) => p.id).sort().join(","), [properties]);
+
+    const fetchData = useCallback(async () => {
+      const ids = propertyIdsKey ? propertyIdsKey.split(",") : [];
+      if (ids.length === 0) {
+        setPlans([]);
+        setRoomTypes([]);
+        setLinks([]);
+        setLoading(false);
+        return;
+      }
+      setLoading(true);
+      onLoadingChange?.(true);
+
+      const [plansRes, roomTypesRes] = await Promise.all([
+        supabase
+          .from("rolos_rate_plans")
+          .select("id, property_id, name, code, description, is_active, min_stay, max_stay, min_advance_days, requires_deposit, deposit_percentage, base_rate, pricing_model, breakfast_included, breakfast_amount, breakfast_basis")
+          .in("property_id", ids)
+          .is("deleted_at", null)
+          .order("name"),
+        supabase
+          .from("rolos_room_types")
+          .select("id, property_id, name")
+          .in("property_id", ids)
+          .eq("is_active", true)
+          .order("name"),
+      ]);
+
+      const planIds = (plansRes.data || []).map((p: { id: string }) => p.id);
+      const [linksRes, seasonRatesRes] = planIds.length
+        ? await Promise.all([
+            supabase.from("rolos_rate_plan_room_types").select("rate_plan_id, room_type_id").in("rate_plan_id", planIds),
+            supabase
+              .from("rolos_rate_plan_season_rates")
+              .select("rate_plan_id, shared_season_id")
+              .in("rate_plan_id", planIds)
+              .is("deleted_at", null),
+          ])
+        : [{ data: [] as RatePlanRoomLink[] }, { data: [] as { rate_plan_id: string }[] }];
+
+      const counts: Record<string, number> = {};
+      for (const row of (seasonRatesRes.data || []) as { rate_plan_id: string }[]) {
+        counts[row.rate_plan_id] = (counts[row.rate_plan_id] ?? 0) + 1;
+      }
+
+      setPlans((plansRes.data || []) as RatePlan[]);
+      setRoomTypes((roomTypesRes.data || []) as RoomType[]);
+      setLinks((linksRes.data || []) as RatePlanRoomLink[]);
+      setSeasonCounts(counts);
+      setLoading(false);
+      onLoadingChange?.(false);
+      // onLoadingChange is intentionally excluded — parents pass inline callbacks.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [propertyIdsKey]);
+
+    useEffect(() => {
+      fetchData();
+    }, [fetchData]);
+
+    useImperativeHandle(
+      ref,
+      () => ({
+        refresh: fetchData,
+        openNewPlan: (propertyId?: string) => {
+          if (readOnly) return;
+          const target = propertyId ?? properties[0]?.id;
+          if (target) setEditor({ propertyId: target, ratePlanId: null });
+        },
+      }),
+      [fetchData, properties, readOnly],
+    );
+
+    const getLinkedRoomTypes = (planId: string) =>
+      links.filter((l) => l.rate_plan_id === planId).map((l) => l.room_type_id);
+    const getRoomTypeName = (id: string) => roomTypes.find((rt) => rt.id === id)?.name || id;
+
+    const handleToggleActive = async (plan: RatePlan) => {
+      const { error } = await supabase
+        .from("rolos_rate_plans")
+        .update({ is_active: !plan.is_active })
+        .eq("id", plan.id);
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+      fetchData();
+    };
+
+    const handleDeletePlan = async (plan: RatePlan) => {
+      await supabase.from("rolos_rate_plan_room_types").delete().eq("rate_plan_id", plan.id);
+      await supabase.from("rolos_rate_plan_season_rates").delete().eq("rate_plan_id", plan.id);
+      const { data: seasons } = await supabase.from("rolos_rate_seasons").select("id").eq("rate_plan_id", plan.id);
+      if (seasons?.length) {
+        await supabase.from("rolos_rate_prices").delete().in("season_id", seasons.map((s) => s.id));
+        await supabase.from("rolos_rate_seasons").delete().eq("rate_plan_id", plan.id);
+      }
+      const { error } = await supabase.from("rolos_rate_plans").delete().eq("id", plan.id);
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+      toast.success(`Rate plan "${plan.name}" deleted`);
+      fetchData();
+    };
+
+    const editorRoomTypes = useMemo(
+      () =>
+        editor
+          ? roomTypes.filter((rt) => rt.property_id === editor.propertyId).map((rt) => ({ id: rt.id, name: rt.name }))
+          : [],
+      [editor, roomTypes],
+    );
+
+    const propertySections = useMemo(
+      () => properties.map((p) => ({ id: p.id, name: p.name, plans: plans.filter((pl) => pl.property_id === p.id) })),
+      [properties, plans],
+    );
+
+    const renderPlanCard = (plan: RatePlan) => {
+      const linkedIds = getLinkedRoomTypes(plan.id);
+      const pricedSeasons = seasonCounts[plan.id] ?? 0;
+      const model = PRICING_MODELS.find((m) => m.value === plan.pricing_model);
+      const openEditor = readOnly
+        ? undefined
+        : () => setEditor({ propertyId: plan.property_id, ratePlanId: plan.id });
+      return (
+        <Card key={plan.id} className={`group ${plan.is_active === false ? "opacity-50" : ""}`}>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg">
+                {plan.name}
+                {plan.is_active === false && (
+                  <Badge variant="outline" className="ml-2 text-xs text-muted-foreground">Inactive</Badge>
+                )}
+              </CardTitle>
+              {readOnly ? (
+                <Badge variant="outline" className="text-xs">
+                  {plan.is_active === false ? "Inactive" : "Active"}
+                </Badge>
+              ) : (
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                    title="Sync to other properties"
+                    onClick={() => setSyncPlan(plan)}
+                  >
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                    title="Stop Sell"
+                    onClick={() => setStopSellPlan(plan)}
+                  >
+                    <Ban className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                    title="Edit rate plan"
+                    onClick={openEditor}
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive">
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete "{plan.name}"?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This will permanently delete this rate plan, its seasons, prices, and room type links. This action cannot be undone.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => handleDeletePlan(plan)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                          Delete
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                  <Switch checked={plan.is_active ?? true} onCheckedChange={() => handleToggleActive(plan)} />
+                </div>
+              )}
+            </div>
+            {plan.code && <p className="text-xs text-muted-foreground font-mono">{plan.code}</p>}
+          </CardHeader>
+          <CardContent className={readOnly ? undefined : "cursor-pointer"} onClick={openEditor}>
+            {plan.description && !plan.description.toLowerCase().includes("configure rate amount") && (
+              <p className="text-sm text-muted-foreground mb-2">{plan.description}</p>
+            )}
+            <div className="flex flex-wrap gap-2 text-xs text-muted-foreground mb-2">
+              <Badge variant="outline" className="text-xs capitalize">{model?.label || plan.pricing_model}</Badge>
+              {plan.base_rate && plan.base_rate > 0 ? (
+                <div className="flex items-center gap-1">
+                  <DollarSign className="h-3 w-3" />
+                  <span className="font-semibold text-foreground">
+                    R{plan.base_rate.toLocaleString()}{model?.suffix || ""}
+                  </span>
+                </div>
+              ) : (
+                <span className="text-muted-foreground/60 italic">No base rate set</span>
+              )}
+              <span className="flex items-center gap-1">
+                <CalendarRange className="h-3 w-3" />
+                {pricedSeasons > 0 ? `${pricedSeasons} season${pricedSeasons === 1 ? "" : "s"} priced` : "Base rate only"}
+              </span>
+              <span>Min stay: {plan.min_stay}n</span>
+              {plan.max_stay ? <span>Max stay: {plan.max_stay}n</span> : null}
+              {plan.min_advance_days ? <span>{plan.min_advance_days}d advance</span> : null}
+              {plan.requires_deposit && <Badge variant="outline" className="text-xs">Deposit</Badge>}
+              {plan.breakfast_included && (
+                <Badge variant="outline" className="text-xs border-success-border text-success">
+                  Breakfast included{plan.breakfast_amount ? ` · R${Number(plan.breakfast_amount).toLocaleString()} ${BREAKFAST_BASIS_LABELS[plan.breakfast_basis || "per_person_per_night"] || ""}` : ""}
+                </Badge>
+              )}
+            </div>
+            {linkedIds.length > 0 ? (
+              <div className="mt-2 flex flex-wrap items-center gap-1">
+                <BedDouble className="h-3 w-3 text-muted-foreground" />
+                {linkedIds.map((rtId) => (
+                  <Badge key={rtId} variant="secondary" className="text-xs">{getRoomTypeName(rtId)}</Badge>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground/60 mt-2 italic">Not linked to any units</p>
+            )}
+          </CardContent>
+        </Card>
+      );
+    };
+
+    if (loading) {
+      return (
+        <div className="space-y-2">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="h-16 rounded-md bg-muted animate-pulse" />
+          ))}
+        </div>
+      );
+    }
+
+    return (
+      <>
+        <div className="space-y-6">
+          {plans.length === 0 && (
+            <Card>
+              <CardContent className="py-12 text-center">
+                <TrendingUp className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                <p className="text-muted-foreground mb-2">No rate plans configured.</p>
+                <p className="text-sm text-muted-foreground">
+                  {readOnly
+                    ? "Rate plans for this property are configured in ROL'OS."
+                    : "Create a rate plan, price your Calendar seasons, and link the units it sells."}
+                </p>
+                {emptyStateExtra ? <div className="mt-4 flex justify-center">{emptyStateExtra}</div> : null}
+              </CardContent>
+            </Card>
+          )}
+          {propertySections.map((section) => (
+            <div key={section.id} className="space-y-3">
+              {showSectionHeadings && (
+                <div className="flex items-center gap-2 sticky top-0 z-10 bg-background/95 backdrop-blur py-2 border-b">
+                  <Building2 className="h-4 w-4 text-muted-foreground" />
+                  <h2 className="text-lg font-semibold">{section.name}</h2>
+                  <Badge variant="outline" className="text-xs">
+                    {section.plans.length} plan{section.plans.length === 1 ? "" : "s"}
+                  </Badge>
+                  {!readOnly && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="ml-auto"
+                      onClick={() => setEditor({ propertyId: section.id, ratePlanId: null })}
+                    >
+                      <Plus className="h-4 w-4 mr-1" />New plan
+                    </Button>
+                  )}
+                </div>
+              )}
+              {section.plans.length === 0 ? (
+                plans.length > 0 ? <p className="text-sm text-muted-foreground italic">No rate plans for this property.</p> : null
+              ) : (
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  {section.plans.map(renderPlanCard)}
+                </div>
+              )}
+              {showPackages && (
+                <div className="pt-4 border-t">
+                  <PackagesManager
+                    propertyId={section.id}
+                    ratePlans={section.plans.map((p) => ({ id: p.id, name: p.name }))}
+                  />
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {!readOnly && (
+          <Dialog open={!!editor} onOpenChange={(open) => { if (!open) setEditor(null); }}>
+            <DialogContent className="max-h-[92vh] max-w-5xl overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>{editor?.ratePlanId ? "Edit rate plan" : "New rate plan"}</DialogTitle>
+              </DialogHeader>
+              {editor && !editor.ratePlanId && properties.length > 1 && (
+                <div className="space-y-1.5">
+                  <span className="text-sm font-medium">Property</span>
+                  <Select
+                    value={editor.propertyId}
+                    onValueChange={(v) => setEditor({ propertyId: v, ratePlanId: null })}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Select property" /></SelectTrigger>
+                    <SelectContent>
+                      {properties.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              {editor?.propertyId && (
+                <RatePlanEditor
+                  key={`${editor.propertyId}:${editor.ratePlanId ?? "new"}`}
+                  propertyId={editor.propertyId}
+                  propertyName={properties.find((p) => p.id === editor.propertyId)?.name}
+                  ratePlanId={editor.ratePlanId}
+                  roomTypes={editorRoomTypes}
+                  onSaved={() => { setEditor(null); fetchData(); }}
+                  onCancel={() => setEditor(null)}
+                />
+              )}
+            </DialogContent>
+          </Dialog>
+        )}
+
+        {!readOnly && syncPlan && (
+          <RatePlanSyncToOthersDialog
+            open={!!syncPlan}
+            onOpenChange={(o) => { if (!o) setSyncPlan(null); }}
+            ratePlanId={syncPlan.id}
+            ratePlanName={syncPlan.name}
+            sourcePropertyId={syncPlan.property_id}
+            properties={properties}
+            onCopied={fetchData}
+          />
+        )}
+
+        {!readOnly && stopSellPlan && (
+          <RatePlanStopSellDialog
+            open={!!stopSellPlan}
+            onOpenChange={(o) => { if (!o) setStopSellPlan(null); }}
+            propertyId={stopSellPlan.property_id}
+            propertyName={properties.find((p) => p.id === stopSellPlan.property_id)?.name}
+            ratePlanId={stopSellPlan.id}
+            ratePlanName={stopSellPlan.name}
+            ratePlanCode={stopSellPlan.code}
+            portfolioProperties={properties.length > 1 ? properties : undefined}
+          />
+        )}
+      </>
+    );
+  },
+);

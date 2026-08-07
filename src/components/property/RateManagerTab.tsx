@@ -1,4 +1,7 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { isRolosPms } from "@/lib/pmsUtils";
+import { RatePlansSurface } from "@/components/pms/rateplans/RatePlansSurface";
+import { ExternalLink } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -105,8 +108,18 @@ export function RateManagerTab({
 
   const { toast } = useToast();
 
+  /** ROL'OS-managed properties never edit rates from Admin — ROL'OS is the source of truth. */
+  const isRolosProperty = isRolosPms(selectedPMS);
+  const rateSurfaceProperties = useMemo(
+    () => (propertyId ? [{ id: propertyId, name: "" }] : []),
+    [propertyId],
+  );
+
   // ── Local state ────────────────────────────────────────────────────────
-  const [activeTab, setActiveTab] = useState<string>("rate-types");
+  const [activeTab, setActiveTab] = useState<string>(isRolosProperty ? "rate-plans" : "rate-types");
+  /** Keep hidden sub-tabs unreachable for ROL'OS properties. */
+  const effectiveTab =
+    isRolosProperty && ["rate-types", "season", "rate-breakdown"].includes(activeTab) ? "rate-plans" : activeTab;
   const [isSeasonDialogOpen, setIsSeasonDialogOpen] = useState(false);
   const [editingSeason, setEditingSeason] = useState<any>(null);
   const [expandedSeasons, setExpandedSeasons] = useState<Record<string, boolean>>({});
@@ -263,16 +276,56 @@ export function RateManagerTab({
 
       {/* Main Content - Rate Breakdown Details */}
       <div className="flex-1 overflow-auto">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <Tabs value={effectiveTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="flex h-auto w-full flex-wrap justify-start gap-0.5">
-            <TabsTrigger value="rate-types">Rate Types</TabsTrigger>
-            {!isRolProperty && <TabsTrigger value="season">Seasons</TabsTrigger>}
+            <TabsTrigger value="rate-plans">Rate Plans</TabsTrigger>
+            {!isRolosProperty && <TabsTrigger value="rate-types">Rate Types</TabsTrigger>}
+            {!isRolosProperty && !isRolProperty && <TabsTrigger value="season">Seasons</TabsTrigger>}
             <TabsTrigger value="seasons-calendar">Calendar / Seasons</TabsTrigger>
-            <TabsTrigger value="rate-breakdown">Rate Breakdown</TabsTrigger>
+            {!isRolosProperty && <TabsTrigger value="rate-breakdown">Rate Breakdown</TabsTrigger>}
             <TabsTrigger value="charges">Charges</TabsTrigger>
             <TabsTrigger value="policies">Policies</TabsTrigger>
             <TabsTrigger value="overview">Overview</TabsTrigger>
           </TabsList>
+
+          {/* ── Rate Plans Sub-tab (mirror of the ROL'OS configurator) ────── */}
+          <TabsContent value="rate-plans" className="p-3 space-y-3">
+            {!propertyId ? (
+              <p className="text-sm text-muted-foreground">Save the property first to configure rate plans.</p>
+            ) : isRolosProperty ? (
+              <div className="space-y-3">
+                <div className="flex flex-wrap items-start justify-between gap-2 rounded-md border bg-muted/40 p-3">
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium">Rate plans are managed in ROL'OS</p>
+                    <p className="max-w-[62ch] text-xs text-muted-foreground">
+                      This property uses ROL'OS as its PMS, so ROL'OS is the single source of truth for rates. The
+                      summary below is read-only — nothing here writes to the property.
+                    </p>
+                  </div>
+                  <Button asChild size="sm" className="gap-1">
+                    <a href={`/pms/rate-plans?property=${propertyId}`} target="_blank" rel="noreferrer">
+                      Manage Rate Plans in ROL'OS
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  </Button>
+                </div>
+                <RatePlansSurface
+                  properties={rateSurfaceProperties}
+                  readOnly
+                  emptyStateExtra={
+                    <Button asChild size="sm" className="gap-1">
+                      <a href={`/pms/rate-plans?property=${propertyId}`} target="_blank" rel="noreferrer">
+                        Manage Rate Plans in ROL'OS
+                        <ExternalLink className="h-3 w-3" />
+                      </a>
+                    </Button>
+                  }
+                />
+              </div>
+            ) : (
+              <RatePlansSurface properties={rateSurfaceProperties} />
+            )}
+          </TabsContent>
 
           {/* ── Rate Types Sub-tab ────────────────────────────────────────── */}
           <TabsContent value="rate-types" className="p-3 space-y-3">
