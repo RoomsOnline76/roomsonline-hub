@@ -274,75 +274,52 @@ export function RateManagerTab({
   // ── Render ─────────────────────────────────────────────────────────────
   return (
     <div className="flex gap-3 h-[calc(100vh-230px)] min-h-[520px]">
-      {/* Left Sidebar - Room Types List */}
-      <div className="w-44 shrink-0 overflow-y-auto border-r bg-muted/30 p-1.5 space-y-px">
-        <div className="flex items-center justify-between mb-2 px-1">
-          <h3 className="font-semibold text-xs text-muted-foreground">
-            {(accommodationLabel ? ACCOMMODATION_LABEL_OPTIONS.find((o) => o.value === accommodationLabel)?.label?.toUpperCase() : "ROOM")} TYPES
-          </h3>
-        </div>
-        {roomTypes.map((room) => (
-          <div
-            key={room.id}
-            onClick={() => setSelectedRoomType(room.id)}
-            className={`px-2 py-1 rounded cursor-pointer text-left transition-colors ${
-              selectedRoomType === room.id ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-muted/80"
-            }`}
-          >
-            <span className="text-xs font-medium">{room.name}</span>
+      {/* Left Sidebar - Room Types List (rates surface only) */}
+      {view === "rates" && (
+        <div className="w-44 shrink-0 overflow-y-auto border-r bg-muted/30 p-1.5 space-y-px">
+          <div className="flex items-center justify-between mb-2 px-1">
+            <h3 className="font-semibold text-xs text-muted-foreground">
+              {(accommodationLabel ? ACCOMMODATION_LABEL_OPTIONS.find((o) => o.value === accommodationLabel)?.label?.toUpperCase() : "ROOM")} TYPES
+            </h3>
           </div>
-        ))}
-      </div>
+          {roomTypes.map((room) => (
+            <div
+              key={room.id}
+              onClick={() => setSelectedRoomType(room.id)}
+              className={`px-2 py-1 rounded cursor-pointer text-left transition-colors ${
+                selectedRoomType === room.id ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-muted/80"
+              }`}
+            >
+              <span className="text-xs font-medium">{room.name}</span>
+            </div>
+          ))}
+        </div>
+      )}
 
-      {/* Main Content - Rate Breakdown Details */}
+      {/* Main Content */}
       <div className="flex-1 overflow-auto">
         <Tabs value={effectiveTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="flex h-auto w-full flex-wrap justify-start gap-0.5">
-            <TabsTrigger value="rate-plans">Rate Plans</TabsTrigger>
-            {!isRolosProperty && <TabsTrigger value="rate-types">Rate Types</TabsTrigger>}
-            {!isRolosProperty && !isRolProperty && <TabsTrigger value="season">Seasons</TabsTrigger>}
-            <TabsTrigger value="seasons-calendar">Calendar / Seasons</TabsTrigger>
-            {!isRolosProperty && <TabsTrigger value="rate-breakdown">Rate Breakdown</TabsTrigger>}
-            <TabsTrigger value="charges">Charges</TabsTrigger>
-            <TabsTrigger value="policies">Policies</TabsTrigger>
-          </TabsList>
+          {view === "rates" && (
+            <TabsList className="flex h-auto w-full flex-wrap justify-start gap-0.5">
+              <TabsTrigger value="seasons-calendar">Calendar / Seasons</TabsTrigger>
+              {!isRolosProperty && !isRolProperty && <TabsTrigger value="season">Seasons</TabsTrigger>}
+              {!isRolosProperty && <TabsTrigger value="rate-types">Rate Types</TabsTrigger>}
+              {!isRolosProperty && <TabsTrigger value="rate-plans">Rate Plans</TabsTrigger>}
+              {!isRolosProperty && <TabsTrigger value="rate-breakdown">Rate Breakdown</TabsTrigger>}
+            </TabsList>
+          )}
 
-          {/* ── Rate Plans Sub-tab (mirror of the ROL'OS configurator) ────── */}
-          <TabsContent value="rate-plans" className="p-3 space-y-3">
-            {!propertyId ? (
-              <p className="text-sm text-muted-foreground">Save the property first to configure rate plans.</p>
-            ) : isRolosProperty ? (
-              <div className="space-y-3">
-                <div className="flex flex-wrap items-start justify-between gap-2 rounded-md border bg-muted/40 p-3">
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium">Rate plans are managed in ROL'OS</p>
-                    <p className="max-w-[62ch] text-xs text-muted-foreground">
-                      This property uses ROL'OS as its PMS, so ROL'OS is the single source of truth for rates. The
-                      summary below is read-only — nothing here writes to the property. Calendar owns seasons (when);
-                      Rate Plans owns commercial rates and unit links (what it costs).
-                    </p>
+          {/* ── Rate Plans Sub-tab (non-ROL'OS mirror only) ───────────────── */}
+          {!isRolosProperty && (
+            <TabsContent value="rate-plans" className="p-3 space-y-3">
+              {!propertyId ? (
+                <p className="text-sm text-muted-foreground">Save the property first to configure rate plans.</p>
+              ) : (
+                <RatePlansSurface properties={rateSurfaceProperties} />
+              )}
+            </TabsContent>
+          )}
 
-                  </div>
-                  <Button size="sm" className="gap-1" onClick={goToRatePlans}>
-                    Manage Rate Plans in ROL'OS
-                    <ArrowRight className="h-3 w-3" />
-                  </Button>
-                </div>
-                <RatePlansSurface
-                  properties={rateSurfaceProperties}
-                  readOnly
-                  emptyStateExtra={
-                    <Button size="sm" className="gap-1" onClick={goToRatePlans}>
-                      Manage Rate Plans in ROL'OS
-                      <ArrowRight className="h-3 w-3" />
-                    </Button>
-                  }
-                />
-              </div>
-            ) : (
-              <RatePlansSurface properties={rateSurfaceProperties} />
-            )}
-          </TabsContent>
 
           {/* ── Rate Types Sub-tab ────────────────────────────────────────── */}
           <TabsContent value="rate-types" className="p-3 space-y-3">
