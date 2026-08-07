@@ -690,7 +690,16 @@ async function copyPlan(sb: any, ratePlanId: string, targetPropertyIds: string[]
       breakfast_basis: plan.breakfast_basis,
       policy_id: policyLink?.policy_id ?? null,
       units,
-      season_rates: [...seasonDraft.values()],
+      season_rates: [...seasonDraft.values()].map((sr) => {
+        const byName = seasonValueByName.get(sr.calendar_season_id);
+        if (!byName) return sr;
+        const unit_values: Record<string, number> = {};
+        for (const [name, value] of byName) {
+          const targetRoomId = targetByName.get(name);
+          if (targetRoomId) unit_values[targetRoomId] = value;
+        }
+        return { ...sr, unit_values };
+      }),
     };
 
     const res = await savePlan(sb, targetId, draft);
