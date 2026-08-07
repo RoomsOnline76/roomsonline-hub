@@ -181,8 +181,16 @@ export function ratePlanDraftReducer(state: RatePlanDraft, action: DraftAction):
     }
 
     case "fill_unit_row": {
-      const source = state.season_rates.find((s) => s.calendar_season_id === action.sourceCalendarSeasonId);
+      const ordered = action.calendarSeasonIds
+        .map((id) => state.season_rates.find((s) => s.calendar_season_id === id))
+        .filter((s): s is DraftSeasonRate => !!s && s.mode !== "none");
+      const preferred = ordered.find((s) => s.calendar_season_id === action.sourceCalendarSeasonId);
+      const source =
+        preferred && (preferred.unit_rates[action.roomTypeId] ?? "") !== ""
+          ? preferred
+          : ordered.find((s) => (s.unit_rates[action.roomTypeId] ?? "") !== "");
       const value = source?.unit_rates[action.roomTypeId] ?? "";
+      if (value === "") return state;
       const targets = new Set(action.calendarSeasonIds);
       return {
         ...state,
