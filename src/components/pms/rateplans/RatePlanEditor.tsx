@@ -231,7 +231,62 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
     });
   }, [propertyId]);
 
+  // What the live booking engine resolves today per season per unit — used for the
+  // placeholders and the "bring in live rates" seeding. Non-blocking.
+  const unitSignature = draft.units.map((u) => u.room_type_id).sort().join(",");
+  const baseRate = draft.base_rate;
+  const pricingModel = draft.pricing_model;
+  useEffect(() => {
+    if (!propertyId || loading || !unitSignature) return;
+    let cancelled = false;
+    setLiveMatrixLoading(true);
+    (async () => {
+      const { data } = await supabase.functions.invoke("rolos-rate-plans", {
+        body: {
+          action: "season_rate_matrix",
+          property_id: propertyId,
+          draft: {
+            rate_plan_id: ratePlanId,
+            base_rate: baseRate === "" ? null : Number(baseRate),
+            pricing_model: pricingModel,
+            units: unitSignature.split(",").map((id) => ({ room_type_id: id })),
+          },
+        },
+      });
+      if (cancelled) return;
+      const next: LiveSeasonMatrix = new Map();
+      const rows = (data as { seasons?: { calendar_season_id: string; units?: { room_type_id: string; price: number }[] }[] } | null)?.seasons ?? [];
+      for (const row of rows) {
+        const cells = new Map<string, number>();
+        for (const unit of row.units ?? []) {
+          if (Number.isFinite(unit.price) && unit.price > 0) cells.set(String(unit.room_type_id), Number(unit.price));
+        }
+        if (cells.size > 0) next.set(String(row.calendar_season_id), cells);
+      }
+      setLiveMatrix(next);
+      setLiveMatrixLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+      setLiveMatrixLoading(false);
+    };
+  }, [propertyId, ratePlanId, loading, unitSignature, baseRate, pricingModel]);
+
+  const onSeedFromLive = useCallback(
+    (calendarSeasonId?: string) => {
+      const target = calendarSeasonId ? liveMatrix.get(calendarSeasonId) : null;
+      if (calendarSeasonId && (!target || target.size === 0)) {
+        toast.info("No live rates found for that season");
+        return;
+      }
+      dispatch({ type: "seed_matrix", matrix: liveMatrix, calendarSeasonId });
+      toast.success(calendarSeasonId ? "Season filled from live rates" : "Matrix filled from live rates");
+    },
+    [liveMatrix],
+  );
+
   const pricedSeasons = useMemo(() => draft.season_rates.filter((s) => s.mode !== "none").length, [draft.season_rates]);
+
 
   const handleSave = useCallback(async () => {
     if (!draft.name.trim()) {
