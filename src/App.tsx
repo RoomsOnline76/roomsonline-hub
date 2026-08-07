@@ -382,6 +382,7 @@ const App = () => (
                         {/* ═══ PMS routes (persistent shell) ═════════════ */}
                         <Route path="/pms" element={<ProtectedRoute><PMSShell /></ProtectedRoute>}>
                           <Route index element={<PMSDashboard />} />
+                          <Route path="bookings" element={<Bookings />} />
                           <Route path="rooms" element={<PMSRooms />} />
                           <Route path="room-types" element={<PMSRoomTypes />} />
                           <Route path="rate-plans" element={<PMSRatePlans />} />
