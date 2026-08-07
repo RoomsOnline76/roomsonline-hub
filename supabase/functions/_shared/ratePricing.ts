@@ -343,22 +343,8 @@ export function resolveNightRate(
 
   const season = seasonForDate(inputs.seasons, date);
 
-  // 2. Calendar season rate — authored amount, already final, no differential.
-  if (season) {
-    const keys = inputs.seasonRateKeys?.[unit.id] ?? unitKeys(unit);
-    const calendar = pickCalendarSeasonRate(inputs.seasonRates, season.id, keys, plan?.rate_plan_id);
-    if (calendar) {
-      return {
-        date,
-        price: calendar.price,
-        extra_guest_price: calendar.extra_guest_price,
-        source: "calendar_season",
-        season_name: season.name,
-      };
-    }
-  }
-
-  // 3. Plan season rate — absolute, or a differential on the plan base rate.
+  // 2. Plan season rate — Rate Plans are the authoring surface, so they win.
+  //    Absolute amount, or a differential on the plan base rate.
   if (plan && rolosId) {
     const planSeason = planSeasonRateForDate(inputs.planSeasonRates?.[rolosId], date, season?.id ?? null);
     if (planSeason) {
@@ -376,6 +362,21 @@ export function resolveNightRate(
           season_name: season?.name,
         };
       }
+    }
+  }
+
+  // 3. Legacy Calendar season rate — read-only fallback for un-migrated properties.
+  if (season) {
+    const keys = inputs.seasonRateKeys?.[unit.id] ?? unitKeys(unit);
+    const calendar = pickCalendarSeasonRate(inputs.seasonRates, season.id, keys, plan?.rate_plan_id);
+    if (calendar) {
+      return {
+        date,
+        price: calendar.price,
+        extra_guest_price: calendar.extra_guest_price,
+        source: "calendar_season",
+        season_name: season.name,
+      };
     }
   }
 
