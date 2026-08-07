@@ -196,16 +196,26 @@ async function syncSharedSeasons(sb: any, propertyId: string, amenities: Record<
 }
 
 /** The final nightly amount a draft season rate produces for one unit. */
+/** The cell value a unit carries for a season, or null when it inherits the column value. */
+function seasonUnitValue(sr: DraftSeasonRate, roomTypeId: string): number | null {
+  const raw = sr.unit_values?.[roomTypeId];
+  return raw === undefined || raw === null ? null : num(raw);
+}
+
 function draftSeasonAmount(draft: Draft, sr: DraftSeasonRate, unit: DraftUnit): number | null {
   const planBase = positive(draft.base_rate) ?? 0;
+  const cell = seasonUnitValue(sr, String(unit.room_type_id));
+  const isDiff = sr.mode === "differential" || (sr.differential_type && sr.differential_type !== "none");
   let amount: number | null = null;
-  if (sr.mode === "differential" || (sr.differential_type && sr.differential_type !== "none")) {
+  if (isDiff) {
     if (!planBase) return null;
-    amount = applyDifferential(planBase, sr.differential_type, sr.differential_value);
+    amount = applyDifferential(planBase, sr.differential_type, cell ?? sr.differential_value);
   } else {
-    amount = positive(sr.base_rate);
+    amount = cell !== null && cell > 0 ? cell : positive(sr.base_rate);
   }
   if (!amount) return null;
+  // An explicit cell is already unit-specific — the Linked Units difference would double up.
+  if (cell !== null) return amount;
   return applyDifferential(amount, unit.differential_type, unit.differential_value);
 }
 
