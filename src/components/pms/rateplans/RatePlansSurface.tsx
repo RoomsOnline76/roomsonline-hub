@@ -26,7 +26,7 @@ import { RatePlanExtrasSummary } from "@/components/pms/rateplans/RatePlanExtras
 import { type SeasonRateRow } from "@/components/pms/rateplans/RatePlanSeasonGrid";
 
 import { buildSeasonColorMap, type SeasonColorMap } from "@/lib/seasonColors";
-import { canonicalPricingModel } from "@/components/pms/rateplans/ratePlanDraft";
+import { canonicalPricingModel, pricingNoun } from "@/components/pms/rateplans/ratePlanDraft";
 
 export const PRICING_MODELS = [
   { value: "per_room", label: "Per Room", suffix: "/room", desc: "Flat rate per room per night" },
