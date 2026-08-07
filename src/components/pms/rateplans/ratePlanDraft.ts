@@ -346,32 +346,3 @@ export function pricingSummary(baseRate: number | null, pricedSeasons: number): 
   if (pricedSeasons === 0) return base;
   return `${base} · ${pricedSeasons} season${pricedSeasons === 1 ? "" : "s"} priced`;
 }
-
-/**
- * Read the legacy per-season rates the Calendar wrote into a property's amenities blob
- * for one rate plan. Shape: season_rates[legacyRoomId]["<seasonId>-<ratePlanId>"].roomAmount
- * Returns calendar season id -> sorted list of the distinct nightly rates found.
- */
-export function readLegacySeasonRates(
-  amenities: Json | null | undefined,
-  ratePlanId: string | null,
-): Map<string, number[]> {
-  const out = new Map<string, number[]>();
-  if (!ratePlanId) return out;
-  const blob = ((amenities ?? {}) as Record<string, unknown>).season_rates;
-  if (!blob || typeof blob !== "object") return out;
-  for (const perRoom of Object.values(blob as Record<string, unknown>)) {
-    if (!perRoom || typeof perRoom !== "object") continue;
-    for (const [key, value] of Object.entries(perRoom as Record<string, unknown>)) {
-      if (!key.endsWith(`-${ratePlanId}`)) continue;
-      const seasonId = key.slice(0, key.length - ratePlanId.length - 1);
-      const amount = Number((value as Record<string, unknown>)?.roomAmount);
-      if (!seasonId || !Number.isFinite(amount) || amount <= 0) continue;
-      const list = out.get(seasonId) ?? [];
-      if (!list.includes(amount)) list.push(amount);
-      out.set(seasonId, list);
-    }
-  }
-  for (const list of out.values()) list.sort((a, b) => a - b);
-  return out;
-}
