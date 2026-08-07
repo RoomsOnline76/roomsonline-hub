@@ -45,7 +45,7 @@ export default function PMSGroups() {
   const [pickupBlock, setPickupBlock] = useState<GroupBlock | null>(null);
   const [pickupLine, setPickupLine] = useState<RoomingRow | null>(null);
   const [busyBlockId, setBusyBlockId] = useState<string | null>(null);
-  const [blockForm, setBlockForm] = useState({ room_type_id: "", blocked_count: "1", rate_override: "", start_date: "", end_date: "", release_date: "" });
+  const [blockForm, setBlockForm] = useState({ room_type_id: "", blocked_count: "1", rate_override: "", start_date: "", end_date: "", release_date: "", package_id: "none" });
   const [form, setForm] = useState({ name: "", group_type: "corporate", contact_name: "", contact_email: "", contact_phone: "", total_rooms: "1", notes: "", check_in_date: "", check_out_date: "", attrition_rate: "0", release_date: "", billing_mode: "individual", cutoff_date: "" });
 
   const { data: groups = [], isLoading } = useQuery({
@@ -169,13 +169,14 @@ export default function PMSGroups() {
         start_date: blockForm.start_date || selectedGroup.check_in_date,
         end_date: blockForm.end_date || selectedGroup.check_out_date,
         release_date: blockForm.release_date || null,
+        package_id: blockForm.package_id === "none" ? null : blockForm.package_id,
       });
     },
     onSuccess: () => {
       refreshGroupData();
       toast.success("Rooms blocked — availability reduced");
       setShowBlockDialog(false);
-      setBlockForm({ room_type_id: "", blocked_count: "1", rate_override: "", start_date: "", end_date: "", release_date: "" });
+      setBlockForm({ room_type_id: "", blocked_count: "1", rate_override: "", start_date: "", end_date: "", release_date: "", package_id: "none" });
     },
     onError: (err: Error) => toast.error("Failed to add block", { description: err.message }),
   });
@@ -409,6 +410,19 @@ export default function PMSGroups() {
                 <Label>End Date</Label>
                 <Input type="date" value={blockForm.end_date || selectedGroup?.check_out_date || ""} onChange={(e) => setBlockForm((f) => ({ ...f, end_date: e.target.value }))} />
               </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Package (optional)</Label>
+              <Select value={blockForm.package_id} onValueChange={(v) => setBlockForm((f) => ({ ...f, package_id: v }))}>
+                <SelectTrigger><SelectValue placeholder={packages.length ? "No package" : "No packages configured"} /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No package</SelectItem>
+                  {packages.map((pkg) => (
+                    <SelectItem key={pkg.id} value={pkg.id}>{pkg.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">Applied to every room picked up from this block.</p>
             </div>
             <div className="space-y-1.5">
               <Label>Release Date (optional)</Label>
