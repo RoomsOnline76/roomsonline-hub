@@ -1304,6 +1304,15 @@ async function handleModifyReservation(body: unknown, supabase: any): Promise<Re
     );
   }
 
+  // Move inventory: release the original stay, hold the new one, then mirror
+  // both ranges into the availability cache from the authoritative calendar.
+  if (finalArrival !== existing.arrival_date || finalDeparture !== existing.departure_date) {
+    for (const [roomTypeId, count] of requiredRooms.entries()) {
+      await applyBookedInventory(supabase, propertyId, roomTypeId, existing.arrival_date, existing.departure_date, -count);
+      await applyBookedInventory(supabase, propertyId, roomTypeId, finalArrival, finalDeparture, count);
+    }
+  }
+
   // Also update rolos_reservations if exists
   const { data: rolosRes } = await supabase.from("rolos_reservations")
     .select("id, status")
