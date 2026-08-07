@@ -186,7 +186,13 @@ export function AccountSummaryPanel({
       ? "Pro Forma issued"
       : "Uninvoiced";
 
+  const partyIncomplete = (party.billToType === "company" || party.billToType === "agent") && !party.accountId;
+
   const generate = async (kind: "pro_forma" | "tax_invoice") => {
+    if (partyIncomplete) {
+      toast.error("Select the profile this invoice is billed to");
+      return;
+    }
     setBusy(kind);
     try {
       const { data, error } = await supabase.functions.invoke("pms-financial", {
@@ -195,9 +201,14 @@ export function AccountSummaryPanel({
           booking_id: bookingId,
           property_id: propertyId,
           document_kind: kind,
-          invoice_to: invoiceTo || guestName,
+          invoice_to: party.billToType === "guest" ? (invoiceTo || guestName) : null,
           reference: reference || null,
+          bill_to_type: party.billToType,
+          bill_to_account_id: party.accountId,
+          channel_key: party.billToType === "channel" ? (bookingChannel || "direct") : null,
+          commission_rate: party.commissionRate,
         },
+
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
