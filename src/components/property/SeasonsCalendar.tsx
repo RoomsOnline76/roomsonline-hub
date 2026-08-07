@@ -485,11 +485,12 @@ export default function SeasonsCalendar({
         </div>
 
         {/* Legend */}
-        {seasons.length > 0 && (
-          <div className="flex flex-wrap gap-2">
-            {seasons.map((s, i) => {
-              const c = getSeasonColor(s, i);
+        {(visibleSeasons.length > 0 || expiredSeasonIds.size > 0) && (
+          <div className="flex flex-wrap items-center gap-2">
+            {visibleSeasons.map((s) => {
+              const c = getSeasonColor(s, seasons.indexOf(s));
               const periodCount = getSeasonPeriods(s).length;
+              const expired = expiredSeasonIds.has(s.id);
               return (
                 <button
                   key={s.id}
@@ -497,11 +498,13 @@ export default function SeasonsCalendar({
                   className={cn(
                     "flex items-center gap-1 px-2 py-0.5 rounded text-xs border transition-all",
                     c.bg, c.border, c.text,
+                    expired && "opacity-60",
                     selectedSeasonId === s.id && "ring-2 ring-primary shadow-sm",
                   )}
                 >
                   {s.name || s.title}
                   {periodCount > 1 && <span className="opacity-60">({periodCount})</span>}
+                  {expired && <span className="opacity-70">· past</span>}
                   {!isReadOnly && (
                     <Trash2
                       className="h-3 w-3 ml-1 opacity-50 hover:opacity-100"
@@ -511,8 +514,19 @@ export default function SeasonsCalendar({
                 </button>
               );
             })}
+            {expiredSeasonIds.size > 0 && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-6 text-[10px]"
+                onClick={() => { setShowPastSeasons((v) => !v); setIsAddingPeriod(false); }}
+              >
+                {showPastSeasons ? "Hide" : "Show"} past seasons ({expiredSeasonIds.size})
+              </Button>
+            )}
           </div>
         )}
+
 
         {/* Add Season Form (when range selected) */}
         {isAdding && selectionStart && selectionEnd && (
