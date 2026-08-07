@@ -21,6 +21,8 @@ import { RatePlanEditor } from "@/components/pms/rateplans/RatePlanEditor";
 import { RatePlanSyncToOthersDialog } from "@/components/pms/rateplans/RatePlanSyncToOthersDialog";
 import { PropertyLegacyRatesBanner } from "@/components/pms/rateplans/PropertyLegacyRatesBanner";
 import { RatePlanRateMatrix } from "@/components/pms/rateplans/RatePlanRateMatrix";
+import { RatePlanExtrasSummary } from "@/components/pms/rateplans/RatePlanExtrasSummary";
+
 import { type SeasonRateRow } from "@/components/pms/rateplans/RatePlanSeasonGrid";
 
 import { buildSeasonColorMap, type SeasonColorMap } from "@/lib/seasonColors";
