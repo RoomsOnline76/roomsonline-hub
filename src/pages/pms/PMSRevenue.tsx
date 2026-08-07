@@ -30,6 +30,9 @@ import {
 } from "lucide-react";
 import { PriceLabsPanel } from "./PMSPriceLabs";
 import { PmsPageSkeleton } from "@/components/pms/PmsPageSkeleton";
+import { useRevenueMix } from "@/hooks/useRevenueStreamTotals";
+import { RevenueMixPanel } from "@/components/pms/revenue/RevenueMixPanel";
+
 
 // ============================================================================
 // Yield Rules Hook
