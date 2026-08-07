@@ -1,7 +1,6 @@
 import { memo, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Coins, Loader2, PackagePlus, ShieldCheck, Tag } from "lucide-react";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { CancellationRule } from "@/lib/policyFormatter";
 
 interface ChargeRow {
