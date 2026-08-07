@@ -98,6 +98,20 @@ export const RatePlan7DayRates = memo(function RatePlan7DayRates({ ratePlanId }:
 
   const isToday = startDate === today();
 
+  /** Season per night (first unit that reports one) — drives the colour overlay. */
+  const seasonByDate = new Map<string, string>();
+  for (const d of dates) {
+    for (const u of units) {
+      const name = u.days.find((x) => x.date === d)?.season_name?.trim();
+      if (name) {
+        seasonByDate.set(d, name);
+        break;
+      }
+    }
+  }
+  const seasonsInView = Array.from(new Set(dates.map((d) => seasonByDate.get(d)).filter(Boolean))) as string[];
+  const hasFallbackNights = dates.some((d) => !seasonByDate.get(d));
+
   return (
     <div className="w-[15.5rem] shrink-0 overflow-hidden rounded-md border bg-muted/20">
       <div className="flex items-center justify-between border-b px-1.5 py-0.5">
@@ -146,8 +160,8 @@ export const RatePlan7DayRates = memo(function RatePlan7DayRates({ ratePlanId }:
             {dates.map((d) => (
               <th
                 key={d}
-                title={holidayName(d) ? `${d} · ${holidayName(d)}` : d}
-                className={`px-0.5 py-0.5 text-center font-normal ${columnTint(d)} ${
+                title={[d, seasonByDate.get(d), holidayName(d)].filter(Boolean).join(" · ")}
+                className={`px-0.5 py-0.5 text-center font-normal ${columnTint(d, seasonByDate.get(d))} ${
                   isWeekend(d) || isSunday(d) || holidayName(d) ? "text-foreground font-medium" : ""
                 }`}
               >
@@ -172,7 +186,7 @@ export const RatePlan7DayRates = memo(function RatePlan7DayRates({ ratePlanId }:
                   <td
                     key={d}
                     title={`${u.name} · ${d}${holidayName(d) ? ` · ${holidayName(d)}` : ""}${day ? ` · R${day.price.toLocaleString()} (${sourceLabel(day)})` : ""}`}
-                    className={`px-0.5 py-0.5 text-center font-mono tabular-nums ${columnTint(d)} ${
+                    className={`px-0.5 py-0.5 text-center font-mono tabular-nums ${columnTint(d, seasonByDate.get(d))} ${
                       day?.source === "daily_override" ? "text-warning-foreground font-semibold" : ""
                     }`}
                   >
@@ -184,13 +198,24 @@ export const RatePlan7DayRates = memo(function RatePlan7DayRates({ ratePlanId }:
           ))}
         </tbody>
       </table>
-      <div className="flex items-center gap-2 border-t px-1.5 py-0.5 text-[9px] text-muted-foreground">
-        <span className="flex items-center gap-1">
-          <span className="h-2 w-2 rounded-sm bg-amber-500/40" aria-hidden /> Weekend
-        </span>
-        <span className="flex items-center gap-1">
-          <span className="h-2 w-2 rounded-sm bg-primary/40" aria-hidden /> Public holiday
-        </span>
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 border-t px-1.5 py-0.5 text-[9px] text-muted-foreground">
+        {seasonsInView.map((name) => (
+          <span key={name} className="flex items-center gap-1">
+            <span className={`h-2 w-2 rounded-sm ${seasonColor(name).dot}`} aria-hidden />
+            <span className="uppercase tracking-wide">{name}</span>
+          </span>
+        ))}
+        {hasFallbackNights && (
+          <>
+            <span className="flex items-center gap-1">
+              <span className="h-2 w-2 rounded-sm bg-amber-500/40" aria-hidden /> Weekend
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="h-2 w-2 rounded-sm bg-primary/40" aria-hidden /> Holiday
+            </span>
+            <span>Base rate fallback</span>
+          </>
+        )}
       </div>
     </div>
   );
