@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { format, differenceInDays } from "date-fns";
 import { CalendarIcon, Plus, Trash2, BedDouble } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { callPmsApi } from "@/hooks/usePmsApi";
 import { toast } from "sonner";
 import { useCrmAccounts, useCrmScopeForProperty, type CrmAccount } from "@/hooks/useCrmAccounts";
 import {
@@ -414,6 +415,14 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
       });
       const { error: lineError } = await supabase.from("rolos_booking_rooms").insert(lineRows as never);
       if (lineError) console.warn("Room line insert failed:", lineError);
+
+      // Post charges + the accommodation / F&B split immediately so the folio is
+      // correct from creation instead of waiting for the night audit.
+      try {
+        await callPmsApi("apply_service_charges", { booking_id: insertedData.id });
+      } catch (chargeErr) {
+        console.warn("Service charge / revenue split apply failed:", chargeErr);
+      }
     }
 
     setSaving(false);

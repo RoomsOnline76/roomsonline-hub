@@ -19,7 +19,7 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { z } from "npm:zod@3.23.8";
-import { normalizeRevenueStream, resolveBreakfastConfig, breakfastPortion, splitAccommodationAmount } from "../_shared/revenueStreams.ts";
+import { normalizeRevenueStream, resolveBreakfastConfig, postBookingStreamSplit } from "../_shared/revenueStreams.ts";
 import { applyBookedInventory } from "../_shared/availabilityCache.ts";
 
 // ============================================================================
@@ -113,6 +113,7 @@ const baseRequestSchema = z.object({
     "get_daily_metrics",
     // Service Charges & Refunds
     "apply_service_charges",
+    "backfill_revenue_streams",
     "process_checkout_refunds",
     "get_booking_charges",
     // Phase 1: Inventory Calendar
@@ -501,6 +502,9 @@ Deno.serve(async (req) => {
         break;
       case "apply_service_charges":
         result = await handleApplyServiceCharges(body, supabase);
+        break;
+      case "backfill_revenue_streams":
+        result = await handleBackfillRevenueStreams(body, supabase);
         break;
       case "process_checkout_refunds":
         result = await handleProcessCheckoutRefunds(body, supabase);
@@ -2049,7 +2053,7 @@ async function handleGetFolio(body: any, supabase: any): Promise<Response> {
 
 // deno-lint-ignore no-explicit-any
 async function handleAddFolioCharge(body: any, supabase: any): Promise<Response> {
-  const { booking_id, description, amount, tax_amount, transaction_type } = body;
+  const { booking_id, description, amount, tax_amount, transaction_type, revenue_stream } = body;
   if (!booking_id || !description || amount === undefined) {
     return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "booking_id, description, amount required", "add_folio_charge")),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
@@ -2062,7 +2066,9 @@ async function handleAddFolioCharge(body: any, supabase: any): Promise<Response>
   }
   const { data, error } = await supabase.from("rolos_folio_transactions").insert({
     folio_id: folio.id, transaction_type: transaction_type || "charge", description, amount, tax_amount,
+    revenue_stream: normalizeRevenueStream(revenue_stream),
   }).select().single();
+
   if (error) return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, error.message, "add_folio_charge")),
     { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 });
   return new Response(JSON.stringify(createSuccessResponse(data, "add_folio_charge")),
@@ -2464,32 +2470,62 @@ async function handleApplyServiceCharges(body: any, supabase: any): Promise<Resp
   // Post the accommodation / F&B split for the room revenue when breakfast is
   // included in the rate. Total posted equals the original accommodation total.
   if (breakfastConfig) {
-    const { data: existingRoomLines } = await supabase.from("rolos_folio_transactions")
-      .select("id").eq("folio_id", folio.id).eq("transaction_type", "charge")
-      .like("description", "Accommodation%").limit(1);
-
-    if (!existingRoomLines?.length) {
-      const fnbPortion = breakfastPortion(breakfastConfig, { nights, guests: totalGuests });
-      const lines = splitAccommodationAmount(subtotal, fnbPortion, {
-        accommodation: `Accommodation (${nights} night${nights === 1 ? "" : "s"})`,
-        fnb: `${breakfastConfig.label} (included in rate)`,
-      });
-      if (lines.length > 1) {
-        for (const line of lines) {
-          await supabase.from("rolos_folio_transactions").insert({
-            folio_id: folio.id,
-            transaction_type: "charge",
-            description: line.description,
-            amount: line.amount,
-            revenue_stream: line.stream,
-          });
-        }
-        applied.push({ split: lines });
-      }
-    }
+    const split = await postBookingStreamSplit(supabase, {
+      bookingId: booking_id,
+      propertyId: booking.property_id,
+      folioId: folio.id,
+      nights,
+      guests: totalGuests,
+      rooms: roomCount,
+      total: subtotal,
+      config: breakfastConfig,
+    });
+    if (split.posted) applied.push({ split: split.lines });
   }
 
+
   return new Response(JSON.stringify(createSuccessResponse({ applied, count: applied.length }, "apply_service_charges")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+}
+
+// deno-lint-ignore no-explicit-any
+async function handleBackfillRevenueStreams(body: any, supabase: any): Promise<Response> {
+  const propertyId = body.propertyId || body.property_id;
+  const bookingId = body.booking_id || null;
+  if (!propertyId && !bookingId) {
+    return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "propertyId or booking_id required", "backfill_revenue_streams")),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
+  }
+
+  let query = supabase.from("bookings")
+    .select("id, property_id, check_in_date, check_out_date, adults, children, total_price, rolos_folio_id, rolos_room_ids, status")
+    .not("rolos_folio_id", "is", null)
+    .in("status", ["confirmed", "checked_in", "paid"]);
+  query = bookingId ? query.eq("id", bookingId) : query.eq("property_id", propertyId).limit(500);
+  const { data: bookings, error } = await query;
+  if (error) {
+    return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, error.message, "backfill_revenue_streams")),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 });
+  }
+
+  let split = 0;
+  const skipped: Record<string, number> = {};
+  for (const b of (bookings || [])) {
+    const nights = Math.max(1, Math.ceil((new Date(b.check_out_date).getTime() - new Date(b.check_in_date).getTime()) / 86400000));
+    const res = await postBookingStreamSplit(supabase, {
+      bookingId: b.id,
+      propertyId: b.property_id,
+      folioId: b.rolos_folio_id,
+      nights,
+      guests: (b.adults || 1) + (b.children || 0),
+      rooms: b.rolos_room_ids?.length || 1,
+      total: Number(b.total_price) || 0,
+    });
+    if (res.posted) split++;
+    else skipped[res.reason || "unknown"] = (skipped[res.reason || "unknown"] || 0) + 1;
+  }
+
+  return new Response(JSON.stringify(createSuccessResponse({ examined: bookings?.length || 0, split, skipped }, "backfill_revenue_streams")),
     { headers: { ...corsHeaders, "Content-Type": "application/json" } });
 }
 

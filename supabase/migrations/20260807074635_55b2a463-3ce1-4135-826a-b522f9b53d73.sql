@@ -1,0 +1,2 @@
+ALTER TABLE public.rolos_rate_plans DROP CONSTRAINT IF EXISTS rolos_rate_plans_breakfast_basis_check;
+ALTER TABLE public.rolos_rate_plans ADD CONSTRAINT rolos_rate_plans_breakfast_basis_check CHECK (breakfast_basis IS NULL OR breakfast_basis IN ('per_person_per_night','per_room_per_night','per_stay'));

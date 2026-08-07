@@ -21,6 +21,26 @@ export function normalizeRevenueStream(value: unknown): RevenueStream {
   return value === 'fnb' || value === 'other' ? value : 'accommodation';
 }
 
+/**
+ * Breakfast basis — single source of truth shared with the DB constraint on
+ * rolos_rate_plans.breakfast_basis and supabase/functions/_shared/revenueStreams.ts.
+ */
+export const BREAKFAST_BASES = ['per_person_per_night', 'per_room_per_night', 'per_stay'] as const;
+export type BreakfastBasis = typeof BREAKFAST_BASES[number];
+
+export const BREAKFAST_BASIS_LABELS: Record<string, string> = {
+  per_person_per_night: 'per person / night',
+  per_room_per_night: 'per room / night',
+  per_stay: 'per stay',
+};
+
+export function normalizeBreakfastBasis(value: unknown): BreakfastBasis {
+  return (BREAKFAST_BASES as readonly string[]).includes(String(value))
+    ? (value as BreakfastBasis)
+    : 'per_person_per_night';
+}
+
+
 export type ChargeCalculationMethod = 
   | 'flat_per_stay'
   | 'per_night'

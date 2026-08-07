@@ -17,6 +17,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { PmsPageSkeleton } from "@/components/pms/PmsPageSkeleton";
 import { PackagesManager } from "@/components/pms/packages/PackagesManager";
+import { BREAKFAST_BASIS_LABELS, normalizeBreakfastBasis } from "@/components/charges/ChargeCalculator";
+
 
 const PRICING_MODELS = [
   { value: "per_room", label: "Per Room", suffix: "/room", desc: "Flat rate per room per night" },
@@ -331,7 +333,7 @@ export default function PMSRatePlans() {
         pricing_model: plan.pricing_model || "per_room",
         breakfast_included: !!plan.breakfast_included,
         breakfast_amount: plan.breakfast_amount != null ? String(plan.breakfast_amount) : "",
-        breakfast_basis: plan.breakfast_basis === "per_stay" ? "per_stay" : "per_person_per_night",
+        breakfast_basis: normalizeBreakfastBasis(plan.breakfast_basis),
         linkedRoomTypeIds: getLinkedRoomTypes(plan.id),
         target_property_id: plan.property_id,
       });
@@ -540,6 +542,11 @@ export default function PMSRatePlans() {
             )}
             <span>Min stay: {plan.min_stay}n</span>
             {plan.requires_deposit && <Badge variant="outline" className="text-xs">Deposit</Badge>}
+            {plan.breakfast_included && (
+              <Badge variant="outline" className="text-xs border-success-border text-success">
+                Breakfast included{plan.breakfast_amount ? ` · R${Number(plan.breakfast_amount).toLocaleString()} ${BREAKFAST_BASIS_LABELS[plan.breakfast_basis || "per_person_per_night"] || ""}` : ""}
+              </Badge>
+            )}
           </div>
           {linkedIds.length > 0 ? (
             <div className="flex flex-wrap gap-1 mt-2">
@@ -671,6 +678,7 @@ export default function PMSRatePlans() {
                             <SelectTrigger><SelectValue /></SelectTrigger>
                             <SelectContent>
                               <SelectItem value="per_person_per_night">Per person / night</SelectItem>
+                              <SelectItem value="per_room_per_night">Per room / night</SelectItem>
                               <SelectItem value="per_stay">Fixed per stay</SelectItem>
                             </SelectContent>
                           </Select>

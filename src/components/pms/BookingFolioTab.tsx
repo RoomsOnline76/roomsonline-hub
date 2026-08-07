@@ -65,7 +65,7 @@ export function BookingFolioTab({ bookingId }: BookingFolioTabProps) {
   const [applyingCharges, setApplyingCharges] = useState(false);
   const [processingRefund, setProcessingRefund] = useState<string | null>(null);
 
-  const [chargeForm, setChargeForm] = useState({ description: "", amount: "", type: "charge" });
+  const [chargeForm, setChargeForm] = useState<{ description: string; amount: string; type: string; revenue_stream: RevenueStream }>({ description: "", amount: "", type: "charge", revenue_stream: "accommodation" });
   const [paymentForm, setPaymentForm] = useState({ amount: "", method: "cash", reference: "" });
   const [streamFilter, setStreamFilter] = useState<StreamFilter>("all");
 
@@ -116,10 +116,11 @@ export function BookingFolioTab({ bookingId }: BookingFolioTabProps) {
         description: chargeForm.description,
         amount: parseFloat(chargeForm.amount),
         transaction_type: chargeForm.type,
+        revenue_stream: chargeForm.revenue_stream,
       });
       if (res.success) {
         toast.success("Charge added");
-        setChargeForm({ description: "", amount: "", type: "charge" });
+        setChargeForm({ description: "", amount: "", type: "charge", revenue_stream: "accommodation" });
         setShowChargeForm(false);
         fetchFolio();
       }
@@ -277,6 +278,17 @@ export function BookingFolioTab({ bookingId }: BookingFolioTabProps) {
                 <SelectItem value="tax">Tax</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+          <div>
+            <Select value={chargeForm.revenue_stream} onValueChange={v => setChargeForm(p => ({ ...p, revenue_stream: v as RevenueStream }))}>
+              <SelectTrigger><SelectValue placeholder="Revenue stream" /></SelectTrigger>
+              <SelectContent>
+                {(["accommodation", "fnb", "other"] as RevenueStream[]).map(s => (
+                  <SelectItem key={s} value={s}>{getRevenueStreamLabel(s)}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-[10px] text-muted-foreground mt-1">Determines whether this line reports as accommodation or F&amp;B revenue.</p>
           </div>
           <Button size="sm" onClick={handleAddCharge} disabled={saving}>{saving ? "Adding..." : "Add Charge"}</Button>
         </div>

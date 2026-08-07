@@ -151,9 +151,10 @@ Deno.serve(async (req) => {
             const breakfastConfig = await resolveBreakfastConfig(supabase, booking.id, property.id);
             const guests = (booking.adults || 1) + (booking.children || 0);
             const nightlyBreakfast = breakfastConfig
-              ? breakfastPortion(breakfastConfig, { nights: 1, guests }) /
+              ? breakfastPortion(breakfastConfig, { nights: 1, guests, rooms: 1 }) /
                 (breakfastConfig.basis === "per_stay" ? Math.max(1, nights) : 1)
               : 0;
+
             const streamLines = splitAccommodationAmount(nightlyRate, Math.round(nightlyBreakfast * 100) / 100, {
               accommodation: `Room charge — ${auditDateStr}`,
               fnb: `${breakfastConfig?.label || "Breakfast"} — ${auditDateStr}`,
