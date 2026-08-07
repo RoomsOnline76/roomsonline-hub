@@ -257,7 +257,7 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
       const linkedIds = getLinkedRoomTypes(plan.id).filter((id) => roomTypes.some((rt) => rt.id === id));
       const pricedSeasons = seasonCounts[plan.id] ?? 0;
       const planSeasonRates = seasonRates[plan.id] ?? [];
-      const model = PRICING_MODELS.find((m) => m.value === plan.pricing_model);
+      
       const openEditor = readOnly
         ? undefined
         : () => setEditor({ propertyId: plan.property_id, ratePlanId: plan.id });
@@ -337,22 +337,14 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
               <p className="text-sm text-muted-foreground mb-2">{plan.description}</p>
             )}
             <div className="flex flex-wrap gap-2 text-xs text-muted-foreground mb-2">
-              <Badge variant="outline" className="text-xs capitalize">{model?.label || plan.pricing_model}</Badge>
-              {plan.base_rate && plan.base_rate > 0 ? (
-                <div className="flex items-center gap-1">
-                  <DollarSign className="h-3 w-3" />
-                  <span className="font-semibold text-foreground">
-                    R{plan.base_rate.toLocaleString()}{model?.suffix || ""}
-                  </span>
-                </div>
-              ) : (
-                <span className="text-muted-foreground/60 italic">No base rate set</span>
+              {pricedSeasons > 0 && (
+                <span className="flex items-center gap-1">
+                  <CalendarRange className="h-3 w-3" />
+                  {`${pricedSeasons} season${pricedSeasons === 1 ? "" : "s"} priced`}
+                </span>
               )}
-              <span className="flex items-center gap-1">
-                <CalendarRange className="h-3 w-3" />
-                {pricedSeasons > 0 ? `${pricedSeasons} season${pricedSeasons === 1 ? "" : "s"} priced` : "Base rate only"}
-              </span>
               <span>Min stay: {plan.min_stay}n</span>
+
               {plan.max_stay ? <span>Max stay: {plan.max_stay}n</span> : null}
               {plan.min_advance_days ? <span>{plan.min_advance_days}d advance</span> : null}
               {plan.requires_deposit && <Badge variant="outline" className="text-xs">Deposit</Badge>}
@@ -378,11 +370,11 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
               ))}
               {plan.base_rate && plan.base_rate > 0 ? (
                 <span className="flex items-center gap-1 rounded border border-dashed px-1.5 py-0.5 text-muted-foreground">
-                  Base
+                  Unit Base fallback Rate
                   <span className="font-mono font-semibold text-foreground">R{plan.base_rate.toLocaleString()}</span>
-                  <span className="text-muted-foreground/70">fallback</span>
                 </span>
               ) : null}
+
             </div>
             {linkedIds.length > 0 ? (
               <div className="mt-2 flex flex-wrap items-center gap-1">
