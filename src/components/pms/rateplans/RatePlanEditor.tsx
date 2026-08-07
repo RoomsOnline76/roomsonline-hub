@@ -45,6 +45,47 @@ interface Props {
 
 const str = (v: unknown): string => (v === null || v === undefined ? "" : String(v));
 
+interface StoredSeasonRateRow {
+  shared_season_id: string | null;
+  room_type_id?: string | null;
+  base_rate: number | null;
+  differential_type: string | null;
+  differential_value: number | null;
+  extra_adult_rate: number | null;
+}
+
+/**
+ * Stored season rates are one row per season x unit. Collapse them into one draft
+ * column per Calendar season, with each unit's own value as a cell.
+ */
+function groupSeasonRates(
+  rows: StoredSeasonRateRow[],
+  calendarIdBySharedId: Map<string, string>,
+): DraftSeasonRate[] {
+  const byCalendarSeason = new Map<string, DraftSeasonRate>();
+  for (const row of rows) {
+    const calendarSeasonId = calendarIdBySharedId.get(String(row.shared_season_id ?? ""));
+    if (!calendarSeasonId) continue;
+    const isDifferential = !!row.differential_type && row.differential_type !== "none";
+    const value = str(isDifferential ? row.differential_value : row.base_rate);
+    let column = byCalendarSeason.get(calendarSeasonId);
+    if (!column) {
+      column = {
+        calendar_season_id: calendarSeasonId,
+        mode: isDifferential ? "differential" : "absolute",
+        base_rate: isDifferential ? "" : value,
+        differential_type: (isDifferential ? (row.differential_type as "amount" | "percent") : "amount"),
+        differential_value: isDifferential ? value : "",
+        extra_adult_rate: str(row.extra_adult_rate),
+        unit_rates: {},
+      };
+      byCalendarSeason.set(calendarSeasonId, column);
+    }
+    if (row.room_type_id) column.unit_rates[String(row.room_type_id)] = value;
+  }
+  return [...byCalendarSeason.values()];
+}
+
 export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes, onSaved, onCancel }: Props) {
   const [draft, dispatch] = useReducer(ratePlanDraftReducer, emptyDraft());
   const [seasons, setSeasons] = useState<CalendarSeason[]>([]);
