@@ -4,6 +4,8 @@ export interface RuChannelInfo {
   label: string;
   channelLogoKey: string;
   isRuSourced: boolean;
+  /** True when a specific OTA/source (e.g. Booking.com, LekkeSlaap) was identified. */
+  hasSpecificSource: boolean;
 }
 
 /**
@@ -31,6 +33,9 @@ const RU_KEY_TO_LOGO_KEY: Record<string, string> = {
   rentals_united: "rentalsunited",
 };
 
+/** RU keys that mean "direct / unmapped" rather than a specific OTA. */
+const GENERIC_RU_KEYS = new Set(["rentals_united", "unmapped", ""]);
+
 function isRuCreatorChannel(value: unknown): value is { channel_key?: string; channel_label?: string } {
   return typeof value === "object" && value !== null;
 }
@@ -54,11 +59,13 @@ export function resolveRuSourceChannel(
 
   if (isRuSourced && isRuCreatorChannel(creator)) {
     const ruKey = (creator.channel_key || "").toLowerCase();
-    const label = creator.channel_label || getChannelLabel(RU_KEY_TO_LOGO_KEY[ruKey] || ruKey);
+    const isGeneric = GENERIC_RU_KEYS.has(ruKey);
+    const logoKey = RU_KEY_TO_LOGO_KEY[ruKey] || ruKey || "rentalsunited";
     return {
-      label,
-      channelLogoKey: RU_KEY_TO_LOGO_KEY[ruKey] || ruKey || "rentalsunited",
+      label: isGeneric ? "ROL'OS Channels" : (creator.channel_label || getChannelLabel(logoKey)),
+      channelLogoKey: logoKey,
       isRuSourced: true,
+      hasSpecificSource: !isGeneric,
     };
   }
 
@@ -66,6 +73,7 @@ export function resolveRuSourceChannel(
     label: "ROL'OS Channels",
     channelLogoKey: "rentalsunited",
     isRuSourced,
+    hasSpecificSource: false,
   };
 }
 
