@@ -49,11 +49,13 @@ export const RatePlanSeasonPricingTable = memo(function RatePlanSeasonPricingTab
   draft,
   seasons,
   roomTypes,
-  legacySeasonRates,
+  liveMatrix,
+  liveMatrixLoading,
   onChange,
   onCellChange,
   onFillColumn,
   onFillRow,
+  onSeedFromLive,
 }: Props) {
   const setMode = useCallback(
     (calendarSeasonId: string, mode: SeasonPricingMode) => onChange(calendarSeasonId, { mode }),
@@ -61,6 +63,8 @@ export const RatePlanSeasonPricingTable = memo(function RatePlanSeasonPricingTab
   );
 
   const linkedUnits = roomTypes.filter((rt) => draft.units.some((u) => u.room_type_id === rt.id));
+  const planBase = Number(draft.base_rate);
+  const hasLive = !!liveMatrix && [...liveMatrix.values()].some((m) => m.size > 0);
 
   if (seasons.length === 0) {
     return (
@@ -86,11 +90,27 @@ export const RatePlanSeasonPricingTable = memo(function RatePlanSeasonPricingTab
 
   return (
     <div className="space-y-3">
-      <p className="text-xs text-muted-foreground">
-        Rows are the units this plan sells, columns are the seasons the Calendar painted (read-only). Per season choose{" "}
-        <strong>Fixed rate</strong> and capture each unit's nightly rate, or <strong>Difference</strong> to price each
-        unit off the plan base rate. <strong>Not priced</strong> means that season falls back to the base rate.
-      </p>
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <p className="max-w-[46rem] text-xs text-muted-foreground">
+          Rows are the units this plan sells, columns are the seasons the Calendar painted (read-only). Type a nightly
+          rate into any cell — the season switches to <strong>Fixed rate</strong> automatically. Use{" "}
+          <strong>Difference</strong> to price off the plan base rate, or <strong>Not priced</strong> to fall back to it.
+        </p>
+        {hasLive && (
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            className="h-7 shrink-0 gap-1.5 text-xs"
+            disabled={liveMatrixLoading}
+            onClick={() => onSeedFromLive()}
+          >
+            <Wand2 className="h-3.5 w-3.5" />
+            Bring in live rates
+          </Button>
+        )}
+      </div>
+
 
       <div className="overflow-x-auto rounded-md border">
         <table className="w-full border-collapse text-sm">
