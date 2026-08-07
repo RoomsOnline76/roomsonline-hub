@@ -71,6 +71,7 @@ export default function GroupPickupDialog({
       room_preference: roomingLine?.room_preference || "",
       special_requests: roomingLine?.special_requests || "",
     });
+    setPackageId(block?.package_id || "none");
   }, [open, block, roomingLine]);
 
   const submit = async () => {
@@ -91,6 +92,7 @@ export default function GroupPickupDialog({
         children: parseInt(form.children, 10) || 0,
         room_preference: form.room_preference.trim() || null,
         special_requests: form.special_requests.trim() || null,
+        package_id: packageId === "none" ? null : packageId,
       });
       toast.success("Room picked up — booking created");
       onOpenChange(false);
