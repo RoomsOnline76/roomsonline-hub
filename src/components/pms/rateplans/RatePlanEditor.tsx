@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useReducer, useState } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -45,6 +45,47 @@ interface Props {
 
 const str = (v: unknown): string => (v === null || v === undefined ? "" : String(v));
 
+interface StoredSeasonRateRow {
+  shared_season_id: string | null;
+  room_type_id?: string | null;
+  base_rate: number | null;
+  differential_type: string | null;
+  differential_value: number | null;
+  extra_adult_rate: number | null;
+}
+
+/**
+ * Stored season rates are one row per season x unit. Collapse them into one draft
+ * column per Calendar season, with each unit's own value as a cell.
+ */
+function groupSeasonRates(
+  rows: StoredSeasonRateRow[],
+  calendarIdBySharedId: Map<string, string>,
+): DraftSeasonRate[] {
+  const byCalendarSeason = new Map<string, DraftSeasonRate>();
+  for (const row of rows) {
+    const calendarSeasonId = calendarIdBySharedId.get(String(row.shared_season_id ?? ""));
+    if (!calendarSeasonId) continue;
+    const isDifferential = !!row.differential_type && row.differential_type !== "none";
+    const value = str(isDifferential ? row.differential_value : row.base_rate);
+    let column = byCalendarSeason.get(calendarSeasonId);
+    if (!column) {
+      column = {
+        calendar_season_id: calendarSeasonId,
+        mode: isDifferential ? "differential" : "absolute",
+        base_rate: isDifferential ? "" : value,
+        differential_type: (isDifferential ? (row.differential_type as "amount" | "percent") : "amount"),
+        differential_value: isDifferential ? value : "",
+        extra_adult_rate: str(row.extra_adult_rate),
+        unit_rates: {},
+      };
+      byCalendarSeason.set(calendarSeasonId, column);
+    }
+    if (row.room_type_id) column.unit_rates[String(row.room_type_id)] = value;
+  }
+  return [...byCalendarSeason.values()];
+}
+
 export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes, onSaved, onCancel }: Props) {
   const [draft, dispatch] = useReducer(ratePlanDraftReducer, emptyDraft());
   const [seasons, setSeasons] = useState<CalendarSeason[]>([]);
@@ -54,6 +95,12 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
   const [saving, setSaving] = useState(false);
   const { policies } = useReservationPolicies(propertyId);
 
+  // Kept in refs so the fill handlers stay stable while still seeing current rows/columns.
+  const draftUnitIdsRef = useRef<string[]>([]);
+  const seasonIdsRef = useRef<string[]>([]);
+  draftUnitIdsRef.current = draft.units.map((u) => u.room_type_id);
+  seasonIdsRef.current = seasons.map((s) => s.calendar_season_id);
+
   const setField = useCallback(
     <K extends keyof RatePlanDraft>(key: K, value: RatePlanDraft[K]) =>
       dispatch({ type: "field", key, value: value as RatePlanDraft[keyof RatePlanDraft] }),
@@ -62,6 +109,31 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
   const onSeasonChange = useCallback(
     (calendarSeasonId: string, patch: Partial<DraftSeasonRate>) =>
       dispatch({ type: "season", calendarSeasonId, patch }),
+    [],
+  );
+  const onSeasonCellChange = useCallback(
+    (calendarSeasonId: string, roomTypeId: string, value: string) =>
+      dispatch({ type: "season_unit_rate", calendarSeasonId, roomTypeId, value }),
+    [],
+  );
+  const onFillSeasonColumn = useCallback(
+    (calendarSeasonId: string, value: string) =>
+      dispatch({
+        type: "fill_season_column",
+        calendarSeasonId,
+        value,
+        roomTypeIds: draftUnitIdsRef.current,
+      }),
+    [],
+  );
+  const onFillUnitRow = useCallback(
+    (roomTypeId: string, sourceCalendarSeasonId: string) =>
+      dispatch({
+        type: "fill_unit_row",
+        roomTypeId,
+        sourceCalendarSeasonId,
+        calendarSeasonIds: seasonIdsRef.current,
+      }),
     [],
   );
   const onToggleUnit = useCallback((roomTypeId: string) => dispatch({ type: "toggle_unit", roomTypeId }), []);
@@ -101,7 +173,7 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
             .eq("rate_plan_id", ratePlanId),
           supabase
             .from("rolos_rate_plan_season_rates")
-            .select("shared_season_id, base_rate, differential_type, differential_value, extra_adult_rate")
+            .select("shared_season_id, room_type_id, base_rate, differential_type, differential_value, extra_adult_rate")
             .eq("rate_plan_id", ratePlanId)
             .is("deleted_at", null),
           supabase.from("rolos_policy_rate_links").select("policy_id").eq("rate_plan_id", ratePlanId).maybeSingle(),
@@ -131,21 +203,7 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
               differential_type: (l.differential_type as DifferentialType) ?? "none",
               differential_value: str(l.differential_value),
             })),
-            season_rates: (seasonRates ?? [])
-              .map((sr) => {
-                const calendarSeasonId = calendarIdBySharedId.get(String(sr.shared_season_id ?? ""));
-                if (!calendarSeasonId) return null;
-                const isDifferential = sr.differential_type && sr.differential_type !== "none";
-                return {
-                  calendar_season_id: calendarSeasonId,
-                  mode: isDifferential ? "differential" : "absolute",
-                  base_rate: str(sr.base_rate),
-                  differential_type: (isDifferential ? sr.differential_type : "amount") as "amount" | "percent",
-                  differential_value: str(sr.differential_value),
-                  extra_adult_rate: str(sr.extra_adult_rate),
-                } as DraftSeasonRate;
-              })
-              .filter((s): s is DraftSeasonRate => s !== null),
+            season_rates: groupSeasonRates(seasonRates ?? [], calendarIdBySharedId),
           };
         }
       } else {
@@ -333,8 +391,12 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
           <RatePlanSeasonPricingTable
             draft={draft}
             seasons={seasons}
+            roomTypes={roomTypes}
             legacySeasonRates={legacySeasonRates}
             onChange={onSeasonChange}
+            onCellChange={onSeasonCellChange}
+            onFillColumn={onFillSeasonColumn}
+            onFillRow={onFillUnitRow}
           />
 
         </CardContent>

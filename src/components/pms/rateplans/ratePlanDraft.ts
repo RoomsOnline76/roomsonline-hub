@@ -31,10 +31,13 @@ export interface DraftUnit {
 export interface DraftSeasonRate {
   calendar_season_id: string;
   mode: SeasonPricingMode;
+  /** Column-level value: the rate (absolute mode) every unit inherits unless a cell overrides it. */
   base_rate: string;
   differential_type: Exclude<DifferentialType, "none">;
   differential_value: string;
   extra_adult_rate: string;
+  /** Per-unit cell values, interpreted per the column mode. room_type_id -> raw input. */
+  unit_rates: Record<string, string>;
 }
 
 export interface RatePlanDraft {
@@ -84,7 +87,13 @@ export type DraftAction =
   | { type: "field"; key: keyof RatePlanDraft; value: RatePlanDraft[keyof RatePlanDraft] }
   | { type: "toggle_unit"; roomTypeId: string }
   | { type: "unit_differential"; roomTypeId: string; differential_type?: DifferentialType; differential_value?: string }
-  | { type: "season"; calendarSeasonId: string; patch: Partial<DraftSeasonRate> };
+  | { type: "season"; calendarSeasonId: string; patch: Partial<DraftSeasonRate> }
+  /** One cell of the unit x season matrix. */
+  | { type: "season_unit_rate"; calendarSeasonId: string; roomTypeId: string; value: string }
+  /** Push one value into every unit of a season column. */
+  | { type: "fill_season_column"; calendarSeasonId: string; value: string; roomTypeIds: string[] }
+  /** Push one unit's value across every priced season (copy to the right). */
+  | { type: "fill_unit_row"; roomTypeId: string; sourceCalendarSeasonId: string; calendarSeasonIds: string[] };
 
 const emptySeasonRate = (calendarSeasonId: string): DraftSeasonRate => ({
   calendar_season_id: calendarSeasonId,
@@ -93,6 +102,7 @@ const emptySeasonRate = (calendarSeasonId: string): DraftSeasonRate => ({
   differential_type: "amount",
   differential_value: "",
   extra_adult_rate: "",
+  unit_rates: {},
 });
 
 export function ratePlanDraftReducer(state: RatePlanDraft, action: DraftAction): RatePlanDraft {
@@ -138,6 +148,62 @@ export function ratePlanDraftReducer(state: RatePlanDraft, action: DraftAction):
       };
     }
 
+    case "season_unit_rate": {
+      const existing = state.season_rates.find((s) => s.calendar_season_id === action.calendarSeasonId);
+      const current = existing ?? emptySeasonRate(action.calendarSeasonId);
+      const unit_rates = { ...current.unit_rates };
+      if (action.value === "") delete unit_rates[action.roomTypeId];
+      else unit_rates[action.roomTypeId] = action.value;
+      const next = { ...current, unit_rates };
+      return {
+        ...state,
+        season_rates: existing
+          ? state.season_rates.map((s) => (s.calendar_season_id === action.calendarSeasonId ? next : s))
+          : [...state.season_rates, next],
+      };
+    }
+
+    case "fill_season_column": {
+      const existing = state.season_rates.find((s) => s.calendar_season_id === action.calendarSeasonId);
+      const current = existing ?? emptySeasonRate(action.calendarSeasonId);
+      const unit_rates: Record<string, string> = { ...current.unit_rates };
+      for (const id of action.roomTypeIds) {
+        if (action.value === "") delete unit_rates[id];
+        else unit_rates[id] = action.value;
+      }
+      const next = { ...current, unit_rates };
+      return {
+        ...state,
+        season_rates: existing
+          ? state.season_rates.map((s) => (s.calendar_season_id === action.calendarSeasonId ? next : s))
+          : [...state.season_rates, next],
+      };
+    }
+
+    case "fill_unit_row": {
+      const ordered = action.calendarSeasonIds
+        .map((id) => state.season_rates.find((s) => s.calendar_season_id === id))
+        .filter((s): s is DraftSeasonRate => !!s && s.mode !== "none");
+      const preferred = ordered.find((s) => s.calendar_season_id === action.sourceCalendarSeasonId);
+      const source =
+        preferred && (preferred.unit_rates[action.roomTypeId] ?? "") !== ""
+          ? preferred
+          : ordered.find((s) => (s.unit_rates[action.roomTypeId] ?? "") !== "");
+      const value = source?.unit_rates[action.roomTypeId] ?? "";
+      if (value === "") return state;
+      const targets = new Set(action.calendarSeasonIds);
+      return {
+        ...state,
+        season_rates: state.season_rates.map((s) => {
+          if (!targets.has(s.calendar_season_id) || s.mode === "none") return s;
+          const unit_rates = { ...s.unit_rates };
+          if (value === "") delete unit_rates[action.roomTypeId];
+          else unit_rates[action.roomTypeId] = value;
+          return { ...s, unit_rates };
+        }),
+      };
+    }
+
     default:
       return state;
   }
@@ -148,6 +214,10 @@ export const seasonRateFor = (draft: RatePlanDraft, calendarSeasonId: string): D
 
 export const unitFor = (draft: RatePlanDraft, roomTypeId: string): DraftUnit | undefined =>
   draft.units.find((u) => u.room_type_id === roomTypeId);
+
+/** The raw cell value for a unit in a season, "" when it inherits the column value. */
+export const seasonUnitRate = (rate: DraftSeasonRate, roomTypeId: string): string =>
+  rate.unit_rates[roomTypeId] ?? "";
 
 /** Read the Calendar's seasons out of a property's amenities blob. Read-only. */
 export function readCalendarSeasons(amenities: Json | null | undefined): CalendarSeason[] {
@@ -211,14 +281,23 @@ export function draftToPayload(draft: RatePlanDraft) {
     })),
     season_rates: draft.season_rates
       .filter((s) => s.mode !== "none")
-      .map((s) => ({
-        calendar_season_id: s.calendar_season_id,
-        mode: s.mode,
-        base_rate: s.mode === "absolute" ? numeric(s.base_rate) : null,
-        differential_type: s.mode === "differential" ? s.differential_type : "none",
-        differential_value: s.mode === "differential" ? numeric(s.differential_value) : null,
-        extra_adult_rate: numeric(s.extra_adult_rate),
-      })),
+      .map((s) => {
+        const unit_values: Record<string, number> = {};
+        for (const u of draft.units) {
+          const raw = s.unit_rates[u.room_type_id];
+          const n = numeric(raw ?? "");
+          if (n !== null) unit_values[u.room_type_id] = n;
+        }
+        return {
+          calendar_season_id: s.calendar_season_id,
+          mode: s.mode,
+          base_rate: s.mode === "absolute" ? numeric(s.base_rate) : null,
+          differential_type: s.mode === "differential" ? s.differential_type : "none",
+          differential_value: s.mode === "differential" ? numeric(s.differential_value) : null,
+          extra_adult_rate: numeric(s.extra_adult_rate),
+          unit_values,
+        };
+      }),
   };
 }
 
