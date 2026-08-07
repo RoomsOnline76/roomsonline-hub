@@ -171,7 +171,7 @@ async function releaseBlock(
       _end_date: block.end_date,
       _delta: -remaining,
     });
-    await adjustAvailabilityCache(supabase, propertyId, block.room_type_id, block.start_date, block.end_date, remaining);
+    await syncAvailabilityCache(supabase, propertyId, block.room_type_id, block.start_date, block.end_date);
   }
 
   let attritionAmount = 0;
