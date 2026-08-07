@@ -28,6 +28,10 @@ interface Props {
   /** Legacy Calendar-authored rates, per season per unit — import source only. */
   liveMatrix?: LiveSeasonMatrix;
   liveMatrixLoading?: boolean;
+  /** Calendar season id -> unit ids still priced only by the legacy Calendar grid. */
+  legacyPendingBySeason?: Map<string, Set<string>>;
+  /** Total cells waiting on the legacy import. Zero hides every import affordance. */
+  legacyPendingCells?: number;
   onChange: (calendarSeasonId: string, patch: Partial<DraftSeasonRate>) => void;
   onCellChange: (calendarSeasonId: string, roomTypeId: string, value: string) => void;
   onFillColumn: (calendarSeasonId: string, value: string) => void;
@@ -71,6 +75,8 @@ export const RatePlanSeasonPricingTable = memo(function RatePlanSeasonPricingTab
   roomTypes,
   liveMatrix,
   liveMatrixLoading,
+  legacyPendingBySeason,
+  legacyPendingCells = 0,
   onChange,
   onCellChange,
   onFillColumn,
@@ -84,7 +90,7 @@ export const RatePlanSeasonPricingTable = memo(function RatePlanSeasonPricingTab
 
   const linkedUnits = roomTypes.filter((rt) => draft.units.some((u) => u.room_type_id === rt.id));
   const planBase = Number(draft.base_rate);
-  const hasLive = !!liveMatrix && [...liveMatrix.values()].some((m) => m.size > 0);
+  const hasLegacyPending = legacyPendingCells > 0;
 
   if (seasons.length === 0) {
     return (
@@ -117,21 +123,28 @@ export const RatePlanSeasonPricingTable = memo(function RatePlanSeasonPricingTab
           <strong>Difference</strong> to price off the plan base rate, or <strong>Not priced</strong> to fall back to it.
           This is the only place nightly rates are captured; the Calendar sets season dates only.
         </p>
-        {hasLive && (
+      </div>
+
+      {hasLegacyPending && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3">
+          <p className="max-w-[40rem] text-xs text-foreground">
+            <strong>{legacyPendingCells}</strong> unit/season rate{legacyPendingCells === 1 ? "" : "s"} on this plan still
+            live only in the old Calendar grid. Move them here so Rate Plans holds every price. Cells you have already
+            priced are left untouched, and nothing is committed until you save.
+          </p>
           <Button
             type="button"
             size="sm"
             variant="secondary"
             className="h-7 shrink-0 gap-1.5 text-xs"
             disabled={liveMatrixLoading}
-            title="One-time import: copies the rates still stored on the old Calendar grid into this matrix. Nothing is overwritten."
             onClick={() => onSeedFromLive()}
           >
             <Wand2 className="h-3.5 w-3.5" />
-            Import legacy Calendar rates
+            Move these rates into this plan
           </Button>
-        )}
-      </div>
+        </div>
+      )}
 
 
       <div className="overflow-x-auto rounded-md border">
@@ -242,7 +255,7 @@ export const RatePlanSeasonPricingTable = memo(function RatePlanSeasonPricingTab
                         </div>
                       )}
 
-                      {(live?.size ?? 0) > 0 && (
+                      {(legacyPendingBySeason?.get(season.calendar_season_id)?.size ?? 0) > 0 && (
                         <Button
                           type="button"
                           size="sm"
