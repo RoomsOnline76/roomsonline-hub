@@ -94,6 +94,11 @@ export default function PMSReports() {
   const fromStr = format(dateRange.from, "yyyy-MM-dd");
   const toStr = format(dateRange.to, "yyyy-MM-dd");
 
+  // Revenue stream split (accommodation / F&B / other) for the same scope + period.
+  const { data: revenueMix } = useRevenueMix({ start: fromStr, end: toStr }, activePropertyIds);
+
+
+
   // ── Fetch bookings with infinite scroll pagination ────────────────────
 
   const {
