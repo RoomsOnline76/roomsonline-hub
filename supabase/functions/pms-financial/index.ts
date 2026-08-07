@@ -11,7 +11,29 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+/**
+ * Human label for a distribution channel key. ROL'OS surfaces never name the
+ * upstream vendor — channel-manager bookings collapse to "ROL'OS Channels".
+ */
+function channelLabel(key: string | null | undefined): string {
+  const k = String(key || "").toLowerCase();
+  if (!k) return "Direct";
+  const map: Record<string, string> = {
+    direct: "Direct",
+    legacy_direct: "Direct",
+    embed: "Website widget",
+    rol_itinerary: "ROL Itinerary",
+    rentals_united: "ROL'OS Channels",
+    rentalsunited: "ROL'OS Channels",
+    channel_manager: "ROL'OS Channels",
+    ota: "OTA",
+    manual: "Manual / Front desk",
+  };
+  return map[k] || key!;
+}
+
 function generateInvoiceHTML(invoice: any, transactions: any[], property: any, branding: any): string {
+
   const isProForma = invoice?.document_kind === "pro_forma";
   const businessName = branding?.business_name || property?.name || "Property";
   const businessAddress = branding?.business_address || "";
