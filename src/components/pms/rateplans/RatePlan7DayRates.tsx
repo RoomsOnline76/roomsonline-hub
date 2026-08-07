@@ -2,7 +2,7 @@ import { memo, useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
 import { SA_PUBLIC_HOLIDAYS } from "@/lib/saPublicHolidays";
-import { seasonColor } from "@/lib/seasonColors";
+import { seasonColor, type SeasonColorMap } from "@/lib/seasonColors";
 
 interface Day {
   date: string;
@@ -46,8 +46,8 @@ const holidayName = (iso: string): string | null =>
  * Column tint: the season colour overlays the calendar tint, so seasons read at a
  * glance. Without a season, public holidays win over weekends; Sundays are lighter.
  */
-const columnTint = (iso: string, season?: string) => {
-  if (season) return seasonColor(season).tint;
+const columnTint = (iso: string, season?: string, colors?: SeasonColorMap) => {
+  if (season) return seasonColor(season, colors).tint;
   if (holidayName(iso)) return "bg-primary/15";
   if (isWeekend(iso)) return "bg-amber-500/20 dark:bg-amber-400/15";
   if (isSunday(iso)) return "bg-amber-500/10 dark:bg-amber-400/10";
@@ -60,7 +60,14 @@ const short = (n: number) => (n >= 1000 ? `${Math.round(n / 100) / 10}k` : Strin
  * one row per linked unit. Uses the production pricing engine, so these are the
  * numbers a guest is quoted right now.
  */
-export const RatePlan7DayRates = memo(function RatePlan7DayRates({ ratePlanId }: { ratePlanId: string }) {
+export const RatePlan7DayRates = memo(function RatePlan7DayRates({
+  ratePlanId,
+  seasonColors,
+}: {
+  ratePlanId: string;
+  /** Season name -> Calendar-authored colour value. */
+  seasonColors?: SeasonColorMap;
+}) {
   const [units, setUnits] = useState<Unit[]>([]);
   const [loading, setLoading] = useState(true);
   const [startDate, setStartDate] = useState<string>(today);
@@ -171,7 +178,7 @@ export const RatePlan7DayRates = memo(function RatePlan7DayRates({ ratePlanId }:
               <th
                 key={d}
                 title={[d, d === today() ? "Today" : null, seasonByDate.get(d), holidayName(d)].filter(Boolean).join(" · ")}
-                className={`px-0.5 py-0.5 text-center font-normal ${columnTint(d, seasonByDate.get(d))} ${
+                className={`px-0.5 py-0.5 text-center font-normal ${columnTint(d, seasonByDate.get(d), seasonColors)} ${
                   isWeekend(d) || isSunday(d) || holidayName(d) ? "text-foreground font-medium" : ""
                 } ${d === today() ? "relative text-foreground font-semibold ring-1 ring-inset ring-primary" : ""}`}
               >
@@ -181,9 +188,13 @@ export const RatePlan7DayRates = memo(function RatePlan7DayRates({ ratePlanId }:
                   dayLabel(d)
                 )}
                 <span className="block text-[9px] opacity-70">{d.slice(8, 10)}</span>
-                {holidayName(d) && (
-                  <span className="mx-auto mt-px block h-1 w-1 rounded-full bg-primary" aria-hidden />
-                )}
+                {/* Weekend / public-holiday markers stay visible even under a season tint. */}
+                <span className="mt-px flex items-center justify-center gap-0.5">
+                  {(isWeekend(d) || isSunday(d)) && (
+                    <span className="block h-1 w-1 rounded-full bg-amber-500" aria-hidden />
+                  )}
+                  {holidayName(d) && <span className="block h-1 w-1 rounded-full bg-primary" aria-hidden />}
+                </span>
               </th>
             ))}
 
@@ -201,7 +212,7 @@ export const RatePlan7DayRates = memo(function RatePlan7DayRates({ ratePlanId }:
                   <td
                     key={d}
                     title={`${u.name} · ${d}${holidayName(d) ? ` · ${holidayName(d)}` : ""}${day ? ` · R${day.price.toLocaleString()} (${sourceLabel(day)})` : ""}`}
-                    className={`px-0.5 py-0.5 text-center font-mono tabular-nums ${columnTint(d, seasonByDate.get(d))} ${
+                    className={`px-0.5 py-0.5 text-center font-mono tabular-nums ${columnTint(d, seasonByDate.get(d), seasonColors)} ${
                       day?.source === "daily_override" ? "text-warning-foreground font-semibold" : ""
                     }`}
                   >
@@ -216,21 +227,17 @@ export const RatePlan7DayRates = memo(function RatePlan7DayRates({ ratePlanId }:
       <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 border-t px-1.5 py-0.5 text-[9px] text-muted-foreground">
         {seasonsInView.map((name) => (
           <span key={name} className="flex items-center gap-1">
-            <span className={`h-2 w-2 rounded-sm ${seasonColor(name).dot}`} aria-hidden />
+            <span className={`h-2 w-2 rounded-sm ${seasonColor(name, seasonColors).dot}`} aria-hidden />
             <span className="uppercase tracking-wide">{name}</span>
           </span>
         ))}
-        {hasFallbackNights && (
-          <>
-            <span className="flex items-center gap-1">
-              <span className="h-2 w-2 rounded-sm bg-amber-500/40" aria-hidden /> Weekend
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="h-2 w-2 rounded-sm bg-primary/40" aria-hidden /> Holiday
-            </span>
-            <span>Base rate fallback</span>
-          </>
-        )}
+        <span className="flex items-center gap-1">
+          <span className="h-1.5 w-1.5 rounded-full bg-amber-500" aria-hidden /> Weekend
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="h-1.5 w-1.5 rounded-full bg-primary" aria-hidden /> Holiday
+        </span>
+        {hasFallbackNights && <span>Base rate fallback</span>}
       </div>
     </div>
   );

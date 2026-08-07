@@ -20,7 +20,7 @@ import { BREAKFAST_BASIS_LABELS } from "@/components/charges/ChargeCalculator";
 import { RatePlanEditor } from "@/components/pms/rateplans/RatePlanEditor";
 import { RatePlanSyncToOthersDialog } from "@/components/pms/rateplans/RatePlanSyncToOthersDialog";
 import { RatePlan7DayRates } from "@/components/pms/rateplans/RatePlan7DayRates";
-import { seasonColor } from "@/lib/seasonColors";
+import { seasonColor, buildSeasonColorMap, type SeasonColorMap } from "@/lib/seasonColors";
 
 export const PRICING_MODELS = [
   { value: "per_room", label: "Per Room", suffix: "/room", desc: "Flat rate per room per night" },
@@ -94,6 +94,8 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
     const [links, setLinks] = useState<RatePlanRoomLink[]>([]);
     const [seasonCounts, setSeasonCounts] = useState<Record<string, number>>({});
     const [seasonRates, setSeasonRates] = useState<Record<string, { name: string; min: number; max: number }[]>>({});
+    /** Season name -> Calendar-authored colour, so cards match the Calendar. */
+    const [seasonColors, setSeasonColors] = useState<SeasonColorMap>({});
     const [loading, setLoading] = useState(true);
     const [stopSellPlan, setStopSellPlan] = useState<RatePlan | null>(null);
     const [syncPlan, setSyncPlan] = useState<RatePlan | null>(null);
@@ -113,7 +115,7 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
       setLoading(true);
       onLoadingChange?.(true);
 
-      const [plansRes, roomTypesRes] = await Promise.all([
+      const [plansRes, roomTypesRes, propsRes] = await Promise.all([
         supabase
           .from("rolos_rate_plans")
           .select("id, property_id, name, code, description, is_active, min_stay, max_stay, min_advance_days, requires_deposit, deposit_percentage, base_rate, pricing_model, breakfast_included, breakfast_amount, breakfast_basis")
@@ -126,7 +128,16 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
           .in("property_id", ids)
           .eq("is_active", true)
           .order("name"),
+        supabase.from("properties").select("id, amenities").in("id", ids),
       ]);
+
+      // Season colours are authored in the Calendar (amenities.seasons[].color).
+      const colorMap: SeasonColorMap = {};
+      for (const row of (propsRes.data || []) as { amenities: unknown }[]) {
+        const seasons = (row?.amenities as { seasons?: unknown } | null)?.seasons;
+        if (Array.isArray(seasons)) Object.assign(colorMap, buildSeasonColorMap(seasons as never));
+      }
+      setSeasonColors(colorMap);
 
       const planIds = (plansRes.data || []).map((p: { id: string }) => p.id);
       const [linksRes, seasonRatesRes] = planIds.length
@@ -355,10 +366,10 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
               {planSeasonRates.map((s) => (
                 <span
                   key={s.name}
-                  className={`flex items-center gap-1 rounded border px-1.5 py-0.5 ${seasonColor(s.name).tint}`}
+                  className={`flex items-center gap-1 rounded border px-1.5 py-0.5 ${seasonColor(s.name, seasonColors).tint}`}
                   title={`${s.name} season rate`}
                 >
-                  <span className={`h-1.5 w-1.5 rounded-full ${seasonColor(s.name).dot}`} aria-hidden />
+                  <span className={`h-1.5 w-1.5 rounded-full ${seasonColor(s.name, seasonColors).dot}`} aria-hidden />
                   <span className="uppercase tracking-wide text-muted-foreground">{s.name}</span>
                   <span className="font-mono font-semibold text-foreground">
                     R{s.min.toLocaleString()}{s.max > s.min ? `–${s.max.toLocaleString()}` : ""}
@@ -385,7 +396,7 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
             )}
           </CardContent>
         </Card>
-        {linkedIds.length > 0 && <RatePlan7DayRates ratePlanId={plan.id} />}
+        {linkedIds.length > 0 && <RatePlan7DayRates ratePlanId={plan.id} seasonColors={seasonColors} />}
         </div>
       );
     };
