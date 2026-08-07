@@ -156,7 +156,6 @@ export const RatePlanSeasonPricingTable = memo(function RatePlanSeasonPricingTab
               </th>
               {seasons.map((season) => {
                 const rate = seasonRateFor(draft, season.calendar_season_id);
-                const live = liveMatrix?.get(season.calendar_season_id);
                 const windows = upcomingWindows(season);
                 const shown = windows.slice(0, 2);
                 const extra = windows.length - shown.length;
@@ -331,7 +330,7 @@ export const RatePlanSeasonPricingTable = memo(function RatePlanSeasonPricingTab
         </table>
       </div>
       <p className="text-[10px] text-muted-foreground">
-        An empty cell inherits the season's "all units" value, then the plan base rate. "live" shows what the booking
+        An empty cell inherits the season's "all units" value, then the plan base rate. "legacy" shows what the booking
         engine currently quotes for that unit and season.
       </p>
 
