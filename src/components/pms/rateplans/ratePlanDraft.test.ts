@@ -144,3 +144,69 @@ describe("readCalendarSeasons", () => {
     expect(readCalendarSeasons({ seasons: [{ id: 1 }, { title: "no id", from: "a", to: "b" }] } as never)).toEqual([]);
   });
 });
+
+describe("pricing by season: promotion and live seeding", () => {
+  const withUnits = () => {
+    let s = { ...emptyDraft(), base_rate: "1000" };
+    s = ratePlanDraftReducer(s, { type: "toggle_unit", roomTypeId: "u1" });
+    s = ratePlanDraftReducer(s, { type: "toggle_unit", roomTypeId: "u2" });
+    return s;
+  };
+
+  it("typing a rate into a Not priced season promotes it to a fixed rate", () => {
+    let s = withUnits();
+    s = ratePlanDraftReducer(s, { type: "season_unit_rate", calendarSeasonId: "s1", roomTypeId: "u1", value: "1450" });
+    const column = seasonRateFor(s, "s1");
+    expect(column.mode).toBe("absolute");
+    expect(seasonUnitRate(column, "u1")).toBe("1450");
+    expect(draftToPayload(s).season_rates[0]).toMatchObject({
+      calendar_season_id: "s1",
+      mode: "absolute",
+      unit_values: { u1: 1450 },
+    });
+  });
+
+  it("clearing a cell does not promote an unpriced season", () => {
+    let s = withUnits();
+    s = ratePlanDraftReducer(s, { type: "season_unit_rate", calendarSeasonId: "s1", roomTypeId: "u1", value: "" });
+    expect(seasonRateFor(s, "s1").mode).toBe("none");
+    expect(draftToPayload(s).season_rates).toHaveLength(0);
+  });
+
+  it("keeps a differential column in differential mode when cells are typed", () => {
+    let s = withUnits();
+    s = ratePlanDraftReducer(s, { type: "season", calendarSeasonId: "s1", patch: { mode: "differential" } });
+    s = ratePlanDraftReducer(s, { type: "season_unit_rate", calendarSeasonId: "s1", roomTypeId: "u1", value: "150" });
+    expect(seasonRateFor(s, "s1").mode).toBe("differential");
+  });
+
+  it("seeds every season from the live matrix as absolute rates", () => {
+    let s = withUnits();
+    const matrix = new Map([
+      ["s1", new Map([["u1", 1200], ["u2", 1500]])],
+      ["s2", new Map([["u1", 900]])],
+    ]);
+    s = ratePlanDraftReducer(s, { type: "seed_matrix", matrix });
+    expect(seasonRateFor(s, "s1").mode).toBe("absolute");
+    expect(seasonUnitRate(seasonRateFor(s, "s1"), "u2")).toBe("1500");
+    expect(seasonUnitRate(seasonRateFor(s, "s2"), "u1")).toBe("900");
+    expect(seasonUnitRate(seasonRateFor(s, "s2"), "u2")).toBe("");
+  });
+
+  it("seeds only the requested season and ignores non-positive amounts", () => {
+    let s = withUnits();
+    const matrix = new Map([
+      ["s1", new Map([["u1", 1200], ["u2", 0]])],
+      ["s2", new Map([["u1", 900]])],
+    ]);
+    s = ratePlanDraftReducer(s, { type: "seed_matrix", matrix, calendarSeasonId: "s1" });
+    expect(seasonUnitRate(seasonRateFor(s, "s1"), "u1")).toBe("1200");
+    expect(seasonUnitRate(seasonRateFor(s, "s1"), "u2")).toBe("");
+    expect(seasonRateFor(s, "s2").mode).toBe("none");
+  });
+
+  it("seeding an empty matrix leaves the draft untouched", () => {
+    const s = withUnits();
+    expect(ratePlanDraftReducer(s, { type: "seed_matrix", matrix: new Map() })).toBe(s);
+  });
+});
