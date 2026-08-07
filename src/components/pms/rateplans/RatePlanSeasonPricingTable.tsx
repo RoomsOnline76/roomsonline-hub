@@ -4,7 +4,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { CalendarDays, ChevronsRight, Wand2 } from "lucide-react";
-import type { CalendarSeason, DraftSeasonRate, RatePlanDraft, SeasonPricingMode } from "./ratePlanDraft";
+import type {
+  CalendarSeason,
+  DraftSeasonRate,
+  LiveSeasonMatrix,
+  RatePlanDraft,
+  SeasonPricingMode,
+} from "./ratePlanDraft";
 import { seasonRateFor, seasonUnitRate } from "./ratePlanDraft";
 
 interface RoomTypeOption {
@@ -16,12 +22,15 @@ interface Props {
   draft: RatePlanDraft;
   seasons: CalendarSeason[];
   roomTypes: RoomTypeOption[];
-  /** Nightly rates already captured on the Calendar for this plan, per calendar season id. */
-  legacySeasonRates?: Map<string, number[]>;
+  /** Rates the live booking engine resolves today, per season per unit. */
+  liveMatrix?: LiveSeasonMatrix;
+  liveMatrixLoading?: boolean;
   onChange: (calendarSeasonId: string, patch: Partial<DraftSeasonRate>) => void;
   onCellChange: (calendarSeasonId: string, roomTypeId: string, value: string) => void;
   onFillColumn: (calendarSeasonId: string, value: string) => void;
   onFillRow: (roomTypeId: string, sourceCalendarSeasonId: string) => void;
+  /** Pull live rates into the matrix. Omit the season id to seed every season. */
+  onSeedFromLive: (calendarSeasonId?: string) => void;
 }
 
 const fmtRange = (season: CalendarSeason) =>
@@ -31,6 +40,7 @@ const fmtRange = (season: CalendarSeason) =>
 
 const fmtMoney = (n: number) => `R${n.toLocaleString("en-ZA", { maximumFractionDigits: 0 })}`;
 
+
 /**
  * Pricing by Season — a unit (rows) x Calendar season (columns) matrix.
  * Seasons come from the Calendar and are read-only here; this table only prices them.
@@ -39,11 +49,13 @@ export const RatePlanSeasonPricingTable = memo(function RatePlanSeasonPricingTab
   draft,
   seasons,
   roomTypes,
-  legacySeasonRates,
+  liveMatrix,
+  liveMatrixLoading,
   onChange,
   onCellChange,
   onFillColumn,
   onFillRow,
+  onSeedFromLive,
 }: Props) {
   const setMode = useCallback(
     (calendarSeasonId: string, mode: SeasonPricingMode) => onChange(calendarSeasonId, { mode }),
@@ -51,6 +63,8 @@ export const RatePlanSeasonPricingTable = memo(function RatePlanSeasonPricingTab
   );
 
   const linkedUnits = roomTypes.filter((rt) => draft.units.some((u) => u.room_type_id === rt.id));
+  const planBase = Number(draft.base_rate);
+  const hasLive = !!liveMatrix && [...liveMatrix.values()].some((m) => m.size > 0);
 
   if (seasons.length === 0) {
     return (
@@ -76,11 +90,27 @@ export const RatePlanSeasonPricingTable = memo(function RatePlanSeasonPricingTab
 
   return (
     <div className="space-y-3">
-      <p className="text-xs text-muted-foreground">
-        Rows are the units this plan sells, columns are the seasons the Calendar painted (read-only). Per season choose{" "}
-        <strong>Fixed rate</strong> and capture each unit's nightly rate, or <strong>Difference</strong> to price each
-        unit off the plan base rate. <strong>Not priced</strong> means that season falls back to the base rate.
-      </p>
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <p className="max-w-[46rem] text-xs text-muted-foreground">
+          Rows are the units this plan sells, columns are the seasons the Calendar painted (read-only). Type a nightly
+          rate into any cell — the season switches to <strong>Fixed rate</strong> automatically. Use{" "}
+          <strong>Difference</strong> to price off the plan base rate, or <strong>Not priced</strong> to fall back to it.
+        </p>
+        {hasLive && (
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            className="h-7 shrink-0 gap-1.5 text-xs"
+            disabled={liveMatrixLoading}
+            onClick={() => onSeedFromLive()}
+          >
+            <Wand2 className="h-3.5 w-3.5" />
+            Bring in live rates
+          </Button>
+        )}
+      </div>
+
 
       <div className="overflow-x-auto rounded-md border">
         <table className="w-full border-collapse text-sm">
@@ -91,7 +121,7 @@ export const RatePlanSeasonPricingTable = memo(function RatePlanSeasonPricingTab
               </th>
               {seasons.map((season) => {
                 const rate = seasonRateFor(draft, season.calendar_season_id);
-                const suggestions = legacySeasonRates?.get(season.calendar_season_id) ?? [];
+                const live = liveMatrix?.get(season.calendar_season_id);
                 return (
                   <th
                     key={season.calendar_season_id}
@@ -171,29 +201,20 @@ export const RatePlanSeasonPricingTable = memo(function RatePlanSeasonPricingTab
                         </div>
                       )}
 
-                      {rate.mode !== "none" && suggestions.length > 0 && (
-                        <div className="flex flex-wrap items-center gap-1">
-                          <Wand2 className="h-3 w-3 text-muted-foreground" />
-                          {suggestions.map((amount) => (
-                            <Button
-                              key={amount}
-                              type="button"
-                              size="sm"
-                              variant="secondary"
-                              className="h-5 px-1.5 text-[10px] font-normal"
-                              onClick={() => {
-                                onChange(season.calendar_season_id, {
-                                  mode: "absolute",
-                                  base_rate: String(amount),
-                                });
-                                onFillColumn(season.calendar_season_id, String(amount));
-                              }}
-                            >
-                              Use {fmtMoney(amount)}
-                            </Button>
-                          ))}
-                        </div>
+                      {(live?.size ?? 0) > 0 && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="secondary"
+                          className="h-5 gap-1 px-1.5 text-[10px] font-normal"
+                          title="Fill this season's cells with the rates the live booking engine uses today"
+                          onClick={() => onSeedFromLive(season.calendar_season_id)}
+                        >
+                          <Wand2 className="h-3 w-3" />
+                          Use live rates
+                        </Button>
                       )}
+
                     </div>
                   </th>
                 );
@@ -223,23 +244,30 @@ export const RatePlanSeasonPricingTable = memo(function RatePlanSeasonPricingTab
                 </th>
                 {seasons.map((season) => {
                   const rate = seasonRateFor(draft, season.calendar_season_id);
-                  const disabled = rate.mode === "none";
-                  const inherited = rate.mode === "differential" ? rate.differential_value : rate.base_rate;
+                  const columnValue = rate.mode === "differential" ? rate.differential_value : rate.base_rate;
+                  const liveValue = liveMatrix?.get(season.calendar_season_id)?.get(rt.id);
+                  // What this cell resolves to while it is empty, best hint first.
+                  const fallback =
+                    columnValue !== ""
+                      ? columnValue
+                      : rate.mode === "differential"
+                        ? "0"
+                        : liveValue && liveValue > 0
+                          ? `${fmtMoney(liveValue)} live`
+                          : planBase > 0
+                            ? `${fmtMoney(planBase)} base`
+                            : "Rate";
                   return (
                     <td key={season.calendar_season_id} className="border-l p-1.5 align-middle">
-                      {disabled ? (
-                        <p className="px-1 text-[10px] italic text-muted-foreground">Base rate</p>
-                      ) : (
-                        <Input
-                          type="number"
-                          inputMode="decimal"
-                          className="h-7 text-xs"
-                          aria-label={`${rt.name} — ${season.name}`}
-                          placeholder={inherited ? inherited : rate.mode === "differential" ? "0" : "Rate"}
-                          value={seasonUnitRate(rate, rt.id)}
-                          onChange={(e) => onCellChange(season.calendar_season_id, rt.id, e.target.value)}
-                        />
-                      )}
+                      <Input
+                        type="number"
+                        inputMode="decimal"
+                        className={`h-7 text-xs ${rate.mode === "none" ? "border-dashed" : ""}`}
+                        aria-label={`${rt.name} — ${season.name}`}
+                        placeholder={fallback}
+                        value={seasonUnitRate(rate, rt.id)}
+                        onChange={(e) => onCellChange(season.calendar_season_id, rt.id, e.target.value)}
+                      />
                     </td>
                   );
                 })}
@@ -249,8 +277,10 @@ export const RatePlanSeasonPricingTable = memo(function RatePlanSeasonPricingTab
         </table>
       </div>
       <p className="text-[10px] text-muted-foreground">
-        An empty cell inherits the season's "all units" value, then the plan base rate.
+        An empty cell inherits the season's "all units" value, then the plan base rate. "live" shows what the booking
+        engine currently quotes for that unit and season.
       </p>
+
     </div>
   );
 });

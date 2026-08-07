@@ -317,6 +317,96 @@ async function previewDraft(
 }
 
 /**
+ * The nightly rate the live booking engine resolves TODAY for each linked unit in each
+ * Calendar season — used to seed the Pricing by season matrix so authored values match
+ * what guests are already quoted. Read-only; nothing is written.
+ */
+async function seasonRateMatrix(sb: any, propertyId: string, draft: Draft) {
+  const { data: property } = await sb
+    .from("properties")
+    .select("amenities")
+    .eq("id", propertyId)
+    .maybeSingle();
+  const amenities = (property?.amenities ?? {}) as Record<string, any>;
+  const seasons = calendarSeasons(amenities);
+  if (seasons.length === 0) return { seasons: [] };
+
+  // One window wide enough to cover every season period we need to sample.
+  const froms = seasons.map((s) => s.start_date).sort();
+  const tos = seasons.map((s) => s.end_date).sort();
+  const window = { from: froms[0], to: tos[tos.length - 1] };
+
+  const resolver = await createRateResolver(sb, propertyId, { amenities, window });
+  const baseInputs = resolver.pricingInputs as PricingInputs;
+
+  const { data: roomTypes } = await sb
+    .from("rolos_room_types")
+    .select("id, name")
+    .eq("property_id", propertyId);
+  const nameById = new Map<string, string>(((roomTypes ?? []) as any[]).map((r) => [String(r.id), r.name]));
+
+  const draftUnits = (draft.units ?? []).filter((u) => u?.room_type_id);
+  const planId = draft.rate_plan_id ? String(draft.rate_plan_id) : "draft-plan";
+
+  // Sample the first night of the earliest period of each season, per unit.
+  const bySeason = new Map<string, { room_type_id: string; name: string; price: number; source: string; season_name?: string }[]>();
+
+  for (const unit of draftUnits) {
+    const rolosId = String(unit.room_type_id);
+    const resolved = resolver.units.find((u) => String(u.linked_rolos_id ?? "") === rolosId);
+    const ctx: UnitRateContext = resolved ?? {
+      id: rolosId,
+      name: nameById.get(rolosId) ?? "Unit",
+      linked_rolos_id: rolosId,
+    };
+
+    // Stored plan values only — this must reflect what booking reads today, so no draft
+    // season overrides are injected here.
+    const plan: PricingRatePlan = {
+      rate_plan_id: planId,
+      base_rate: positive(draft.base_rate) ?? 0,
+      pricing_model: draft.pricing_model || "per_room",
+      is_active: true,
+      min_stay: intOrNull(draft.min_stay),
+      max_stay: intOrNull(draft.max_stay),
+      differential_type: unit.differential_type ?? "none",
+      differential_value: unit.differential_value ?? null,
+    };
+    const inputs: PricingInputs = {
+      ...baseInputs,
+      ratePlans: { ...baseInputs.ratePlans, [rolosId]: plan },
+    };
+
+    for (const season of seasons) {
+      const existing = bySeason.get(season.calendar_season_id) ?? [];
+      if (existing.some((r) => r.room_type_id === rolosId)) continue;
+      const [day] = resolveNightRates(inputs, ctx, season.start_date, addDays(season.start_date, 1));
+      if (!day || !(day.price > 0)) continue;
+      existing.push({
+        room_type_id: rolosId,
+        name: nameById.get(rolosId) ?? ctx.name,
+        price: day.price,
+        source: day.source,
+        season_name: day.season_name,
+      });
+      bySeason.set(season.calendar_season_id, existing);
+    }
+  }
+
+  return {
+    seasons: seasons
+      // Collapse multi-period seasons: they share one calendar_season_id.
+      .filter((s, i, arr) => arr.findIndex((x) => x.calendar_season_id === s.calendar_season_id) === i)
+      .map((s) => ({
+        calendar_season_id: s.calendar_season_id,
+        name: s.name,
+        units: bySeason.get(s.calendar_season_id) ?? [],
+      })),
+  };
+}
+
+/**
+
  * Price a SAVED rate plan with stored data only — no draft overrides. This is exactly
  * what the booking engine quotes today, used for the dense strip on the plan cards.
  */
@@ -774,6 +864,13 @@ Deno.serve(async (req) => {
       return json(result);
     }
 
+    if (action === "season_rate_matrix") {
+      const propertyId = String(body?.property_id ?? "");
+      const denied = await assertAccess(propertyId);
+      if (denied) return json({ error: denied }, 403);
+      const result = await seasonRateMatrix(sb, propertyId, (body?.draft ?? {}) as Draft);
+      return json(result);
+    }
 
 
     if (action === "save_plan") {

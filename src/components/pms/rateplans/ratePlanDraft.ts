@@ -82,6 +82,9 @@ export const emptyDraft = (): RatePlanDraft => ({
   season_rates: [],
 });
 
+/** Live nightly rates the booking engine currently resolves: season id -> unit id -> amount. */
+export type LiveSeasonMatrix = Map<string, Map<string, number>>;
+
 export type DraftAction =
   | { type: "reset"; draft: RatePlanDraft }
   | { type: "field"; key: keyof RatePlanDraft; value: RatePlanDraft[keyof RatePlanDraft] }
@@ -93,7 +96,12 @@ export type DraftAction =
   /** Push one value into every unit of a season column. */
   | { type: "fill_season_column"; calendarSeasonId: string; value: string; roomTypeIds: string[] }
   /** Push one unit's value across every priced season (copy to the right). */
-  | { type: "fill_unit_row"; roomTypeId: string; sourceCalendarSeasonId: string; calendarSeasonIds: string[] };
+  | { type: "fill_unit_row"; roomTypeId: string; sourceCalendarSeasonId: string; calendarSeasonIds: string[] }
+  /**
+   * Seed the matrix from the rates the live booking engine resolves today. Only the
+   * seasons in `matrix` are touched; `calendarSeasonId` limits it to one column.
+   */
+  | { type: "seed_matrix"; matrix: LiveSeasonMatrix; calendarSeasonId?: string };
 
 const emptySeasonRate = (calendarSeasonId: string): DraftSeasonRate => ({
   calendar_season_id: calendarSeasonId,
@@ -104,6 +112,11 @@ const emptySeasonRate = (calendarSeasonId: string): DraftSeasonRate => ({
   extra_adult_rate: "",
   unit_rates: {},
 });
+
+/** Typing a rate into a "Not priced" column promotes it to a fixed seasonal rate. */
+const promoted = (rate: DraftSeasonRate, value: string): DraftSeasonRate =>
+  rate.mode === "none" && value !== "" ? { ...rate, mode: "absolute" } : rate;
+
 
 export function ratePlanDraftReducer(state: RatePlanDraft, action: DraftAction): RatePlanDraft {
   switch (action.type) {
@@ -150,7 +163,7 @@ export function ratePlanDraftReducer(state: RatePlanDraft, action: DraftAction):
 
     case "season_unit_rate": {
       const existing = state.season_rates.find((s) => s.calendar_season_id === action.calendarSeasonId);
-      const current = existing ?? emptySeasonRate(action.calendarSeasonId);
+      const current = promoted(existing ?? emptySeasonRate(action.calendarSeasonId), action.value);
       const unit_rates = { ...current.unit_rates };
       if (action.value === "") delete unit_rates[action.roomTypeId];
       else unit_rates[action.roomTypeId] = action.value;
@@ -165,7 +178,7 @@ export function ratePlanDraftReducer(state: RatePlanDraft, action: DraftAction):
 
     case "fill_season_column": {
       const existing = state.season_rates.find((s) => s.calendar_season_id === action.calendarSeasonId);
-      const current = existing ?? emptySeasonRate(action.calendarSeasonId);
+      const current = promoted(existing ?? emptySeasonRate(action.calendarSeasonId), action.value);
       const unit_rates: Record<string, string> = { ...current.unit_rates };
       for (const id of action.roomTypeIds) {
         if (action.value === "") delete unit_rates[id];
@@ -179,6 +192,32 @@ export function ratePlanDraftReducer(state: RatePlanDraft, action: DraftAction):
           : [...state.season_rates, next],
       };
     }
+
+    case "seed_matrix": {
+      const seasonIds = action.calendarSeasonId
+        ? [action.calendarSeasonId].filter((id) => action.matrix.has(id))
+        : [...action.matrix.keys()];
+      if (seasonIds.length === 0) return state;
+      let season_rates = state.season_rates;
+      for (const seasonId of seasonIds) {
+        const cells = action.matrix.get(seasonId);
+        if (!cells || cells.size === 0) continue;
+        const existing = season_rates.find((s) => s.calendar_season_id === seasonId);
+        const current = existing ?? emptySeasonRate(seasonId);
+        const unit_rates = { ...current.unit_rates };
+        for (const [roomTypeId, amount] of cells) {
+          if (!Number.isFinite(amount) || amount <= 0) continue;
+          unit_rates[roomTypeId] = String(amount);
+        }
+        // Seeded values are absolute nightly rates, never differences.
+        const next: DraftSeasonRate = { ...current, mode: "absolute", unit_rates };
+        season_rates = existing
+          ? season_rates.map((s) => (s.calendar_season_id === seasonId ? next : s))
+          : [...season_rates, next];
+      }
+      return season_rates === state.season_rates ? state : { ...state, season_rates };
+    }
+
 
     case "fill_unit_row": {
       const ordered = action.calendarSeasonIds
@@ -306,33 +345,4 @@ export function pricingSummary(baseRate: number | null, pricedSeasons: number): 
   const base = baseRate && baseRate > 0 ? `Base R${baseRate.toLocaleString()}` : "No base rate";
   if (pricedSeasons === 0) return base;
   return `${base} · ${pricedSeasons} season${pricedSeasons === 1 ? "" : "s"} priced`;
-}
-
-/**
- * Read the legacy per-season rates the Calendar wrote into a property's amenities blob
- * for one rate plan. Shape: season_rates[legacyRoomId]["<seasonId>-<ratePlanId>"].roomAmount
- * Returns calendar season id -> sorted list of the distinct nightly rates found.
- */
-export function readLegacySeasonRates(
-  amenities: Json | null | undefined,
-  ratePlanId: string | null,
-): Map<string, number[]> {
-  const out = new Map<string, number[]>();
-  if (!ratePlanId) return out;
-  const blob = ((amenities ?? {}) as Record<string, unknown>).season_rates;
-  if (!blob || typeof blob !== "object") return out;
-  for (const perRoom of Object.values(blob as Record<string, unknown>)) {
-    if (!perRoom || typeof perRoom !== "object") continue;
-    for (const [key, value] of Object.entries(perRoom as Record<string, unknown>)) {
-      if (!key.endsWith(`-${ratePlanId}`)) continue;
-      const seasonId = key.slice(0, key.length - ratePlanId.length - 1);
-      const amount = Number((value as Record<string, unknown>)?.roomAmount);
-      if (!seasonId || !Number.isFinite(amount) || amount <= 0) continue;
-      const list = out.get(seasonId) ?? [];
-      if (!list.includes(amount)) list.push(amount);
-      out.set(seasonId, list);
-    }
-  }
-  for (const list of out.values()) list.sort((a, b) => a - b);
-  return out;
 }
