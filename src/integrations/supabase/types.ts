@@ -9804,24 +9804,39 @@ export type Database = {
       rolos_rate_plan_room_types: {
         Row: {
           created_at: string | null
+          deleted_at: string | null
+          differential_type: string
+          differential_value: number | null
           id: string
+          is_active: boolean
           link_source: string | null
           rate_plan_id: string
           room_type_id: string
+          sort_order: number | null
         }
         Insert: {
           created_at?: string | null
+          deleted_at?: string | null
+          differential_type?: string
+          differential_value?: number | null
           id?: string
+          is_active?: boolean
           link_source?: string | null
           rate_plan_id: string
           room_type_id: string
+          sort_order?: number | null
         }
         Update: {
           created_at?: string | null
+          deleted_at?: string | null
+          differential_type?: string
+          differential_value?: number | null
           id?: string
+          is_active?: boolean
           link_source?: string | null
           rate_plan_id?: string
           room_type_id?: string
+          sort_order?: number | null
         }
         Relationships: [
           {
@@ -9836,6 +9851,86 @@ export type Database = {
             columns: ["room_type_id"]
             isOneToOne: false
             referencedRelation: "rolos_room_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rolos_rate_plan_season_rates: {
+        Row: {
+          base_rate: number | null
+          created_at: string
+          deleted_at: string | null
+          differential_type: string
+          differential_value: number | null
+          extra_adult_rate: number | null
+          extra_child_rate: number | null
+          id: string
+          is_active: boolean
+          legacy_season_id: string | null
+          rate_plan_id: string
+          room_type_id: string | null
+          shared_season_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          base_rate?: number | null
+          created_at?: string
+          deleted_at?: string | null
+          differential_type?: string
+          differential_value?: number | null
+          extra_adult_rate?: number | null
+          extra_child_rate?: number | null
+          id?: string
+          is_active?: boolean
+          legacy_season_id?: string | null
+          rate_plan_id: string
+          room_type_id?: string | null
+          shared_season_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          base_rate?: number | null
+          created_at?: string
+          deleted_at?: string | null
+          differential_type?: string
+          differential_value?: number | null
+          extra_adult_rate?: number | null
+          extra_child_rate?: number | null
+          id?: string
+          is_active?: boolean
+          legacy_season_id?: string | null
+          rate_plan_id?: string
+          room_type_id?: string | null
+          shared_season_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rolos_rate_plan_season_rates_legacy_season_id_fkey"
+            columns: ["legacy_season_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_rate_seasons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_rate_plan_season_rates_rate_plan_id_fkey"
+            columns: ["rate_plan_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_rate_plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_rate_plan_season_rates_room_type_id_fkey"
+            columns: ["room_type_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_room_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_rate_plan_season_rates_shared_season_id_fkey"
+            columns: ["shared_season_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_shared_seasons"
             referencedColumns: ["id"]
           },
         ]
@@ -9910,6 +10005,7 @@ export type Database = {
           closed_to_departure: boolean[] | null
           code: string | null
           created_at: string | null
+          deleted_at: string | null
           deposit_amount: number | null
           deposit_percentage: number | null
           description: string | null
@@ -9921,6 +10017,8 @@ export type Database = {
           min_stay: number | null
           min_stay_authority: string | null
           name: string
+          plan_scope: string
+          portfolio_id: string | null
           pricing_model: string
           pricing_model_normalised: string | null
           property_id: string
@@ -9942,6 +10040,7 @@ export type Database = {
           closed_to_departure?: boolean[] | null
           code?: string | null
           created_at?: string | null
+          deleted_at?: string | null
           deposit_amount?: number | null
           deposit_percentage?: number | null
           description?: string | null
@@ -9953,6 +10052,8 @@ export type Database = {
           min_stay?: number | null
           min_stay_authority?: string | null
           name: string
+          plan_scope?: string
+          portfolio_id?: string | null
           pricing_model?: string
           pricing_model_normalised?: string | null
           property_id: string
@@ -9974,6 +10075,7 @@ export type Database = {
           closed_to_departure?: boolean[] | null
           code?: string | null
           created_at?: string | null
+          deleted_at?: string | null
           deposit_amount?: number | null
           deposit_percentage?: number | null
           description?: string | null
@@ -9985,6 +10087,8 @@ export type Database = {
           min_stay?: number | null
           min_stay_authority?: string | null
           name?: string
+          plan_scope?: string
+          portfolio_id?: string | null
           pricing_model?: string
           pricing_model_normalised?: string | null
           property_id?: string
@@ -9999,6 +10103,13 @@ export type Database = {
             columns: ["breakfast_charge_id"]
             isOneToOne: false
             referencedRelation: "property_charges"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_rate_plans_portfolio_id_fkey"
+            columns: ["portfolio_id"]
+            isOneToOne: false
+            referencedRelation: "property_portfolios"
             referencedColumns: ["id"]
           },
           {
@@ -10028,9 +10139,11 @@ export type Database = {
         Row: {
           base_rate: number
           created_at: string | null
+          deleted_at: string | null
           extra_adult_rate: number | null
           extra_child_rate: number | null
           id: string
+          is_active: boolean
           room_type_id: string
           season_id: string
           updated_at: string | null
@@ -10038,9 +10151,11 @@ export type Database = {
         Insert: {
           base_rate: number
           created_at?: string | null
+          deleted_at?: string | null
           extra_adult_rate?: number | null
           extra_child_rate?: number | null
           id?: string
+          is_active?: boolean
           room_type_id: string
           season_id: string
           updated_at?: string | null
@@ -10048,9 +10163,11 @@ export type Database = {
         Update: {
           base_rate?: number
           created_at?: string | null
+          deleted_at?: string | null
           extra_adult_rate?: number | null
           extra_child_rate?: number | null
           id?: string
+          is_active?: boolean
           room_type_id?: string
           season_id?: string
           updated_at?: string | null
@@ -10812,6 +10929,83 @@ export type Database = {
             columns: ["room_type_id"]
             isOneToOne: false
             referencedRelation: "rolos_room_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rolos_shared_seasons: {
+        Row: {
+          calendar_season_id: string | null
+          created_at: string
+          deleted_at: string | null
+          end_date: string
+          id: string
+          is_active: boolean
+          is_peak: boolean
+          name: string
+          portfolio_id: string | null
+          property_id: string | null
+          source: string
+          start_date: string
+          updated_at: string
+        }
+        Insert: {
+          calendar_season_id?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          end_date: string
+          id?: string
+          is_active?: boolean
+          is_peak?: boolean
+          name: string
+          portfolio_id?: string | null
+          property_id?: string | null
+          source?: string
+          start_date: string
+          updated_at?: string
+        }
+        Update: {
+          calendar_season_id?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          end_date?: string
+          id?: string
+          is_active?: boolean
+          is_peak?: boolean
+          name?: string
+          portfolio_id?: string | null
+          property_id?: string | null
+          source?: string
+          start_date?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rolos_shared_seasons_portfolio_id_fkey"
+            columns: ["portfolio_id"]
+            isOneToOne: false
+            referencedRelation: "property_portfolios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_shared_seasons_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "rolos_shared_seasons_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_shared_seasons_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
             referencedColumns: ["id"]
           },
         ]
@@ -13581,6 +13775,17 @@ export type Database = {
           room_type_id: string | null
           stay_date: string | null
           tier: string | null
+        }
+        Relationships: []
+      }
+      rolos_v_rate_plan_season_prices: {
+        Row: {
+          base_rate: number | null
+          extra_adult_rate: number | null
+          extra_child_rate: number | null
+          origin: string | null
+          room_type_id: string | null
+          season_id: string | null
         }
         Relationships: []
       }
