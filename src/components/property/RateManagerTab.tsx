@@ -299,8 +299,10 @@ export function RateManagerTab({
                     <p className="text-sm font-medium">Rate plans are managed in ROL'OS</p>
                     <p className="max-w-[62ch] text-xs text-muted-foreground">
                       This property uses ROL'OS as its PMS, so ROL'OS is the single source of truth for rates. The
-                      summary below is read-only — nothing here writes to the property.
+                      summary below is read-only — nothing here writes to the property. Calendar owns seasons (when);
+                      Rate Plans owns commercial rates and unit links (what it costs).
                     </p>
+
                   </div>
                   <Button asChild size="sm" className="gap-1">
                     <a href={`/pms/rate-plans?property=${propertyId}`} target="_blank" rel="noreferrer">
