@@ -294,10 +294,7 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
                   <Badge variant="outline" className="ml-2 text-xs text-muted-foreground">Inactive</Badge>
                 )}
               </CardTitle>
-              {/* Property-level extras that apply on top of the nightly rates. */}
-              <div className="min-w-0 flex-1">
-                <RatePlanExtrasSummary propertyId={plan.property_id} />
-              </div>
+
 
               {readOnly ? (
                 <Badge variant="outline" className="text-xs">
