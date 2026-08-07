@@ -243,6 +243,12 @@ const Dashboard = () => {
   }, [nbSessions, isAdmin]);
 
 
+  /**
+   * Owners see the same full Property Pulse as admins — every query above is already
+   * scoped to the properties they own, so revenue/occupancy/ADR figures are their own.
+   */
+  const showFullPulse = isAdmin || isDev || isFearlessLeader || properties.length > 0;
+
   // Unique owners and types for filter dropdowns
   const uniqueOwners = useMemo(() => {
     const owners = new Map<string, string>();
@@ -1211,7 +1217,7 @@ const Dashboard = () => {
         {/* Stats Cards - Row 1 & 2 combined compact */}
         <div className={cn(
           "grid gap-2 mb-3",
-          isAdmin ? "grid-cols-2 sm:grid-cols-4 lg:grid-cols-8" : "grid-cols-2"
+          showFullPulse ? "grid-cols-2 sm:grid-cols-4 lg:grid-cols-8" : "grid-cols-2"
         )}>
           <Card className="p-2">
             <div className="flex items-center justify-between mb-1">
@@ -1256,7 +1262,7 @@ const Dashboard = () => {
             </span>
           </Card>
 
-          {isAdmin && (
+          {showFullPulse && (
             <>
               <Card className="p-2">
                 <div className="flex items-center justify-between mb-1">
@@ -1453,8 +1459,8 @@ const Dashboard = () => {
             </div>
           </Card>
 
-          {/* Revenue Chart - Admin only */}
-          {isAdmin && (
+          {/* Revenue Chart */}
+          {showFullPulse && (
             <Card className="p-2">
               <div className="flex items-center justify-between mb-1">
                 <span className="text-xs font-medium">Revenue{shouldAggregateByMonth && " (Monthly)"}</span>
@@ -1665,7 +1671,7 @@ const Dashboard = () => {
         </div>
 
         {/* Property Breakdown Pie Charts - compact */}
-        {isAdmin && propertyBreakdown.length > 1 && selectedPropertyId === "all" && (
+        {showFullPulse && propertyBreakdown.length > 1 && selectedPropertyId === "all" && (
           <div className="grid gap-3 lg:grid-cols-2 mt-3">
             <Card className="p-2">
               <span className="text-xs font-medium">Revenue by Property</span>
