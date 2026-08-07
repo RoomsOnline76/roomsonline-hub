@@ -328,42 +328,13 @@ export default function SeasonsCalendar({
     toast({ title: "Season deleted" });
   };
 
-  const updateRate = (seasonId: string, _unused: string, field: RateField, value: number) => {
-    const rateKey = selectedRateTypeId ? `${seasonId}-${selectedRateTypeId}` : seasonId;
-    const updated: SeasonRates = {
-      ...seasonRates,
-      [selectedRoomType]: {
-        ...(seasonRates[selectedRoomType] || {}),
-        [rateKey]: {
-          ...(seasonRates[selectedRoomType]?.[rateKey] || { roomAmount: 0, adultAmount: 0, teenAmount: 0, childAmount: 0, infantAmount: 0 }),
-          [field]: value,
-        },
-      },
-    };
-    onSeasonRatesChange(updated);
-  };
-
-  const getRate = (seasonId: string, _unused: string, field: RateField): number => {
-    const rateKey = selectedRateTypeId ? `${seasonId}-${selectedRateTypeId}` : seasonId;
-    return seasonRates[selectedRoomType]?.[rateKey]?.[field] || 0;
-  };
+  // Rate capture moved to Rate Plans — the Calendar authors season dates only.
 
   const isInSelection = (date: Date) => {
     if (!selectionStart) return false;
     if (!selectionEnd) return date.getTime() === selectionStart.getTime();
     return isWithinInterval(date, { start: selectionStart, end: selectionEnd });
   };
-
-  const allRateFields: { key: RateField; label: string; show: boolean }[] = [
-    { key: "roomAmount" as RateField, label: pricingModel === "per_person" ? "Base" : "Room Rate", show: true },
-    { key: "adultAmount" as RateField, label: "Adult", show: pricingModel === "per_person" },
-    { key: "teenAmount" as RateField, label: "Teen", show: pricingModel === "per_person" },
-    { key: "childAmount" as RateField, label: "Child", show: pricingModel === "per_person" },
-    { key: "infantAmount" as RateField, label: "Infant", show: pricingModel === "per_person" },
-  ];
-  const rateFields = allRateFields.filter((f) => f.show);
-
-  // activeMealTypes no longer used — rate grid now keyed by rate type
 
   const cancelSelection = () => {
     setIsAdding(false);
