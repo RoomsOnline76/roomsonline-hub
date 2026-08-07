@@ -3384,7 +3384,7 @@ function BookingDetail({
                   <div className="flex items-center gap-2 text-sm">
                     <Globe className="h-3.5 w-3.5 text-muted-foreground" />
                     <span className="capitalize">{channelSourceLabel(b.booking_channel)}</span>
-                    {sourceChannel.isRuSourced && (
+                    {sourceChannel.isRuSourced && sourceChannel.hasSpecificSource && (
                       <>
                         <span className="text-muted-foreground">·</span>
                         <ChannelLogo channelName={sourceChannel.channelLogoKey} size="sm" />
