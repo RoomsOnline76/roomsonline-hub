@@ -705,7 +705,7 @@ Deno.serve(async (req) => {
 
         let q = supabase
           .from("rolos_invoices")
-          .select("id, invoice_number, document_kind, status, currency, subtotal, tax_total, total, bill_to_type, bill_to_account_id, bill_to_name, bill_to_vat, bill_to_terms_days, channel_key, commission_rate, commission_amount, net_payable, due_date, booking_id, created_at")
+          .select("id, invoice_number, document_kind, status, subtotal, tax_total, total, bill_to_type, bill_to_account_id, bill_to_name, bill_to_vat, bill_to_terms_days, channel_key, commission_rate, commission_amount, net_payable, due_date, booking_id, created_at")
           .eq("property_id", liPropId)
           .neq("status", "cancelled")
           .order("created_at", { ascending: false })
