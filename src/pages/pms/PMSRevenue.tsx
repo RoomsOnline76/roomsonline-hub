@@ -983,29 +983,13 @@ export default function PMSRevenue() {
               </Card>
             </div>
 
-            {/* Revenue stream split — only shown once a property posts F&B revenue */}
-            {streamMetrics.hasSplit && (
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                <Card>
-                  <CardContent className="pt-4">
-                    <p className="text-xs text-muted-foreground mb-1">Net accommodation revenue</p>
-                    <p className="text-xl font-bold tabular-nums">{fmtCompact(streamMetrics.accommodation)}</p>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="pt-4">
-                    <p className="text-xs text-muted-foreground mb-1">F&amp;B revenue</p>
-                    <p className="text-xl font-bold tabular-nums text-primary">{fmtCompact(streamMetrics.fnb)}</p>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="pt-4">
-                    <p className="text-xs text-muted-foreground mb-1">Other revenue</p>
-                    <p className="text-xl font-bold tabular-nums">{fmtCompact(streamMetrics.other)}</p>
-                  </CardContent>
-                </Card>
-              </div>
-            )}
+            {/* Revenue mix — Accommodation / F&B / Other, with per-property roll-up */}
+            <RevenueMixPanel
+              dateRange={{ start: historyStart, end: today }}
+              propertyIds={activeIds}
+              periodLabel={`Past ${historyDays} days`}
+            />
+
 
             <div className="grid lg:grid-cols-2 gap-4">
               {/* Revenue Timeline */}
