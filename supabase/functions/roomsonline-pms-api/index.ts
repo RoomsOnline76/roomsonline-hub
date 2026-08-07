@@ -1148,22 +1148,12 @@ async function handleCreateReservation(body: unknown, supabase: any): Promise<Re
     }
   }
 
-  // Update availability cache - decrement available units
-  for (const [roomTypeId, requiredCount] of requiredRooms.entries()) {
-    for (const date of dates) {
-      // deno-lint-ignore no-explicit-any
-      const avail = ((currentAvailability || []) as any[]).find(a => a.external_room_type_id === roomTypeId && a.date === date);
-      if (avail) {
-        await supabase
-          .from("pms_availability_cache")
-          .update({
-            available_units: Math.max(0, (avail.available_units || 0) - requiredCount),
-            updated_at: new Date().toISOString(),
-            source_timestamp: new Date().toISOString(),
-          })
-          .eq("id", avail.id);
-      }
-    }
+  // Mirror the authoritative inventory calendar into the availability cache the
+  // booking engine + channel pushes read. Derived (not delta-applied) and
+  // upserted, so missing cache rows are created instead of leaving sold rooms
+  // sellable online.
+  for (const roomTypeId of requiredRooms.keys()) {
+    await syncAvailabilityCache(supabase, propertyId, roomTypeId, arrival_date, departure_date);
   }
 
   console.log(`[roomsonline-pms-api] Reservation created successfully: ${reservationId}`);
