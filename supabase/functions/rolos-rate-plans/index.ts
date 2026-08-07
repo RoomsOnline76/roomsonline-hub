@@ -517,25 +517,30 @@ async function savePlan(sb: any, propertyId: string, draft: Draft) {
     if (linkErr) return { error: `Saved the plan but could not link units: ${linkErr.message}` };
   }
 
-  // --- Season pricing (relational, per unit) -------------------------------
+  // --- Season pricing (relational, one row per season x unit) --------------
   await sb.from("rolos_rate_plan_season_rates").delete().eq("rate_plan_id", planId).is("legacy_season_id", null);
   const seasonRows: Record<string, unknown>[] = [];
   for (const sr of draft.season_rates ?? []) {
     const sharedId = sharedByCalendarId.get(String(sr?.calendar_season_id ?? ""));
     if (!sharedId) continue;
     const isDiff = sr.mode === "differential";
-    const absolute = positive(sr.base_rate);
-    if (!isDiff && !absolute) continue;
-    if (isDiff && num(sr.differential_value) === null) continue;
+    const columnAbsolute = positive(sr.base_rate);
+    const columnDiff = num(sr.differential_value);
     for (const unit of units) {
+      const cell = seasonUnitValue(sr, String(unit.room_type_id));
+      // A cell overrides the column value; a blank cell inherits it.
+      const absolute = isDiff ? null : (cell !== null && cell > 0 ? cell : columnAbsolute);
+      const diffValue = isDiff ? (cell ?? columnDiff) : null;
+      if (!isDiff && !absolute) continue;
+      if (isDiff && diffValue === null) continue;
       seasonRows.push({
         rate_plan_id: planId,
         shared_season_id: sharedId,
         room_type_id: unit.room_type_id,
-        base_rate: isDiff ? null : absolute,
+        base_rate: absolute,
         extra_adult_rate: positive(sr.extra_adult_rate),
         differential_type: isDiff ? (sr.differential_type ?? "amount") : "none",
-        differential_value: isDiff ? num(sr.differential_value) : null,
+        differential_value: diffValue,
         is_active: true,
       });
     }
