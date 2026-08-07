@@ -23,7 +23,7 @@ import { PropertyLegacyRatesBanner } from "@/components/pms/rateplans/PropertyLe
 import { RatePlanRateMatrix } from "@/components/pms/rateplans/RatePlanRateMatrix";
 import { type SeasonRateRow } from "@/components/pms/rateplans/RatePlanSeasonGrid";
 
-import { seasonColor, buildSeasonColorMap, type SeasonColorMap } from "@/lib/seasonColors";
+import { buildSeasonColorMap, type SeasonColorMap } from "@/lib/seasonColors";
 import { canonicalPricingModel } from "@/components/pms/rateplans/ratePlanDraft";
 
 export const PRICING_MODELS = [
