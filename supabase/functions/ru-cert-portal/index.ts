@@ -1099,10 +1099,14 @@ Deno.serve(async (req) => {
           ? resolver.units.filter((unit) => mappedIds.has(unit.id))
           : resolver.units.length > 0 ? resolver.units : [{ id: p.id, name: p.name }];
         let calendar = 0, rack = 0, priced = 0;
+        let overrideDays = 0, planSeasonDays = 0, relationalDays = 0;
         for (const u of targets) {
           const days = resolver.resolveDays(u, from, to);
           const cov = resolver.coverage(days);
           calendar += cov.calendar_days;
+          overrideDays += cov.daily_override_days ?? 0;
+          planSeasonDays += cov.plan_season_days ?? 0;
+          relationalDays += cov.relational_days ?? 0;
           rack += cov.rack_days + cov.unit_daily_days;
           priced += cov.priced_days;
         }
@@ -1110,8 +1114,10 @@ Deno.serve(async (req) => {
         localCoverage = {
           summary: describeCoverage(perUnitExpected, {
             total_days: priced, priced_days: priced, calendar_days: calendar,
+            daily_override_days: overrideDays, plan_season_days: planSeasonDays, relational_days: relationalDays,
             rack_days: rack, unit_daily_days: 0, unpriced_days: perUnitExpected - priced,
           }),
+
           calendar_days: calendar,
           rack_days: rack,
           unpriced_days: Math.max(0, perUnitExpected - priced),
