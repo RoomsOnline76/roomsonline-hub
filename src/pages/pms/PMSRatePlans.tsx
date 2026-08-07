@@ -3,22 +3,23 @@ import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, TrendingUp, RefreshCw, Pencil, Link2, DollarSign, Trash2, ChevronLeft, ChevronRight, LayoutGrid, Building2, Ban } from "lucide-react";
+import {
+  Plus, TrendingUp, RefreshCw, Pencil, DollarSign, Trash2, ChevronLeft, ChevronRight,
+  LayoutGrid, Building2, Ban, CalendarRange, Copy, BedDouble,
+} from "lucide-react";
 import { RatePlanStopSellDialog } from "@/components/restrictions/RatePlanStopSellDialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { PmsPageSkeleton } from "@/components/pms/PmsPageSkeleton";
 import { PackagesManager } from "@/components/pms/packages/PackagesManager";
-import { BREAKFAST_BASIS_LABELS, normalizeBreakfastBasis } from "@/components/charges/ChargeCalculator";
-
+import { BREAKFAST_BASIS_LABELS } from "@/components/charges/ChargeCalculator";
+import { RatePlanEditor } from "@/components/pms/rateplans/RatePlanEditor";
+import { RatePlanSyncToOthersDialog } from "@/components/pms/rateplans/RatePlanSyncToOthersDialog";
 
 const PRICING_MODELS = [
   { value: "per_room", label: "Per Room", suffix: "/room", desc: "Flat rate per room per night" },
@@ -35,6 +36,8 @@ interface RatePlan {
   description: string | null;
   is_active: boolean;
   min_stay: number;
+  max_stay: number | null;
+  min_advance_days: number | null;
   requires_deposit: boolean;
   deposit_percentage: number | null;
   base_rate: number | null;
@@ -95,20 +98,13 @@ export default function PMSRatePlans() {
   const [plans, setPlans] = useState<RatePlan[]>([]);
   const [roomTypes, setRoomTypes] = useState<RoomType[]>([]);
   const [links, setLinks] = useState<RatePlanRoomLink[]>([]);
+  const [seasonCounts, setSeasonCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingPlan, setEditingPlan] = useState<RatePlan | null>(null);
   const [stopSellPlan, setStopSellPlan] = useState<RatePlan | null>(null);
-  const [form, setForm] = useState({
-    name: "", code: "", description: "", min_stay: "1", requires_deposit: false,
-    base_rate: "",
-    pricing_model: "per_room",
-    breakfast_included: false,
-    breakfast_amount: "",
-    breakfast_basis: "per_person_per_night",
-    linkedRoomTypeIds: [] as string[],
-    target_property_id: "" as string,
-  });
+  const [syncPlan, setSyncPlan] = useState<RatePlan | null>(null);
+
+  /** Which plan (or new plan, on which property) the full configurator is open for. */
+  const [editor, setEditor] = useState<{ propertyId: string; ratePlanId: string | null } | null>(null);
 
   // Auto-sync rate plans from amenities.pms_rate_types on load
   const syncFromAmenities = useCallback(async () => {
@@ -168,7 +164,7 @@ export default function PMSRatePlans() {
     // Remove rate plans that no longer exist in amenities
     const amenityCodes = new Set(pmsRateTypes.map((rt: any) => typeof rt.id === 'string' ? rt.id.substring(0, 20) : String(rt.id)));
     const amenityNames = new Set(pmsRateTypes.map((rt: any) => (rt.name || '').toLowerCase()));
-    const stalePlans = (existingPlans || []).filter(p => 
+    const stalePlans = (existingPlans || []).filter(p =>
       !amenityCodes.has(p.code) && !amenityNames.has(p.name.toLowerCase())
     );
     for (const stale of stalePlans) {
@@ -282,8 +278,9 @@ export default function PMSRatePlans() {
 
     const plansQ = supabase
       .from("rolos_rate_plans")
-      .select("id, property_id, name, code, description, is_active, min_stay, requires_deposit, deposit_percentage, base_rate, pricing_model, breakfast_included, breakfast_amount, breakfast_basis")
+      .select("id, property_id, name, code, description, is_active, min_stay, max_stay, min_advance_days, requires_deposit, deposit_percentage, base_rate, pricing_model, breakfast_included, breakfast_amount, breakfast_basis")
       .in("property_id", activePropertyIds)
+      .is("deleted_at", null)
       .order("name");
     const roomTypesQ = supabase
       .from("rolos_room_types")
@@ -294,16 +291,27 @@ export default function PMSRatePlans() {
 
     const [plansRes, roomTypesRes] = await Promise.all([plansQ, roomTypesQ]);
     const planIds = (plansRes.data || []).map((p: any) => p.id);
-    const linksRes = planIds.length
-      ? await supabase
-          .from("rolos_rate_plan_room_types")
-          .select("rate_plan_id, room_type_id")
-          .in("rate_plan_id", planIds)
-      : { data: [] as RatePlanRoomLink[] };
+
+    const [linksRes, seasonRatesRes] = planIds.length
+      ? await Promise.all([
+          supabase.from("rolos_rate_plan_room_types").select("rate_plan_id, room_type_id").in("rate_plan_id", planIds),
+          supabase
+            .from("rolos_rate_plan_season_rates")
+            .select("rate_plan_id, shared_season_id")
+            .in("rate_plan_id", planIds)
+            .is("deleted_at", null),
+        ])
+      : [{ data: [] as RatePlanRoomLink[] }, { data: [] as { rate_plan_id: string; shared_season_id: string | null }[] }];
+
+    const counts: Record<string, number> = {};
+    for (const row of (seasonRatesRes.data || []) as { rate_plan_id: string }[]) {
+      counts[row.rate_plan_id] = (counts[row.rate_plan_id] ?? 0) + 1;
+    }
 
     setPlans((plansRes.data || []) as RatePlan[]);
     setRoomTypes((roomTypesRes.data || []) as RoomType[]);
     setLinks((linksRes.data || []) as RatePlanRoomLink[]);
+    setSeasonCounts(counts);
     setLoading(false);
   }, [activePropertyIds, isPortfolio, syncFromAmenities]);
 
@@ -314,134 +322,6 @@ export default function PMSRatePlans() {
 
   const getRoomTypeName = (id: string) =>
     roomTypes.find(rt => rt.id === id)?.name || id;
-
-  const resetForm = () => {
-    setForm({ name: "", code: "", description: "", min_stay: "1", requires_deposit: false, base_rate: "", pricing_model: "per_room", breakfast_included: false, breakfast_amount: "", breakfast_basis: "per_person_per_night", linkedRoomTypeIds: [], target_property_id: "" });
-    setEditingPlan(null);
-  };
-
-  const handleOpenDialog = (plan?: RatePlan) => {
-    if (plan) {
-      setEditingPlan(plan);
-      setForm({
-        name: plan.name,
-        code: plan.code || "",
-        description: plan.description || "",
-        min_stay: String(plan.min_stay || 1),
-        requires_deposit: plan.requires_deposit,
-        base_rate: plan.base_rate ? String(plan.base_rate) : "",
-        pricing_model: plan.pricing_model || "per_room",
-        breakfast_included: !!plan.breakfast_included,
-        breakfast_amount: plan.breakfast_amount != null ? String(plan.breakfast_amount) : "",
-        breakfast_basis: normalizeBreakfastBasis(plan.breakfast_basis),
-        linkedRoomTypeIds: getLinkedRoomTypes(plan.id),
-        target_property_id: plan.property_id,
-      });
-    } else {
-      resetForm();
-      // Pre-select current property when not in portfolio view
-      if (!isPortfolio && propertyId) {
-        setForm(p => ({ ...p, target_property_id: propertyId }));
-      }
-    }
-    setDialogOpen(true);
-  };
-
-  const handleSave = async () => {
-    // When editing, preserve the plan's own property_id. When creating, use the selected target.
-    const targetPropertyId = editingPlan?.property_id || form.target_property_id || propertyId;
-    if (!targetPropertyId) { toast.error("Select a property for this rate plan"); return; }
-    if (!form.name) return;
-
-    const baseRate = form.base_rate ? parseFloat(form.base_rate) : 0;
-
-    const payload = {
-      property_id: targetPropertyId,
-      name: form.name,
-      code: form.code || null,
-      description: form.description || null,
-      min_stay: parseInt(form.min_stay) || 1,
-      requires_deposit: form.requires_deposit,
-      base_rate: baseRate,
-      pricing_model: form.pricing_model || "per_room",
-      breakfast_included: form.breakfast_included,
-      breakfast_amount: form.breakfast_included && form.breakfast_amount ? parseFloat(form.breakfast_amount) : null,
-      breakfast_basis: form.breakfast_included ? form.breakfast_basis : null,
-    };
-
-    let planId: string;
-    let error;
-
-    if (editingPlan) {
-      planId = editingPlan.id;
-      ({ error } = await supabase.from("rolos_rate_plans").update(payload).eq("id", planId));
-    } else {
-      const res = await supabase.from("rolos_rate_plans").insert(payload).select("id").single();
-      error = res.error;
-      planId = res.data?.id || "";
-    }
-
-    if (error) { toast.error(error.message); return; }
-
-    // Sync room type links
-    await supabase.from("rolos_rate_plan_room_types").delete().eq("rate_plan_id", planId);
-    if (form.linkedRoomTypeIds.length > 0) {
-      const linkRows = form.linkedRoomTypeIds.map(rtId => ({
-        rate_plan_id: planId,
-        room_type_id: rtId,
-      }));
-      const { error: linkError } = await supabase.from("rolos_rate_plan_room_types").insert(linkRows);
-      if (linkError) { toast.error("Saved rate plan but failed to link room types: " + linkError.message); }
-    }
-
-    // Write-back to amenities.pms_rate_types (last save wins)
-    try {
-      const { data: property } = await supabase
-        .from("properties")
-        .select("amenities")
-        .eq("id", targetPropertyId)
-        .single();
-
-      if (property) {
-        const amenities = (property as any).amenities || {};
-        const pmsRateTypes: any[] = Array.isArray(amenities.pms_rate_types) ? [...amenities.pms_rate_types] : [];
-
-        // Find matching rate type by plan UUID, code, or name
-        const matchIdx = pmsRateTypes.findIndex((rt: any) => {
-          if (rt.id === planId) return true;
-          const code = typeof rt.id === 'string' ? rt.id.substring(0, 20) : String(rt.id);
-          return code === form.code || (rt.name || '').toLowerCase() === form.name.toLowerCase();
-        });
-
-        const rateData = { 
-          baseRate: baseRate, 
-          name: form.name, 
-          description: form.description || undefined,
-          pricingModel: form.pricing_model,
-          minStayDays: parseInt(form.min_stay) || 1,
-        };
-
-        if (matchIdx >= 0) {
-          pmsRateTypes[matchIdx] = { ...pmsRateTypes[matchIdx], ...rateData };
-        } else {
-          // Rate plan exists in rolos_rate_plans but not in amenities — add it
-          pmsRateTypes.push({ id: planId, priceType: 'UnitRate', ...rateData });
-        }
-
-        await supabase
-          .from("properties")
-          .update({ amenities: { ...amenities, pms_rate_types: pmsRateTypes } })
-          .eq("id", targetPropertyId);
-      }
-    } catch (wbErr) {
-      console.warn("[PMSRatePlans] Write-back to amenities warning:", wbErr);
-    }
-
-    toast.success(editingPlan ? "Rate plan updated" : "Rate plan created");
-    setDialogOpen(false);
-    resetForm();
-    fetchData();
-  };
 
   const handleToggleActive = async (plan: RatePlan) => {
     const { error } = await supabase
@@ -455,6 +335,7 @@ export default function PMSRatePlans() {
   const handleDeletePlan = async (plan: RatePlan) => {
     // Delete linked room types first, then seasons/prices, then the plan itself
     await supabase.from("rolos_rate_plan_room_types").delete().eq("rate_plan_id", plan.id);
+    await supabase.from("rolos_rate_plan_season_rates").delete().eq("rate_plan_id", plan.id);
     const { data: seasons } = await supabase.from("rolos_rate_seasons").select("id").eq("rate_plan_id", plan.id);
     if (seasons?.length) {
       await supabase.from("rolos_rate_prices").delete().in("season_id", seasons.map(s => s.id));
@@ -466,14 +347,10 @@ export default function PMSRatePlans() {
     fetchData();
   };
 
-  const toggleRoomType = (roomTypeId: string) => {
-    setForm(prev => ({
-      ...prev,
-      linkedRoomTypeIds: prev.linkedRoomTypeIds.includes(roomTypeId)
-        ? prev.linkedRoomTypeIds.filter(id => id !== roomTypeId)
-        : [...prev.linkedRoomTypeIds, roomTypeId],
-    }));
-  };
+  const editorRoomTypes = useMemo(
+    () => (editor ? roomTypes.filter((rt) => rt.property_id === editor.propertyId).map((rt) => ({ id: rt.id, name: rt.name })) : []),
+    [editor, roomTypes]
+  );
 
   if (propertyLoading) return <PmsPageSkeleton rows={3} />;
   if (!isPortfolio && !propertyId) return <p className="text-muted-foreground">Select a property first.</p>;
@@ -484,6 +361,7 @@ export default function PMSRatePlans() {
 
   const renderPlanCard = (plan: RatePlan) => {
     const linkedIds = getLinkedRoomTypes(plan.id);
+    const pricedSeasons = seasonCounts[plan.id] ?? 0;
     return (
       <Card key={plan.id} className={`group ${plan.is_active === false ? "opacity-50" : ""}`}>
         <CardHeader>
@@ -494,12 +372,27 @@ export default function PMSRatePlans() {
                 variant="ghost"
                 size="icon"
                 className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                title="Sync to other properties"
+                onClick={() => setSyncPlan(plan)}
+              >
+                <Copy className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
                 title="Stop Sell"
                 onClick={() => setStopSellPlan(plan)}
               >
                 <Ban className="h-4 w-4" />
               </Button>
-              <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => handleOpenDialog(plan)}>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                title="Edit rate plan"
+                onClick={() => setEditor({ propertyId: plan.property_id, ratePlanId: plan.id })}
+              >
                 <Pencil className="h-4 w-4" />
               </Button>
               <AlertDialog>
@@ -528,7 +421,10 @@ export default function PMSRatePlans() {
           </div>
           {plan.code && <p className="text-xs text-muted-foreground font-mono">{plan.code}</p>}
         </CardHeader>
-        <CardContent>
+        <CardContent
+          className="cursor-pointer"
+          onClick={() => setEditor({ propertyId: plan.property_id, ratePlanId: plan.id })}
+        >
           {plan.description && !plan.description.toLowerCase().includes('configure rate amount') && <p className="text-sm text-muted-foreground mb-2">{plan.description}</p>}
           <div className="flex flex-wrap gap-2 text-xs text-muted-foreground mb-2">
             <Badge variant="outline" className="text-xs capitalize">{PRICING_MODELS.find(m => m.value === plan.pricing_model)?.label || plan.pricing_model}</Badge>
@@ -540,7 +436,13 @@ export default function PMSRatePlans() {
             ) : (
               <span className="text-muted-foreground/60 italic">No base rate set</span>
             )}
+            <span className="flex items-center gap-1">
+              <CalendarRange className="h-3 w-3" />
+              {pricedSeasons > 0 ? `${pricedSeasons} season${pricedSeasons === 1 ? "" : "s"} priced` : "Base rate only"}
+            </span>
             <span>Min stay: {plan.min_stay}n</span>
+            {plan.max_stay ? <span>Max stay: {plan.max_stay}n</span> : null}
+            {plan.min_advance_days ? <span>{plan.min_advance_days}d advance</span> : null}
             {plan.requires_deposit && <Badge variant="outline" className="text-xs">Deposit</Badge>}
             {plan.breakfast_included && (
               <Badge variant="outline" className="text-xs border-success-border text-success">
@@ -549,7 +451,8 @@ export default function PMSRatePlans() {
             )}
           </div>
           {linkedIds.length > 0 ? (
-            <div className="flex flex-wrap gap-1 mt-2">
+            <div className="mt-2 flex flex-wrap items-center gap-1">
+              <BedDouble className="h-3 w-3 text-muted-foreground" />
               {linkedIds.map(rtId => (
                 <Badge key={rtId} variant="secondary" className="text-xs">
                   {getRoomTypeName(rtId)}
@@ -557,7 +460,7 @@ export default function PMSRatePlans() {
               ))}
             </div>
           ) : (
-            <p className="text-xs text-muted-foreground/60 mt-2 italic">Not linked to any room types</p>
+            <p className="text-xs text-muted-foreground/60 mt-2 italic">Not linked to any units</p>
           )}
         </CardContent>
       </Card>
@@ -571,7 +474,7 @@ export default function PMSRatePlans() {
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Rate Plans</h1>
             <p className="text-sm text-muted-foreground">
-              Create rate plans and link them to room types. Changes sync with Property Overview.
+              The single place rates are configured. Seasons and their dates stay owned by the Calendar.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -612,113 +515,12 @@ export default function PMSRatePlans() {
             <Button variant="outline" size="sm" onClick={fetchData}>
               <RefreshCw className="h-4 w-4 mr-2" />Refresh
             </Button>
-            <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
-              <DialogTrigger asChild>
-                <Button onClick={() => handleOpenDialog()}>
-                  <Plus className="h-4 w-4 mr-2" />New Rate Plan
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-lg">
-                <DialogHeader><DialogTitle>{editingPlan ? "Edit Rate Plan" : "Create Rate Plan"}</DialogTitle></DialogHeader>
-                <div className="space-y-4">
-                  {!editingPlan && isPortfolio && (
-                    <div>
-                      <Label>Property *</Label>
-                      <Select value={form.target_property_id || undefined} onValueChange={v => setForm(p => ({ ...p, target_property_id: v, linkedRoomTypeIds: [] }))}>
-                        <SelectTrigger><SelectValue placeholder="Select a property" /></SelectTrigger>
-                        <SelectContent>
-                          {scopeProperties.map((p) => (
-                            <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
-                  <div><Label>Name *</Label><Input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} /></div>
-                  <div><Label>Code</Label><Input value={form.code} onChange={e => setForm(p => ({ ...p, code: e.target.value }))} placeholder="e.g. BAR, PROMO" /></div>
-                  <div><Label>Description</Label><Input value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} /></div>
-                  <div>
-                    <Label>Pricing Model *</Label>
-                    <Select value={form.pricing_model} onValueChange={v => setForm(p => ({ ...p, pricing_model: v }))}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {PRICING_MODELS.map(m => (
-                          <SelectItem key={m.value} value={m.value}>
-                            <span>{m.label}</span>
-                            <span className="text-muted-foreground ml-1 text-xs">— {m.desc}</span>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div><Label>Base Rate (ZAR)</Label><Input type="number" min={0} value={form.base_rate} onChange={e => setForm(p => ({ ...p, base_rate: e.target.value }))} placeholder="0.00" /></div>
-                    <div><Label>Min Stay (nights)</Label><Input type="number" value={form.min_stay} onChange={e => setForm(p => ({ ...p, min_stay: e.target.value }))} /></div>
-                  </div>
-                  <div className="flex items-center gap-2"><Switch checked={form.requires_deposit} onCheckedChange={v => setForm(p => ({ ...p, requires_deposit: v }))} /><Label>Requires Deposit</Label></div>
-                  <div className="rounded-md border p-3 space-y-3">
-                    <div className="flex items-center gap-2">
-                      <Switch checked={form.breakfast_included} onCheckedChange={v => setForm(p => ({ ...p, breakfast_included: v }))} />
-                      <Label>Breakfast included in rate</Label>
-                    </div>
-                    {form.breakfast_included && (
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <Label>Breakfast amount</Label>
-                          <Input
-                            type="number"
-                            value={form.breakfast_amount}
-                            onChange={e => setForm(p => ({ ...p, breakfast_amount: e.target.value }))}
-                            placeholder="e.g. 150"
-                          />
-                        </div>
-                        <div>
-                          <Label>Basis</Label>
-                          <Select value={form.breakfast_basis} onValueChange={v => setForm(p => ({ ...p, breakfast_basis: v }))}>
-                            <SelectTrigger><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="per_person_per_night">Per person / night</SelectItem>
-                              <SelectItem value="per_room_per_night">Per room / night</SelectItem>
-                              <SelectItem value="per_stay">Fixed per stay</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <p className="col-span-2 text-xs text-muted-foreground">
-                          Split only — this amount is carved out of the rate as F&amp;B revenue and never added on top of the guest total.
-                        </p>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Room type linking */}
-                  <div className="space-y-2">
-                    <Label className="flex items-center gap-2"><Link2 className="h-4 w-4" />Linked Room Types</Label>
-                    {(() => {
-                      const scopePropId = editingPlan?.property_id || form.target_property_id || propertyId;
-                      const scopedRoomTypes = roomTypes.filter(rt => rt.property_id === scopePropId);
-                      if (scopedRoomTypes.length === 0) {
-                        return <p className="text-sm text-muted-foreground">No room types found. Add room types first.</p>;
-                      }
-                      return (
-                        <div className="space-y-2 rounded-md border border-border p-3">
-                          {scopedRoomTypes.map(rt => (
-                            <label key={rt.id} className="flex items-center gap-2 cursor-pointer">
-                              <Checkbox
-                                checked={form.linkedRoomTypeIds.includes(rt.id)}
-                                onCheckedChange={() => toggleRoomType(rt.id)}
-                              />
-                              <span className="text-sm">{rt.name}</span>
-                            </label>
-                          ))}
-                        </div>
-                      );
-                    })()}
-                  </div>
-
-                  <Button onClick={handleSave} className="w-full">{editingPlan ? "Update" : "Create"}</Button>
-                </div>
-              </DialogContent>
-            </Dialog>
+            <Button
+              onClick={() => setEditor({ propertyId: propertyId ?? scopeProperties[0]?.id ?? "", ratePlanId: null })}
+              disabled={!propertyId && scopeProperties.length === 0}
+            >
+              <Plus className="h-4 w-4 mr-2" />New Rate Plan
+            </Button>
           </div>
         </div>
 
@@ -736,7 +538,7 @@ export default function PMSRatePlans() {
                   <TrendingUp className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
                   <p className="text-muted-foreground mb-2">No rate plans configured.</p>
                   <p className="text-sm text-muted-foreground">
-                    Create rate plans and link them to your room types.
+                    Create a rate plan, price your Calendar seasons, and link the units it sells.
                   </p>
                 </CardContent>
               </Card>
@@ -748,6 +550,14 @@ export default function PMSRatePlans() {
                     <Building2 className="h-4 w-4 text-muted-foreground" />
                     <h2 className="text-lg font-semibold">{section.name}</h2>
                     <Badge variant="outline" className="text-xs">{section.plans.length} plan{section.plans.length === 1 ? "" : "s"}</Badge>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="ml-auto"
+                      onClick={() => setEditor({ propertyId: section.id, ratePlanId: null })}
+                    >
+                      <Plus className="h-4 w-4 mr-1" />New plan
+                    </Button>
                   </div>
                 )}
                 {section.plans.length === 0 ? (
@@ -768,6 +578,55 @@ export default function PMSRatePlans() {
           </div>
         )}
       </div>
+
+      {/* Full configurator */}
+      <Dialog open={!!editor} onOpenChange={(open) => { if (!open) setEditor(null); }}>
+        <DialogContent className="max-h-[92vh] max-w-5xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editor?.ratePlanId ? "Edit rate plan" : "New rate plan"}</DialogTitle>
+          </DialogHeader>
+          {editor && !editor.ratePlanId && scopeProperties.length > 1 && (
+            <div className="space-y-1.5">
+              <span className="text-sm font-medium">Property</span>
+              <Select
+                value={editor.propertyId}
+                onValueChange={(v) => setEditor({ propertyId: v, ratePlanId: null })}
+              >
+                <SelectTrigger><SelectValue placeholder="Select a property" /></SelectTrigger>
+                <SelectContent>
+                  {scopeProperties.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          {editor?.propertyId && (
+            <RatePlanEditor
+              key={`${editor.propertyId}:${editor.ratePlanId ?? "new"}`}
+              propertyId={editor.propertyId}
+              propertyName={scopeProperties.find((p) => p.id === editor.propertyId)?.name}
+              ratePlanId={editor.ratePlanId}
+              roomTypes={editorRoomTypes}
+              onSaved={() => { setEditor(null); fetchData(); }}
+              onCancel={() => setEditor(null)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {syncPlan && (
+        <RatePlanSyncToOthersDialog
+          open={!!syncPlan}
+          onOpenChange={(o) => { if (!o) setSyncPlan(null); }}
+          ratePlanId={syncPlan.id}
+          ratePlanName={syncPlan.name}
+          sourcePropertyId={syncPlan.property_id}
+          properties={scopeProperties.map((p) => ({ id: p.id, name: p.name }))}
+          onCopied={fetchData}
+        />
+      )}
+
       {stopSellPlan && (
         <RatePlanStopSellDialog
           open={!!stopSellPlan}

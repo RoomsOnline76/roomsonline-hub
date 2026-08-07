@@ -10013,7 +10013,9 @@ export type Database = {
           infant_rate: number | null
           is_active: boolean | null
           is_tax_inclusive: boolean | null
+          max_advance_days: number | null
           max_stay: number | null
+          min_advance_days: number | null
           min_stay: number | null
           min_stay_authority: string | null
           name: string
@@ -10048,7 +10050,9 @@ export type Database = {
           infant_rate?: number | null
           is_active?: boolean | null
           is_tax_inclusive?: boolean | null
+          max_advance_days?: number | null
           max_stay?: number | null
+          min_advance_days?: number | null
           min_stay?: number | null
           min_stay_authority?: string | null
           name: string
@@ -10083,7 +10087,9 @@ export type Database = {
           infant_rate?: number | null
           is_active?: boolean | null
           is_tax_inclusive?: boolean | null
+          max_advance_days?: number | null
           max_stay?: number | null
+          min_advance_days?: number | null
           min_stay?: number | null
           min_stay_authority?: string | null
           name?: string
