@@ -19,12 +19,13 @@ import {
   emptyDraft,
   ratePlanDraftReducer,
   readCalendarSeasons,
-  readLegacySeasonRates,
   type CalendarSeason,
   type DifferentialType,
   type DraftSeasonRate,
+  type LiveSeasonMatrix,
   type RatePlanDraft,
 } from "./ratePlanDraft";
+
 
 
 const PRICING_MODELS = [
