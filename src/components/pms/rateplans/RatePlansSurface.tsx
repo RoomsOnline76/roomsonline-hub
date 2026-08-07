@@ -225,7 +225,8 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
         ? undefined
         : () => setEditor({ propertyId: plan.property_id, ratePlanId: plan.id });
       return (
-        <Card key={plan.id} className={`group ${plan.is_active === false ? "opacity-50" : ""}`}>
+        <div key={plan.id} className="flex items-stretch gap-2">
+        <Card className={`group min-w-0 flex-1 ${plan.is_active === false ? "opacity-50" : ""}`}>
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle className="text-lg">
