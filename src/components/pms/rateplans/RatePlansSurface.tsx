@@ -408,38 +408,41 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
 
         {!readOnly && (
           <Dialog open={!!editor} onOpenChange={(open) => { if (!open) setEditor(null); }}>
-            <DialogContent className="max-h-[92vh] max-w-5xl overflow-y-auto">
+            <DialogContent className="flex max-h-[92vh] w-[calc(100vw-1.5rem)] max-w-[min(72rem,calc(100vw-1.5rem))] flex-col gap-4 overflow-hidden p-4 sm:p-6">
               <DialogHeader>
                 <DialogTitle>{editor?.ratePlanId ? "Edit rate plan" : "New rate plan"}</DialogTitle>
               </DialogHeader>
-              {editor && !editor.ratePlanId && properties.length > 1 && (
-                <div className="space-y-1.5">
-                  <span className="text-sm font-medium">Property</span>
-                  <Select
-                    value={editor.propertyId}
-                    onValueChange={(v) => setEditor({ propertyId: v, ratePlanId: null })}
-                  >
-                    <SelectTrigger><SelectValue placeholder="Select property" /></SelectTrigger>
-                    <SelectContent>
-                      {properties.map((p) => (
-                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-              {editor?.propertyId && (
-                <RatePlanEditor
-                  key={`${editor.propertyId}:${editor.ratePlanId ?? "new"}`}
-                  propertyId={editor.propertyId}
-                  propertyName={properties.find((p) => p.id === editor.propertyId)?.name}
-                  ratePlanId={editor.ratePlanId}
-                  roomTypes={editorRoomTypes}
-                  onSaved={() => { setEditor(null); fetchData(); }}
-                  onCancel={() => setEditor(null)}
-                />
-              )}
+              <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overflow-x-hidden pr-1">
+                {editor && !editor.ratePlanId && properties.length > 1 && (
+                  <div className="space-y-1.5">
+                    <span className="text-sm font-medium">Property</span>
+                    <Select
+                      value={editor.propertyId}
+                      onValueChange={(v) => setEditor({ propertyId: v, ratePlanId: null })}
+                    >
+                      <SelectTrigger><SelectValue placeholder="Select property" /></SelectTrigger>
+                      <SelectContent>
+                        {properties.map((p) => (
+                          <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                {editor?.propertyId && (
+                  <RatePlanEditor
+                    key={`${editor.propertyId}:${editor.ratePlanId ?? "new"}`}
+                    propertyId={editor.propertyId}
+                    propertyName={properties.find((p) => p.id === editor.propertyId)?.name}
+                    ratePlanId={editor.ratePlanId}
+                    roomTypes={editorRoomTypes}
+                    onSaved={() => { setEditor(null); fetchData(); }}
+                    onCancel={() => setEditor(null)}
+                  />
+                )}
+              </div>
             </DialogContent>
+
           </Dialog>
         )}
 
