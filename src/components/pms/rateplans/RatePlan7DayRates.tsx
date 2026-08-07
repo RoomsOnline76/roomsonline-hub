@@ -137,6 +137,16 @@ export const RatePlan7DayRates = memo(function RatePlan7DayRates({ ratePlanId }:
           </button>
           <button
             type="button"
+            title="Jump to today"
+            onClick={() => setStartDate(today())}
+            disabled={isToday}
+            className="rounded px-1 py-0.5 text-[9px] font-medium uppercase tracking-wide text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-40"
+          >
+            Today
+          </button>
+
+          <button
+            type="button"
             title="Forward 1 week"
             onClick={() => jump(7)}
             className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -160,18 +170,23 @@ export const RatePlan7DayRates = memo(function RatePlan7DayRates({ ratePlanId }:
             {dates.map((d) => (
               <th
                 key={d}
-                title={[d, seasonByDate.get(d), holidayName(d)].filter(Boolean).join(" · ")}
+                title={[d, d === today() ? "Today" : null, seasonByDate.get(d), holidayName(d)].filter(Boolean).join(" · ")}
                 className={`px-0.5 py-0.5 text-center font-normal ${columnTint(d, seasonByDate.get(d))} ${
                   isWeekend(d) || isSunday(d) || holidayName(d) ? "text-foreground font-medium" : ""
-                }`}
+                } ${d === today() ? "relative text-foreground font-semibold ring-1 ring-inset ring-primary" : ""}`}
               >
-                {dayLabel(d)}
+                {d === today() ? (
+                  <span className="block text-[8px] font-semibold uppercase tracking-wide text-primary">Today</span>
+                ) : (
+                  dayLabel(d)
+                )}
                 <span className="block text-[9px] opacity-70">{d.slice(8, 10)}</span>
                 {holidayName(d) && (
                   <span className="mx-auto mt-px block h-1 w-1 rounded-full bg-primary" aria-hidden />
                 )}
               </th>
             ))}
+
           </tr>
         </thead>
         <tbody>
