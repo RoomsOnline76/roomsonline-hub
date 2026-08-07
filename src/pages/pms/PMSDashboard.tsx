@@ -585,6 +585,33 @@ export default function PMSDashboard() {
     enabled: !!propertyId,
   });
 
+  // Held group inventory in range — drawn as hatching on the Room Plan type rows
+  // so staff can see rooms that are committed to a group but not yet picked up.
+  const { data: groupBlocks = [] } = useQuery({
+    queryKey: ["pms-cal-group-blocks", propertyId, format(dateRange.start, "yyyy-MM-dd"), format(dateRange.end, "yyyy-MM-dd")],
+    queryFn: async () => {
+      if (!propertyId) return [] as RoomPlanGroupBlock[];
+      const { data } = await supabase
+        .from("rolos_group_room_blocks")
+        .select("id, room_type_id, start_date, end_date, blocked_count, picked_up_count, status, group:rolos_groups!group_id(name)")
+        .eq("property_id", propertyId)
+        .eq("status", "blocked")
+        .lt("start_date", format(dateRange.end, "yyyy-MM-dd"))
+        .gt("end_date", format(dateRange.start, "yyyy-MM-dd"));
+      return ((data || []) as Array<Record<string, unknown>>).map((row) => ({
+        id: String(row.id),
+        group_name: (row.group as { name?: string } | null)?.name ?? null,
+        room_type_id: String(row.room_type_id),
+        start_date: String(row.start_date),
+        end_date: String(row.end_date),
+        blocked_count: Number(row.blocked_count || 0),
+        picked_up_count: Number(row.picked_up_count || 0),
+      })) as RoomPlanGroupBlock[];
+    },
+    enabled: !!propertyId,
+  });
+
+
   // Fetch bookings in range with pagination guard (auto-fetch all pages)
   const BOOKINGS_PAGE_SIZE = 500;
   const bookingsInfinite = useInfiniteQuery({
