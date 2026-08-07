@@ -283,9 +283,9 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
       return (
         <div key={plan.id} className="flex items-stretch gap-2">
         <Card className={`group min-w-0 flex-1 ${plan.is_active === false ? "opacity-50" : ""}`}>
-          <CardHeader>
+          <CardHeader className="px-4 py-2.5">
             <div className="flex items-start justify-between gap-3">
-              <CardTitle className="shrink-0 text-lg">
+              <CardTitle className="shrink-0 text-base">
                 {plan.name}
                 <Badge variant="secondary" className="ml-2 align-middle text-xs font-normal">
                   {PRICING_MODELS.find((m) => m.value === canonicalPricingModel(plan.pricing_model))?.label}
@@ -354,16 +354,16 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
                 </div>
               )}
             </div>
-            {plan.code && <p className="text-xs text-muted-foreground font-mono">{plan.code}</p>}
+            {plan.code && <p className="text-[11px] leading-tight text-muted-foreground font-mono">{plan.code}</p>}
           </CardHeader>
-          <CardContent className={readOnly ? undefined : "cursor-pointer"} onClick={openEditor}>
+          <CardContent className={`px-4 pb-3 pt-0 ${readOnly ? "" : "cursor-pointer"}`} onClick={openEditor}>
             {plan.description && !plan.description.toLowerCase().includes("configure rate amount") && (
-              <p className="text-sm text-muted-foreground mb-2">{plan.description}</p>
+              <p className="text-xs text-muted-foreground mb-1.5">{plan.description}</p>
             )}
             {/* Two columns: plan meta on the left, property-level extras on the right. */}
-            <div className="grid gap-x-4 gap-y-2 sm:grid-cols-2">
+            <div className="grid gap-x-4 gap-y-1 sm:grid-cols-2">
               <div className="min-w-0">
-                <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                <div className="flex flex-wrap gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
                   {pricedSeasons > 0 && (
                     <span className="flex items-center gap-1">
                       <CalendarRange className="h-3 w-3" />
@@ -382,7 +382,7 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
                   )}
                 </div>
                 {plan.base_rate && plan.base_rate > 0 ? (
-                  <div className="mt-2 flex flex-wrap items-center gap-1 text-xs">
+                  <div className="mt-1 flex flex-wrap items-center gap-1 text-xs">
                     <span className="flex items-center gap-1 rounded border border-dashed px-1.5 py-0.5 text-muted-foreground">
                       {pricingNoun(plan.pricing_model).Singular} Base fallback Rate
                       <span className="font-mono font-semibold text-foreground">R{plan.base_rate.toLocaleString()}</span>
@@ -390,13 +390,13 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
                   </div>
                 ) : null}
                 {/* One row per unit: authored season prices and live sample nights aligned in the same row. */}
-                <div className="mt-2 flex items-center gap-1 text-xs text-muted-foreground">
+                <div className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
                   <BedDouble className="h-3 w-3" />
                   <span>{gridUnits.length} {gridUnits.length === 1 ? "unit" : "units"} · rate by season</span>
                 </div>
               </div>
               <div className="min-w-0">
-                <RatePlanExtrasSummary propertyId={plan.property_id} />
+                <RatePlanExtrasSummary propertyId={plan.property_id} ratePlanId={plan.id} />
               </div>
             </div>
 
@@ -430,7 +430,7 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
 
     return (
       <>
-        <div className="space-y-6">
+        <div className="space-y-3">
           {plans.length === 0 && (
             <Card>
               <CardContent className="py-12 text-center">
@@ -446,7 +446,7 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
             </Card>
           )}
           {propertySections.map((section) => (
-            <div key={section.id} className="space-y-3">
+            <div key={section.id} className="space-y-2">
               {showSectionHeadings && (
                 <div className="flex items-center gap-2 sticky top-0 z-10 bg-background/95 backdrop-blur py-2 border-b">
                   <Building2 className="h-4 w-4 text-muted-foreground" />

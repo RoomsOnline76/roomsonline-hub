@@ -1,7 +1,6 @@
 import { memo, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Coins, Loader2, PackagePlus, ShieldCheck, Tag } from "lucide-react";
-import type { CancellationRule } from "@/lib/policyFormatter";
 
 interface ChargeRow {
   id: string;
@@ -20,6 +19,13 @@ interface SpecialRow {
   fixed_price: number | null;
   valid_from: string | null;
   valid_to: string | null;
+}
+
+interface NamedPolicy {
+  id: string;
+  name: string;
+  is_default: boolean | null;
+  is_master: boolean | null;
 }
 
 interface AddonRow {
@@ -58,20 +64,6 @@ const inWindow = (from: string | null, to: string | null) => {
   return true;
 };
 
-/** Authored policy name when present, otherwise a short derived label. */
-const policyName = (rule: (CancellationRule & { name?: string; policy_name?: string }) | null): string => {
-  if (!rule) return "None";
-  if (rule.name) return rule.name;
-  if (rule.policy_name) return rule.policy_name;
-  if (rule.non_refundable) return "Non-refundable";
-  const tiers = [...(rule.tiers ?? [])].sort((a, b) => b.days_before - a.days_before);
-  const free = tiers.find((t) => t.forfeit_percent === 0);
-  if (free) return `Flexible · free to ${free.days_before}d`;
-  if (tiers.length > 0) return "Tiered policy";
-  if (rule.mode === "dynamic") return "Dynamic policy";
-  return "Custom policy";
-};
-
 /** One label + full list of values, wrapped so everything is visible at a glance. */
 const Line = ({
   icon,
@@ -103,13 +95,16 @@ const Line = ({
  */
 export const RatePlanExtrasSummary = memo(function RatePlanExtrasSummary({
   propertyId,
+  ratePlanId,
 }: {
   propertyId: string;
+  /** When given, the cancellation column shows the policy linked to this rate plan. */
+  ratePlanId?: string;
 }) {
   const [charges, setCharges] = useState<ChargeRow[]>([]);
   const [specials, setSpecials] = useState<SpecialRow[]>([]);
   const [addons, setAddons] = useState<AddonRow[]>([]);
-  const [cancellation, setCancellation] = useState<CancellationRule | null>(null);
+  const [policyLabel, setPolicyLabel] = useState<string>("None");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -131,24 +126,45 @@ export const RatePlanExtrasSummary = memo(function RatePlanExtrasSummary({
           .order("sort_order"),
         supabase.from("properties").select("amenities").eq("id", propertyId).maybeSingle(),
         supabase
-          .from("rolos_policies")
-          .select("rule")
-          .eq("property_id", propertyId)
-          .eq("policy_type", "cancellation")
-          .maybeSingle(),
+          .from("rolos_reservation_policies")
+          .select("id, name, is_default, is_master")
+          .eq("property_id", propertyId),
       ]);
       if (cancelled) return;
       setCharges((chargesRes.data ?? []) as unknown as ChargeRow[]);
       setSpecials((specialsRes.data ?? []) as unknown as SpecialRow[]);
       const amenities = (propRes.data?.amenities ?? {}) as { addons?: AddonRow[] };
       setAddons(Array.isArray(amenities.addons) ? amenities.addons : []);
-      setCancellation((policyRes.data?.rule ?? null) as CancellationRule | null);
+      // Cancellation is authored as a *named* policy and linked to the rate plan.
+      // Show that linked name; otherwise the property master/default policy name.
+      const namedPolicies = (policyRes.data ?? []) as unknown as NamedPolicy[];
+      let label = "None";
+      if (namedPolicies.length > 0) {
+        let linkedId: string | null = null;
+        if (ratePlanId) {
+          const { data: link } = await supabase
+            .from("rolos_policy_rate_links")
+            .select("policy_id")
+            .eq("rate_plan_id", ratePlanId)
+            .maybeSingle();
+          linkedId = (link?.policy_id as string | undefined) ?? null;
+        }
+        const linked = linkedId ? namedPolicies.find((p) => p.id === linkedId) : undefined;
+        const fallback =
+          namedPolicies.find((p) => p.is_master) ??
+          namedPolicies.find((p) => p.is_default) ??
+          namedPolicies[0];
+        const chosen = linked ?? fallback;
+        if (chosen) label = linked ? chosen.name : `${chosen.name} (property default)`;
+      }
+      if (cancelled) return;
+      setPolicyLabel(label);
       setLoading(false);
     })();
     return () => {
       cancelled = true;
     };
-  }, [propertyId]);
+  }, [propertyId, ratePlanId]);
 
   const chargeLabels = useMemo(
     () => charges.map((c) => [c.name, chargeAmount(c)].filter(Boolean).join(" ")),
@@ -162,7 +178,6 @@ export const RatePlanExtrasSummary = memo(function RatePlanExtrasSummary({
     () => addons.map((a) => [a.name || "Add-on", addonValue(a)].filter(Boolean).join(" ")),
     [addons],
   );
-  const policyLabel = useMemo(() => policyName(cancellation), [cancellation]);
 
   if (loading) {
     return (
