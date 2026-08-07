@@ -213,6 +213,9 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
             breakfast_amount: str(plan.breakfast_amount),
             breakfast_basis: normalizeBreakfastBasis(plan.breakfast_basis) ?? "per_person_per_night",
             policy_id: policyLink?.policy_id ?? null,
+            is_primary_sell: (plan as { is_primary_sell?: boolean }).is_primary_sell === true,
+            push_to_channels: (plan as { push_to_channels?: boolean }).push_to_channels !== false,
+            sell_priority: str((plan as { sell_priority?: number }).sell_priority ?? 100),
             units: (links ?? []).map((l) => ({
               room_type_id: String(l.room_type_id),
               differential_type: (l.differential_type as DifferentialType) ?? "none",
@@ -474,6 +477,40 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
                 ))}
               </SelectContent>
             </Select>
+          </div>
+          <div className="space-y-2 rounded-md border p-3 md:col-span-2">
+            <p className="text-sm font-medium">Distribution</p>
+            <p className="text-xs text-muted-foreground">
+              Decides which plan prices the live website/checkout and which plans are priced for the
+              Channel Manager and OTAs.
+            </p>
+            <label className="flex items-center gap-2">
+              <Switch
+                checked={draft.is_primary_sell}
+                onCheckedChange={(v) => setField("is_primary_sell", v)}
+              />
+              <span className="text-sm">Use as the live/direct rate (one plan per property)</span>
+            </label>
+            <label className="flex items-center gap-2">
+              <Switch
+                checked={draft.push_to_channels}
+                onCheckedChange={(v) => setField("push_to_channels", v)}
+              />
+              <span className="text-sm">Send this plan to channels</span>
+            </label>
+            <div className="flex items-center gap-2">
+              <Label htmlFor="rp-priority" className="text-xs text-muted-foreground">
+                Priority (lower wins when several plans price the same unit)
+              </Label>
+              <Input
+                id="rp-priority"
+                type="number"
+                min={0}
+                className="h-8 w-24"
+                value={draft.sell_priority}
+                onChange={(e) => setField("sell_priority", e.target.value)}
+              />
+            </div>
           </div>
           <div className="flex items-end gap-6">
             <label className="flex items-center gap-2">
