@@ -296,7 +296,16 @@ Deno.serve(async (req) => {
           booking_id: invBookingId,
           invoice_to: invInvoiceTo,
           reference: invReference,
+          bill_to_account_id: reqBillToAccountId,
+          channel_key: reqChannelKey,
         } = body;
+        const ALLOWED_BILL_TO = ["guest", "company", "agent", "channel"];
+        const reqBillToType: string = ALLOWED_BILL_TO.includes(String(body.bill_to_type || ""))
+          ? String(body.bill_to_type)
+          : "guest";
+        const reqCommissionRate = body.commission_rate != null && !Number.isNaN(Number(body.commission_rate))
+          ? Number(body.commission_rate)
+          : null;
         const documentKind: string = body.document_kind === "pro_forma" ? "pro_forma" : "tax_invoice";
         let invFolioId: string | null = body.folio_id || null;
 
@@ -305,9 +314,10 @@ Deno.serve(async (req) => {
         if (invBookingId) {
           const { data: bk } = await supabase
             .from("bookings")
-            .select("id, guest_name, guest_email, check_in_date, check_out_date, total_price, status, property_id, company_account_id, invoice_to_name, invoice_to_vat, invoice_to_address")
+            .select("id, guest_name, guest_email, check_in_date, check_out_date, total_price, status, property_id, company_account_id, agent_account_id, source_account_id, booking_channel, comm_channel, commission_rate_applied, calculated_commission, invoice_to_name, invoice_to_vat, invoice_to_address")
             .eq("id", invBookingId)
             .maybeSingle();
+
           bookingRow = bk;
           if (!invFolioId) {
             const { data: existingFolio } = await supabase
