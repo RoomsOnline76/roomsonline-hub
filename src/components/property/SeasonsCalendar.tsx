@@ -9,6 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ChevronLeft, ChevronRight, Plus, Trash2, X, Lock, CalendarPlus, Building2, BedDouble } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { isSeasonExpired } from "@/lib/seasonLifecycle";
 
 const SEASON_COLORS = [
   { name: "Red", value: "red", bg: "bg-red-200", border: "border-danger-border", text: "text-destructive", cell: "bg-danger-surface" },
