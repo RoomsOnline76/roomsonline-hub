@@ -155,6 +155,8 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
 
       if (cancelled) return;
       setSeasons(calendarSeasons);
+      setLegacySeasonRates(legacyRates);
+
       dispatch({ type: "reset", draft: next });
       setLoading(false);
     })();
