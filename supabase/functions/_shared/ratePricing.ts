@@ -492,3 +492,86 @@ export function isClosed(inputs: PricingInputs, unit: UnitRateContext, date: str
   }
   return false;
 }
+
+// ─── Pricing model (canonical) ─────────────────────────────────────────
+// Legacy writers stored free-form values ("UnitRate", "per-unit", "PER PERSON").
+// ROL'OS Rate Plans is the only author of this field now, and everything that
+// bills or pushes a price must read it through this helper.
+
+export type CanonicalPricingModel =
+  | "per_room"
+  | "per_person"
+  | "per_person_sharing"
+  | "per_unit";
+
+export function canonicalPricingModel(raw: unknown): CanonicalPricingModel {
+  const v = String(raw ?? "").trim().toLowerCase().replace(/[\s-]+/g, "_");
+  if (!v) return "per_room";
+  if (v === "per_person_sharing" || v === "pps" || v === "per_person_share" || v === "sharing") {
+    return "per_person_sharing";
+  }
+  if (v === "unitrate" || v === "unit_rate" || v === "per_unit" || v === "unit") return "per_unit";
+  if (v === "per_night" || v === "pernight" || v === "flat" || v === "per_stay") return "per_room";
+  if (v.includes("person") || v === "pp" || v === "per_pax" || v === "per_guest") return "per_person";
+  if (v.includes("room")) return "per_room";
+  if (v.includes("unit")) return "per_unit";
+  return "per_room";
+}
+
+/** Wire price type a channel/checkout consumer expects for this model. */
+export function priceTypeForModel(raw: unknown): "PER_PERSON" | "PER_NIGHT" {
+  const model = canonicalPricingModel(raw);
+  return model === "per_person" || model === "per_person_sharing" ? "PER_PERSON" : "PER_NIGHT";
+}
+
+export interface OccupancyInput {
+  /** Nightly rates for the stay (one entry per night). */
+  nightlyRates: number[];
+  adults: number;
+  teens?: number;
+  children?: number;
+  /** Charged per additional adult beyond the 2 the base rate covers. */
+  extraAdultRate?: number;
+  childRate?: number;
+  teenRate?: number;
+  /** Rooms/units booked; only used by per_room / per_unit. */
+  units?: number;
+}
+
+/**
+ * Stay total for a pricing model.
+ *  - per_room / per_unit  → nightly rate x nights x units
+ *  - per_person           → nightly rate x guests x nights (+ child/teen rates)
+ *  - per_person_sharing   → nightly rate covers 2 guests, extras at extraAdultRate
+ */
+export function stayTotalForModel(raw: unknown, input: OccupancyInput): number {
+  const model = canonicalPricingModel(raw);
+  const nights = input.nightlyRates.length;
+  if (nights === 0) return 0;
+  const adults = Math.max(0, input.adults);
+  const teens = Math.max(0, input.teens ?? 0);
+  const children = Math.max(0, input.children ?? 0);
+  const units = Math.max(1, input.units ?? 1);
+
+  let total = 0;
+  for (const rate of input.nightlyRates) {
+    const nightly = Number(rate) || 0;
+    if (model === "per_room" || model === "per_unit") {
+      total += nightly * units;
+      continue;
+    }
+    if (model === "per_person") {
+      const teenCharge = teens * (input.teenRate ?? nightly);
+      const childCharge = children * (input.childRate ?? nightly);
+      total += nightly * adults + teenCharge + childCharge;
+      continue;
+    }
+    // per_person_sharing: base covers 2 guests, additional adults billed extra
+    const extraAdults = Math.max(0, adults - 2);
+    const extraRate = input.extraAdultRate ?? nightly / 2;
+    const teenCharge = teens * (input.teenRate ?? extraRate);
+    const childCharge = children * (input.childRate ?? extraRate);
+    total += nightly + extraAdults * extraRate + teenCharge + childCharge;
+  }
+  return total;
+}
