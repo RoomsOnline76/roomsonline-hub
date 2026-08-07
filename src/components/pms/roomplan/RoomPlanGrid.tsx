@@ -112,6 +112,7 @@ export function RoomPlanGrid({
   roomTypes,
   roomsByType,
   bookings,
+  groupBlocks,
   propertyName,
   bookingsLoading,
   compact,
@@ -128,6 +129,27 @@ export function RoomPlanGrid({
   const colWidth = compact ? ROOM_PLAN_COL_W_COMPACT : ROOM_PLAN_COL_W;
   const [pendingMove, setPendingMove] = useState<(RoomPlanMovePayload & { fromLabel: string; toLabel: string }) | null>(null);
   const [saving, setSaving] = useState(false);
+
+  /** Rooms still held (blocked minus picked up) for this type on this night. */
+  const heldOn = useCallback(
+    (type: RoomPlanRoomType, date: Date): { rooms: number; labels: string } | null => {
+      if (!groupBlocks?.length) return null;
+      const day = format(date, "yyyy-MM-dd");
+      let rooms = 0;
+      const names: string[] = [];
+      for (const block of groupBlocks) {
+        if (block.room_type_id !== type.id && block.room_type_id !== type.linked_overview_id) continue;
+        if (day < block.start_date || day >= block.end_date) continue;
+        const remaining = Math.max(0, (block.blocked_count || 0) - (block.picked_up_count || 0));
+        if (remaining <= 0) continue;
+        rooms += remaining;
+        names.push(block.group_name || "Group");
+      }
+      return rooms > 0 ? { rooms, labels: [...new Set(names)].join(", ") } : null;
+    },
+    [groupBlocks]
+  );
+
 
   // Rows, grouped per room type: an "Unassigned" row plus one row per unit.
   const groups = useMemo(() => {
