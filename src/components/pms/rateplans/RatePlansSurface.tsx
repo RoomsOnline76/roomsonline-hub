@@ -19,9 +19,10 @@ import { PackagesManager } from "@/components/pms/packages/PackagesManager";
 import { BREAKFAST_BASIS_LABELS } from "@/components/charges/ChargeCalculator";
 import { RatePlanEditor } from "@/components/pms/rateplans/RatePlanEditor";
 import { RatePlanSyncToOthersDialog } from "@/components/pms/rateplans/RatePlanSyncToOthersDialog";
-import { RatePlan7DayRates } from "@/components/pms/rateplans/RatePlan7DayRates";
 import { PropertyLegacyRatesBanner } from "@/components/pms/rateplans/PropertyLegacyRatesBanner";
-import { RatePlanSeasonGrid, type SeasonRateRow } from "@/components/pms/rateplans/RatePlanSeasonGrid";
+import { RatePlanRateMatrix } from "@/components/pms/rateplans/RatePlanRateMatrix";
+import { type SeasonRateRow } from "@/components/pms/rateplans/RatePlanSeasonGrid";
+
 import { seasonColor, buildSeasonColorMap, type SeasonColorMap } from "@/lib/seasonColors";
 import { canonicalPricingModel } from "@/components/pms/rateplans/ratePlanDraft";
 
