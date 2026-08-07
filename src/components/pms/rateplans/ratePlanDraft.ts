@@ -9,6 +9,7 @@
  */
 
 import type { Json } from "@/integrations/supabase/types";
+import { filterLiveSeasons } from "@/lib/seasonLifecycle";
 
 export type DifferentialType = "none" | "amount" | "percent";
 export type SeasonPricingMode = "none" | "absolute" | "differential";
