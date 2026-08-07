@@ -377,6 +377,12 @@ export default function SeasonsCalendar({
           )}
         </div>
 
+        <p className="text-xs text-muted-foreground">
+          Seasons define <span className="font-medium">when</span> only. Nightly pricing for each season is set in Rate
+          Plans.
+        </p>
+
+
         {/* Year nav + Add Season */}
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div className="flex items-center gap-1">
