@@ -1,19 +1,27 @@
 import { memo, useCallback } from "react";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { CalendarDays, Wand2 } from "lucide-react";
+import { CalendarDays, ChevronsRight, Wand2 } from "lucide-react";
 import type { CalendarSeason, DraftSeasonRate, RatePlanDraft, SeasonPricingMode } from "./ratePlanDraft";
-import { seasonRateFor } from "./ratePlanDraft";
+import { seasonRateFor, seasonUnitRate } from "./ratePlanDraft";
+
+interface RoomTypeOption {
+  id: string;
+  name: string;
+}
 
 interface Props {
   draft: RatePlanDraft;
   seasons: CalendarSeason[];
+  roomTypes: RoomTypeOption[];
   /** Nightly rates already captured on the Calendar for this plan, per calendar season id. */
   legacySeasonRates?: Map<string, number[]>;
   onChange: (calendarSeasonId: string, patch: Partial<DraftSeasonRate>) => void;
+  onCellChange: (calendarSeasonId: string, roomTypeId: string, value: string) => void;
+  onFillColumn: (calendarSeasonId: string, value: string) => void;
+  onFillRow: (roomTypeId: string, sourceCalendarSeasonId: string) => void;
 }
 
 const fmtRange = (season: CalendarSeason) =>
@@ -24,24 +32,25 @@ const fmtRange = (season: CalendarSeason) =>
 const fmtMoney = (n: number) => `R${n.toLocaleString("en-ZA", { maximumFractionDigits: 0 })}`;
 
 /**
- * Pricing by Season. The rows are driven entirely by the seasons the Calendar paints —
- * this table prices them and never edits their names or dates.
+ * Pricing by Season — a unit (rows) x Calendar season (columns) matrix.
+ * Seasons come from the Calendar and are read-only here; this table only prices them.
  */
 export const RatePlanSeasonPricingTable = memo(function RatePlanSeasonPricingTable({
   draft,
   seasons,
+  roomTypes,
   legacySeasonRates,
   onChange,
+  onCellChange,
+  onFillColumn,
+  onFillRow,
 }: Props) {
   const setMode = useCallback(
     (calendarSeasonId: string, mode: SeasonPricingMode) => onChange(calendarSeasonId, { mode }),
     [onChange],
   );
-  const applyRate = useCallback(
-    (calendarSeasonId: string, amount: number) =>
-      onChange(calendarSeasonId, { mode: "absolute", base_rate: String(amount) }),
-    [onChange],
-  );
+
+  const linkedUnits = roomTypes.filter((rt) => draft.units.some((u) => u.room_type_id === rt.id));
 
   if (seasons.length === 0) {
     return (
@@ -55,114 +64,193 @@ export const RatePlanSeasonPricingTable = memo(function RatePlanSeasonPricingTab
     );
   }
 
+  if (linkedUnits.length === 0) {
+    return (
+      <div className="rounded-md border border-dashed p-6 text-center">
+        <p className="text-sm text-muted-foreground">
+          Link at least one unit to this plan (section 4) — units become the rows of this pricing table.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-3">
       <p className="text-xs text-muted-foreground">
-        Seasons and their dates come from the Calendar and are read-only here. For each season choose{" "}
-        <strong>Fixed rate</strong> and enter the nightly rate, or <strong>Difference</strong> to price it off this
-        plan's base rate. <strong>Not priced</strong> means the season simply uses the base rate.
+        Rows are the units this plan sells, columns are the seasons the Calendar painted (read-only). Per season choose{" "}
+        <strong>Fixed rate</strong> and capture each unit's nightly rate, or <strong>Difference</strong> to price each
+        unit off the plan base rate. <strong>Not priced</strong> means that season falls back to the base rate.
       </p>
-      <div className="divide-y rounded-md border">
-        {seasons.map((season) => {
-          const rate = seasonRateFor(draft, season.calendar_season_id);
-          const suggestions = legacySeasonRates?.get(season.calendar_season_id) ?? [];
-          return (
-            <div key={season.calendar_season_id} className="space-y-2 p-3">
-              <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,220px)] md:items-center">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="truncate font-medium">{season.name}</span>
-                    {season.min_stay ? (
-                      <Badge variant="outline" className="text-xs">Min {season.min_stay}n</Badge>
-                    ) : null}
-                  </div>
-                  <p className="truncate text-xs text-muted-foreground">{fmtRange(season)}</p>
-                </div>
 
-                <ToggleGroup
-                  type="single"
-                  size="sm"
-                  variant="outline"
-                  aria-label={`How ${season.name} is priced`}
-                  value={rate.mode}
-                  onValueChange={(v) => v && setMode(season.calendar_season_id, v as SeasonPricingMode)}
-                >
-                  <ToggleGroupItem value="none" className="text-xs">Not priced</ToggleGroupItem>
-                  <ToggleGroupItem value="absolute" className="text-xs">Fixed rate</ToggleGroupItem>
-                  <ToggleGroupItem value="differential" className="text-xs">Difference</ToggleGroupItem>
-                </ToggleGroup>
+      <div className="overflow-x-auto rounded-md border">
+        <table className="w-full border-collapse text-sm">
+          <thead>
+            <tr className="border-b bg-muted/50">
+              <th className="sticky left-0 z-10 min-w-[180px] bg-muted/50 p-2 text-left align-top text-xs font-medium">
+                Unit
+              </th>
+              {seasons.map((season) => {
+                const rate = seasonRateFor(draft, season.calendar_season_id);
+                const suggestions = legacySeasonRates?.get(season.calendar_season_id) ?? [];
+                return (
+                  <th
+                    key={season.calendar_season_id}
+                    className={`min-w-[170px] border-l p-2 text-left align-top ${rate.mode === "none" ? "opacity-70" : ""}`}
+                  >
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <span className="truncate text-xs font-semibold">{season.name}</span>
+                        {season.min_stay ? (
+                          <Badge variant="outline" className="px-1 py-0 text-[10px]">{season.min_stay}n</Badge>
+                        ) : null}
+                      </div>
+                      <p className="truncate text-[10px] font-normal text-muted-foreground">{fmtRange(season)}</p>
 
-                <div>
-                  {rate.mode === "absolute" && (
-                    <div>
-                      <Label className="sr-only">Nightly rate for {season.name}</Label>
-                      <Input
-                        type="number"
-                        min={0}
-                        inputMode="decimal"
-                        autoFocus={rate.base_rate === ""}
-                        placeholder="Nightly rate"
-                        value={rate.base_rate}
-                        onChange={(e) => onChange(season.calendar_season_id, { base_rate: e.target.value })}
-                      />
-                    </div>
-                  )}
-                  {rate.mode === "differential" && (
-                    <div className="flex items-center gap-2">
                       <ToggleGroup
                         type="single"
                         size="sm"
                         variant="outline"
-                        value={rate.differential_type}
-                        onValueChange={(v) =>
-                          v && onChange(season.calendar_season_id, { differential_type: v as "amount" | "percent" })
-                        }
+                        aria-label={`How ${season.name} is priced`}
+                        value={rate.mode}
+                        onValueChange={(v) => v && setMode(season.calendar_season_id, v as SeasonPricingMode)}
+                        className="justify-start"
                       >
-                        <ToggleGroupItem value="amount" className="text-xs">R</ToggleGroupItem>
-                        <ToggleGroupItem value="percent" className="text-xs">%</ToggleGroupItem>
+                        <ToggleGroupItem value="none" className="h-6 px-1.5 text-[10px]">Not priced</ToggleGroupItem>
+                        <ToggleGroupItem value="absolute" className="h-6 px-1.5 text-[10px]">Fixed</ToggleGroupItem>
+                        <ToggleGroupItem value="differential" className="h-6 px-1.5 text-[10px]">Diff</ToggleGroupItem>
                       </ToggleGroup>
-                      <Input
-                        type="number"
-                        inputMode="decimal"
-                        placeholder={rate.differential_type === "percent" ? "e.g. 15" : "e.g. 250"}
-                        value={rate.differential_value}
-                        onChange={(e) => onChange(season.calendar_season_id, { differential_value: e.target.value })}
-                      />
-                    </div>
-                  )}
-                  {rate.mode === "none" && (
-                    <p className="text-xs italic text-muted-foreground">Falls back to the base rate</p>
-                  )}
-                </div>
-              </div>
 
-              {suggestions.length > 0 && (
-                <div className="flex flex-wrap items-center gap-2 md:pl-1">
-                  <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                    <Wand2 className="h-3 w-3" />
-                    Already on the Calendar for this season:
-                  </span>
-                  {suggestions.map((amount) => (
+                      {rate.mode === "differential" && (
+                        <ToggleGroup
+                          type="single"
+                          size="sm"
+                          variant="outline"
+                          value={rate.differential_type}
+                          onValueChange={(v) =>
+                            v && onChange(season.calendar_season_id, { differential_type: v as "amount" | "percent" })
+                          }
+                          className="justify-start"
+                        >
+                          <ToggleGroupItem value="amount" className="h-6 px-2 text-[10px]">R</ToggleGroupItem>
+                          <ToggleGroupItem value="percent" className="h-6 px-2 text-[10px]">%</ToggleGroupItem>
+                        </ToggleGroup>
+                      )}
+
+                      {rate.mode !== "none" && (
+                        <div className="flex items-center gap-1">
+                          <Input
+                            type="number"
+                            inputMode="decimal"
+                            className="h-7 text-xs"
+                            placeholder={rate.mode === "percent" ? "All units" : "All units"}
+                            value={rate.mode === "differential" ? rate.differential_value : rate.base_rate}
+                            onChange={(e) =>
+                              onChange(
+                                season.calendar_season_id,
+                                rate.mode === "differential"
+                                  ? { differential_value: e.target.value }
+                                  : { base_rate: e.target.value },
+                              )
+                            }
+                          />
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 px-1.5 text-[10px]"
+                            title="Apply this value to every unit"
+                            onClick={() =>
+                              onFillColumn(
+                                season.calendar_season_id,
+                                rate.mode === "differential" ? rate.differential_value : rate.base_rate,
+                              )
+                            }
+                          >
+                            Fill
+                          </Button>
+                        </div>
+                      )}
+
+                      {rate.mode !== "none" && suggestions.length > 0 && (
+                        <div className="flex flex-wrap items-center gap-1">
+                          <Wand2 className="h-3 w-3 text-muted-foreground" />
+                          {suggestions.map((amount) => (
+                            <Button
+                              key={amount}
+                              type="button"
+                              size="sm"
+                              variant="secondary"
+                              className="h-5 px-1.5 text-[10px] font-normal"
+                              onClick={() => {
+                                onChange(season.calendar_season_id, {
+                                  mode: "absolute",
+                                  base_rate: String(amount),
+                                });
+                                onFillColumn(season.calendar_season_id, String(amount));
+                              }}
+                            >
+                              Use {fmtMoney(amount)}
+                            </Button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </th>
+                );
+              })}
+            </tr>
+          </thead>
+          <tbody>
+            {linkedUnits.map((rt) => (
+              <tr key={rt.id} className="border-b last:border-b-0">
+                <th
+                  scope="row"
+                  className="sticky left-0 z-10 max-w-[220px] truncate bg-background p-2 text-left text-xs font-medium"
+                >
+                  <span className="flex items-center gap-1">
+                    <span className="truncate">{rt.name}</span>
                     <Button
-                      key={amount}
                       type="button"
                       size="sm"
-                      variant="secondary"
-                      className="h-6 px-2 text-xs"
-                      onClick={() => applyRate(season.calendar_season_id, amount)}
+                      variant="ghost"
+                      className="h-6 w-6 shrink-0 p-0"
+                      title="Copy this unit's first priced value across all priced seasons"
+                      onClick={() => onFillRow(rt.id, seasons[0]?.calendar_season_id ?? "")}
                     >
-                      Use {fmtMoney(amount)}
+                      <ChevronsRight className="h-3.5 w-3.5" />
                     </Button>
-                  ))}
-                  <span className="text-xs text-muted-foreground">
-                    (unit-specific amounts stay as per-unit differences below)
                   </span>
-                </div>
-              )}
-            </div>
-          );
-        })}
+                </th>
+                {seasons.map((season) => {
+                  const rate = seasonRateFor(draft, season.calendar_season_id);
+                  const disabled = rate.mode === "none";
+                  const inherited = rate.mode === "differential" ? rate.differential_value : rate.base_rate;
+                  return (
+                    <td key={season.calendar_season_id} className="border-l p-1.5 align-middle">
+                      {disabled ? (
+                        <p className="px-1 text-[10px] italic text-muted-foreground">Base rate</p>
+                      ) : (
+                        <Input
+                          type="number"
+                          inputMode="decimal"
+                          className="h-7 text-xs"
+                          aria-label={`${rt.name} — ${season.name}`}
+                          placeholder={inherited ? inherited : rate.mode === "differential" ? "0" : "Rate"}
+                          value={seasonUnitRate(rate, rt.id)}
+                          onChange={(e) => onCellChange(season.calendar_season_id, rt.id, e.target.value)}
+                        />
+                      )}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
+      <p className="text-[10px] text-muted-foreground">
+        An empty cell inherits the season's "all units" value, then the plan base rate.
+      </p>
     </div>
   );
 });
