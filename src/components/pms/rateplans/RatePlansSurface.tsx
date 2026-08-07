@@ -21,6 +21,8 @@ import { RatePlanEditor } from "@/components/pms/rateplans/RatePlanEditor";
 import { RatePlanSyncToOthersDialog } from "@/components/pms/rateplans/RatePlanSyncToOthersDialog";
 import { PropertyLegacyRatesBanner } from "@/components/pms/rateplans/PropertyLegacyRatesBanner";
 import { RatePlanRateMatrix } from "@/components/pms/rateplans/RatePlanRateMatrix";
+import { RatePlanExtrasSummary } from "@/components/pms/rateplans/RatePlanExtrasSummary";
+
 import { type SeasonRateRow } from "@/components/pms/rateplans/RatePlanSeasonGrid";
 
 import { buildSeasonColorMap, type SeasonColorMap } from "@/lib/seasonColors";
@@ -453,6 +455,9 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
               {!readOnly && section.plans.length > 0 && (
                 <PropertyLegacyRatesBanner propertyId={section.id} onMigrated={fetchData} />
               )}
+              {/* What sells on top of the nightly rate: charges, specials, add-ons, cancellation terms. */}
+              <RatePlanExtrasSummary propertyId={section.id} />
+
               {section.plans.length === 0 ? (
                 plans.length > 0 ? <p className="text-sm text-muted-foreground italic">No rate plans for this property.</p> : null
               ) : (
