@@ -50,7 +50,7 @@ const getPMSDisplayName = (key: string): string => {
     hotelbeds: "HotelBeds",
     littlehotelier: "Little Hotelier",
     nightsbridge: "NightsBridge",
-    rentalsunited: "Rentals United",
+    rentalsunited: "ROL'OS Channels",
     roomkey: "RoomKey",
     roomracoon: "RoomRaccoon",
     semper: "Semper",
