@@ -175,6 +175,7 @@ import { PropertySectionRail } from "@/components/property/PropertySectionRail";
 import RUAmenityPicker from "@/components/property/RUAmenityPicker";
 import AiAmenityDialog from "@/components/property/AiAmenityDialog";
 import { ROLOS_ONLY_FACILITY_GROUPS } from "@/lib/rolosOnlyFacilities";
+import { canonicalPricingModel } from "@/components/pms/rateplans/ratePlanDraft";
 
 
 // Schema factory to handle conditional address validation
@@ -3488,7 +3489,7 @@ export default function PropertyForm({
               min_stay: rateType.minStayDays || 1,
               requires_deposit: false,
               base_rate: rateType.baseRate || 0,
-              pricing_model: rateType.pricingModel || rateType.priceType || "per_room",
+              pricing_model: canonicalPricingModel(rateType.pricingModel || rateType.priceType),
               adult_1_rate: rateType.adult1Rate ?? null,
               adult_2_rate: rateType.adult2Rate ?? null,
               teen_rate: rateType.teenRate ?? null,

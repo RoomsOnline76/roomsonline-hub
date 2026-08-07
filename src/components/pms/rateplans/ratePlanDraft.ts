@@ -279,9 +279,34 @@ const PRICING_NOUNS: Record<string, { singular: string; plural: string; perNight
 
 const cap = (v: string): string => v.charAt(0).toUpperCase() + v.slice(1);
 
-/** Noun set for a pricing model, falling back to "unit" for anything unrecognised. */
+export type CanonicalPricingModel =
+  | "per_room"
+  | "per_person"
+  | "per_person_sharing"
+  | "per_unit";
+
+/**
+ * Legacy writers stored free-form pricing models ("UnitRate", "per-unit",
+ * "PER PERSON"). Rate Plans is the only author of this field now, so every read
+ * and every write funnels through here to keep one canonical set of values.
+ */
+export function canonicalPricingModel(raw: unknown): CanonicalPricingModel {
+  const v = String(raw ?? "").trim().toLowerCase().replace(/[\s-]+/g, "_");
+  if (!v) return "per_room";
+  if (v === "per_person_sharing" || v === "pps" || v === "per_person_share" || v === "sharing") {
+    return "per_person_sharing";
+  }
+  if (v === "unitrate" || v === "unit_rate" || v === "per_unit" || v === "unit") return "per_unit";
+  if (v === "per_night" || v === "pernight" || v === "flat" || v === "per_stay") return "per_room";
+  if (v.includes("person") || v === "pp" || v === "per_pax" || v === "per_guest") return "per_person";
+  if (v.includes("room")) return "per_room";
+  if (v.includes("unit")) return "per_unit";
+  return "per_room";
+}
+
+/** Noun set for a pricing model, normalised so legacy values still read right. */
 export function pricingNoun(pricingModel: string | null | undefined): PricingNoun {
-  const base = PRICING_NOUNS[String(pricingModel ?? "")] ?? PRICING_NOUNS.per_unit;
+  const base = PRICING_NOUNS[canonicalPricingModel(pricingModel)] ?? PRICING_NOUNS.per_unit;
   return { ...base, Singular: cap(base.singular), Plural: cap(base.plural) };
 }
 

@@ -18,6 +18,7 @@ import { RatePlanEffectivePreview } from "./RatePlanEffectivePreview";
 import {
   draftToPayload,
   emptyDraft,
+  canonicalPricingModel,
   ratePlanDraftReducer,
   readCalendarSeasons,
   type CalendarSeason,
@@ -200,7 +201,7 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
             name: str(plan.name),
             code: str(plan.code),
             description: str(plan.description),
-            pricing_model: str(plan.pricing_model) || "per_room",
+            pricing_model: canonicalPricingModel(plan.pricing_model),
             base_rate: str(plan.base_rate),
             is_active: plan.is_active !== false,
             min_stay: str(plan.min_stay ?? 1),

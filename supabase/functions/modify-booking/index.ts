@@ -1,3 +1,4 @@
+import { canonicalPricingModel, stayTotalForModel } from "../_shared/ratePricing.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { isRuBooking, modifyRuStay } from "../_shared/ruBookingSync.ts";
 import { queueRuAriDelta } from "../_shared/ruAriDelta.ts";
@@ -101,8 +102,10 @@ async function recalculateRolPrice(
     }
   }
 
+  const model = canonicalPricingModel(ratePlan.pricing_model);
+
   const legacyTotal = ((): number => {
-    switch (ratePlan.pricing_model) {
+    switch (model) {
       case "per_person": {
         // base_rate is per person per night
         const totalPax = adults + teens; // teens typically charged as adults
@@ -110,15 +113,22 @@ async function recalculateRolPrice(
         const perNight = (totalPax * seasonRate) + (childPax * (extraChildRate || seasonRate));
         return perNight * nights;
       }
+      case "per_person_sharing": {
+        // base covers 2 guests; additional adults at the extra-adult rate
+        return stayTotalForModel("per_person_sharing", {
+          nightlyRates: Array.from({ length: nights }, () => seasonRate),
+          adults,
+          teens,
+          children,
+          extraAdultRate: extraAdultRate || undefined,
+          childRate: extraChildRate || undefined,
+        });
+      }
       case "per_room":
       case "per_unit": {
         // base_rate is per room/unit per night
         const roomCount = booking.rooms?.length || 1;
         return seasonRate * nights * roomCount;
-      }
-      case "per_night": {
-        // flat nightly rate regardless of occupancy
-        return seasonRate * nights;
       }
       default: {
         // Fallback: per_person if we can't determine
@@ -149,16 +159,15 @@ async function recalculateRolPrice(
         const days = resolver.resolveDays(unit, checkIn, addDays(checkOut, -1));
         if (days.length > 0) {
           const roomCount = booking.rooms?.length || 1;
-          const perPerson = ratePlan.pricing_model === "per_person";
-          const pax = adults + teens;
-          unifiedTotal = days.reduce((sum, day) => {
-            if (perPerson) {
-              const childCharge = children * (day.extra_guest_price ?? day.price);
-              return sum + (pax * day.price) + childCharge;
-            }
-            if (ratePlan.pricing_model === "per_night") return sum + day.price;
-            return sum + (day.price * roomCount);
-          }, 0);
+          unifiedTotal = stayTotalForModel(model, {
+            nightlyRates: days.map((d) => d.price),
+            adults,
+            teens,
+            children,
+            units: roomCount,
+            extraAdultRate: days[0]?.extra_guest_price ?? extraAdultRate ?? undefined,
+            childRate: extraChildRate || undefined,
+          });
           unifiedTier = days[0].source;
         }
       }
@@ -172,7 +181,7 @@ async function recalculateRolPrice(
         resolved_tier: unifiedTier,
         legacy_rate: legacyTotal,
         legacy_tier: "modify_booking_legacy",
-        notes: { nights, pricing_model: ratePlan.pricing_model, metric: "stay_total" },
+        notes: { nights, pricing_model: model, metric: "stay_total" },
       }];
       await logRateParity(supabase, "modify-booking", parityRows);
     } catch (e) {

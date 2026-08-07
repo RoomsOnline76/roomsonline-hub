@@ -1,5 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { safeParseResponse, AvailabilityResponseSchema } from "../_shared/validate.ts";
+import { canonicalPricingModel, priceTypeForModel } from "../_shared/ratePricing.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -248,7 +249,7 @@ async function resolveRolosRates(
   if (rolosIds.length > 0) {
     const { data: rpRoomTypes } = await supabase
       .from("rolos_rate_plan_room_types")
-      .select("room_type_id, rate_plan_id, rolos_rate_plans!inner(id, base_rate, pricing_model, adult_1_rate, adult_2_rate, is_active)")
+      .select("room_type_id, rate_plan_id, rolos_rate_plans!inner(id, base_rate, pricing_model, adult_1_rate, adult_2_rate, teen_rate, child_rate, infant_rate, is_active)")
       .in("room_type_id", rolosIds)
       .eq("rolos_rate_plans.is_active", true);
 
@@ -261,6 +262,9 @@ async function resolveRolosRates(
             pricing_model: plan.pricing_model || "per_unit",
             adult_1_rate: plan.adult_1_rate ? Number(plan.adult_1_rate) : undefined,
             adult_2_rate: plan.adult_2_rate ? Number(plan.adult_2_rate) : undefined,
+            teen_rate: plan.teen_rate != null ? Number(plan.teen_rate) : undefined,
+            child_rate: plan.child_rate != null ? Number(plan.child_rate) : undefined,
+            infant_rate: plan.infant_rate != null ? Number(plan.infant_rate) : undefined,
             rate_plan_id: plan.id,
           };
         }
@@ -389,8 +393,9 @@ async function resolveRolosRates(
   const syntheticRoomTypes = (hfRooms || []).map((room: any) => {
     const rolosPlan = room.linked_rolos_id ? ratePlanMap[room.linked_rolos_id] : null;
     const fallbackRate = rolosPlan?.base_rate ?? (room.daily_rate ? Number(room.daily_rate) : 0);
-    const pricingModel = rolosPlan?.pricing_model || "per_unit";
+    const pricingModel = canonicalPricingModel(rolosPlan?.pricing_model ?? "per_unit");
     const isPerPerson = pricingModel === "per_person";
+    const isSharing = pricingModel === "per_person_sharing";
 
     // Amenity/room identifiers used to look into season_rates
     const overviewId = room.linked_rolos_id ? rolosToOverview[room.linked_rolos_id] : undefined;
@@ -411,7 +416,34 @@ async function resolveRolosRates(
         ? resolveSeasonalRoomAmount(ds, lookupKeys, preferredPlanId)
         : null;
       const effectiveRate = seasonalRate ?? fallbackRate;
-      dailyRates.push({ date: ds, room_amount: isClosed ? 0 : effectiveRate, stop_sell: isClosed || undefined });
+      const nightly = isClosed ? 0 : effectiveRate;
+      // Per-person models must publish occupancy amounts, otherwise checkout
+      // (which reads adult_amounts for PER_PERSON) resolves the stay to zero.
+      const perPersonAmounts = isPerPerson
+        ? {
+            adult_amounts: {
+              adult_amount_1: rolosPlan?.adult_1_rate ?? nightly,
+              adult_amount_2: rolosPlan?.adult_2_rate ?? nightly * 2,
+            },
+            extra_adult_amount: rolosPlan?.adult_1_rate ?? nightly,
+            teen_amount: rolosPlan?.teen_rate ?? nightly,
+            child_amount: rolosPlan?.child_rate ?? nightly,
+            infant_amount: rolosPlan?.infant_rate ?? 0,
+          }
+        : isSharing
+          ? {
+              // Base rate covers 2 guests; extra adults are billed separately.
+              adult_amounts: {
+                adult_amount_1: rolosPlan?.adult_1_rate ?? nightly,
+                adult_amount_2: nightly,
+              },
+              extra_adult_amount: rolosPlan?.adult_1_rate ?? nightly / 2,
+              teen_amount: rolosPlan?.teen_rate ?? 0,
+              child_amount: rolosPlan?.child_rate ?? 0,
+              infant_amount: rolosPlan?.infant_rate ?? 0,
+            }
+          : {};
+      dailyRates.push({ date: ds, room_amount: nightly, stop_sell: isClosed || undefined, ...perPersonAmounts });
       availArr.push({ date: ds, available_units: isClosed ? 0 : 99 });
       cur.setDate(cur.getDate() + 1);
     }
@@ -422,7 +454,7 @@ async function resolveRolosRates(
       rate_types: [{
         rate_type_id: "rolos-rate",
         rate_type_name: "Standard Rate",
-        price_type: isPerPerson ? "PER_PERSON" : "PER_NIGHT",
+        price_type: priceTypeForModel(pricingModel),
         rates: dailyRates,
       }],
       rooms_available_per_night: availArr,
@@ -490,7 +522,7 @@ async function resolveWizardRates(
     }
     if (!baseRate) baseRate = room.base_rate || room.baseRate || room.daily_rate || 0;
 
-    const isPerPerson = rateUnit === "per_person";
+    const isPerPerson = canonicalPricingModel(rateUnit) === "per_person";
     let dailyRates: any[];
 
     if (isPerPerson && (adult1Rate > 0 || adult2Rate > 0)) {

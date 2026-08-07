@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, CheckCircle, XCircle, AlertCircle, Calculator } from "lucide-react";
+import { canonicalPricingModel } from "@/components/pms/rateplans/ratePlanDraft";
 import { supabase } from "@/integrations/supabase/client";
 import { GuestCountStepper } from "./GuestCountStepper";
 
@@ -128,19 +129,21 @@ export const ModifyBookingModal: React.FC<ModifyBookingModalProps> = ({
     const nights = countNights(checkInDate, checkOutDate);
     const rate = ratePlan.base_rate || 0;
 
-    switch (ratePlan.pricing_model) {
+    switch (canonicalPricingModel(ratePlan.pricing_model)) {
       case "per_person": {
         const totalPax = adults + teens;
         const childPax = children;
         return (totalPax * rate + childPax * rate) * nights;
       }
+      case "per_person_sharing": {
+        // Base rate covers 2 guests; each extra adult adds half the base.
+        const extraAdults = Math.max(0, adults - 2);
+        return (rate + extraAdults * (rate / 2)) * nights;
+      }
       case "per_room":
       case "per_unit":
-        return rate * nights;
-      case "per_night":
-        return rate * nights;
       default:
-        return rate * adults * nights;
+        return rate * nights;
     }
   }, [ratePlan, checkInDate, checkOutDate, adults, teens, children]);
 

@@ -129,27 +129,10 @@ export default function PMSRatePlans() {
       }
     }
 
-    // Update base_rate and pricing_model for existing plans
-    for (const rt of pmsRateTypes) {
-      const code = typeof rt.id === 'string' ? rt.id.substring(0, 20) : String(rt.id);
-      const matchingPlan = (existingPlans || []).find(
-        p => p.code === code || p.name.toLowerCase() === (rt.name || '').toLowerCase()
-      );
-      if (matchingPlan) {
-        const updates: Record<string, any> = {};
-        if (rt.baseRate) updates.base_rate = rt.baseRate;
-        // Detect pricing model from amenity data or name convention
-        const detectedModel = rt.pricingModel
-          || ((rt.name || '').toLowerCase().includes('per person') ? 'per_person' : null);
-        if (detectedModel) updates.pricing_model = detectedModel;
-        if (Object.keys(updates).length > 0) {
-          await supabase
-            .from("rolos_rate_plans")
-            .update(updates)
-            .eq("id", matchingPlan.id);
-        }
-      }
-    }
+    // ROL'OS Rate Plans is the sole author of pricing_model and base_rate.
+    // The legacy Property Overview sync may only create missing plans (above) —
+    // it must never write back over what was authored in the Rate Plan editor.
+
 
     // Auto-link rate plans to room types based on amenities linkedRateTypes / linkedRoomId
     const { data: allPlans } = await supabase

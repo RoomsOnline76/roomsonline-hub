@@ -23,6 +23,7 @@ import { RatePlan7DayRates } from "@/components/pms/rateplans/RatePlan7DayRates"
 import { PropertyLegacyRatesBanner } from "@/components/pms/rateplans/PropertyLegacyRatesBanner";
 import { RatePlanSeasonGrid, type SeasonRateRow } from "@/components/pms/rateplans/RatePlanSeasonGrid";
 import { seasonColor, buildSeasonColorMap, type SeasonColorMap } from "@/lib/seasonColors";
+import { canonicalPricingModel } from "@/components/pms/rateplans/ratePlanDraft";
 
 export const PRICING_MODELS = [
   { value: "per_room", label: "Per Room", suffix: "/room", desc: "Flat rate per room per night" },
@@ -283,6 +284,9 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
             <div className="flex items-center justify-between">
               <CardTitle className="text-lg">
                 {plan.name}
+                <Badge variant="secondary" className="ml-2 align-middle text-xs font-normal">
+                  {PRICING_MODELS.find((m) => m.value === canonicalPricingModel(plan.pricing_model))?.label}
+                </Badge>
                 {plan.is_active === false && (
                   <Badge variant="outline" className="ml-2 text-xs text-muted-foreground">Inactive</Badge>
                 )}

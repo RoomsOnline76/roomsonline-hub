@@ -15,6 +15,7 @@
  */
 
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { canonicalPricingModel } from "../_shared/ratePricing.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -264,7 +265,7 @@ async function previewDraft(
     const plan: PricingRatePlan = {
       rate_plan_id: planId,
       base_rate: positive(draft.base_rate) ?? 0,
-      pricing_model: draft.pricing_model || "per_room",
+      pricing_model: canonicalPricingModel(draft.pricing_model),
       is_active: draft.is_active !== false,
       min_stay: intOrNull(draft.min_stay),
       max_stay: intOrNull(draft.max_stay),
@@ -366,7 +367,7 @@ async function seasonRateMatrix(sb: any, propertyId: string, draft: Draft) {
     const plan: PricingRatePlan = {
       rate_plan_id: planId,
       base_rate: positive(draft.base_rate) ?? 0,
-      pricing_model: draft.pricing_model || "per_room",
+      pricing_model: canonicalPricingModel(draft.pricing_model),
       is_active: true,
       min_stay: intOrNull(draft.min_stay),
       max_stay: intOrNull(draft.max_stay),
@@ -552,7 +553,7 @@ async function savePlan(sb: any, propertyId: string, draft: Draft) {
     name: draft.name,
     code: draft.code || null,
     description: draft.description || null,
-    pricing_model: draft.pricing_model || "per_room",
+    pricing_model: canonicalPricingModel(draft.pricing_model),
     base_rate: positive(draft.base_rate) ?? 0,
     is_active: draft.is_active !== false,
     min_stay: intOrNull(draft.min_stay) ?? 1,
