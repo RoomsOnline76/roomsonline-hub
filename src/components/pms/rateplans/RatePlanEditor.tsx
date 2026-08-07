@@ -131,21 +131,7 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
               differential_type: (l.differential_type as DifferentialType) ?? "none",
               differential_value: str(l.differential_value),
             })),
-            season_rates: (seasonRates ?? [])
-              .map((sr) => {
-                const calendarSeasonId = calendarIdBySharedId.get(String(sr.shared_season_id ?? ""));
-                if (!calendarSeasonId) return null;
-                const isDifferential = sr.differential_type && sr.differential_type !== "none";
-                return {
-                  calendar_season_id: calendarSeasonId,
-                  mode: isDifferential ? "differential" : "absolute",
-                  base_rate: str(sr.base_rate),
-                  differential_type: (isDifferential ? sr.differential_type : "amount") as "amount" | "percent",
-                  differential_value: str(sr.differential_value),
-                  extra_adult_rate: str(sr.extra_adult_rate),
-                } as DraftSeasonRate;
-              })
-              .filter((s): s is DraftSeasonRate => s !== null),
+            season_rates: groupSeasonRates(seasonRates ?? [], calendarIdBySharedId),
           };
         }
       } else {
