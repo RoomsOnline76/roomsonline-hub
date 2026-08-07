@@ -50,8 +50,10 @@ Deno.test("breakfast portion: zero nights or guests are floored at one", () => {
 
 Deno.test("stream and basis normalisation is closed over unknown input", () => {
   assertEquals(normalizeRevenueStream("fnb"), "fnb");
-  assertEquals(normalizeRevenueStream("food"), "other");
-  assertEquals(normalizeRevenueStream(undefined), "other");
+  assertEquals(normalizeRevenueStream("other"), "other");
+  // Anything unrecognised stays accommodation, so legacy rows keep their meaning.
+  assertEquals(normalizeRevenueStream("food"), "accommodation");
+  assertEquals(normalizeRevenueStream(undefined), "accommodation");
   assertEquals(normalizeBreakfastBasis("per_stay"), "per_stay");
   assertEquals(normalizeBreakfastBasis("nonsense"), "per_person_per_night");
 });
