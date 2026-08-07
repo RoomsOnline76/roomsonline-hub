@@ -91,6 +91,7 @@ function groupSeasonRates(
 export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes, onSaved, onCancel }: Props) {
   const [draft, dispatch] = useReducer(ratePlanDraftReducer, emptyDraft());
   const [seasons, setSeasons] = useState<CalendarSeason[]>([]);
+  const [seasonColors, setSeasonColors] = useState<SeasonColorMap>({});
   const [liveMatrix, setLiveMatrix] = useState<LiveSeasonMatrix>(() => new Map());
   const [liveMatrixLoading, setLiveMatrixLoading] = useState(false);
 
