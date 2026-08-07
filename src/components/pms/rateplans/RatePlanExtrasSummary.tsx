@@ -178,7 +178,7 @@ export const RatePlanExtrasSummary = memo(function RatePlanExtrasSummary({
       <Line icon={<Coins className="h-3 w-3" />} label="Charges" items={chargeLabels} />
       <Line icon={<Tag className="h-3 w-3" />} label="Specials" items={specialLabels} />
       <Line icon={<PackagePlus className="h-3 w-3" />} label="Add-ons" items={addonLabels} />
-      <Line icon={<ShieldCheck className="h-3 w-3" />} label="Cancellation" items={policyLabel ? [policyLabel] : []} max={1} />
+      <Line icon={<ShieldCheck className="h-3 w-3" />} label="Cancellation" items={policyLabel ? [policyLabel] : []} />
     </div>
   );
 });
