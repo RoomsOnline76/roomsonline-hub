@@ -1,1 +1,0 @@
-- [Rate Authoring Ownership](mem://features/pms/rate-authoring-ownership) — Calendar owns season dates, Rate Plans owns rates/unit links, shim removal preconditions
