@@ -31,10 +31,13 @@ export interface DraftUnit {
 export interface DraftSeasonRate {
   calendar_season_id: string;
   mode: SeasonPricingMode;
+  /** Column-level value: the rate (absolute mode) every unit inherits unless a cell overrides it. */
   base_rate: string;
   differential_type: Exclude<DifferentialType, "none">;
   differential_value: string;
   extra_adult_rate: string;
+  /** Per-unit cell values, interpreted per the column mode. room_type_id -> raw input. */
+  unit_rates: Record<string, string>;
 }
 
 export interface RatePlanDraft {
