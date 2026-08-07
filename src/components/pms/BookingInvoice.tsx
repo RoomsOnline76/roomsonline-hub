@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo, Fragment } from "react";
 import { Button } from "@/components/ui/button";
 import { callPmsApi } from "@/hooks/usePmsApi";
 import { supabase } from "@/integrations/supabase/client";
@@ -19,6 +19,8 @@ interface BookingInvoiceProps {
 }
 
 
+type RevenueStream = "accommodation" | "fnb" | "other";
+
 interface Transaction {
   id: string;
   transaction_type: string;
@@ -26,7 +28,18 @@ interface Transaction {
   amount: number;
   tax_amount: number | null;
   created_at: string;
+  revenue_stream?: string | null;
 }
+
+const streamOf = (t: Transaction): RevenueStream => {
+  const raw = String(t.revenue_stream || "").toLowerCase();
+  if (raw === "fnb" || raw === "other" || raw === "accommodation") return raw as RevenueStream;
+  const text = `${t.transaction_type || ""} ${t.description || ""}`.toLowerCase();
+  if (/breakfast|dinner|lunch|meal|restaurant|bar |beverage|food/.test(text)) return "fnb";
+  if (/accommodation|room rate|stay charge|booking total|night/.test(text)) return "accommodation";
+  return "other";
+};
+
 
 interface VatConfig {
   isVatRegistered: boolean;
@@ -132,6 +145,27 @@ export function BookingInvoice({ bookingId, guestName, guestEmail, checkIn, chec
   const accommodationLineAmount = totalPrice > 0 && !accommodationAlreadyRecorded ? totalPrice : 0;
   const folioChargesTotal = charges.reduce((s, t) => s + t.amount, 0);
   const subtotal = accommodationLineAmount + folioChargesTotal;
+
+  // Group the guest-facing lines by revenue stream (accommodation vs F&B vs other)
+  const chargeSections = useMemo(() => {
+    const meta: Array<{ key: RevenueStream; label: string }> = [
+      { key: "accommodation", label: "Accommodation" },
+      { key: "fnb", label: "Food & Beverage" },
+      { key: "other", label: "Other Charges" },
+    ];
+    const synthetic: Transaction[] = accommodationLineAmount > 0
+      ? [{ id: "accommodation-synthetic", transaction_type: "accommodation", description: "Accommodation", amount: accommodationLineAmount, tax_amount: null, created_at: "", revenue_stream: "accommodation" }]
+      : [];
+    const all = [...synthetic, ...charges];
+    return meta
+      .map(m => {
+        const items = all.filter(t => streamOf(t) === m.key);
+        return { ...m, items, total: items.reduce((s, t) => s + t.amount, 0) };
+      })
+      .filter(s => s.items.length > 0);
+  }, [charges, accommodationLineAmount]);
+  const showSections = chargeSections.length > 1;
+
 
   const isVat = vatConfig.isVatRegistered;
   const vatRate = vatConfig.vatRate / 100;
@@ -256,18 +290,29 @@ export function BookingInvoice({ bookingId, guestName, guestEmail, checkIn, chec
             </tr>
           </thead>
           <tbody>
-            {accommodationLineAmount > 0 && (
-              <tr className="border-b border-border/50">
-                <td className="py-1.5">Accommodation</td>
-                <td className="py-1.5 text-right">R{accommodationLineAmount.toLocaleString()}</td>
-              </tr>
-            )}
-            {charges.map(t => (
-              <tr key={t.id} className="border-b border-border/50">
-                <td className="py-1.5">{t.description}</td>
-                <td className="py-1.5 text-right">R{t.amount.toLocaleString()}</td>
-              </tr>
+            {chargeSections.map(section => (
+              <Fragment key={section.key}>
+                {showSections && (
+                  <tr className="border-b border-border/50">
+                    <td className="py-1.5 text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">{section.label}</td>
+                    <td />
+                  </tr>
+                )}
+                {section.items.map(t => (
+                  <tr key={t.id} className="border-b border-border/50">
+                    <td className={showSections ? "py-1.5 pl-3" : "py-1.5"}>{t.description}</td>
+                    <td className="py-1.5 text-right">R{t.amount.toLocaleString()}</td>
+                  </tr>
+                ))}
+                {showSections && (
+                  <tr className="border-b border-border/50 text-muted-foreground">
+                    <td className="py-1 pl-3">{section.label} subtotal</td>
+                    <td className="py-1 text-right font-medium">R{section.total.toFixed(2)}</td>
+                  </tr>
+                )}
+              </Fragment>
             ))}
+
 
             {isVat ? (
               <>
