@@ -137,6 +137,16 @@ export const RatePlan7DayRates = memo(function RatePlan7DayRates({ ratePlanId }:
           </button>
           <button
             type="button"
+            title="Jump to today"
+            onClick={() => setStartDate(today())}
+            disabled={isToday}
+            className="rounded px-1 py-0.5 text-[9px] font-medium uppercase tracking-wide text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-40"
+          >
+            Today
+          </button>
+
+          <button
+            type="button"
             title="Forward 1 week"
             onClick={() => jump(7)}
             className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
