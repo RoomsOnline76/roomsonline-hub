@@ -202,6 +202,23 @@ export default function PMSGroups() {
     onSettled: () => setBusyBlockId(null),
   });
 
+  const bulkStay = useMutation({
+    mutationFn: async (direction: "in" | "out") => {
+      if (!selectedGroup) return { processed: 0, skipped: 0 };
+      return await callGroupsApi<{ processed: number; skipped: number }>(
+        direction === "in" ? "group_bulk_check_in" : "group_bulk_check_out",
+        { property_id: selectedGroup.property_id, group_id: selectedGroup.id },
+      );
+    },
+    onSuccess: (res) => {
+      refreshGroupData();
+      toast.success(`${res?.processed ?? 0} reservation(s) updated`, {
+        description: res?.skipped ? `${res.skipped} skipped (wrong status or not picked up)` : undefined,
+      });
+    },
+    onError: (err: Error) => toast.error("Bulk action failed", { description: err.message }),
+  });
+
 
   return (
     <>
@@ -357,7 +374,6 @@ export default function PMSGroups() {
                     portalExpiresAt={selectedGroup.portal_expires_at ?? null}
                     readOnly={readOnly}
                     onChanged={() => {
-                      queryClient.invalidateQueries({ queryKey: ["pms-groups", propertyId] });
                       refreshGroupData();
                     }}
                   />
