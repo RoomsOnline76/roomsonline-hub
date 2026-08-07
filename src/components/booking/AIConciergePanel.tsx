@@ -823,12 +823,16 @@ export function AIConciergePanel({
                   </div>
                 )}
                 
+                {/* TOBI's ready-to-book proposal */}
+                {msg.proposal && renderProposalCard(msg.proposal)}
+
                 {/* Suggestion cards */}
                 {msg.suggestions && msg.suggestions.length > 0 && (
                   <div className="mt-3 space-y-2">
                     {msg.suggestions.map(renderSuggestionCard)}
                   </div>
                 )}
+
               </div>
             </div>
           ))}
