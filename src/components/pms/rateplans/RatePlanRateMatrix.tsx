@@ -174,7 +174,7 @@ export const RatePlanRateMatrix = memo(function RatePlanRateMatrix({
                 Rate by season
               </th>
             )}
-            <th colSpan={7} className="border-l px-1">
+            <th colSpan={7} className="border-l-2 border-foreground/10 bg-muted/30 px-1">
               <div className="flex items-center justify-between gap-1">
                 <span className="font-medium">
                   {isToday
