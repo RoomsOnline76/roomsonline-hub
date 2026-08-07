@@ -40,6 +40,7 @@ import { BookingNotesTab } from "@/components/pms/BookingNotesTab";
 import { RoomPlanGrid, type RoomPlanCreatePayload, type RoomPlanMovePayload, type RoomPlanGroupBlock } from "@/components/pms/roomplan/RoomPlanGrid";
 import type { RoomPlanBooking } from "@/components/pms/roomplan/RoomPlanBar";
 import { extractFunctionError } from "@/lib/functionError";
+import { CHANNEL_SOURCE_BADGE, channelSourceLabel } from "@/lib/channelVocabulary";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 
@@ -3368,9 +3369,9 @@ function BookingDetail({
                   <Separator />
                   <div className="flex items-center gap-2 text-sm">
                     <Globe className="h-3.5 w-3.5 text-muted-foreground" />
-                    <span className="capitalize">{b.booking_channel === 'rentals_united' ? 'Rentals United' : b.booking_channel}</span>
+                    <span className="capitalize">{channelSourceLabel(b.booking_channel)}</span>
                     {b.booking_channel === 'rentals_united' && (
-                      <Badge className="bg-orange-500 hover:bg-orange-600 text-white text-[10px] px-1.5 py-0 font-bold">RU</Badge>
+                      <Badge className="bg-orange-500 hover:bg-orange-600 text-white text-[10px] px-1.5 py-0 font-bold">{CHANNEL_SOURCE_BADGE}</Badge>
                     )}
                   </div>
                 </>

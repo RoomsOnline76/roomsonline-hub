@@ -418,7 +418,7 @@ Deno.serve(async (req) => {
           JSON.stringify({
             code: ruResult.code || "RU_ERROR",
             message: ruResult.message ||
-              "Rentals United rejected the modification — the booking was left unchanged.",
+              "The Channel Manager rejected the modification — the booking was left unchanged.",
           }),
           { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
@@ -584,7 +584,7 @@ Deno.serve(async (req) => {
       JSON.stringify({
         success: true,
         message: ruModified
-          ? "Booking modified and pushed to Rentals United"
+          ? "Booking modified and pushed to the Channel Manager"
           : "Booking modified successfully",
         booking_id,
         ru_modified: ruModified,

@@ -113,10 +113,10 @@ export function RuReadinessScorecard({ propertyId, standalone = true, onReport }
       {report?.blocked && (
         <Alert variant="destructive">
           <ShieldAlert className="h-4 w-4" />
-          <AlertTitle>Rentals United sync is blocked</AlertTitle>
+          <AlertTitle>Channel readiness is blocked</AlertTitle>
           <AlertDescription>
-            Complete the mandatory local requirements below, then press Re-check. Live RU verification
-            is shown separately and will not prevent ROLOS from sending complete corrective rates.
+            Complete the mandatory local requirements below, then press Re-check. Live channel verification
+            is shown separately and will not prevent ROL'OS from sending complete corrective rates.
           </AlertDescription>
         </Alert>
       )}
@@ -168,7 +168,7 @@ export function RuReadinessScorecard({ propertyId, standalone = true, onReport }
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Rentals United — sync readiness</CardTitle>
+        <CardTitle className="text-base">Channel Manager — sync readiness</CardTitle>
       </CardHeader>
       <CardContent>{body}</CardContent>
     </Card>

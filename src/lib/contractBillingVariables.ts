@@ -442,7 +442,7 @@ export async function resolveBillingContractVariables(
   if (cmEnabled) {
     out.channel_manager_clause =
       cmFee != null && cmFee > 0
-        ? `Channel management (OTA distribution via Rentals United) is charged at ${money(cmFee)} per bookable unit per month.`
+        ? `Channel management (OTA distribution via the ROL'OS Channel Manager) is charged at ${money(cmFee)} per bookable unit per month.`
         : `Channel management (OTA distribution) is included in the Property's package.`;
   }
 

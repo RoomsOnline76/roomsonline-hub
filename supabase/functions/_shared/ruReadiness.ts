@@ -140,7 +140,7 @@ export function evaluateUnitChecks(
   add("has_floor", "Content", "Floor number", v.has_floor !== false && v.floor_is_default !== true,
     "Floor number is not set — sending the default (ground floor)", "Rooms → Unit → Floor", false);
   add("meets_minimum_amenities", "Content", `Amenities (≥ ${RU_MIN_AMENITIES})`, !!v.meets_minimum_amenities,
-    `Only ${v.amenities_count ?? 0} amenities mapped — Rentals United requires ${RU_MIN_AMENITIES}`,
+    `Only ${v.amenities_count ?? 0} amenities mapped — the Channel Manager requires ${RU_MIN_AMENITIES}`,
     "Property → Amenities");
   // Padded amenities keep the push valid but are assumed data — warn so owners fix them.
   add("amenities_not_padded", "Content", "Amenities are real (not padded defaults)",
@@ -164,16 +164,16 @@ export function evaluateUnitChecks(
   // mandatory bed rule; 1-bed-per-guest is a quality warning, never a blocker.
   add("beds_cover_half", "Rooms & beds", `Beds cover ≥ ${Math.round(RU_BED_COVERAGE * 100)}% of max guests`,
     v.beds_cover_half !== false,
-    `Beds (${v.total_beds ?? 0}) cover less than half of max guests (${v.max_guests ?? 0}) — Rentals United requires ${Math.round(RU_BED_COVERAGE * 100)}%`,
+    `Beds (${v.total_beds ?? 0}) cover less than half of max guests (${v.max_guests ?? 0}) — the Channel Manager requires ${Math.round(RU_BED_COVERAGE * 100)}%`,
     "Rooms → Unit → Bed configuration");
   add("beds_meet_max_guests", "Rooms & beds", "Beds cover 100% of max guests (recommended)",
     v.beds_meet_max_guests !== false,
-    `Beds (${v.total_beds ?? 0}) do not cover every guest (${v.max_guests ?? 0}) — not required by Rentals United, but improves channel quality`,
+    `Beds (${v.total_beds ?? 0}) do not cover every guest (${v.max_guests ?? 0}) — not required by the Channel Manager, but improves channel quality`,
     "Rooms → Unit → Bed configuration", false);
 
   // ── Photos ──
   add("meets_minimum_images", "Photos", `Photos (≥ ${RU_MIN_IMAGES})`, !!v.meets_minimum_images,
-    `Only ${v.images_count ?? 0} photos — Rentals United requires ${RU_MIN_IMAGES}`,
+    `Only ${v.images_count ?? 0} photos — the Channel Manager requires ${RU_MIN_IMAGES}`,
     "Property → Images (or unit images)");
   add("images_meet_size", "Photos", `Photos ≥ ${RU_MIN_IMAGE_WIDTH}×${RU_MIN_IMAGE_HEIGHT}px`,
     v.images_meet_size !== false,
@@ -188,7 +188,7 @@ export function evaluateUnitChecks(
   add("has_zip_code", "Address & geo", "ZIP / postal code", !!v.has_zip_code,
     "ZIP / postal code is missing or a placeholder", "Property → General → Postal code");
   add("has_detailed_location_id", "Address & geo", "RU DetailedLocationID", !!v.has_detailed_location_id,
-    "Rentals United location could not be resolved from the address / coordinates",
+    "Channel Manager location could not be resolved from the address / coordinates",
     "Property → General → Address & coordinates");
   add("has_coordinates", "Address & geo", "Geo-coordinates", !!v.has_coordinates,
     "Latitude / longitude are missing", "Property → General → Map location");

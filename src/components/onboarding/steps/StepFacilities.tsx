@@ -17,7 +17,7 @@ export function StepFacilities({ updateField, getAmenityValue }: StepProps) {
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
         Select everything available at the property. Channel amenities appear first — these are
-        pushed to Rentals United and the OTAs, so start there before adding website-only extras.
+        pushed to the Channel Manager and the OTAs, so start there before adding website-only extras.
       </p>
 
       <RUAmenityPicker

@@ -65,7 +65,7 @@ export const RuPaymentMethodsPicker: React.FC<RuPaymentMethodsPickerProps> = ({
       </CardHeader>
       <CardContent className="py-2 px-4 space-y-3">
         <p className="text-xs text-muted-foreground">
-          What guests may use to pay at the property. At least one is required by Rentals United and every sales
+          What guests may use to pay at the property. At least one is required by the Channel Manager and every sales
           channel behind it. Until this is set, the push falls back to Cash + Credit card and the readiness card
           flags it as unconfirmed.
         </p>

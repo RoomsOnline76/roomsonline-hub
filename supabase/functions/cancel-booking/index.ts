@@ -130,7 +130,7 @@ Deno.serve(async (req) => {
           JSON.stringify({
             code: ruResult.code || "RU_ERROR",
             message: ruResult.message ||
-              "Rentals United rejected the cancellation — the booking was left unchanged.",
+              "The Channel Manager rejected the cancellation — the booking was left unchanged.",
           }),
           { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
@@ -366,7 +366,7 @@ Deno.serve(async (req) => {
         message: isPartialCancel
           ? `${cancel_rooms.length} room(s) cancelled successfully`
           : ruMethod
-            ? "Booking cancelled and withdrawn at Rentals United"
+            ? "Booking cancelled and withdrawn at the Channel Manager"
             : "Booking cancelled successfully",
         booking_id,
         ru_method: ruMethod,

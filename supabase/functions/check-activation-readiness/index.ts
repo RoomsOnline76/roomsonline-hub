@@ -50,7 +50,7 @@ const CHECK_ROUTES: Record<string, { section: string; label: string; surface: 'r
   check_times: { section: 'rates', label: 'Rates & Pricing → House Rules', surface: 'rolos' },
 
   rentalsunited_geo: { section: 'general', label: 'Identity & Location', surface: 'admin' },
-  rentalsunited_location_currency: { section: 'integrations', label: 'Integrations → Rentals United', surface: 'admin' },
+  rentalsunited_location_currency: { section: 'integrations', label: 'Integrations → Channel Manager', surface: 'admin' },
 };
 
 /**
@@ -187,7 +187,7 @@ Deno.serve(async (req) => {
           if (ruLoc && ruLoc.currency_iso && ruLoc.currency_iso !== expectedIso) {
             checks.push({
               id: 'rentalsunited_location_currency',
-              name: 'Rentals United location currency',
+              name: 'Channel Manager location currency',
               passed: false,
               message: `RU location "${ruLoc.name}" (ID ${ruLocId}) is set to ${ruLoc.currency_iso} but this property expects ${expectedIso}.`,
               fix: 'Run reconcile_ru_location_currency to flip the location currency, then re-push the property.',
@@ -335,7 +335,7 @@ function getPMSCodeLabel(externalSystem: string): string {
     case 'hotelbeds': return 'Hotel Code';
     case 'hostfully': return 'Hostfully Property UID';
     case 'siteminder': return 'SiteMinder Property Code';
-    case 'rentalsunited': return 'Rentals United Property ID';
+    case 'rentalsunited': return 'Channel Manager Property ID';
     case 'rol': return 'Internal Property';
     default: return 'External Property ID';
   }
@@ -626,9 +626,9 @@ function checkRentalsUnitedReadiness(property: any, amenities: Record<string, un
   if (!countryOk) {
     return {
       id: 'rentalsunited_geo',
-      name: 'Rentals United distribution',
+      name: 'Channel Manager distribution',
       passed: false,
-      message: 'Cannot resolve a Rentals United LocationID — set valid coordinates or a supported country (ZA / NA / BW).',
+      message: 'Cannot resolve a Channel Manager LocationID — set valid coordinates or a supported country (ZA / NA / BW).',
       fix: 'Open the General tab → set Country and re-pin the map marker so latitude/longitude are populated.',
       field: 'country',
       severity: 'blocker',
@@ -637,9 +637,9 @@ function checkRentalsUnitedReadiness(property: any, amenities: Record<string, un
   if (!currencyOk) {
     return {
       id: 'rentalsunited_geo',
-      name: 'Rentals United distribution',
+      name: 'Channel Manager distribution',
       passed: false,
-      message: `Currency "${currencyIso || 'unset'}" is not mapped to a Rentals United CurrencyID — channels (e.g. LekkeSlaap) will reject the listing.`,
+      message: `Currency "${currencyIso || 'unset'}" is not mapped to a Channel Manager CurrencyID — channels (e.g. LekkeSlaap) will reject the listing.`,
       fix: 'Open the General tab → Banking Details and pick a supported currency (ZAR, USD, EUR, GBP, NAD, BWP).',
       field: 'amenities.banking.currency',
       severity: 'warning',
@@ -647,9 +647,9 @@ function checkRentalsUnitedReadiness(property: any, amenities: Record<string, un
   }
   return {
     id: 'rentalsunited_geo',
-    name: 'Rentals United distribution',
+    name: 'Channel Manager distribution',
     passed: true,
-    message: `Country "${country}" + currency ${currencyIso} ready for Rentals United.`,
+    message: `Country "${country}" + currency ${currencyIso} ready for the Channel Manager.`,
     severity: 'info',
   };
 }

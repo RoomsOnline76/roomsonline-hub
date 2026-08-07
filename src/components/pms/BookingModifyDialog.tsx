@@ -92,7 +92,7 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
           </DialogTitle>
           <DialogDescription>
             {isRuBooking
-              ? "The change is pushed to Rentals United first. If the channel refuses it, nothing changes here."
+              ? "The change is pushed to the Channel Manager first. If the channel refuses it, nothing changes here."
               : "Dates, guests and the total can be adjusted. Availability is re-blocked automatically."}
           </DialogDescription>
         </DialogHeader>

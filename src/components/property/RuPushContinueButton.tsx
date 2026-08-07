@@ -57,12 +57,12 @@ export function RuPushContinueButton({ propertyId, className }: RuPushContinueBu
       });
       if (error) throw new Error(error.message);
       if (!data?.success) {
-        throw new Error(data?.error?.message || "Push to Rentals United failed");
+        throw new Error(data?.error?.message || "Publish to Channel Manager failed");
       }
 
       if (data.multi_unit) {
         const successCount = (data.units || []).filter((u: { success?: boolean }) => u.success).length;
-        toast.success(`Building + ${successCount}/${(data.units || []).length} units pushed to Rentals United`);
+        toast.success(`Building + ${successCount}/${(data.units || []).length} units published to the Channel Manager`);
       } else {
         toast.success(`Property pushed to Rentals United (ID: ${data.rentalsunited_property_id})`);
       }
@@ -70,7 +70,7 @@ export function RuPushContinueButton({ propertyId, className }: RuPushContinueBu
       await queryClient.invalidateQueries({ queryKey: ["ru-push-state", propertyId] });
       goToSetup();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Push to Rentals United failed");
+      toast.error(err instanceof Error ? err.message : "Publish to Channel Manager failed");
     } finally {
       setPushing(false);
     }
@@ -86,13 +86,13 @@ export function RuPushContinueButton({ propertyId, className }: RuPushContinueBu
         </Badge>
         <span className="text-xs text-muted-foreground">
           {alreadyPushed
-            ? "Already distributed to Rentals United — continue to ROL'OS setup."
-            : "All mandatory requirements met — push this property to Rentals United."}
+            ? "Already distributed via the Channel Manager — continue to ROL'OS setup."
+            : "All mandatory requirements met — publish this property to the Channel Manager."}
         </span>
         <Button type="button" size="sm" className="h-7 gap-1 text-xs ml-auto" onClick={handleClick} disabled={pushing}>
           {pushing ? (
             <>
-              <Loader2 className="h-3 w-3 animate-spin" /> Pushing to RU…
+              <Loader2 className="h-3 w-3 animate-spin" /> Publishing…
             </>
           ) : alreadyPushed ? (
             <>
@@ -100,7 +100,7 @@ export function RuPushContinueButton({ propertyId, className }: RuPushContinueBu
             </>
           ) : (
             <>
-              <Upload className="h-3 w-3" /> Continue — Push to RU
+              <Upload className="h-3 w-3" /> Continue — Publish to Channel Manager
             </>
           )}
         </Button>

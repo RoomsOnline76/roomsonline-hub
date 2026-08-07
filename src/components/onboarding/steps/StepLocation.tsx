@@ -104,7 +104,7 @@ export function StepLocation({
     <div className="space-y-6">
       <p className="text-muted-foreground">
         Enter your property's address. We'll use this to show your location on the map 
-        and help guests find you. The RU LocationID is required for channel distribution.
+        and help guests find you. The Channel Manager LocationID is required for channel distribution.
       </p>
 
       {/* Street Address */}
@@ -216,18 +216,18 @@ export function StepLocation({
       <div className="space-y-2 rounded-lg border border-border bg-muted/30 p-3">
         <Label className="flex items-center gap-1.5">
           <MapPin className="h-3.5 w-3.5 text-primary" />
-          Rentals United Location *
+          Channel Manager Location *
         </Label>
         <RuLocationPicker
           value={ruLocationId}
           onChange={(id) => updateField("amenities.ru_location_id", id)}
           typeFilter={RU_COUNTRY_TYPE_FILTER}
           initialQuery={propertyData.city || propertyData.country || ""}
-          placeholder="Search RU locations (country / region / city)…"
+          placeholder="Search Channel Manager locations (country / region / city)…"
           allowRefresh={false}
         />
         <p className="text-xs text-muted-foreground">
-          Attaches a real RU LocationID. RU owns the currency on the LocationID — this selection decides which currency the property is locked into for channels.
+          Attaches a real Channel Manager LocationID. The Channel Manager owns the currency on the LocationID — this selection decides which currency the property is locked into for channels.
         </p>
       </div>
 

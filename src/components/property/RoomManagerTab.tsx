@@ -734,7 +734,7 @@ export function RoomManagerTab({
                         </TooltipTrigger>
                         <TooltipContent className="max-w-xs text-xs">
                           Which level the unit is on. 0 = Ground floor (street level). 1 = 1st floor (the second level in a double-storey house).
-                          2 = 2nd floor (the top level of a three-storey unit), and so on. Pushed to channel managers (Rentals United).
+                          2 = 2nd floor (the top level of a three-storey unit), and so on. Pushed to the Channel Manager and downstream channels.
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
@@ -777,7 +777,7 @@ export function RoomManagerTab({
                           <Label className="text-xs whitespace-nowrap cursor-help underline decoration-dotted">Toilets</Label>
                         </TooltipTrigger>
                         <TooltipContent className="max-w-xs text-xs">
-                          Separate WCs in this unit (mandatory for Rentals United). Leave blank to fall back to the
+                          Separate WCs in this unit (mandatory for the Channel Manager). Leave blank to fall back to the
                           property-wide value in the Composition card.
                         </TooltipContent>
                       </Tooltip>
@@ -1195,7 +1195,7 @@ export function RoomManagerTab({
               ) : (
                 <div className="bg-muted border border-border rounded-md p-2 mb-4">
                   <p className="text-sm text-muted-foreground">
-                    Room facilities and amenities are managed in one place here — the selection below is the source of truth pushed to Rentals United and downstream channels.
+                    Room facilities and amenities are managed in one place here — the selection below is the source of truth pushed to the Channel Manager and downstream channels.
                   </p>
                 </div>
               );
@@ -1223,7 +1223,7 @@ export function RoomManagerTab({
                     </Button>
                   </div>
                   <p className="text-[11px] text-muted-foreground">
-                    Captured before the Rentals United alignment. Re-select the equivalents above so they reach the channels, then clear these.
+                    Captured before the channel amenity alignment. Re-select the equivalents above so they reach the channels, then clear these.
                   </p>
                   <div className="flex flex-wrap gap-1">
                     {legacy.map((f) => (

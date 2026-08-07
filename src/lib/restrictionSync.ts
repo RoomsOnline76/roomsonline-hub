@@ -53,7 +53,7 @@ export async function syncRestrictionsToChannels(
       { id: toastId },
     );
   } else {
-    toast.info("Saved — no Rentals United listing to sync", { id: toastId });
+    toast.info("Saved — no Channel Manager listing to sync", { id: toastId });
   }
 
   return summary;

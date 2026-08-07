@@ -91,7 +91,7 @@ function buildRows(v: RuContentFlags): Row[] {
     {
       label: "Detailed location",
       field: "Properties/Property/DetailedLocationID",
-      where: "Identity & Location → RU location",
+      where: "Identity & Location → Channel Manager location",
       state: state(v.has_detailed_location_id),
     },
     {

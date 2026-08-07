@@ -86,8 +86,8 @@ export function BookingCancelDialog({
           <AlertDialogDescription>
             {isRuBooking
               ? isRuLead
-                ? "This request came from Rentals United. It will be rejected at the channel first; the hold and calendar block are released only once the channel accepts."
-                : "This reservation came from Rentals United. It will be cancelled at the channel first — if the channel refuses, nothing changes here."
+                ? "This request came from ROL'OS Channels. It will be rejected at the channel first; the hold and calendar block are released only once the channel accepts."
+                : "This reservation came from ROL'OS Channels. It will be cancelled at the channel first — if the channel refuses, nothing changes here."
               : "The guest will receive a cancellation email and the nights are released back to inventory."}
           </AlertDialogDescription>
         </AlertDialogHeader>

@@ -175,19 +175,19 @@ const COMPANY_RANGE_FIELDS: {
     key: "number_of_properties",
     label: "Number of properties",
     ranges: RU_PROPERTY_RANGES,
-    hint: "Total units/properties managed on this Rentals United account (all portfolio properties combined).",
+    hint: "Total units/properties managed on this distribution account (all portfolio properties combined).",
   },
   {
     key: "number_of_employees",
     label: "Number of employees",
     ranges: RU_EMPLOYEE_RANGES,
-    hint: "Rentals United stores this as a range, not an exact headcount.",
+    hint: "The Channel Manager stores this as a range, not an exact headcount.",
   },
   {
     key: "years_in_business",
     label: "Years in business",
     ranges: RU_YEARS_RANGES,
-    hint: "Rentals United stores this as a range, not an exact number of years.",
+    hint: "The Channel Manager stores this as a range, not an exact number of years.",
   },
 ];
 
@@ -214,7 +214,7 @@ const REP_FIELDS: {
     key: "birthday",
     label: "Date of birth",
     type: "date",
-    hint: "Sent to Rentals United as YYYY-MM-DD",
+    hint: "Sent to the Channel Manager as YYYY-MM-DD",
   },
 ];
 
@@ -234,13 +234,13 @@ const CONTACT_FIELDS: {
   {
     key: "contact_phone",
     label: "Contact phone",
-    hint: "International format, e.g. +27 82 123 4567 — no placeholder is sent to RU.",
+    hint: "International format, e.g. +27 82 123 4567 — no placeholder is sent to the Channel Manager.",
   },
   {
     key: "contact_birth_date",
     label: "Contact date of birth",
     type: "date",
-    hint: "Sent to Rentals United as YYYY-MM-DD",
+    hint: "Sent to the Channel Manager as YYYY-MM-DD",
   },
 ];
 
@@ -466,7 +466,7 @@ export function CompanyInformationCard({
     need("Region / province", companyProfile.region);
     need("City", propertyCity);
     if (!normalizeRuTimeZone(companyProfile.time_zone)) out.push("Time zone");
-    if (!ruLocationId) out.push("RU LocationID");
+    if (!ruLocationId) out.push("Channel Manager location");
     if (banking.has_vat) need("VAT number", banking.vat_number);
     need("Contact first name", companyProfile.contact_first_name);
     need("Contact last name", companyProfile.contact_last_name);
@@ -514,7 +514,7 @@ export function CompanyInformationCard({
               <span className="flex items-center gap-2">
                 Company Information
                 <span className="text-[10px] font-normal text-muted-foreground">
-                  (contract · banking · Rentals United)
+                  (contract · banking · distribution)
                 </span>
               </span>
               <span className="flex items-center gap-2">
@@ -655,11 +655,11 @@ export function CompanyInformationCard({
                     </SelectContent>
                   </Select>
                   <Hint>
-                    Rentals United requires the exact format UTC±HH:MM (for South Africa: UTC+02:00).
+                    The Channel Manager requires the exact format UTC±HH:MM (for South Africa: UTC+02:00).
                   </Hint>
                   {rawTimeZone && !normalizedTimeZone && (
                     <p className="text-[10px] leading-snug text-destructive">
-                      Stored value “{rawTimeZone}” is not a valid RU time zone — pick one above.
+                      Stored value “{rawTimeZone}” is not a valid Channel Manager time zone — pick one above.
                     </p>
                   )}
                 </div>
@@ -799,7 +799,7 @@ export function CompanyInformationCard({
             {/* ── RU location register ── */}
             <div className="space-y-1.5 rounded-md border border-border bg-muted/30 p-2.5">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                Rentals United location<Req />
+                Channel Manager location<Req />
               </p>
               <RuLocationPicker
                 value={ruLocationId}
@@ -807,7 +807,7 @@ export function CompanyInformationCard({
                 initialQuery={propertyCity ?? ""}
               />
               <p className="text-[10px] leading-snug text-muted-foreground">
-                Attaches a real RU LocationID to this property and its company push. RU owns the
+                Attaches a real Channel Manager LocationID to this property and its company push. the Channel Manager owns the
                 currency on the LocationID, so an explicit selection here decides which currency the
                 property is locked into.
               </p>
@@ -818,7 +818,7 @@ export function CompanyInformationCard({
               <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                 Legal representative{" "}
                 <span className="font-normal normal-case tracking-normal">
-                  (nationality is mandatory for Rentals United)
+                  (nationality is mandatory for the Channel Manager)
                 </span>
               </p>
               <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
@@ -843,7 +843,7 @@ export function CompanyInformationCard({
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 <div className="flex flex-col gap-1">
                   <Label className="text-xs">
-                    Nationality (RU location)
+                    Nationality (Channel Manager location)
                     <Req />
                   </Label>
                   <RuLocationPicker
@@ -856,7 +856,7 @@ export function CompanyInformationCard({
                 </div>
                 <div className="flex flex-col gap-1">
                   <Label className="text-xs">
-                    Country of residence (RU location)
+                    Country of residence (Channel Manager location)
                     <Req />
                   </Label>
                   <RuLocationPicker

@@ -33,7 +33,7 @@ SUPPORTED PMS ADAPTERS:
 - ROL'OS Native (recommended, full feature set)
 - Hostfully (vacation rentals)
 - Benson (SA PMS — canonical rate hydration, 45-day rolling availability)
-- Rentals United (XML adapter for 60+ rental channels)
+- ROL'OS Channel Manager (adapter for 60+ rental channels)
 - Custom adapters via the standardised interface
 
 Do NOT mention NightsBridge, Checkfront, HyperGuest, HotelBeds, or ProfitRoom.
