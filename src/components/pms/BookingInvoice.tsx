@@ -133,6 +133,27 @@ export function BookingInvoice({ bookingId, guestName, guestEmail, checkIn, chec
   const folioChargesTotal = charges.reduce((s, t) => s + t.amount, 0);
   const subtotal = accommodationLineAmount + folioChargesTotal;
 
+  // Group the guest-facing lines by revenue stream (accommodation vs F&B vs other)
+  const chargeSections = useMemo(() => {
+    const meta: Array<{ key: RevenueStream; label: string }> = [
+      { key: "accommodation", label: "Accommodation" },
+      { key: "fnb", label: "Food & Beverage" },
+      { key: "other", label: "Other Charges" },
+    ];
+    const synthetic: Transaction[] = accommodationLineAmount > 0
+      ? [{ id: "accommodation-synthetic", transaction_type: "accommodation", description: "Accommodation", amount: accommodationLineAmount, tax_amount: null, created_at: "", revenue_stream: "accommodation" }]
+      : [];
+    const all = [...synthetic, ...charges];
+    return meta
+      .map(m => {
+        const items = all.filter(t => streamOf(t) === m.key);
+        return { ...m, items, total: items.reduce((s, t) => s + t.amount, 0) };
+      })
+      .filter(s => s.items.length > 0);
+  }, [charges, accommodationLineAmount]);
+  const showSections = chargeSections.length > 1;
+
+
   const isVat = vatConfig.isVatRegistered;
   const vatRate = vatConfig.vatRate / 100;
 
