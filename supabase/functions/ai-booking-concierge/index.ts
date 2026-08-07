@@ -420,7 +420,148 @@ async function fetchOwnerAlternatives(
 }
 
 // ============================================================================
+// OFFERS: SPECIALS & VOUCHER CODES
+// ============================================================================
+
+function daysBetween(a: string, b: string): number {
+  return Math.round((new Date(b).getTime() - new Date(a).getTime()) / 86400000);
+}
+
+function specialLabelText(s: any, currency: string): string {
+  if (s.discount_percent) return `${s.discount_percent}% off`;
+  if (s.fixed_amount) return `${currency} ${Math.round(s.fixed_amount)} off`;
+  if (s.fixed_price) return `flat ${currency} ${Math.round(s.fixed_price)}`;
+  return 'special rate';
+}
+
+function specialConditionsText(s: any): string {
+  const bits: string[] = [];
+  if (s.min_stay) bits.push(`min ${s.min_stay} nights`);
+  if (s.max_stay) bits.push(`max ${s.max_stay} nights`);
+  if (s.lead_days_min) bits.push(`book at least ${s.lead_days_min} days ahead`);
+  if (s.lead_days_max) bits.push(`book within ${s.lead_days_max} days of arrival`);
+  if (s.valid_from || s.valid_to) bits.push(`stay between ${s.valid_from || 'any'} and ${s.valid_to || 'any'}`);
+  if (Array.isArray(s.dow_mask) && s.dow_mask.length > 0) bits.push(`arrival on ${s.dow_mask.join('/')}`);
+  return bits.length > 0 ? bits.join(', ') : 'no conditions';
+}
+
+/** Loose eligibility check for a stay — the booking page remains authoritative. */
+function isSpecialEligibleForStay(s: any, dates: { check_in: string; check_out: string } | undefined): boolean {
+  if (!dates?.check_in || !dates?.check_out) return false;
+  const nights = daysBetween(dates.check_in, dates.check_out);
+  if (nights <= 0) return false;
+  if (s.min_stay && nights < s.min_stay) return false;
+  if (s.max_stay && nights > s.max_stay) return false;
+  if (s.valid_from && dates.check_in < s.valid_from) return false;
+  if (s.valid_to && dates.check_out > s.valid_to) return false;
+  const today = new Date().toISOString().split('T')[0];
+  if (s.book_from && today < s.book_from) return false;
+  if (s.book_until && today > s.book_until) return false;
+  const lead = daysBetween(today, dates.check_in);
+  if (s.lead_days_min && lead < s.lead_days_min) return false;
+  if (s.lead_days_max && lead > s.lead_days_max) return false;
+  return true;
+}
+
+function isVoucherUsableForStay(v: any, dates: { check_in: string; check_out: string } | undefined): boolean {
+  const today = new Date().toISOString().split('T')[0];
+  if (v.valid_from && today < v.valid_from) return false;
+  if (v.valid_until && today > v.valid_until) return false;
+  if (v.max_uses && (v.current_uses || 0) >= v.max_uses) return false;
+  const minNights = v.conditions?.min_nights || v.conditions?.min_stay;
+  if (minNights && dates?.check_in && dates?.check_out && daysBetween(dates.check_in, dates.check_out) < minNights) return false;
+  return true;
+}
+
+async function fetchOffers(
+  supabase: any,
+  propertyId: string,
+): Promise<{ specials: any[]; vouchers: any[] }> {
+  try {
+    const [specialsRes, vouchersRes] = await Promise.all([
+      supabase
+        .from("property_specials")
+        .select("id, name, description, deal_type, discount_percent, fixed_amount, fixed_price, currency, valid_from, valid_to, book_from, book_until, min_stay, max_stay, lead_days_min, lead_days_max, dow_mask, applicable_room_ids, is_stackable, terms")
+        .eq("property_id", propertyId)
+        .eq("is_active", true)
+        .eq("is_public", true)
+        .limit(12),
+      supabase
+        .from("promo_codes")
+        .select("id, code, description, discount_type, discount_value, conditions, valid_from, valid_until, max_uses, current_uses")
+        .eq("property_id", propertyId)
+        .eq("is_active", true)
+        .limit(12),
+    ]);
+    return { specials: specialsRes.data || [], vouchers: vouchersRes.data || [] };
+  } catch (e) {
+    console.error("[Concierge] Offers fetch error:", e);
+    return { specials: [], vouchers: [] };
+  }
+}
+
+function summariseOffers(
+  offers: { specials: any[]; vouchers: any[] },
+  currency: string,
+): { specials: OfferSummary[]; vouchers: OfferSummary[] } {
+  return {
+    specials: offers.specials.map((s) => ({
+      id: s.id,
+      name: s.name,
+      label: specialLabelText(s, s.currency || currency),
+      conditions: specialConditionsText(s),
+    })),
+    vouchers: offers.vouchers.map((v) => ({
+      id: v.id,
+      name: v.description || v.code,
+      code: v.code,
+      label: v.discount_type === 'percentage' ? `${v.discount_value}% off` : `${currency} ${Math.round(v.discount_value)} off`,
+      conditions: [
+        v.valid_until ? `book by ${v.valid_until}` : null,
+        v.conditions?.min_nights ? `min ${v.conditions.min_nights} nights` : null,
+      ].filter(Boolean).join(', ') || 'no conditions',
+    })),
+  };
+}
+
+// ============================================================================
+// SLOT FILLING — ask only for what is still missing, one thing at a time
+// ============================================================================
+
+const SLOT_QUESTIONS: Record<SlotName, string> = {
+  guests: "How many of you are travelling — and are any of them kids?",
+  destination: "Would you like to stay here for the whole trip, or combine a second spot along the way?",
+  dates: "Roughly when are you thinking of coming?",
+  flexibility: "Are those dates firm, or could they move by a few days?",
+};
+
+function computeMissingSlots(
+  intent: ParsedIntent,
+  currentDates: { check_in: string; check_out: string } | undefined,
+  currentGuests: { adults: number; children: number; infants: number } | undefined,
+  isJourneyCapable: boolean,
+  history: { role: string; content: string }[] | undefined,
+): SlotName[] {
+  const missing: SlotName[] = [];
+  const asked = (q: string) => (history || []).some(m => m.role === 'assistant' && m.content.includes(q.slice(0, 24)));
+
+  const haveGuests = !!(intent.guests?.adults || currentGuests?.adults);
+  if (!haveGuests) missing.push('guests');
+
+  const haveDates = !!((currentDates?.check_in && currentDates?.check_out) || intent.date_range || intent.month || intent.nights);
+  if (!haveDates) missing.push('dates');
+
+  if (isJourneyCapable && intent.multi_property === undefined) missing.push('destination');
+
+  if (haveDates && intent.flexible_dates === undefined) missing.push('flexibility');
+
+  // Never re-ask something we have already asked this session.
+  return missing.filter(slot => !asked(SLOT_QUESTIONS[slot]));
+}
+
+// ============================================================================
 // LOVABLE AI NARRATIVE GENERATION
+
 // ============================================================================
 
 async function generateAINarrative(
