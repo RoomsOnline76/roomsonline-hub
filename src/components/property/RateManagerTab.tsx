@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { isRolosPms } from "@/lib/pmsUtils";
 import { RatePlansSurface } from "@/components/pms/rateplans/RatePlansSurface";
-import { ExternalLink } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -107,6 +108,12 @@ export function RateManagerTab({
 }: RateManagerTabProps) {
 
   const { toast } = useToast();
+  const navigate = useNavigate();
+
+  const goToRatePlans = () => {
+    navigate(`/pms/rate-plans${propertyId ? `?property=${propertyId}` : ""}`);
+  };
+
 
   /** ROL'OS-managed properties never edit rates from Admin — ROL'OS is the source of truth. */
   const isRolosProperty = isRolosPms(selectedPMS);
@@ -304,22 +311,18 @@ export function RateManagerTab({
                     </p>
 
                   </div>
-                  <Button asChild size="sm" className="gap-1">
-                    <a href={`/pms/rate-plans?property=${propertyId}`} target="_blank" rel="noreferrer">
-                      Manage Rate Plans in ROL'OS
-                      <ExternalLink className="h-3 w-3" />
-                    </a>
+                  <Button size="sm" className="gap-1" onClick={goToRatePlans}>
+                    Manage Rate Plans in ROL'OS
+                    <ArrowRight className="h-3 w-3" />
                   </Button>
                 </div>
                 <RatePlansSurface
                   properties={rateSurfaceProperties}
                   readOnly
                   emptyStateExtra={
-                    <Button asChild size="sm" className="gap-1">
-                      <a href={`/pms/rate-plans?property=${propertyId}`} target="_blank" rel="noreferrer">
-                        Manage Rate Plans in ROL'OS
-                        <ExternalLink className="h-3 w-3" />
-                      </a>
+                    <Button size="sm" className="gap-1" onClick={goToRatePlans}>
+                      Manage Rate Plans in ROL'OS
+                      <ArrowRight className="h-3 w-3" />
                     </Button>
                   }
                 />
