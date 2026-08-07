@@ -388,6 +388,7 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
       return;
     }
     toast.success(ratePlanId ? "Rate plan updated" : "Rate plan created");
+    setLegacyRefresh((n) => n + 1);
     onSaved();
   }, [draft, propertyId, ratePlanId, onSaved]);
 
@@ -529,7 +530,9 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
             seasonColors={seasonColors}
             roomTypes={roomTypes}
             liveMatrix={liveMatrix}
-            liveMatrixLoading={liveMatrixLoading}
+            liveMatrixLoading={liveMatrixLoading || legacyLoading}
+            legacyPendingBySeason={legacyPendingBySeason}
+            legacyPendingCells={legacyPending.length}
             onSeedFromLive={onSeedFromLive}
             onChange={onSeasonChange}
             onCellChange={onSeasonCellChange}
