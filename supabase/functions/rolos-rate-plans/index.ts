@@ -82,6 +82,9 @@ interface Draft {
   breakfast_amount?: number | null;
   breakfast_basis?: string | null;
   policy_id?: string | null;
+  is_primary_sell?: boolean;
+  push_to_channels?: boolean;
+  sell_priority?: number | null;
   units?: DraftUnit[];
   season_rates?: DraftSeasonRate[];
 }
@@ -565,8 +568,21 @@ async function savePlan(sb: any, propertyId: string, draft: Draft) {
     breakfast_amount: draft.breakfast_included ? positive(draft.breakfast_amount) : null,
     breakfast_basis: draft.breakfast_included ? (draft.breakfast_basis || "per_person_per_night") : null,
     source_of_truth: "rate_plan",
+    is_primary_sell: draft.is_primary_sell === true,
+    push_to_channels: draft.push_to_channels !== false,
+    sell_priority: intOrNull(draft.sell_priority) ?? 100,
     updated_at: new Date().toISOString(),
   };
+
+  // Only one plan per property may be the live/direct plan — demote the incumbent
+  // before writing this one (a partial unique index enforces it in the database).
+  if (draft.is_primary_sell === true) {
+    await sb
+      .from("rolos_rate_plans")
+      .update({ is_primary_sell: false })
+      .eq("property_id", propertyId)
+      .eq("is_primary_sell", true);
+  }
 
   let planId = draft.rate_plan_id ? String(draft.rate_plan_id) : "";
   if (planId) {
@@ -975,6 +991,9 @@ async function copyPlan(sb: any, ratePlanId: string, targetPropertyIds: string[]
       breakfast_included: plan.breakfast_included,
       breakfast_amount: plan.breakfast_amount,
       breakfast_basis: plan.breakfast_basis,
+      is_primary_sell: plan.is_primary_sell === true,
+      push_to_channels: plan.push_to_channels !== false,
+      sell_priority: plan.sell_priority ?? 100,
       policy_id: policyLink?.policy_id ?? null,
       units,
       season_rates: [...seasonDraft.values()].map((sr) => {
