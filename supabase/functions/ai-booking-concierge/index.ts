@@ -52,7 +52,46 @@ interface ConciergeResponse {
   proactive_tip?: string;
   parsed_intent?: ParsedIntent;
   journey_suggestions?: JourneySuggestion[];
+  /** Slots TOBI still needs before it can propose a stay. */
+  missing_slots?: SlotName[];
+  /** The single question TOBI should ask this turn (if any). */
+  next_question?: string;
+  /** A concrete stay TOBI has assembled — the client applies this to the booking. */
+  booking_proposal?: BookingProposal;
+  /** Offers that were considered when building the proposal. */
+  offers_considered?: { specials: OfferSummary[]; vouchers: OfferSummary[] };
 }
+
+type SlotName = 'guests' | 'destination' | 'dates' | 'flexibility';
+
+interface BookingProposal {
+  check_in: string;
+  check_out: string;
+  nights: number;
+  guests: { adults: number; children: number; infants: number };
+  currency: string;
+  rooms: { room_type_id: string; room_type_name: string; rate_per_night: number; total: number }[];
+  total: number;
+  voucher_code?: string;
+  qualifying_special?: { id: string; name: string; label: string } | null;
+  legs?: {
+    property_id: string;
+    property_name: string;
+    property_slug: string;
+    check_in: string;
+    check_out: string;
+  }[];
+  recap: string;
+}
+
+interface OfferSummary {
+  id: string;
+  name: string;
+  code?: string;
+  label: string;
+  conditions: string;
+}
+
 
 interface JourneySuggestion {
   property_id: string;
