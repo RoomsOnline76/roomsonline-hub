@@ -255,6 +255,36 @@ export const seasonRateFor = (draft: RatePlanDraft, calendarSeasonId: string): D
 export const unitFor = (draft: RatePlanDraft, roomTypeId: string): DraftUnit | undefined =>
   draft.units.find((u) => u.room_type_id === roomTypeId);
 
+/**
+ * What this plan actually sells, per its pricing model. The season matrix rows, the
+ * "Linked units" section and the helper copy all follow this so the editor speaks the
+ * same language as the rate the guest is quoted.
+ */
+export interface PricingNoun {
+  singular: string;
+  plural: string;
+  /** Capitalised for table headers and card titles. */
+  Singular: string;
+  Plural: string;
+  /** Per-night unit shown next to a price, e.g. "per room / night". */
+  perNight: string;
+}
+
+const PRICING_NOUNS: Record<string, { singular: string; plural: string; perNight: string }> = {
+  per_room: { singular: "room", plural: "rooms", perNight: "per room / night" },
+  per_person: { singular: "person", plural: "people", perNight: "per person / night" },
+  per_person_sharing: { singular: "person sharing", plural: "people sharing", perNight: "per person sharing / night" },
+  per_unit: { singular: "unit", plural: "units", perNight: "per unit / night" },
+};
+
+const cap = (v: string): string => v.charAt(0).toUpperCase() + v.slice(1);
+
+/** Noun set for a pricing model, falling back to "unit" for anything unrecognised. */
+export function pricingNoun(pricingModel: string | null | undefined): PricingNoun {
+  const base = PRICING_NOUNS[String(pricingModel ?? "")] ?? PRICING_NOUNS.per_unit;
+  return { ...base, Singular: cap(base.singular), Plural: cap(base.plural) };
+}
+
 /** The raw cell value for a unit in a season, "" when it inherits the column value. */
 export const seasonUnitRate = (rate: DraftSeasonRate, roomTypeId: string): string =>
   rate.unit_rates[roomTypeId] ?? "";
