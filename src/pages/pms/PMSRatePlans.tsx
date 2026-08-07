@@ -719,18 +719,19 @@ export default function PMSRatePlans() {
               <div key={i} className="h-16 rounded-md bg-muted animate-pulse" />
             ))}
           </div>
-        ) : plans.length === 0 ? (
-          <Card>
-            <CardContent className="py-12 text-center">
-              <TrendingUp className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-              <p className="text-muted-foreground mb-2">No rate plans configured.</p>
-              <p className="text-sm text-muted-foreground">
-                Create rate plans and link them to your room types.
-              </p>
-            </CardContent>
-          </Card>
         ) : (
           <div className="space-y-6">
+            {plans.length === 0 && (
+              <Card>
+                <CardContent className="py-12 text-center">
+                  <TrendingUp className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <p className="text-muted-foreground mb-2">No rate plans configured.</p>
+                  <p className="text-sm text-muted-foreground">
+                    Create rate plans and link them to your room types.
+                  </p>
+                </CardContent>
+              </Card>
+            )}
             {propertySections.map((section) => (
               <div key={section.id} className="space-y-3">
                 {isPortfolio && (
@@ -747,6 +748,12 @@ export default function PMSRatePlans() {
                     {section.plans.map(renderPlanCard)}
                   </div>
                 )}
+                <div className="pt-4 border-t">
+                  <PackagesManager
+                    propertyId={section.id}
+                    ratePlans={section.plans.map((p) => ({ id: p.id, name: p.name }))}
+                  />
+                </div>
               </div>
             ))}
           </div>
