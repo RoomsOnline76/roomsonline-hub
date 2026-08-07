@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, Save } from "lucide-react";
 import { BREAKFAST_BASIS_LABELS, normalizeBreakfastBasis } from "@/components/charges/ChargeCalculator";
 import { useReservationPolicies } from "@/hooks/useReservationPolicies";
+import { buildSeasonColorMap, type SeasonColorMap } from "@/lib/seasonColors";
 import { RatePlanSeasonPricingTable } from "./RatePlanSeasonPricingTable";
 import { RatePlanUnitsSection } from "./RatePlanUnitsSection";
 import { RatePlanEffectivePreview } from "./RatePlanEffectivePreview";
