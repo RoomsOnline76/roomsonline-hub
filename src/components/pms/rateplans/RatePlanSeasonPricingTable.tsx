@@ -201,29 +201,20 @@ export const RatePlanSeasonPricingTable = memo(function RatePlanSeasonPricingTab
                         </div>
                       )}
 
-                      {rate.mode !== "none" && suggestions.length > 0 && (
-                        <div className="flex flex-wrap items-center gap-1">
-                          <Wand2 className="h-3 w-3 text-muted-foreground" />
-                          {suggestions.map((amount) => (
-                            <Button
-                              key={amount}
-                              type="button"
-                              size="sm"
-                              variant="secondary"
-                              className="h-5 px-1.5 text-[10px] font-normal"
-                              onClick={() => {
-                                onChange(season.calendar_season_id, {
-                                  mode: "absolute",
-                                  base_rate: String(amount),
-                                });
-                                onFillColumn(season.calendar_season_id, String(amount));
-                              }}
-                            >
-                              Use {fmtMoney(amount)}
-                            </Button>
-                          ))}
-                        </div>
+                      {(liveMatrix?.get(season.calendar_season_id)?.size ?? 0) > 0 && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="secondary"
+                          className="h-5 gap-1 px-1.5 text-[10px] font-normal"
+                          title="Fill this season's cells with the rates the live booking engine uses today"
+                          onClick={() => onSeedFromLive(season.calendar_season_id)}
+                        >
+                          <Wand2 className="h-3 w-3" />
+                          Use live rates
+                        </Button>
                       )}
+
                     </div>
                   </th>
                 );
