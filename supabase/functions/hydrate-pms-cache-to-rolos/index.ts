@@ -5,6 +5,7 @@
 // can display ARI from any adapter (Benson, HotelBeds, etc.)
 // ============================================================================
 
+import { canonicalPricingModel } from "../_shared/ratePricing.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -137,7 +138,7 @@ Deno.serve(async (req) => {
 
       for (const [rateExtId, { name: rateName, price_type, sample }] of rateTypeMap) {
         // Determine pricing model
-        const pricingModel = price_type?.toLowerCase().includes("person") ? "per_person" : "per_room";
+        const pricingModel = canonicalPricingModel(price_type);
 
         // Determine base rate from sample
         const baseRate = sample.room_amount ||

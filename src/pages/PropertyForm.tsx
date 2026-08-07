@@ -3488,7 +3488,7 @@ export default function PropertyForm({
               min_stay: rateType.minStayDays || 1,
               requires_deposit: false,
               base_rate: rateType.baseRate || 0,
-              pricing_model: rateType.pricingModel || rateType.priceType || "per_room",
+              pricing_model: canonicalPricingModel(rateType.pricingModel || rateType.priceType),
               adult_1_rate: rateType.adult1Rate ?? null,
               adult_2_rate: rateType.adult2Rate ?? null,
               teen_rate: rateType.teenRate ?? null,
