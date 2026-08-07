@@ -864,6 +864,13 @@ Deno.serve(async (req) => {
       return json(result);
     }
 
+    if (action === "season_rate_matrix") {
+      const propertyId = String(body?.property_id ?? "");
+      const denied = await assertAccess(propertyId);
+      if (denied) return json({ error: denied }, 403);
+      const result = await seasonRateMatrix(sb, propertyId, (body?.draft ?? {}) as Draft);
+      return json(result);
+    }
 
 
     if (action === "save_plan") {
