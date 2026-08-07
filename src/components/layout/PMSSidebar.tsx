@@ -60,6 +60,12 @@ export interface NavGroup {
 /** ROL'OS navigation, shared by the desktop sidebar and the mobile bottom nav. */
 export const pmsNavGroups: NavGroup[] = [
   {
+    label: "Command",
+    items: [
+      { title: "Command Centre", icon: Radar, href: "/pms/command-centre", module: "command-centre" },
+    ],
+  },
+  {
     label: "Front Desk",
     items: [
       { title: "Dashboard", icon: LayoutDashboard, href: "/pms", module: "dashboard" },
@@ -84,7 +90,6 @@ export const pmsNavGroups: NavGroup[] = [
       { title: "Rate Plans", icon: TrendingUp, href: "/pms/rate-plans", module: "rate-plans" },
       { title: "Revenue Mgmt", icon: Gauge, href: "/pms/revenue", module: "revenue" },
       { title: "Channels", icon: Radio, href: "/pms/channels", module: "channels" },
-      { title: "Command Centre", icon: Radar, href: "/pms/command-centre", module: "command-centre" },
     ],
   },
   {
