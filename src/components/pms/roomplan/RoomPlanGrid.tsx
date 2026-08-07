@@ -54,11 +54,24 @@ export interface RoomPlanCreatePayload {
   checkOut: Date;
 }
 
+/** A group room block still holding inventory for a room type / date range. */
+export interface RoomPlanGroupBlock {
+  id: string;
+  group_name: string | null;
+  room_type_id: string;
+  start_date: string;
+  end_date: string;
+  blocked_count: number;
+  picked_up_count: number;
+}
+
 interface RoomPlanGridProps {
   dates: Date[];
   roomTypes: RoomPlanRoomType[];
   roomsByType: Map<string, RoomPlanRoom[]>;
   bookings: RoomPlanBooking[];
+  /** Held (not yet picked up) group inventory, drawn as hatching on the type header. */
+  groupBlocks?: RoomPlanGroupBlock[];
   propertyName?: string | null;
   bookingsLoading?: boolean;
   compact?: boolean;
@@ -73,6 +86,7 @@ interface RoomPlanGridProps {
   onCreateBooking?: (payload: RoomPlanCreatePayload) => void;
   onMoveBooking?: (payload: RoomPlanMovePayload) => Promise<void> | void;
 }
+
 
 interface PlanRow {
   key: string;
