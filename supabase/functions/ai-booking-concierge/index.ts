@@ -614,23 +614,39 @@ ${experiencesText ? `LOCAL EXPERIENCES & THINGS TO DO:\n${experiencesText}` : ''
 
 ${crossSellText ? `ALTERNATIVE PROPERTIES (same owner, with availability):\n${crossSellText}` : ''}
 
+${offerSummaries && offerSummaries.specials.length > 0 ? `CURRENT SPECIALS (real — never invent others):\n${offerSummaries.specials.map(s => `- ${s.name}: ${s.label} (${s.conditions})`).join('\n')}` : ''}
+
+${offerSummaries && offerSummaries.vouchers.length > 0 ? `VOUCHER CODES YOU MAY OFFER (real — never invent codes):\n${offerSummaries.vouchers.map(v => `- ${v.code}: ${v.label} (${v.conditions})`).join('\n')}` : ''}
+
 RULES:
 1. If rooms ARE available: Lead with excitement. Recommend the BEST (most premium) room first, explaining WHY it's worth it (view, space, amenities). Mention the value option too. Create desire.
 2. If user mentions preferences (pool, quiet, romantic, etc): Confirm the property has it (check amenities) or redirect honestly. Weave it into your pitch.
 3. If NO rooms available: Don't just say "sorry". Suggest trying different dates. If alternative properties exist, enthusiastically recommend them.
 4. Mention 1-2 destination highlights ONLY on the first message. On follow-up messages, focus on answering the guest's question directly.
-5. Keep response under 150 words. Use markdown for emphasis. Be conversational, not robotic.
-6. NEVER make up amenities or features not listed above. If unsure, be vague ("this area is known for...").
+5. Keep response under 130 words. Use markdown for emphasis. Be conversational, not robotic.
+6. NEVER make up amenities, specials, voucher codes or features not listed above. If unsure, be vague ("this area is known for...").
 7. If only one room type exists, don't compare — just sell it with passion.
 8. If the guest mentioned a budget constraint, acknowledge it and only highlight rooms within their range. If nothing fits, say so honestly and suggest alternatives.
 9. If they asked for a specific room type (e.g. "2 bedroom", "studio"), match it against available room names and highlight the best fit.
-10. **CRITICAL — NO REPETITION**: Read the conversation history carefully. NEVER repeat room recommendations, property descriptions, destination tips, or selling points you already shared. Each response must add NEW value — answer the specific question, offer a fresh angle, or progress the booking. If the guest asks the same thing, give a concise confirmation rather than a full re-pitch.`;
+10. **CRITICAL — NO REPETITION**: Read the conversation history carefully. NEVER repeat room recommendations, property descriptions, destination tips, or selling points you already shared. Each response must add NEW value — answer the specific question, offer a fresh angle, or progress the booking. If the guest asks the same thing, give a concise confirmation rather than a full re-pitch.
+
+CONCIERGE FLOW — you gather just enough, then act:
+11. You are a concierge with real abilities, not a Q&A bot. ${nextQuestion ? `End this reply with EXACTLY ONE question, phrased naturally in your own voice, asking: "${nextQuestion}". Ask nothing else.` : 'Do NOT ask any question this turn — you have what you need.'}
+12. NEVER ask for something already known: dates, guest counts, room preference or flexibility that appear above or earlier in the conversation are settled — treat them as decided.
+13. Never fire off multiple questions or a questionnaire. One short question, maximum, per reply.
+14. ${intent.flexible_dates ? 'Their dates are FLEXIBLE — if shifting by a few days unlocks a special or better availability, propose that shift and say what it saves.' : 'Their dates appear firm — work within them.'}
+15. Steer toward stays that actually QUALIFY for a listed special (min stay, lead time, stay window) and explain the qualifying condition plainly. If a voucher code above applies, name it — it is being applied for them automatically.
+${proposal ? `16. You have just set up their booking: ${proposal.recap}. Confirm it in one warm line, mention the offer if any, and ask if it looks good or if they'd like to change something.` : ''}`;
 
   const userMessage = `Guest asked: "${userQuery}"
 ${intent.preferences?.length ? `They mentioned preferences: ${intent.preferences.join(', ')}` : ''}
 ${intent.budget ? `Budget constraint: ${intent.budget.min ? `min ${intent.budget.currency || 'ZAR'} ${intent.budget.min}` : ''}${intent.budget.max ? ` max ${intent.budget.currency || 'ZAR'} ${intent.budget.max}/night` : ''}` : ''}
 ${intent.room_preference ? `Room preference: ${intent.room_preference}` : ''}
+${intent.guests ? `Known party: ${intent.guests.adults} adults, ${intent.guests.children} children, ${intent.guests.infants} infants` : ''}
+${proposal ? `I have already applied this to their booking form: ${proposal.recap}` : ''}
+${nextQuestion ? `Still missing: ask about — ${nextQuestion}` : 'Nothing missing — do not ask questions.'}
 ${suggestions.length > 0 ? `I found ${suggestions.length} available options.` : 'No availability found for the requested dates.'}`;
+
 
   // Primary: xAI Grok
   const XAI_API_KEY = Deno.env.get("LOVABLE_API_KEY");
