@@ -763,8 +763,8 @@ export default function SeasonsCalendar({
                         </tr>
                       </thead>
                       <tbody>
-                        {seasons.map((season, sIdx) => {
-                          const c = getSeasonColor(season, sIdx);
+                        {visibleSeasons.map((season) => {
+                          const c = getSeasonColor(season, seasons.indexOf(season));
                           return (
                             <tr key={season.id} className="border-b last:border-b-0">
                               <td className="py-1.5 px-2">
