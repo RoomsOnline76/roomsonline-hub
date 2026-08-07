@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { CHANNEL_SOURCE, CHANNEL_SOURCE_BADGE } from "@/lib/channelVocabulary";
 import bookingAsset from "@/assets/channels/booking.png.asset.json";
 import airbnbAsset from "@/assets/channels/airbnb.png.asset.json";
 import vrboAsset from "@/assets/channels/vrbo.png.asset.json";
@@ -18,7 +19,7 @@ const CHANNEL_CONFIG: Record<
   google_hotels: { label: "Google Travel", color: "bg-emerald-500", initials: "G", logoUrl: googleTravelAsset.url },
   lekkeslaap: { label: "Lekkeslaap", color: "bg-orange-500", initials: "Lk", logoUrl: lekkeslaapAsset.url },
   nightsbridge: { label: "NightsBridge", color: "bg-teal-600", initials: "NB" },
-  rentalsunited: { label: "Rentals United", color: "bg-indigo-600", initials: "RU", parked: true },
+  rentalsunited: { label: CHANNEL_SOURCE, color: "bg-indigo-600", initials: CHANNEL_SOURCE_BADGE, parked: true },
   profitroom: { label: "Profitroom", color: "bg-violet-600", initials: "PR" },
   hyperguest: { label: "HyperGuest", color: "bg-cyan-600", initials: "HG" },
   hotelbeds: { label: "HotelBeds", color: "bg-amber-600", initials: "HB" },

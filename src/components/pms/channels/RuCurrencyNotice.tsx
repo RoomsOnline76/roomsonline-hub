@@ -151,12 +151,13 @@ export function RuCurrencyNotice({ propertyId }: RuCurrencyNoticeProps) {
       </AlertTitle>
       <AlertDescription className="space-y-3 text-xs">
         <p>
-          Rentals United assigns currency by region, and it will not hold {authoredIso} for this property&apos;s
-          region. Your rates stay authored in {authoredIso} in ROLOS — we convert them to {publishedIso} only for the
+          The Channel Manager assigns currency by region, and it will not hold {authoredIso} for this property&apos;s
+          region. Your rates stay authored in {authoredIso} in ROL&apos;OS — we convert them to {publishedIso} only for the
           channel feed, at the live exchange rate plus a {margin}% safety margin so movement in the rate never
-          underprices a night. Bookings that arrive back from Rentals United are converted to {authoredIso} at the same
-          rate, so your payouts and reporting stay in {authoredIso}.
+          underprices a night. Bookings that arrive back through the Channel Manager are converted to {authoredIso} at
+          the same rate, so your payouts and reporting stay in {authoredIso}.
         </p>
+
 
         {samples.length > 0 && (
           <div className="overflow-hidden rounded-md border border-border">
