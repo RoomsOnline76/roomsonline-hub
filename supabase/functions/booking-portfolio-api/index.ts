@@ -428,7 +428,7 @@ Deno.serve(async (req) => {
         city: p.city,
         description: amenities.space_description || p.description,
         hero_image: heroImage,
-        starting_rate: rm && rm.minRate !== Infinity ? rm.minRate : null,
+        starting_rate: unifiedStartingRate[p.id] ?? (rm && rm.minRate !== Infinity ? rm.minRate : null),
         room_count: rm?.count || 0,
         max_guests: rm?.maxGuests || null,
         brand_primary_color: p.brand_primary_color || null,
