@@ -198,6 +198,7 @@ const createBlockSchema = z.object({
   end_date: z.string().min(10),
   rate_override: z.number().nonnegative().nullable().optional(),
   release_date: z.string().min(10).nullable().optional(),
+  package_id: z.string().uuid().nullable().optional(),
 });
 
 const pickupSchema = z.object({
