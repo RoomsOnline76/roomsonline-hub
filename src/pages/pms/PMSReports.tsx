@@ -461,6 +461,15 @@ export default function PMSReports() {
           </Card>
         </div>
 
+        {/* Revenue mix — accommodation vs F&B vs other, with per-property roll-up */}
+        <RevenueMixPanel
+          dateRange={{ start: fromStr, end: toStr }}
+          propertyIds={activePropertyIds}
+          periodLabel={`${format(dateRange.from, "d MMM")} – ${format(dateRange.to, "d MMM yyyy")}`}
+        />
+
+
+
         {/* Cancellation analysis */}
         {cancellationAnalysis && (
           <Card className="border-destructive/30">
