@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import {
   format,
   startOfMonth,
@@ -13,6 +13,7 @@ import {
   startOfDay,
   addDays,
 } from "date-fns";
+
 
 interface EmbedDatePickerProps {
   checkIn: string;
