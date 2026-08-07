@@ -44,6 +44,8 @@ export default function GroupPickupDialog({
   onDone,
 }: GroupPickupDialogProps) {
   const [saving, setSaving] = useState(false);
+  const { packages } = useActivePackages(propertyId);
+  const [packageId, setPackageId] = useState("none");
   const [form, setForm] = useState({
     guest_name: "",
     guest_email: "",
