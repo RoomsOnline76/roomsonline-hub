@@ -97,11 +97,27 @@ export function RatePlanEffectivePreview({ propertyId, draft }: Props) {
     // payloadKey keeps the debounce keyed to real value changes, not object identity.
   }, [payloadKey, nonce, run]);
 
+  // The engine can return the same physical unit more than once (duplicate room-type
+  // rows or repeated links). Collapse them so each unit is previewed a single time.
+  const visibleUnits = useMemo(() => {
+    const seen = new Set<string>();
+    const out: PreviewUnit[] = [];
+    for (const unit of units) {
+      const key = `${unit.room_type_id}|${(unit.name ?? "").trim().toLowerCase()}`;
+      const nameKey = (unit.name ?? "").trim().toLowerCase();
+      if (seen.has(key) || (nameKey && seen.has(nameKey))) continue;
+      seen.add(key);
+      if (nameKey) seen.add(nameKey);
+      out.push(unit);
+    }
+    return out;
+  }, [units]);
+
   const usedSources = useMemo(() => {
     const set = new Set<string>();
-    for (const unit of units) for (const day of unit.days) set.add(day.source);
+    for (const unit of visibleUnits) for (const day of unit.days) set.add(day.source);
     return [...set];
-  }, [units]);
+  }, [visibleUnits]);
 
   return (
     <div className="space-y-3">
@@ -116,12 +132,12 @@ export function RatePlanEffectivePreview({ propertyId, draft }: Props) {
 
       {error && <p className="text-sm text-destructive">{error}</p>}
 
-      {!error && units.length === 0 && !loading && (
+      {!error && visibleUnits.length === 0 && !loading && (
         <p className="text-sm text-muted-foreground">Link at least one unit to see effective rates.</p>
       )}
 
       <div className="space-y-4">
-        {units.map((unit) => (
+        {visibleUnits.map((unit) => (
           <div key={unit.room_type_id} className="space-y-2">
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-sm font-medium">{unit.name}</span>
