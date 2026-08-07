@@ -95,6 +95,12 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
   const [saving, setSaving] = useState(false);
   const { policies } = useReservationPolicies(propertyId);
 
+  // Kept in refs so the fill handlers stay stable while still seeing current rows/columns.
+  const draftUnitIdsRef = useRef<string[]>([]);
+  const seasonIdsRef = useRef<string[]>([]);
+  draftUnitIdsRef.current = draft.units.map((u) => u.room_type_id);
+  seasonIdsRef.current = seasons.map((s) => s.calendar_season_id);
+
   const setField = useCallback(
     <K extends keyof RatePlanDraft>(key: K, value: RatePlanDraft[K]) =>
       dispatch({ type: "field", key, value: value as RatePlanDraft[keyof RatePlanDraft] }),
