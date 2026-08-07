@@ -370,11 +370,11 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
               ))}
               {plan.base_rate && plan.base_rate > 0 ? (
                 <span className="flex items-center gap-1 rounded border border-dashed px-1.5 py-0.5 text-muted-foreground">
-                  Base
+                  Unit Base fallback Rate
                   <span className="font-mono font-semibold text-foreground">R{plan.base_rate.toLocaleString()}</span>
-                  <span className="text-muted-foreground/70">fallback</span>
                 </span>
               ) : null}
+
             </div>
             {linkedIds.length > 0 ? (
               <div className="mt-2 flex flex-wrap items-center gap-1">
