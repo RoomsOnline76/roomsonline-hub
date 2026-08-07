@@ -1,5 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { safeParseResponse, AvailabilityResponseSchema } from "../_shared/validate.ts";
+import { canonicalPricingModel, priceTypeForModel } from "../_shared/ratePricing.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
