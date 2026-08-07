@@ -23,6 +23,9 @@ import {
 } from "date-fns";
 import { PmsPageSkeleton } from "@/components/pms/PmsPageSkeleton";
 import { cancellationCategoryLabel } from "@/lib/revenueStatuses";
+import { useRevenueMix } from "@/hooks/useRevenueStreamTotals";
+import { RevenueMixPanel } from "@/components/pms/revenue/RevenueMixPanel";
+
 
 
 // ── Types ────────────────────────────────────────────────────────────────
