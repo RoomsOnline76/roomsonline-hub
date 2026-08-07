@@ -44,7 +44,9 @@ export type PropertySectionKey =
   | "rooms"             // Rooms overview
   | "images"            // Media
   
-  | "rates"             // Pricing / seasons / rate types
+  | "rates"             // Calendar / Seasons
+  | "policies"
+  | "charges"
   | "packages"
   | "specials"
   | "addons"
@@ -94,8 +96,20 @@ export const PROPERTY_SECTION_ORDER: PropertySectionDef[] = [
   {
 
     key: "rates",
-    label: "Rates & Pricing",
-    description: "Seasons, rate types, calendar, charges, providers.",
+    label: "Calendar / Seasons",
+    description: "Season calendar, season dates and (non-ROL'OS) rate types.",
+    rolosManaged: true,
+  },
+  {
+    key: "policies",
+    label: "Policies",
+    description: "Cancellation & reservation policies, house rules and stay terms.",
+    rolosManaged: true,
+  },
+  {
+    key: "charges",
+    label: "Charges",
+    description: "Taxes, fees, deposits and surcharges.",
     rolosManaged: true,
   },
   {
@@ -170,7 +184,7 @@ export const PROPERTY_SECTION_GROUPS = [
   },
   {
     label: "Booking backend",
-    keys: ["rooms", "rates", "packages", "specials", "addons"] as PropertySectionKey[],
+    keys: ["rooms", "rates", "policies", "charges", "specials", "packages", "addons"] as PropertySectionKey[],
   },
   {
     label: "Guest experience",
@@ -196,7 +210,10 @@ export const SECTION_ICON_MAP: Record<string, LucideIcon> = {
   "info-facilities": Building2,
   rooms: BedDouble,
   images: ImageIcon,
-  rates: DollarSign,
+  rates: Calendar,
+  policies: ShieldCheck,
+  charges: Wallet,
+
 
   packages: Package,
   specials: Sparkles,
@@ -229,13 +246,7 @@ export const SECTION_HINTS: Partial<Record<PropertySectionKey, SectionHint[]>> =
   ],
   rates: [
     { key: "seasons", label: "Seasons", icon: CalendarRange },
-    { key: "types", label: "Rate Types", icon: Layers },
     { key: "calendar", label: "Calendar", icon: Calendar },
-    { key: "breakdown", label: "Breakdown", icon: LayoutList },
-    { key: "charges", label: "Charges", icon: Wallet },
-    { key: "policies", label: "Policies", icon: ShieldCheck },
-    { key: "providers", label: "Providers", icon: CreditCard },
-    { key: "overview", label: "Overview", icon: Receipt },
   ],
   general: [
     { key: "identity", label: "Identity", icon: Home },

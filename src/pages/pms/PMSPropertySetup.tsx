@@ -29,6 +29,8 @@ type TabKey = Extract<
   | "info-facilities"
   | "rooms"
   | "rates"
+  | "policies"
+  | "charges"
   | "packages"
   | "specials"
   | "addons"
@@ -43,6 +45,8 @@ const HUB_KEYS: TabKey[] = [
   "info-facilities",
   "rooms",
   "rates",
+  "policies",
+  "charges",
   "packages",
   "specials",
   "addons",

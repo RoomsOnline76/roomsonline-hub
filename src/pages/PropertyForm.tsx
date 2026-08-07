@@ -7192,9 +7192,10 @@ export default function PropertyForm({
             </Card>
           </TabsContent>
 
-          {/* Rate Breakdown Tab */}
+          {/* Calendar / Seasons Tab */}
           <TabsContent value="rates" className="space-y-0">
             <RateManagerTab
+              view="rates"
               propertyId={propertyId}
               roomTypes={roomTypes}
               selectedRoomType={selectedRoomType}
@@ -7245,6 +7246,89 @@ export default function PropertyForm({
                 </form>
               }
 
+            />
+          </TabsContent>
+
+          {/* Policies Tab (standalone section) */}
+          <TabsContent value="policies" className="space-y-0">
+            <RateManagerTab
+              view="policies"
+              propertyId={propertyId}
+              roomTypes={roomTypes}
+              selectedRoomType={selectedRoomType}
+              setSelectedRoomType={setSelectedRoomType}
+              pmsRateTypes={pmsRateTypes}
+              setPmsRateTypes={setPmsRateTypes}
+              seasons={seasons}
+              setSeasons={setSeasons}
+              seasonRates={seasonRates}
+              setSeasonRates={setSeasonRates}
+              selectedPMS={selectedPMS}
+              isRolProperty={isRolProperty}
+              accommodationLabel={accommodationLabel}
+              selectedMealTypes={selectedMealTypes}
+              formData={{ currency: formData.currency, owner_email: formData.owner_email }}
+              amenities={{ rate_types: pmsRateTypes, seasons }}
+              isAdmin={isAdmin ?? false}
+              isDev={isDev ?? false}
+              isFearlessLeader={isFearlessLeader ?? false}
+              setIsDirty={setIsDirty}
+              onOpenSpecials={() => setActiveTab("specials")}
+              policiesExtra={
+                <form onSubmit={handleSubmit} className="space-y-3">
+                  <RuPaymentMethodsPicker
+                    value={paymentMethods}
+                    onChange={(next) => {
+                      setPaymentMethods(next);
+                      setIsDirty(true);
+                    }}
+                  />
+                  <HouseRulesCard
+                    formData={formData as any}
+                    setFormData={setFormData as any}
+                    handleInputChange={handleInputChange as any}
+                    selectedPMS={selectedPMS}
+                    isRolProperty={isRolProperty}
+                    isFieldPopulatedByPMS={isFieldPopulatedByPMS}
+                    getPMSFieldClass={getPMSFieldClass}
+                  />
+                  <div className="flex justify-end">
+                    {isDirty && (
+                      <Button type="submit" size="sm" className="h-7 text-xs" disabled={loading}>
+                        <Save className="mr-1 h-3 w-3" />
+                        {loading ? "Saving..." : "Save Property"}
+                      </Button>
+                    )}
+                  </div>
+                </form>
+              }
+            />
+          </TabsContent>
+
+          {/* Charges Tab (standalone section) */}
+          <TabsContent value="charges" className="space-y-0">
+            <RateManagerTab
+              view="charges"
+              propertyId={propertyId}
+              roomTypes={roomTypes}
+              selectedRoomType={selectedRoomType}
+              setSelectedRoomType={setSelectedRoomType}
+              pmsRateTypes={pmsRateTypes}
+              setPmsRateTypes={setPmsRateTypes}
+              seasons={seasons}
+              setSeasons={setSeasons}
+              seasonRates={seasonRates}
+              setSeasonRates={setSeasonRates}
+              selectedPMS={selectedPMS}
+              isRolProperty={isRolProperty}
+              accommodationLabel={accommodationLabel}
+              selectedMealTypes={selectedMealTypes}
+              formData={{ currency: formData.currency, owner_email: formData.owner_email }}
+              amenities={{ rate_types: pmsRateTypes, seasons }}
+              isAdmin={isAdmin ?? false}
+              isDev={isDev ?? false}
+              isFearlessLeader={isFearlessLeader ?? false}
+              setIsDirty={setIsDirty}
             />
           </TabsContent>
 
