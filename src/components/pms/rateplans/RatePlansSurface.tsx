@@ -455,8 +455,13 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
               {!readOnly && section.plans.length > 0 && (
                 <PropertyLegacyRatesBanner propertyId={section.id} onMigrated={fetchData} />
               )}
-              {/* What sells on top of the nightly rate: charges, specials, add-ons, cancellation terms. */}
-              <RatePlanExtrasSummary propertyId={section.id} />
+              {/* Per unit: the charges, specials, add-ons and policy that shape its final bill. */}
+              <RatePlanExtrasSummary
+                propertyId={section.id}
+                units={roomTypes
+                  .filter((rt) => rt.property_id === section.id)
+                  .map((rt) => ({ id: rt.id, name: rt.name }))}
+              />
 
               {section.plans.length === 0 ? (
                 plans.length > 0 ? <p className="text-sm text-muted-foreground italic">No rate plans for this property.</p> : null
