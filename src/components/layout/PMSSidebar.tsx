@@ -46,12 +46,15 @@ export interface NavItem {
   icon: React.ElementType;
   href: string;
   module: PmsModule;
+  /** Route is gated to platform users (admin/dev/fearless) — hidden from owners & staff. */
+  platformOnly?: boolean;
 }
 
 export interface NavGroup {
   label: string;
   items: NavItem[];
 }
+
 
 /** ROL'OS navigation, shared by the desktop sidebar and the mobile bottom nav. */
 export const pmsNavGroups: NavGroup[] = [
