@@ -351,7 +351,7 @@ export const PROPERTY_FIELD_REQUIREMENTS: FieldRequirement[] = [
   /* ---------- Integrations / distribution ---------- */
   {
     key: "ru_currency",
-    label: "Rentals United currency",
+    label: "Channel Manager currency",
     tier: "mandatory",
     section: "integrations",
     target: ['[data-field="amenities.banking.currency"]', '[data-field="ru_currency"]'],

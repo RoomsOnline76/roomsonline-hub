@@ -32,7 +32,7 @@ export const PORTFOLIO_COMMONS_GROUPS: CommonsGroup[] = [
   {
     key: "company_identity",
     label: "Legal entity & company profile",
-    description: "Registered name, registration/VAT number, postal address, key representative, Rentals United company profile.",
+    description: "Registered name, registration/VAT number, postal address, key representative, Channel Manager company profile.",
     tier: "recommended",
     requirementKeys: ["vat_registration"],
   },
@@ -66,8 +66,8 @@ export const PORTFOLIO_COMMONS_GROUPS: CommonsGroup[] = [
   },
   {
     key: "distribution",
-    label: "Rentals United location & distribution defaults",
-    description: "RU location ID and accepted payment methods shared by the whole portfolio.",
+    label: "Channel Manager location & distribution defaults",
+    description: "Channel Manager location ID and accepted payment methods shared by the whole portfolio.",
     tier: "recommended",
     requirementKeys: [],
   },

@@ -76,7 +76,7 @@ export function describeIdentityPayload(payload: IdentityPayload): string[] {
   const profileFilled = Object.entries(profile).filter(([, value]) =>
     value && typeof value === "object" ? Object.values(asRecord(value)).some((v) => !isBlank(v)) : !isBlank(value),
   );
-  if (profileFilled.length > 0) labels.push(`Rentals United profile (${profileFilled.length} fields)`);
+  if (profileFilled.length > 0) labels.push(`Channel Manager profile (${profileFilled.length} fields)`);
   if (!isBlank(payload.ru_location_id)) labels.push("RU location ID");
   return labels;
 }

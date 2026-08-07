@@ -144,11 +144,11 @@ export const WIZARD_SECTIONS: WizardSection[] = [
   {
     id: "location",
     title: "Location",
-    description: "Property address, RU location & surroundings",
+    description: "Property address, Channel Manager location & surroundings",
     weight: 15,
     icon: "MapPin",
     estimatedMinutes: 4,
-    whyItMatters: "Accurate location helps guests find you. The RU LocationID locks the property into the correct channel currency.",
+    whyItMatters: "Accurate location helps guests find you. The Channel Manager LocationID locks the property into the correct channel currency.",
     requiredFor: ['accommodation', 'venue', 'hybrid', 'experience']
   },
   {
