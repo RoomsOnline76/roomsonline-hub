@@ -157,6 +157,19 @@ export default function GroupPickupDialog({
             />
           </div>
           <div className="space-y-1.5">
+            <Label>Package (optional)</Label>
+            <Select value={packageId} onValueChange={setPackageId}>
+              <SelectTrigger><SelectValue placeholder={packages.length ? "No package" : "No packages configured"} /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No package</SelectItem>
+                {packages.map((pkg) => (
+                  <SelectItem key={pkg.id} value={pkg.id}>{pkg.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">Package components post to the folio split by revenue stream.</p>
+          </div>
+          <div className="space-y-1.5">
             <Label>Special Requests</Label>
             <Textarea
               rows={2}
@@ -164,6 +177,7 @@ export default function GroupPickupDialog({
               onChange={(e) => setForm((f) => ({ ...f, special_requests: e.target.value }))}
             />
           </div>
+
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
