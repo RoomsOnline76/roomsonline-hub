@@ -36,7 +36,14 @@ interface InvoiceDoc {
   total: number;
   pdf_url: string | null;
   created_at: string;
+  bill_to_type?: string | null;
+  bill_to_name?: string | null;
+  channel_key?: string | null;
+  commission_rate?: number | null;
+  commission_amount?: number | null;
+  net_payable?: number | null;
 }
+
 
 interface AccountSummaryPanelProps {
   bookingId: string;
