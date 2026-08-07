@@ -3,7 +3,9 @@ import { format, parseISO } from "date-fns";
 import { AlertTriangle, CalendarClock, LogIn, LogOut, Radio, XCircle } from "lucide-react";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { resolveRuSourceChannel, ChannelLogo } from "@/lib/ruChannelDisplay";
 import {
   BarGeometry,
   ROOM_PLAN_ROW_H,
