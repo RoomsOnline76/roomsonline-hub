@@ -211,3 +211,21 @@ describe("pricing by season: promotion and live seeding", () => {
     expect(ratePlanDraftReducer(s, { type: "seed_matrix", matrix: new Map() })).toBe(s);
   });
 });
+
+describe("readCalendarSeasons: expired seasons", () => {
+  const blob = {
+    seasons: [
+      { id: 1, name: "Old", from: "2020-01-01", to: "2020-02-01" },
+      { id: 2, name: "Live", from: "2099-01-01", to: "2099-02-01" },
+      { id: 3, name: "Mixed", periods: [{ from: "2020-05-01", to: "2020-06-01" }, { from: "2099-05-01", to: "2099-06-01" }] },
+    ],
+  } as never;
+
+  it("drops seasons whose every window is in the past", () => {
+    expect(readCalendarSeasons(blob).map((s) => s.name)).toEqual(["Mixed", "Live"]);
+  });
+
+  it("keeps them when explicitly asked", () => {
+    expect(readCalendarSeasons(blob, { includeExpired: true })).toHaveLength(3);
+  });
+});
