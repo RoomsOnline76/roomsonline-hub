@@ -592,7 +592,7 @@ async function copyPlan(sb: any, ratePlanId: string, targetPropertyIds: string[]
 
   const { data: seasonRates } = await sb
     .from("rolos_rate_plan_season_rates")
-    .select("base_rate, extra_adult_rate, differential_type, differential_value, rolos_shared_seasons(calendar_season_id)")
+    .select("room_type_id, base_rate, extra_adult_rate, differential_type, differential_value, rolos_shared_seasons(calendar_season_id)")
     .eq("rate_plan_id", ratePlanId)
     .is("deleted_at", null);
 
