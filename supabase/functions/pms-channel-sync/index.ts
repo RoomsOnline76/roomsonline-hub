@@ -476,6 +476,8 @@ async function handlePushRates(supabase: any, connectionId: string, headers: any
         .select("rate_plan_id, room_type_id");
 
       let calendarDays = 0, rackDays = 0, pricedDays = 0, expected = 0;
+      let overrideDays = 0, planSeasonDays = 0, relationalDays = 0;
+
       for (const plan of (ratePlans ?? [])) {
         const roomIds = new Set(
           (planRooms ?? [])
@@ -497,9 +499,13 @@ async function handlePushRates(supabase: any, connectionId: string, headers: any
         const days = [...perDate.values()];
         const cov = resolver.coverage(days);
         calendarDays += cov.calendar_days;
+        overrideDays += cov.daily_override_days ?? 0;
+        planSeasonDays += cov.plan_season_days ?? 0;
+        relationalDays += cov.relational_days ?? 0;
         rackDays += cov.rack_days + cov.unit_daily_days;
         pricedDays += cov.priced_days;
         expected += eachDate(from, to).length;
+
 
         const periods = compressToPeriods(days);
         enriched.push({
@@ -512,8 +518,10 @@ async function handlePushRates(supabase: any, connectionId: string, headers: any
       }
       coverageSummary = describeCoverage(expected, {
         total_days: pricedDays, priced_days: pricedDays, calendar_days: calendarDays,
+        daily_override_days: overrideDays, plan_season_days: planSeasonDays, relational_days: relationalDays,
         rack_days: rackDays, unit_daily_days: 0, unpriced_days: Math.max(0, expected - pricedDays),
       });
+
     } catch (resolveErr) {
       console.warn("[channel-sync] rate resolution failed, falling back to plan base rates:", resolveErr);
     }
