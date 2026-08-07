@@ -214,6 +214,14 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
 
       if (cancelled) return;
       setSeasons(calendarSeasons);
+      // Reuse the colours the Calendar authored so a season reads the same everywhere.
+      const amenitySeasons = (property?.amenities as { seasons?: unknown } | null)?.seasons;
+      setSeasonColors(
+        Array.isArray(amenitySeasons)
+          ? buildSeasonColorMap(amenitySeasons as { name?: string | null; color?: string | null }[])
+          : {},
+      );
+
 
       dispatch({ type: "reset", draft: next });
       setLoading(false);
