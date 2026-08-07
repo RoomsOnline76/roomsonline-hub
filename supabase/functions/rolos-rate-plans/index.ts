@@ -722,6 +722,21 @@ Deno.serve(async (req) => {
       return json(result);
     }
 
+    if (action === "preview_plan") {
+      const ratePlanId = String(body?.rate_plan_id ?? "");
+      if (!ratePlanId) return json({ error: "A rate plan is required" }, 400);
+      const { data: plan } = await sb.from("rolos_rate_plans").select("property_id").eq("id", ratePlanId).maybeSingle();
+      const denied = await assertAccess(String(plan?.property_id ?? ""));
+      if (denied) return json({ error: denied }, 403);
+      const from = String(body?.window?.from ?? today());
+      const to = String(body?.window?.to ?? addDays(from, 6));
+      const result = await previewSavedPlan(sb, ratePlanId, { from, to });
+      if ((result as any).error) return json(result, 400);
+      return json(result);
+    }
+
+
+
     if (action === "save_plan") {
       const propertyId = String(body?.property_id ?? "");
       const denied = await assertAccess(propertyId);
