@@ -1072,7 +1072,7 @@ const Dashboard = () => {
     <AppLayout>
       <PageHeader
         title="Property Pulse"
-        subtitle={`${format(dateRange?.from || new Date(), "MMM yyyy")}${isAdmin ? " · All properties" : ""}`}
+        subtitle={`${format(dateRange?.from || new Date(), "MMM yyyy")} · ${isAdmin ? "All properties" : `My ${properties.length === 1 ? "property" : "portfolio"}`}`}
         actions={
           <div className="flex flex-wrap items-center gap-2">
             {/* Compare toggle */}
