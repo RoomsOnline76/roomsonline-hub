@@ -237,32 +237,60 @@ export async function createRateResolver(
     const { data: planLinks } = await supabase
       .from("rolos_rate_plan_room_types")
       .select(
-        "room_type_id, rate_plan_id, is_active, differential_type, differential_value, rolos_rate_plans!inner(id, base_rate, pricing_model, adult_1_rate, adult_2_rate, is_active, min_stay, max_stay)",
+        "room_type_id, rate_plan_id, is_active, differential_type, differential_value, rolos_rate_plans!inner(id, base_rate, pricing_model, adult_1_rate, adult_2_rate, is_active, min_stay, max_stay, is_primary_sell, push_to_channels, sell_priority)",
       )
       .in("room_type_id", rolosIds)
       .eq("rolos_rate_plans.is_active", true);
 
+    const audience = opts.audience ?? "direct";
+    const liveLinks = ((planLinks ?? []) as any[]).filter((entry) => entry?.is_active !== false && entry?.rolos_rate_plans);
+
+    /**
+     * One plan wins per unit. Order: the property's primary/live plan, then the
+     * lowest sell_priority, then the highest base rate (the historic behaviour,
+     * now only a last-resort tie-break).
+     */
+    const better = (a: any, b: any): boolean => {
+      const pa = a.rolos_rate_plans, pb = b.rolos_rate_plans;
+      if (Boolean(pa?.is_primary_sell) !== Boolean(pb?.is_primary_sell)) return Boolean(pa?.is_primary_sell);
+      const sa = Number(pa?.sell_priority ?? 100), sb = Number(pb?.sell_priority ?? 100);
+      if (sa !== sb) return sa < sb;
+      return Number(pa?.base_rate ?? 0) > Number(pb?.base_rate ?? 0);
+    };
+
+    // Channel pushes only price from plans flagged for distribution; when a unit
+    // has none, fall back to every eligible plan so a push never prices nothing.
+    const winners: Record<string, any> = {};
+    for (const roomId of new Set(liveLinks.map((l) => String(l.room_type_id)))) {
+      const forRoom = liveLinks.filter((l) => String(l.room_type_id) === roomId);
+      const scoped = audience === "channels"
+        ? (forRoom.filter((l) => l.rolos_rate_plans?.push_to_channels !== false).length > 0
+            ? forRoom.filter((l) => l.rolos_rate_plans?.push_to_channels !== false)
+            : forRoom)
+        : forRoom;
+      let win = scoped[0];
+      for (const cand of scoped.slice(1)) if (better(cand, win)) win = cand;
+      if (win) winners[roomId] = win;
+    }
+
     const planToRooms: Record<string, string[]> = {};
-    for (const entry of (planLinks ?? []) as any[]) {
+    for (const [roomId, entry] of Object.entries(winners)) {
       const plan = entry.rolos_rate_plans;
-      // A soft-deleted or deactivated link prices nothing — fall through to the next tier.
-      if (entry.is_active === false) continue;
-      if (entry.rate_plan_id) (planToRooms[entry.rate_plan_id] ||= []).push(entry.room_type_id);
+      if (entry.rate_plan_id) (planToRooms[entry.rate_plan_id] ||= []).push(roomId);
       const base = Number(plan?.base_rate);
-      if (!Number.isFinite(base) || base <= 0) continue;
-      const existing = rackRates[entry.room_type_id];
-      if (existing && existing.base_rate >= base) continue;
       const adult1 = Number.isFinite(Number(plan?.adult_1_rate)) && Number(plan?.adult_1_rate) > 0 ? Number(plan.adult_1_rate) : undefined;
-      rackRates[entry.room_type_id] = {
-        base_rate: base,
-        pricing_model: plan?.pricing_model || "per_unit",
-        rate_plan_id: plan?.id,
-        adult_1_rate: adult1,
-        adult_2_rate: Number.isFinite(Number(plan?.adult_2_rate)) && Number(plan?.adult_2_rate) > 0 ? Number(plan.adult_2_rate) : undefined,
-      };
-      ratePlans[entry.room_type_id] = {
+      if (Number.isFinite(base) && base > 0) {
+        rackRates[roomId] = {
+          base_rate: base,
+          pricing_model: plan?.pricing_model || "per_unit",
+          rate_plan_id: plan?.id,
+          adult_1_rate: adult1,
+          adult_2_rate: Number.isFinite(Number(plan?.adult_2_rate)) && Number(plan?.adult_2_rate) > 0 ? Number(plan.adult_2_rate) : undefined,
+        };
+      }
+      ratePlans[roomId] = {
         rate_plan_id: String(plan?.id ?? entry.rate_plan_id),
-        base_rate: base,
+        base_rate: Number.isFinite(base) && base > 0 ? base : 0,
         pricing_model: plan?.pricing_model || "per_unit",
         is_active: plan?.is_active !== false,
         extra_adult_rate: adult1,
@@ -272,6 +300,7 @@ export async function createRateResolver(
         differential_value: entry.differential_value ?? null,
       };
     }
+
 
     const planIds = Object.keys(planToRooms);
     if (planIds.length > 0 && opts.window) {
