@@ -4,6 +4,15 @@ Date: 2026-08-07
 Migration: unified Rate Plans data model (additive only)
 Verification: `scripts/verify-rate-compat.sql`
 
+## Current status
+
+- Merge gate: **PASS** — see `docs/verification/rate-plans-merge-gate.md`.
+- All 104 properties still resolve rates via `rate_resolution_mode = 'legacy'`, so every
+  compatibility surface below is still live. Nothing may be removed yet — the per-surface
+  deletion preconditions live in `docs/rates-shim-inventory.md`.
+- Architecture rationale and tier precedence: `docs/architecture/rate-plans-adapter-note.md`.
+
+
 ## What the migration did
 
 Additive only:
