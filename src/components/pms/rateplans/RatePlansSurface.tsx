@@ -20,6 +20,7 @@ import { BREAKFAST_BASIS_LABELS } from "@/components/charges/ChargeCalculator";
 import { RatePlanEditor } from "@/components/pms/rateplans/RatePlanEditor";
 import { RatePlanSyncToOthersDialog } from "@/components/pms/rateplans/RatePlanSyncToOthersDialog";
 import { RatePlan7DayRates } from "@/components/pms/rateplans/RatePlan7DayRates";
+import { seasonColor } from "@/lib/seasonColors";
 
 export const PRICING_MODELS = [
   { value: "per_room", label: "Per Room", suffix: "/room", desc: "Flat rate per room per night" },
@@ -244,6 +245,7 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
     const renderPlanCard = (plan: RatePlan) => {
       const linkedIds = getLinkedRoomTypes(plan.id).filter((id) => roomTypes.some((rt) => rt.id === id));
       const pricedSeasons = seasonCounts[plan.id] ?? 0;
+      const planSeasonRates = seasonRates[plan.id] ?? [];
       const model = PRICING_MODELS.find((m) => m.value === plan.pricing_model);
       const openEditor = readOnly
         ? undefined
@@ -348,6 +350,28 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
                   Breakfast included{plan.breakfast_amount ? ` · R${Number(plan.breakfast_amount).toLocaleString()} ${BREAKFAST_BASIS_LABELS[plan.breakfast_basis || "per_person_per_night"] || ""}` : ""}
                 </Badge>
               )}
+            </div>
+            <div className="mt-2 flex flex-wrap items-center gap-1 text-xs">
+              {planSeasonRates.map((s) => (
+                <span
+                  key={s.name}
+                  className={`flex items-center gap-1 rounded border px-1.5 py-0.5 ${seasonColor(s.name).tint}`}
+                  title={`${s.name} season rate`}
+                >
+                  <span className={`h-1.5 w-1.5 rounded-full ${seasonColor(s.name).dot}`} aria-hidden />
+                  <span className="uppercase tracking-wide text-muted-foreground">{s.name}</span>
+                  <span className="font-mono font-semibold text-foreground">
+                    R{s.min.toLocaleString()}{s.max > s.min ? `–${s.max.toLocaleString()}` : ""}
+                  </span>
+                </span>
+              ))}
+              {plan.base_rate && plan.base_rate > 0 ? (
+                <span className="flex items-center gap-1 rounded border border-dashed px-1.5 py-0.5 text-muted-foreground">
+                  Base
+                  <span className="font-mono font-semibold text-foreground">R{plan.base_rate.toLocaleString()}</span>
+                  <span className="text-muted-foreground/70">fallback</span>
+                </span>
+              ) : null}
             </div>
             {linkedIds.length > 0 ? (
               <div className="mt-2 flex flex-wrap items-center gap-1">
