@@ -103,7 +103,7 @@ export interface RateResolver {
   seasons: SeasonEntry[];
   /** rack rate per linked_rolos_id */
   rackRates: Record<string, RackRate>;
-  /** relational season rates per linked_rolos_id (tier 2) */
+  /** relational season rates per linked_rolos_id (tier 4) */
   relationalSeasonRates: Record<string, RelationalSeasonRate[]>;
   /** hostfully_room_types.daily_rate per unit id */
   unitDailyRates: Record<string, number>;
@@ -111,10 +111,13 @@ export interface RateResolver {
   closedDates: Record<string, Set<string>>;
   /** Active units of the property, as loaded from hostfully_room_types. */
   units: UnitRateContext[];
+  /** The exact snapshot handed to the pure calculation layer (debug / parity use). */
+  pricingInputs?: PricingInputs;
 
   resolveDays: (unit: UnitRateContext, from: string, to: string) => DayRate[];
   coverage: (days: DayRate[]) => RateCoverage;
 }
+
 
 export function addDays(dateStr: string, days: number): string {
   const d = new Date(`${dateStr}T00:00:00Z`);
