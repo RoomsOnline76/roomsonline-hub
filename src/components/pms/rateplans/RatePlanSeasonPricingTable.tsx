@@ -201,7 +201,7 @@ export const RatePlanSeasonPricingTable = memo(function RatePlanSeasonPricingTab
                         </div>
                       )}
 
-                      {(liveMatrix?.get(season.calendar_season_id)?.size ?? 0) > 0 && (
+                      {(live?.size ?? 0) > 0 && (
                         <Button
                           type="button"
                           size="sm"
