@@ -215,6 +215,7 @@ const pickupSchema = z.object({
   children: z.number().int().min(0).max(20).optional(),
   room_preference: z.string().max(200).nullable().optional(),
   special_requests: z.string().max(2000).nullable().optional(),
+  package_id: z.string().uuid().nullable().optional(),
 });
 
 const roomingRowSchema = z.object({
