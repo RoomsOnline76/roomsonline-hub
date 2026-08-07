@@ -41,6 +41,19 @@ export function EmbedDatePicker({
   const [currentMonth, setCurrentMonth] = useState(startOfMonth(initialMonth));
   const [selectingCheckOut, setSelectingCheckOut] = useState(false);
   const [internalOpen, setInternalOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(
+    typeof window !== "undefined" ? window.innerWidth < 480 : false
+  );
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia("(max-width: 479px)");
+    const onChange = () => setIsMobile(mq.matches);
+    onChange();
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+
 
   const isOpen = controlledOpen !== undefined ? controlledOpen : internalOpen;
   const setIsOpen = (v: boolean) => {
