@@ -470,7 +470,7 @@ async function handlePushRates(supabase: any, connectionId: string, headers: any
     const enriched: any[] = [];
     let coverageSummary = "no rate resolution";
     try {
-      const resolver = await createRateResolver(supabase, connection.property_id, { window: { from, to } });
+      const resolver = await createRateResolver(supabase, connection.property_id, { window: { from, to }, audience: "channels" });
       const { data: planRooms } = await supabase
         .from("rolos_rate_plan_room_types")
         .select("rate_plan_id, room_type_id");

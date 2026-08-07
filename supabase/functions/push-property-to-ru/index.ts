@@ -1799,6 +1799,8 @@ async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRo
       const resolver = await createRateResolver(supabase, property.id, {
         amenities,
         window: { from: todayStr, to: oneYearStr },
+        // Channel push prices from plans flagged for distribution.
+        audience: "channels",
       });
 
       const targetUnit: UnitRateContext = unit

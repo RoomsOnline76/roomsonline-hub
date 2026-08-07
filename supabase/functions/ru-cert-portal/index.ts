@@ -1090,7 +1090,7 @@ Deno.serve(async (req) => {
       try {
         const from = isoDate(0);
         const to = isoDate(365);
-        const resolver = await createRateResolver(admin, p.id, { window: { from, to } });
+        const resolver = await createRateResolver(admin, p.id, { window: { from, to }, audience: "channels" });
         const expectedDays = Math.round((Date.parse(to) - Date.parse(from)) / 86400000) + 1;
         const mappedIds = new Set(
           mappedUnitRows.map((unit: { room_type_id?: string }) => unit.room_type_id).filter(Boolean),
