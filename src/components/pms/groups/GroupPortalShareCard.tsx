@@ -6,7 +6,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Copy, Link2, RefreshCw, Ban } from "lucide-react";
 import { callGroupsApi } from "@/lib/groupsApi";
-import { resolveBrandedUrl } from "@/lib/domains";
+import { PUBLIC_DOMAIN } from "@/lib/config";
+
+const roomingUrl = (token: string) => `${PUBLIC_DOMAIN}/group-rooming/${token}`;
 
 interface GroupPortalShareCardProps {
   propertyId: string;
@@ -39,7 +41,7 @@ export default function GroupPortalShareCard({
   const [busy, setBusy] = useState(false);
   const [expiresAt, setExpiresAt] = useState(portalExpiresAt ? portalExpiresAt.slice(0, 10) : "");
 
-  const link = portalToken && portalEnabled ? resolveBrandedUrl(`/group-rooming/${portalToken}`) : null;
+  const link = portalToken && portalEnabled ? roomingUrl(portalToken) : null;
 
   const run = async (mode: "enable" | "rotate" | "disable") => {
     setBusy(true);
@@ -54,7 +56,7 @@ export default function GroupPortalShareCard({
         mode === "disable" ? "Rooming-list link disabled" : mode === "rotate" ? "New link generated" : "Rooming-list link ready",
       );
       if (res.portal_token && mode !== "disable") {
-        await navigator.clipboard?.writeText(resolveBrandedUrl(`/group-rooming/${res.portal_token}`)).catch(() => undefined);
+        await navigator.clipboard?.writeText(roomingUrl(res.portal_token)).catch(() => undefined);
       }
       onChanged();
     } catch (err) {
