@@ -19,6 +19,8 @@ interface BookingInvoiceProps {
 }
 
 
+type RevenueStream = "accommodation" | "fnb" | "other";
+
 interface Transaction {
   id: string;
   transaction_type: string;
@@ -26,7 +28,18 @@ interface Transaction {
   amount: number;
   tax_amount: number | null;
   created_at: string;
+  revenue_stream?: string | null;
 }
+
+const streamOf = (t: Transaction): RevenueStream => {
+  const raw = String(t.revenue_stream || "").toLowerCase();
+  if (raw === "fnb" || raw === "other" || raw === "accommodation") return raw as RevenueStream;
+  const text = `${t.transaction_type || ""} ${t.description || ""}`.toLowerCase();
+  if (/breakfast|dinner|lunch|meal|restaurant|bar |beverage|food/.test(text)) return "fnb";
+  if (/accommodation|room rate|stay charge|booking total|night/.test(text)) return "accommodation";
+  return "other";
+};
+
 
 interface VatConfig {
   isVatRegistered: boolean;
