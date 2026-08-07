@@ -94,8 +94,6 @@ const Line = ({
   </div>
 );
 
-};
-
 /**
  * Property-level commercial summary shown inside each rate plan card header:
  * the charges, live specials, add-ons and cancellation policy name that apply
