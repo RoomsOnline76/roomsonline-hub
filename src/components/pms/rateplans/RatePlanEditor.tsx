@@ -90,7 +90,8 @@ function groupSeasonRates(
 export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes, onSaved, onCancel }: Props) {
   const [draft, dispatch] = useReducer(ratePlanDraftReducer, emptyDraft());
   const [seasons, setSeasons] = useState<CalendarSeason[]>([]);
-  const [legacySeasonRates, setLegacySeasonRates] = useState<Map<string, number[]>>(() => new Map());
+  const [liveMatrix, setLiveMatrix] = useState<LiveSeasonMatrix>(() => new Map());
+  const [liveMatrixLoading, setLiveMatrixLoading] = useState(false);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -155,7 +156,6 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
         supabase.from("rolos_shared_seasons").select("id, calendar_season_id").eq("property_id", propertyId),
       ]);
       const calendarSeasons = readCalendarSeasons(property?.amenities);
-      const legacyRates = readLegacySeasonRates(property?.amenities, ratePlanId);
 
       const calendarIdBySharedId = new Map<string, string>(
         (seasonRows.data ?? [])
@@ -214,7 +214,6 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
 
       if (cancelled) return;
       setSeasons(calendarSeasons);
-      setLegacySeasonRates(legacyRates);
 
       dispatch({ type: "reset", draft: next });
       setLoading(false);
@@ -393,7 +392,9 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
             draft={draft}
             seasons={seasons}
             roomTypes={roomTypes}
-            legacySeasonRates={legacySeasonRates}
+            liveMatrix={liveMatrix}
+            liveMatrixLoading={liveMatrixLoading}
+            onSeedFromLive={onSeedFromLive}
             onChange={onSeasonChange}
             onCellChange={onSeasonCellChange}
             onFillColumn={onFillSeasonColumn}
