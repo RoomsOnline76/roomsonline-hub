@@ -1,4 +1,14 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { addDays, createRateResolver } from "../_shared/rateResolution.ts";
+import {
+  getRateResolutionModes,
+  logRateParity,
+  type ParityRow,
+} from "../_shared/rateParity.ts";
+
+/** Shadow-comparison bounds — keeps listing latency and audit volume predictable. */
+const PARITY_WINDOW_DAYS = 30;
+const PARITY_MAX_PROPERTIES = 12;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
