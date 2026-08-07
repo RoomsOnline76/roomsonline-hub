@@ -43,6 +43,7 @@ const StaffLogin = lazy(() => import("./pages/StaffLogin"));
 const ContractSign = lazy(() => import("./pages/ContractSign"));
 const PropertyOnboarding = lazy(() => import("./pages/PropertyOnboarding"));
 const GuestPortal = lazy(() => import("./pages/GuestPortal"));
+const GroupRoomingPortal = lazy(() => import("./pages/GroupRoomingPortal"));
 const SubscriptionPay = lazy(() => import("./pages/SubscriptionPay"));
 const RecaptchaBridge = lazy(() => import("./pages/RecaptchaBridge"));
 
@@ -294,6 +295,7 @@ const App = () => (
                         <Route path="/staff-login" element={<StaffLogin />} />
                         <Route path="/staff-login/:propertySlug" element={<StaffLogin />} />
                         <Route path="/my-booking" element={<GuestPortal />} />
+                        <Route path="/group-rooming/:token" element={<GroupRoomingPortal />} />
 
                         {/* ═══ HyperGuest certification portal (token-gated, public) ═══ */}
                         <Route path="/hyperguest/certification" element={<HyperGuestCertificationPortal />} />
