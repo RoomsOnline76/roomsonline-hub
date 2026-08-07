@@ -687,6 +687,72 @@ Deno.serve(async (req) => {
         });
       }
 
+      // ==================== INVOICE LEDGER (recon by billing party / channel) ====================
+      case "list_invoices": {
+        const {
+          property_id: liPropId,
+          bill_to_type: liType,
+          channel_key: liChannel,
+          from_date: liFrom,
+          to_date: liTo,
+        } = body;
+        if (!liPropId) {
+          return new Response(JSON.stringify({ error: "property_id required" }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        let q = supabase
+          .from("rolos_invoices")
+          .select("id, invoice_number, document_kind, status, currency, subtotal, tax_total, total, bill_to_type, bill_to_account_id, bill_to_name, bill_to_vat, bill_to_terms_days, channel_key, commission_rate, commission_amount, net_payable, due_date, booking_id, created_at")
+          .eq("property_id", liPropId)
+          .neq("status", "cancelled")
+          .order("created_at", { ascending: false })
+          .limit(500);
+        if (liType && ["guest", "company", "agent", "channel"].includes(String(liType))) {
+          q = q.eq("bill_to_type", liType);
+        }
+        if (liChannel) q = q.eq("channel_key", liChannel);
+        if (liFrom) q = q.gte("created_at", liFrom);
+        if (liTo) q = q.lte("created_at", liTo);
+
+        const { data: ledger, error: liErr } = await q;
+        if (liErr) throw liErr;
+
+        // Roll up per billing party so commission owed is visible at a glance.
+        const groups: Record<string, { bill_to_type: string; label: string; channel_key: string | null; count: number; total: number; commission: number; net: number }> = {};
+        for (const row of ledger || []) {
+          const label = row.bill_to_name || (row.bill_to_type === "channel" ? channelLabel(row.channel_key) : "Guest");
+          const key = `${row.bill_to_type}::${row.bill_to_account_id || row.channel_key || label}`;
+          const g = groups[key] ||= {
+            bill_to_type: row.bill_to_type,
+            label,
+            channel_key: row.channel_key ?? null,
+            count: 0,
+            total: 0,
+            commission: 0,
+            net: 0,
+          };
+          g.count += 1;
+          g.total += Number(row.total || 0);
+          g.commission += Number(row.commission_amount || 0);
+          g.net += Number(row.net_payable ?? row.total ?? 0);
+        }
+
+        return new Response(JSON.stringify({
+          success: true,
+          invoices: (ledger || []).map((r) => ({
+            ...r,
+            channel_label: r.channel_key ? channelLabel(r.channel_key) : null,
+          })),
+          summary: Object.values(groups).sort((a, b) => b.total - a.total),
+        }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+
       // ==================== APPLY TAX ====================
       case "apply_tax": {
         const { property_id: taxPropId } = body;
