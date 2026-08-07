@@ -19,11 +19,13 @@ import {
   emptyDraft,
   ratePlanDraftReducer,
   readCalendarSeasons,
+  readLegacySeasonRates,
   type CalendarSeason,
   type DifferentialType,
   type DraftSeasonRate,
   type RatePlanDraft,
 } from "./ratePlanDraft";
+
 
 const PRICING_MODELS = [
   { value: "per_room", label: "Per room", desc: "Flat rate per room per night" },
@@ -46,6 +48,8 @@ const str = (v: unknown): string => (v === null || v === undefined ? "" : String
 export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes, onSaved, onCancel }: Props) {
   const [draft, dispatch] = useReducer(ratePlanDraftReducer, emptyDraft());
   const [seasons, setSeasons] = useState<CalendarSeason[]>([]);
+  const [legacySeasonRates, setLegacySeasonRates] = useState<Map<string, number[]>>(() => new Map());
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const { policies } = useReservationPolicies(propertyId);
@@ -78,6 +82,8 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
         supabase.from("rolos_shared_seasons").select("id, calendar_season_id").eq("property_id", propertyId),
       ]);
       const calendarSeasons = readCalendarSeasons(property?.amenities);
+      const legacyRates = readLegacySeasonRates(property?.amenities, ratePlanId);
+
       const calendarIdBySharedId = new Map<string, string>(
         (seasonRows.data ?? [])
           .filter((r) => r.calendar_season_id)
@@ -149,6 +155,8 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
 
       if (cancelled) return;
       setSeasons(calendarSeasons);
+      setLegacySeasonRates(legacyRates);
+
       dispatch({ type: "reset", draft: next });
       setLoading(false);
     })();
@@ -322,7 +330,13 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <RatePlanSeasonPricingTable draft={draft} seasons={seasons} onChange={onSeasonChange} />
+          <RatePlanSeasonPricingTable
+            draft={draft}
+            seasons={seasons}
+            legacySeasonRates={legacySeasonRates}
+            onChange={onSeasonChange}
+          />
+
         </CardContent>
       </Card>
 
