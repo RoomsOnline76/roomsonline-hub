@@ -1,0 +1,242 @@
+{
+  "name": "Tidal Pools Self Catering Apartments",
+  "property_id": "af57b357-9c95-47f5-b7d5-43d3b2f05bb7",
+  "rate_plans": [
+    {
+      "base_rate": 600,
+      "is_active": false,
+      "max_stay": null,
+      "min_stay": 4,
+      "name": "Pensioners",
+      "pricing_model": "per_room",
+      "rate_plan_id": "e39126f7-4a86-4d05-87c4-ef6c0434045d"
+    },
+    {
+      "base_rate": 1000,
+      "is_active": true,
+      "max_stay": 0,
+      "min_stay": 1,
+      "name": "Rack",
+      "pricing_model": "per_room",
+      "rate_plan_id": "23692815-13b9-45ed-83b8-1f38243c008c"
+    }
+  ],
+  "season_rates": {
+    "1775234549920": {
+      "1775218225666-23692815-13b9-45ed-83b8-1f38243c008c": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 2330,
+        "teenAmount": 0
+      },
+      "1775218344333-23692815-13b9-45ed-83b8-1f38243c008c": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 1210,
+        "teenAmount": 0
+      },
+      "1775218489478-23692815-13b9-45ed-83b8-1f38243c008c": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 1000,
+        "teenAmount": 0
+      }
+    },
+    "1775234816306": {
+      "1775218225666-23692815-13b9-45ed-83b8-1f38243c008c": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 1700,
+        "teenAmount": 0
+      },
+      "1775218344333-23692815-13b9-45ed-83b8-1f38243c008c": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 900,
+        "teenAmount": 0
+      },
+      "1775218489478-23692815-13b9-45ed-83b8-1f38243c008c": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 700,
+        "teenAmount": 0
+      }
+    },
+    "1775235083003": {
+      "1775218225666-23692815-13b9-45ed-83b8-1f38243c008c": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 2250,
+        "teenAmount": 0
+      },
+      "1775218344333-23692815-13b9-45ed-83b8-1f38243c008c": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 1120,
+        "teenAmount": 0
+      },
+      "1775218489478-23692815-13b9-45ed-83b8-1f38243c008c": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 940,
+        "teenAmount": 0
+      }
+    },
+    "1775235161359": {
+      "1775218225666-23692815-13b9-45ed-83b8-1f38243c008c": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 2330,
+        "teenAmount": 0
+      },
+      "1775218344333-23692815-13b9-45ed-83b8-1f38243c008c": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 1210,
+        "teenAmount": 0
+      },
+      "1775218489478-23692815-13b9-45ed-83b8-1f38243c008c": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 1000,
+        "teenAmount": 0
+      }
+    }
+  },
+  "seasons": [
+    {
+      "color": "red",
+      "from": "2026-02-02",
+      "id": "1775218225666",
+      "maxStay": 30,
+      "minStay": 1,
+      "name": "HIGH",
+      "periods": [
+        {
+          "from": "2026-02-02",
+          "to": "2026-02-06"
+        },
+        {
+          "from": "2026-12-11",
+          "to": "2027-01-03"
+        },
+        {
+          "from": "2027-04-16",
+          "to": "2027-04-25"
+        }
+      ],
+      "title": "HIGH",
+      "to": "2026-02-06"
+    },
+    {
+      "color": "amber",
+      "from": "2026-03-27",
+      "id": "1775218344333",
+      "maxStay": 30,
+      "minStay": 1,
+      "name": "MIDDLE",
+      "periods": [
+        {
+          "from": "2026-03-27",
+          "to": "2026-04-06"
+        },
+        {
+          "from": "2026-08-07",
+          "to": "2026-08-10"
+        },
+        {
+          "from": "2026-10-02",
+          "to": "2026-10-11"
+        },
+        {
+          "from": "2027-01-04",
+          "to": "2027-01-10"
+        },
+        {
+          "from": "2027-05-15",
+          "to": "2027-06-15"
+        },
+        {
+          "from": "2027-12-05",
+          "to": "2027-12-15"
+        }
+      ],
+      "title": "MIDDLE",
+      "to": "2026-04-06"
+    },
+    {
+      "color": "green",
+      "from": "2026-01-15",
+      "id": "1775218489478",
+      "maxStay": 30,
+      "minStay": 1,
+      "name": "LOW",
+      "periods": [
+        {
+          "from": "2026-01-15",
+          "to": "2026-02-01"
+        },
+        {
+          "from": "2026-02-07",
+          "to": "2026-03-26"
+        },
+        {
+          "from": "2026-04-07",
+          "to": "2026-08-06"
+        },
+        {
+          "from": "2026-08-11",
+          "to": "2026-10-01"
+        },
+        {
+          "from": "2026-10-12",
+          "to": "2026-12-10"
+        },
+        {
+          "from": "2027-01-11",
+          "to": "2027-12-31"
+        }
+      ],
+      "title": "LOW",
+      "to": "2026-02-01"
+    }
+  ],
+  "units": [
+    {
+      "daily_rate": 1000,
+      "id": "8ca5b8a7-ba36-4459-a160-7852d49aeba4",
+      "linked_rolos_id": "ec356562-4fd0-4b95-863b-643fb2f028d8",
+      "name": "ELF"
+    },
+    {
+      "daily_rate": 1000,
+      "id": "917672dc-6280-411d-890d-fd41e63c68c1",
+      "linked_rolos_id": "169967ea-0b90-455f-bcea-290a388dd5ea",
+      "name": "GEELSTERT"
+    },
+    {
+      "daily_rate": 1000,
+      "id": "99b80044-b4a4-4664-9e5a-69e70baaa5c5",
+      "linked_rolos_id": "d2830bb1-8390-481e-9d6b-96e74936a00d",
+      "name": "LEERVIS"
+    },
+    {
+      "daily_rate": 1000,
+      "id": "5cc84a5c-8ecd-4034-bda0-38202479cbcf",
+      "linked_rolos_id": "687c84a2-42ea-4bc9-8ded-19898c955405",
+      "name": "WILDEPERD"
+    }
+  ]
+}

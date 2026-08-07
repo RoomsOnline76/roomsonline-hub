@@ -1,0 +1,301 @@
+{
+  "name": "Dassiesingel Self-catering Units",
+  "property_id": "a22384f0-749f-4c48-add5-efd6103caf25",
+  "rate_plans": [
+    {
+      "base_rate": 600,
+      "is_active": true,
+      "max_stay": 0,
+      "min_stay": 4,
+      "name": "Pensioners",
+      "pricing_model": "per_room",
+      "rate_plan_id": "1f31c156-42c1-4e31-9fc6-75e031d82e5d"
+    },
+    {
+      "base_rate": 1000,
+      "is_active": true,
+      "max_stay": 0,
+      "min_stay": 1,
+      "name": "Rack",
+      "pricing_model": "UnitRate",
+      "rate_plan_id": "c6257811-15a4-404f-9797-5f782d16cdfe"
+    }
+  ],
+  "season_rates": {
+    "1775154496396": {
+      "1775218225666-Self Catering": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 2300,
+        "teenAmount": 0
+      },
+      "1775218225666-c6257811-15a4-404f-9797-5f782d16cdfe": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 2300,
+        "teenAmount": 0
+      },
+      "1775218344333-Self Catering": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 1370,
+        "teenAmount": 0
+      },
+      "1775218344333-c6257811-15a4-404f-9797-5f782d16cdfe": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 1370,
+        "teenAmount": 0
+      },
+      "1775218489478-Self Catering": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 1000,
+        "teenAmount": 0
+      },
+      "1775218489478-c6257811-15a4-404f-9797-5f782d16cdfe": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 1000,
+        "teenAmount": 0
+      }
+    },
+    "1775154554993": {
+      "1775218225666-Self Catering": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 1100,
+        "teenAmount": 0
+      },
+      "1775218225666-c6257811-15a4-404f-9797-5f782d16cdfe": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 1100,
+        "teenAmount": 0
+      },
+      "1775218344333-Self Catering": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 700,
+        "teenAmount": 0
+      },
+      "1775218344333-c6257811-15a4-404f-9797-5f782d16cdfe": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 700,
+        "teenAmount": 0
+      },
+      "1775218489478-Self Catering": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 550,
+        "teenAmount": 0
+      },
+      "1775218489478-c6257811-15a4-404f-9797-5f782d16cdfe": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 550,
+        "teenAmount": 0
+      }
+    },
+    "1775154602014": {
+      "1775218225666-Self Catering": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 1350,
+        "teenAmount": 0
+      },
+      "1775218225666-c6257811-15a4-404f-9797-5f782d16cdfe": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 1350,
+        "teenAmount": 0
+      },
+      "1775218344333-Self Catering": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 850,
+        "teenAmount": 0
+      },
+      "1775218344333-c6257811-15a4-404f-9797-5f782d16cdfe": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 850,
+        "teenAmount": 0
+      },
+      "1775218489478-Self Catering": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 700,
+        "teenAmount": 0
+      },
+      "1775218489478-c6257811-15a4-404f-9797-5f782d16cdfe": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 700,
+        "teenAmount": 0
+      }
+    },
+    "1775154674298": {
+      "1775218225666-Self Catering": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 1100,
+        "teenAmount": 0
+      },
+      "1775218225666-c6257811-15a4-404f-9797-5f782d16cdfe": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 1100,
+        "teenAmount": 0
+      },
+      "1775218344333-Self Catering": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 700,
+        "teenAmount": 0
+      },
+      "1775218344333-c6257811-15a4-404f-9797-5f782d16cdfe": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 700,
+        "teenAmount": 0
+      },
+      "1775218489478-Self Catering": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 550,
+        "teenAmount": 0
+      },
+      "1775218489478-c6257811-15a4-404f-9797-5f782d16cdfe": {
+        "adultAmount": 0,
+        "childAmount": 0,
+        "infantAmount": 0,
+        "roomAmount": 550,
+        "teenAmount": 0
+      }
+    }
+  },
+  "seasons": [
+    {
+      "color": "red",
+      "from": "2026-02-02",
+      "id": "1775218225666",
+      "maxStay": 30,
+      "minStay": 1,
+      "name": "HIGH",
+      "periods": [
+        {
+          "from": "2026-02-02",
+          "to": "2026-02-06"
+        },
+        {
+          "from": "2026-12-11",
+          "to": "2027-01-03"
+        },
+        {
+          "from": "2027-04-16",
+          "to": "2027-04-25"
+        }
+      ],
+      "title": "HIGH",
+      "to": "2026-02-06"
+    },
+    {
+      "color": "amber",
+      "from": "2026-03-27",
+      "id": "1775218344333",
+      "maxStay": 30,
+      "minStay": 1,
+      "name": "MIDDLE",
+      "periods": [
+        {
+          "from": "2026-03-27",
+          "to": "2026-04-06"
+        },
+        {
+          "from": "2026-08-07",
+          "to": "2026-08-10"
+        },
+        {
+          "from": "2026-10-02",
+          "to": "2026-10-11"
+        },
+        {
+          "from": "2027-01-04",
+          "to": "2027-01-10"
+        },
+        {
+          "from": "2027-05-15",
+          "to": "2027-06-15"
+        },
+        {
+          "from": "2027-12-05",
+          "to": "2027-12-15"
+        }
+      ],
+      "title": "MIDDLE",
+      "to": "2026-04-06"
+    },
+    {
+      "color": "green",
+      "from": "2026-01-15",
+      "id": "1775218489478",
+      "maxStay": 30,
+      "minStay": 1,
+      "name": "LOW",
+      "periods": [
+        {
+          "from": "2026-01-15",
+          "to": "2026-02-01"
+        },
+        {
+          "from": "2026-02-07",
+          "to": "2026-03-26"
+        },
+        {
+          "from": "2026-04-07",
+          "to": "2026-08-06"
+        },
+        {
+          "from": "2026-08-11",
+          "to": "2026-10-01"
+        },
+        {
+          "from": "2026-10-12",
+          "to": "2026-12-10"
+        },
+        {
+          "from": "2027-01-11",
+          "to": "2027-12-31"
+        }
+      ],
+      "title": "LOW",
+      "to": "2026-02-01"
+    }
+  ],
+  "units": []
+}

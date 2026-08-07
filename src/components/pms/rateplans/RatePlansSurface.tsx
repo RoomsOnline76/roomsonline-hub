@@ -171,7 +171,9 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
 
     const getLinkedRoomTypes = (planId: string) =>
       links.filter((l) => l.rate_plan_id === planId).map((l) => l.room_type_id);
-    const getRoomTypeName = (id: string) => roomTypes.find((rt) => rt.id === id)?.name || id;
+    // Links can outlive a unit (renamed, archived or removed). Never leak the raw
+    // UUID into the UI — show a neutral label instead.
+    const getRoomTypeName = (id: string) => roomTypes.find((rt) => rt.id === id)?.name || "Archived unit";
 
     const handleToggleActive = async (plan: RatePlan) => {
       const { error } = await supabase

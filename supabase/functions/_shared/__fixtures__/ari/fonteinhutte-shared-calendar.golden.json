@@ -1,0 +1,429 @@
+{
+  "property": "Fonteinhutte Self-Catering Chalets",
+  "window": {
+    "from": "2026-09-01",
+    "to": "2027-08-31"
+  },
+  "units": [
+    {
+      "unit": "BLAASOPPIE",
+      "priced_days": 365,
+      "periods": [
+        {
+          "date_from": "2026-09-01",
+          "date_to": "2026-10-01",
+          "price": 610,
+          "source": "calendar_season"
+        },
+        {
+          "date_from": "2026-10-02",
+          "date_to": "2026-10-11",
+          "price": 740,
+          "source": "calendar_season"
+        },
+        {
+          "date_from": "2026-10-12",
+          "date_to": "2026-12-10",
+          "price": 610,
+          "source": "calendar_season"
+        },
+        {
+          "date_from": "2026-12-11",
+          "date_to": "2027-01-03",
+          "price": 1460,
+          "source": "calendar_season"
+        },
+        {
+          "date_from": "2027-01-04",
+          "date_to": "2027-01-10",
+          "price": 740,
+          "source": "calendar_season"
+        },
+        {
+          "date_from": "2027-01-11",
+          "date_to": "2027-04-15",
+          "price": 610,
+          "source": "calendar_season"
+        },
+        {
+          "date_from": "2027-04-16",
+          "date_to": "2027-04-25",
+          "price": 1460,
+          "source": "calendar_season"
+        },
+        {
+          "date_from": "2027-04-26",
+          "date_to": "2027-05-14",
+          "price": 610,
+          "source": "calendar_season"
+        },
+        {
+          "date_from": "2027-05-15",
+          "date_to": "2027-06-15",
+          "price": 740,
+          "source": "calendar_season"
+        },
+        {
+          "date_from": "2027-06-16",
+          "date_to": "2027-08-31",
+          "price": 610,
+          "source": "calendar_season"
+        }
+      ],
+      "stay": {
+        "min_stay": 1,
+        "max_stay": null
+      }
+    },
+    {
+      "unit": "KAAPSE NOOINTJIE",
+      "priced_days": 365,
+      "periods": [
+        {
+          "date_from": "2026-09-01",
+          "date_to": "2026-10-01",
+          "price": 610,
+          "source": "calendar_season"
+        },
+        {
+          "date_from": "2026-10-02",
+          "date_to": "2026-10-11",
+          "price": 740,
+          "source": "calendar_season"
+        },
+        {
+          "date_from": "2026-10-12",
+          "date_to": "2026-12-10",
+          "price": 610,
+          "source": "calendar_season"
+        },
+        {
+          "date_from": "2026-12-11",
+          "date_to": "2027-01-03",
+          "price": 1460,
+          "source": "calendar_season"
+        },
+        {
+          "date_from": "2027-01-04",
+          "date_to": "2027-01-10",
+          "price": 740,
+          "source": "calendar_season"
+        },
+        {
+          "date_from": "2027-01-11",
+          "date_to": "2027-04-15",
+          "price": 610,
+          "source": "calendar_season"
+        },
+        {
+          "date_from": "2027-04-16",
+          "date_to": "2027-04-25",
+          "price": 1460,
+          "source": "calendar_season"
+        },
+        {
+          "date_from": "2027-04-26",
+          "date_to": "2027-05-14",
+          "price": 610,
+          "source": "calendar_season"
+        },
+        {
+          "date_from": "2027-05-15",
+          "date_to": "2027-06-15",
+          "price": 740,
+          "source": "calendar_season"
+        },
+        {
+          "date_from": "2027-06-16",
+          "date_to": "2027-08-31",
+          "price": 610,
+          "source": "calendar_season"
+        }
+      ],
+      "stay": {
+        "min_stay": 1,
+        "max_stay": null
+      }
+    },
+    {
+      "unit": "KAREL GROOTOOG",
+      "priced_days": 365,
+      "periods": [
+        {
+          "date_from": "2026-09-01",
+          "date_to": "2026-10-01",
+          "price": 610,
+          "source": "calendar_season"
+        },
+        {
+          "date_from": "2026-10-02",
+          "date_to": "2026-10-11",
+          "price": 740,
+          "source": "calendar_season"
+        },
+        {
+          "date_from": "2026-10-12",
+          "date_to": "2026-12-10",
+          "price": 610,
+          "source": "calendar_season"
+        },
+        {
+          "date_from": "2026-12-11",
+          "date_to": "2027-01-03",
+          "price": 1460,
+          "source": "calendar_season"
+        },
+        {
+          "date_from": "2027-01-04",
+          "date_to": "2027-01-10",
+          "price": 740,
+          "source": "calendar_season"
+        },
+        {
+          "date_from": "2027-01-11",
+          "date_to": "2027-04-15",
+          "price": 610,
+          "source": "calendar_season"
+        },
+        {
+          "date_from": "2027-04-16",
+          "date_to": "2027-04-25",
+          "price": 1460,
+          "source": "calendar_season"
+        },
+        {
+          "date_from": "2027-04-26",
+          "date_to": "2027-05-14",
+          "price": 610,
+          "source": "calendar_season"
+        },
+        {
+          "date_from": "2027-05-15",
+          "date_to": "2027-06-15",
+          "price": 740,
+          "source": "calendar_season"
+        },
+        {
+          "date_from": "2027-06-16",
+          "date_to": "2027-08-31",
+          "price": 610,
+          "source": "calendar_season"
+        }
+      ],
+      "stay": {
+        "min_stay": 1,
+        "max_stay": null
+      }
+    },
+    {
+      "unit": "PEREKIL",
+      "priced_days": 365,
+      "periods": [
+        {
+          "date_from": "2026-09-01",
+          "date_to": "2026-10-01",
+          "price": 610,
+          "source": "calendar_season"
+        },
+        {
+          "date_from": "2026-10-02",
+          "date_to": "2026-10-11",
+          "price": 740,
+          "source": "calendar_season"
+        },
+        {
+          "date_from": "2026-10-12",
+          "date_to": "2026-12-10",
+          "price": 610,
+          "source": "calendar_season"
+        },
+        {
+          "date_from": "2026-12-11",
+          "date_to": "2027-01-03",
+          "price": 1460,
+          "source": "calendar_season"
+        },
+        {
+          "date_from": "2027-01-04",
+          "date_to": "2027-01-10",
+          "price": 740,
+          "source": "calendar_season"
+        },
+        {
+          "date_from": "2027-01-11",
+          "date_to": "2027-04-15",
+          "price": 610,
+          "source": "calendar_season"
+        },
+        {
+          "date_from": "2027-04-16",
+          "date_to": "2027-04-25",
+          "price": 1460,
+          "source": "calendar_season"
+        },
+        {
+          "date_from": "2027-04-26",
+          "date_to": "2027-05-14",
+          "price": 610,
+          "source": "calendar_season"
+        },
+        {
+          "date_from": "2027-05-15",
+          "date_to": "2027-06-15",
+          "price": 740,
+          "source": "calendar_season"
+        },
+        {
+          "date_from": "2027-06-16",
+          "date_to": "2027-08-31",
+          "price": 610,
+          "source": "calendar_season"
+        }
+      ],
+      "stay": {
+        "min_stay": 1,
+        "max_stay": null
+      }
+    },
+    {
+      "unit": "ROMAN",
+      "priced_days": 365,
+      "periods": [
+        {
+          "date_from": "2026-09-01",
+          "date_to": "2026-10-01",
+          "price": 610,
+          "source": "calendar_season"
+        },
+        {
+          "date_from": "2026-10-02",
+          "date_to": "2026-10-11",
+          "price": 740,
+          "source": "calendar_season"
+        },
+        {
+          "date_from": "2026-10-12",
+          "date_to": "2026-12-10",
+          "price": 610,
+          "source": "calendar_season"
+        },
+        {
+          "date_from": "2026-12-11",
+          "date_to": "2027-01-03",
+          "price": 1460,
+          "source": "calendar_season"
+        },
+        {
+          "date_from": "2027-01-04",
+          "date_to": "2027-01-10",
+          "price": 740,
+          "source": "calendar_season"
+        },
+        {
+          "date_from": "2027-01-11",
+          "date_to": "2027-04-15",
+          "price": 610,
+          "source": "calendar_season"
+        },
+        {
+          "date_from": "2027-04-16",
+          "date_to": "2027-04-25",
+          "price": 1460,
+          "source": "calendar_season"
+        },
+        {
+          "date_from": "2027-04-26",
+          "date_to": "2027-05-14",
+          "price": 610,
+          "source": "calendar_season"
+        },
+        {
+          "date_from": "2027-05-15",
+          "date_to": "2027-06-15",
+          "price": 740,
+          "source": "calendar_season"
+        },
+        {
+          "date_from": "2027-06-16",
+          "date_to": "2027-08-31",
+          "price": 610,
+          "source": "calendar_season"
+        }
+      ],
+      "stay": {
+        "min_stay": 1,
+        "max_stay": null
+      }
+    },
+    {
+      "unit": "STEENBRAS",
+      "priced_days": 365,
+      "periods": [
+        {
+          "date_from": "2026-09-01",
+          "date_to": "2026-10-01",
+          "price": 610,
+          "source": "calendar_season"
+        },
+        {
+          "date_from": "2026-10-02",
+          "date_to": "2026-10-11",
+          "price": 740,
+          "source": "calendar_season"
+        },
+        {
+          "date_from": "2026-10-12",
+          "date_to": "2026-12-10",
+          "price": 610,
+          "source": "calendar_season"
+        },
+        {
+          "date_from": "2026-12-11",
+          "date_to": "2027-01-03",
+          "price": 1460,
+          "source": "calendar_season"
+        },
+        {
+          "date_from": "2027-01-04",
+          "date_to": "2027-01-10",
+          "price": 740,
+          "source": "calendar_season"
+        },
+        {
+          "date_from": "2027-01-11",
+          "date_to": "2027-04-15",
+          "price": 610,
+          "source": "calendar_season"
+        },
+        {
+          "date_from": "2027-04-16",
+          "date_to": "2027-04-25",
+          "price": 1460,
+          "source": "calendar_season"
+        },
+        {
+          "date_from": "2027-04-26",
+          "date_to": "2027-05-14",
+          "price": 610,
+          "source": "calendar_season"
+        },
+        {
+          "date_from": "2027-05-15",
+          "date_to": "2027-06-15",
+          "price": 740,
+          "source": "calendar_season"
+        },
+        {
+          "date_from": "2027-06-16",
+          "date_to": "2027-08-31",
+          "price": 610,
+          "source": "calendar_season"
+        }
+      ],
+      "stay": {
+        "min_stay": 1,
+        "max_stay": null
+      }
+    }
+  ]
+}
