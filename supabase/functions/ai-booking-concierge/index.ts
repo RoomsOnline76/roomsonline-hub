@@ -52,7 +52,46 @@ interface ConciergeResponse {
   proactive_tip?: string;
   parsed_intent?: ParsedIntent;
   journey_suggestions?: JourneySuggestion[];
+  /** Slots TOBI still needs before it can propose a stay. */
+  missing_slots?: SlotName[];
+  /** The single question TOBI should ask this turn (if any). */
+  next_question?: string;
+  /** A concrete stay TOBI has assembled — the client applies this to the booking. */
+  booking_proposal?: BookingProposal;
+  /** Offers that were considered when building the proposal. */
+  offers_considered?: { specials: OfferSummary[]; vouchers: OfferSummary[] };
 }
+
+type SlotName = 'guests' | 'destination' | 'dates' | 'flexibility';
+
+interface BookingProposal {
+  check_in: string;
+  check_out: string;
+  nights: number;
+  guests: { adults: number; children: number; infants: number };
+  currency: string;
+  rooms: { room_type_id: string; room_type_name: string; rate_per_night: number; total: number }[];
+  total: number;
+  voucher_code?: string;
+  qualifying_special?: { id: string; name: string; label: string } | null;
+  legs?: {
+    property_id: string;
+    property_name: string;
+    property_slug: string;
+    check_in: string;
+    check_out: string;
+  }[];
+  recap: string;
+}
+
+interface OfferSummary {
+  id: string;
+  name: string;
+  code?: string;
+  label: string;
+  conditions: string;
+}
+
 
 interface JourneySuggestion {
   property_id: string;
@@ -78,6 +117,11 @@ interface ParsedIntent {
   preferences?: string[];
   budget?: { max?: number; min?: number; currency?: string };
   room_preference?: string;
+  /** Guest signalled their dates can move ("flexible", "around", "give or take"). */
+  flexible_dates?: boolean;
+  /** Guest signalled interest in combining more than one property. */
+  multi_property?: boolean;
+
 }
 
 function parseUserQuery(query: string): ParsedIntent {
@@ -169,7 +213,21 @@ function parseUserQuery(query: string): ParsedIntent {
     }
   }
 
+  // Flexible dates: "flexible", "around the 12th", "give or take", "any weekend in March"
+  if (/\bflexible\b|\bflexi\b|give or take|either side|\bor so\b|around the|\bany weekend\b|\bwhenever\b|\bopen (?:on|to) dates\b/.test(normalizedQuery)) {
+    intent.flexible_dates = true;
+  }
+  if (/\bfirm\b|\bexact(?:ly)? those dates\b|\bfixed dates\b|\bcan'?t move\b/.test(normalizedQuery)) {
+    intent.flexible_dates = false;
+  }
+
+  // Multi-property interest: "two places", "split the trip", "road trip", "more than one"
+  if (/\bmore than one\b|\btwo (?:places|properties|stops)\b|\bsplit (?:the )?(?:trip|stay)\b|road trip|\bmulti[- ]?(?:stop|destination)\b|\banother property\b/.test(normalizedQuery)) {
+    intent.multi_property = true;
+  }
+
   return intent;
+
 }
 
 // ============================================================================
@@ -362,7 +420,148 @@ async function fetchOwnerAlternatives(
 }
 
 // ============================================================================
+// OFFERS: SPECIALS & VOUCHER CODES
+// ============================================================================
+
+function daysBetween(a: string, b: string): number {
+  return Math.round((new Date(b).getTime() - new Date(a).getTime()) / 86400000);
+}
+
+function specialLabelText(s: any, currency: string): string {
+  if (s.discount_percent) return `${s.discount_percent}% off`;
+  if (s.fixed_amount) return `${currency} ${Math.round(s.fixed_amount)} off`;
+  if (s.fixed_price) return `flat ${currency} ${Math.round(s.fixed_price)}`;
+  return 'special rate';
+}
+
+function specialConditionsText(s: any): string {
+  const bits: string[] = [];
+  if (s.min_stay) bits.push(`min ${s.min_stay} nights`);
+  if (s.max_stay) bits.push(`max ${s.max_stay} nights`);
+  if (s.lead_days_min) bits.push(`book at least ${s.lead_days_min} days ahead`);
+  if (s.lead_days_max) bits.push(`book within ${s.lead_days_max} days of arrival`);
+  if (s.valid_from || s.valid_to) bits.push(`stay between ${s.valid_from || 'any'} and ${s.valid_to || 'any'}`);
+  if (Array.isArray(s.dow_mask) && s.dow_mask.length > 0) bits.push(`arrival on ${s.dow_mask.join('/')}`);
+  return bits.length > 0 ? bits.join(', ') : 'no conditions';
+}
+
+/** Loose eligibility check for a stay — the booking page remains authoritative. */
+function isSpecialEligibleForStay(s: any, dates: { check_in: string; check_out: string } | undefined): boolean {
+  if (!dates?.check_in || !dates?.check_out) return false;
+  const nights = daysBetween(dates.check_in, dates.check_out);
+  if (nights <= 0) return false;
+  if (s.min_stay && nights < s.min_stay) return false;
+  if (s.max_stay && nights > s.max_stay) return false;
+  if (s.valid_from && dates.check_in < s.valid_from) return false;
+  if (s.valid_to && dates.check_out > s.valid_to) return false;
+  const today = new Date().toISOString().split('T')[0];
+  if (s.book_from && today < s.book_from) return false;
+  if (s.book_until && today > s.book_until) return false;
+  const lead = daysBetween(today, dates.check_in);
+  if (s.lead_days_min && lead < s.lead_days_min) return false;
+  if (s.lead_days_max && lead > s.lead_days_max) return false;
+  return true;
+}
+
+function isVoucherUsableForStay(v: any, dates: { check_in: string; check_out: string } | undefined): boolean {
+  const today = new Date().toISOString().split('T')[0];
+  if (v.valid_from && today < v.valid_from) return false;
+  if (v.valid_until && today > v.valid_until) return false;
+  if (v.max_uses && (v.current_uses || 0) >= v.max_uses) return false;
+  const minNights = v.conditions?.min_nights || v.conditions?.min_stay;
+  if (minNights && dates?.check_in && dates?.check_out && daysBetween(dates.check_in, dates.check_out) < minNights) return false;
+  return true;
+}
+
+async function fetchOffers(
+  supabase: any,
+  propertyId: string,
+): Promise<{ specials: any[]; vouchers: any[] }> {
+  try {
+    const [specialsRes, vouchersRes] = await Promise.all([
+      supabase
+        .from("property_specials")
+        .select("id, name, description, deal_type, discount_percent, fixed_amount, fixed_price, currency, valid_from, valid_to, book_from, book_until, min_stay, max_stay, lead_days_min, lead_days_max, dow_mask, applicable_room_ids, is_stackable, terms")
+        .eq("property_id", propertyId)
+        .eq("is_active", true)
+        .eq("is_public", true)
+        .limit(12),
+      supabase
+        .from("promo_codes")
+        .select("id, code, description, discount_type, discount_value, conditions, valid_from, valid_until, max_uses, current_uses")
+        .eq("property_id", propertyId)
+        .eq("is_active", true)
+        .limit(12),
+    ]);
+    return { specials: specialsRes.data || [], vouchers: vouchersRes.data || [] };
+  } catch (e) {
+    console.error("[Concierge] Offers fetch error:", e);
+    return { specials: [], vouchers: [] };
+  }
+}
+
+function summariseOffers(
+  offers: { specials: any[]; vouchers: any[] },
+  currency: string,
+): { specials: OfferSummary[]; vouchers: OfferSummary[] } {
+  return {
+    specials: offers.specials.map((s) => ({
+      id: s.id,
+      name: s.name,
+      label: specialLabelText(s, s.currency || currency),
+      conditions: specialConditionsText(s),
+    })),
+    vouchers: offers.vouchers.map((v) => ({
+      id: v.id,
+      name: v.description || v.code,
+      code: v.code,
+      label: v.discount_type === 'percentage' ? `${v.discount_value}% off` : `${currency} ${Math.round(v.discount_value)} off`,
+      conditions: [
+        v.valid_until ? `book by ${v.valid_until}` : null,
+        v.conditions?.min_nights ? `min ${v.conditions.min_nights} nights` : null,
+      ].filter(Boolean).join(', ') || 'no conditions',
+    })),
+  };
+}
+
+// ============================================================================
+// SLOT FILLING — ask only for what is still missing, one thing at a time
+// ============================================================================
+
+const SLOT_QUESTIONS: Record<SlotName, string> = {
+  guests: "How many of you are travelling — and are any of them kids?",
+  destination: "Would you like to stay here for the whole trip, or combine a second spot along the way?",
+  dates: "Roughly when are you thinking of coming?",
+  flexibility: "Are those dates firm, or could they move by a few days?",
+};
+
+function computeMissingSlots(
+  intent: ParsedIntent,
+  currentDates: { check_in: string; check_out: string } | undefined,
+  currentGuests: { adults: number; children: number; infants: number } | undefined,
+  isJourneyCapable: boolean,
+  history: { role: string; content: string }[] | undefined,
+): SlotName[] {
+  const missing: SlotName[] = [];
+  const asked = (q: string) => (history || []).some(m => m.role === 'assistant' && m.content.includes(q.slice(0, 24)));
+
+  const haveGuests = !!(intent.guests?.adults || currentGuests?.adults);
+  if (!haveGuests) missing.push('guests');
+
+  const haveDates = !!((currentDates?.check_in && currentDates?.check_out) || intent.date_range || intent.month || intent.nights);
+  if (!haveDates) missing.push('dates');
+
+  if (isJourneyCapable && intent.multi_property === undefined) missing.push('destination');
+
+  if (haveDates && intent.flexible_dates === undefined) missing.push('flexibility');
+
+  // Never re-ask something we have already asked this session.
+  return missing.filter(slot => !asked(SLOT_QUESTIONS[slot]));
+}
+
+// ============================================================================
 // LOVABLE AI NARRATIVE GENERATION
+
 // ============================================================================
 
 async function generateAINarrative(
@@ -372,8 +571,12 @@ async function generateAINarrative(
   intent: ParsedIntent,
   crossSellProperties: { name: string; slug: string; city: string; available: boolean }[],
   allRoomDetails: { name: string; rate: number; total: number; description?: string }[],
-  conversationHistory?: { role: string; content: string }[]
+  conversationHistory?: { role: string; content: string }[],
+  offerSummaries?: { specials: OfferSummary[]; vouchers: OfferSummary[] },
+  nextQuestion?: string,
+  proposal?: BookingProposal,
 ): Promise<string> {
+
   const hasAiKey = Deno.env.get("LOVABLE_API_KEY") || Deno.env.get("LOVABLE_API_KEY");
   if (!hasAiKey) {
     console.warn("[Concierge] No AI keys configured — falling back to template");
@@ -411,23 +614,39 @@ ${experiencesText ? `LOCAL EXPERIENCES & THINGS TO DO:\n${experiencesText}` : ''
 
 ${crossSellText ? `ALTERNATIVE PROPERTIES (same owner, with availability):\n${crossSellText}` : ''}
 
+${offerSummaries && offerSummaries.specials.length > 0 ? `CURRENT SPECIALS (real — never invent others):\n${offerSummaries.specials.map(s => `- ${s.name}: ${s.label} (${s.conditions})`).join('\n')}` : ''}
+
+${offerSummaries && offerSummaries.vouchers.length > 0 ? `VOUCHER CODES YOU MAY OFFER (real — never invent codes):\n${offerSummaries.vouchers.map(v => `- ${v.code}: ${v.label} (${v.conditions})`).join('\n')}` : ''}
+
 RULES:
 1. If rooms ARE available: Lead with excitement. Recommend the BEST (most premium) room first, explaining WHY it's worth it (view, space, amenities). Mention the value option too. Create desire.
 2. If user mentions preferences (pool, quiet, romantic, etc): Confirm the property has it (check amenities) or redirect honestly. Weave it into your pitch.
 3. If NO rooms available: Don't just say "sorry". Suggest trying different dates. If alternative properties exist, enthusiastically recommend them.
 4. Mention 1-2 destination highlights ONLY on the first message. On follow-up messages, focus on answering the guest's question directly.
-5. Keep response under 150 words. Use markdown for emphasis. Be conversational, not robotic.
-6. NEVER make up amenities or features not listed above. If unsure, be vague ("this area is known for...").
+5. Keep response under 130 words. Use markdown for emphasis. Be conversational, not robotic.
+6. NEVER make up amenities, specials, voucher codes or features not listed above. If unsure, be vague ("this area is known for...").
 7. If only one room type exists, don't compare — just sell it with passion.
 8. If the guest mentioned a budget constraint, acknowledge it and only highlight rooms within their range. If nothing fits, say so honestly and suggest alternatives.
 9. If they asked for a specific room type (e.g. "2 bedroom", "studio"), match it against available room names and highlight the best fit.
-10. **CRITICAL — NO REPETITION**: Read the conversation history carefully. NEVER repeat room recommendations, property descriptions, destination tips, or selling points you already shared. Each response must add NEW value — answer the specific question, offer a fresh angle, or progress the booking. If the guest asks the same thing, give a concise confirmation rather than a full re-pitch.`;
+10. **CRITICAL — NO REPETITION**: Read the conversation history carefully. NEVER repeat room recommendations, property descriptions, destination tips, or selling points you already shared. Each response must add NEW value — answer the specific question, offer a fresh angle, or progress the booking. If the guest asks the same thing, give a concise confirmation rather than a full re-pitch.
+
+CONCIERGE FLOW — you gather just enough, then act:
+11. You are a concierge with real abilities, not a Q&A bot. ${nextQuestion ? `End this reply with EXACTLY ONE question, phrased naturally in your own voice, asking: "${nextQuestion}". Ask nothing else.` : 'Do NOT ask any question this turn — you have what you need.'}
+12. NEVER ask for something already known: dates, guest counts, room preference or flexibility that appear above or earlier in the conversation are settled — treat them as decided.
+13. Never fire off multiple questions or a questionnaire. One short question, maximum, per reply.
+14. ${intent.flexible_dates ? 'Their dates are FLEXIBLE — if shifting by a few days unlocks a special or better availability, propose that shift and say what it saves.' : 'Their dates appear firm — work within them.'}
+15. Steer toward stays that actually QUALIFY for a listed special (min stay, lead time, stay window) and explain the qualifying condition plainly. If a voucher code above applies, name it — it is being applied for them automatically.
+${proposal ? `16. You have just set up their booking: ${proposal.recap}. Confirm it in one warm line, mention the offer if any, and ask if it looks good or if they'd like to change something.` : ''}`;
 
   const userMessage = `Guest asked: "${userQuery}"
 ${intent.preferences?.length ? `They mentioned preferences: ${intent.preferences.join(', ')}` : ''}
 ${intent.budget ? `Budget constraint: ${intent.budget.min ? `min ${intent.budget.currency || 'ZAR'} ${intent.budget.min}` : ''}${intent.budget.max ? ` max ${intent.budget.currency || 'ZAR'} ${intent.budget.max}/night` : ''}` : ''}
 ${intent.room_preference ? `Room preference: ${intent.room_preference}` : ''}
+${intent.guests ? `Known party: ${intent.guests.adults} adults, ${intent.guests.children} children, ${intent.guests.infants} infants` : ''}
+${proposal ? `I have already applied this to their booking form: ${proposal.recap}` : ''}
+${nextQuestion ? `Still missing: ask about — ${nextQuestion}` : 'Nothing missing — do not ask questions.'}
 ${suggestions.length > 0 ? `I found ${suggestions.length} available options.` : 'No availability found for the requested dates.'}`;
+
 
   // Primary: xAI Grok
   const XAI_API_KEY = Deno.env.get("LOVABLE_API_KEY");
@@ -921,10 +1140,76 @@ Deno.serve(async (req) => {
     }
 
     // =====================================================================
+    // OFFERS + SLOT FILLING + BOOKING PROPOSAL
+    // =====================================================================
+    const offers = await fetchOffers(supabase, property_id);
+    const offerSummaries = summariseOffers(offers, context.currency);
+
+    const effectiveDates = current_dates?.check_in && current_dates?.check_out
+      ? current_dates
+      : (intent.date_range ? { check_in: intent.date_range.start, check_out: intent.date_range.end } : undefined);
+
+
+    const missingSlots = computeMissingSlots(
+      intent,
+      effectiveDates,
+      current_guests,
+      !!portfolio_slug || crossSellProperties.length > 0,
+      conversation_history,
+    );
+    const nextQuestion = missingSlots.length > 0 ? SLOT_QUESTIONS[missingSlots[0]] : undefined;
+
+    // Build a concrete proposal once we know the party and the dates, and we have rooms.
+    let bookingProposal: BookingProposal | undefined;
+    const proposalGuests = intent.guests || current_guests;
+    const bestSuggestion = filteredSuggestions.find(s => s.room && s.dates?.check_in && s.dates?.check_out)
+      || filteredSuggestions.find(s => s.room);
+    if (proposalGuests?.adults && bestSuggestion?.room) {
+      const pDates = bestSuggestion.dates?.check_in && bestSuggestion.dates?.check_out
+        ? bestSuggestion.dates
+        : effectiveDates;
+      if (pDates?.check_in && pDates?.check_out) {
+        const nights = daysBetween(pDates.check_in, pDates.check_out);
+        const eligibleSpecial = offers.specials.find(s => isSpecialEligibleForStay(s, pDates));
+        const usableVoucher = offers.vouchers.find(v => isVoucherUsableForStay(v, pDates));
+        const partyText = [
+          `${proposalGuests.adults} adult${proposalGuests.adults === 1 ? '' : 's'}`,
+          proposalGuests.children ? `${proposalGuests.children} children` : null,
+          proposalGuests.infants ? `${proposalGuests.infants} infants` : null,
+        ].filter(Boolean).join(', ');
+
+        bookingProposal = {
+          check_in: pDates.check_in,
+          check_out: pDates.check_out,
+          nights,
+          guests: {
+            adults: proposalGuests.adults,
+            children: proposalGuests.children || 0,
+            infants: proposalGuests.infants || 0,
+          },
+          currency: context.currency,
+          rooms: [{
+            room_type_id: bestSuggestion.room.id,
+            room_type_name: bestSuggestion.room.name,
+            rate_per_night: bestSuggestion.room.price_per_night,
+            total: bestSuggestion.room.total,
+          }],
+          total: bestSuggestion.room.total,
+          voucher_code: usableVoucher?.code,
+          qualifying_special: eligibleSpecial
+            ? { id: eligibleSpecial.id, name: eligibleSpecial.name, label: specialLabelText(eligibleSpecial, eligibleSpecial.currency || context.currency) }
+            : null,
+          recap: `${nights} night${nights === 1 ? '' : 's'} in the ${bestSuggestion.room.name} for ${partyText}, ${pDates.check_in} to ${pDates.check_out} — ${context.currency} ${Math.round(bestSuggestion.room.total)} total${eligibleSpecial ? ` (${specialLabelText(eligibleSpecial, eligibleSpecial.currency || context.currency)} via ${eligibleSpecial.name})` : ''}${usableVoucher ? ` with voucher ${usableVoucher.code}` : ''}`,
+        };
+      }
+    }
+
+    // =====================================================================
     // AI NARRATIVE: Replace templates with Lovable AI
     // =====================================================================
     const narrativeResponse = await generateAINarrative(
-      user_query, context, filteredSuggestions, intent, crossSellProperties, allRoomDetails, conversation_history
+      user_query, context, filteredSuggestions, intent, crossSellProperties, allRoomDetails, conversation_history,
+      offerSummaries, nextQuestion, bookingProposal,
     );
 
     // Surprise & Delight
@@ -939,7 +1224,13 @@ Deno.serve(async (req) => {
       suggestions: filteredSuggestions.slice(0, 6),
       narrative_response: narrativeResponse,
       parsed_intent: intent,
+      missing_slots: missingSlots,
+      next_question: nextQuestion,
+      offers_considered: offerSummaries,
     };
+
+    if (bookingProposal) response.booking_proposal = bookingProposal;
+
 
     if (surpriseGift) response.surprise_gift = surpriseGift;
 

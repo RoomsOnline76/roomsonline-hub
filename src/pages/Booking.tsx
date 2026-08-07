@@ -631,6 +631,13 @@ const Booking = () => {
       sessionStorage.removeItem(`booking_state_${property.id}`);
     }
 
+    // TOBI proposed a voucher during the concierge conversation — carry it into checkout
+    try {
+      const tobiVoucher = sessionStorage.getItem(`rol_tobi_voucher_${property.id}`);
+      if (tobiVoucher) setVoucher(tobiVoucher);
+    } catch { /* storage unavailable */ }
+
+
     if (preSelectedRoomTypeId && preSelectedRoomTypeName) {
       // If linked_rolos_id is present (Benson embed), resolve canonical room UUID
       const initPreSelectedRoom = async () => {

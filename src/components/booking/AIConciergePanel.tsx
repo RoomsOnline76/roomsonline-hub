@@ -51,6 +51,7 @@ interface ConciergeMessage {
   type: 'user' | 'assistant' | 'suggestion';
   content: string;
   suggestions?: ConciergeSuggestion[];
+  proposal?: BookingProposal;
   timestamp: Date;
 }
 
@@ -63,6 +64,20 @@ interface ConciergeSuggestion {
   savings?: number;
   is_best_value?: boolean;
 }
+
+interface BookingProposal {
+  check_in: string;
+  check_out: string;
+  nights: number;
+  guests: { adults: number; children: number; infants: number };
+  currency: string;
+  rooms: { room_type_id: string; room_type_name: string; rate_per_night: number; total: number }[];
+  total: number;
+  voucher_code?: string;
+  qualifying_special?: { id: string; name: string; label: string } | null;
+  recap: string;
+}
+
 
 const QUICK_CHIPS = [
   "This weekend for 2",
@@ -248,14 +263,20 @@ export function AIConciergePanel({
       }
 
       // Add assistant response
+      const proposal: BookingProposal | undefined = data?.booking_proposal || undefined;
       const assistantMessage: ConciergeMessage = {
         id: crypto.randomUUID(),
         type: 'assistant',
         content: data?.narrative_response || "I found some options for you!",
         suggestions: data?.suggestions || [],
+        proposal,
         timestamp: new Date(),
       };
       setMessages(prev => [...prev, assistantMessage]);
+
+      // TOBI assembled a stay — set it up so the guest only has to confirm
+      if (proposal) applyProposal(proposal);
+
 
       // Handle surprise gift and track delight delivery
       if (data?.surprise_gift) {
@@ -297,7 +318,62 @@ export function AIConciergePanel({
     }
   };
 
+  // TOBI's proposal → pre-fill the booking selection so the guest only confirms
+  const applyProposal = (proposal: BookingProposal) => {
+    setDates(proposal.check_in, proposal.check_out);
+    updateRoom(0, {
+      numberOfAdults: proposal.guests.adults,
+      numberOfChildren: proposal.guests.children,
+      numberOfInfants: proposal.guests.infants,
+      ...(proposal.rooms[0] ? { roomTypeId: proposal.rooms[0].room_type_id } : {}),
+    });
+    if (proposal.voucher_code) {
+      try {
+        sessionStorage.setItem(`rol_tobi_voucher_${propertyId}`, proposal.voucher_code);
+      } catch { /* storage unavailable */ }
+    }
+  };
+
+  // Guest confirms TOBI's proposal → add it to the journey / hand off to booking
+  const handleConfirmProposal = (proposal: BookingProposal) => {
+    const room = proposal.rooms[0];
+    if (!room) return;
+
+    addStay({
+      property_id: propertyId,
+      property_name: propertyName,
+      property_slug: propertySlug,
+      property_image: propertyImage || '',
+      external_system: externalSystem || 'none',
+      dates: { check_in: proposal.check_in, check_out: proposal.check_out },
+      rooms: [{
+        room_type_id: room.room_type_id,
+        room_type_name: room.room_type_name,
+        quantity: 1,
+        rate_per_night: room.rate_per_night,
+        total_price: room.total,
+      }],
+      guests: proposal.guests,
+      price_breakdown: { subtotal: proposal.total, fees: [], taxes: [], total: proposal.total },
+      availability_status: 'available',
+      nights: proposal.nights,
+    });
+
+    toast.success(
+      proposal.voucher_code
+        ? `Locked in — voucher ${proposal.voucher_code} will be applied at checkout`
+        : `Locked in — ${room.room_type_name} added to your journey!`
+    );
+
+    onRoomSelected?.(
+      room.room_type_id,
+      { check_in: proposal.check_in, check_out: proposal.check_out },
+      proposal.guests
+    );
+  };
+
   // Handle suggestion selection
+
   const handleSelectSuggestion = (suggestion: ConciergeSuggestion) => {
     if (suggestion.dates) {
       setDates(suggestion.dates.check_in, suggestion.dates.check_out);
@@ -486,7 +562,60 @@ export function AIConciergePanel({
   };
 
   // Render suggestion card
+  const renderProposalCard = (proposal: BookingProposal) => {
+    const room = proposal.rooms[0];
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="mt-3 rounded-xl border border-primary/40 bg-card p-3"
+      >
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-primary mb-2">
+          Ready to book
+        </p>
+        <div className="space-y-1 text-sm">
+          <p className="font-medium">{room?.room_type_name}</p>
+          <p className="text-xs text-muted-foreground">
+            {format(parseISO(proposal.check_in), 'EEE d MMM')} – {format(parseISO(proposal.check_out), 'EEE d MMM')}
+            {' · '}{proposal.nights} night{proposal.nights === 1 ? '' : 's'}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {proposal.guests.adults} adult{proposal.guests.adults === 1 ? '' : 's'}
+            {proposal.guests.children ? `, ${proposal.guests.children} children` : ''}
+            {proposal.guests.infants ? `, ${proposal.guests.infants} infants` : ''}
+          </p>
+          {proposal.qualifying_special && (
+            <p className="text-xs font-medium text-green-600">
+              🏷️ {proposal.qualifying_special.name} — {proposal.qualifying_special.label}
+            </p>
+          )}
+          {proposal.voucher_code && (
+            <p className="text-xs font-medium text-green-600">
+              🎟️ Voucher {proposal.voucher_code} applied at checkout
+            </p>
+          )}
+          <p className="text-base font-bold pt-1">{formatPrice(proposal.total)}</p>
+        </div>
+        <div className="flex gap-2 mt-3">
+          <button
+            onClick={() => handleConfirmProposal(proposal)}
+            className="flex-1 text-xs font-medium px-3 py-2 rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition-opacity"
+          >
+            Looks good
+          </button>
+          <button
+            onClick={() => handleSubmitQuery("I'd like to change something about that")}
+            className="flex-1 text-xs font-medium px-3 py-2 rounded-lg border border-border hover:bg-accent transition-colors"
+          >
+            Change something
+          </button>
+        </div>
+      </motion.div>
+    );
+  };
+
   const renderSuggestionCard = (suggestion: ConciergeSuggestion) => (
+
     <motion.button
       key={suggestion.id}
       initial={{ opacity: 0, y: 10 }}
@@ -694,12 +823,16 @@ export function AIConciergePanel({
                   </div>
                 )}
                 
+                {/* TOBI's ready-to-book proposal */}
+                {msg.proposal && renderProposalCard(msg.proposal)}
+
                 {/* Suggestion cards */}
                 {msg.suggestions && msg.suggestions.length > 0 && (
                   <div className="mt-3 space-y-2">
                     {msg.suggestions.map(renderSuggestionCard)}
                   </div>
                 )}
+
               </div>
             </div>
           ))}
@@ -1041,11 +1174,13 @@ export function AIConciergePanel({
                           ))}
                         </div>
                       )}
+                      {msg.proposal && renderProposalCard(msg.proposal)}
                       {msg.suggestions && msg.suggestions.length > 0 && (
                         <div className="mt-2 space-y-2">
                           {msg.suggestions.map(renderSuggestionCard)}
                         </div>
                       )}
+
                     </div>
                   </div>
                 ))}
