@@ -11,7 +11,7 @@ import type {
   RatePlanDraft,
   SeasonPricingMode,
 } from "./ratePlanDraft";
-import { seasonRateFor, seasonUnitRate } from "./ratePlanDraft";
+import { seasonRateFor, seasonUnitRate, pricingNoun } from "./ratePlanDraft";
 import { seasonColor, type SeasonColorMap } from "@/lib/seasonColors";
 
 interface RoomTypeOption {
@@ -89,6 +89,7 @@ export const RatePlanSeasonPricingTable = memo(function RatePlanSeasonPricingTab
   );
 
   const linkedUnits = roomTypes.filter((rt) => draft.units.some((u) => u.room_type_id === rt.id));
+  const noun = pricingNoun(draft.pricing_model);
   const planBase = Number(draft.base_rate);
   const hasLegacyPending = legacyPendingCells > 0;
 
@@ -108,7 +109,8 @@ export const RatePlanSeasonPricingTable = memo(function RatePlanSeasonPricingTab
     return (
       <div className="rounded-md border border-dashed p-6 text-center">
         <p className="text-sm text-muted-foreground">
-          Link at least one unit to this plan (section 4) — units become the rows of this pricing table.
+          Link at least one {noun.singular} to this plan (section 4) — {noun.plural} become the rows of this pricing
+          table.
         </p>
       </div>
     );
@@ -118,7 +120,7 @@ export const RatePlanSeasonPricingTable = memo(function RatePlanSeasonPricingTab
     <div className="space-y-3">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <p className="max-w-[46rem] text-xs text-muted-foreground">
-          Rows are the units this plan sells, columns are the seasons the Calendar painted (read-only). Type a nightly
+          Rows are the {noun.plural} this plan sells, columns are the seasons the Calendar painted (read-only). Type a nightly
           rate into any cell — the season switches to <strong>Fixed rate</strong> automatically. Use{" "}
           <strong>Difference</strong> to price off the plan base rate, or <strong>Not priced</strong> to fall back to it.
           This is the only place nightly rates are captured; the Calendar sets season dates only.
@@ -128,7 +130,7 @@ export const RatePlanSeasonPricingTable = memo(function RatePlanSeasonPricingTab
       {hasLegacyPending && (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3">
           <p className="max-w-[40rem] text-xs text-foreground">
-            <strong>{legacyPendingCells}</strong> unit/season rate{legacyPendingCells === 1 ? "" : "s"} on this plan still
+            <strong>{legacyPendingCells}</strong> {noun.singular}/season rate{legacyPendingCells === 1 ? "" : "s"} on this plan still
             live only in the old Calendar grid. Move them here so Rate Plans holds every price. Cells you have already
             priced are left untouched, and nothing is committed until you save.
           </p>
@@ -152,7 +154,7 @@ export const RatePlanSeasonPricingTable = memo(function RatePlanSeasonPricingTab
           <thead>
             <tr className="border-b bg-muted/50">
               <th className="sticky left-0 z-10 min-w-[180px] bg-muted/50 p-2 text-left align-top text-xs font-medium">
-                Unit
+                {noun.Singular}
               </th>
               {seasons.map((season) => {
                 const rate = seasonRateFor(draft, season.calendar_season_id);

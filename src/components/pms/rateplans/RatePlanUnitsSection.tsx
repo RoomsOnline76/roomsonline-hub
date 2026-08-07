@@ -3,7 +3,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import type { DifferentialType, RatePlanDraft } from "./ratePlanDraft";
-import { unitFor } from "./ratePlanDraft";
+import { unitFor, pricingNoun } from "./ratePlanDraft";
 
 interface RoomTypeOption {
   id: string;
