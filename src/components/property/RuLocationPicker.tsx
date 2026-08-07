@@ -169,7 +169,7 @@ export function RuLocationPicker({
           >
             <span className="flex min-w-0 items-center gap-1.5">
               <MapPin className="h-3 w-3 shrink-0 text-primary" />
-              <span className="truncate">{label ?? "No RU location selected"}</span>
+              <span className="truncate">{label ?? "No Channel Manager location selected"}</span>
             </span>
             <ChevronsUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
           </Button>
