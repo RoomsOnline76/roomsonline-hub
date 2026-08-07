@@ -1134,26 +1134,15 @@ async function handleCreateReservation(body: unknown, supabase: any): Promise<Re
       new_status: "confirmed",
       reason: "Reservation created",
     });
-
-    // Update inventory calendar - atomically increment booked_units for the stay range
-    for (const [roomTypeId, requiredCount] of requiredRooms.entries()) {
-      const { error: invErr } = await supabase.rpc("rolos_adjust_booked_inventory", {
-        _property_id: propertyId,
-        _room_type_id: roomTypeId,
-        _start_date: arrival_date,
-        _end_date: departure_date,
-        _delta: requiredCount,
-      });
-      if (invErr) console.warn("[roomsonline-pms-api] Inventory adjust failed:", invErr.message);
-    }
   }
 
-  // Mirror the authoritative inventory calendar into the availability cache the
-  // booking engine + channel pushes read. Derived (not delta-applied) and
-  // upserted, so missing cache rows are created instead of leaving sold rooms
-  // sellable online.
-  for (const roomTypeId of requiredRooms.keys()) {
-    await syncAvailabilityCache(supabase, propertyId, roomTypeId, arrival_date, departure_date);
+  // Hold inventory on the authoritative calendar and mirror it into the
+  // availability cache the booking engine + channel pushes read. Derived (not
+  // delta-applied) and upserted, so missing cache rows are created instead of
+  // leaving sold rooms sellable online. Runs regardless of whether the
+  // operational rolos_reservations insert succeeded — inventory must not drift.
+  for (const [roomTypeId, requiredCount] of requiredRooms.entries()) {
+    await applyBookedInventory(supabase, propertyId, roomTypeId, arrival_date, departure_date, requiredCount);
   }
 
   console.log(`[roomsonline-pms-api] Reservation created successfully: ${reservationId}`);
