@@ -290,18 +290,29 @@ export function BookingInvoice({ bookingId, guestName, guestEmail, checkIn, chec
             </tr>
           </thead>
           <tbody>
-            {accommodationLineAmount > 0 && (
-              <tr className="border-b border-border/50">
-                <td className="py-1.5">Accommodation</td>
-                <td className="py-1.5 text-right">R{accommodationLineAmount.toLocaleString()}</td>
-              </tr>
-            )}
-            {charges.map(t => (
-              <tr key={t.id} className="border-b border-border/50">
-                <td className="py-1.5">{t.description}</td>
-                <td className="py-1.5 text-right">R{t.amount.toLocaleString()}</td>
-              </tr>
+            {chargeSections.map(section => (
+              <Fragment key={section.key}>
+                {showSections && (
+                  <tr className="border-b border-border/50">
+                    <td className="py-1.5 text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">{section.label}</td>
+                    <td />
+                  </tr>
+                )}
+                {section.items.map(t => (
+                  <tr key={t.id} className="border-b border-border/50">
+                    <td className={showSections ? "py-1.5 pl-3" : "py-1.5"}>{t.description}</td>
+                    <td className="py-1.5 text-right">R{t.amount.toLocaleString()}</td>
+                  </tr>
+                ))}
+                {showSections && (
+                  <tr className="border-b border-border/50 text-muted-foreground">
+                    <td className="py-1 pl-3">{section.label} subtotal</td>
+                    <td className="py-1 text-right font-medium">R{section.total.toFixed(2)}</td>
+                  </tr>
+                )}
+              </Fragment>
             ))}
+
 
             {isVat ? (
               <>
