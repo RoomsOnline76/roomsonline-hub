@@ -11,6 +11,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { z } from "npm:zod@3.23.8";
+import { expandPackageById, packageAddOnTotal } from "../_shared/packages.ts";
 
 const SOURCE = "roomsonline";
 
@@ -198,6 +199,7 @@ const createBlockSchema = z.object({
   end_date: z.string().min(10),
   rate_override: z.number().nonnegative().nullable().optional(),
   release_date: z.string().min(10).nullable().optional(),
+  package_id: z.string().uuid().nullable().optional(),
 });
 
 const pickupSchema = z.object({
@@ -214,6 +216,7 @@ const pickupSchema = z.object({
   children: z.number().int().min(0).max(20).optional(),
   room_preference: z.string().max(200).nullable().optional(),
   special_requests: z.string().max(2000).nullable().optional(),
+  package_id: z.string().uuid().nullable().optional(),
 });
 
 const roomingRowSchema = z.object({
@@ -288,6 +291,7 @@ Deno.serve(async (req) => {
             start_date: p.start_date,
             end_date: p.end_date,
             release_date: p.release_date ?? null,
+            package_id: p.package_id ?? null,
             status: "blocked",
           })
           .select("*")
@@ -398,6 +402,7 @@ Deno.serve(async (req) => {
           children: p.children ?? 0,
           room_preference: p.room_preference || null,
           special_requests: p.special_requests || null,
+          package_id: p.package_id ?? block.package_id ?? null,
           status: "picked_up",
         };
         if (p.rooming_list_id) {
@@ -432,8 +437,66 @@ Deno.serve(async (req) => {
           throw convertErr;
         }
 
+        // Package expansion: post component lines already tagged by revenue stream.
+        const packageId = p.package_id || block.package_id || null;
+        let packageAddOn = 0;
+        if (packageId) {
+          try {
+            const { name: packageName, lines } = await expandPackageById(supabase, packageId, {
+              subtotal: totalPrice,
+              nights: nights.length,
+              rooms: 1,
+              adults: p.adults ?? 1,
+              children: p.children ?? 0,
+            });
+            packageAddOn = packageAddOnTotal(lines);
 
-        return json({ success: true, booking_id: booking.id });
+            const useMaster = block.group?.billing_mode === "master" || block.group?.billing_mode === "hybrid";
+            let folioId: string | null = null;
+            if (useMaster) {
+              folioId = await ensureMasterFolio(supabase, {
+                id: p.group_id,
+                property_id: p.property_id,
+                name: block.group?.name || "Group",
+                master_folio_id: block.group?.master_folio_id ?? null,
+              });
+            } else {
+              const { data: folio } = await supabase
+                .from("rolos_folios")
+                .select("id")
+                .eq("booking_id", booking.id)
+                .maybeSingle();
+              folioId = folio?.id ?? null;
+            }
+
+            if (folioId && lines.length) {
+              const { error: txErr } = await supabase.from("rolos_folio_transactions").insert(
+                lines.map((l) => ({
+                  folio_id: folioId,
+                  transaction_type: "charge",
+                  description: `${packageName} — ${l.name}${l.includedInRate ? " (included)" : ""}`,
+                  amount: l.includedInRate ? 0 : l.amount,
+                  revenue_stream: l.stream,
+                  reference: `package:${packageId}`,
+                  created_by: userId,
+                })),
+              );
+              if (txErr) console.error("pickup: package folio lines failed", txErr);
+              else await refreshFolioBalance(supabase, folioId);
+            }
+
+            if (packageAddOn > 0) {
+              await supabase
+                .from("bookings")
+                .update({ total_price: Math.round((totalPrice + packageAddOn) * 100) / 100 })
+                .eq("id", booking.id);
+            }
+          } catch (pkgErr) {
+            console.error("pickup: package expansion failed", pkgErr);
+          }
+        }
+
+        return json({ success: true, booking_id: booking.id, package_add_on: packageAddOn });
       }
 
       // ------------------------------------------------------- rooming list

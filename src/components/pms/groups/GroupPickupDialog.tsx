@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useActivePackages } from "@/hooks/useActivePackages";
 import { callGroupsApi } from "@/lib/groupsApi";
 import type { GroupBlock } from "./GroupBlockGrid";
 
@@ -42,6 +44,8 @@ export default function GroupPickupDialog({
   onDone,
 }: GroupPickupDialogProps) {
   const [saving, setSaving] = useState(false);
+  const { packages } = useActivePackages(propertyId);
+  const [packageId, setPackageId] = useState("none");
   const [form, setForm] = useState({
     guest_name: "",
     guest_email: "",
@@ -67,6 +71,7 @@ export default function GroupPickupDialog({
       room_preference: roomingLine?.room_preference || "",
       special_requests: roomingLine?.special_requests || "",
     });
+    setPackageId(block?.package_id || "none");
   }, [open, block, roomingLine]);
 
   const submit = async () => {
@@ -87,6 +92,7 @@ export default function GroupPickupDialog({
         children: parseInt(form.children, 10) || 0,
         room_preference: form.room_preference.trim() || null,
         special_requests: form.special_requests.trim() || null,
+        package_id: packageId === "none" ? null : packageId,
       });
       toast.success("Room picked up — booking created");
       onOpenChange(false);
@@ -157,6 +163,19 @@ export default function GroupPickupDialog({
             />
           </div>
           <div className="space-y-1.5">
+            <Label>Package (optional)</Label>
+            <Select value={packageId} onValueChange={setPackageId}>
+              <SelectTrigger><SelectValue placeholder={packages.length ? "No package" : "No packages configured"} /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No package</SelectItem>
+                {packages.map((pkg) => (
+                  <SelectItem key={pkg.id} value={pkg.id}>{pkg.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">Package components post to the folio split by revenue stream.</p>
+          </div>
+          <div className="space-y-1.5">
             <Label>Special Requests</Label>
             <Textarea
               rows={2}
@@ -164,6 +183,7 @@ export default function GroupPickupDialog({
               onChange={(e) => setForm((f) => ({ ...f, special_requests: e.target.value }))}
             />
           </div>
+
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

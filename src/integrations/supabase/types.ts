@@ -8215,6 +8215,7 @@ export type Database = {
           guest_name: string | null
           guest_phone: string | null
           id: string
+          package_id: string | null
           reservation_id: string | null
           room_preference: string | null
           room_type_id: string | null
@@ -8235,6 +8236,7 @@ export type Database = {
           guest_name?: string | null
           guest_phone?: string | null
           id?: string
+          package_id?: string | null
           reservation_id?: string | null
           room_preference?: string | null
           room_type_id?: string | null
@@ -8255,6 +8257,7 @@ export type Database = {
           guest_name?: string | null
           guest_phone?: string | null
           id?: string
+          package_id?: string | null
           reservation_id?: string | null
           room_preference?: string | null
           room_type_id?: string | null
@@ -8306,6 +8309,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "rolos_group_reservations_package_id_fkey"
+            columns: ["package_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_packages"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "rolos_group_reservations_reservation_id_fkey"
             columns: ["reservation_id"]
             isOneToOne: false
@@ -8329,6 +8339,7 @@ export type Database = {
           end_date: string
           group_id: string
           id: string
+          package_id: string | null
           picked_up_count: number
           property_id: string | null
           rate_override: number | null
@@ -8345,6 +8356,7 @@ export type Database = {
           end_date: string
           group_id: string
           id?: string
+          package_id?: string | null
           picked_up_count?: number
           property_id?: string | null
           rate_override?: number | null
@@ -8361,6 +8373,7 @@ export type Database = {
           end_date?: string
           group_id?: string
           id?: string
+          package_id?: string | null
           picked_up_count?: number
           property_id?: string | null
           rate_override?: number | null
@@ -8376,6 +8389,13 @@ export type Database = {
             columns: ["group_id"]
             isOneToOne: false
             referencedRelation: "rolos_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_group_room_blocks_package_id_fkey"
+            columns: ["package_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_packages"
             referencedColumns: ["id"]
           },
           {
@@ -9330,6 +9350,145 @@ export type Database = {
           },
           {
             foreignKeyName: "rolos_night_audit_log_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rolos_package_components: {
+        Row: {
+          amount: number
+          component_type: string
+          created_at: string
+          description: string | null
+          display_order: number
+          id: string
+          is_included_in_rate: boolean
+          name: string
+          package_id: string
+          quantity: number
+          quantity_basis: string
+          revenue_stream: string
+          updated_at: string
+          value_type: string
+        }
+        Insert: {
+          amount?: number
+          component_type?: string
+          created_at?: string
+          description?: string | null
+          display_order?: number
+          id?: string
+          is_included_in_rate?: boolean
+          name: string
+          package_id: string
+          quantity?: number
+          quantity_basis?: string
+          revenue_stream?: string
+          updated_at?: string
+          value_type?: string
+        }
+        Update: {
+          amount?: number
+          component_type?: string
+          created_at?: string
+          description?: string | null
+          display_order?: number
+          id?: string
+          is_included_in_rate?: boolean
+          name?: string
+          package_id?: string
+          quantity?: number
+          quantity_basis?: string
+          revenue_stream?: string
+          updated_at?: string
+          value_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rolos_package_components_package_id_fkey"
+            columns: ["package_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_packages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rolos_packages: {
+        Row: {
+          base_rate_plan_id: string | null
+          code: string | null
+          created_at: string
+          description: string | null
+          display_order: number
+          id: string
+          image_url: string | null
+          is_active: boolean
+          max_nights: number
+          min_nights: number
+          name: string
+          property_id: string
+          sell_standalone: boolean
+          updated_at: string
+        }
+        Insert: {
+          base_rate_plan_id?: string | null
+          code?: string | null
+          created_at?: string
+          description?: string | null
+          display_order?: number
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          max_nights?: number
+          min_nights?: number
+          name: string
+          property_id: string
+          sell_standalone?: boolean
+          updated_at?: string
+        }
+        Update: {
+          base_rate_plan_id?: string | null
+          code?: string | null
+          created_at?: string
+          description?: string | null
+          display_order?: number
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          max_nights?: number
+          min_nights?: number
+          name?: string
+          property_id?: string
+          sell_standalone?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rolos_packages_base_rate_plan_id_fkey"
+            columns: ["base_rate_plan_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_rate_plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_packages_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "rolos_packages_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_packages_property_id_fkey"
             columns: ["property_id"]
             isOneToOne: false
             referencedRelation: "public_properties"
