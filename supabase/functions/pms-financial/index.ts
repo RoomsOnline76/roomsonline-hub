@@ -110,10 +110,12 @@ function generateInvoiceHTML(invoice: any, transactions: any[], property: any, b
 
   ${invoice.invoice_to || invoice.stay ? `
   <div style="display:flex;gap:32px;margin-bottom:24px;font-size:13px;color:#444;">
-    ${invoice.invoice_to ? `<div><div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#999;">Invoice To</div><div>${invoice.invoice_to}</div>${invoice.bill_to?.address ? `<div style="font-size:12px;color:#666;">${invoice.bill_to.address}</div>` : ""}${invoice.bill_to?.vat_number ? `<div style="font-size:12px;color:#666;">VAT No: ${invoice.bill_to.vat_number}</div>` : ""}</div>` : ""}
-    ${invoice.stay ? `<div><div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#999;">Stay</div><div>${invoice.stay.check_in} &rarr; ${invoice.stay.check_out}</div></div>` : ""}
+    ${invoice.invoice_to ? `<div><div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#999;">Invoice To${billToKindLabel ? ` &middot; ${billToKindLabel}` : ""}</div><div style="font-weight:600;">${invoice.invoice_to}</div>${invoice.bill_to?.address ? `<div style="font-size:12px;color:#666;">${invoice.bill_to.address}</div>` : ""}${invoice.bill_to?.vat_number ? `<div style="font-size:12px;color:#666;">VAT No: ${invoice.bill_to.vat_number}</div>` : ""}${invoice.bill_to?.terms_days ? `<div style="font-size:12px;color:#666;">Payment terms: ${invoice.bill_to.terms_days} days</div>` : ""}</div>` : ""}
+    ${invoice.stay ? `<div><div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#999;">Stay</div><div>${invoice.stay.check_in} &rarr; ${invoice.stay.check_out}</div>${invoice.stay.guest ? `<div style="font-size:12px;color:#666;">Guest: ${invoice.stay.guest}</div>` : ""}</div>` : ""}
+    ${invoice.channel_label ? `<div><div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#999;">Channel</div><div>${invoice.channel_label}</div></div>` : ""}
     ${invoice.reference ? `<div><div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#999;">Reference</div><div>${invoice.reference}</div></div>` : ""}
   </div>` : ""}
+
 
 
   <table style="width:100%;border-collapse:collapse;margin-bottom:24px;">
