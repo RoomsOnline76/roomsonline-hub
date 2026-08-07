@@ -284,11 +284,12 @@ async function previewDraft(
         roomAmount: amount,
         adultAmount: positive(sr.extra_adult_rate) ?? undefined,
       };
+      const cell = seasonUnitValue(sr, rolosId);
       planSeasons.push({
         calendar_season_id: String(sr.calendar_season_id),
-        base_rate: sr.mode === "differential" ? null : positive(sr.base_rate),
+        base_rate: sr.mode === "differential" ? null : (cell ?? positive(sr.base_rate)),
         differential_type: sr.mode === "differential" ? (sr.differential_type ?? "amount") : "none",
-        differential_value: sr.mode === "differential" ? (sr.differential_value ?? null) : null,
+        differential_value: sr.mode === "differential" ? (cell ?? sr.differential_value ?? null) : null,
         extra_adult_rate: positive(sr.extra_adult_rate),
       });
     }
