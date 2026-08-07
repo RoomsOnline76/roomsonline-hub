@@ -56,6 +56,16 @@ interface StoredSeasonRateRow {
   extra_adult_rate: number | null;
 }
 
+/** A unit/season cell that is priced only by the legacy Calendar grid. */
+interface LegacyPendingCell {
+  calendar_season_id: string;
+  season_name?: string;
+  room_type_id: string;
+  room_name?: string;
+  room_amount: number;
+  adult_amount?: number | null;
+}
+
 /**
  * Stored season rates are one row per season x unit. Collapse them into one draft
  * column per Calendar season, with each unit's own value as a cell.
@@ -282,20 +292,80 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
     };
   }, [propertyId, ratePlanId, loading, unitSignature, baseRate, pricingModel]);
 
+  // Cells that today are priced ONLY by the legacy Calendar grid. Drives the import
+  // banner: once this is empty there is nothing left to bring across.
+  const [legacyPending, setLegacyPending] = useState<LegacyPendingCell[]>([]);
+  const [legacyLoading, setLegacyLoading] = useState(false);
+  const [legacyRefresh, setLegacyRefresh] = useState(0);
+
+  useEffect(() => {
+    if (!propertyId || !ratePlanId || loading) {
+      setLegacyPending([]);
+      return;
+    }
+    let cancelled = false;
+    setLegacyLoading(true);
+    (async () => {
+      const { data } = await supabase.functions.invoke("rolos-rate-plans", {
+        body: { action: "legacy_rate_audit", property_id: propertyId, rate_plan_id: ratePlanId },
+      });
+      if (cancelled) return;
+      const pending = (data as { pending?: LegacyPendingCell[] } | null)?.pending ?? [];
+      setLegacyPending(Array.isArray(pending) ? pending : []);
+      setLegacyLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+      setLegacyLoading(false);
+    };
+  }, [propertyId, ratePlanId, loading, legacyRefresh]);
+
+  /** Season id -> unit ids still waiting on a legacy import. */
+  const legacyPendingBySeason = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    for (const cell of legacyPending) {
+      const seasonId = String(cell.calendar_season_id);
+      if (!map.has(seasonId)) map.set(seasonId, new Set());
+      map.get(seasonId)!.add(String(cell.room_type_id));
+    }
+    return map;
+  }, [legacyPending]);
+
   const onSeedFromLive = useCallback(
     (calendarSeasonId?: string) => {
-      const target = calendarSeasonId ? liveMatrix.get(calendarSeasonId) : null;
-      if (calendarSeasonId && (!target || target.size === 0)) {
-        toast.info("No legacy Calendar rates found for that season");
+      // Only ever fill cells the audit flagged: nothing already priced here is touched.
+      const cells = calendarSeasonId
+        ? legacyPending.filter((c) => String(c.calendar_season_id) === calendarSeasonId)
+        : legacyPending;
+      if (cells.length === 0) {
+        toast.info(
+          calendarSeasonId
+            ? "No legacy Calendar rates left for that season"
+            : "No legacy Calendar rates left to import",
+        );
         return;
       }
-      dispatch({ type: "seed_matrix", matrix: liveMatrix, calendarSeasonId });
-      toast.success(calendarSeasonId ? "Season filled from legacy Calendar rates" : "Matrix filled from legacy Calendar rates");
+      const matrix: LiveSeasonMatrix = new Map();
+      for (const cell of cells) {
+        const amount = Number(cell.room_amount);
+        if (!Number.isFinite(amount) || amount <= 0) continue;
+        const seasonId = String(cell.calendar_season_id);
+        if (!matrix.has(seasonId)) matrix.set(seasonId, new Map());
+        matrix.get(seasonId)!.set(String(cell.room_type_id), amount);
+      }
+      if (matrix.size === 0) {
+        toast.info("The legacy Calendar rates for those cells are zero — nothing to import");
+        return;
+      }
+      dispatch({ type: "seed_matrix", matrix, calendarSeasonId });
+      const moved = [...matrix.values()].reduce((sum, m) => sum + m.size, 0);
+      toast.success(`${moved} legacy rate${moved === 1 ? "" : "s"} moved into this plan — review, then Save`);
     },
-    [liveMatrix],
+    [legacyPending],
   );
 
   const pricedSeasons = useMemo(() => draft.season_rates.filter((s) => s.mode !== "none").length, [draft.season_rates]);
+
 
 
   const handleSave = useCallback(async () => {
@@ -318,6 +388,7 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
       return;
     }
     toast.success(ratePlanId ? "Rate plan updated" : "Rate plan created");
+    setLegacyRefresh((n) => n + 1);
     onSaved();
   }, [draft, propertyId, ratePlanId, onSaved]);
 
@@ -459,7 +530,9 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
             seasonColors={seasonColors}
             roomTypes={roomTypes}
             liveMatrix={liveMatrix}
-            liveMatrixLoading={liveMatrixLoading}
+            liveMatrixLoading={liveMatrixLoading || legacyLoading}
+            legacyPendingBySeason={legacyPendingBySeason}
+            legacyPendingCells={legacyPending.length}
             onSeedFromLive={onSeedFromLive}
             onChange={onSeasonChange}
             onCellChange={onSeasonCellChange}
