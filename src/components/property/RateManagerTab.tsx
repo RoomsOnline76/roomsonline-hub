@@ -81,6 +81,12 @@ export interface RateManagerTabProps {
   onOpenSpecials?: () => void;
   /** Extra content rendered inside the Policies sub-tab (house rules & stay terms). */
   policiesExtra?: React.ReactNode;
+  /**
+   * Which surface to render. Charges and Policies are now standalone sections in the
+   * property setup rail; "rates" keeps only Calendar / Seasons (and legacy rate types
+   * for non-ROL'OS properties). Rate Plans live on their own ROL'OS master page.
+   */
+  view?: "rates" | "charges" | "policies";
 
 }
 
@@ -105,6 +111,7 @@ export function RateManagerTab({
   setIsDirty,
   onOpenSpecials,
   policiesExtra,
+  view = "rates",
 }: RateManagerTabProps) {
 
   const { toast } = useToast();
@@ -123,10 +130,16 @@ export function RateManagerTab({
   );
 
   // ── Local state ────────────────────────────────────────────────────────
-  const [activeTab, setActiveTab] = useState<string>(isRolosProperty ? "rate-plans" : "rate-types");
+  const defaultTab =
+    view === "charges" ? "charges" : view === "policies" ? "policies" : isRolosProperty ? "seasons-calendar" : "rate-types";
+  const [activeTab, setActiveTab] = useState<string>(defaultTab);
   /** Keep hidden sub-tabs unreachable for ROL'OS properties. */
   const effectiveTab =
-    isRolosProperty && ["rate-types", "season", "rate-breakdown"].includes(activeTab) ? "rate-plans" : activeTab;
+    view !== "rates"
+      ? defaultTab
+      : isRolosProperty && ["rate-types", "season", "rate-breakdown"].includes(activeTab)
+        ? "seasons-calendar"
+        : activeTab;
   const [isSeasonDialogOpen, setIsSeasonDialogOpen] = useState(false);
   const [editingSeason, setEditingSeason] = useState<any>(null);
   const [expandedSeasons, setExpandedSeasons] = useState<Record<string, boolean>>({});
