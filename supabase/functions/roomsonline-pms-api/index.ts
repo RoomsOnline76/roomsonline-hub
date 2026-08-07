@@ -20,7 +20,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { z } from "npm:zod@3.23.8";
 import { normalizeRevenueStream, resolveBreakfastConfig, breakfastPortion, splitAccommodationAmount } from "../_shared/revenueStreams.ts";
-import { applyBookedInventory, syncAvailabilityCache } from "../_shared/availabilityCache.ts";
+import { applyBookedInventory } from "../_shared/availabilityCache.ts";
 
 // ============================================================================
 // CORS & CONSTANTS
