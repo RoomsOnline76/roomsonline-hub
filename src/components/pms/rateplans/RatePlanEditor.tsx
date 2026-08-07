@@ -18,6 +18,7 @@ import { RatePlanEffectivePreview } from "./RatePlanEffectivePreview";
 import {
   draftToPayload,
   emptyDraft,
+  canonicalPricingModel,
   ratePlanDraftReducer,
   readCalendarSeasons,
   type CalendarSeason,

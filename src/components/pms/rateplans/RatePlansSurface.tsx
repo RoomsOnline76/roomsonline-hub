@@ -283,6 +283,9 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
             <div className="flex items-center justify-between">
               <CardTitle className="text-lg">
                 {plan.name}
+                <Badge variant="secondary" className="ml-2 align-middle text-xs font-normal">
+                  {PRICING_MODELS.find((m) => m.value === canonicalPricingModel(plan.pricing_model))?.label}
+                </Badge>
                 {plan.is_active === false && (
                   <Badge variant="outline" className="ml-2 text-xs text-muted-foreground">Inactive</Badge>
                 )}
