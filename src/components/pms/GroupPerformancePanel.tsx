@@ -48,12 +48,7 @@ export function GroupPerformancePanel({ propertyIds, startDate, endDate, currenc
         .lte("check_in_date", endDate);
       if (bErr) throw bErr;
 
-      const { data: lines, error: lErr } = await supabase
-        .from("rolos_group_reservations" as never)
-        .select("booking_id, group_id, group:rolos_groups!group_id(id, name, group_type, status)")
-        .in("group_id", []) // placeholder replaced below
-        .limit(0);
-      // Fetch group lines by property through the groups table (no property_id on lines).
+      // Group lines carry no property_id, so resolve them through the groups table.
       const { data: groups, error: gErr } = await supabase
         .from("rolos_groups" as never)
         .select("id, name, group_type, status")
@@ -71,15 +66,12 @@ export function GroupPerformancePanel({ propertyIds, startDate, endDate, currenc
         if (glErr) throw glErr;
         groupLines = (gl || []) as unknown as GroupLine[];
       }
-      void lines;
-      void lErr;
-
       return { bookings: (bookings || []) as BookingRow[], groupLines };
     },
   });
 
   const summary = useMemo(() => {
-    const bookings = (data?.bookings || []).filter((b) => isRevenueBooking(b.status, b.payment_status));
+    const bookings = (data?.bookings || []).filter((b) => isRevenueBooking({ status: b.status ?? undefined, payment_status: b.payment_status ?? undefined }));
     const groupByBooking = new Map<string, GroupLine>();
     for (const line of data?.groupLines || []) {
       if (line.booking_id) groupByBooking.set(line.booking_id, line);
