@@ -309,6 +309,38 @@ Deno.serve(async (req) => {
           return json({ error: "end_date must be after start_date" }, 400);
         }
 
+        // Capacity guard: never hold more rooms than the room type actually has free.
+        // Materialise the calendar rows for the range (delta 0) then read what is free.
+        await supabase.rpc("rolos_apply_block_inventory", {
+          _property_id: p.property_id,
+          _room_type_id: p.room_type_id,
+          _start_date: p.start_date,
+          _end_date: p.end_date,
+          _delta: 0,
+        });
+        const { data: capacityRows } = await supabase
+          .from("rolos_inventory_calendar")
+          .select("date, available_units")
+          .eq("property_id", p.property_id)
+          .eq("room_type_id", p.room_type_id)
+          .in("date", nightsBetween(p.start_date, p.end_date));
+        const shortfall = (capacityRows || []).filter(
+          (r: { available_units: number | null }) => Number(r.available_units || 0) < p.blocked_count,
+        );
+        if (shortfall.length) {
+          const worst = Math.min(...shortfall.map((r: { available_units: number | null }) => Number(r.available_units || 0)));
+          return json(
+            {
+              error: `Not enough inventory: only ${worst} room(s) free on ${shortfall[0].date}${
+                shortfall.length > 1 ? ` (and ${shortfall.length - 1} more night(s))` : ""
+              }.`,
+            },
+            409,
+          );
+        }
+
+
+
         const { data: block, error } = await supabase
           .from("rolos_group_room_blocks")
           .insert({
