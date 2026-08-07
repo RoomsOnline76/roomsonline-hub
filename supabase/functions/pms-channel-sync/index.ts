@@ -499,9 +499,13 @@ async function handlePushRates(supabase: any, connectionId: string, headers: any
         const days = [...perDate.values()];
         const cov = resolver.coverage(days);
         calendarDays += cov.calendar_days;
+        overrideDays += cov.daily_override_days ?? 0;
+        planSeasonDays += cov.plan_season_days ?? 0;
+        relationalDays += cov.relational_days ?? 0;
         rackDays += cov.rack_days + cov.unit_daily_days;
         pricedDays += cov.priced_days;
         expected += eachDate(from, to).length;
+
 
         const periods = compressToPeriods(days);
         enriched.push({
