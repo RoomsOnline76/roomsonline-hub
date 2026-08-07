@@ -337,22 +337,14 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
               <p className="text-sm text-muted-foreground mb-2">{plan.description}</p>
             )}
             <div className="flex flex-wrap gap-2 text-xs text-muted-foreground mb-2">
-              <Badge variant="outline" className="text-xs capitalize">{model?.label || plan.pricing_model}</Badge>
-              {plan.base_rate && plan.base_rate > 0 ? (
-                <div className="flex items-center gap-1">
-                  <DollarSign className="h-3 w-3" />
-                  <span className="font-semibold text-foreground">
-                    R{plan.base_rate.toLocaleString()}{model?.suffix || ""}
-                  </span>
-                </div>
-              ) : (
-                <span className="text-muted-foreground/60 italic">No base rate set</span>
+              {pricedSeasons > 0 && (
+                <span className="flex items-center gap-1">
+                  <CalendarRange className="h-3 w-3" />
+                  {`${pricedSeasons} season${pricedSeasons === 1 ? "" : "s"} priced`}
+                </span>
               )}
-              <span className="flex items-center gap-1">
-                <CalendarRange className="h-3 w-3" />
-                {pricedSeasons > 0 ? `${pricedSeasons} season${pricedSeasons === 1 ? "" : "s"} priced` : "Base rate only"}
-              </span>
               <span>Min stay: {plan.min_stay}n</span>
+
               {plan.max_stay ? <span>Max stay: {plan.max_stay}n</span> : null}
               {plan.min_advance_days ? <span>{plan.min_advance_days}d advance</span> : null}
               {plan.requires_deposit && <Badge variant="outline" className="text-xs">Deposit</Badge>}
