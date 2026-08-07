@@ -230,7 +230,7 @@ export const RatePlanRateMatrix = memo(function RatePlanRateMatrix({
               <th
                 key={d}
                 title={[d, d === today() ? "Today" : null, seasonByDate.get(d), holidayName(d)].filter(Boolean).join(" · ")}
-                className={`w-10 px-0.5 py-0.5 text-center font-normal ${i === 0 ? "border-l" : ""} ${columnTint(d, seasonByDate.get(d), seasonColors)} ${
+                className={`w-10 px-0.5 py-0.5 text-center font-normal ${i === 0 ? "border-l-2 border-foreground/10 bg-muted/30" : ""} ${columnTint(d, seasonByDate.get(d), seasonColors)} ${
                   isWeekend(d) || isSunday(d) || holidayName(d) ? "font-medium text-foreground" : ""
                 } ${d === today() ? "text-foreground ring-1 ring-inset ring-primary" : ""}`}
               >
