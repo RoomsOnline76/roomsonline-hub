@@ -20,6 +20,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { z } from "npm:zod@3.23.8";
 import { normalizeRevenueStream, resolveBreakfastConfig, breakfastPortion, splitAccommodationAmount } from "../_shared/revenueStreams.ts";
+import { applyBookedInventory } from "../_shared/availabilityCache.ts";
 
 // ============================================================================
 // CORS & CONSTANTS
@@ -1133,36 +1134,15 @@ async function handleCreateReservation(body: unknown, supabase: any): Promise<Re
       new_status: "confirmed",
       reason: "Reservation created",
     });
-
-    // Update inventory calendar - atomically increment booked_units for the stay range
-    for (const [roomTypeId, requiredCount] of requiredRooms.entries()) {
-      const { error: invErr } = await supabase.rpc("rolos_adjust_booked_inventory", {
-        _property_id: propertyId,
-        _room_type_id: roomTypeId,
-        _start_date: arrival_date,
-        _end_date: departure_date,
-        _delta: requiredCount,
-      });
-      if (invErr) console.warn("[roomsonline-pms-api] Inventory adjust failed:", invErr.message);
-    }
   }
 
-  // Update availability cache - decrement available units
+  // Hold inventory on the authoritative calendar and mirror it into the
+  // availability cache the booking engine + channel pushes read. Derived (not
+  // delta-applied) and upserted, so missing cache rows are created instead of
+  // leaving sold rooms sellable online. Runs regardless of whether the
+  // operational rolos_reservations insert succeeded — inventory must not drift.
   for (const [roomTypeId, requiredCount] of requiredRooms.entries()) {
-    for (const date of dates) {
-      // deno-lint-ignore no-explicit-any
-      const avail = ((currentAvailability || []) as any[]).find(a => a.external_room_type_id === roomTypeId && a.date === date);
-      if (avail) {
-        await supabase
-          .from("pms_availability_cache")
-          .update({
-            available_units: Math.max(0, (avail.available_units || 0) - requiredCount),
-            updated_at: new Date().toISOString(),
-            source_timestamp: new Date().toISOString(),
-          })
-          .eq("id", avail.id);
-      }
-    }
+    await applyBookedInventory(supabase, propertyId, roomTypeId, arrival_date, departure_date, requiredCount);
   }
 
   console.log(`[roomsonline-pms-api] Reservation created successfully: ${reservationId}`);
@@ -1303,6 +1283,15 @@ async function handleModifyReservation(body: unknown, supabase: any): Promise<Re
     );
   }
 
+  // Move inventory: release the original stay, hold the new one, then mirror
+  // both ranges into the availability cache from the authoritative calendar.
+  if (finalArrival !== existing.arrival_date || finalDeparture !== existing.departure_date) {
+    for (const [roomTypeId, count] of requiredRooms.entries()) {
+      await applyBookedInventory(supabase, propertyId, roomTypeId, existing.arrival_date, existing.departure_date, -count);
+      await applyBookedInventory(supabase, propertyId, roomTypeId, finalArrival, finalDeparture, count);
+    }
+  }
+
   // Also update rolos_reservations if exists
   const { data: rolosRes } = await supabase.from("rolos_reservations")
     .select("id, status")
@@ -1408,29 +1397,17 @@ async function handleCancelReservation(body: unknown, supabase: any): Promise<Re
     requiredRooms.set(room.room_type_id, (requiredRooms.get(room.room_type_id) || 0) + 1);
   }
 
-  const dates = getDateRange(existing.arrival_date, existing.departure_date);
+  // Release inventory on the authoritative calendar, then mirror to the cache
+  // (derive-and-upsert: never delta-patch only pre-existing cache rows).
   for (const [roomTypeId, count] of requiredRooms.entries()) {
-    for (const date of dates) {
-      const { data: avail } = await supabase
-        .from("pms_availability_cache")
-        .select("id, available_units")
-        .eq("property_id", propertyId)
-        .eq("system_type", SOURCE)
-        .eq("external_room_type_id", roomTypeId)
-        .eq("date", date)
-        .single();
-
-      if (avail) {
-        await supabase
-          .from("pms_availability_cache")
-          .update({
-            available_units: (avail.available_units || 0) + count,
-            updated_at: new Date().toISOString(),
-            source_timestamp: new Date().toISOString(),
-          })
-          .eq("id", avail.id);
-      }
-    }
+    await applyBookedInventory(
+      supabase,
+      propertyId,
+      roomTypeId,
+      existing.arrival_date,
+      existing.departure_date,
+      -count,
+    );
   }
 
   // Also cancel in rolos_reservations if exists
