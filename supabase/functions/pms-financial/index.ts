@@ -87,6 +87,29 @@ function generateInvoiceHTML(invoice: any, transactions: any[], property: any, b
 
   const docTitle = isProForma ? "PRO FORMA INVOICE" : (isVatRegistered ? "TAX INVOICE" : "INVOICE");
 
+  // Who is being billed — printed next to the name so an accounts team can file it.
+  const billToKindLabel = ({
+    guest: "Guest",
+    company: "Company",
+    agent: "Travel agent / operator",
+    channel: "Channel",
+  } as Record<string, string>)[String(invoice.bill_to_type || "guest")] || "";
+
+  const commissionRate = Number(invoice.commission_rate || 0);
+  const commissionAmount = Number(invoice.commission_amount || 0);
+  const netPayable = invoice.net_payable != null ? Number(invoice.net_payable) : null;
+  const commissionRows = commissionAmount > 0 ? `
+      <tr>
+        <td style="padding:6px 16px;font-size:12px;color:#666;">Commission${commissionRate > 0 ? ` (${commissionRate.toFixed(2)}%)` : ""}</td>
+        <td style="padding:6px 16px;text-align:right;font-size:12px;color:#666;">(${commissionAmount.toFixed(2)})</td>
+      </tr>
+      ${netPayable != null ? `<tr>
+        <td style="padding:6px 16px;font-weight:600;">Net payable</td>
+        <td style="padding:6px 16px;text-align:right;font-weight:600;">${netPayable.toFixed(2)}</td>
+      </tr>` : ""}
+  ` : "";
+
+
   return `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><title>${docTitle} ${invoice.invoice_number}</title></head>
