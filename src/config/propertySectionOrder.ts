@@ -184,7 +184,7 @@ export const PROPERTY_SECTION_GROUPS = [
   },
   {
     label: "Booking backend",
-    keys: ["rooms", "rates", "packages", "specials", "addons"] as PropertySectionKey[],
+    keys: ["rooms", "rates", "policies", "charges", "specials", "packages", "addons"] as PropertySectionKey[],
   },
   {
     label: "Guest experience",
