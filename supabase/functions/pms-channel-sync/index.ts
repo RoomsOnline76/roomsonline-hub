@@ -476,6 +476,8 @@ async function handlePushRates(supabase: any, connectionId: string, headers: any
         .select("rate_plan_id, room_type_id");
 
       let calendarDays = 0, rackDays = 0, pricedDays = 0, expected = 0;
+      let overrideDays = 0, planSeasonDays = 0, relationalDays = 0;
+
       for (const plan of (ratePlans ?? [])) {
         const roomIds = new Set(
           (planRooms ?? [])
