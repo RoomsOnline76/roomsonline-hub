@@ -16,6 +16,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { PmsPageSkeleton } from "@/components/pms/PmsPageSkeleton";
+import { PackagesManager } from "@/components/pms/packages/PackagesManager";
 
 const PRICING_MODELS = [
   { value: "per_room", label: "Per Room", suffix: "/room", desc: "Flat rate per room per night" },
