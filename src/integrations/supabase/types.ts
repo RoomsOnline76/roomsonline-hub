@@ -10056,6 +10056,7 @@ export type Database = {
           id: string
           infant_rate: number | null
           is_active: boolean | null
+          is_primary_sell: boolean
           is_tax_inclusive: boolean | null
           max_advance_days: number | null
           max_stay: number | null
@@ -10068,7 +10069,9 @@ export type Database = {
           pricing_model: string
           pricing_model_normalised: string | null
           property_id: string
+          push_to_channels: boolean
           requires_deposit: boolean | null
+          sell_priority: number
           source_of_truth: string | null
           teen_rate: number | null
           updated_at: string | null
@@ -10093,6 +10096,7 @@ export type Database = {
           id?: string
           infant_rate?: number | null
           is_active?: boolean | null
+          is_primary_sell?: boolean
           is_tax_inclusive?: boolean | null
           max_advance_days?: number | null
           max_stay?: number | null
@@ -10105,7 +10109,9 @@ export type Database = {
           pricing_model?: string
           pricing_model_normalised?: string | null
           property_id: string
+          push_to_channels?: boolean
           requires_deposit?: boolean | null
+          sell_priority?: number
           source_of_truth?: string | null
           teen_rate?: number | null
           updated_at?: string | null
@@ -10130,6 +10136,7 @@ export type Database = {
           id?: string
           infant_rate?: number | null
           is_active?: boolean | null
+          is_primary_sell?: boolean
           is_tax_inclusive?: boolean | null
           max_advance_days?: number | null
           max_stay?: number | null
@@ -10142,7 +10149,9 @@ export type Database = {
           pricing_model?: string
           pricing_model_normalised?: string | null
           property_id?: string
+          push_to_channels?: boolean
           requires_deposit?: boolean | null
+          sell_priority?: number
           source_of_truth?: string | null
           teen_rate?: number | null
           updated_at?: string | null
