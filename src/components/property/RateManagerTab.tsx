@@ -1,8 +1,6 @@
 import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { isRolosPms } from "@/lib/pmsUtils";
 import { RatePlansSurface } from "@/components/pms/rateplans/RatePlansSurface";
-import { ArrowRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -115,12 +113,6 @@ export function RateManagerTab({
 }: RateManagerTabProps) {
 
   const { toast } = useToast();
-  const navigate = useNavigate();
-
-  const goToRatePlans = () => {
-    navigate(`/pms/rate-plans${propertyId ? `?property=${propertyId}` : ""}`);
-  };
-
 
   /** ROL'OS-managed properties never edit rates from Admin — ROL'OS is the source of truth. */
   const isRolosProperty = isRolosPms(selectedPMS);
