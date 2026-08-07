@@ -272,7 +272,29 @@ export function EmbedDatePicker({
                 : "Select check-out date"}
             </div>
           )}
+
+          {isMobile && (
+            <div style={{ padding: "10px 12px 14px" }}>
+              <button
+                onClick={() => setIsOpen(false)}
+                style={{
+                  width: "100%",
+                  padding: "11px",
+                  border: "none",
+                  borderRadius: "10px",
+                  background: brandColor,
+                  color: fontColor,
+                  fontSize: "13px",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                Done
+              </button>
+            </div>
+          )}
         </div>
+
       )}
     </div>
   );
