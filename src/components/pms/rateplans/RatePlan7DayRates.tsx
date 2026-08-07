@@ -32,14 +32,18 @@ const short = (n: number) => (n >= 1000 ? `${Math.round(n / 100) / 10}k` : Strin
 export const RatePlan7DayRates = memo(function RatePlan7DayRates({ ratePlanId }: { ratePlanId: string }) {
   const [units, setUnits] = useState<Unit[]>([]);
   const [loading, setLoading] = useState(true);
+  const [startDate, setStartDate] = useState<string>(today);
+
+  const jump = useCallback((days: number) => {
+    setStartDate((prev) => addDays(prev, days));
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
-    const from = today();
     (async () => {
       setLoading(true);
       const { data } = await supabase.functions.invoke("rolos-rate-plans", {
-        body: { action: "preview_plan", rate_plan_id: ratePlanId, window: { from, to: addDays(from, 6) } },
+        body: { action: "preview_plan", rate_plan_id: ratePlanId, window: { from: startDate, to: addDays(startDate, 6) } },
       });
       if (cancelled) return;
       setUnits(((data as { units?: Unit[] } | null)?.units ?? []).slice(0, 8));
@@ -48,7 +52,7 @@ export const RatePlan7DayRates = memo(function RatePlan7DayRates({ ratePlanId }:
     return () => {
       cancelled = true;
     };
-  }, [ratePlanId]);
+  }, [ratePlanId, startDate]);
 
   if (loading) {
     return (
