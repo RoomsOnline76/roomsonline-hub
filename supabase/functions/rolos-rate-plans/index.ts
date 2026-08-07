@@ -308,7 +308,7 @@ async function previewDraft(
     out.push({
       room_type_id: rolosId,
       name: nameById.get(rolosId) ?? ctx.name,
-      days: days.map((d) => ({ date: d.date, price: d.price, source: d.source })),
+      days: days.map((d) => ({ date: d.date, price: d.price, source: d.source, season_name: d.season_name })),
       stay: { min_stay: stay.min_stay, max_stay: stay.max_stay },
     });
   }
@@ -348,7 +348,7 @@ async function previewSavedPlan(
   const inputs = resolver.pricingInputs as PricingInputs;
   const roomById = new Map<string, any>(((roomTypes ?? []) as any[]).map((r) => [String(r.id), r]));
 
-  const out: { room_type_id: string; name: string; days: { date: string; price: number; source: string }[] }[] = [];
+  const out: { room_type_id: string; name: string; days: { date: string; price: number; source: string; season_name?: string }[] }[] = [];
   const ordered = ((links ?? []) as any[]).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
   for (const link of ordered) {
     const rolosId = String(link.room_type_id);
