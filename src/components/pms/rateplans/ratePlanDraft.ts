@@ -292,7 +292,7 @@ export function readCalendarSeasons(
     });
   }
   out.sort((a, b) => a.periods[0].from.localeCompare(b.periods[0].from));
-  return out;
+  return options.includeExpired ? out : filterLiveSeasons(out);
 }
 
 const numeric = (value: string): number | null => {
