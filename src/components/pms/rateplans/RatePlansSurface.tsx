@@ -21,6 +21,7 @@ import { RatePlanEditor } from "@/components/pms/rateplans/RatePlanEditor";
 import { RatePlanSyncToOthersDialog } from "@/components/pms/rateplans/RatePlanSyncToOthersDialog";
 import { RatePlan7DayRates } from "@/components/pms/rateplans/RatePlan7DayRates";
 import { PropertyLegacyRatesBanner } from "@/components/pms/rateplans/PropertyLegacyRatesBanner";
+import { RatePlanSeasonGrid, type SeasonRateRow } from "@/components/pms/rateplans/RatePlanSeasonGrid";
 import { seasonColor, buildSeasonColorMap, type SeasonColorMap } from "@/lib/seasonColors";
 
 export const PRICING_MODELS = [
@@ -95,6 +96,8 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
     const [links, setLinks] = useState<RatePlanRoomLink[]>([]);
     const [seasonCounts, setSeasonCounts] = useState<Record<string, number>>({});
     const [seasonRates, setSeasonRates] = useState<Record<string, { name: string; min: number; max: number }[]>>({});
+    /** Raw authored season rates (plan-wide + per unit) powering the card grid. */
+    const [seasonRateRows, setSeasonRateRows] = useState<SeasonRateRow[]>([]);
     /** Season name -> Calendar-authored colour, so cards match the Calendar. */
     const [seasonColors, setSeasonColors] = useState<SeasonColorMap>({});
     const [loading, setLoading] = useState(true);
@@ -146,7 +149,7 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
             supabase.from("rolos_rate_plan_room_types").select("rate_plan_id, room_type_id").in("rate_plan_id", planIds),
             supabase
               .from("rolos_rate_plan_season_rates")
-              .select("rate_plan_id, shared_season_id, base_rate, rolos_shared_seasons(name)")
+              .select("rate_plan_id, shared_season_id, room_type_id, base_rate, rolos_shared_seasons(name)")
               .in("rate_plan_id", planIds)
               .is("deleted_at", null),
           ])
@@ -154,12 +157,22 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
 
       const counts: Record<string, number> = {};
       const rateSummary: Record<string, Record<string, { name: string; min: number; max: number }>> = {};
-      type SeasonRateRow = {
+      type RawSeasonRateRow = {
         rate_plan_id: string;
+        room_type_id?: string | null;
         base_rate: number | null;
         rolos_shared_seasons?: { name: string | null } | null;
       };
-      for (const row of (seasonRatesRes.data || []) as SeasonRateRow[]) {
+      const rawSeasonRates = (seasonRatesRes.data || []) as RawSeasonRateRow[];
+      setSeasonRateRows(
+        rawSeasonRates.map((row) => ({
+          rate_plan_id: row.rate_plan_id,
+          room_type_id: row.room_type_id ?? null,
+          base_rate: row.base_rate,
+          season_name: row.rolos_shared_seasons?.name ?? null,
+        })),
+      );
+      for (const row of rawSeasonRates) {
         counts[row.rate_plan_id] = (counts[row.rate_plan_id] ?? 0) + 1;
         const name = row.rolos_shared_seasons?.name?.trim();
         const rate = Number(row.base_rate ?? 0);
@@ -257,7 +270,8 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
     const renderPlanCard = (plan: RatePlan) => {
       const linkedIds = getLinkedRoomTypes(plan.id).filter((id) => roomTypes.some((rt) => rt.id === id));
       const pricedSeasons = seasonCounts[plan.id] ?? 0;
-      const planSeasonRates = seasonRates[plan.id] ?? [];
+      const planRateRows = seasonRateRows.filter((r) => r.rate_plan_id === plan.id);
+      const gridUnits = linkedIds.map((id) => ({ id, name: getRoomTypeName(id) }));
       
       const openEditor = readOnly
         ? undefined
@@ -355,41 +369,35 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
                 </Badge>
               )}
             </div>
-            <div className="mt-2 flex flex-wrap items-center gap-1 text-xs">
-              {planSeasonRates.map((s) => (
-                <span
-                  key={s.name}
-                  className={`flex items-center gap-1 rounded border px-1.5 py-0.5 ${seasonColor(s.name, seasonColors).tint}`}
-                  title={`${s.name} season rate`}
-                >
-                  <span className={`h-1.5 w-1.5 rounded-full ${seasonColor(s.name, seasonColors).dot}`} aria-hidden />
-                  <span className="uppercase tracking-wide text-muted-foreground">{s.name}</span>
-                  <span className="font-mono font-semibold text-foreground">
-                    R{s.min.toLocaleString()}{s.max > s.min ? `–${s.max.toLocaleString()}` : ""}
-                  </span>
-                </span>
-              ))}
-              {plan.base_rate && plan.base_rate > 0 ? (
+            {plan.base_rate && plan.base_rate > 0 ? (
+              <div className="mt-2 flex flex-wrap items-center gap-1 text-xs">
                 <span className="flex items-center gap-1 rounded border border-dashed px-1.5 py-0.5 text-muted-foreground">
                   Unit Base fallback Rate
                   <span className="font-mono font-semibold text-foreground">R{plan.base_rate.toLocaleString()}</span>
                 </span>
-              ) : null}
-
-            </div>
-            {linkedIds.length > 0 ? (
-              <div className="mt-2 flex flex-wrap items-center gap-1">
-                <BedDouble className="h-3 w-3 text-muted-foreground" />
-                {linkedIds.map((rtId) => (
-                  <Badge key={rtId} variant="secondary" className="text-xs">{getRoomTypeName(rtId)}</Badge>
-                ))}
               </div>
-            ) : (
-              <p className="text-xs text-muted-foreground/60 mt-2 italic">Not linked to any units</p>
-            )}
+            ) : null}
+            {/* Units stacked one per row, priced by season — mirrors the sample strip rows. */}
+            <div className="mt-2 flex items-center gap-1 text-xs text-muted-foreground">
+              <BedDouble className="h-3 w-3" />
+              <span>{gridUnits.length} {gridUnits.length === 1 ? "unit" : "units"} · rate by season</span>
+            </div>
+            <RatePlanSeasonGrid
+              units={gridUnits}
+              rows={planRateRows}
+              baseRate={plan.base_rate}
+              seasonColors={seasonColors}
+            />
           </CardContent>
         </Card>
-        {linkedIds.length > 0 && <RatePlan7DayRates ratePlanId={plan.id} seasonColors={seasonColors} />}
+        {linkedIds.length > 0 && (
+          <RatePlan7DayRates
+            ratePlanId={plan.id}
+            seasonColors={seasonColors}
+            unitOrder={linkedIds}
+            hideUnitNames
+          />
+        )}
         </div>
       );
     };

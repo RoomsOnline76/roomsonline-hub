@@ -63,10 +63,16 @@ const short = (n: number) => (n >= 1000 ? `${Math.round(n / 100) / 10}k` : Strin
 export const RatePlan7DayRates = memo(function RatePlan7DayRates({
   ratePlanId,
   seasonColors,
+  unitOrder,
+  hideUnitNames = false,
 }: {
   ratePlanId: string;
   /** Season name -> Calendar-authored colour value. */
   seasonColors?: SeasonColorMap;
+  /** Room type ids in card order, so strip rows line up with the card's unit rows. */
+  unitOrder?: string[];
+  /** Drop the unit-name column — the card grid already labels each stacked row. */
+  hideUnitNames?: boolean;
 }) {
   const [units, setUnits] = useState<Unit[]>([]);
   const [loading, setLoading] = useState(true);
@@ -84,13 +90,24 @@ export const RatePlan7DayRates = memo(function RatePlan7DayRates({
         body: { action: "preview_plan", rate_plan_id: ratePlanId, window: { from: startDate, to: addDays(startDate, 6) } },
       });
       if (cancelled) return;
-      setUnits(((data as { units?: Unit[] } | null)?.units ?? []).slice(0, 8));
+      const fetched = ((data as { units?: Unit[] } | null)?.units ?? []) as Unit[];
+      // Match the card's stacked unit order so both grids read as one aligned table.
+      const ordered = unitOrder?.length
+        ? [...fetched].sort((a, b) => {
+            const ia = unitOrder.indexOf(a.room_type_id);
+            const ib = unitOrder.indexOf(b.room_type_id);
+            return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+          })
+        : fetched;
+      setUnits(ordered.slice(0, 8));
       setLoading(false);
     })();
     return () => {
       cancelled = true;
     };
-  }, [ratePlanId, startDate]);
+    // unitOrder is only a display ordering; join it so re-sorts follow card changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ratePlanId, startDate, unitOrder?.join(",")]);
 
   if (loading) {
     return (
@@ -173,7 +190,7 @@ export const RatePlan7DayRates = memo(function RatePlan7DayRates({
       <table className="w-full table-fixed border-collapse text-[10px] leading-[1.1]">
         <thead>
           <tr className="text-muted-foreground">
-            <th className="w-14 px-1 py-0.5 text-left font-normal">Unit</th>
+            {!hideUnitNames && <th className="w-14 px-1 py-0.5 text-left font-normal">Unit</th>}
             {dates.map((d) => (
               <th
                 key={d}
@@ -202,10 +219,12 @@ export const RatePlan7DayRates = memo(function RatePlan7DayRates({
         </thead>
         <tbody>
           {units.map((u) => (
-            <tr key={u.room_type_id} className="border-t border-border/60">
-              <td className="truncate px-1 py-0.5 font-medium" title={u.name}>
-                {u.name}
-              </td>
+            <tr key={u.room_type_id} className="h-7 border-t border-border/60">
+              {!hideUnitNames && (
+                <td className="truncate px-1 py-0.5 font-medium" title={u.name}>
+                  {u.name}
+                </td>
+              )}
               {dates.map((d) => {
                 const day = u.days.find((x) => x.date === d);
                 return (
