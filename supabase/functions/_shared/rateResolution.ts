@@ -9,7 +9,11 @@
  * The calendar is ALWAYS first. The rack rate only fills dates the calendar does not price.
  */
 
-export type RateSource = "calendar_season" | "rack_rate" | "unit_daily_rate";
+export type RateSource =
+  | "calendar_season"
+  | "relational_season"
+  | "rack_rate"
+  | "unit_daily_rate";
 
 export interface UnitRateContext {
   id: string;
@@ -36,6 +40,8 @@ export interface RateCoverage {
   total_days: number;
   priced_days: number;
   calendar_days: number;
+  /** Days priced from rolos_rate_seasons + rolos_rate_prices (tier 2). */
+  relational_days: number;
   rack_days: number;
   unit_daily_days: number;
   unpriced_days: number;
@@ -60,10 +66,21 @@ interface SeasonEntry {
   periods: SeasonPeriod[];
 }
 
+/** A relational season price window (rolos_rate_seasons + rolos_rate_prices). */
+export interface RelationalSeasonRate {
+  start_date: string;
+  end_date: string;
+  base_rate: number;
+  extra_adult_rate?: number;
+  min_stay_override?: number | null;
+}
+
 export interface RateResolver {
   seasons: SeasonEntry[];
   /** rack rate per linked_rolos_id */
   rackRates: Record<string, RackRate>;
+  /** relational season rates per linked_rolos_id (tier 2) */
+  relationalSeasonRates: Record<string, RelationalSeasonRate[]>;
   /** hostfully_room_types.daily_rate per unit id */
   unitDailyRates: Record<string, number>;
   /** stop-sell dates per linked_rolos_id */
@@ -227,6 +244,7 @@ export async function createRateResolver(
 
   const rackRates: Record<string, RackRate> = {};
   const closedDates: Record<string, Set<string>> = {};
+  const relationalSeasonRates: Record<string, RelationalSeasonRate[]> = {};
 
   if (rolosIds.length > 0) {
     const { data: planLinks } = await supabase
@@ -266,6 +284,45 @@ export async function createRateResolver(
         }
       }
     }
+
+    // Tier 2 — relational seasons (rolos_rate_seasons + rolos_rate_prices).
+    // Sits BETWEEN the calendar and the rack rate: it never overrides a calendar
+    // rate, it only fills dates the calendar does not price.
+    if (planIds.length > 0) {
+      const { data: relSeasons } = await supabase
+        .from("rolos_rate_seasons")
+        .select("id, rate_plan_id, start_date, end_date, min_stay_override")
+        .in("rate_plan_id", planIds);
+
+      const seasonRows = (relSeasons ?? []) as any[];
+      if (seasonRows.length > 0) {
+        const { data: relPrices } = await supabase
+          .from("rolos_rate_prices")
+          .select("season_id, room_type_id, base_rate, extra_adult_rate")
+          .in("season_id", seasonRows.map((s) => s.id));
+
+        const seasonById = new Map<string, any>(seasonRows.map((s) => [String(s.id), s]));
+        for (const price of (relPrices ?? []) as any[]) {
+          const season = seasonById.get(String(price.season_id));
+          const base = Number(price?.base_rate);
+          if (!season?.start_date || !season?.end_date) continue;
+          if (!Number.isFinite(base) || base <= 0) continue;
+          const roomKey = price.room_type_id ? String(price.room_type_id) : null;
+          // A price row without a room type applies to every unit linked to the plan.
+          const targets = roomKey ? [roomKey] : (planToRooms[season.rate_plan_id] ?? []);
+          const extra = Number(price?.extra_adult_rate);
+          for (const target of targets) {
+            (relationalSeasonRates[target] ||= []).push({
+              start_date: String(season.start_date),
+              end_date: String(season.end_date),
+              base_rate: base,
+              extra_adult_rate: Number.isFinite(extra) && extra > 0 ? extra : undefined,
+              min_stay_override: season.min_stay_override ?? null,
+            });
+          }
+        }
+      }
+    }
   }
 
   const seasonForDate = (date: string): SeasonEntry | null => {
@@ -281,8 +338,17 @@ export async function createRateResolver(
     const keys = seasonRateLookupKeys(unit, amen);
     const rolosId = unit.linked_rolos_id ? String(unit.linked_rolos_id) : null;
     const rack = rolosId ? rackRates[rolosId] : undefined;
+    const relational = rolosId ? relationalSeasonRates[rolosId] : undefined;
     const unitDaily = unitDailyRates[unit.id];
     const seasonCache = new Map<string, { price: number; extra_guest_price?: number } | null>();
+
+    const relationalForDate = (date: string): RelationalSeasonRate | null => {
+      if (!relational || relational.length === 0) return null;
+      for (const r of relational) {
+        if (date >= r.start_date && date <= r.end_date) return r;
+      }
+      return null;
+    };
 
     const out: DayRate[] = [];
     for (const date of eachDate(from, to)) {
@@ -295,8 +361,12 @@ export async function createRateResolver(
         calendar = seasonCache.get(season.id) ?? null;
       }
 
+      const rel = calendar ? null : relationalForDate(date);
+
       if (calendar) {
         out.push({ date, price: calendar.price, extra_guest_price: calendar.extra_guest_price, source: "calendar_season" });
+      } else if (rel) {
+        out.push({ date, price: rel.base_rate, extra_guest_price: rel.extra_adult_rate, source: "relational_season" });
       } else if (rack) {
         out.push({ date, price: rack.base_rate, extra_guest_price: rack.adult_1_rate, source: "rack_rate" });
       } else if (Number.isFinite(unitDaily) && unitDaily > 0) {
@@ -309,12 +379,14 @@ export async function createRateResolver(
 
   const coverage = (days: DayRate[]): RateCoverage => {
     const calendar_days = days.filter((d) => d.source === "calendar_season").length;
+    const relational_days = days.filter((d) => d.source === "relational_season").length;
     const rack_days = days.filter((d) => d.source === "rack_rate").length;
     const unit_daily_days = days.filter((d) => d.source === "unit_daily_rate").length;
     return {
       total_days: days.length,
       priced_days: days.length,
       calendar_days,
+      relational_days,
       rack_days,
       unit_daily_days,
       unpriced_days: 0,
@@ -327,7 +399,16 @@ export async function createRateResolver(
     linked_rolos_id: r.linked_rolos_id,
   }));
 
-  return { seasons, rackRates, unitDailyRates, closedDates, units, resolveDays, coverage };
+  return {
+    seasons,
+    rackRates,
+    relationalSeasonRates,
+    unitDailyRates,
+    closedDates,
+    units,
+    resolveDays,
+    coverage,
+  };
 
 }
 
@@ -423,6 +504,7 @@ export function compressToPeriods(days: DayRate[]): RatePeriod[] {
 export function describeCoverage(expectedDays: number, cov: RateCoverage): string {
   const parts: string[] = [];
   if (cov.calendar_days > 0) parts.push(`${cov.calendar_days} calendar`);
+  if ((cov.relational_days ?? 0) > 0) parts.push(`${cov.relational_days} rate-plan season`);
   if (cov.rack_days > 0) parts.push(`${cov.rack_days} rack rate`);
   if (cov.unit_daily_days > 0) parts.push(`${cov.unit_daily_days} unit daily rate`);
   const detail = parts.length > 0 ? ` — ${parts.join(", ")}` : "";

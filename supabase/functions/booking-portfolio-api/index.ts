@@ -1,4 +1,14 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { addDays, createRateResolver } from "../_shared/rateResolution.ts";
+import {
+  getRateResolutionModes,
+  logRateParity,
+  type ParityRow,
+} from "../_shared/rateParity.ts";
+
+/** Shadow-comparison bounds — keeps listing latency and audit volume predictable. */
+const PARITY_WINDOW_DAYS = 30;
+const PARITY_MAX_PROPERTIES = 12;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -300,6 +310,90 @@ Deno.serve(async (req) => {
       bump(h.property_id, h.daily_rate, h.max_guests, true);
     });
 
+    // ── Shared-resolver parity (additive, non-breaking) ────────────────────
+    // The legacy 4-tier aggregate above still produces the served value for
+    // every property in `legacy` mode. For properties flipped to `unified`
+    // the shared resolver's starting rate is served instead. Either way the
+    // comparison is recorded so drift is visible before anything is flipped.
+    const resolutionModes = await getRateResolutionModes(supabase, propertyIds);
+    const unifiedStartingRate: Record<string, number> = {};
+    const parityWindowFrom = new Date().toISOString().slice(0, 10);
+    const parityWindowTo = addDays(parityWindowFrom, PARITY_WINDOW_DAYS - 1);
+
+    const resolveStartingRate = async (
+      pid: string,
+      amenities: Record<string, unknown> | null,
+    ): Promise<{ rate: number | null; tier: string | null }> => {
+      const resolver = await createRateResolver(supabase, pid, {
+        amenities,
+        window: { from: parityWindowFrom, to: parityWindowTo },
+      });
+      let best: number | null = null;
+      let bestTier: string | null = null;
+      for (const unit of resolver.units) {
+        for (const day of resolver.resolveDays(unit, parityWindowFrom, parityWindowTo)) {
+          if (!Number.isFinite(day.price) || day.price <= 0) continue;
+          if (best === null || day.price < best) {
+            best = day.price;
+            bestTier = day.source;
+          }
+        }
+      }
+      return { rate: best, tier: bestTier };
+    };
+
+    const propsByIdForParity = new Map<string, any>(
+      (properties || []).map((p: any) => [p.id, p]),
+    );
+
+    // Inline only for properties that have actually been flipped.
+    const unifiedIds = propertyIds.filter((id: string) => resolutionModes[id] === "unified");
+    for (const pid of unifiedIds.slice(0, PARITY_MAX_PROPERTIES)) {
+      try {
+        const { rate } = await resolveStartingRate(pid, propsByIdForParity.get(pid)?.amenities ?? null);
+        if (rate !== null) unifiedStartingRate[pid] = rate;
+      } catch (e) {
+        console.warn(`[booking-portfolio-api] unified resolve failed for ${pid}:`, (e as Error).message);
+      }
+    }
+
+    // Shadow-compare the legacy properties in the background so listing latency
+    // is untouched. Never awaited, never allowed to fail the request.
+    const shadowIds = propertyIds
+      .filter((id: string) => resolutionModes[id] !== "unified")
+      .slice(0, PARITY_MAX_PROPERTIES);
+    if (shadowIds.length > 0) {
+      const shadowTask = (async () => {
+        const rows: ParityRow[] = [];
+        for (const pid of shadowIds) {
+          try {
+            const { rate, tier } = await resolveStartingRate(
+              pid,
+              propsByIdForParity.get(pid)?.amenities ?? null,
+            );
+            const legacy = agg[pid] && agg[pid].minRate !== Infinity ? agg[pid].minRate : null;
+            rows.push({
+              property_id: pid,
+              stay_date: parityWindowFrom,
+              resolved_rate: rate,
+              resolved_tier: tier,
+              legacy_rate: legacy,
+              legacy_tier: "portfolio_legacy_min",
+              notes: { window_days: PARITY_WINDOW_DAYS, metric: "starting_rate" },
+            });
+          } catch (e) {
+            console.warn(`[booking-portfolio-api] parity resolve failed for ${pid}:`, (e as Error).message);
+          }
+        }
+        await logRateParity(supabase, "booking-portfolio-api", rows);
+      })();
+      try {
+        (globalThis as any).EdgeRuntime?.waitUntil?.(shadowTask);
+      } catch {
+        /* runtime without waitUntil: let it settle on its own */
+      }
+    }
+
     // Pool of room-level images per property (fallback when property has none)
     const roomImagesByProp: Record<string, string[]> = {};
     const collectRoomImg = (pid: string, imgs: unknown) => {
@@ -334,7 +428,7 @@ Deno.serve(async (req) => {
         city: p.city,
         description: amenities.space_description || p.description,
         hero_image: heroImage,
-        starting_rate: rm && rm.minRate !== Infinity ? rm.minRate : null,
+        starting_rate: unifiedStartingRate[p.id] ?? (rm && rm.minRate !== Infinity ? rm.minRate : null),
         room_count: rm?.count || 0,
         max_guests: rm?.maxGuests || null,
         brand_primary_color: p.brand_primary_color || null,
