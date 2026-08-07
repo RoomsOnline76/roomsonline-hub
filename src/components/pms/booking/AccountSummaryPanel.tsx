@@ -174,6 +174,9 @@ export function AccountSummaryPanel({
 
   const proForma = docs.find(d => d.document_kind === "pro_forma") || null;
   const finalInvoice = docs.find(d => d.document_kind === "tax_invoice") || null;
+  /** Latest live document — its attribution is what reconciliation reads. */
+  const issued = finalInvoice || proForma;
+
 
   const today = new Date().toISOString().split("T")[0];
   const stayEnded = String(checkOut || "") <= today;
