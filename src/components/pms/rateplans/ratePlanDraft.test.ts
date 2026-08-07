@@ -127,12 +127,15 @@ describe("draftToPayload", () => {
 
 describe("readCalendarSeasons", () => {
   it("reads periods, sorts by first window and normalises min stay", () => {
-    const seasons = readCalendarSeasons({
-      seasons: [
-        { id: 2, title: "Low", from: "2026-05-01", to: "2026-06-30", minStay: 0 },
-        { id: 1, name: "High", minStay: 3, periods: [{ from: "2026-12-11", to: "2027-01-03" }, { from: "2026-02-02", to: "2026-02-06" }] },
-      ],
-    } as never);
+    const seasons = readCalendarSeasons(
+      {
+        seasons: [
+          { id: 2, title: "Low", from: "2026-05-01", to: "2026-06-30", minStay: 0 },
+          { id: 1, name: "High", minStay: 3, periods: [{ from: "2026-12-11", to: "2027-01-03" }, { from: "2026-02-02", to: "2026-02-06" }] },
+        ],
+      } as never,
+      { includeExpired: true },
+    );
     expect(seasons.map((s) => s.name)).toEqual(["High", "Low"]);
     expect(seasons[0].periods[0].from).toBe("2026-02-02");
     expect(seasons[0].min_stay).toBe(3);
