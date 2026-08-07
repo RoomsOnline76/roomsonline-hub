@@ -271,24 +271,16 @@ export const RatePlanSeasonPricingTable = memo(function RatePlanSeasonPricingTab
                     </td>
                   );
                 })}
-
-                          aria-label={`${rt.name} — ${season.name}`}
-                          placeholder={inherited ? inherited : rate.mode === "differential" ? "0" : "Rate"}
-                          value={seasonUnitRate(rate, rt.id)}
-                          onChange={(e) => onCellChange(season.calendar_season_id, rt.id, e.target.value)}
-                        />
-                      )}
-                    </td>
-                  );
-                })}
               </tr>
             ))}
           </tbody>
         </table>
       </div>
       <p className="text-[10px] text-muted-foreground">
-        An empty cell inherits the season's "all units" value, then the plan base rate.
+        An empty cell inherits the season's "all units" value, then the plan base rate. "live" shows what the booking
+        engine currently quotes for that unit and season.
       </p>
+
     </div>
   );
 });
