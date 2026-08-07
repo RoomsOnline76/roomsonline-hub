@@ -592,7 +592,7 @@ export default function PMSReports() {
           </TabsContent>
 
           <TabsContent value="groups">
-            <GroupPerformancePanel propertyIds={scopeIds} startDate={fromStr} endDate={toStr} />
+            <GroupPerformancePanel propertyIds={activePropertyIds} startDate={fromStr} endDate={toStr} />
           </TabsContent>
 
           <TabsContent value="folios">
