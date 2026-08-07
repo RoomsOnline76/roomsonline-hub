@@ -33,12 +33,28 @@ interface Props {
   onSeedFromLive: (calendarSeasonId?: string) => void;
 }
 
-const fmtRange = (season: CalendarSeason) =>
-  season.periods
-    .map((p) => `${p.from.slice(8, 10)}/${p.from.slice(5, 7)} – ${p.to.slice(8, 10)}/${p.to.slice(5, 7)}`)
-    .join(", ");
+const todayISO = (): string => {
+  const now = new Date();
+  return `${now.getFullYear()}-${`${now.getMonth() + 1}`.padStart(2, "0")}-${`${now.getDate()}`.padStart(2, "0")}`;
+};
+
+const fmtWindow = (p: { from: string; to: string }) =>
+  `${p.from.slice(8, 10)}/${p.from.slice(5, 7)} – ${p.to.slice(8, 10)}/${p.to.slice(5, 7)}`;
+
+/**
+ * Only the windows that can still be sold (today or later), oldest first.
+ * Historical windows stay in the data but are never shown here.
+ */
+const upcomingWindows = (season: CalendarSeason) => {
+  const today = todayISO();
+  return season.periods
+    .filter((p) => p?.from && p?.to && String(p.to) >= today)
+    .map((p) => ({ from: String(p.from), to: String(p.to) }))
+    .sort((a, b) => a.from.localeCompare(b.from));
+};
 
 const fmtMoney = (n: number) => `R${n.toLocaleString("en-ZA", { maximumFractionDigits: 0 })}`;
+
 
 
 /**
