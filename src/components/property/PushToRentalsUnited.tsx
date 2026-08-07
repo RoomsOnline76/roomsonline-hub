@@ -680,7 +680,7 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
                         </div>
                       ) : (
                         <Badge variant="outline" className="text-[10px] h-4 px-1 cursor-pointer hover:bg-accent" onClick={() => { setUnitRuIdDraft(unit.ru_property_id || ""); setEditingUnitRuId(unit.room_type_id); }}>
-                          {unit.ru_property_id ? `RU: ${unit.ru_property_id}` : "No RU ID — click to set"}
+                          {unit.ru_property_id ? `Channel Manager: ${unit.ru_property_id}` : "No Channel Manager ID — click to set"}
                         </Badge>
                       )}
                     </div>

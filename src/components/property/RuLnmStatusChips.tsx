@@ -113,7 +113,7 @@ export function RuLnmStatusChips({ propertyId }: { propertyId: string }) {
       setDupResult(data as Record<string, unknown>);
       if (data.passed) toast.success("The Channel Manager accepted both quality-check orders");
       else if (data.lnm_not_subscribed) toast.error("Channel status 280 — subscribe the account to LNM first");
-      else if (data.ru_internal_error) toast.error("RU status 17 — RU-side fault, escalate with the ResponseID");
+      else if (data.ru_internal_error) toast.error("Channel status 17 — channel-side fault, escalate with the ResponseID");
       else toast.error("Duplicate-order test failed");
       await load();
     } catch (e) {
