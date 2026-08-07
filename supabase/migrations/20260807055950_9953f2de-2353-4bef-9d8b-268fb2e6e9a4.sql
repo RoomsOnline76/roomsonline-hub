@@ -1,0 +1,10 @@
+DELETE FROM public.rolos_folio_transactions WHERE folio_id IN (SELECT id FROM public.rolos_folios WHERE group_id IN ('bf85608c-7a41-4cfa-83d5-ed4234a4fafe','aa9bda01-2c97-4053-b253-99e731262628') OR booking_id IN ('cf4cdb6c-edf2-4e66-85a3-a12f65cfb156','e5fdaa44-660f-4789-8016-e95c760ceda6'));
+UPDATE public.rolos_groups SET master_folio_id = NULL WHERE id IN ('bf85608c-7a41-4cfa-83d5-ed4234a4fafe','aa9bda01-2c97-4053-b253-99e731262628');
+DELETE FROM public.rolos_folios WHERE group_id IN ('bf85608c-7a41-4cfa-83d5-ed4234a4fafe','aa9bda01-2c97-4053-b253-99e731262628') OR booking_id IN ('cf4cdb6c-edf2-4e66-85a3-a12f65cfb156','e5fdaa44-660f-4789-8016-e95c760ceda6');
+DELETE FROM public.rolos_group_reservations WHERE group_id IN ('bf85608c-7a41-4cfa-83d5-ed4234a4fafe','aa9bda01-2c97-4053-b253-99e731262628');
+DELETE FROM public.rolos_group_room_blocks WHERE group_id IN ('bf85608c-7a41-4cfa-83d5-ed4234a4fafe','aa9bda01-2c97-4053-b253-99e731262628');
+DELETE FROM public.rolos_groups WHERE id IN ('bf85608c-7a41-4cfa-83d5-ed4234a4fafe','aa9bda01-2c97-4053-b253-99e731262628');
+DELETE FROM public.rolos_booking_rooms WHERE booking_id IN ('cf4cdb6c-edf2-4e66-85a3-a12f65cfb156','e5fdaa44-660f-4789-8016-e95c760ceda6');
+DELETE FROM public.bookings WHERE id IN ('cf4cdb6c-edf2-4e66-85a3-a12f65cfb156','e5fdaa44-660f-4789-8016-e95c760ceda6');
+DELETE FROM public.rolos_inventory_calendar WHERE property_id = 'af57b357-9c95-47f5-b7d5-43d3b2f05bb7' AND date >= '2027-01-01';
+DELETE FROM public.pms_availability_cache WHERE property_id = 'af57b357-9c95-47f5-b7d5-43d3b2f05bb7' AND date >= '2027-01-01';

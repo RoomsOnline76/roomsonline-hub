@@ -35,38 +35,68 @@ function nightsBetween(start: string, end: string): string[] {
   return out;
 }
 
-/** Mirror a block/release into the availability cache the booking engine reads. */
-async function adjustAvailabilityCache(
+/**
+ * Mirror the authoritative inventory calendar into the availability cache the
+ * booking engine + channel pushes read. Derived (not delta-applied) so blocks,
+ * releases and pickups can never drift, and rows are created when missing —
+ * a property with no cache rows yet would otherwise keep selling blocked rooms.
+ */
+async function syncAvailabilityCache(
   supabase: Client,
   propertyId: string,
   roomTypeId: string,
   startDate: string,
   endDate: string,
-  delta: number,
-): Promise<void> {
-  if (!delta) return;
+): Promise<number> {
   const dates = nightsBetween(startDate, endDate);
-  if (!dates.length) return;
+  if (!dates.length) return 0;
 
-  const { data: rows } = await supabase
+  const { data: calendar, error } = await supabase
+    .from("rolos_inventory_calendar")
+    .select("date, available_units")
+    .eq("property_id", propertyId)
+    .eq("room_type_id", roomTypeId)
+    .in("date", dates);
+  if (error) {
+    console.error("[pms-groups] inventory calendar read failed", error);
+    return 0;
+  }
+  if (!calendar?.length) return 0;
+
+  const now = new Date().toISOString();
+  const { data: existing } = await supabase
     .from("pms_availability_cache")
-    .select("id, date, available_units")
+    .select("date, restrictions")
     .eq("property_id", propertyId)
     .eq("system_type", SOURCE)
     .eq("external_room_type_id", roomTypeId)
     .in("date", dates);
+  const restrictionsByDate = new Map<string, unknown>(
+    (existing || []).map((r: { date: string; restrictions: unknown }) => [r.date, r.restrictions]),
+  );
 
-  for (const row of (rows || [])) {
-    await supabase
-      .from("pms_availability_cache")
-      .update({
-        available_units: Math.max(0, (row.available_units || 0) + delta),
-        updated_at: new Date().toISOString(),
-        source_timestamp: new Date().toISOString(),
-      })
-      .eq("id", row.id);
+  const rows = calendar.map((c: { date: string; available_units: number | null }) => ({
+    property_id: propertyId,
+    system_type: SOURCE,
+    external_room_type_id: roomTypeId,
+    date: c.date,
+    available_units: Math.max(0, Number(c.available_units || 0)),
+    restrictions: restrictionsByDate.get(c.date) ?? {},
+    fetched_at: now,
+    source_timestamp: now,
+    updated_at: now,
+  }));
+
+  const { error: upsertErr } = await supabase
+    .from("pms_availability_cache")
+    .upsert(rows, { onConflict: "property_id,system_type,external_room_type_id,date", ignoreDuplicates: false });
+  if (upsertErr) {
+    console.error("[pms-groups] availability cache sync failed", upsertErr);
+    return 0;
   }
+  return rows.length;
 }
+
 
 async function ensureMasterFolio(
   supabase: Client,
@@ -141,7 +171,7 @@ async function releaseBlock(
       _end_date: block.end_date,
       _delta: -remaining,
     });
-    await adjustAvailabilityCache(supabase, propertyId, block.room_type_id, block.start_date, block.end_date, remaining);
+    await syncAvailabilityCache(supabase, propertyId, block.room_type_id, block.start_date, block.end_date);
   }
 
   let attritionAmount = 0;
@@ -279,6 +309,38 @@ Deno.serve(async (req) => {
           return json({ error: "end_date must be after start_date" }, 400);
         }
 
+        // Capacity guard: never hold more rooms than the room type actually has free.
+        // Materialise the calendar rows for the range (delta 0) then read what is free.
+        await supabase.rpc("rolos_apply_block_inventory", {
+          _property_id: p.property_id,
+          _room_type_id: p.room_type_id,
+          _start_date: p.start_date,
+          _end_date: p.end_date,
+          _delta: 0,
+        });
+        const { data: capacityRows } = await supabase
+          .from("rolos_inventory_calendar")
+          .select("date, available_units")
+          .eq("property_id", p.property_id)
+          .eq("room_type_id", p.room_type_id)
+          .in("date", nightsBetween(p.start_date, p.end_date));
+        const shortfall = (capacityRows || []).filter(
+          (r: { available_units: number | null }) => Number(r.available_units || 0) < p.blocked_count,
+        );
+        if (shortfall.length) {
+          const worst = Math.min(...shortfall.map((r: { available_units: number | null }) => Number(r.available_units || 0)));
+          return json(
+            {
+              error: `Not enough inventory: only ${worst} room(s) free on ${shortfall[0].date}${
+                shortfall.length > 1 ? ` (and ${shortfall.length - 1} more night(s))` : ""
+              }.`,
+            },
+            409,
+          );
+        }
+
+
+
         const { data: block, error } = await supabase
           .from("rolos_group_room_blocks")
           .insert({
@@ -305,7 +367,7 @@ Deno.serve(async (req) => {
           _end_date: p.end_date,
           _delta: p.blocked_count,
         });
-        await adjustAvailabilityCache(supabase, p.property_id, p.room_type_id, p.start_date, p.end_date, -p.blocked_count);
+        await syncAvailabilityCache(supabase, p.property_id, p.room_type_id, p.start_date, p.end_date);
 
         return json({ success: true, block });
       }
@@ -436,6 +498,11 @@ Deno.serve(async (req) => {
           console.error("pickup: inventory convert failed", convertErr);
           throw convertErr;
         }
+        // Blocked -> booked is net-neutral, but re-derive the cache so it can never drift
+        // (and so pickup dates outside the original block window stay correct).
+        await syncAvailabilityCache(supabase, p.property_id, block.room_type_id, arrival, departure);
+
+
 
         // Package expansion: post component lines already tagged by revenue stream.
         const packageId = p.package_id || block.package_id || null;
