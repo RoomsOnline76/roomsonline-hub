@@ -73,41 +73,27 @@ const policyName = (rule: (CancellationRule & { name?: string; policy_name?: str
   return "Custom policy";
 };
 
-/** One label + comma-joined values line, with overflow folded into a tooltip. */
+/** One label + full list of values, wrapped so everything is visible at a glance. */
 const Line = ({
   icon,
   label,
   items,
-  max = 2,
 }: {
   icon: React.ReactNode;
   label: string;
   items: string[];
-  max?: number;
-}) => {
-  const shown = items.slice(0, max);
-  const rest = items.slice(max);
-  return (
-    <div className="flex min-w-0 items-baseline gap-1.5 text-[11px] leading-tight">
-      <span className="flex shrink-0 items-center gap-1 text-muted-foreground">
-        {icon}
-        <span className="font-medium">{label}:</span>
-      </span>
-      <span className="min-w-0 truncate text-foreground" title={items.join(" · ") || "None"}>
-        {items.length === 0 ? <span className="text-muted-foreground">None</span> : shown.join(" · ")}
-      </span>
-      {rest.length > 0 && (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span className="shrink-0 cursor-default rounded border px-1 text-[10px] text-muted-foreground">
-              +{rest.length}
-            </span>
-          </TooltipTrigger>
-          <TooltipContent className="max-w-[240px] text-xs">{rest.join(" · ")}</TooltipContent>
-        </Tooltip>
-      )}
-    </div>
-  );
+}) => (
+  <div className="flex min-w-0 items-baseline gap-1.5 text-[11px] leading-tight">
+    <span className="flex shrink-0 items-center gap-1 text-muted-foreground">
+      {icon}
+      <span className="font-medium">{label}:</span>
+    </span>
+    <span className="min-w-0 text-foreground">
+      {items.length === 0 ? <span className="text-muted-foreground">None</span> : items.join(" · ")}
+    </span>
+  </div>
+);
+
 };
 
 /**
