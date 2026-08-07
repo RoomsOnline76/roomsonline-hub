@@ -108,6 +108,12 @@ export function RateManagerTab({
 }: RateManagerTabProps) {
 
   const { toast } = useToast();
+  const navigate = useNavigate();
+
+  const goToRatePlans = () => {
+    navigate(`/pms/rate-plans${propertyId ? `?property=${propertyId}` : ""}`);
+  };
+
 
   /** ROL'OS-managed properties never edit rates from Admin — ROL'OS is the source of truth. */
   const isRolosProperty = isRolosPms(selectedPMS);
