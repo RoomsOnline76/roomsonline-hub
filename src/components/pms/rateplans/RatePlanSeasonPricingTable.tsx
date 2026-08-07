@@ -142,7 +142,7 @@ export const RatePlanSeasonPricingTable = memo(function RatePlanSeasonPricingTab
                             type="number"
                             inputMode="decimal"
                             className="h-7 text-xs"
-                            placeholder={rate.mode === "percent" ? "All units" : "All units"}
+                            placeholder="All units"
                             value={rate.mode === "differential" ? rate.differential_value : rate.base_rate}
                             onChange={(e) =>
                               onChange(
