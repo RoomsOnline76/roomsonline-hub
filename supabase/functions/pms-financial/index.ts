@@ -168,6 +168,8 @@ function generateInvoiceHTML(invoice: any, transactions: any[], property: any, b
         <td style="padding:10px 16px;font-weight:700;font-size:16px;">Total</td>
         <td style="padding:10px 16px;text-align:right;font-weight:700;font-size:16px;">${invoice.currency || "ZAR"} ${Number(invoice.total).toFixed(2)}</td>
       </tr>
+      ${commissionRows}
+
     </table>
   </div>
 
