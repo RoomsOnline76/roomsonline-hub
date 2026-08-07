@@ -412,34 +412,37 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
               <DialogHeader>
                 <DialogTitle>{editor?.ratePlanId ? "Edit rate plan" : "New rate plan"}</DialogTitle>
               </DialogHeader>
-              {editor && !editor.ratePlanId && properties.length > 1 && (
-                <div className="space-y-1.5">
-                  <span className="text-sm font-medium">Property</span>
-                  <Select
-                    value={editor.propertyId}
-                    onValueChange={(v) => setEditor({ propertyId: v, ratePlanId: null })}
-                  >
-                    <SelectTrigger><SelectValue placeholder="Select property" /></SelectTrigger>
-                    <SelectContent>
-                      {properties.map((p) => (
-                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-              {editor?.propertyId && (
-                <RatePlanEditor
-                  key={`${editor.propertyId}:${editor.ratePlanId ?? "new"}`}
-                  propertyId={editor.propertyId}
-                  propertyName={properties.find((p) => p.id === editor.propertyId)?.name}
-                  ratePlanId={editor.ratePlanId}
-                  roomTypes={editorRoomTypes}
-                  onSaved={() => { setEditor(null); fetchData(); }}
-                  onCancel={() => setEditor(null)}
-                />
-              )}
+              <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overflow-x-hidden pr-1">
+                {editor && !editor.ratePlanId && properties.length > 1 && (
+                  <div className="space-y-1.5">
+                    <span className="text-sm font-medium">Property</span>
+                    <Select
+                      value={editor.propertyId}
+                      onValueChange={(v) => setEditor({ propertyId: v, ratePlanId: null })}
+                    >
+                      <SelectTrigger><SelectValue placeholder="Select property" /></SelectTrigger>
+                      <SelectContent>
+                        {properties.map((p) => (
+                          <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                {editor?.propertyId && (
+                  <RatePlanEditor
+                    key={`${editor.propertyId}:${editor.ratePlanId ?? "new"}`}
+                    propertyId={editor.propertyId}
+                    propertyName={properties.find((p) => p.id === editor.propertyId)?.name}
+                    ratePlanId={editor.ratePlanId}
+                    roomTypes={editorRoomTypes}
+                    onSaved={() => { setEditor(null); fetchData(); }}
+                    onCancel={() => setEditor(null)}
+                  />
+                )}
+              </div>
             </DialogContent>
+
           </Dialog>
         )}
 
