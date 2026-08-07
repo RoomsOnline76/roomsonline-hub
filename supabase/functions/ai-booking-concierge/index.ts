@@ -117,6 +117,11 @@ interface ParsedIntent {
   preferences?: string[];
   budget?: { max?: number; min?: number; currency?: string };
   room_preference?: string;
+  /** Guest signalled their dates can move ("flexible", "around", "give or take"). */
+  flexible_dates?: boolean;
+  /** Guest signalled interest in combining more than one property. */
+  multi_property?: boolean;
+
 }
 
 function parseUserQuery(query: string): ParsedIntent {
