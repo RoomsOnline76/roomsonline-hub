@@ -244,17 +244,34 @@ export const RatePlanSeasonPricingTable = memo(function RatePlanSeasonPricingTab
                 </th>
                 {seasons.map((season) => {
                   const rate = seasonRateFor(draft, season.calendar_season_id);
-                  const disabled = rate.mode === "none";
-                  const inherited = rate.mode === "differential" ? rate.differential_value : rate.base_rate;
+                  const columnValue = rate.mode === "differential" ? rate.differential_value : rate.base_rate;
+                  const liveValue = liveMatrix?.get(season.calendar_season_id)?.get(rt.id);
+                  // What this cell resolves to while it is empty, best hint first.
+                  const fallback =
+                    columnValue !== ""
+                      ? columnValue
+                      : rate.mode === "differential"
+                        ? "0"
+                        : liveValue && liveValue > 0
+                          ? `${fmtMoney(liveValue)} live`
+                          : planBase > 0
+                            ? `${fmtMoney(planBase)} base`
+                            : "Rate";
                   return (
                     <td key={season.calendar_season_id} className="border-l p-1.5 align-middle">
-                      {disabled ? (
-                        <p className="px-1 text-[10px] italic text-muted-foreground">Base rate</p>
-                      ) : (
-                        <Input
-                          type="number"
-                          inputMode="decimal"
-                          className="h-7 text-xs"
+                      <Input
+                        type="number"
+                        inputMode="decimal"
+                        className={`h-7 text-xs ${rate.mode === "none" ? "border-dashed" : ""}`}
+                        aria-label={`${rt.name} — ${season.name}`}
+                        placeholder={fallback}
+                        value={seasonUnitRate(rate, rt.id)}
+                        onChange={(e) => onCellChange(season.calendar_season_id, rt.id, e.target.value)}
+                      />
+                    </td>
+                  );
+                })}
+
                           aria-label={`${rt.name} — ${season.name}`}
                           placeholder={inherited ? inherited : rate.mode === "differential" ? "0" : "Rate"}
                           value={seasonUnitRate(rate, rt.id)}
