@@ -167,7 +167,6 @@ async function recalculateRolPrice(
             units: roomCount,
             extraAdultRate: days[0]?.extra_guest_price ?? extraAdultRate ?? undefined,
             childRate: extraChildRate || undefined,
-            teenRate: model === "per_person" ? undefined : undefined,
           });
           unifiedTier = days[0].source;
         }
