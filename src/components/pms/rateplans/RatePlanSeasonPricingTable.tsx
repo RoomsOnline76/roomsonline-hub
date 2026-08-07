@@ -138,10 +138,13 @@ export const RatePlanSeasonPricingTable = memo(function RatePlanSeasonPricingTab
               {seasons.map((season) => {
                 const rate = seasonRateFor(draft, season.calendar_season_id);
                 const live = liveMatrix?.get(season.calendar_season_id);
+                const windows = upcomingWindows(season);
+                const shown = windows.slice(0, 2);
+                const extra = windows.length - shown.length;
                 return (
                   <th
                     key={season.calendar_season_id}
-                    className={`min-w-[170px] border-l p-2 text-left align-top ${rate.mode === "none" ? "opacity-70" : ""}`}
+                    className={`w-[190px] min-w-[190px] max-w-[190px] border-l p-2 text-left align-top ${rate.mode === "none" ? "opacity-70" : ""}`}
                   >
                     <div className="space-y-1.5">
                       <div className="flex items-center gap-1.5">
@@ -150,7 +153,20 @@ export const RatePlanSeasonPricingTable = memo(function RatePlanSeasonPricingTab
                           <Badge variant="outline" className="px-1 py-0 text-[10px]">{season.min_stay}n</Badge>
                         ) : null}
                       </div>
-                      <p className="truncate text-[10px] font-normal text-muted-foreground">{fmtRange(season)}</p>
+                      {windows.length > 0 ? (
+                        <div
+                          className="space-y-0.5 text-[10px] font-normal leading-tight text-muted-foreground"
+                          title={windows.map(fmtWindow).join(", ")}
+                        >
+                          {shown.map((w) => (
+                            <p key={`${w.from}-${w.to}`} className="truncate">{fmtWindow(w)}</p>
+                          ))}
+                          {extra > 0 && <p className="truncate">+{extra} more window{extra > 1 ? "s" : ""}</p>}
+                        </div>
+                      ) : (
+                        <p className="truncate text-[10px] font-normal text-muted-foreground">No upcoming dates</p>
+                      )}
+
 
                       <ToggleGroup
                         type="single"
