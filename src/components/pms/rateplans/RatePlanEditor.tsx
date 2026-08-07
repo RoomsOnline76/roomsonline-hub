@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, Save } from "lucide-react";
 import { BREAKFAST_BASIS_LABELS, normalizeBreakfastBasis } from "@/components/charges/ChargeCalculator";
 import { useReservationPolicies } from "@/hooks/useReservationPolicies";
+import { buildSeasonColorMap, type SeasonColorMap } from "@/lib/seasonColors";
 import { RatePlanSeasonPricingTable } from "./RatePlanSeasonPricingTable";
 import { RatePlanUnitsSection } from "./RatePlanUnitsSection";
 import { RatePlanEffectivePreview } from "./RatePlanEffectivePreview";
@@ -90,6 +91,7 @@ function groupSeasonRates(
 export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes, onSaved, onCancel }: Props) {
   const [draft, dispatch] = useReducer(ratePlanDraftReducer, emptyDraft());
   const [seasons, setSeasons] = useState<CalendarSeason[]>([]);
+  const [seasonColors, setSeasonColors] = useState<SeasonColorMap>({});
   const [liveMatrix, setLiveMatrix] = useState<LiveSeasonMatrix>(() => new Map());
   const [liveMatrixLoading, setLiveMatrixLoading] = useState(false);
 
@@ -214,6 +216,14 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
 
       if (cancelled) return;
       setSeasons(calendarSeasons);
+      // Reuse the colours the Calendar authored so a season reads the same everywhere.
+      const amenitySeasons = (property?.amenities as { seasons?: unknown } | null)?.seasons;
+      setSeasonColors(
+        Array.isArray(amenitySeasons)
+          ? buildSeasonColorMap(amenitySeasons as { name?: string | null; color?: string | null }[])
+          : {},
+      );
+
 
       dispatch({ type: "reset", draft: next });
       setLoading(false);
@@ -446,6 +456,7 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
           <RatePlanSeasonPricingTable
             draft={draft}
             seasons={seasons}
+            seasonColors={seasonColors}
             roomTypes={roomTypes}
             liveMatrix={liveMatrix}
             liveMatrixLoading={liveMatrixLoading}
