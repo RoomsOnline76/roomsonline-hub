@@ -1,6 +1,6 @@
-import { memo, useEffect, useState } from "react";
+import { memo, useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2 } from "lucide-react";
+import { Loader2, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
 
 interface Day {
   date: string;
@@ -32,14 +32,18 @@ const short = (n: number) => (n >= 1000 ? `${Math.round(n / 100) / 10}k` : Strin
 export const RatePlan7DayRates = memo(function RatePlan7DayRates({ ratePlanId }: { ratePlanId: string }) {
   const [units, setUnits] = useState<Unit[]>([]);
   const [loading, setLoading] = useState(true);
+  const [startDate, setStartDate] = useState<string>(today);
+
+  const jump = useCallback((days: number) => {
+    setStartDate((prev) => addDays(prev, days));
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
-    const from = today();
     (async () => {
       setLoading(true);
       const { data } = await supabase.functions.invoke("rolos-rate-plans", {
-        body: { action: "preview_plan", rate_plan_id: ratePlanId, window: { from, to: addDays(from, 6) } },
+        body: { action: "preview_plan", rate_plan_id: ratePlanId, window: { from: startDate, to: addDays(startDate, 6) } },
       });
       if (cancelled) return;
       setUnits(((data as { units?: Unit[] } | null)?.units ?? []).slice(0, 8));
@@ -48,7 +52,7 @@ export const RatePlan7DayRates = memo(function RatePlan7DayRates({ ratePlanId }:
     return () => {
       cancelled = true;
     };
-  }, [ratePlanId]);
+  }, [ratePlanId, startDate]);
 
   if (loading) {
     return (
@@ -61,10 +65,48 @@ export const RatePlan7DayRates = memo(function RatePlan7DayRates({ ratePlanId }:
 
   const dates = units[0].days.slice(0, 7).map((d) => d.date);
 
+  const isToday = startDate === today();
+
   return (
     <div className="w-[15.5rem] shrink-0 overflow-hidden rounded-md border bg-muted/20">
-      <div className="border-b px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-        Next 7 nights
+      <div className="flex items-center justify-between border-b px-1.5 py-0.5">
+        <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+          {isToday ? "Next 7 nights" : `${new Date(`${startDate}T00:00:00Z`).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`}
+        </span>
+        <div className="flex items-center gap-0.5">
+          <button
+            type="button"
+            title="Back 1 month"
+            onClick={() => jump(-28)}
+            className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+          >
+            <ChevronsLeft className="h-3 w-3" />
+          </button>
+          <button
+            type="button"
+            title="Back 1 week"
+            onClick={() => jump(-7)}
+            className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+          >
+            <ChevronLeft className="h-3 w-3" />
+          </button>
+          <button
+            type="button"
+            title="Forward 1 week"
+            onClick={() => jump(7)}
+            className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+          >
+            <ChevronRight className="h-3 w-3" />
+          </button>
+          <button
+            type="button"
+            title="Forward 1 month"
+            onClick={() => jump(28)}
+            className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+          >
+            <ChevronsRight className="h-3 w-3" />
+          </button>
+        </div>
       </div>
       <table className="w-full table-fixed border-collapse text-[10px] leading-[1.1]">
         <thead>
