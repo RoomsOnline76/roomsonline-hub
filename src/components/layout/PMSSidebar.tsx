@@ -25,7 +25,6 @@ import {
   Gauge,
   Radar,
   SlidersHorizontal,
-  Brain,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -87,7 +86,7 @@ export const pmsNavGroups: NavGroup[] = [
       { title: "Night Audit", icon: Moon, href: "/pms/night-audit", module: "night-audit" },
       { title: "Messaging", icon: MessageSquare, href: "/pms/messaging", module: "messaging" },
       { title: "Reports", icon: BarChart3, href: "/pms/reports", module: "reports" },
-      { title: "Intelligence", icon: Brain, href: "/dashboard/insights", module: "intelligence", platformOnly: true },
+      // Intelligence lives in the admin menu only — never in the ROL'OS sidebar.
       { title: "Staff", icon: UserCog, href: "/pms/staff", module: "staff" },
       { title: "Branding", icon: Palette, href: "/pms/branding", module: "branding" },
       { title: "Integrations", icon: Code2, href: "/pms/integrations", module: "integrations" },
