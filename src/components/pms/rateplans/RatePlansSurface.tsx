@@ -408,7 +408,7 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
 
         {!readOnly && (
           <Dialog open={!!editor} onOpenChange={(open) => { if (!open) setEditor(null); }}>
-            <DialogContent className="max-h-[92vh] max-w-5xl overflow-y-auto">
+            <DialogContent className="flex max-h-[92vh] w-[calc(100vw-1.5rem)] max-w-[min(72rem,calc(100vw-1.5rem))] flex-col gap-4 overflow-hidden p-4 sm:p-6">
               <DialogHeader>
                 <DialogTitle>{editor?.ratePlanId ? "Edit rate plan" : "New rate plan"}</DialogTitle>
               </DialogHeader>
