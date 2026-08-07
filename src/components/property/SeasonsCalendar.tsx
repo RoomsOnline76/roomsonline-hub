@@ -9,6 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ChevronLeft, ChevronRight, Plus, Trash2, X, Lock, CalendarPlus, Building2, BedDouble } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { isSeasonExpired } from "@/lib/seasonLifecycle";
 
 const SEASON_COLORS = [
   { name: "Red", value: "red", bg: "bg-red-200", border: "border-danger-border", text: "text-destructive", cell: "bg-danger-surface" },
@@ -148,6 +149,19 @@ export default function SeasonsCalendar({
   const [selectionEnd, setSelectionEnd] = useState<Date | null>(null);
   const [editForm, setEditForm] = useState({ name: "", color: "red", minStay: 1, maxStay: 30 });
   const [selectedRateTypeId, setSelectedRateTypeId] = useState<string>("");
+  /** Past seasons are hidden by default — they can no longer be sold. */
+  const [showPastSeasons, setShowPastSeasons] = useState(false);
+
+  const expiredSeasonIds = useMemo(
+    () => new Set(seasons.filter((s) => isSeasonExpired(s)).map((s) => s.id)),
+    [seasons],
+  );
+  /** Seasons the owner can still sell (plus past ones while the toggle is on). */
+  const visibleSeasons = useMemo(
+    () => (showPastSeasons ? seasons : seasons.filter((s) => !expiredSeasonIds.has(s.id))),
+    [seasons, expiredSeasonIds, showPastSeasons],
+  );
+
 
   // Normalize legacy seasons that don't have periods array on first render
   React.useEffect(() => {
@@ -162,7 +176,10 @@ export default function SeasonsCalendar({
     }
   }, []); // only on mount
 
-  const selectedSeason = useMemo(() => seasons.find((s) => s.id === selectedSeasonId) || null, [seasons, selectedSeasonId]);
+  const selectedSeason = useMemo(
+    () => visibleSeasons.find((s) => s.id === selectedSeasonId) || null,
+    [visibleSeasons, selectedSeasonId],
+  );
   const currentRoom = useMemo(() => roomTypes.find((r) => r.id === selectedRoomType), [roomTypes, selectedRoomType]);
   const linkedRateTypes = useMemo(() => {
     const linked = currentRoom?.linkedRateTypes || [];
@@ -468,11 +485,12 @@ export default function SeasonsCalendar({
         </div>
 
         {/* Legend */}
-        {seasons.length > 0 && (
-          <div className="flex flex-wrap gap-2">
-            {seasons.map((s, i) => {
-              const c = getSeasonColor(s, i);
+        {(visibleSeasons.length > 0 || expiredSeasonIds.size > 0) && (
+          <div className="flex flex-wrap items-center gap-2">
+            {visibleSeasons.map((s) => {
+              const c = getSeasonColor(s, seasons.indexOf(s));
               const periodCount = getSeasonPeriods(s).length;
+              const expired = expiredSeasonIds.has(s.id);
               return (
                 <button
                   key={s.id}
@@ -480,11 +498,13 @@ export default function SeasonsCalendar({
                   className={cn(
                     "flex items-center gap-1 px-2 py-0.5 rounded text-xs border transition-all",
                     c.bg, c.border, c.text,
+                    expired && "opacity-60",
                     selectedSeasonId === s.id && "ring-2 ring-primary shadow-sm",
                   )}
                 >
                   {s.name || s.title}
                   {periodCount > 1 && <span className="opacity-60">({periodCount})</span>}
+                  {expired && <span className="opacity-70">· past</span>}
                   {!isReadOnly && (
                     <Trash2
                       className="h-3 w-3 ml-1 opacity-50 hover:opacity-100"
@@ -494,8 +514,19 @@ export default function SeasonsCalendar({
                 </button>
               );
             })}
+            {expiredSeasonIds.size > 0 && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-6 text-[10px]"
+                onClick={() => { setShowPastSeasons((v) => !v); setIsAddingPeriod(false); }}
+              >
+                {showPastSeasons ? "Hide" : "Show"} past seasons ({expiredSeasonIds.size})
+              </Button>
+            )}
           </div>
         )}
+
 
         {/* Add Season Form (when range selected) */}
         {isAdding && selectionStart && selectionEnd && (
@@ -653,9 +684,13 @@ export default function SeasonsCalendar({
           </Card>
         )}
 
-        {seasons.length === 0 && !isAdding && (
+        {visibleSeasons.length === 0 && !isAdding && (
           <div className="text-center py-8 text-sm text-muted-foreground">
-            {isReadOnly ? "No seasons synced from PMS." : "No seasons defined. Click \"Add Season\" to get started."}
+            {expiredSeasonIds.size > 0
+              ? "No current seasons — only past seasons exist. Use \"Show past seasons\" to review them."
+              : isReadOnly
+                ? "No seasons synced from PMS."
+                : "No seasons defined. Click \"Add Season\" to get started."}
           </div>
         )}
       </div>
@@ -663,7 +698,7 @@ export default function SeasonsCalendar({
       {/* ═══════════════════════════════════════════════════════════════ */}
       {/* SECTION 2: ROOM RATES BY SEASON (per room/unit)               */}
       {/* ═══════════════════════════════════════════════════════════════ */}
-      {seasons.length > 0 && (
+      {visibleSeasons.length > 0 && (
         <div className="space-y-4">
           <div className="border-t pt-4">
             <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
@@ -732,8 +767,8 @@ export default function SeasonsCalendar({
                         </tr>
                       </thead>
                       <tbody>
-                        {seasons.map((season, sIdx) => {
-                          const c = getSeasonColor(season, sIdx);
+                        {visibleSeasons.map((season) => {
+                          const c = getSeasonColor(season, seasons.indexOf(season));
                           return (
                             <tr key={season.id} className="border-b last:border-b-0">
                               <td className="py-1.5 px-2">

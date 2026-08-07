@@ -127,12 +127,15 @@ describe("draftToPayload", () => {
 
 describe("readCalendarSeasons", () => {
   it("reads periods, sorts by first window and normalises min stay", () => {
-    const seasons = readCalendarSeasons({
-      seasons: [
-        { id: 2, title: "Low", from: "2026-05-01", to: "2026-06-30", minStay: 0 },
-        { id: 1, name: "High", minStay: 3, periods: [{ from: "2026-12-11", to: "2027-01-03" }, { from: "2026-02-02", to: "2026-02-06" }] },
-      ],
-    } as never);
+    const seasons = readCalendarSeasons(
+      {
+        seasons: [
+          { id: 2, title: "Low", from: "2026-05-01", to: "2026-06-30", minStay: 0 },
+          { id: 1, name: "High", minStay: 3, periods: [{ from: "2026-12-11", to: "2027-01-03" }, { from: "2026-02-02", to: "2026-02-06" }] },
+        ],
+      } as never,
+      { includeExpired: true },
+    );
     expect(seasons.map((s) => s.name)).toEqual(["High", "Low"]);
     expect(seasons[0].periods[0].from).toBe("2026-02-02");
     expect(seasons[0].min_stay).toBe(3);
@@ -209,5 +212,23 @@ describe("pricing by season: promotion and live seeding", () => {
   it("seeding an empty matrix leaves the draft untouched", () => {
     const s = withUnits();
     expect(ratePlanDraftReducer(s, { type: "seed_matrix", matrix: new Map() })).toBe(s);
+  });
+});
+
+describe("readCalendarSeasons: expired seasons", () => {
+  const blob = {
+    seasons: [
+      { id: 1, name: "Old", from: "2020-01-01", to: "2020-02-01" },
+      { id: 2, name: "Live", from: "2099-01-01", to: "2099-02-01" },
+      { id: 3, name: "Mixed", periods: [{ from: "2020-05-01", to: "2020-06-01" }, { from: "2099-05-01", to: "2099-06-01" }] },
+    ],
+  } as never;
+
+  it("drops seasons whose every window is in the past", () => {
+    expect(readCalendarSeasons(blob).map((s) => s.name)).toEqual(["Mixed", "Live"]);
+  });
+
+  it("keeps them when explicitly asked", () => {
+    expect(readCalendarSeasons(blob, { includeExpired: true })).toHaveLength(3);
   });
 });

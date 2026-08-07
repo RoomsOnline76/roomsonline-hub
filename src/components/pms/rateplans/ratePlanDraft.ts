@@ -9,6 +9,7 @@
  */
 
 import type { Json } from "@/integrations/supabase/types";
+import { filterLiveSeasons } from "@/lib/seasonLifecycle";
 
 export type DifferentialType = "none" | "amount" | "percent";
 export type SeasonPricingMode = "none" | "absolute" | "differential";
@@ -258,8 +259,15 @@ export const unitFor = (draft: RatePlanDraft, roomTypeId: string): DraftUnit | u
 export const seasonUnitRate = (rate: DraftSeasonRate, roomTypeId: string): string =>
   rate.unit_rates[roomTypeId] ?? "";
 
-/** Read the Calendar's seasons out of a property's amenities blob. Read-only. */
-export function readCalendarSeasons(amenities: Json | null | undefined): CalendarSeason[] {
+/**
+ * Read the Calendar's seasons out of a property's amenities blob. Read-only.
+ * Seasons whose every window is in the past are dropped by default — they can no
+ * longer be sold, so they must not add dead columns to the pricing matrix.
+ */
+export function readCalendarSeasons(
+  amenities: Json | null | undefined,
+  options: { includeExpired?: boolean } = {},
+): CalendarSeason[] {
   const amen = (amenities ?? {}) as Record<string, unknown>;
   const raw = Array.isArray(amen.seasons) ? (amen.seasons as Record<string, unknown>[]) : [];
   const out: CalendarSeason[] = [];
@@ -285,7 +293,7 @@ export function readCalendarSeasons(amenities: Json | null | undefined): Calenda
     });
   }
   out.sort((a, b) => a.periods[0].from.localeCompare(b.periods[0].from));
-  return out;
+  return options.includeExpired ? out : filterLiveSeasons(out);
 }
 
 const numeric = (value: string): number | null => {
