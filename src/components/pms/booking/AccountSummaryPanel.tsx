@@ -350,7 +350,36 @@ export function AccountSummaryPanel({
               <span>Outstanding</span>
               <span className={`font-mono ${totals.outstanding > 0 ? "text-destructive" : "text-success"}`}>R {money(totals.outstanding)}</span>
             </div>
+
+            {/* Attribution on the latest issued document — the recon view. */}
+            {issued && (
+              <>
+                <Separator className="my-1.5" />
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Attribution</p>
+                <div className="flex justify-between gap-2">
+                  <span>Billed to</span>
+                  <span className="text-right font-medium">
+                    {issued.bill_to_name || (issued.bill_to_type === "channel"
+                      ? channelSourceLabel(issued.channel_key)
+                      : guestName)}
+                  </span>
+                </div>
+                {issued.commission_amount != null && issued.commission_amount > 0 && (
+                  <>
+                    <div className="flex justify-between">
+                      <span>Commission{issued.commission_rate ? ` (${issued.commission_rate}%)` : ""}</span>
+                      <span className="font-mono text-destructive">R {money(Number(issued.commission_amount))}</span>
+                    </div>
+                    <div className="flex justify-between font-semibold">
+                      <span>Net payable</span>
+                      <span className="font-mono">R {money(Number(issued.net_payable ?? issued.total))}</span>
+                    </div>
+                  </>
+                )}
+              </>
+            )}
           </div>
+
         </div>
       </div>
     </TooltipProvider>
