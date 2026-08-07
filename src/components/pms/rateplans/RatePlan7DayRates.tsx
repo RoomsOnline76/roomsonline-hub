@@ -52,7 +52,7 @@ export const RatePlan7DayRates = memo(function RatePlan7DayRates({ ratePlanId }:
 
   if (loading) {
     return (
-      <div className="flex w-[13.5rem] items-center justify-center rounded-md border bg-muted/30">
+      <div className="flex w-[15.5rem] items-center justify-center rounded-md border bg-muted/30">
         <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
       </div>
     );
@@ -62,14 +62,14 @@ export const RatePlan7DayRates = memo(function RatePlan7DayRates({ ratePlanId }:
   const dates = units[0].days.slice(0, 7).map((d) => d.date);
 
   return (
-    <div className="w-[13.5rem] shrink-0 overflow-hidden rounded-md border bg-muted/20">
+    <div className="w-[15.5rem] shrink-0 overflow-hidden rounded-md border bg-muted/20">
       <div className="border-b px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
         Next 7 nights
       </div>
       <table className="w-full table-fixed border-collapse text-[10px] leading-[1.1]">
         <thead>
           <tr className="text-muted-foreground">
-            <th className="w-12 px-1 py-0.5 text-left font-normal">Unit</th>
+            <th className="w-14 px-1 py-0.5 text-left font-normal">Unit</th>
             {dates.map((d) => (
               <th
                 key={d}
