@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import {
   format,
   startOfMonth,
@@ -13,6 +13,7 @@ import {
   startOfDay,
   addDays,
 } from "date-fns";
+
 
 interface EmbedDatePickerProps {
   checkIn: string;
@@ -40,6 +41,19 @@ export function EmbedDatePicker({
   const [currentMonth, setCurrentMonth] = useState(startOfMonth(initialMonth));
   const [selectingCheckOut, setSelectingCheckOut] = useState(false);
   const [internalOpen, setInternalOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(
+    typeof window !== "undefined" ? window.innerWidth < 480 : false
+  );
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia("(max-width: 479px)");
+    const onChange = () => setIsMobile(mq.matches);
+    onChange();
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+
 
   const isOpen = controlledOpen !== undefined ? controlledOpen : internalOpen;
   const setIsOpen = (v: boolean) => {
@@ -126,22 +140,47 @@ export function EmbedDatePicker({
         {label}
       </button>
 
+      {/* Mobile backdrop */}
+      {isOpen && isMobile && (
+        <div
+          onClick={() => setIsOpen(false)}
+          style={{ position: "fixed", inset: 0, zIndex: 9998, background: "rgba(0,0,0,0.45)" }}
+        />
+      )}
+
       {/* Calendar dropdown */}
       {isOpen && (
         <div
-          style={{
-            position: "absolute",
-            top: "100%",
-            left: 0,
-            zIndex: 50,
-            marginTop: "6px",
-            width: "310px",
-            background: "#fff",
-            borderRadius: "14px",
-            boxShadow: "0 16px 48px rgba(0,0,0,0.14), 0 4px 12px rgba(0,0,0,0.06)",
-            overflow: "hidden",
-          }}
+          style={
+            isMobile
+              ? {
+                  position: "fixed",
+                  left: "50%",
+                  top: "50%",
+                  transform: "translate(-50%, -50%)",
+                  zIndex: 9999,
+                  width: "min(340px, calc(100vw - 24px))",
+                  maxHeight: "calc(100vh - 48px)",
+                  overflowY: "auto",
+                  background: "#fff",
+                  borderRadius: "16px",
+                  boxShadow: "0 16px 48px rgba(0,0,0,0.28)",
+                }
+              : {
+                  position: "absolute",
+                  top: "100%",
+                  left: 0,
+                  zIndex: 50,
+                  marginTop: "6px",
+                  width: "310px",
+                  background: "#fff",
+                  borderRadius: "14px",
+                  boxShadow: "0 16px 48px rgba(0,0,0,0.14), 0 4px 12px rgba(0,0,0,0.06)",
+                  overflow: "hidden",
+                }
+          }
         >
+
           {/* Month nav */}
           <div style={{ padding: "14px 16px 8px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <MonthNavBtn label="‹" onClick={() => setCurrentMonth(subMonths(currentMonth, 1))} />
@@ -233,7 +272,29 @@ export function EmbedDatePicker({
                 : "Select check-out date"}
             </div>
           )}
+
+          {isMobile && (
+            <div style={{ padding: "10px 12px 14px" }}>
+              <button
+                onClick={() => setIsOpen(false)}
+                style={{
+                  width: "100%",
+                  padding: "11px",
+                  border: "none",
+                  borderRadius: "10px",
+                  background: brandColor,
+                  color: fontColor,
+                  fontSize: "13px",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                Done
+              </button>
+            </div>
+          )}
         </div>
+
       )}
     </div>
   );
