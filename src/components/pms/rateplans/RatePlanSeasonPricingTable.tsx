@@ -12,6 +12,7 @@ import type {
   SeasonPricingMode,
 } from "./ratePlanDraft";
 import { seasonRateFor, seasonUnitRate } from "./ratePlanDraft";
+import { seasonColor, type SeasonColorMap } from "@/lib/seasonColors";
 
 interface RoomTypeOption {
   id: string;
@@ -21,6 +22,8 @@ interface RoomTypeOption {
 interface Props {
   draft: RatePlanDraft;
   seasons: CalendarSeason[];
+  /** Season name -> Calendar-authored colour, so columns match the Calendar. */
+  seasonColors?: SeasonColorMap;
   roomTypes: RoomTypeOption[];
   /** Rates the live booking engine resolves today, per season per unit. */
   liveMatrix?: LiveSeasonMatrix;
@@ -64,6 +67,7 @@ const fmtMoney = (n: number) => `R${n.toLocaleString("en-ZA", { maximumFractionD
 export const RatePlanSeasonPricingTable = memo(function RatePlanSeasonPricingTable({
   draft,
   seasons,
+  seasonColors,
   roomTypes,
   liveMatrix,
   liveMatrixLoading,
