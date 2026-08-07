@@ -263,14 +263,20 @@ export function AIConciergePanel({
       }
 
       // Add assistant response
+      const proposal: BookingProposal | undefined = data?.booking_proposal || undefined;
       const assistantMessage: ConciergeMessage = {
         id: crypto.randomUUID(),
         type: 'assistant',
         content: data?.narrative_response || "I found some options for you!",
         suggestions: data?.suggestions || [],
+        proposal,
         timestamp: new Date(),
       };
       setMessages(prev => [...prev, assistantMessage]);
+
+      // TOBI assembled a stay — set it up so the guest only has to confirm
+      if (proposal) applyProposal(proposal);
+
 
       // Handle surprise gift and track delight delivery
       if (data?.surprise_gift) {
