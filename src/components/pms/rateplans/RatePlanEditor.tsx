@@ -393,7 +393,7 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
     toast.success(ratePlanId ? "Rate plan updated" : "Rate plan created");
     setLegacyRefresh((n) => n + 1);
     onSaved();
-  }, [draft, propertyId, ratePlanId, onSaved]);
+  }, [draft, propertyId, ratePlanId, onSaved, noun]);
 
   if (loading) {
     return (
