@@ -273,14 +273,23 @@ export function draftToPayload(draft: RatePlanDraft) {
     })),
     season_rates: draft.season_rates
       .filter((s) => s.mode !== "none")
-      .map((s) => ({
-        calendar_season_id: s.calendar_season_id,
-        mode: s.mode,
-        base_rate: s.mode === "absolute" ? numeric(s.base_rate) : null,
-        differential_type: s.mode === "differential" ? s.differential_type : "none",
-        differential_value: s.mode === "differential" ? numeric(s.differential_value) : null,
-        extra_adult_rate: numeric(s.extra_adult_rate),
-      })),
+      .map((s) => {
+        const unit_values: Record<string, number> = {};
+        for (const u of draft.units) {
+          const raw = s.unit_rates[u.room_type_id];
+          const n = numeric(raw ?? "");
+          if (n !== null) unit_values[u.room_type_id] = n;
+        }
+        return {
+          calendar_season_id: s.calendar_season_id,
+          mode: s.mode,
+          base_rate: s.mode === "absolute" ? numeric(s.base_rate) : null,
+          differential_type: s.mode === "differential" ? s.differential_type : "none",
+          differential_value: s.mode === "differential" ? numeric(s.differential_value) : null,
+          extra_adult_rate: numeric(s.extra_adult_rate),
+          unit_values,
+        };
+      }),
   };
 }
 
