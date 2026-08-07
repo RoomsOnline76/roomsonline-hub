@@ -82,6 +82,9 @@ export const emptyDraft = (): RatePlanDraft => ({
   season_rates: [],
 });
 
+/** Live nightly rates the booking engine currently resolves: season id -> unit id -> amount. */
+export type LiveSeasonMatrix = Map<string, Map<string, number>>;
+
 export type DraftAction =
   | { type: "reset"; draft: RatePlanDraft }
   | { type: "field"; key: keyof RatePlanDraft; value: RatePlanDraft[keyof RatePlanDraft] }
@@ -93,7 +96,12 @@ export type DraftAction =
   /** Push one value into every unit of a season column. */
   | { type: "fill_season_column"; calendarSeasonId: string; value: string; roomTypeIds: string[] }
   /** Push one unit's value across every priced season (copy to the right). */
-  | { type: "fill_unit_row"; roomTypeId: string; sourceCalendarSeasonId: string; calendarSeasonIds: string[] };
+  | { type: "fill_unit_row"; roomTypeId: string; sourceCalendarSeasonId: string; calendarSeasonIds: string[] }
+  /**
+   * Seed the matrix from the rates the live booking engine resolves today. Only the
+   * seasons in `matrix` are touched; `calendarSeasonId` limits it to one column.
+   */
+  | { type: "seed_matrix"; matrix: LiveSeasonMatrix; calendarSeasonId?: string };
 
 const emptySeasonRate = (calendarSeasonId: string): DraftSeasonRate => ({
   calendar_season_id: calendarSeasonId,
@@ -104,6 +112,11 @@ const emptySeasonRate = (calendarSeasonId: string): DraftSeasonRate => ({
   extra_adult_rate: "",
   unit_rates: {},
 });
+
+/** Typing a rate into a "Not priced" column promotes it to a fixed seasonal rate. */
+const promoted = (rate: DraftSeasonRate, value: string): DraftSeasonRate =>
+  rate.mode === "none" && value !== "" ? { ...rate, mode: "absolute" } : rate;
+
 
 export function ratePlanDraftReducer(state: RatePlanDraft, action: DraftAction): RatePlanDraft {
   switch (action.type) {
