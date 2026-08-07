@@ -104,6 +104,9 @@ export function AppSidebar() {
   const isActive = (href: string) => location.pathname === href;
 
   const canAccessItem = (item: NavItem) => {
+    // ROL'OS owners manage bookings inside the ROL'OS shell (/pms/bookings),
+    // so the workspace Bookings entry is hidden from the admin menu for them.
+    if (item.id === 'bookings' && hasRolProperties && !isAdmin && !isDev) return false;
     return hasMinRole(userRole as UserRole, item.minRole);
   };
 
