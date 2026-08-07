@@ -277,7 +277,7 @@ export const RatePlanRateMatrix = memo(function RatePlanRateMatrix({
                     <td
                       key={d}
                       title={`${u.name} · ${d}${holidayName(d) ? ` · ${holidayName(d)}` : ""}${day ? ` · R${day.price.toLocaleString()} (${sourceLabel(day)})` : ""}`}
-                      className={`px-0.5 text-center font-mono text-[10px] tabular-nums ${i === 0 ? "border-l" : ""} ${columnTint(d, seasonByDate.get(d), seasonColors)} ${
+                      className={`px-0.5 text-center font-mono text-[10px] tabular-nums ${i === 0 ? "border-l-2 border-foreground/10 bg-muted/20" : ""} ${columnTint(d, seasonByDate.get(d), seasonColors)} ${
                         day?.source === "daily_override" ? "font-semibold text-warning-foreground" : ""
                       }`}
                     >
