@@ -435,8 +435,18 @@ export default function PMSReports() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Card>
             <CardHeader className="pb-1"><CardTitle className="text-xs text-muted-foreground font-medium">Revenue</CardTitle></CardHeader>
-            <CardContent><p className="text-2xl font-bold">R{fmt(stats.totalRevenue)}</p><p className="text-xs text-muted-foreground">{stats.totalBookings} bookings</p></CardContent>
+            <CardContent>
+              <p className="text-2xl font-bold">R{fmt(stats.totalRevenue)}</p>
+              <p className="text-xs text-muted-foreground">{stats.totalBookings} bookings</p>
+              {revenueMix?.hasSplit && (
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Accom R{fmt(revenueMix.accommodation)} · F&amp;B R{fmt(revenueMix.fnb)}
+                  {revenueMix.other > 0 ? ` · Other R${fmt(revenueMix.other)}` : ""}
+                </p>
+              )}
+            </CardContent>
           </Card>
+
           <Card>
             <CardHeader className="pb-1"><CardTitle className="text-xs text-muted-foreground font-medium flex items-center gap-1"><Percent className="h-3 w-3" />Occupancy</CardTitle></CardHeader>
             <CardContent><p className="text-2xl font-bold">{stats.occupancy.toFixed(1)}%</p><p className="text-xs text-muted-foreground">{stats.bookedNights}/{stats.availableNights} nights</p></CardContent>
