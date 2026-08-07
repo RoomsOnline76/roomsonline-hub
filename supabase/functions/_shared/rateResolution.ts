@@ -510,8 +510,11 @@ export function compressToPeriods(days: DayRate[]): RatePeriod[] {
 /** Human summary for readiness panels and sync logs. */
 export function describeCoverage(expectedDays: number, cov: RateCoverage): string {
   const parts: string[] = [];
+  if ((cov.daily_override_days ?? 0) > 0) parts.push(`${cov.daily_override_days} daily override`);
   if (cov.calendar_days > 0) parts.push(`${cov.calendar_days} calendar`);
+  if ((cov.plan_season_days ?? 0) > 0) parts.push(`${cov.plan_season_days} plan season`);
   if ((cov.relational_days ?? 0) > 0) parts.push(`${cov.relational_days} rate-plan season`);
+
   if (cov.rack_days > 0) parts.push(`${cov.rack_days} rack rate`);
   if (cov.unit_daily_days > 0) parts.push(`${cov.unit_daily_days} unit daily rate`);
   const detail = parts.length > 0 ? ` — ${parts.join(", ")}` : "";
