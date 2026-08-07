@@ -12,8 +12,8 @@
  *
  * Priority per night, highest first:
  *   1. daily_override    — Calendar-owned manual price for that exact date
- *   2. calendar_season   — season_rates authored against the active Calendar season
- *   3. plan_season       — rolos_rate_plan_season_rates (absolute, or +amount / +percent)
+ *   2. plan_season       — rolos_rate_plan_season_rates (absolute, or +amount / +percent)
+ *   3. calendar_season   — legacy season_rates authored in the old Calendar rate grid
  *   4. relational_season — rolos_rate_seasons + rolos_rate_prices (legacy tier)
  *   5. rack_rate         — rate plan base rate
  *   6. unit_daily_rate   — hostfully_room_types.daily_rate (last resort)
