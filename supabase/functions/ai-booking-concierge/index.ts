@@ -213,7 +213,21 @@ function parseUserQuery(query: string): ParsedIntent {
     }
   }
 
+  // Flexible dates: "flexible", "around the 12th", "give or take", "any weekend in March"
+  if (/\bflexible\b|\bflexi\b|give or take|either side|\bor so\b|around the|\bany weekend\b|\bwhenever\b|\bopen (?:on|to) dates\b/.test(normalizedQuery)) {
+    intent.flexible_dates = true;
+  }
+  if (/\bfirm\b|\bexact(?:ly)? those dates\b|\bfixed dates\b|\bcan'?t move\b/.test(normalizedQuery)) {
+    intent.flexible_dates = false;
+  }
+
+  // Multi-property interest: "two places", "split the trip", "road trip", "more than one"
+  if (/\bmore than one\b|\btwo (?:places|properties|stops)\b|\bsplit (?:the )?(?:trip|stay)\b|road trip|\bmulti[- ]?(?:stop|destination)\b|\banother property\b/.test(normalizedQuery)) {
+    intent.multi_property = true;
+  }
+
   return intent;
+
 }
 
 // ============================================================================
