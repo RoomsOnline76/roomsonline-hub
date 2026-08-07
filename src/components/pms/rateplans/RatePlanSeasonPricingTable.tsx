@@ -145,18 +145,21 @@ export const RatePlanSeasonPricingTable = memo(function RatePlanSeasonPricingTab
                 const windows = upcomingWindows(season);
                 const shown = windows.slice(0, 2);
                 const extra = windows.length - shown.length;
+                const colour = seasonColor(season.name, seasonColors);
                 return (
                   <th
                     key={season.calendar_season_id}
-                    className={`w-[190px] min-w-[190px] max-w-[190px] border-l p-2 text-left align-top ${rate.mode === "none" ? "opacity-70" : ""}`}
+                    className={`w-[190px] min-w-[190px] max-w-[190px] border-l p-2 text-left align-top ${colour.tint} ${rate.mode === "none" ? "opacity-70" : ""}`}
                   >
                     <div className="space-y-1.5">
                       <div className="flex items-center gap-1.5">
-                        <span className="truncate text-xs font-semibold">{season.name}</span>
+                        <span className={`h-2 w-2 shrink-0 rounded-sm ${colour.dot}`} aria-hidden />
+                        <span className={`truncate text-xs font-semibold ${colour.text}`}>{season.name}</span>
                         {season.min_stay ? (
                           <Badge variant="outline" className="px-1 py-0 text-[10px]">{season.min_stay}n</Badge>
                         ) : null}
                       </div>
+
                       {windows.length > 0 ? (
                         <div
                           className="space-y-0.5 text-[10px] font-normal leading-tight text-muted-foreground"
