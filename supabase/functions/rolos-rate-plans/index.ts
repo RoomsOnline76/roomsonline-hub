@@ -811,6 +811,58 @@ async function migrateCalendarRates(sb: any, propertyId: string, ratePlanId: str
   return { dry_run: false, migrated: rows.length, skipped: cells.length - pending.length, pending: [] };
 }
 
+/** Every active plan on the property, with how many legacy cells each still needs. */
+async function propertyLegacyRateAudit(sb: any, propertyId: string) {
+  const { data: plans } = await sb
+    .from("rolos_rate_plans")
+    .select("id, name, is_active")
+    .eq("property_id", propertyId)
+    .eq("is_active", true)
+    .is("deleted_at", null);
+
+  const results: { rate_plan_id: string; name: string; legacy_cells: number; pending_cells: number }[] = [];
+  for (const plan of ((plans ?? []) as any[])) {
+    const audit = await legacyRateAudit(sb, propertyId, String(plan.id));
+    results.push({
+      rate_plan_id: String(plan.id),
+      name: String(plan.name ?? "Rate plan"),
+      legacy_cells: audit.legacy_cells,
+      pending_cells: audit.pending_cells,
+    });
+  }
+
+  return {
+    plans: results,
+    plans_pending: results.filter((r) => r.pending_cells > 0).length,
+    pending_cells: results.reduce((sum, r) => sum + r.pending_cells, 0),
+  };
+}
+
+/** Import the legacy Calendar rates for every plan on the property at once. */
+async function migratePropertyCalendarRates(sb: any, propertyId: string, dryRun: boolean) {
+  const audit = await propertyLegacyRateAudit(sb, propertyId);
+  if (dryRun) {
+    return { dry_run: true, migrated: 0, plans_migrated: 0, plans: audit.plans, pending_cells: audit.pending_cells };
+  }
+
+  let migrated = 0;
+  let plansMigrated = 0;
+  const failures: string[] = [];
+  for (const plan of audit.plans) {
+    if (plan.pending_cells === 0) continue;
+    const result = await migrateCalendarRates(sb, propertyId, plan.rate_plan_id, false);
+    if ((result as any).error) {
+      failures.push(`${plan.name}: ${(result as any).error}`);
+      continue;
+    }
+    migrated += (result as any).migrated ?? 0;
+    plansMigrated += 1;
+  }
+
+  return { dry_run: false, migrated, plans_migrated: plansMigrated, failures };
+}
+
+
 
 
 /** Copy a plan and everything attached to it onto sibling properties. */
