@@ -19,6 +19,7 @@ export interface GroupBlock {
   release_date: string | null;
   status: string;
   attrition_charged: boolean;
+  package_id?: string | null;
   room_type?: { name: string } | null;
 }
 
