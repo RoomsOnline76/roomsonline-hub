@@ -1409,29 +1409,17 @@ async function handleCancelReservation(body: unknown, supabase: any): Promise<Re
     requiredRooms.set(room.room_type_id, (requiredRooms.get(room.room_type_id) || 0) + 1);
   }
 
-  const dates = getDateRange(existing.arrival_date, existing.departure_date);
+  // Release inventory on the authoritative calendar, then mirror to the cache
+  // (derive-and-upsert: never delta-patch only pre-existing cache rows).
   for (const [roomTypeId, count] of requiredRooms.entries()) {
-    for (const date of dates) {
-      const { data: avail } = await supabase
-        .from("pms_availability_cache")
-        .select("id, available_units")
-        .eq("property_id", propertyId)
-        .eq("system_type", SOURCE)
-        .eq("external_room_type_id", roomTypeId)
-        .eq("date", date)
-        .single();
-
-      if (avail) {
-        await supabase
-          .from("pms_availability_cache")
-          .update({
-            available_units: (avail.available_units || 0) + count,
-            updated_at: new Date().toISOString(),
-            source_timestamp: new Date().toISOString(),
-          })
-          .eq("id", avail.id);
-      }
-    }
+    await applyBookedInventory(
+      supabase,
+      propertyId,
+      roomTypeId,
+      existing.arrival_date,
+      existing.departure_date,
+      -count,
+    );
   }
 
   // Also cancel in rolos_reservations if exists
