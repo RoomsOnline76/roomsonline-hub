@@ -2,6 +2,7 @@ import { memo, useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
 import { SA_PUBLIC_HOLIDAYS } from "@/lib/saPublicHolidays";
+import { seasonColor } from "@/lib/seasonColors";
 
 interface Day {
   date: string;
@@ -41,8 +42,12 @@ const isSunday = (iso: string) => new Date(`${iso}T00:00:00Z`).getUTCDay() === 0
 const holidayName = (iso: string): string | null =>
   SA_PUBLIC_HOLIDAYS[Number(iso.slice(0, 4))]?.[iso] ?? null;
 
-/** Column tint: public holidays win over weekends, Sundays get a lighter tint. */
-const columnTint = (iso: string) => {
+/**
+ * Column tint: the season colour overlays the calendar tint, so seasons read at a
+ * glance. Without a season, public holidays win over weekends; Sundays are lighter.
+ */
+const columnTint = (iso: string, season?: string) => {
+  if (season) return seasonColor(season).tint;
   if (holidayName(iso)) return "bg-primary/15";
   if (isWeekend(iso)) return "bg-amber-500/20 dark:bg-amber-400/15";
   if (isSunday(iso)) return "bg-amber-500/10 dark:bg-amber-400/10";
