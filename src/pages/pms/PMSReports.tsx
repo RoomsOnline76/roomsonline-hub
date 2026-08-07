@@ -23,6 +23,9 @@ import {
 } from "date-fns";
 import { PmsPageSkeleton } from "@/components/pms/PmsPageSkeleton";
 import { cancellationCategoryLabel } from "@/lib/revenueStatuses";
+import { useRevenueMix } from "@/hooks/useRevenueStreamTotals";
+import { RevenueMixPanel } from "@/components/pms/revenue/RevenueMixPanel";
+
 
 
 // ── Types ────────────────────────────────────────────────────────────────
@@ -90,6 +93,11 @@ export default function PMSReports() {
 
   const fromStr = format(dateRange.from, "yyyy-MM-dd");
   const toStr = format(dateRange.to, "yyyy-MM-dd");
+
+  // Revenue stream split (accommodation / F&B / other) for the same scope + period.
+  const { data: revenueMix } = useRevenueMix({ start: fromStr, end: toStr }, activePropertyIds);
+
+
 
   // ── Fetch bookings with infinite scroll pagination ────────────────────
 
@@ -322,7 +330,24 @@ export default function PMSReports() {
     if (chartData.length === 0) return;
     const headers = "Date,Bookings,Revenue,Occupancy %,ADR";
     const rows = chartData.map(d => `${d.date},${d.bookings},${d.revenue.toFixed(2)},${d.occupancy.toFixed(1)},${d.adr.toFixed(2)}`);
-    const blob = new Blob([headers + "\n" + rows.join("\n")], { type: "text/csv" });
+
+    // Revenue mix summary — posted folio revenue split by stream, plus per-property rows.
+    const mixLines: string[] = [];
+    if (revenueMix && revenueMix.total > 0) {
+      mixLines.push(
+        "",
+        "Revenue mix (posted folio revenue)",
+        "Property,Total,Accommodation,Food & Beverage,Other,Room nights,Accom ADR",
+        ...revenueMix.byProperty.map(
+          (p) =>
+            `"${p.propertyName.replace(/"/g, '""')}",${p.total.toFixed(2)},${p.accommodation.toFixed(2)},${p.fnb.toFixed(2)},${p.other.toFixed(2)},${p.nights},${p.accomAdr.toFixed(2)}`,
+        ),
+        `TOTAL,${revenueMix.total.toFixed(2)},${revenueMix.accommodation.toFixed(2)},${revenueMix.fnb.toFixed(2)},${revenueMix.other.toFixed(2)},${revenueMix.nights},${revenueMix.accomAdr.toFixed(2)}`,
+      );
+    }
+
+    const blob = new Blob([[headers, ...rows, ...mixLines].join("\n")], { type: "text/csv" });
+
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -410,8 +435,18 @@ export default function PMSReports() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Card>
             <CardHeader className="pb-1"><CardTitle className="text-xs text-muted-foreground font-medium">Revenue</CardTitle></CardHeader>
-            <CardContent><p className="text-2xl font-bold">R{fmt(stats.totalRevenue)}</p><p className="text-xs text-muted-foreground">{stats.totalBookings} bookings</p></CardContent>
+            <CardContent>
+              <p className="text-2xl font-bold">R{fmt(stats.totalRevenue)}</p>
+              <p className="text-xs text-muted-foreground">{stats.totalBookings} bookings</p>
+              {revenueMix?.hasSplit && (
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Accom R{fmt(revenueMix.accommodation)} · F&amp;B R{fmt(revenueMix.fnb)}
+                  {revenueMix.other > 0 ? ` · Other R${fmt(revenueMix.other)}` : ""}
+                </p>
+              )}
+            </CardContent>
           </Card>
+
           <Card>
             <CardHeader className="pb-1"><CardTitle className="text-xs text-muted-foreground font-medium flex items-center gap-1"><Percent className="h-3 w-3" />Occupancy</CardTitle></CardHeader>
             <CardContent><p className="text-2xl font-bold">{stats.occupancy.toFixed(1)}%</p><p className="text-xs text-muted-foreground">{stats.bookedNights}/{stats.availableNights} nights</p></CardContent>
@@ -425,6 +460,15 @@ export default function PMSReports() {
             <CardContent><p className="text-2xl font-bold">R{fmt(stats.revpar)}</p><p className="text-xs text-muted-foreground">Rev per Available Room</p></CardContent>
           </Card>
         </div>
+
+        {/* Revenue mix — accommodation vs F&B vs other, with per-property roll-up */}
+        <RevenueMixPanel
+          dateRange={{ start: fromStr, end: toStr }}
+          propertyIds={activePropertyIds}
+          periodLabel={`${format(dateRange.from, "d MMM")} – ${format(dateRange.to, "d MMM yyyy")}`}
+        />
+
+
 
         {/* Cancellation analysis */}
         {cancellationAnalysis && (

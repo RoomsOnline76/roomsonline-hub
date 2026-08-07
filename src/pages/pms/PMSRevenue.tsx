@@ -30,6 +30,9 @@ import {
 } from "lucide-react";
 import { PriceLabsPanel } from "./PMSPriceLabs";
 import { PmsPageSkeleton } from "@/components/pms/PmsPageSkeleton";
+import { useRevenueMix } from "@/hooks/useRevenueStreamTotals";
+import { RevenueMixPanel } from "@/components/pms/revenue/RevenueMixPanel";
+
 
 // ============================================================================
 // Yield Rules Hook
@@ -517,51 +520,28 @@ export default function PMSRevenue() {
   });
 
   // === Revenue stream split (folio postings) ===
-  // Only present for properties that configured an F&B / breakfast split.
-  const { data: streamRows = [] } = useQuery({
-    queryKey: ["rev-streams", activeIdsKey, historyStart, today],
-    queryFn: async () => {
-      const { data: folios } = await supabase
-        .from("rolos_folios" as any)
-        .select("id, booking:bookings!inner(id, property_id, check_in_date)")
-        .in("property_id", activeIds);
-      const folioIds = (folios || [])
-        .filter((f: any) => {
-          const d = f.booking?.check_in_date;
-          return !d || (d >= historyStart && d <= today);
-        })
-        .map((f: any) => f.id);
-      if (!folioIds.length) return [];
-      const { data } = await supabase
-        .from("rolos_folio_transactions" as any)
-        .select("amount, revenue_stream, transaction_type")
-        .in("folio_id", folioIds);
-      return data || [];
-    },
-    enabled: queryEnabled,
-  });
+  // Shared source of truth so Revenue, Reports and the dashboard never disagree.
+  const { data: revenueMix } = useRevenueMix({ start: historyStart, end: today }, activeIds);
 
   // Total vs Accommodation-only reporting view. Drives KPIs, forecast and charts.
   const [revenueView, setRevenueView] = useState<"total" | "accommodation">("total");
 
-  const streamMetrics = useMemo(() => {
-    const totals = { accommodation: 0, fnb: 0, other: 0 };
-    (streamRows as any[]).forEach((r) => {
-      const amt = Number(r.amount || 0);
-      if (amt <= 0 || r.transaction_type === "payment") return;
-      const key = r.revenue_stream === "fnb" || r.revenue_stream === "other" ? r.revenue_stream : "accommodation";
-      totals[key as keyof typeof totals] += amt;
-    });
-    const hasSplit = totals.fnb > 0 || totals.other > 0;
-    const grand = totals.accommodation + totals.fnb + totals.other;
-    // Share of posted revenue that is pure accommodation — used to restate
-    // booking-level gross figures (which always include F&B) as net accommodation.
-    const accommodationShare = hasSplit && grand > 0 ? totals.accommodation / grand : 1;
-    return { ...totals, hasSplit, accommodationShare };
-  }, [streamRows]);
+  const streamMetrics = useMemo(
+    () => ({
+      accommodation: revenueMix?.accommodation || 0,
+      fnb: revenueMix?.fnb || 0,
+      other: revenueMix?.other || 0,
+      hasSplit: revenueMix?.hasSplit || false,
+      // Share of posted revenue that is pure accommodation — used to restate
+      // booking-level gross figures (which always include F&B) as net accommodation.
+      accommodationShare: revenueMix?.accommodationShare ?? 1,
+    }),
+    [revenueMix],
+  );
 
   const accommodationOnly = revenueView === "accommodation" && streamMetrics.hasSplit;
   const revFactor = accommodationOnly ? streamMetrics.accommodationShare : 1;
+
 
   // Fetch rate plans
   const { data: ratePlans = [] } = useQuery({
@@ -1003,29 +983,13 @@ export default function PMSRevenue() {
               </Card>
             </div>
 
-            {/* Revenue stream split — only shown once a property posts F&B revenue */}
-            {streamMetrics.hasSplit && (
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                <Card>
-                  <CardContent className="pt-4">
-                    <p className="text-xs text-muted-foreground mb-1">Net accommodation revenue</p>
-                    <p className="text-xl font-bold tabular-nums">{fmtCompact(streamMetrics.accommodation)}</p>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="pt-4">
-                    <p className="text-xs text-muted-foreground mb-1">F&amp;B revenue</p>
-                    <p className="text-xl font-bold tabular-nums text-primary">{fmtCompact(streamMetrics.fnb)}</p>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="pt-4">
-                    <p className="text-xs text-muted-foreground mb-1">Other revenue</p>
-                    <p className="text-xl font-bold tabular-nums">{fmtCompact(streamMetrics.other)}</p>
-                  </CardContent>
-                </Card>
-              </div>
-            )}
+            {/* Revenue mix — Accommodation / F&B / Other, with per-property roll-up */}
+            <RevenueMixPanel
+              dateRange={{ start: historyStart, end: today }}
+              propertyIds={activeIds}
+              periodLabel={`Past ${historyDays} days`}
+            />
+
 
             <div className="grid lg:grid-cols-2 gap-4">
               {/* Revenue Timeline */}
