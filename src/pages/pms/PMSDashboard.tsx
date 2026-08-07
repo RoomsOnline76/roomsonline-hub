@@ -3296,8 +3296,12 @@ function BookingDetail({
           <User className="h-4 w-4" />{b.guest_name}
           {sourceChannel.isRuSourced && (
             <div className="flex items-center gap-1.5 ml-2">
-              <ChannelLogo channelName={sourceChannel.channelLogoKey} size="sm" />
-              <span className="text-sm font-normal text-muted-foreground">{sourceChannel.label}</span>
+              {sourceChannel.hasSpecificSource && (
+                <>
+                  <ChannelLogo channelName={sourceChannel.channelLogoKey} size="sm" />
+                  <span className="text-sm font-normal text-muted-foreground">{sourceChannel.label}</span>
+                </>
+              )}
               <Badge className="bg-orange-500 hover:bg-orange-600 text-white text-[10px] px-1.5 py-0 font-bold">{CHANNEL_SOURCE_BADGE}</Badge>
             </div>
           )}
