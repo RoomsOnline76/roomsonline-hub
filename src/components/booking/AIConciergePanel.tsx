@@ -51,6 +51,7 @@ interface ConciergeMessage {
   type: 'user' | 'assistant' | 'suggestion';
   content: string;
   suggestions?: ConciergeSuggestion[];
+  proposal?: BookingProposal;
   timestamp: Date;
 }
 
@@ -63,6 +64,20 @@ interface ConciergeSuggestion {
   savings?: number;
   is_best_value?: boolean;
 }
+
+interface BookingProposal {
+  check_in: string;
+  check_out: string;
+  nights: number;
+  guests: { adults: number; children: number; infants: number };
+  currency: string;
+  rooms: { room_type_id: string; room_type_name: string; rate_per_night: number; total: number }[];
+  total: number;
+  voucher_code?: string;
+  qualifying_special?: { id: string; name: string; label: string } | null;
+  recap: string;
+}
+
 
 const QUICK_CHIPS = [
   "This weekend for 2",
