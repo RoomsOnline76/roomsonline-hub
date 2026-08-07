@@ -242,7 +242,7 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
   }, [propertyId]);
 
   // What the live booking engine resolves today per season per unit — used for the
-  // placeholders and the "bring in live rates" seeding. Non-blocking.
+  // placeholders and the legacy Calendar rate import. Non-blocking.
   const unitSignature = draft.units.map((u) => u.room_type_id).sort().join(",");
   const baseRate = draft.base_rate;
   const pricingModel = draft.pricing_model;
@@ -286,11 +286,11 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
     (calendarSeasonId?: string) => {
       const target = calendarSeasonId ? liveMatrix.get(calendarSeasonId) : null;
       if (calendarSeasonId && (!target || target.size === 0)) {
-        toast.info("No live rates found for that season");
+        toast.info("No legacy Calendar rates found for that season");
         return;
       }
       dispatch({ type: "seed_matrix", matrix: liveMatrix, calendarSeasonId });
-      toast.success(calendarSeasonId ? "Season filled from live rates" : "Matrix filled from live rates");
+      toast.success(calendarSeasonId ? "Season filled from legacy Calendar rates" : "Matrix filled from legacy Calendar rates");
     },
     [liveMatrix],
   );
