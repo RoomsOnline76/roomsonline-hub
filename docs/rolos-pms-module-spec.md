@@ -199,7 +199,14 @@ Both triggers use `app.syncing_room_types` session variable to prevent recursive
 
 ## 6. Rate Plans & Pricing Engine
 
-**File**: `src/pages/pms/PMSRatePlans.tsx`
+**File**: `src/pages/pms/PMSRatePlans.tsx` (surface: `src/components/pms/rateplans/RatePlansSurface.tsx`)
+
+**The rule:** Calendar = seasons only (when). Rate Plans = commercial rates and unit links
+(what it costs).
+
+Rate Plans is the single configurator for a ROL'OS property's rates. Season **dates** are
+painted only in the Calendar and appear here read-only; season **pricing** is authored only
+here.
 
 ### Pricing Models
 
@@ -207,30 +214,43 @@ Both triggers use `app.syncing_room_types` session variable to prevent recursive
 |---|---|---|
 | Per Room | `per_room` | Flat rate per room per night |
 | Per Person | `per_person` | Rate × number of guests |
-| Per Room + Extras | `per_room_extra` | Base room rate + per-extra-guest surcharge |
-| Tiered | `tiered` | Different rates per occupancy tier |
+| Per Person Sharing | `per_person_sharing` | Base for 2 guests, extra per additional |
+| Per Unit | `per_unit` | Rate × units × nights |
 
-### Features
+### Editor sections
 
-- Create/edit rate plans with name, code, description, pricing model, base rate, min stay
-- Link rate plans to specific room types via `rolos_rate_plan_room_types` junction table
-- Toggle active/inactive with visual distinction (inactive plans shown at 50% opacity with "Inactive" badge)
-- Deposit requirement toggle with percentage
+1. **Basics** — name, code, description, pricing model, base rate, deposit, active toggle.
+2. **Pricing by Season** — one row per Calendar season; absolute nightly rate or a
+   differential (`+amount` / `+percent`) off the base. Dates are not editable here.
+3. **Restrictions** — min/max stay, advance-booking minimum and maximum.
+4. **Linked Units** — room types linked to the plan, each with an optional differential.
+5. **Live Preview** — nightly rates per linked unit and the tier that produced each one,
+   computed by the same pure engine the booking path uses.
 
-### Seasonal Rates
+### Calculation
 
-Table: `rolos_rate_seasons` with GiST-enforced overlap prevention
-- Season name, date range, rate multiplier
-- Day-of-week multipliers for dynamic pricing
+`supabase/functions/_shared/ratePricing.ts` is the pure effective-rate engine; every
+consumer reaches it through the resolver adapter. See
+`docs/architecture/rate-plans-adapter-note.md` for the tier precedence and the
+`properties.rate_resolution_mode` kill switch.
 
-### Bidirectional Sync with Admin
+### Admin surface
 
-Rate plans sync with `properties.amenities.pms_rate_types` JSONB via database triggers:
+- **ROL'OS properties** — Admin → Edit Property → Rates & Pricing shows a read-only Rate
+  Plans summary plus a "Manage Rate Plans in ROL'OS" deep link. The legacy Rate Types,
+  Seasons and Rate Breakdown sub-tabs are hidden and Admin issues no rate writes.
+- **Non-ROL'OS properties** — the same Rate Plans configurator is shown fully editable,
+  and the legacy sub-tabs remain available.
 
-- **PMS → Overview**: `sync_rolos_rates_to_overview()` — On insert/update/delete of `rolos_rate_plans`, rebuilds the `amenities.pms_rate_types` JSONB array
-- **Overview → PMS**: `sync_overview_rates_to_rolos()` — On update of `properties.amenities`, upserts matching `rolos_rate_plans` rows
+### Backward compatibility
 
-Both use `app.syncing_rate_plans` session variable to prevent recursion.
+Saves also write the legacy relational rows and `properties.amenities.pms_rate_types`
+buckets that existing readers query, via the trigger pair
+`sync_rolos_rates_to_overview()` / `sync_overview_rates_to_rolos()` (both guarded by the
+`app.syncing_rate_plans` session variable to prevent recursion). All properties currently
+resolve rates through the legacy tiers, so these mirrors are live — see
+`docs/rates-shim-inventory.md` before removing any of them.
+
 
 ---
 
