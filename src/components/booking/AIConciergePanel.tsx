@@ -562,7 +562,60 @@ export function AIConciergePanel({
   };
 
   // Render suggestion card
+  const renderProposalCard = (proposal: BookingProposal) => {
+    const room = proposal.rooms[0];
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="mt-3 rounded-xl border border-primary/40 bg-card p-3"
+      >
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-primary mb-2">
+          Ready to book
+        </p>
+        <div className="space-y-1 text-sm">
+          <p className="font-medium">{room?.room_type_name}</p>
+          <p className="text-xs text-muted-foreground">
+            {format(parseISO(proposal.check_in), 'EEE d MMM')} – {format(parseISO(proposal.check_out), 'EEE d MMM')}
+            {' · '}{proposal.nights} night{proposal.nights === 1 ? '' : 's'}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {proposal.guests.adults} adult{proposal.guests.adults === 1 ? '' : 's'}
+            {proposal.guests.children ? `, ${proposal.guests.children} children` : ''}
+            {proposal.guests.infants ? `, ${proposal.guests.infants} infants` : ''}
+          </p>
+          {proposal.qualifying_special && (
+            <p className="text-xs font-medium text-green-600">
+              🏷️ {proposal.qualifying_special.name} — {proposal.qualifying_special.label}
+            </p>
+          )}
+          {proposal.voucher_code && (
+            <p className="text-xs font-medium text-green-600">
+              🎟️ Voucher {proposal.voucher_code} applied at checkout
+            </p>
+          )}
+          <p className="text-base font-bold pt-1">{formatPrice(proposal.total)}</p>
+        </div>
+        <div className="flex gap-2 mt-3">
+          <button
+            onClick={() => handleConfirmProposal(proposal)}
+            className="flex-1 text-xs font-medium px-3 py-2 rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition-opacity"
+          >
+            Looks good
+          </button>
+          <button
+            onClick={() => handleSubmitQuery("I'd like to change something about that")}
+            className="flex-1 text-xs font-medium px-3 py-2 rounded-lg border border-border hover:bg-accent transition-colors"
+          >
+            Change something
+          </button>
+        </div>
+      </motion.div>
+    );
+  };
+
   const renderSuggestionCard = (suggestion: ConciergeSuggestion) => (
+
     <motion.button
       key={suggestion.id}
       initial={{ opacity: 0, y: 10 }}
