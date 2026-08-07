@@ -401,6 +401,7 @@ Deno.serve(async (req) => {
           children: p.children ?? 0,
           room_preference: p.room_preference || null,
           special_requests: p.special_requests || null,
+          package_id: p.package_id ?? block.package_id ?? null,
           status: "picked_up",
         };
         if (p.rooming_list_id) {
