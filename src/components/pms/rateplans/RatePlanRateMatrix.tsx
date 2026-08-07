@@ -174,7 +174,7 @@ export const RatePlanRateMatrix = memo(function RatePlanRateMatrix({
                 Rate by season
               </th>
             )}
-            <th colSpan={7} className="border-l px-1">
+            <th colSpan={7} className="border-l-2 border-foreground/10 bg-muted/30 px-1">
               <div className="flex items-center justify-between gap-1">
                 <span className="font-medium">
                   {isToday
@@ -230,7 +230,7 @@ export const RatePlanRateMatrix = memo(function RatePlanRateMatrix({
               <th
                 key={d}
                 title={[d, d === today() ? "Today" : null, seasonByDate.get(d), holidayName(d)].filter(Boolean).join(" · ")}
-                className={`w-10 px-0.5 py-0.5 text-center font-normal ${i === 0 ? "border-l" : ""} ${columnTint(d, seasonByDate.get(d), seasonColors)} ${
+                className={`w-10 px-0.5 py-0.5 text-center font-normal ${i === 0 ? "border-l-2 border-foreground/10 bg-muted/30" : ""} ${columnTint(d, seasonByDate.get(d), seasonColors)} ${
                   isWeekend(d) || isSunday(d) || holidayName(d) ? "font-medium text-foreground" : ""
                 } ${d === today() ? "text-foreground ring-1 ring-inset ring-primary" : ""}`}
               >
@@ -277,7 +277,7 @@ export const RatePlanRateMatrix = memo(function RatePlanRateMatrix({
                     <td
                       key={d}
                       title={`${u.name} · ${d}${holidayName(d) ? ` · ${holidayName(d)}` : ""}${day ? ` · R${day.price.toLocaleString()} (${sourceLabel(day)})` : ""}`}
-                      className={`px-0.5 text-center font-mono text-[10px] tabular-nums ${i === 0 ? "border-l" : ""} ${columnTint(d, seasonByDate.get(d), seasonColors)} ${
+                      className={`px-0.5 text-center font-mono text-[10px] tabular-nums ${i === 0 ? "border-l-2 border-foreground/10 bg-muted/20" : ""} ${columnTint(d, seasonByDate.get(d), seasonColors)} ${
                         day?.source === "daily_override" ? "font-semibold text-warning-foreground" : ""
                       }`}
                     >
