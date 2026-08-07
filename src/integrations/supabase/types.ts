@@ -7207,6 +7207,7 @@ export type Database = {
           id: string
           infants: number
           nightly_rate: number | null
+          package_id: string | null
           pets: number
           rate_charged: number
           rate_plan_id: string | null
@@ -7223,6 +7224,7 @@ export type Database = {
           id?: string
           infants?: number
           nightly_rate?: number | null
+          package_id?: string | null
           pets?: number
           rate_charged: number
           rate_plan_id?: string | null
@@ -7239,6 +7241,7 @@ export type Database = {
           id?: string
           infants?: number
           nightly_rate?: number | null
+          package_id?: string | null
           pets?: number
           rate_charged?: number
           rate_plan_id?: string | null
@@ -7260,6 +7263,13 @@ export type Database = {
             columns: ["booking_id"]
             isOneToOne: false
             referencedRelation: "bookings_decrypted"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_booking_rooms_package_id_fkey"
+            columns: ["package_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_packages"
             referencedColumns: ["id"]
           },
           {
@@ -13581,6 +13591,16 @@ export type Database = {
           _units: number
         }
         Returns: undefined
+      }
+      rolos_hold_block_inventory: {
+        Args: {
+          _end_date: string
+          _property_id: string
+          _room_type_id: string
+          _start_date: string
+          _units: number
+        }
+        Returns: number
       }
       rolos_room_type_capacity: {
         Args: { _property_id: string; _room_type_id: string }

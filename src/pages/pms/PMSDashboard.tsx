@@ -37,7 +37,7 @@ import { BookingModifyDialog } from "@/components/pms/BookingModifyDialog";
 import { BookingInvoice } from "@/components/pms/BookingInvoice";
 import { AccountSummaryPanel } from "@/components/pms/booking/AccountSummaryPanel";
 import { BookingNotesTab } from "@/components/pms/BookingNotesTab";
-import { RoomPlanGrid, type RoomPlanCreatePayload, type RoomPlanMovePayload } from "@/components/pms/roomplan/RoomPlanGrid";
+import { RoomPlanGrid, type RoomPlanCreatePayload, type RoomPlanMovePayload, type RoomPlanGroupBlock } from "@/components/pms/roomplan/RoomPlanGrid";
 import type { RoomPlanBooking } from "@/components/pms/roomplan/RoomPlanBar";
 import { extractFunctionError } from "@/lib/functionError";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -584,6 +584,33 @@ export default function PMSDashboard() {
     },
     enabled: !!propertyId,
   });
+
+  // Held group inventory in range — drawn as hatching on the Room Plan type rows
+  // so staff can see rooms that are committed to a group but not yet picked up.
+  const { data: groupBlocks = [] } = useQuery({
+    queryKey: ["pms-cal-group-blocks", propertyId, format(dateRange.start, "yyyy-MM-dd"), format(dateRange.end, "yyyy-MM-dd")],
+    queryFn: async () => {
+      if (!propertyId) return [] as RoomPlanGroupBlock[];
+      const { data } = await supabase
+        .from("rolos_group_room_blocks")
+        .select("id, room_type_id, start_date, end_date, blocked_count, picked_up_count, status, group:rolos_groups!group_id(name)")
+        .eq("property_id", propertyId)
+        .eq("status", "blocked")
+        .lt("start_date", format(dateRange.end, "yyyy-MM-dd"))
+        .gt("end_date", format(dateRange.start, "yyyy-MM-dd"));
+      return ((data || []) as Array<Record<string, unknown>>).map((row) => ({
+        id: String(row.id),
+        group_name: (row.group as { name?: string } | null)?.name ?? null,
+        room_type_id: String(row.room_type_id),
+        start_date: String(row.start_date),
+        end_date: String(row.end_date),
+        blocked_count: Number(row.blocked_count || 0),
+        picked_up_count: Number(row.picked_up_count || 0),
+      })) as RoomPlanGroupBlock[];
+    },
+    enabled: !!propertyId,
+  });
+
 
   // Fetch bookings in range with pagination guard (auto-fetch all pages)
   const BOOKINGS_PAGE_SIZE = 500;
@@ -1972,6 +1999,7 @@ export default function PMSDashboard() {
                   roomTypes={visibleRoomTypes}
                   roomsByType={roomsByType}
                   bookings={bookings as unknown as RoomPlanBooking[]}
+                  groupBlocks={groupBlocks}
                   propertyName={displayName}
                   bookingsLoading={bookingsLoading}
                   isHoliday={getHolidayName}
@@ -3360,7 +3388,7 @@ function BookingDetail({
 
         {/* Folio Tab */}
         <TabsContent value="folio" className="mt-3">
-          <BookingFolioTab bookingId={b.id} />
+          <BookingFolioTab bookingId={b.id} propertyId={b.property_id ?? propertyId} />
         </TabsContent>
 
         {/* Invoice Tab */}

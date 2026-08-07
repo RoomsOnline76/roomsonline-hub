@@ -16,6 +16,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { callPmsApi } from "@/hooks/usePmsApi";
 import { toast } from "sonner";
 import { useCrmAccounts, useCrmScopeForProperty, type CrmAccount } from "@/hooks/useCrmAccounts";
+import { useActivePackages } from "@/hooks/useActivePackages";
 import {
   BookerSegmentationFields,
   emptyBookerSegmentation,
@@ -107,6 +108,7 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
   const [saving, setSaving] = useState(false);
   const portfolioMode = !!(portfolioOptions && portfolioOptions.length > 0);
   const [selectedPropertyId, setSelectedPropertyId] = useState<string>(propertyId || "");
+  const [packageId, setPackageId] = useState("none");
 
   useEffect(() => {
     setSelectedPropertyId(propertyId || "");
@@ -119,6 +121,12 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
   );
   const activeRoomTypes: RoomType[] = portfolioMode ? (selectedPortfolioProp?.roomTypes || []) : roomTypes;
   const activeRooms: Room[] = portfolioMode ? (selectedPortfolioProp?.rooms || []) : rooms;
+
+  // Packages are property-scoped, so a portfolio switch clears the selection.
+  const { packages } = useActivePackages(effectivePropertyId || null);
+  useEffect(() => { setPackageId("none"); }, [effectivePropertyId]);
+
+
 
   const [form, setForm] = useState({
     guest_name: "",
@@ -423,7 +431,19 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
       } catch (chargeErr) {
         console.warn("Service charge / revenue split apply failed:", chargeErr);
       }
+
+      // Package components post as stream-tagged folio lines, exactly as they do
+      // on a group pickup.
+      if (packageId !== "none") {
+        try {
+          await callPmsApi("apply_package", { booking_id: insertedData.id, package_id: packageId });
+        } catch (pkgErr) {
+          console.warn("Package apply failed:", pkgErr);
+          toast.error("Booking saved, but the package could not be applied");
+        }
+      }
     }
+
 
     setSaving(false);
     toast.success(`Booking created as "${autoStatus}"${validLines.length > 1 ? ` · ${validLines.length} rooms` : ""}`);
@@ -748,7 +768,23 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
                   <span className="text-muted-foreground">Accommodation ({lines.filter(l => l.room_type_id).length} room{lines.filter(l => l.room_type_id).length !== 1 ? "s" : ""})</span>
                   <span className="font-semibold">R{autoTotal.toLocaleString()}</span>
                 </div>
+                {packages.length > 0 && (
+                  <div>
+                    <Label className="text-[11px]">Package (optional)</Label>
+                    <Select value={packageId} onValueChange={setPackageId}>
+                      <SelectTrigger className="h-8"><SelectValue placeholder="No package" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">No package</SelectItem>
+                        {packages.map(pkg => (
+                          <SelectItem key={pkg.id} value={pkg.id}>{pkg.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-[10px] text-muted-foreground mt-1">Components post to the folio split by revenue stream (accommodation / F&amp;B).</p>
+                  </div>
+                )}
                 <div className="grid grid-cols-2 gap-2">
+
                   <div>
                     <Label className="text-[11px]">Booking Total (override)</Label>
                     <Input className="h-8" type="number" min={0} value={form.total_price} onChange={e => update("total_price", e.target.value)} placeholder={autoTotal ? `Auto: R${autoTotal.toLocaleString()}` : "0.00"} />

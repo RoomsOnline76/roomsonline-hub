@@ -309,37 +309,23 @@ Deno.serve(async (req) => {
           return json({ error: "end_date must be after start_date" }, 400);
         }
 
-        // Capacity guard: never hold more rooms than the room type actually has free.
-        // Materialise the calendar rows for the range (delta 0) then read what is free.
-        await supabase.rpc("rolos_apply_block_inventory", {
+        // Atomic capacity-guarded hold: the RPC locks every night in the range,
+        // refuses the whole hold on shortfall, and takes the rooms in the same
+        // statement sequence — so two concurrent creates cannot over-hold.
+        const { error: holdErr } = await supabase.rpc("rolos_hold_block_inventory", {
           _property_id: p.property_id,
           _room_type_id: p.room_type_id,
           _start_date: p.start_date,
           _end_date: p.end_date,
-          _delta: 0,
+          _units: p.blocked_count,
         });
-        const { data: capacityRows } = await supabase
-          .from("rolos_inventory_calendar")
-          .select("date, available_units")
-          .eq("property_id", p.property_id)
-          .eq("room_type_id", p.room_type_id)
-          .in("date", nightsBetween(p.start_date, p.end_date));
-        const shortfall = (capacityRows || []).filter(
-          (r: { available_units: number | null }) => Number(r.available_units || 0) < p.blocked_count,
-        );
-        if (shortfall.length) {
-          const worst = Math.min(...shortfall.map((r: { available_units: number | null }) => Number(r.available_units || 0)));
-          return json(
-            {
-              error: `Not enough inventory: only ${worst} room(s) free on ${shortfall[0].date}${
-                shortfall.length > 1 ? ` (and ${shortfall.length - 1} more night(s))` : ""
-              }.`,
-            },
-            409,
-          );
+        if (holdErr) {
+          const msg = String(holdErr.message || "");
+          if (msg.includes("INSUFFICIENT_INVENTORY")) {
+            return json({ error: msg.replace(/^.*INSUFFICIENT_INVENTORY:\s*/, "Not enough inventory: ") }, 409);
+          }
+          throw holdErr;
         }
-
-
 
         const { data: block, error } = await supabase
           .from("rolos_group_room_blocks")
@@ -358,19 +344,23 @@ Deno.serve(async (req) => {
           })
           .select("*")
           .single();
-        if (error) throw error;
+        if (error) {
+          // Give the rooms back — the hold already landed.
+          await supabase.rpc("rolos_apply_block_inventory", {
+            _property_id: p.property_id,
+            _room_type_id: p.room_type_id,
+            _start_date: p.start_date,
+            _end_date: p.end_date,
+            _delta: -p.blocked_count,
+          });
+          throw error;
+        }
 
-        await supabase.rpc("rolos_apply_block_inventory", {
-          _property_id: p.property_id,
-          _room_type_id: p.room_type_id,
-          _start_date: p.start_date,
-          _end_date: p.end_date,
-          _delta: p.blocked_count,
-        });
         await syncAvailabilityCache(supabase, p.property_id, p.room_type_id, p.start_date, p.end_date);
 
         return json({ success: true, block });
       }
+
 
       case "group_release_block": {
         const blockId = String(body?.block_id || "");
@@ -391,7 +381,7 @@ Deno.serve(async (req) => {
 
         const { data: block, error: blockErr } = await supabase
           .from("rolos_group_room_blocks")
-          .select("*, group:rolos_groups!group_id(id, name, contact_email, property_id, billing_mode, master_folio_id)")
+          .select("*, group:rolos_groups!group_id(id, name, contact_email, property_id, billing_mode, master_folio_id, deposit_amount)")
           .eq("id", p.block_id)
           .single();
         if (blockErr || !block) return json({ error: "Room block not found" }, 404);
@@ -416,6 +406,29 @@ Deno.serve(async (req) => {
         }
         const totalPrice = Math.round(nightlyRate * nights.length * 100) / 100;
 
+        // Payment status follows the group's billing mode AND its deposit state:
+        // individually-billed guests owe their own room; master/hybrid groups are
+        // billed centrally, and a settled deposit makes that a part-payment.
+        const billingMode = String(block.group?.billing_mode || "individual");
+        const centralBilled = billingMode === "master" || billingMode === "hybrid";
+        let paymentStatus = "pending";
+        if (centralBilled) {
+          paymentStatus = "invoiced";
+          const depositDue = Number(block.group?.deposit_amount || 0);
+          if (depositDue > 0 && block.group?.master_folio_id) {
+            const { data: payments } = await supabase
+              .from("rolos_folio_transactions")
+              .select("amount")
+              .eq("folio_id", block.group.master_folio_id)
+              .eq("transaction_type", "payment");
+            const paid = (payments || []).reduce(
+              (s: number, t: { amount: number | null }) => s + Math.abs(Number(t.amount || 0)),
+              0,
+            );
+            if (paid > 0) paymentStatus = "partial";
+          }
+        }
+
         const { data: booking, error: bookingErr } = await supabase
           .from("bookings")
           .insert({
@@ -430,7 +443,7 @@ Deno.serve(async (req) => {
             children: p.children ?? 0,
             total_price: totalPrice,
             status: "confirmed",
-            payment_status: block.group?.billing_mode === "individual" ? "pending" : "invoiced",
+            payment_status: paymentStatus,
             booking_channel: "group",
             integration_type: "rolos",
             special_requests: p.special_requests || null,
@@ -440,75 +453,92 @@ Deno.serve(async (req) => {
           .single();
         if (bookingErr) throw bookingErr;
 
-        await supabase.from("rolos_booking_rooms").insert({
-          booking_id: booking.id,
-          room_type_id: block.room_type_id,
-          rate_charged: totalPrice,
-          nightly_rate: nightlyRate || null,
-          adults: p.adults ?? 1,
-          children: p.children ?? 0,
-        });
-
-        // Rooming list line: update the placeholder if given, otherwise create one.
-        const roomingPayload = {
-          group_id: p.group_id,
-          block_id: p.block_id,
-          booking_id: booking.id,
-          room_type_id: block.room_type_id,
-          guest_name: p.guest_name,
-          guest_email: p.guest_email || null,
-          guest_phone: p.guest_phone || null,
-          arrival_date: arrival,
-          departure_date: departure,
-          adults: p.adults ?? 1,
-          children: p.children ?? 0,
-          room_preference: p.room_preference || null,
-          special_requests: p.special_requests || null,
-          package_id: p.package_id ?? block.package_id ?? null,
-          status: "picked_up",
-        };
-        if (p.rooming_list_id) {
-          await supabase.from("rolos_group_reservations").update(roomingPayload).eq("id", p.rooming_list_id);
-        } else {
-          await supabase.from("rolos_group_reservations").insert(roomingPayload);
-        }
-
-        const newPickedUp = (block.picked_up_count || 0) + 1;
-        const { error: counterErr } = await supabase
-          .from("rolos_group_room_blocks")
-          .update({
-            picked_up_count: newPickedUp,
-            status: newPickedUp >= (block.blocked_count || 0) ? "converted" : "blocked",
-          })
-          .eq("id", p.block_id);
-        if (counterErr) {
-          console.error("pickup: block counter update failed", counterErr);
-          throw counterErr;
-        }
-
-        // Blocked -> booked: the cache was already reduced when the block was created.
-        const { error: convertErr } = await supabase.rpc("rolos_convert_block_to_booked", {
-          _property_id: p.property_id,
-          _room_type_id: block.room_type_id,
-          _start_date: arrival,
-          _end_date: departure,
-          _units: 1,
-        });
-        if (convertErr) {
-          console.error("pickup: inventory convert failed", convertErr);
-          throw convertErr;
-        }
-        // Blocked -> booked is net-neutral, but re-derive the cache so it can never drift
-        // (and so pickup dates outside the original block window stay correct).
-        await syncAvailabilityCache(supabase, p.property_id, block.room_type_id, arrival, departure);
-
-
-
-        // Package expansion: post component lines already tagged by revenue stream.
         const packageId = p.package_id || block.package_id || null;
         let packageAddOn = 0;
-        if (packageId) {
+
+        /** Undo everything this pickup created — a half-picked-up room is worse than none. */
+        const rollbackPickup = async (stage: string, err: unknown) => {
+          console.error(`[pms-groups] pickup failed at ${stage}, rolling back`, err);
           try {
+            await supabase.from("rolos_group_reservations").update({ booking_id: null, status: "pending" })
+              .eq("booking_id", booking.id);
+            await supabase.from("rolos_booking_rooms").delete().eq("booking_id", booking.id);
+            await supabase.from("rolos_folio_transactions").delete().eq("reference", `pickup:${booking.id}`);
+            const { data: folio } = await supabase.from("rolos_folios").select("id").eq("booking_id", booking.id).maybeSingle();
+            if (folio?.id) {
+              await supabase.from("rolos_folio_transactions").delete().eq("folio_id", folio.id);
+              await supabase.from("rolos_folios").delete().eq("id", folio.id);
+            }
+            await supabase.from("bookings").delete().eq("id", booking.id);
+            await supabase
+              .from("rolos_group_room_blocks")
+              .update({ picked_up_count: block.picked_up_count || 0, status: block.status })
+              .eq("id", p.block_id);
+          } catch (rbErr) {
+            console.error("[pms-groups] pickup rollback failed", rbErr);
+          }
+        };
+
+        try {
+          const { error: roomErr } = await supabase.from("rolos_booking_rooms").insert({
+            booking_id: booking.id,
+            room_type_id: block.room_type_id,
+            rate_charged: totalPrice,
+            nightly_rate: nightlyRate || null,
+            adults: p.adults ?? 1,
+            children: p.children ?? 0,
+            package_id: packageId,
+          });
+          if (roomErr) throw roomErr;
+
+          // Rooming list line: update the placeholder if given, otherwise create one.
+          const roomingPayload = {
+            group_id: p.group_id,
+            block_id: p.block_id,
+            booking_id: booking.id,
+            room_type_id: block.room_type_id,
+            guest_name: p.guest_name,
+            guest_email: p.guest_email || null,
+            guest_phone: p.guest_phone || null,
+            arrival_date: arrival,
+            departure_date: departure,
+            adults: p.adults ?? 1,
+            children: p.children ?? 0,
+            room_preference: p.room_preference || null,
+            special_requests: p.special_requests || null,
+            package_id: packageId,
+            status: "picked_up",
+          };
+          const { error: roomingErr } = p.rooming_list_id
+            ? await supabase.from("rolos_group_reservations").update(roomingPayload).eq("id", p.rooming_list_id)
+            : await supabase.from("rolos_group_reservations").insert(roomingPayload);
+          if (roomingErr) throw roomingErr;
+
+          const newPickedUp = (block.picked_up_count || 0) + 1;
+          const { error: counterErr } = await supabase
+            .from("rolos_group_room_blocks")
+            .update({
+              picked_up_count: newPickedUp,
+              status: newPickedUp >= (block.blocked_count || 0) ? "converted" : "blocked",
+            })
+            .eq("id", p.block_id);
+          if (counterErr) throw counterErr;
+
+          // Blocked -> booked: the cache was already reduced when the block was created.
+          const { error: convertErr } = await supabase.rpc("rolos_convert_block_to_booked", {
+            _property_id: p.property_id,
+            _room_type_id: block.room_type_id,
+            _start_date: arrival,
+            _end_date: departure,
+            _units: 1,
+          });
+          if (convertErr) throw convertErr;
+          // Blocked -> booked is net-neutral, but re-derive the cache so it can never drift
+          // (and so pickup dates outside the original block window stay correct).
+          await syncAvailabilityCache(supabase, p.property_id, block.room_type_id, arrival, departure);
+
+          // Package expansion: post component lines already tagged by revenue stream.
+          if (packageId) {
             const { name: packageName, lines } = await expandPackageById(supabase, packageId, {
               subtotal: totalPrice,
               nights: nights.length,
@@ -518,9 +548,8 @@ Deno.serve(async (req) => {
             });
             packageAddOn = packageAddOnTotal(lines);
 
-            const useMaster = block.group?.billing_mode === "master" || block.group?.billing_mode === "hybrid";
             let folioId: string | null = null;
-            if (useMaster) {
+            if (centralBilled) {
               folioId = await ensureMasterFolio(supabase, {
                 id: p.group_id,
                 property_id: p.property_id,
@@ -548,8 +577,8 @@ Deno.serve(async (req) => {
                   created_by: userId,
                 })),
               );
-              if (txErr) console.error("pickup: package folio lines failed", txErr);
-              else await refreshFolioBalance(supabase, folioId);
+              if (txErr) throw txErr;
+              await refreshFolioBalance(supabase, folioId);
             }
 
             if (packageAddOn > 0) {
@@ -558,13 +587,15 @@ Deno.serve(async (req) => {
                 .update({ total_price: Math.round((totalPrice + packageAddOn) * 100) / 100 })
                 .eq("id", booking.id);
             }
-          } catch (pkgErr) {
-            console.error("pickup: package expansion failed", pkgErr);
           }
+        } catch (stepErr) {
+          await rollbackPickup("post-booking", stepErr);
+          return json({ error: stepErr instanceof Error ? stepErr.message : "Pickup failed and was rolled back" }, 500);
         }
 
         return json({ success: true, booking_id: booking.id, package_add_on: packageAddOn });
       }
+
 
       // ------------------------------------------------------- rooming list
       case "group_import_rooming_list": {

@@ -54,11 +54,24 @@ export interface RoomPlanCreatePayload {
   checkOut: Date;
 }
 
+/** A group room block still holding inventory for a room type / date range. */
+export interface RoomPlanGroupBlock {
+  id: string;
+  group_name: string | null;
+  room_type_id: string;
+  start_date: string;
+  end_date: string;
+  blocked_count: number;
+  picked_up_count: number;
+}
+
 interface RoomPlanGridProps {
   dates: Date[];
   roomTypes: RoomPlanRoomType[];
   roomsByType: Map<string, RoomPlanRoom[]>;
   bookings: RoomPlanBooking[];
+  /** Held (not yet picked up) group inventory, drawn as hatching on the type header. */
+  groupBlocks?: RoomPlanGroupBlock[];
   propertyName?: string | null;
   bookingsLoading?: boolean;
   compact?: boolean;
@@ -73,6 +86,7 @@ interface RoomPlanGridProps {
   onCreateBooking?: (payload: RoomPlanCreatePayload) => void;
   onMoveBooking?: (payload: RoomPlanMovePayload) => Promise<void> | void;
 }
+
 
 interface PlanRow {
   key: string;
@@ -98,6 +112,7 @@ export function RoomPlanGrid({
   roomTypes,
   roomsByType,
   bookings,
+  groupBlocks,
   propertyName,
   bookingsLoading,
   compact,
@@ -114,6 +129,27 @@ export function RoomPlanGrid({
   const colWidth = compact ? ROOM_PLAN_COL_W_COMPACT : ROOM_PLAN_COL_W;
   const [pendingMove, setPendingMove] = useState<(RoomPlanMovePayload & { fromLabel: string; toLabel: string }) | null>(null);
   const [saving, setSaving] = useState(false);
+
+  /** Rooms still held (blocked minus picked up) for this type on this night. */
+  const heldOn = useCallback(
+    (type: RoomPlanRoomType, date: Date): { rooms: number; labels: string } | null => {
+      if (!groupBlocks?.length) return null;
+      const day = format(date, "yyyy-MM-dd");
+      let rooms = 0;
+      const names: string[] = [];
+      for (const block of groupBlocks) {
+        if (block.room_type_id !== type.id && block.room_type_id !== type.linked_overview_id) continue;
+        if (day < block.start_date || day >= block.end_date) continue;
+        const remaining = Math.max(0, (block.blocked_count || 0) - (block.picked_up_count || 0));
+        if (remaining <= 0) continue;
+        rooms += remaining;
+        names.push(block.group_name || "Group");
+      }
+      return rooms > 0 ? { rooms, labels: [...new Set(names)].join(", ") } : null;
+    },
+    [groupBlocks]
+  );
+
 
   // Rows, grouped per room type: an "Unassigned" row plus one row per unit.
   const groups = useMemo(() => {
@@ -319,19 +355,32 @@ export function RoomPlanGrid({
                     </div>
                     {dates.map((date) => {
                       const rate = getRateForDate?.(group.type.id, date) ?? null;
+                      const held = heldOn(group.type, date);
                       return (
                         <div
                           key={date.toISOString()}
+                          title={held ? `${held.rooms} room${held.rooms === 1 ? "" : "s"} held — ${held.labels}` : undefined}
                           className={cn(
-                            "shrink-0 border-r text-center text-[9px] leading-[22px] text-muted-foreground last:border-r-0",
-                            isWeekend(date) && "bg-muted/40"
+                            "relative shrink-0 border-r text-center text-[9px] leading-[22px] text-muted-foreground last:border-r-0",
+                            isWeekend(date) && "bg-muted/40",
+                            held && "text-foreground/80"
                           )}
-                          style={{ width: colWidth, height: 22 }}
+                          style={{
+                            width: colWidth,
+                            height: 22,
+                            ...(held
+                              ? {
+                                  backgroundImage:
+                                    "repeating-linear-gradient(45deg, hsl(var(--warning) / 0.28) 0 3px, transparent 3px 6px)",
+                                }
+                              : null),
+                          }}
                         >
-                          {rate ? Math.round(rate).toLocaleString() : ""}
+                          {held ? `${held.rooms}·` : ""}{rate ? Math.round(rate).toLocaleString() : ""}
                         </div>
                       );
                     })}
+
                   </div>
 
                   {/* Unit rows */}

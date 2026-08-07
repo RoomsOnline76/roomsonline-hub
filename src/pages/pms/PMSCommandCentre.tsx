@@ -1173,6 +1173,7 @@ export default function PMSCommandCentre() {
 
       <BookingQuickViewSheet
         booking={selectedBooking}
+        propertyId={propertyId}
         onOpenChange={(open) => !open && setSelectedBooking(null)}
       />
     </div>
