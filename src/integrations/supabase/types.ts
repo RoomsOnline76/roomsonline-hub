@@ -8427,6 +8427,9 @@ export type Database = {
           name: string
           notes: string | null
           notes_json: Json
+          portal_enabled: boolean
+          portal_expires_at: string | null
+          portal_token: string | null
           property_id: string
           release_date: string | null
           status: Database["public"]["Enums"]["group_booking_status"]
@@ -8452,6 +8455,9 @@ export type Database = {
           name: string
           notes?: string | null
           notes_json?: Json
+          portal_enabled?: boolean
+          portal_expires_at?: string | null
+          portal_token?: string | null
           property_id: string
           release_date?: string | null
           status?: Database["public"]["Enums"]["group_booking_status"]
@@ -8477,6 +8483,9 @@ export type Database = {
           name?: string
           notes?: string | null
           notes_json?: Json
+          portal_enabled?: boolean
+          portal_expires_at?: string | null
+          portal_token?: string | null
           property_id?: string
           release_date?: string | null
           status?: Database["public"]["Enums"]["group_booking_status"]
