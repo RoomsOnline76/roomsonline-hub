@@ -66,6 +66,9 @@ export async function getRateResolutionModes(
 }
 
 function roundMoney(value: unknown): number | null {
+  // "no rate" must stay null: coercing it to 0 would log a phantom delta for
+  // every night a tier legitimately did not price.
+  if (value === null || value === undefined || value === "") return null;
   const n = Number(value);
   if (!Number.isFinite(n)) return null;
   return Math.round(n * 100) / 100;
