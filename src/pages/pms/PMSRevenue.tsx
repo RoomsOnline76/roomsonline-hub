@@ -541,6 +541,9 @@ export default function PMSRevenue() {
     enabled: queryEnabled,
   });
 
+  // Total vs Accommodation-only reporting view. Drives KPIs, forecast and charts.
+  const [revenueView, setRevenueView] = useState<"total" | "accommodation">("total");
+
   const streamMetrics = useMemo(() => {
     const totals = { accommodation: 0, fnb: 0, other: 0 };
     (streamRows as any[]).forEach((r) => {
@@ -550,8 +553,15 @@ export default function PMSRevenue() {
       totals[key as keyof typeof totals] += amt;
     });
     const hasSplit = totals.fnb > 0 || totals.other > 0;
-    return { ...totals, hasSplit };
+    const grand = totals.accommodation + totals.fnb + totals.other;
+    // Share of posted revenue that is pure accommodation — used to restate
+    // booking-level gross figures (which always include F&B) as net accommodation.
+    const accommodationShare = hasSplit && grand > 0 ? totals.accommodation / grand : 1;
+    return { ...totals, hasSplit, accommodationShare };
   }, [streamRows]);
+
+  const accommodationOnly = revenueView === "accommodation" && streamMetrics.hasSplit;
+  const revFactor = accommodationOnly ? streamMetrics.accommodationShare : 1;
 
   // Fetch rate plans
   const { data: ratePlans = [] } = useQuery({
@@ -579,7 +589,7 @@ export default function PMSRevenue() {
   // === Historical metrics (include all non-cancelled/failed bookings, not just paid) ===
   const historyMetrics = useMemo(() => {
     const active = historyBookings; // already filtered to exclude cancelled/failed
-    const gbv = active.reduce((s: number, b: any) => s + Number(b.total_price || 0), 0);
+    const gbv = active.reduce((s: number, b: any) => s + Number(b.total_price || 0), 0) * revFactor;
     const commission = active.reduce((s: number, b: any) => s + Number(b.calculated_commission || 0), 0);
     const avgAdr = active.length > 0 ? gbv / active.length : 0;
     const accommodationBase = streamMetrics.hasSplit ? streamMetrics.accommodation : gbv;
@@ -591,7 +601,7 @@ export default function PMSRevenue() {
       const ch = b.booking_channel || "Direct";
       if (!channels[ch]) channels[ch] = { count: 0, revenue: 0 };
       channels[ch].count += 1;
-      channels[ch].revenue += Number(b.total_price || 0);
+      channels[ch].revenue += Number(b.total_price || 0) * revFactor;
     });
     const channelBreakdown = Object.entries(channels)
       .map(([channel, d]) => ({ channel, ...d }))
@@ -602,13 +612,13 @@ export default function PMSRevenue() {
     active.forEach((b: any) => {
       const mo = (b.check_in_date as string)?.slice(0, 7) || "unknown";
       if (!monthly[mo]) monthly[mo] = { date: mo, revenue: 0, bookings: 0 };
-      monthly[mo].revenue += Number(b.total_price || 0);
+      monthly[mo].revenue += Number(b.total_price || 0) * revFactor;
       monthly[mo].bookings += 1;
     });
     const timeline = Object.values(monthly).sort((a, b) => a.date.localeCompare(b.date));
 
     return { gbv, commission, avgAdr, netAdr, accommodationBase, totalBookings: active.length, channelBreakdown, timeline };
-  }, [historyBookings, streamMetrics]);
+  }, [historyBookings, streamMetrics, revFactor]);
 
   // Generate daily forecast
   const forecast = useMemo<DayForecast[]>(() => {
@@ -626,7 +636,7 @@ export default function PMSRevenue() {
       const occupancy = (bookedRooms / totalRooms) * 100;
       const dayRevenue = overlapping.reduce((s: number, b: any) => {
         const nights = Math.max(1, differenceInDays(parseISO(b.check_out_date), parseISO(b.check_in_date)));
-        return s + Number(b.total_price || 0) / nights;
+        return s + (Number(b.total_price || 0) * revFactor) / nights;
       }, 0);
       const adr = bookedRooms > 0 ? dayRevenue / bookedRooms : 0;
 
@@ -655,7 +665,7 @@ export default function PMSRevenue() {
         suggestion, suggestedAdjustment, reason,
       };
     });
-  }, [futureBookings, totalRooms, forecastDays]);
+  }, [futureBookings, totalRooms, forecastDays, revFactor]);
 
   // Summary metrics
   const metrics = useMemo(() => {
@@ -712,6 +722,26 @@ export default function PMSRevenue() {
                   onClick={() => setViewMode("single")}
                 >
                   Single
+                </Button>
+              </div>
+            )}
+            {streamMetrics.hasSplit && (
+              <div className="inline-flex rounded-md border bg-muted/40 p-0.5">
+                <Button
+                  size="sm"
+                  variant={revenueView === "total" ? "default" : "ghost"}
+                  className="h-7 px-3 text-xs"
+                  onClick={() => setRevenueView("total")}
+                >
+                  Total
+                </Button>
+                <Button
+                  size="sm"
+                  variant={revenueView === "accommodation" ? "default" : "ghost"}
+                  className="h-7 px-3 text-xs"
+                  onClick={() => setRevenueView("accommodation")}
+                >
+                  Accommodation
                 </Button>
               </div>
             )}
@@ -776,7 +806,7 @@ export default function PMSRevenue() {
           <Card>
             <CardHeader className="pb-1">
               <CardTitle className="text-xs text-muted-foreground font-medium flex items-center gap-1">
-                <History className="h-3 w-3" />Past {historyDays}d GBV
+                <History className="h-3 w-3" />Past {historyDays}d {accommodationOnly ? "Accom. Rev" : "GBV"}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -934,7 +964,7 @@ export default function PMSRevenue() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <Card>
                 <CardContent className="pt-4">
-                  <p className="text-xs text-muted-foreground mb-1">Gross Booking Value</p>
+                  <p className="text-xs text-muted-foreground mb-1">{accommodationOnly ? "Accommodation Revenue" : "Gross Booking Value"}</p>
                   {historyLoading ? <Skeleton className="h-7 w-20" /> : (
                     <p className="text-xl font-bold tabular-nums">{fmtCompact(historyMetrics.gbv)}</p>
                   )}
@@ -951,15 +981,15 @@ export default function PMSRevenue() {
               <Card>
                 <CardContent className="pt-4">
                   <p className="text-xs text-muted-foreground mb-1">
-                    {streamMetrics.hasSplit ? "ADR (accommodation)" : "Average ADR"}
+                    {accommodationOnly ? "ADR (accommodation)" : "Average ADR"}
                   </p>
                   {historyLoading ? <Skeleton className="h-7 w-20" /> : (
                     <p className="text-xl font-bold tabular-nums">
-                      R{fmt(streamMetrics.hasSplit ? historyMetrics.netAdr : historyMetrics.avgAdr)}
+                      R{fmt(accommodationOnly ? historyMetrics.netAdr : historyMetrics.avgAdr)}
                     </p>
                   )}
-                  {streamMetrics.hasSplit && (
-                    <p className="text-[10px] text-muted-foreground mt-0.5">Gross R{fmt(historyMetrics.avgAdr)}</p>
+                  {accommodationOnly && (
+                    <p className="text-[10px] text-muted-foreground mt-0.5">Gross R{fmt(historyMetrics.avgAdr / (revFactor || 1))}</p>
                   )}
                 </CardContent>
               </Card>

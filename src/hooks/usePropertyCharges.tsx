@@ -217,6 +217,11 @@ export function usePropertyCharges(propertyId: string | null) {
             description: charge.description,
             display_order: charge.display_order,
             is_active: charge.is_active,
+            // Revenue-stream classification must survive the copy, otherwise
+            // F&B charges land as accommodation on the target property.
+            revenue_stream: charge.revenue_stream ?? 'accommodation',
+            is_included_in_rate: charge.is_included_in_rate ?? false,
+
           };
         });
 
