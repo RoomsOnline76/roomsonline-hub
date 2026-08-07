@@ -20,6 +20,7 @@ import { BREAKFAST_BASIS_LABELS } from "@/components/charges/ChargeCalculator";
 import { RatePlanEditor } from "@/components/pms/rateplans/RatePlanEditor";
 import { RatePlanSyncToOthersDialog } from "@/components/pms/rateplans/RatePlanSyncToOthersDialog";
 import { RatePlan7DayRates } from "@/components/pms/rateplans/RatePlan7DayRates";
+import { PropertyLegacyRatesBanner } from "@/components/pms/rateplans/PropertyLegacyRatesBanner";
 import { seasonColor, buildSeasonColorMap, type SeasonColorMap } from "@/lib/seasonColors";
 
 export const PRICING_MODELS = [
@@ -441,6 +442,9 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
                     </Button>
                   )}
                 </div>
+              )}
+              {!readOnly && section.plans.length > 0 && (
+                <PropertyLegacyRatesBanner propertyId={section.id} onMigrated={fetchData} />
               )}
               {section.plans.length === 0 ? (
                 plans.length > 0 ? <p className="text-sm text-muted-foreground italic">No rate plans for this property.</p> : null
