@@ -44,7 +44,9 @@ export type PropertySectionKey =
   | "rooms"             // Rooms overview
   | "images"            // Media
   
-  | "rates"             // Pricing / seasons / rate types
+  | "rates"             // Calendar / Seasons
+  | "policies"
+  | "charges"
   | "packages"
   | "specials"
   | "addons"
