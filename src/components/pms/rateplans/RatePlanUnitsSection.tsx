@@ -24,15 +24,18 @@ export const RatePlanUnitsSection = memo(function RatePlanUnitsSection({
   onToggle,
   onDifferential,
 }: Props) {
+  const noun = pricingNoun(draft.pricing_model);
   if (roomTypes.length === 0) {
-    return <p className="text-sm text-muted-foreground">No units found for this property. Add units first.</p>;
+    return (
+      <p className="text-sm text-muted-foreground">No {noun.plural} found for this property. Add {noun.plural} first.</p>
+    );
   }
 
   return (
     <div className="space-y-2">
       <p className="text-xs text-muted-foreground">
-        A difference is applied on top of this plan's rates for that unit only — useful when one unit always sells above
-        or below the rest.
+        A difference is applied on top of this plan's rates for that {noun.singular} only — useful when one{" "}
+        {noun.singular} always sells above or below the rest.
       </p>
       <div className="divide-y rounded-md border">
         {roomTypes.map((rt) => {

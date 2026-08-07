@@ -25,6 +25,7 @@ import {
   type DraftSeasonRate,
   type LiveSeasonMatrix,
   type RatePlanDraft,
+  pricingNoun,
 } from "./ratePlanDraft";
 
 
@@ -364,6 +365,8 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
     [legacyPending],
   );
 
+  const noun = useMemo(() => pricingNoun(draft.pricing_model), [draft.pricing_model]);
+
   const pricedSeasons = useMemo(() => draft.season_rates.filter((s) => s.mode !== "none").length, [draft.season_rates]);
 
 
@@ -374,7 +377,7 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
       return;
     }
     if (draft.units.length === 0) {
-      toast.error("Link at least one unit to this rate plan");
+      toast.error(`Link at least one ${noun.singular} to this rate plan`);
       return;
     }
     setSaving(true);
@@ -571,7 +574,7 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
       {/* 4. Linked Units */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">4. Linked units ({draft.units.length})</CardTitle>
+          <CardTitle className="text-base">4. Linked {noun.plural} ({draft.units.length})</CardTitle>
         </CardHeader>
         <CardContent>
           <RatePlanUnitsSection
