@@ -11,6 +11,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { z } from "npm:zod@3.23.8";
+import { expandPackageById, packageAddOnTotal } from "../_shared/packages.ts";
 
 const SOURCE = "roomsonline";
 
