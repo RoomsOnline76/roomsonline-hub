@@ -100,6 +100,8 @@ export interface RelationalSeasonRate {
   base_rate: number;
   extra_adult_rate?: number;
   min_stay_override?: number | null;
+  /** Authored season name (rolos_rate_seasons.name), for display in previews. */
+  season_name?: string | null;
 }
 
 export interface RateResolver {
@@ -325,7 +327,7 @@ export async function createRateResolver(
     if (planIds.length > 0) {
       const { data: relSeasons } = await supabase
         .from("rolos_rate_seasons")
-        .select("id, rate_plan_id, start_date, end_date, min_stay_override")
+        .select("id, rate_plan_id, name, start_date, end_date, min_stay_override")
         .in("rate_plan_id", planIds);
 
       const seasonRows = (relSeasons ?? []) as any[];
@@ -352,6 +354,7 @@ export async function createRateResolver(
               base_rate: base,
               extra_adult_rate: Number.isFinite(extra) && extra > 0 ? extra : undefined,
               min_stay_override: season.min_stay_override ?? null,
+              season_name: season.name ? String(season.name) : null,
             });
           }
         }

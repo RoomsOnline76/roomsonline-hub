@@ -81,6 +81,8 @@ export interface PricingRelationalRate {
   base_rate: number;
   extra_adult_rate?: number;
   min_stay_override?: number | null;
+  /** Authored season name, when known. */
+  season_name?: string | null;
 }
 
 /** A Calendar-owned manual override for one exact date. Always final. */
@@ -386,6 +388,7 @@ export function resolveNightRate(
         price: applyDifferential(rel.base_rate, diffType, diffValue),
         extra_guest_price: rel.extra_adult_rate,
         source: "relational_season",
+        season_name: rel.season_name?.trim() || season?.name,
       };
     }
   }
