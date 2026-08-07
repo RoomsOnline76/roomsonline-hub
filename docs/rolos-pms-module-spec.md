@@ -876,7 +876,9 @@ For ROL'OS properties (`is_rol_property = true`), data surfaces that overlap bet
 | Data Surface | Admin Location | PMS Location | Sync Mechanism |
 |---|---|---|---|
 | **Room Types** | Rooms tab (amenities.room_types) | /pms/rooms, /pms/room-types | `sync_overview_to_rolos_room_types` ↔ `sync_rolos_to_overview_room_types` triggers on `hostfully_room_types` / `rolos_room_types` |
-| **Rate Plans** | Rates tab (amenities.pms_rate_types) | /pms/rate-plans | `sync_overview_rates_to_rolos` ↔ `sync_rolos_rates_to_overview` triggers on `properties` / `rolos_rate_plans` |
+| **Rate Plans** | Rates tab — read-only summary + deep link for ROL'OS properties; full editable mirror for non-ROL'OS | /pms/rate-plans (single configurator, source of truth) | `sync_overview_rates_to_rolos` ↔ `sync_rolos_rates_to_overview` triggers on `properties` / `rolos_rate_plans` (backward-compatible mirror only) |
+| **Seasons** | Calendar (season painting — dates only) | Priced in /pms/rate-plans | Calendar remains the only season configurator; Rate Plans reads seasons read-only |
+
 | **Branding** | Branding tab (properties.brand_*) | /pms/branding | Shared DB columns — no trigger needed |
 | **Message Templates** | Templates tab (amenities.templates) | /pms/messaging | `sync_overview_templates_to_rolos` ↔ `sync_rolos_templates_to_overview` triggers on `properties` / `rolos_message_templates` |
 
