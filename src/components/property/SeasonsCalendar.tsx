@@ -696,115 +696,22 @@ export default function SeasonsCalendar({
       </div>
 
       {/* ═══════════════════════════════════════════════════════════════ */}
-      {/* SECTION 2: ROOM RATES BY SEASON (per room/unit)               */}
+      {/* SECTION 2: RATES LIVE IN RATE PLANS (read-only pointer)        */}
       {/* ═══════════════════════════════════════════════════════════════ */}
       {visibleSeasons.length > 0 && (
-        <div className="space-y-4">
-          <div className="border-t pt-4">
-            <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
-              <div className="flex items-center gap-2">
-                <BedDouble className="h-4 w-4 text-primary" />
-                <h3 className="text-sm font-semibold">Room Rates by Season</h3>
-                <span className="text-[10px] text-muted-foreground">(per room/unit)</span>
-              </div>
-              <div className="flex items-center gap-3 flex-wrap">
-                {roomTypes.length > 1 && (
-                  <div className="flex items-center gap-2">
-                    <Label className="text-xs text-muted-foreground whitespace-nowrap">Room:</Label>
-                    <Select value={selectedRoomType} onValueChange={(v) => onSelectedRoomTypeChange?.(v)}>
-                      <SelectTrigger className="h-8 text-xs w-[180px]">
-                        <SelectValue placeholder="Select room" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {roomTypes.map((r) => (
-                          <SelectItem key={r.id} value={r.id} className="text-xs">{r.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-                {linkedRateTypes.length > 0 && (
-                  <div className="flex items-center gap-2">
-                    <Label className="text-xs text-muted-foreground whitespace-nowrap">Rate Type:</Label>
-                    <Select value={selectedRateTypeId} onValueChange={(v) => setSelectedRateTypeId(v)}>
-                      <SelectTrigger className="h-8 text-xs w-[180px]">
-                        <SelectValue placeholder="Select rate type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {linkedRateTypes.map((rt) => (
-                          <SelectItem key={String(rt.id)} value={String(rt.id)} className="text-xs">{rt.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-              </div>
+        <div className="border-t pt-4">
+          <div className="flex items-start gap-2 rounded-lg border border-dashed p-3">
+            <BedDouble className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+            <div className="text-xs text-muted-foreground">
+              <span className="font-medium text-foreground">Nightly rates are captured in Rate Plans.</span>{" "}
+              The Calendar defines seasons — their dates, colours and minimum stay — only. Open{" "}
+              <span className="font-medium text-foreground">Rate Manager &rarr; Rate Plans &rarr; Pricing by season</span>{" "}
+              to set the amount each unit charges in every season.
             </div>
-
-            {currentRoom && (
-              <div className="space-y-2">
-                {roomTypes.length <= 1 && currentRoom && (
-                  <p className="text-xs text-muted-foreground mb-2">Rates for: <span className="font-medium text-foreground">{currentRoom.name}</span></p>
-                )}
-
-                {linkedRateTypes.length === 0 && (
-                  <div className="border rounded-lg p-4 text-center text-muted-foreground text-sm">
-                    No rate types linked to this room. Link rate types in the Rate Types tab.
-                  </div>
-                )}
-
-                {linkedRateTypes.length > 0 && selectedRateTypeId && (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-xs border-collapse">
-                      <thead>
-                        <tr className="border-b">
-                          <th className="text-left py-2 px-2 font-medium text-muted-foreground w-[140px]">Season</th>
-                          {rateFields.map((rf) => (
-                            <th key={rf.key} className="text-left py-2 px-2 font-medium text-muted-foreground">
-                              {rf.label} ({currency})
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {visibleSeasons.map((season) => {
-                          const c = getSeasonColor(season, seasons.indexOf(season));
-                          return (
-                            <tr key={season.id} className="border-b last:border-b-0">
-                              <td className="py-1.5 px-2">
-                                <div className="flex items-center gap-1.5">
-                                  <span className={cn("inline-block w-3 h-3 rounded-sm shrink-0", c.bg, c.border, "border")} />
-                                  <span className="font-medium">{season.name || season.title}</span>
-                                </div>
-                              </td>
-                              {rateFields.map((rf) => (
-                                <td key={rf.key} className="py-1.5 px-2">
-                                  <Input
-                                    className="h-7 text-xs w-[100px]"
-                                    type="number"
-                                    min={0}
-                                    value={getRate(season.id, "", rf.key) || ""}
-                                    onChange={(e) => updateRate(season.id, "", rf.key, parseFloat(e.target.value) || 0)}
-                                    disabled={isReadOnly}
-                                  />
-                                </td>
-                              ))}
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {!currentRoom && roomTypes.length === 0 && (
-              <p className="text-xs text-muted-foreground text-center py-4">Add rooms to this property to set rates per season.</p>
-            )}
           </div>
         </div>
       )}
+
     </div>
   );
 }
