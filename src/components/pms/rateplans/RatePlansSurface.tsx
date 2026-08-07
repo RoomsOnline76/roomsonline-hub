@@ -19,10 +19,11 @@ import { PackagesManager } from "@/components/pms/packages/PackagesManager";
 import { BREAKFAST_BASIS_LABELS } from "@/components/charges/ChargeCalculator";
 import { RatePlanEditor } from "@/components/pms/rateplans/RatePlanEditor";
 import { RatePlanSyncToOthersDialog } from "@/components/pms/rateplans/RatePlanSyncToOthersDialog";
-import { RatePlan7DayRates } from "@/components/pms/rateplans/RatePlan7DayRates";
 import { PropertyLegacyRatesBanner } from "@/components/pms/rateplans/PropertyLegacyRatesBanner";
-import { RatePlanSeasonGrid, type SeasonRateRow } from "@/components/pms/rateplans/RatePlanSeasonGrid";
-import { seasonColor, buildSeasonColorMap, type SeasonColorMap } from "@/lib/seasonColors";
+import { RatePlanRateMatrix } from "@/components/pms/rateplans/RatePlanRateMatrix";
+import { type SeasonRateRow } from "@/components/pms/rateplans/RatePlanSeasonGrid";
+
+import { buildSeasonColorMap, type SeasonColorMap } from "@/lib/seasonColors";
 import { canonicalPricingModel } from "@/components/pms/rateplans/ratePlanDraft";
 
 export const PRICING_MODELS = [
@@ -381,12 +382,13 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
                 </span>
               </div>
             ) : null}
-            {/* Units stacked one per row, priced by season — mirrors the sample strip rows. */}
+            {/* One row per unit: authored season prices and live sample nights aligned in the same row. */}
             <div className="mt-2 flex items-center gap-1 text-xs text-muted-foreground">
               <BedDouble className="h-3 w-3" />
               <span>{gridUnits.length} {gridUnits.length === 1 ? "unit" : "units"} · rate by season</span>
             </div>
-            <RatePlanSeasonGrid
+            <RatePlanRateMatrix
+              ratePlanId={plan.id}
               units={gridUnits}
               rows={planRateRows}
               baseRate={plan.base_rate}
@@ -394,17 +396,10 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
             />
           </CardContent>
         </Card>
-        {linkedIds.length > 0 && (
-          <RatePlan7DayRates
-            ratePlanId={plan.id}
-            seasonColors={seasonColors}
-            unitOrder={linkedIds}
-            hideUnitNames
-          />
-        )}
         </div>
       );
     };
+
 
 
     if (loading) {
