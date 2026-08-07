@@ -148,6 +148,54 @@ export function ratePlanDraftReducer(state: RatePlanDraft, action: DraftAction):
       };
     }
 
+    case "season_unit_rate": {
+      const existing = state.season_rates.find((s) => s.calendar_season_id === action.calendarSeasonId);
+      const current = existing ?? emptySeasonRate(action.calendarSeasonId);
+      const unit_rates = { ...current.unit_rates };
+      if (action.value === "") delete unit_rates[action.roomTypeId];
+      else unit_rates[action.roomTypeId] = action.value;
+      const next = { ...current, unit_rates };
+      return {
+        ...state,
+        season_rates: existing
+          ? state.season_rates.map((s) => (s.calendar_season_id === action.calendarSeasonId ? next : s))
+          : [...state.season_rates, next],
+      };
+    }
+
+    case "fill_season_column": {
+      const existing = state.season_rates.find((s) => s.calendar_season_id === action.calendarSeasonId);
+      const current = existing ?? emptySeasonRate(action.calendarSeasonId);
+      const unit_rates: Record<string, string> = { ...current.unit_rates };
+      for (const id of action.roomTypeIds) {
+        if (action.value === "") delete unit_rates[id];
+        else unit_rates[id] = action.value;
+      }
+      const next = { ...current, unit_rates };
+      return {
+        ...state,
+        season_rates: existing
+          ? state.season_rates.map((s) => (s.calendar_season_id === action.calendarSeasonId ? next : s))
+          : [...state.season_rates, next],
+      };
+    }
+
+    case "fill_unit_row": {
+      const source = state.season_rates.find((s) => s.calendar_season_id === action.sourceCalendarSeasonId);
+      const value = source?.unit_rates[action.roomTypeId] ?? "";
+      const targets = new Set(action.calendarSeasonIds);
+      return {
+        ...state,
+        season_rates: state.season_rates.map((s) => {
+          if (!targets.has(s.calendar_season_id) || s.mode === "none") return s;
+          const unit_rates = { ...s.unit_rates };
+          if (value === "") delete unit_rates[action.roomTypeId];
+          else unit_rates[action.roomTypeId] = value;
+          return { ...s, unit_rates };
+        }),
+      };
+    }
+
     default:
       return state;
   }
@@ -158,6 +206,10 @@ export const seasonRateFor = (draft: RatePlanDraft, calendarSeasonId: string): D
 
 export const unitFor = (draft: RatePlanDraft, roomTypeId: string): DraftUnit | undefined =>
   draft.units.find((u) => u.room_type_id === roomTypeId);
+
+/** The raw cell value for a unit in a season, "" when it inherits the column value. */
+export const seasonUnitRate = (rate: DraftSeasonRate, roomTypeId: string): string =>
+  rate.unit_rates[roomTypeId] ?? "";
 
 /** Read the Calendar's seasons out of a property's amenities blob. Read-only. */
 export function readCalendarSeasons(amenities: Json | null | undefined): CalendarSeason[] {
