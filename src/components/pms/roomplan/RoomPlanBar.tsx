@@ -5,6 +5,7 @@ import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/h
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { CHANNEL_SOURCE_BADGE } from "@/lib/channelVocabulary";
 import { resolveRuSourceChannel, ChannelLogo } from "@/lib/ruChannelDisplay";
 import {
   BarGeometry,
