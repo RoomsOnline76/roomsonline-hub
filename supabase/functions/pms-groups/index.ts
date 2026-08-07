@@ -466,6 +466,11 @@ Deno.serve(async (req) => {
           console.error("pickup: inventory convert failed", convertErr);
           throw convertErr;
         }
+        // Blocked -> booked is net-neutral, but re-derive the cache so it can never drift
+        // (and so pickup dates outside the original block window stay correct).
+        await syncAvailabilityCache(supabase, p.property_id, block.room_type_id, arrival, departure);
+
+
 
         // Package expansion: post component lines already tagged by revenue stream.
         const packageId = p.package_id || block.package_id || null;
