@@ -362,6 +362,8 @@ const App = () => (
                         <Route path="/admin/integrations" element={<ProtectedRoute><AdminIntegrations /></ProtectedRoute>} />
                         <Route path="/admin/integrations/rentals-united" element={<ProtectedRoute requireAdmin><AdminRentalsUnited /></ProtectedRoute>} />
                         <Route path="/admin/channel-monitor" element={<ProtectedRoute requireAdmin><AdminChannelMonitor /></ProtectedRoute>} />
+                        <Route path="/admin/account" element={<ProtectedRoute><OwnerAccount /></ProtectedRoute>} />
+
 
 
                         {/* Admin routes requiring dev/fearless */}
