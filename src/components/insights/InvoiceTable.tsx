@@ -25,11 +25,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { FileText, MoreHorizontal, Paperclip, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
 import { normaliseCurrency } from "@/lib/burnRate";
+import { openInvoiceDocument } from "./InvoiceDocumentField";
 
 interface Invoice {
   id: string;
@@ -43,7 +44,10 @@ interface Invoice {
   vendor: string | null;
   invoice_date: string;
   is_paid: boolean;
+  document_path?: string | null;
+  document_name?: string | null;
 }
+
 
 interface InvoiceTableProps {
   invoices: Invoice[];
