@@ -165,9 +165,15 @@ export function SystemOverviewTab() {
       const ruRealRuns = (ruRuns || []).filter(
         (r: any) => r.success && !r?.details?.skipped,
       );
+      // "Live" = listing actually synced in the last 24h; older successes can predate a
+      // listing being retired, which would overstate the channel footprint.
       const ruLiveProperties = new Set(
-        ruRealRuns.map((r: any) => r.property_id).filter(Boolean),
+        ruRealRuns
+          .filter((r: any) => Date.now() - new Date(r.created_at).getTime() < 24 * 60 * 60 * 1000)
+          .map((r: any) => r.property_id)
+          .filter(Boolean),
       ).size;
+
       const ruLastSync = ruRealRuns[0]?.created_at ?? null;
       const ruAriAt = ruRealRuns.find((r: any) =>
         ["refresh_ari", "inventory_push", "push_availability", "push_prices"].includes(r.action),
