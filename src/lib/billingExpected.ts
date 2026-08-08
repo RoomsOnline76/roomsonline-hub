@@ -63,7 +63,7 @@ const num = (value: unknown): number => {
 function normalizeTierRows(input: unknown): PricingTier[] {
   if (!Array.isArray(input) || input.length === 0) return DEFAULT_TIERS;
   const rows = input
-    .map((raw) => {
+    .map((raw): PricingTier | null => {
       if (!raw || typeof raw !== "object") return null;
       const r = raw as Record<string, unknown>;
       const min = Number(r.min_rooms ?? 0);
@@ -102,7 +102,7 @@ export function computeExpectedBilling(
   // PMS subscription — tier strategies resolve the fee from room count.
   if (isTierStrategy(strategy)) {
     const tier = resolveTier(rooms, normalizeTierRows(config.tier_pricing_json));
-    const tierFee = tier?.monthly_fee ?? num(config.enterprise_custom_fee) || null;
+    const tierFee = tier?.monthly_fee ?? (num(config.enterprise_custom_fee) || null);
     const tierLabel = tier?.label ? ` — ${tier.label.toUpperCase()}` : "";
     if (tierFee && tierFee > 0) {
       push(`PMS Subscription${tierLabel} (${rooms} room${rooms === 1 ? "" : "s"})`, tierFee);
