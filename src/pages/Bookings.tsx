@@ -1011,21 +1011,31 @@ const Bookings = () => {
                                 ? format(parseISO(booking.created_at), "dd MMM HH:mm")
                                 : "—"}
                             </TableCell>
-                            <TableCell className="py-1.5 px-2 text-muted-foreground truncate max-w-[90px]">
+                            <TableCell className="py-1.5 px-2 text-muted-foreground max-w-[170px]">
                               <span className="flex items-center gap-1">
                                 {booking.booking_channel === 'rentals_united' && (
                                   <Badge className="bg-orange-500 hover:bg-orange-600 text-white text-[10px] px-1 py-0 font-bold shrink-0">RU</Badge>
                                 )}
-                                {(booking.ai_metadata as any)?.itinerary_id ? (
-                                  <>
-                                    <Badge variant="outline" className="text-[10px] px-1 py-0 bg-primary/10 text-primary border-primary/30">J</Badge>
-                                    {(booking.ai_metadata as any).itinerary_id.substring(0, 8).toUpperCase()}
-                                  </>
-                                ) : (
-                                  <span className="truncate">{booking.external_reservation_id || booking.id.slice(0, 8).toUpperCase()}</span>
+                                {(booking.ai_metadata as any)?.itinerary_id && (
+                                  <Badge variant="outline" className="text-[10px] px-1 py-0 bg-primary/10 text-primary border-primary/30">J</Badge>
                                 )}
+                                <span className="flex flex-col leading-tight min-w-0">
+                                  <span
+                                    className="font-mono text-[11px] text-foreground truncate"
+                                    title={describeRolReference(booking.rol_reference) || undefined}
+                                  >
+                                    {displayBookingReference(booking)}
+                                  </span>
+                                  {booking.external_reservation_id &&
+                                    booking.external_reservation_id !== displayBookingReference(booking) && (
+                                      <span className="font-mono text-[10px] truncate">
+                                        {booking.external_reservation_id}
+                                      </span>
+                                    )}
+                                </span>
                               </span>
                             </TableCell>
+
                           </TableRow>
                           {/* Expanded room details */}
                           {isExpanded && (
