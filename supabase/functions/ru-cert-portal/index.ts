@@ -835,18 +835,21 @@ Deno.serve(async (req) => {
           rolosStatus = row.success ? "success" : "failed";
           rolosDetail = row.success ? `ROL'OS action "${act}" succeeded.` : (row.error_message ?? `ROL'OS action "${act}" failed.`);
         }
-        // A successful ROLOS run also proves the RU endpoint works.
-        if (status !== "passed") {
-          for (const act of e.sync_actions) {
-            const ok = latestSuccessByAction.get(act);
-            if (!ok) continue;
-            if (status === "never_run" || (lastRunAt && new Date(ok.created_at).getTime() > new Date(lastRunAt).getTime())) {
-              status = "passed";
-              detail = `Verified outside a certification run — "${act}" succeeded.`;
-              lastRunAt = ok.created_at;
-              source = "sync_log";
-              runId = null;
-            }
+        // Newest evidence wins: a real ROL'OS run (push prices, pull reservations, RLNM
+        // subscribe, …) both proves the endpoint works AND resets its freshness clock, even
+        // when an older certification run already passed.
+        const ts = (iso: string | null) => (iso ? new Date(iso).getTime() : 0);
+        for (const act of e.sync_actions) {
+          for (const row of [latestSyncByAction.get(act), latestSuccessByAction.get(act)]) {
+            if (!row) continue;
+            if (ts(row.created_at) <= ts(lastRunAt)) continue;
+            status = row.success ? "passed" : "failed";
+            detail = row.success
+              ? `Verified outside a certification run — "${act}" succeeded.`
+              : (row.error_message ?? `ROL'OS action "${act}" failed.`);
+            lastRunAt = row.created_at;
+            source = "sync_log";
+            runId = null;
           }
         }
         if (rolosStatus === "never_used" && e.rolos_via_cert && status !== "never_run") {
@@ -867,10 +870,18 @@ Deno.serve(async (req) => {
         const ageHours = lastRunAt ? (now - new Date(lastRunAt).getTime()) / 3600000 : null;
         const stale = e.max_age_hours != null && ageHours != null && ageHours > e.max_age_hours;
 
+        // Informational endpoints (reachable, but this channel account returns no usable
+        // result) never count as a hard failure and never enter the score denominators.
+        const blockedUpstream = !!e.informational && status === "failed";
+        if (blockedUpstream) status = "blocked";
+        const excludedFromScore = !!e.informational;
+
         let rag: "green" | "amber" | "red" | "grey" = "grey";
         if (status === "passed") rag = stale ? "amber" : "green";
+        else if (status === "blocked") rag = "amber";
         else if (status === "failed") rag = "red";
         else if (!e.implemented) rag = "grey";
+
 
         return {
           key: e.key,
