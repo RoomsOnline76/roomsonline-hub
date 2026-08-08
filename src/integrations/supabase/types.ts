@@ -333,6 +333,8 @@ export type Database = {
           branding_addon_setup_fee: number | null
           byo_gateway_monthly_fee: number | null
           channel_manager_per_unit_fee: number | null
+          company_address: string | null
+          company_legal_name: string | null
           default_commission_rate: number | null
           default_subscription_fee: number | null
           default_transaction_fee: number | null
@@ -359,6 +361,9 @@ export type Database = {
           tier_pricing_json: Json | null
           updated_at: string | null
           updated_by: string | null
+          vat_enabled: boolean
+          vat_number: string | null
+          vat_rate: number
           white_label_billing_mode: string | null
           white_label_monthly_fee: number | null
           white_label_setup_fee: number | null
@@ -371,6 +376,8 @@ export type Database = {
           branding_addon_setup_fee?: number | null
           byo_gateway_monthly_fee?: number | null
           channel_manager_per_unit_fee?: number | null
+          company_address?: string | null
+          company_legal_name?: string | null
           default_commission_rate?: number | null
           default_subscription_fee?: number | null
           default_transaction_fee?: number | null
@@ -397,6 +404,9 @@ export type Database = {
           tier_pricing_json?: Json | null
           updated_at?: string | null
           updated_by?: string | null
+          vat_enabled?: boolean
+          vat_number?: string | null
+          vat_rate?: number
           white_label_billing_mode?: string | null
           white_label_monthly_fee?: number | null
           white_label_setup_fee?: number | null
@@ -409,6 +419,8 @@ export type Database = {
           branding_addon_setup_fee?: number | null
           byo_gateway_monthly_fee?: number | null
           channel_manager_per_unit_fee?: number | null
+          company_address?: string | null
+          company_legal_name?: string | null
           default_commission_rate?: number | null
           default_subscription_fee?: number | null
           default_transaction_fee?: number | null
@@ -435,6 +447,9 @@ export type Database = {
           tier_pricing_json?: Json | null
           updated_at?: string | null
           updated_by?: string | null
+          vat_enabled?: boolean
+          vat_number?: string | null
+          vat_rate?: number
           white_label_billing_mode?: string | null
           white_label_monthly_fee?: number | null
           white_label_setup_fee?: number | null
@@ -3385,6 +3400,27 @@ export type Database = {
           },
         ]
       }
+      payout_reference_counters: {
+        Row: {
+          id: string
+          last_value: number
+          scope_key: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          last_value?: number
+          scope_key: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          last_value?: number
+          scope_key?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       pms_availability_cache: {
         Row: {
           available_units: number | null
@@ -6007,6 +6043,399 @@ export type Database = {
           },
         ]
       }
+      property_payout_statement_lines: {
+        Row: {
+          booking_id: string | null
+          check_in_date: string | null
+          check_out_date: string | null
+          commission_amount: number
+          commission_rate: number
+          commission_type: string | null
+          created_at: string
+          description: string | null
+          fee_amount: number
+          gross_amount: number
+          guest_name: string | null
+          id: string
+          is_recoverable: boolean
+          line_date: string | null
+          line_kind: string
+          metadata: Json
+          net_amount: number
+          payment_transaction_id: string | null
+          property_id: string | null
+          property_name: string | null
+          rol_reference: string | null
+          settlement_route: string | null
+          source_id: string | null
+          source_kind: string | null
+          statement_id: string
+        }
+        Insert: {
+          booking_id?: string | null
+          check_in_date?: string | null
+          check_out_date?: string | null
+          commission_amount?: number
+          commission_rate?: number
+          commission_type?: string | null
+          created_at?: string
+          description?: string | null
+          fee_amount?: number
+          gross_amount?: number
+          guest_name?: string | null
+          id?: string
+          is_recoverable?: boolean
+          line_date?: string | null
+          line_kind: string
+          metadata?: Json
+          net_amount?: number
+          payment_transaction_id?: string | null
+          property_id?: string | null
+          property_name?: string | null
+          rol_reference?: string | null
+          settlement_route?: string | null
+          source_id?: string | null
+          source_kind?: string | null
+          statement_id: string
+        }
+        Update: {
+          booking_id?: string | null
+          check_in_date?: string | null
+          check_out_date?: string | null
+          commission_amount?: number
+          commission_rate?: number
+          commission_type?: string | null
+          created_at?: string
+          description?: string | null
+          fee_amount?: number
+          gross_amount?: number
+          guest_name?: string | null
+          id?: string
+          is_recoverable?: boolean
+          line_date?: string | null
+          line_kind?: string
+          metadata?: Json
+          net_amount?: number
+          payment_transaction_id?: string | null
+          property_id?: string | null
+          property_name?: string | null
+          rol_reference?: string | null
+          settlement_route?: string | null
+          source_id?: string | null
+          source_kind?: string | null
+          statement_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "property_payout_statement_lines_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_payout_statement_lines_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings_decrypted"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_payout_statement_lines_payment_transaction_id_fkey"
+            columns: ["payment_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "payment_transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_payout_statement_lines_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "property_payout_statement_lines_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_payout_statement_lines_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_payout_statement_lines_statement_id_fkey"
+            columns: ["statement_id"]
+            isOneToOne: false
+            referencedRelation: "property_payout_statements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      property_payout_statement_payments: {
+        Row: {
+          account_number_masked: string | null
+          account_type: string | null
+          amount: number
+          bank_name: string | null
+          beneficiary_name: string | null
+          branch_code: string | null
+          created_at: string
+          currency: string
+          failure_reason: string | null
+          id: string
+          paid_at: string | null
+          payment_reference: string
+          property_id: string | null
+          statement_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          account_number_masked?: string | null
+          account_type?: string | null
+          amount?: number
+          bank_name?: string | null
+          beneficiary_name?: string | null
+          branch_code?: string | null
+          created_at?: string
+          currency?: string
+          failure_reason?: string | null
+          id?: string
+          paid_at?: string | null
+          payment_reference: string
+          property_id?: string | null
+          statement_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          account_number_masked?: string | null
+          account_type?: string | null
+          amount?: number
+          bank_name?: string | null
+          beneficiary_name?: string | null
+          branch_code?: string | null
+          created_at?: string
+          currency?: string
+          failure_reason?: string | null
+          id?: string
+          paid_at?: string | null
+          payment_reference?: string
+          property_id?: string | null
+          statement_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "property_payout_statement_payments_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "property_payout_statement_payments_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_payout_statement_payments_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_payout_statement_payments_statement_id_fkey"
+            columns: ["statement_id"]
+            isOneToOne: false
+            referencedRelation: "property_payout_statements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      property_payout_statements: {
+        Row: {
+          adjustments: number
+          amount_held: number
+          bank_payment_reference: string | null
+          booking_count: number
+          byo_commission: number
+          byo_gross: number
+          carry_forward: number
+          created_at: string
+          created_by: string | null
+          currency: string
+          emailed_at: string | null
+          finalised_at: string | null
+          finalised_by: string | null
+          gross_amount: number
+          group_kind: string
+          group_name: string
+          id: string
+          invoice_pdf_path: string | null
+          invoice_reference: string | null
+          invoice_subtotal: number
+          invoice_total: number
+          invoice_vat: number
+          net_payable: number
+          notes: string | null
+          opening_balance: number
+          ota_commission: number
+          other_recoveries: number
+          owner_email: string | null
+          paid_at: string | null
+          paid_by: string | null
+          payment_reference: string | null
+          payout_mode: string
+          period_end: string
+          period_start: string
+          portfolio_id: string | null
+          property_id: string | null
+          recurring_fees: number
+          rol_commission: number
+          rol_gross: number
+          statement_pdf_path: string | null
+          statement_reference: string | null
+          status: string
+          transaction_fees: number
+          updated_at: string
+          vat_rate: number
+        }
+        Insert: {
+          adjustments?: number
+          amount_held?: number
+          bank_payment_reference?: string | null
+          booking_count?: number
+          byo_commission?: number
+          byo_gross?: number
+          carry_forward?: number
+          created_at?: string
+          created_by?: string | null
+          currency?: string
+          emailed_at?: string | null
+          finalised_at?: string | null
+          finalised_by?: string | null
+          gross_amount?: number
+          group_kind: string
+          group_name: string
+          id?: string
+          invoice_pdf_path?: string | null
+          invoice_reference?: string | null
+          invoice_subtotal?: number
+          invoice_total?: number
+          invoice_vat?: number
+          net_payable?: number
+          notes?: string | null
+          opening_balance?: number
+          ota_commission?: number
+          other_recoveries?: number
+          owner_email?: string | null
+          paid_at?: string | null
+          paid_by?: string | null
+          payment_reference?: string | null
+          payout_mode?: string
+          period_end: string
+          period_start: string
+          portfolio_id?: string | null
+          property_id?: string | null
+          recurring_fees?: number
+          rol_commission?: number
+          rol_gross?: number
+          statement_pdf_path?: string | null
+          statement_reference?: string | null
+          status?: string
+          transaction_fees?: number
+          updated_at?: string
+          vat_rate?: number
+        }
+        Update: {
+          adjustments?: number
+          amount_held?: number
+          bank_payment_reference?: string | null
+          booking_count?: number
+          byo_commission?: number
+          byo_gross?: number
+          carry_forward?: number
+          created_at?: string
+          created_by?: string | null
+          currency?: string
+          emailed_at?: string | null
+          finalised_at?: string | null
+          finalised_by?: string | null
+          gross_amount?: number
+          group_kind?: string
+          group_name?: string
+          id?: string
+          invoice_pdf_path?: string | null
+          invoice_reference?: string | null
+          invoice_subtotal?: number
+          invoice_total?: number
+          invoice_vat?: number
+          net_payable?: number
+          notes?: string | null
+          opening_balance?: number
+          ota_commission?: number
+          other_recoveries?: number
+          owner_email?: string | null
+          paid_at?: string | null
+          paid_by?: string | null
+          payment_reference?: string | null
+          payout_mode?: string
+          period_end?: string
+          period_start?: string
+          portfolio_id?: string | null
+          property_id?: string | null
+          recurring_fees?: number
+          rol_commission?: number
+          rol_gross?: number
+          statement_pdf_path?: string | null
+          statement_reference?: string | null
+          status?: string
+          transaction_fees?: number
+          updated_at?: string
+          vat_rate?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "property_payout_statements_portfolio_id_fkey"
+            columns: ["portfolio_id"]
+            isOneToOne: false
+            referencedRelation: "property_portfolios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_payout_statements_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "property_payout_statements_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_payout_statements_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       property_portfolio_members: {
         Row: {
           created_at: string | null
@@ -6072,6 +6501,7 @@ export type Database = {
           owner_email: string | null
           owner_id: string | null
           parent_portfolio_id: string | null
+          payout_mode: string
           pricelabs_monthly_fee: number | null
           slug: string | null
           updated_at: string | null
@@ -6094,6 +6524,7 @@ export type Database = {
           owner_email?: string | null
           owner_id?: string | null
           parent_portfolio_id?: string | null
+          payout_mode?: string
           pricelabs_monthly_fee?: number | null
           slug?: string | null
           updated_at?: string | null
@@ -6116,6 +6547,7 @@ export type Database = {
           owner_email?: string | null
           owner_id?: string | null
           parent_portfolio_id?: string | null
+          payout_mode?: string
           pricelabs_monthly_fee?: number | null
           slug?: string | null
           updated_at?: string | null
@@ -14234,10 +14666,15 @@ export type Database = {
         Args: { _property_id: string; _user_id: string }
         Returns: boolean
       }
+      is_payout_admin: { Args: { _user_id: string }; Returns: boolean }
       is_property_active: { Args: { prop_id: string }; Returns: boolean }
       is_property_owner: {
         Args: { _property_id: string; _user_id: string }
         Returns: boolean
+      }
+      next_payout_reference: {
+        Args: { _group_code: string; _kind: string; _period: string }
+        Returns: string
       }
       next_rol_booking_reference: {
         Args: { _kind: string; _origin: string; _property_id: string }
