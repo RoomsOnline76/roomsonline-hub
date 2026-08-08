@@ -1,15 +1,31 @@
+import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, ArrowUpRight, CreditCard } from "lucide-react";
+import { AlertTriangle, ArrowUpRight, CreditCard, Lock } from "lucide-react";
 import { ADMIN_DOMAIN } from "@/lib/config";
-import { fmtMoney, type OwnerBalances, type OwnerRolInvoice, type OwnerSubscriptionInvoice } from "@/lib/ownerAccount";
+import { useAuth } from "@/hooks/useAuth";
+import { BillingSetupDialog } from "@/components/account/BillingSetupDialog";
+import {
+  fmtMoney,
+  type OwnerBalances,
+  type OwnerBillingConfig,
+  type OwnerRolInvoice,
+  type OwnerSubscriptionInvoice,
+} from "@/lib/ownerAccount";
 
 interface Props {
   balances: OwnerBalances;
   subscriptionInvoices: OwnerSubscriptionInvoice[];
   rolInvoices: OwnerRolInvoice[];
+  /** Billing config in scope — powers the read-only owner view. */
+  config?: OwnerBillingConfig | null;
+  unitCount?: number;
+  byoGateway?: boolean;
+  /** Property to open in the admin billing config (first property of a portfolio). */
+  billingPropertyId?: string | null;
 }
+
 
 /** Resolve the oldest open document and the production settlement link for it. */
 function oldestPayLink(subs: OwnerSubscriptionInvoice[], rol: OwnerRolInvoice[]): string | null {
