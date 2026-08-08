@@ -293,7 +293,7 @@ Deno.serve(async (req) => {
       .order("created_at", { ascending: false })
       .limit(200);
 
-    const openSetup = (invoices ?? []).find(
+    let openSetup = (invoices ?? []).find(
       (i: any) => i.invoice_kind === "once_off" && !["paid", "void", "cancelled"].includes(i.status),
     );
     const openSubscription = (invoices ?? []).find(
