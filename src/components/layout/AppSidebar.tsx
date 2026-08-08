@@ -23,6 +23,7 @@ import { ProfileModal } from "@/components/ProfileModal";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { RoleIndicator } from "./RoleIndicator";
 import { navigationConfig, type NavItem, type NavSection } from "@/config/navigation";
+import { useNavVisibility } from "@/hooks/useNavVisibility";
 import { hasMinRole, type UserRole } from "@/lib/permissions";
 
 // Separate component to handle optional HelpContext
