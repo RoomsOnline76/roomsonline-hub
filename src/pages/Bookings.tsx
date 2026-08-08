@@ -809,6 +809,40 @@ const Bookings = () => {
                 </Select>
               </div>
 
+              {/* Origin Filter — driven by the ROL reference origin code */}
+              <div className="space-y-1">
+                <Label className="text-xs">Origin</Label>
+                <Select value={originFilter} onValueChange={setOriginFilter}>
+                  <SelectTrigger className="h-8 w-[150px] text-xs">
+                    <SelectValue placeholder="All origins" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All origins</SelectItem>
+                    {ROL_ORIGIN_FILTER_OPTIONS.map((code) => (
+                      <SelectItem key={code} value={code}>
+                        {code} · {ROL_ORIGIN_LABELS[code]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Kind Filter — bookings made in-ecosystem vs reservations received */}
+              <div className="space-y-1">
+                <Label className="text-xs">Type</Label>
+                <Select value={kindFilter} onValueChange={setKindFilter}>
+                  <SelectTrigger className="h-8 w-[130px] text-xs">
+                    <SelectValue placeholder="All" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All</SelectItem>
+                    <SelectItem value="B">Bookings (B)</SelectItem>
+                    <SelectItem value="R">Reservations (R)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+
               {/* Search */}
               <div className="space-y-1 flex-1 min-w-[150px]">
                 <Label className="text-xs">Search</Label>
