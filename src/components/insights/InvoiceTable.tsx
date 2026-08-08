@@ -174,16 +174,18 @@ export function InvoiceTable({ invoices, isLoading, onEdit }: InvoiceTableProps)
               <TableHead className="text-right text-muted-foreground">EUR</TableHead>
               <TableHead className="text-right text-muted-foreground">USD</TableHead>
               <TableHead>Date</TableHead>
+              <TableHead className="w-10 text-center">Doc</TableHead>
               <TableHead className="w-10"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filteredInvoices.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={11} className="text-center text-muted-foreground py-8">
                   No invoices found
                 </TableCell>
               </TableRow>
+
             ) : (
               filteredInvoices.map((invoice) => {
                 const currency = normaliseCurrency(invoice.source_currency);
