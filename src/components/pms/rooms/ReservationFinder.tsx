@@ -5,6 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { paxLabel, stayNights, type PlanRoom, type RoomsBooking } from "./roomTypePlanLayout";
+import { displayBookingReference, matchesReferenceSearch } from "@/lib/bookingReference";
+
 
 interface Props {
   bookings: RoomsBooking[];
