@@ -203,6 +203,12 @@ export function buildPayoutStatementPdf(
   doc.setFontSize(8);
   doc.setTextColor(...MUTED);
   doc.text("Settled by deduction from this payout — paid in full, no action required.", M, y);
+  y += 12;
+  doc.text(
+    "Subscriptions, platform charges and commission on own-gateway bookings are invoiced separately.",
+    M,
+    y,
+  );
   y += 30;
 
   doc.setFillColor(250, 244, 249);
@@ -210,7 +216,8 @@ export function buildPayoutStatementPdf(
   doc.setFont("helvetica", "bold");
   doc.setFontSize(10);
   doc.setTextColor(...INK);
-  doc.text("D · NET PAYABLE TO PROPERTY", M + 12, y + 4);
+  doc.text("C · NET PAYABLE TO PROPERTY", M + 12, y + 4);
+
   doc.setFontSize(16);
   doc.setTextColor(...PINK);
   doc.text(money(statement.net_payable), pageW - M - 12, y + 6, { align: "right" });
