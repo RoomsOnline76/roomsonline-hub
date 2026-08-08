@@ -433,13 +433,23 @@ export function InlineCheckoutPanel({
           </div>
         </div>
 
-        {/* Payment method selector (multi-gateway) */}
-        {activeGateways.length > 1 && (
-          <PaymentMethodSelector
-            gateways={activeGateways}
-            selected={activeGateway}
-            onSelect={setSelectedGateway}
+        {/* Reservation-only: banking details instead of a gateway */}
+        {isReservationOnly ? (
+          <ReservationPaymentNotice
+            banking={banking}
+            terms={reservationTerms}
+            total={totalPrice}
+            policySummary={policySummary}
+            compact
           />
+        ) : (
+          activeGateways.length > 1 && (
+            <PaymentMethodSelector
+              gateways={activeGateways}
+              selected={activeGateway}
+              onSelect={setSelectedGateway}
+            />
+          )
         )}
       </div>
     </div>
