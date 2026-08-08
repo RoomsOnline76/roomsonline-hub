@@ -234,7 +234,9 @@ const today = () => new Date().toISOString().slice(0, 10);
 const isSettled = (status: string) => ["paid", "settled", "completed"].includes(status);
 
 export function subscriptionInvoiceDue(inv: OwnerSubscriptionInvoice): number {
-  return isSettled(inv.status) || inv.status === "void" ? 0 : round2(Number(inv.amount || 0));
+  return isSettled(inv.status) || ["void", "cancelled", "canceled"].includes(inv.status)
+    ? 0
+    : round2(Number(inv.amount || 0));
 }
 
 export function subscriptionInvoiceDueDate(inv: OwnerSubscriptionInvoice): string {

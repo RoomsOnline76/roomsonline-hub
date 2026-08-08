@@ -32,7 +32,15 @@ const statusBadge = (status: string) => {
 };
 
 const label = (status: string, overdue: boolean) =>
-  status === "paid" ? "Paid" : overdue ? "Overdue" : status === "void" ? "Void" : "Due";
+  status === "paid"
+    ? "Paid"
+    : overdue
+      ? "Overdue"
+      : status === "void"
+        ? "Void"
+        : ["cancelled", "canceled"].includes(status)
+          ? "Cancelled"
+          : "Due";
 
 export function AccountInvoicesTab({ subscriptionInvoices, rolInvoices, currency }: Props) {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -43,7 +51,10 @@ export function AccountInvoicesTab({ subscriptionInvoices, rolInvoices, currency
     (Number(inv.once_off_amount || 0) > 0 && !Number(inv.subscription_amount || 0));
 
   const matches = (status: string) =>
-    statusFilter === "all" || (statusFilter === "paid" ? status === "paid" : status !== "paid" && status !== "void");
+    statusFilter === "all" ||
+    (statusFilter === "paid"
+      ? status === "paid"
+      : !["paid", "void", "cancelled", "canceled"].includes(status));
 
   const monthly = useMemo(
     () => subscriptionInvoices.filter((i) => !isSetup(i) && matches(i.status)),
@@ -81,9 +92,10 @@ export function AccountInvoicesTab({ subscriptionInvoices, rolInvoices, currency
 
   const subRows = (rows: OwnerSubscriptionInvoice[]) =>
     rows.map((inv) => {
-      const overdue = inv.status !== "paid" && inv.status !== "void" && subscriptionInvoiceDueDate(inv) < today;
+      const inactive = ["paid", "void", "cancelled", "canceled"].includes(inv.status);
+      const overdue = !inactive && subscriptionInvoiceDueDate(inv) < today;
       // GLOBAL RULE: payment links always use the production domain.
-      const payUrl = !["paid", "void"].includes(inv.status) && inv.payfast_token
+      const payUrl = !inactive && inv.payfast_token
         ? `${ADMIN_DOMAIN}/subscribe/pay/${inv.payfast_token}`
         : null;
       return (

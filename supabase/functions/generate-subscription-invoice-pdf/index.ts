@@ -16,7 +16,7 @@ const BRAND_INK = rgb(0.102, 0.102, 0.180);  // #1A1A2E
 const MUTED = rgb(0.4, 0.4, 0.45);
 const RULE = rgb(0.88, 0.88, 0.90);
 
-const FROM_EMAIL = Deno.env.get("BILLING_FROM_EMAIL") || "Rooms Online <billing@notify.sleepinafrica.roomsonline.co.za>";
+const FROM_EMAIL = Deno.env.get("BILLING_FROM_EMAIL") || "Rooms Online <billing@notify.roomsonline.co.za>";
 
 interface LineItem {
   kind?: string;
@@ -58,7 +58,7 @@ async function buildPdf(input: {
 
   // Brand
   page.drawText("Rooms Online", { x: MARGIN, y: y - 12, size: 22, font: bold, color: BRAND_INK });
-  page.drawText("Tax Invoice", { x: MARGIN, y: y - 32, size: 11, font, color: MUTED });
+  page.drawText(input.onceOffAmount > 0 ? "Once-off Tax Invoice" : "Subscription Tax Invoice", { x: MARGIN, y: y - 32, size: 11, font, color: MUTED });
 
   // Invoice meta (right)
   const rightX = width - MARGIN - 200;
@@ -67,7 +67,7 @@ async function buildPdf(input: {
   page.drawText(`Issued`, { x: rightX, y: y - 28, size: 9, font, color: MUTED });
   page.drawText(input.issueDate, { x: rightX + 60, y: y - 28, size: 10, font, color: BRAND_INK });
   page.drawText(`Period`, { x: rightX, y: y - 44, size: 9, font, color: MUTED });
-  page.drawText(`${input.periodStart} → ${input.periodEnd}`, { x: rightX + 60, y: y - 44, size: 10, font, color: BRAND_INK });
+  page.drawText(`${input.periodStart} to ${input.periodEnd}`, { x: rightX + 60, y: y - 44, size: 10, font, color: BRAND_INK });
 
   y -= 80;
   page.drawLine({ start: { x: MARGIN, y }, end: { x: width - MARGIN, y }, thickness: 0.5, color: RULE });
@@ -90,7 +90,7 @@ async function buildPdf(input: {
 
   // Monthly subscription line
   if (input.subscriptionAmount > 0) {
-    page.drawText(`Monthly subscription — ${input.entityName}`, { x: MARGIN + 8, y, size: 10, font, color: BRAND_INK });
+    page.drawText(`Monthly subscription - ${input.entityName}`, { x: MARGIN + 8, y, size: 10, font, color: BRAND_INK });
     page.drawText(money(input.subscriptionAmount, input.currency), { x: width - MARGIN - 80, y, size: 10, font, color: BRAND_INK });
     y -= 18;
   }
@@ -130,8 +130,10 @@ async function buildPdf(input: {
 
   // Footer
   page.drawLine({ start: { x: MARGIN, y: MARGIN + 30 }, end: { x: width - MARGIN, y: MARGIN + 30 }, thickness: 0.5, color: RULE });
-  page.drawText("Rooms Online · sleepinafrica.roomsonline.co.za", { x: MARGIN, y: MARGIN + 16, size: 8, font, color: MUTED });
-  page.drawText("Cancel any time from your subscription page — no lock-in.", { x: MARGIN, y: MARGIN + 4, size: 8, font, color: MUTED });
+  page.drawText("Rooms Online - sleepinafrica.roomsonline.co.za", { x: MARGIN, y: MARGIN + 16, size: 8, font, color: MUTED });
+  if (input.subscriptionAmount > 0) {
+    page.drawText("Cancel any time from your subscription page - no lock-in.", { x: MARGIN, y: MARGIN + 4, size: 8, font, color: MUTED });
+  }
 
   return await pdf.save();
 }
@@ -157,7 +159,7 @@ Deno.serve(async (req) => {
 
     const { data: inv, error } = await supabase
       .from("subscription_invoices")
-      .select("*, properties(name, owner_email, owner_id), property_portfolios(name, owner_id)")
+      .select("*, properties(name, owner_email), property_portfolios(name, owner_id, owner_email)")
       .eq("id", invoice_id)
       .single();
     if (error || !inv) throw new Error(error?.message || "Invoice not found");
@@ -191,9 +193,38 @@ Deno.serve(async (req) => {
 
     // Resolve owner
     const entityName = (inv.properties as any)?.name || (inv.property_portfolios as any)?.name || "Rooms Online";
-    const ownerId = inv.owner_id || (inv.properties as any)?.owner_id || (inv.property_portfolios as any)?.owner_id;
-    let ownerEmail = (inv.properties as any)?.owner_email || "";
+    let ownerId = inv.owner_id || (inv.property_portfolios as any)?.owner_id || null;
+    let ownerEmail = (inv.properties as any)?.owner_email || (inv.property_portfolios as any)?.owner_email || "";
     let ownerName = "";
+    if (!ownerId && inv.property_id) {
+      const { data: linkedOwner } = await supabase
+        .from("property_owners")
+        .select("user_id, owner_email, owner_name")
+        .eq("property_id", inv.property_id)
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      ownerId = linkedOwner?.user_id || null;
+      ownerEmail = ownerEmail || linkedOwner?.owner_email || "";
+      ownerName = linkedOwner?.owner_name || "";
+    }
+    if (!ownerEmail && inv.portfolio_id) {
+      const { data: member } = await supabase
+        .from("property_portfolio_members")
+        .select("property_id")
+        .eq("portfolio_id", inv.portfolio_id)
+        .limit(1)
+        .maybeSingle();
+      if (member?.property_id) {
+        const { data: property } = await supabase
+          .from("properties")
+          .select("owner_email, owner_name")
+          .eq("id", member.property_id)
+          .maybeSingle();
+        ownerEmail = property?.owner_email || "";
+        ownerName = ownerName || property?.owner_name || "";
+      }
+    }
     if (ownerId) {
       const { data: prof } = await supabase.from("profiles").select("email, full_name, first_name, last_name").eq("id", ownerId).single();
       if (prof) {
@@ -203,7 +234,7 @@ Deno.serve(async (req) => {
     }
 
     const lineItems: LineItem[] = Array.isArray(inv.line_items) ? inv.line_items : [];
-    const subAmount = Number(inv.subscription_amount) || Number(inv.amount);
+    const subAmount = Number(inv.subscription_amount) || 0;
     const onceOff = Number(inv.once_off_amount) || 0;
     const total = Number(inv.amount);
 
@@ -240,12 +271,12 @@ Deno.serve(async (req) => {
         <div style="max-width:560px;margin:0 auto;border:1px solid #eee;border-radius:8px;padding:24px">
           <h2 style="color:#E91E8C;margin-top:0">Thank you — payment received</h2>
           <p>Hi ${ownerName || "there"},</p>
-          <p>Your subscription for <strong>${entityName}</strong> has been renewed. Your invoice <strong>${invoiceNumber}</strong> is attached.</p>
+          <p>Your ${inv.invoice_kind === "once_off" ? "once-off setup fee" : "subscription"} payment for <strong>${entityName}</strong> has been received. Your invoice <strong>${invoiceNumber}</strong> is attached.</p>
           <table style="width:100%;margin:16px 0;border-collapse:collapse">
             <tr><td style="padding:6px 0;color:#666">Amount</td><td style="padding:6px 0;text-align:right;font-weight:600">${money(total, inv.currency)}</td></tr>
             <tr><td style="padding:6px 0;color:#666">Period</td><td style="padding:6px 0;text-align:right">${inv.period_start} → ${inv.period_end}</td></tr>
           </table>
-          <p style="color:#666;font-size:13px">You can cancel any time from your subscription page — no lock-in.</p>
+          ${inv.invoice_kind === "once_off" ? "" : '<p style="color:#666;font-size:13px">You can cancel any time from your subscription page — no lock-in.</p>'}
         </div>
       </body></html>`;
       const send = await resend.emails.send({
@@ -255,8 +286,9 @@ Deno.serve(async (req) => {
         html,
         attachments: [{ filename: `${invoiceNumber}.pdf`, content: bytesToBase64(pdfBytes) }],
       });
+      if (send.error) throw new Error(`Invoice email failed: ${(send.error as any)?.message || String(send.error)}`);
       await supabase.from("subscription_invoice_events").insert({
-        invoice_id, event_type: "email", status: send.error ? "error" : "sent", detail: send.error ? String(send.error) : `to:${ownerEmail}`,
+        invoice_id, event_type: "email", status: "sent", detail: `to:${ownerEmail}`,
       });
     } else {
       await supabase.from("subscription_invoice_events").insert({
