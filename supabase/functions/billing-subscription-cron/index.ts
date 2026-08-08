@@ -16,7 +16,41 @@ const corsHeaders = {
 const SITE_URL = Deno.env.get("SITE_URL") || "https://sleepinafrica.roomsonline.co.za";
 const FROM_EMAIL = Deno.env.get("BILLING_FROM_EMAIL") || "Rooms Online <billing@notify.sleepinafrica.roomsonline.co.za>";
 
+const DEFAULT_FREE_PERIOD_DAYS = 60;
+
+function addDays(iso: string, days: number): string {
+  const d = new Date(`${iso.slice(0, 10)}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * The paid subscription clock starts at engagement_date + free_period_days.
+ * Legacy configs without an engagement date keep using billing_start_date.
+ */
+function resolvePaidStart(cfg: any, globalFreeDefault: number): string | null {
+  const freeDays = cfg?.free_period_days ?? globalFreeDefault;
+  if (cfg?.engagement_date) return addDays(String(cfg.engagement_date), Number(freeDays) || 0);
+  return cfg?.billing_start_date ? String(cfg.billing_start_date).slice(0, 10) : null;
+}
+
+/** Setup fees are invoiced upfront on contract signature — never bundled monthly. */
+function isSetupCharge(kind: string | null | undefined): boolean {
+  return !!kind && /setup/i.test(kind);
+}
+
+async function getGlobalFreePeriodDefault(supabase: any, strategy: string): Promise<number> {
+  const { data } = await supabase
+    .from("billing_global_defaults")
+    .select("free_period_days_default")
+    .eq("strategy", strategy || "default")
+    .maybeSingle();
+  const v = Number(data?.free_period_days_default);
+  return Number.isFinite(v) && v >= 0 ? v : DEFAULT_FREE_PERIOD_DAYS;
+}
+
 type Tier = { min_rooms: number; max_rooms: number | null; monthly_fee: number };
+
 
 function resolveMonthlyFeeFromTiers(tiers: Tier[] | null | undefined, rooms: number): number {
   if (!tiers || tiers.length === 0) return 0;
