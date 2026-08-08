@@ -202,6 +202,11 @@ export function ROLRevenuePulse() {
         />
       </div>
 
+      {/* Settlement view — collected vs commission vs owner money, same period */}
+      <PulseSettlementRow start={dateRange.start} end={dateRange.end} />
+
+
+
       {/* Revenue stream split — appears once F&B revenue is posted */}
       {streams?.hasSplit && (
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 xl:gap-4">
