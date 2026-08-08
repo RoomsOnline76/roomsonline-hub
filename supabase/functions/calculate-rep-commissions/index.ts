@@ -132,8 +132,14 @@ interface RevenueBreakdown {
   booking_commission: number;
   booking_count: number;
   recovered_commission: number;
+  /** Paid subscription revenue — shown for transparency, never commissionable. */
   subscription_revenue: number;
+  /** Paid upfront setup-fee revenue — shown for transparency, never commissionable. */
+  setup_revenue: number;
+  /** Portion of subscription/setup revenue that only recovers a third-party cost. */
+  passthrough_revenue: number;
 }
+
 
 interface PreviewLine {
   rep_id: string;
