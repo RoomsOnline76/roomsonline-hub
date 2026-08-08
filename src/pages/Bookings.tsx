@@ -78,13 +78,19 @@ interface Booking {
   special_requests: string | null;
   voucher: string | null;
   external_reservation_id: string | null;
+  /** Standardised ROL booking reference (ROL-<origin>-<kind>-<prop>-<seq>). */
+  rol_reference?: string | null;
+  rol_ref_origin?: string | null;
+  rol_ref_kind?: string | null;
   created_at: string | null;
   source?: "internal" | "pms";
   ai_metadata?: any;
   booking_channel?: string | null;
+  integration_type?: string | null;
   rolos_rate_plan_id?: string | null;
   payment_status?: string | null;
 }
+
 
 
 const Bookings = () => {
