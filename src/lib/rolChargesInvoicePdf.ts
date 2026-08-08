@@ -76,23 +76,16 @@ export function buildRolChargesInvoicePdf(
   }
   const rows: Row[] = [];
   if (statement.rol_commission > 0)
-    rows.push({ description: "Booking commission — payments processed by Rooms Online", amount: statement.rol_commission });
-  if (statement.byo_commission > 0)
     rows.push({
-      description: "Booking commission — payments received in the property's own account",
-      amount: statement.byo_commission,
+      description: "Booking commission — payments processed by Rooms Online",
+      amount: statement.rol_commission,
     });
   if (statement.transaction_fees > 0)
-    rows.push({ description: "Payment processing fees", amount: statement.transaction_fees });
+    rows.push({
+      description: "Payment processing fee recovered (non-commissionable)",
+      amount: statement.transaction_fees,
+    });
 
-  [...recoveryLines(statement.lines), ...adjustmentLines(statement.lines)]
-    .filter((l) => l.line_kind === "charge" || l.line_kind === "opening_balance" || l.line_kind === "adjustment")
-    .forEach((l) =>
-      rows.push({
-        description: `${l.description || "Platform charge"}${l.property_name ? ` — ${l.property_name}` : ""}`,
-        amount: l.fee_amount || l.commission_amount,
-      }),
-    );
 
   const gross = statement.invoice_total;
   const exclusive = vat.vat_enabled ? statement.invoice_subtotal : gross;
