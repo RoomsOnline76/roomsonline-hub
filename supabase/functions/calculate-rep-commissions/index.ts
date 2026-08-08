@@ -168,6 +168,11 @@ interface PreviewStatement {
   rep_tier: string;
   terms: ResolvedTerms;
   bank: Json;
+  /** Partner tax identity frozen onto the statement — SARS position at issue. */
+  tax: Json;
+  /** VAT added on top of the commission when the partner is a VAT vendor. */
+  vat_amount: number;
+
   lines: PreviewLine[];
   total_revenue: number;
   gross_commission: number;
