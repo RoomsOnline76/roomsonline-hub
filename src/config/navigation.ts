@@ -80,7 +80,7 @@ const workspaceSection: NavSection = {
     { id: 'bookings', title: 'Bookings', icon: BookOpen, href: '/admin/bookings', minRole: 'owner' },
     
     { id: 'integrations', title: 'Integrations', icon: Code2, href: '/admin/integrations', minRole: 'owner', description: 'Website booking widgets & API' },
-    { id: 'channel-monitor', title: 'Channel Cost Monitor', icon: Gauge, href: '/admin/channel-monitor', minRole: 'admin', description: 'Distribution spend forecast & listing archive' },
+
   ],
 };
 
@@ -94,6 +94,8 @@ const insightsSection: NavSection = {
   items: [
     { id: 'property-pulse', title: 'Property Pulse', icon: BarChart3, href: '/dashboard/reports', minRole: 'owner' },
     { id: 'revenue-pulse', title: 'Revenue Pulse', icon: TrendingUp, href: '/pulse', minRole: 'dev' },
+    { id: 'channel-monitor', title: 'Channel Cost Monitor', icon: Gauge, href: '/admin/channel-monitor', minRole: 'admin', description: 'Distribution spend forecast & listing archive' },
+
     { id: 'intelligence', title: 'Intelligence', icon: Search, href: '/dashboard/insights', minRole: 'dev' },
   ],
 };
