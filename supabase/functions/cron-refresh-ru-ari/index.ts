@@ -107,16 +107,17 @@ Deno.serve(async (req) => {
       results.push({ property_id: prop.id, name: prop.name, success, skipped, error: errMsg || undefined });
 
 
-      // Log to ru_sync_runs (non-blocking)
+      // Log to ru_sync_runs (non-blocking). Skips are recorded but not counted as failures.
       await supabase.from('ru_sync_runs').insert({
         batch_id: batchId,
         action: 'refresh_ari',
         property_id: prop.id,
-        success,
+        success: success || skipped,
         http_status: httpStatus,
+        error_code: errCode,
         error_message: errMsg,
         elapsed_ms: elapsed,
-        details: { scope: 'daily_ari' },
+        details: { scope: 'daily_ari', skipped },
       }).then(() => {}, (e) => console.warn('[cron-refresh-ru-ari] log insert failed', e));
 
       // Small delay between pushes to avoid rate limits
@@ -124,6 +125,7 @@ Deno.serve(async (req) => {
     }
 
     const successCount = results.filter(r => r.success).length;
+    const skippedCount = results.filter(r => r.skipped).length;
     return new Response(
       JSON.stringify({
         success: true,
