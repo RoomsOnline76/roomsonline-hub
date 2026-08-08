@@ -1337,6 +1337,27 @@ export type Database = {
           },
         ]
       }
+      commission_reference_counters: {
+        Row: {
+          id: string
+          last_value: number
+          scope_key: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          last_value?: number
+          scope_key: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          last_value?: number
+          scope_key?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       connect_inquiries: {
         Row: {
           company: string | null
@@ -7018,14 +7039,20 @@ export type Database = {
           clawback_reason: string | null
           commission_type: string
           created_at: string
+          description: string | null
           id: string
+          line_kind: string
+          notes: string | null
           period_end: string
           period_start: string
-          property_id: string
+          property_id: string | null
           rate_applied: number
           rate_source: string | null
-          referral_id: string
+          referral_id: string | null
+          referral_started_on: string | null
           rep_id: string
+          report_id: string | null
+          revenue_breakdown: Json
           status: Database["public"]["Enums"]["commission_entry_status"]
           updated_at: string
         }
@@ -7035,14 +7062,20 @@ export type Database = {
           clawback_reason?: string | null
           commission_type: string
           created_at?: string
+          description?: string | null
           id?: string
+          line_kind?: string
+          notes?: string | null
           period_end: string
           period_start: string
-          property_id: string
+          property_id?: string | null
           rate_applied: number
           rate_source?: string | null
-          referral_id: string
+          referral_id?: string | null
+          referral_started_on?: string | null
           rep_id: string
+          report_id?: string | null
+          revenue_breakdown?: Json
           status?: Database["public"]["Enums"]["commission_entry_status"]
           updated_at?: string
         }
@@ -7052,14 +7085,20 @@ export type Database = {
           clawback_reason?: string | null
           commission_type?: string
           created_at?: string
+          description?: string | null
           id?: string
+          line_kind?: string
+          notes?: string | null
           period_end?: string
           period_start?: string
-          property_id?: string
+          property_id?: string | null
           rate_applied?: number
           rate_source?: string | null
-          referral_id?: string
+          referral_id?: string | null
+          referral_started_on?: string | null
           rep_id?: string
+          report_id?: string | null
+          revenue_breakdown?: Json
           status?: Database["public"]["Enums"]["commission_entry_status"]
           updated_at?: string
         }
@@ -7099,47 +7138,102 @@ export type Database = {
             referencedRelation: "sales_reps"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "rep_commission_entries_report_id_fkey"
+            columns: ["report_id"]
+            isOneToOne: false
+            referencedRelation: "rep_commission_reports"
+            referencedColumns: ["id"]
+          },
         ]
       }
       rep_commission_reports: {
         Row: {
+          adjustments_total: number
           approved_at: string | null
           approved_by: string | null
+          bank_snapshot: Json
+          emailed_at: string | null
+          emailed_to: string | null
+          finalized_at: string | null
+          finalized_by: string | null
           generated_at: string
+          gross_commission: number
           id: string
+          net_payable: number
           notes: string | null
           paid_at: string | null
+          paid_reference: string | null
+          period_end: string | null
           period_month: string
+          period_start: string | null
+          property_count: number
           rep_id: string
+          statement_reference: string | null
           status: Database["public"]["Enums"]["commission_report_status"]
+          terms_snapshot: Json
           total_amount: number
           total_entries: number
+          total_revenue: number
+          void_reason: string | null
         }
         Insert: {
+          adjustments_total?: number
           approved_at?: string | null
           approved_by?: string | null
+          bank_snapshot?: Json
+          emailed_at?: string | null
+          emailed_to?: string | null
+          finalized_at?: string | null
+          finalized_by?: string | null
           generated_at?: string
+          gross_commission?: number
           id?: string
+          net_payable?: number
           notes?: string | null
           paid_at?: string | null
+          paid_reference?: string | null
+          period_end?: string | null
           period_month: string
+          period_start?: string | null
+          property_count?: number
           rep_id: string
+          statement_reference?: string | null
           status?: Database["public"]["Enums"]["commission_report_status"]
+          terms_snapshot?: Json
           total_amount?: number
           total_entries?: number
+          total_revenue?: number
+          void_reason?: string | null
         }
         Update: {
+          adjustments_total?: number
           approved_at?: string | null
           approved_by?: string | null
+          bank_snapshot?: Json
+          emailed_at?: string | null
+          emailed_to?: string | null
+          finalized_at?: string | null
+          finalized_by?: string | null
           generated_at?: string
+          gross_commission?: number
           id?: string
+          net_payable?: number
           notes?: string | null
           paid_at?: string | null
+          paid_reference?: string | null
+          period_end?: string | null
           period_month?: string
+          period_start?: string | null
+          property_count?: number
           rep_id?: string
+          statement_reference?: string | null
           status?: Database["public"]["Enums"]["commission_report_status"]
+          terms_snapshot?: Json
           total_amount?: number
           total_entries?: number
+          total_revenue?: number
+          void_reason?: string | null
         }
         Relationships: [
           {
@@ -14672,6 +14766,10 @@ export type Database = {
         Args: { _property_id: string; _user_id: string }
         Returns: boolean
       }
+      next_commission_statement_reference: {
+        Args: { _period_month: string; _rep_code: string }
+        Returns: string
+      }
       next_payout_reference: {
         Args: { _group_code: string; _kind: string; _period: string }
         Returns: string
@@ -14857,6 +14955,7 @@ export type Database = {
         | "pending_approval"
         | "approved"
         | "paid"
+        | "void"
       commission_tier: "base" | "accelerated" | "elite"
       component_type: "pms" | "internal" | "external" | "infrastructure"
       crm_account_type: "company" | "travel_agent" | "tour_operator" | "source"
@@ -15140,6 +15239,7 @@ export const Constants = {
         "pending_approval",
         "approved",
         "paid",
+        "void",
       ],
       commission_tier: ["base", "accelerated", "elite"],
       component_type: ["pms", "internal", "external", "infrastructure"],
