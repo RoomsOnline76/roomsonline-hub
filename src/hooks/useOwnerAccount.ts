@@ -292,6 +292,8 @@ export function useOwnerAccount(scope: OwnerScope | null) {
         payouts: data.payouts,
         uninvoicedSetupDue,
         setupDueDate: data.config?.engagement_date || null,
+        pendingSettlement: data.pendingSettlement.amount,
+
       }),
       ledger,
       subscription: subscriptionView(data.config),
