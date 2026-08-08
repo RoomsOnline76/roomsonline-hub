@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import {
   buildLedger,
   computeBalances,
+  computePendingSettlement,
   expectedSetupFee,
 
   monthlySeries,
@@ -24,8 +25,12 @@ import {
   type OwnerRolInvoice,
   type OwnerScope,
   type OwnerSubscriptionInvoice,
+  type PendingSettlement,
   type RevenueRow,
+  type SettlementBooking,
 } from "@/lib/ownerAccount";
+import { resolveBookingCommission, type CommissionConfigLike } from "@/lib/commissionResolver";
+
 
 interface ScopeRow {
   id: string;
@@ -110,7 +115,11 @@ export interface OwnerAccountData {
   unitCount: number;
   /** True when any property in scope settles through its own payment gateway. */
   byoGateway: boolean;
+  /** ROL-held booking funds not yet covered by a payout statement. */
+  pendingSettlement: PendingSettlement;
 }
+
+const EMPTY_PENDING: PendingSettlement = { amount: 0, gross: 0, commission: 0, bookings: 0 };
 
 const EMPTY: OwnerAccountData = {
   config: null,
@@ -120,7 +129,9 @@ const EMPTY: OwnerAccountData = {
   revenue: [],
   unitCount: 0,
   byoGateway: false,
+  pendingSettlement: EMPTY_PENDING,
 };
+
 
 export function useOwnerAccount(scope: OwnerScope | null) {
   const [data, setData] = useState<OwnerAccountData>(EMPTY);
@@ -162,9 +173,10 @@ export function useOwnerAccount(scope: OwnerScope | null) {
           .limit(200),
         supabase
           .from("bookings")
-          .select("total_amount, check_in_date, status, property_id")
+          .select(
+            "id, total_price, check_in_date, status, payment_status, property_id, calculated_commission, commission_rate_applied, commission_type, integration_type, booking_channel, source_url, created_at",
+          )
           .in("property_id", scope.propertyIds)
-          .in("status", ["confirmed", "completed", "checked_in", "checked_out"])
           .limit(2000),
         supabase
           .from("rolos_rooms")
@@ -176,21 +188,58 @@ export function useOwnerAccount(scope: OwnerScope | null) {
           .in("id", scope.propertyIds),
       ]);
 
+      const bookings = ((bookRes.data || []) as unknown as SettlementBooking[]).filter(Boolean);
+      const bookingIds = bookings.map((b) => b.id);
+
+      const [lineRes, txRes] = bookingIds.length
+        ? await Promise.all([
+            (supabase as any)
+              .from("property_payout_statement_lines")
+              .select("booking_id")
+              .in("booking_id", bookingIds)
+              .limit(4000),
+            (supabase as any)
+              .from("payment_transactions")
+              .select("booking_id, credential_source, status")
+              .in("booking_id", bookingIds)
+              .limit(4000),
+          ])
+        : [{ data: [] }, { data: [] }];
+
+      const statementedBookingIds = new Set(
+        ((lineRes?.data || []) as { booking_id: string | null }[])
+          .map((l) => l.booking_id)
+          .filter((id): id is string => !!id),
+      );
+      const byoBookingIds = new Set(
+        ((txRes?.data || []) as { booking_id: string | null; credential_source: string | null }[])
+          .filter((t) => String(t.credential_source || "").toLowerCase() === "byo" && t.booking_id)
+          .map((t) => t.booking_id as string),
+      );
+
+      const config = (cfgRes?.data || null) as OwnerBillingConfig | null;
+
       const revenueMap = new Map<string, RevenueRow>();
-      for (const b of (bookRes.data || []) as unknown as {
-        total_amount: number | null;
-        check_in_date: string | null;
-      }[]) {
+      const CONFIRMED = ["confirmed", "completed", "checked_in", "checked_out"];
+      for (const b of bookings) {
         if (!b.check_in_date) continue;
+        if (!CONFIRMED.includes(String(b.status || "").toLowerCase())) continue;
         const month = b.check_in_date.slice(0, 7);
         const row = revenueMap.get(month) || { month, gross: 0, bookings: 0 };
-        row.gross += Number(b.total_amount || 0);
+        row.gross += Number(b.total_price || 0);
         row.bookings += 1;
         revenueMap.set(month, row);
       }
 
+      const pendingSettlement = computePendingSettlement(bookings, {
+        statementedBookingIds,
+        byoBookingIds,
+        resolveCommission: (booking, gross) =>
+          resolveBookingCommission(booking, gross, config as unknown as CommissionConfigLike).amount,
+      });
+
       setData({
-        config: (cfgRes?.data || null) as OwnerBillingConfig | null,
+        config,
         subscriptionInvoices: (subRes?.data || []) as OwnerSubscriptionInvoice[],
         rolInvoices: (invRes?.data || []) as OwnerRolInvoice[],
         payouts: (payRes?.data || []) as OwnerPayoutStatement[],
@@ -199,7 +248,9 @@ export function useOwnerAccount(scope: OwnerScope | null) {
         byoGateway: ((propRes?.data || []) as { allow_custom_payment_provider: boolean | null }[]).some(
           (p) => !!p.allow_custom_payment_provider,
         ),
+        pendingSettlement,
       });
+
     } catch (err) {
       console.error("[owner-account] load failed", err);
       toast.error("Could not load your account");
@@ -241,6 +292,8 @@ export function useOwnerAccount(scope: OwnerScope | null) {
         payouts: data.payouts,
         uninvoicedSetupDue,
         setupDueDate: data.config?.engagement_date || null,
+        pendingSettlement: data.pendingSettlement.amount,
+
       }),
       ledger,
       subscription: subscriptionView(data.config),
