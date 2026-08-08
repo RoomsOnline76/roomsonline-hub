@@ -583,11 +583,19 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
           <Row
             label="Custom domain"
             value={
-              wlDomain?.white_label_domain ? (
-                <span className="font-mono">{wlDomain.white_label_domain}</span>
+              effectiveDomain ? (
+                <span className="flex items-center gap-2">
+                  <span className="font-mono">{effectiveDomain}</span>
+                  {domainInherited && <Badge variant="outline">Portfolio</Badge>}
+                </span>
               ) : (
                 <Empty />
               )
+            }
+            hint={
+              domainInherited
+                ? `Inherited from ${inheritedWl?.portfolioName || "the parent portfolio"}.`
+                : undefined
             }
           />
           <Row
