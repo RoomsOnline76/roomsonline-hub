@@ -130,6 +130,9 @@ interface RuWlActionStat {
   success_rate: number;
   avg_ms: number;
   last_run: string | null;
+  current_ok: boolean | null;
+  recovered: boolean;
+  last_failure_at: string | null;
 }
 
 interface RuWlMetrics {
@@ -146,6 +149,8 @@ interface RuWlMetrics {
   ari_stale_hours: number | null;
   cert: { status: string; passed: number; total: number; at: string | null } | null;
   live_properties: number;
+  current_ok: boolean | null;
+  recovered_actions: number;
 }
 
 const RU_PRIORITY_ACTIONS = [
@@ -274,7 +279,8 @@ function generateEmailHtml(
       <h3 style="${h3}">🔗 Channel Manager — Rentals United White-Label <span style="font-weight:400;color:#9ca3af;font-size:12px;">(last ${ruWl.window_hours}h)</span></h3>
       <div style="margin-bottom:10px;">
         ${chip('Calls', ruWl.total, '#0ea5e9')}
-        ${chip('Success', `${ruWl.success_rate.toFixed(1)}%`, rateColor(ruWl.success_rate))}
+        ${chip('Success (24h)', `${ruWl.success_rate.toFixed(1)}%`, rateColor(ruWl.success_rate))}
+        ${chip('Now', ruWl.current_ok === null ? 'no data' : ruWl.current_ok ? (ruWl.recovered_actions > 0 ? 'Recovered' : 'Healthy') : 'Failing', ruWl.current_ok === null ? '#9ca3af' : ruWl.current_ok ? '#22c55e' : '#ef4444')}
         ${chip('Failed', ruWl.failed, ruWl.failed > 0 ? '#ef4444' : '#22c55e')}
         ${chip('Reservations', ruWl.reservations_24h, '#7c3aed')}
         ${ruWl.reservations_unprocessed > 0 ? chip('Unprocessed', ruWl.reservations_unprocessed, '#ef4444') : ''}
@@ -285,7 +291,7 @@ function generateEmailHtml(
       ${ruWl.actions.length > 0 ? `
       <table style="width:100%;border-collapse:collapse;${card}">
         <thead><tr style="background-color:#f9fafb;">
-          <th style="${th}">Action</th><th style="${th}">Calls</th><th style="${th}">Fail</th><th style="${th}">Success</th><th style="${th}">Avg</th><th style="${th}">Last run</th>
+          <th style="${th}">Action</th><th style="${th}">Calls</th><th style="${th}">Fail</th><th style="${th}">Success (24h)</th><th style="${th}">Now</th><th style="${th}">Avg</th><th style="${th}">Last run</th>
         </tr></thead>
         <tbody>
           ${ruWl.actions.map(a => `
@@ -294,6 +300,11 @@ function generateEmailHtml(
             <td style="${td}">${a.total}</td>
             <td style="${td}color:${a.failed > 0 ? '#ef4444' : '#6b7280'};font-weight:${a.failed > 0 ? '600' : '400'};">${a.failed}</td>
             <td style="${td}color:${rateColor(a.success_rate)};font-weight:600;">${a.success_rate.toFixed(1)}%</td>
+            <td style="${td}">${a.current_ok === null
+              ? '<span style="color:#9ca3af;">—</span>'
+              : a.current_ok
+                ? `<span style="color:#16a34a;font-weight:600;">● OK${a.recovered ? ' (recovered)' : ''}</span>`
+                : '<span style="color:#dc2626;font-weight:600;">● Failing</span>'}${a.recovered && a.last_failure_at ? `<span style="color:#9ca3af;font-size:11px;"> last fail ${a.last_failure_at}</span>` : ''}</td>
             <td style="${td}color:#6b7280;">${a.avg_ms}ms</td>
             <td style="${td}color:#6b7280;">${a.last_run || '—'}</td>
           </tr>`).join('')}
@@ -301,7 +312,7 @@ function generateEmailHtml(
       </table>` : '<p style="margin:0;font-size:13px;color:#9ca3af;">No channel activity recorded in the window.</p>'}
       ${ruWl.top_errors.length > 0 ? `
       <div style="margin-top:10px;background-color:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:10px 12px;">
-        <strong style="font-size:12px;color:#b91c1c;">Top failures</strong>
+        <strong style="font-size:12px;color:#b91c1c;">Top failures (24h)</strong>${ruWl.recovered_actions > 0 ? `<span style="font-size:11px;color:#9ca3af;"> · ${ruWl.recovered_actions} action(s) have since recovered — see the “Now” column</span>` : ''}
         <ul style="margin:6px 0 0 0;padding-left:18px;color:#7f1d1d;font-size:12px;">
           ${ruWl.top_errors.map(e => `<li style="margin-bottom:3px;"><strong>${e.code}</strong> ×${e.count} — ${e.sample}</li>`).join('')}
         </ul>
@@ -408,7 +419,7 @@ function generateEmailHtml(
     <!-- Status strip -->
     <div style="background-color:${overallStatusColor}12;border-bottom:2px solid ${overallStatusColor};padding:12px 20px;">
       <strong style="color:${overallStatusColor};font-size:15px;">${getStatusEmoji(overallStatus)} ${overallStatusLabel}</strong>
-      <span style="color:#6b7280;font-size:13px;"> · uptime ${uptimePercentage.toFixed(1)}% · failing ${failedCount}/${totalComponents}${ruWl ? ` · channel success ${ruWl.success_rate.toFixed(1)}%` : ''}</span>
+      <span style="color:#6b7280;font-size:13px;"> · uptime ${uptimePercentage.toFixed(1)}% · failing ${failedCount}/${totalComponents}${ruWl ? ` · channel success ${ruWl.success_rate.toFixed(1)}% (now ${ruWl.current_ok === null ? 'no data' : ruWl.current_ok ? 'OK' : 'failing'})` : ''}</span>
     </div>
 
     ${criticalIssuesSection}
@@ -708,6 +719,10 @@ Deno.serve(async (req) => {
             success_rate: list.length > 0 ? ((list.length - failed) / list.length) * 100 : 100,
             avg_ms: latencies.length > 0 ? Math.round(latencies.reduce((a, b) => a + b, 0) / latencies.length) : 0,
             last_run: shortTime(list[0]?.created_at ?? null),
+            // list is ordered newest-first: current state = outcome of the most recent run
+            current_ok: list.length > 0 ? list[0].success !== false : null,
+            recovered: failed > 0 && list.length > 0 && list[0].success !== false,
+            last_failure_at: shortTime(list.find(r => r.success === false)?.created_at ?? null),
           };
         })
         .sort((a, b) => {
@@ -757,6 +772,18 @@ Deno.serve(async (req) => {
         reservations_24h: (ruNotifs || []).length,
         reservations_unprocessed: (ruNotifs || []).filter(n => n.processed === false).length,
         last_reservation_at: shortTime((ruNotifs || [])[0]?.created_at ?? null),
+        current_ok: runs.length > 0 ? runs.every(r => r.action ? true : true) && (() => {
+          // current state = every action's most recent run succeeded
+          const seen = new Set<string>();
+          for (const r of runs) {
+            const key = r.action || 'unknown';
+            if (seen.has(key)) continue;
+            seen.add(key);
+            if (r.success === false) return false;
+          }
+          return true;
+        })() : null,
+        recovered_actions: actions.filter(a => a.recovered).length,
         ari_last_push_at: shortTime(lastAri),
         ari_stale_hours: hoursSince(lastAri),
         cert,
