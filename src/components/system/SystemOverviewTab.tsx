@@ -216,7 +216,10 @@ export function SystemOverviewTab() {
         if (!endpointMap.has(key)) endpointMap.set(key, { calls: 0, errors: 0, latency: [] });
         const entry = endpointMap.get(key)!;
         entry.calls += 1;
-        if ((row.status_code ?? 200) >= 400) entry.errors += 1;
+        // Only server-side faults count as platform errors; 4xx is a caller mistake and must
+        // not paint an endpoint red.
+        if ((row.status_code ?? 200) >= 500) entry.errors += 1;
+
         if (row.response_time_ms) entry.latency.push(row.response_time_ms);
       });
 
