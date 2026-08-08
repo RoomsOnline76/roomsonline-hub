@@ -201,6 +201,51 @@ export const RATE_SOURCE_LABELS: Record<string, string> = {
 export const COMMISSION_BASIS_NOTE =
   "Commission is earned on ROL net revenue only — guest payments, payment-gateway fees, facilitator surcharges and other pass-through costs are excluded.";
 
+/** The standing tax position printed on every statement, PDF and email. */
+export const COMMISSION_PAYOUT_TAX_NOTE =
+  "This is a referral commission payout, not remuneration. The referral partner acts as an independent contractor; no employment relationship exists and no PAYE, UIF or SDL is withheld. The partner is solely responsible for declaring this income to SARS and for any income tax, provisional tax and VAT due on it.";
+
+/** Wording used when the partner is a registered VAT vendor. */
+export const COMMISSION_VAT_NOTE =
+  "The partner is a registered VAT vendor. VAT is added to the commission and a valid tax invoice is required before payment is released.";
+
+export interface CommissionVatBreakdown {
+  /** Commission excluding VAT — the net payout the engine calculated. */
+  exclusive: number;
+  /** VAT added on top, zero when the partner is not a VAT vendor. */
+  vat: number;
+  /** What actually gets paid out. */
+  total: number;
+  vatRegistered: boolean;
+  vatRate: number;
+  vatNumber: string | null;
+}
+
+/**
+ * Commission payouts are VAT-exclusive: a VAT-vendor partner adds VAT on top of
+ * the commission earned, so the exclusive amount never changes.
+ */
+export function commissionVatBreakdown(
+  statement: Pick<CommissionStatement, "net_payable" | "tax_snapshot" | "vat_amount">,
+  fallbackVatRate = 15,
+): CommissionVatBreakdown {
+  const tax = statement.tax_snapshot || {};
+  const vatRegistered = !!tax.vat_registered;
+  const vatRate = Number(tax.vat_rate ?? fallbackVatRate) || 0;
+  const exclusive = round2(statement.net_payable);
+  const stored = round2(statement.vat_amount || 0);
+  const vat = vatRegistered ? (stored || round2(exclusive * (vatRate / 100))) : 0;
+  return {
+    exclusive,
+    vat,
+    total: round2(exclusive + vat),
+    vatRegistered,
+    vatRate,
+    vatNumber: tax.vat_number ?? null,
+  };
+}
+
+
 export function commissionLines(lines: CommissionLine[]): CommissionLine[] {
   return lines.filter((l) => l.line_kind === "commission");
 }
