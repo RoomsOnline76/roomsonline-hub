@@ -363,12 +363,19 @@ Deno.serve(async (req) => {
           termByKey.get(termKey) ?? null,
         );
 
+        // Pass-through processing cost: prefer what the gateway actually charged us,
+        // fall back to the configured percentage. Never commissionable.
         const pfEnabled = !!config?.payment_facilitator_enabled;
-        const pfRate =
-          e.settlement === "rol" && pfEnabled
-            ? num(config?.transaction_fee_percentage ?? globalTxFee)
-            : 0;
-        const fee = round2(e.gross * (pfRate / 100));
+        let fee = 0;
+        if (e.settlement === "rol" && pfEnabled) {
+          if (e.gatewayFee != null) {
+            fee = round2(e.gatewayFee);
+          } else {
+            const pfRate = num(config?.transaction_fee_percentage ?? globalTxFee);
+            fee = round2(e.gross * (pfRate / 100));
+          }
+        }
+
 
         grossAmount += e.gross;
         if (e.settlement === "byo") {
