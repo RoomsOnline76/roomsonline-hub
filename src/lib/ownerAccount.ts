@@ -317,6 +317,15 @@ export function computeBalances(input: BalanceInput): OwnerBalances {
     }
   }
 
+  // Contracted once-off setup that is payable now but has no live invoice yet.
+  const setupDue = round2(Math.max(0, Number(input.uninvoicedSetupDue || 0)));
+  if (setupDue > 0) {
+    due += setupDue;
+    noteOverdue(setupDue, input.setupDueDate ? input.setupDueDate.slice(0, 10) : null);
+  }
+
+
+
   let dueToYou = 0;
   let receivedAllTime = 0;
   for (const s of input.payouts) {
