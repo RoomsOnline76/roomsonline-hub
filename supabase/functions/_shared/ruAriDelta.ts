@@ -28,16 +28,19 @@ async function isRuConnected(supabase: any, propertyId: string): Promise<boolean
       .select("rentalsunited_property_id, ru_push_enabled")
       .eq("id", propertyId)
       .maybeSingle(),
+    // Only ACTIVE units count as listed — archived duplicates keep dead channel IDs.
     supabase
       .from("hostfully_room_types")
       .select("id")
       .eq("property_id", propertyId)
+      .eq("is_active", true)
       .not("rentalsunited_property_id", "is", null)
       .limit(1),
   ]);
   if (prop?.ru_push_enabled === false) return false;
   return Boolean(prop?.rentalsunited_property_id) || (units?.length ?? 0) > 0;
 }
+
 
 async function recentlyPushed(supabase: any, propertyId: string): Promise<boolean> {
   const since = new Date(Date.now() - RU_ARI_DELTA_DEBOUNCE_MS).toISOString();

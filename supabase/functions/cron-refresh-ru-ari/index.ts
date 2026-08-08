@@ -1,4 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { readInvokeError } from '../_shared/functionInvokeError.ts';
+
 
 /**
  * Daily cron: Refresh Availability + Rates + Inventory (ARI) for every
@@ -38,16 +40,22 @@ Deno.serve(async (req) => {
 
   try {
     // Collect RU-connected properties (parent-level + fan-out via room types)
+    // Collect RU-connected properties (parent-level + fan-out via ACTIVE room types only).
+    // Archived/retired units keep their old channel IDs for audit, but re-pushing them
+    // produces permanent "property does not exist" failures — they must never be queued.
     const [{ data: buildingProps }, { data: unitRows }] = await Promise.all([
       supabase
         .from('properties')
         .select('id, name, rentalsunited_property_id, ru_push_enabled')
+        .eq('is_active', true)
         .not('rentalsunited_property_id', 'is', null),
       supabase
         .from('hostfully_room_types')
-        .select('property_id, properties!inner(id, name, ru_push_enabled)')
+        .select('property_id, is_active, properties!inner(id, name, is_active, ru_push_enabled)')
+        .eq('is_active', true)
         .not('rentalsunited_property_id', 'is', null),
     ]);
+
 
     const propMap = new Map<string, { id: string; name: string; ru_push_enabled?: boolean }>();
     for (const p of buildingProps ?? []) {
@@ -55,8 +63,9 @@ Deno.serve(async (req) => {
     }
     for (const row of (unitRows ?? []) as any[]) {
       const p = row.properties;
-      if (p && !propMap.has(p.id) && p.ru_push_enabled !== false) propMap.set(p.id, p);
+      if (p && p.is_active !== false && !propMap.has(p.id) && p.ru_push_enabled !== false) propMap.set(p.id, p);
     }
+
     let properties = Array.from(propMap.values());
     if (scopeIds.length) properties = properties.filter((p) => scopeIds.includes(p.id));
 
@@ -90,7 +99,13 @@ Deno.serve(async (req) => {
         });
 
         if (error) {
-          errMsg = error.message;
+          // invoke() hides the JSON body behind "non-2xx status code" — read it so the
+          // health report shows the real reason and status instead of an UNKNOWN bucket.
+          const detail = await readInvokeError(error, 'ARI refresh failed');
+          errMsg = detail.message;
+          errCode = detail.errorCode ?? (detail.httpStatus ? `HTTP_${detail.httpStatus}` : null);
+          httpStatus = detail.httpStatus;
+          if (errCode && SKIP_CODES.has(errCode)) skipped = true;
         } else if (!data?.success) {
           errCode = data?.error?.code ?? null;
           errMsg = data?.error?.message || 'Unknown error';
@@ -98,7 +113,8 @@ Deno.serve(async (req) => {
         } else {
           success = true;
         }
-        httpStatus = success ? 200 : skipped ? 200 : 502;
+        if (httpStatus === null) httpStatus = success ? 200 : skipped ? 200 : 502;
+
       } catch (err) {
         errMsg = err instanceof Error ? err.message : String(err);
       }
