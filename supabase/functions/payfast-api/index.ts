@@ -467,6 +467,104 @@ async function findTransactionByRef(supabase: any, ref: string) {
   return legacy || null;
 }
 
+/**
+ * Settle a subscription / setup-fee invoice. Shared by the ITN webhook and the
+ * return-path verification so a lost ITN never leaves a paid invoice pending.
+ */
+async function settleSubscriptionInvoice(
+  supabase: any,
+  invoiceId: string,
+  subStatus: "paid" | "failed" | "cancelled",
+  pfPaymentId: string | null,
+  raw: Record<string, unknown> = {},
+) {
+  const { data: inv } = await supabase
+    .from("subscription_invoices")
+    .select("*")
+    .eq("id", invoiceId)
+    .maybeSingle();
+  if (!inv) return false;
+  if (inv.status === "paid") return true;
+
+  await supabase.from("subscription_invoices").update({
+    status: subStatus,
+    payfast_payment_id: pfPaymentId,
+    paid_at: subStatus === "paid" ? new Date().toISOString() : null,
+    metadata: { ...(inv.metadata ?? {}), itn: raw },
+  }).eq("id", invoiceId);
+
+  if (subStatus !== "paid") return true;
+
+  const isOnceOff = String(inv.invoice_kind || "") === "once_off";
+  const tableName = inv.property_id ? "property_billing_configs" : "portfolio_billing_configs";
+  const keyCol = inv.property_id ? "property_id" : "portfolio_id";
+  const keyVal = inv.property_id || inv.portfolio_id;
+
+  if (isOnceOff) {
+    // Setup fees do not activate the monthly subscription.
+    await supabase.from(tableName).update({
+      setup_fees_paid_at: new Date().toISOString(),
+      last_invoice_id: invoiceId,
+    }).eq(keyCol, keyVal).then(
+      () => undefined,
+      () => undefined,
+    );
+  } else {
+    const periodStart = new Date(inv.period_start);
+    const nextEnd = new Date(periodStart);
+    nextEnd.setMonth(nextEnd.getMonth() + 1);
+    await supabase.from(tableName).update({
+      subscription_status: "active",
+      current_period_end: nextEnd.toISOString().slice(0, 10),
+      last_invoice_id: invoiceId,
+      cancelled_at: null,
+    }).eq(keyCol, keyVal);
+  }
+
+  await supabase.from("subscription_charge_items")
+    .update({ invoiced_at: new Date().toISOString() })
+    .eq("invoiced_on_invoice_id", invoiceId)
+    .is("invoiced_at", null);
+
+  if (!inv.invoice_number) {
+    const { count } = await supabase
+      .from("subscription_invoices")
+      .select("id", { count: "exact", head: true })
+      .not("invoice_number", "is", null);
+    const year = new Date().getFullYear();
+    const invoiceNumber = `RO-${year}-${String(1000 + (count || 0) + 1).padStart(6, "0")}`;
+    await supabase.from("subscription_invoices").update({ invoice_number: invoiceNumber }).eq("id", invoiceId);
+  }
+
+  await supabase.from("billing_transactions").insert({
+    property_id: inv.property_id,
+    owner_id: inv.owner_id,
+    type: isOnceOff ? "once_off" : "subscription",
+    amount: inv.amount,
+    currency: inv.currency,
+    reference_id: invoiceId,
+    calculated_by: "payfast",
+    metadata: {
+      portfolio_id: inv.portfolio_id,
+      pf_payment_id: pfPaymentId,
+      period_start: inv.period_start,
+      period_end: inv.period_end,
+    },
+  });
+
+  try {
+    await supabase.functions.invoke("generate-subscription-invoice-pdf", { body: { invoice_id: invoiceId } });
+  } catch (e) {
+    console.error("[PayFast] Failed to trigger invoice PDF:", e);
+    await supabase.from("subscription_invoice_events").insert({
+      invoice_id: invoiceId, event_type: "pdf_dispatch", status: "error", detail: String(e),
+    });
+  }
+  return true;
+}
+
+
+
 
 
 // Server-side validation with PayFast
