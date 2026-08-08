@@ -310,7 +310,7 @@ export function CostSharingPanel({
               <span className="font-medium text-foreground">{formatZar(summary.totalContributedZar)}</span>
             </p>
             <p className="text-muted-foreground">
-              Dawie:{" "}
+              Dawie (incl. {summary.partnerPct}% settled):{" "}
               <span className="font-medium text-foreground">{formatZar(summary.dawieContributedZar)}</span>
             </p>
             <p className="text-muted-foreground">
