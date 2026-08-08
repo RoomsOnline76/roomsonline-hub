@@ -129,16 +129,24 @@ function useSeasons(propertyId: string | null) {
     queryKey: ["rolos-rate-seasons", propertyId],
     enabled: !!propertyId,
     queryFn: async () => {
+      const { data: plans, error: planErr } = await supabase
+        .from("rolos_rate_plans" as any)
+        .select("id")
+        .eq("property_id", propertyId!);
+      if (planErr) throw planErr;
+      const planIds = ((plans || []) as unknown as { id: string }[]).map((p) => p.id);
+      if (!planIds.length) return [] as RateSeason[];
       const { data, error } = await supabase
         .from("rolos_rate_seasons" as any)
         .select("id, name, start_date, end_date")
-        .eq("property_id", propertyId!)
+        .in("rate_plan_id", planIds)
         .order("start_date", { ascending: true });
       if (error) throw error;
       return (data || []) as unknown as RateSeason[];
     },
   });
 }
+
 
 const fmt = (n: number) => n.toLocaleString("en-ZA", { maximumFractionDigits: 0 });
 const fmtCurrency = (n: number) =>
