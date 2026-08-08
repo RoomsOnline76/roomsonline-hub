@@ -226,7 +226,8 @@ async function calculate(supabase: Client, periodMonth: string): Promise<Preview
         .lte("property_payout_statements.period_end", end),
       supabase
         .from("subscription_invoices")
-        .select("property_id, amount, status, period_start, paid_at")
+        .select("property_id, amount, status, period_start, paid_at, invoice_kind, line_items")
+
         .in("property_id", propertyIds.length ? propertyIds : ["00000000-0000-0000-0000-000000000000"])
         .in("status", PAID_INVOICE_STATUSES)
         .gte("period_start", start)
