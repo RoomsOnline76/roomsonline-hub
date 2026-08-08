@@ -80,6 +80,7 @@ const workspaceSection: NavSection = {
     { id: 'bookings', title: 'Bookings', icon: BookOpen, href: '/admin/bookings', minRole: 'owner' },
     
     { id: 'integrations', title: 'Integrations', icon: Code2, href: '/admin/integrations', minRole: 'owner', description: 'Website booking widgets & API' },
+    { id: 'channel-monitor', title: 'Channel Cost Monitor', icon: Gauge, href: '/admin/channel-monitor', minRole: 'admin', description: 'Distribution spend forecast & listing archive' },
   ],
 };
 

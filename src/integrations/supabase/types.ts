@@ -11727,6 +11727,73 @@ export type Database = {
         }
         Relationships: []
       }
+      ru_archive_events: {
+        Row: {
+          actor_email: string | null
+          actor_user_id: string | null
+          created_at: string
+          detail: string | null
+          direction: string
+          id: string
+          listing_count: number
+          property_id: string
+          property_name: string | null
+          reason: string | null
+          ru_status: string | null
+          unit_count: number
+        }
+        Insert: {
+          actor_email?: string | null
+          actor_user_id?: string | null
+          created_at?: string
+          detail?: string | null
+          direction: string
+          id?: string
+          listing_count?: number
+          property_id: string
+          property_name?: string | null
+          reason?: string | null
+          ru_status?: string | null
+          unit_count?: number
+        }
+        Update: {
+          actor_email?: string | null
+          actor_user_id?: string | null
+          created_at?: string
+          detail?: string | null
+          direction?: string
+          id?: string
+          listing_count?: number
+          property_id?: string
+          property_name?: string | null
+          reason?: string | null
+          ru_status?: string | null
+          unit_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ru_archive_events_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "ru_archive_events_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ru_archive_events_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ru_cert_runs: {
         Row: {
           created_at: string
