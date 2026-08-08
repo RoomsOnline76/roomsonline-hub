@@ -31,8 +31,39 @@ function Stat({
 }
 
 export function ChannelCostSummary({ data }: Props) {
-  const { forecast, fx, billableListings, activeProperties, pausedProperties, archivedProperties } = data;
-  const zar = fx ? formatZar(forecast.billableEur * fx.eurToZar) : "ZAR rate unavailable";
+  const {
+    forecast,
+    fx,
+    billableListings,
+    activeProperties,
+    pausedProperties,
+    archivedProperties,
+    rolPerListingZar,
+    rolRevenueZar,
+    effectiveRateEur,
+  } = data;
+
+  const toZar = (eur: number) => (fx ? formatZar(eur * fx.eurToZar) : null);
+  const costZar = fx ? forecast.billableEur * fx.eurToZar : null;
+  const zar = costZar != null ? formatZar(costZar) : "ZAR rate unavailable";
+
+  const rateHint = (() => {
+    const parts: string[] = [];
+    if (effectiveRateEur != null) {
+      const r = toZar(effectiveRateEur);
+      parts.push(`Cost ${formatEur(effectiveRateEur)}${r ? ` / ${r}` : ""} per listing`);
+    } else {
+      parts.push(forecast.tier ? forecast.tier.label : "Below the 101-listing tier floor");
+    }
+    if (rolPerListingZar != null) parts.push(`ROL bills ${formatZar(rolPerListingZar)}/listing/mo`);
+    return parts.join(" · ");
+  })();
+
+  const marginZar =
+    rolRevenueZar != null && costZar != null ? rolRevenueZar - costZar : rolRevenueZar != null ? null : null;
+
+  const marginPerListing =
+    marginZar != null && billableListings > 0 ? marginZar / billableListings : null;
 
   const driverLabel =
     forecast.driver === "grace"
@@ -43,27 +74,42 @@ export function ChannelCostSummary({ data }: Props) {
 
   return (
     <div className="space-y-3">
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <Stat
           accent
-          label={`Forecast · ${forecast.monthLabel}`}
+          label={`Forecast cost · ${forecast.monthLabel}`}
           value={formatEur(forecast.billableEur)}
           hint={zar}
         />
         <Stat
           label="Billable listings"
           value={String(billableListings)}
-          hint={forecast.tier ? forecast.tier.label : "Below the 101-listing tier floor"}
+          hint={rateHint}
+        />
+        <Stat
+          label="ROL revenue (default)"
+          value={rolRevenueZar != null ? formatZar(rolRevenueZar) : "Not configured"}
+          hint={
+            rolPerListingZar != null
+              ? `${formatZar(rolPerListingZar)} × ${billableListings} listings / mo`
+              : "Set the channel manager per-unit fee in billing defaults"
+          }
+        />
+        <Stat
+          label="Channel margin"
+          value={marginZar != null ? formatZar(marginZar) : "—"}
+          hint={
+            forecast.driver === "grace"
+              ? "Grace period — full revenue is margin"
+              : marginPerListing != null
+                ? `${formatZar(marginPerListing)} per listing spread`
+                : "Needs FX rate and default fee"
+          }
         />
         <Stat
           label="Properties syncing"
           value={String(activeProperties)}
           hint={`${pausedProperties} paused · ${archivedProperties} archived`}
-        />
-        <Stat
-          label="Units archived this month"
-          value={String(data.unitsArchivedThisMonth)}
-          hint={`${data.archivedUnits} inactive units still hold a listing id`}
         />
       </div>
 
@@ -77,19 +123,30 @@ export function ChannelCostSummary({ data }: Props) {
           {data.nextStep && (
             <span className="text-muted-foreground">
               Next step · <span className="text-foreground">{data.nextStep.monthLabel}</span> becomes{" "}
-              <span className="text-foreground tabular-nums">{formatEur(data.nextStep.billableEur)}</span> at today's
-              listing count
+              <span className="text-foreground tabular-nums">{formatEur(data.nextStep.billableEur)}</span>
+              {toZar(data.nextStep.billableEur) && (
+                <span className="tabular-nums"> ({toZar(data.nextStep.billableEur)})</span>
+              )}{" "}
+              at today's listing count
             </span>
           )}
 
           {data.nextTier ? (
             <span className="text-muted-foreground">
               {data.nextTier.needed} more listings drop the rate to{" "}
-              <span className="text-foreground">{formatEur(data.nextTier.rateEur)}</span> per listing
+              <span className="text-foreground">{formatEur(data.nextTier.rateEur)}</span>
+              {toZar(data.nextTier.rateEur) && (
+                <span className="text-foreground tabular-nums"> ({toZar(data.nextTier.rateEur)})</span>
+              )}{" "}
+              per listing
             </span>
           ) : (
             <span className="text-muted-foreground">Lowest per-listing rate reached</span>
           )}
+
+          <span className="text-muted-foreground">
+            Units archived this month · <span className="text-foreground">{data.unitsArchivedThisMonth}</span>
+          </span>
 
           {fx && (
             <span className="ml-auto text-xs text-muted-foreground">
@@ -101,3 +158,4 @@ export function ChannelCostSummary({ data }: Props) {
     </div>
   );
 }
+
