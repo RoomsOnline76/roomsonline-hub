@@ -131,7 +131,8 @@ export function buildPropertyInvoicePdf(invoice: PropertyInvoiceDetail, payUrl?:
 
   y += 8;
   const settled = invoice.status === "paid";
-  doc.setFillColor(...(settled ? [240, 250, 244] : [253, 244, 249]));
+  if (settled) doc.setFillColor(240, 250, 244);
+  else doc.setFillColor(253, 244, 249);
   doc.rect(M, y - 12, pageW - M * 2, 52, "F");
   doc.setFont("helvetica", "bold");
   doc.setFontSize(9);
