@@ -115,7 +115,11 @@ export interface OwnerAccountData {
   unitCount: number;
   /** True when any property in scope settles through its own payment gateway. */
   byoGateway: boolean;
+  /** ROL-held booking funds not yet covered by a payout statement. */
+  pendingSettlement: PendingSettlement;
 }
+
+const EMPTY_PENDING: PendingSettlement = { amount: 0, gross: 0, commission: 0, bookings: 0 };
 
 const EMPTY: OwnerAccountData = {
   config: null,
@@ -125,7 +129,9 @@ const EMPTY: OwnerAccountData = {
   revenue: [],
   unitCount: 0,
   byoGateway: false,
+  pendingSettlement: EMPTY_PENDING,
 };
+
 
 export function useOwnerAccount(scope: OwnerScope | null) {
   const [data, setData] = useState<OwnerAccountData>(EMPTY);
