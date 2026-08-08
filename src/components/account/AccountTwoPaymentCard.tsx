@@ -55,9 +55,9 @@ export function AccountTwoPaymentCard({ scope, entityId, onChanged }: Props) {
   const [busy, setBusy] = useState<string | null>(null);
 
   const call = useCallback(
-    async (action: string) => {
+    async (action: string, extra: Record<string, unknown> = {}) => {
       const { data, error } = await supabase.functions.invoke("subscription-billing-actions", {
-        body: { action, scope, entity_id: entityId },
+        body: { action, scope, entity_id: entityId, ...extra },
       });
       if (error) throw new Error(error.message);
       if ((data as any)?.error) throw new Error(String((data as any).error));
@@ -80,10 +80,15 @@ export function AccountTwoPaymentCard({ scope, entityId, onChanged }: Props) {
     void refresh();
   }, [refresh]);
 
-  const run = async (action: string, successMsg: string, openPayUrl = false) => {
+  const run = async (
+    action: string,
+    successMsg: string,
+    openPayUrl = false,
+    extra: Record<string, unknown> = {},
+  ) => {
     setBusy(action);
     try {
-      const res = await call(action);
+      const res = await call(action, extra);
       toast.success(successMsg);
       if (openPayUrl && res?.pay_url) window.open(res.pay_url, "_blank", "noopener");
       await refresh();
@@ -148,6 +153,22 @@ export function AccountTwoPaymentCard({ scope, entityId, onChanged }: Props) {
             </p>
           ) : (
             <p className="text-[11px] text-muted-foreground">No setup fees outstanding.</p>
+          )}
+          {isStaff && summary.is_staff && setupInvoice && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="w-full"
+              disabled={spin("mark_invoice_paid")}
+              onClick={() =>
+                void run("mark_invoice_paid", "Invoice marked as paid", false, {
+                  invoice_id: setupInvoice.id,
+                })
+              }
+            >
+              {spin("mark_invoice_paid") && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
+              Mark as paid (settled outside ROL)
+            </Button>
           )}
 
         </div>

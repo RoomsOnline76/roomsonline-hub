@@ -55,6 +55,34 @@ export default function SubscriptionPay() {
     if (formState && formRef.current) formRef.current.submit();
   }, [formState]);
 
+  // Return-path safety net: PayFast's ITN can be delayed or lost. When the guest
+  // comes back with a success flag we ask the backend to confirm the payment with
+  // PayFast and settle the invoice, then re-read the authoritative status.
+  useEffect(() => {
+    if (returnStatus !== "success" || !invoice || invoice.status === "paid") return;
+    let cancelledRun = false;
+    let attempts = 0;
+    const tick = async () => {
+      attempts += 1;
+      try {
+        await supabase.functions.invoke("payfast-api", {
+          body: { action: "verify_subscription_payment", token },
+        });
+      } catch {
+        /* verification is best-effort */
+      }
+      const { data } = await supabase.rpc("get_subscription_invoice_by_token", { _token: token });
+      const row = Array.isArray(data) ? data[0] : data;
+      if (cancelledRun) return;
+      if (row) setInvoice(row as Invoice);
+      if ((row as Invoice | null)?.status !== "paid" && attempts < 3) {
+        setTimeout(tick, 4000);
+      }
+    };
+    void tick();
+    return () => { cancelledRun = true; };
+  }, [returnStatus, invoice?.status, token]);
+
   const initPayment = async () => {
     if (!invoice) return;
     setSubmitting(true);
@@ -98,7 +126,8 @@ export default function SubscriptionPay() {
     </div>;
   }
 
-  const isPaid = invoice?.status === "paid" || returnStatus === "success";
+  const isPaid = invoice?.status === "paid";
+  const awaitingConfirmation = returnStatus === "success" && !isPaid;
   const isCancelled = invoice?.status === "cancelled" || cancelled;
   const isOnceOff = (invoice?.invoice_kind || "").toLowerCase() === "once_off";
 
@@ -123,7 +152,17 @@ export default function SubscriptionPay() {
               </AlertDescription>
             </Alert>
           )}
-          {isCancelled && !isPaid && (
+          {awaitingConfirmation && (
+            <Alert>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <AlertTitle>Confirming your payment</AlertTitle>
+              <AlertDescription>
+                PayFast has returned you here. We are confirming the payment with the
+                gateway — this page updates as soon as it is settled.
+              </AlertDescription>
+            </Alert>
+          )}
+          {isCancelled && !isPaid && !awaitingConfirmation && (
             <Alert variant="destructive">
               <AlertTitle>{isOnceOff ? "Invoice cancelled" : "Subscription cancelled"}</AlertTitle>
               <AlertDescription>
@@ -133,7 +172,7 @@ export default function SubscriptionPay() {
               </AlertDescription>
             </Alert>
           )}
-          {!isPaid && !isCancelled && (
+          {!isPaid && !isCancelled && !awaitingConfirmation && (
             <>
               <div className="rounded-lg border p-4 space-y-2">
                 <div className="flex justify-between"><span className="text-muted-foreground">Type</span><span className="font-medium">{isOnceOff ? "Once-off setup fee" : "Monthly subscription"}</span></div>
