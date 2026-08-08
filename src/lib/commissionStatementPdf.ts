@@ -113,7 +113,27 @@ export function buildCommissionStatementPdf(
     col2,
     y,
   );
+  y += 32;
+  const tax = statement.tax_snapshot || {};
+  const vatBreak = commissionVatBreakdown(statement, vat.vat_rate);
+  pair(
+    "Partner tax status",
+    `${tax.entity_type === "company" ? "Company" : "Individual"} · independent contractor${
+      tax.tax_reference_number ? ` · SARS ref ${tax.tax_reference_number}` : ""
+    }`,
+    M,
+    y,
+  );
+  pair(
+    "VAT status",
+    vatBreak.vatRegistered
+      ? `VAT vendor${vatBreak.vatNumber ? ` · ${vatBreak.vatNumber}` : ""} · VAT added at ${vatBreak.vatRate}%`
+      : "Not VAT registered · no VAT charged",
+    col2,
+    y,
+  );
   y += 38;
+
 
   /* ---------------- Section A ---------------- */
   const blocks = propertyBlocks(statement.lines);
