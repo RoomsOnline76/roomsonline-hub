@@ -1737,43 +1737,55 @@ export type Database = {
       }
       financial_metrics: {
         Row: {
+          burn_source: string
           cash_balance_usd: number | null
           cash_balance_zar: number | null
           created_at: string | null
           created_by: string | null
+          eur_rate: number | null
           exchange_rate: number | null
           id: string
           metric_date: string
           monthly_burn_usd: number | null
+          monthly_burn_zar: number | null
           monthly_revenue_usd: number | null
+          monthly_revenue_zar: number | null
           notes: string | null
           runway_months: number | null
           updated_at: string | null
         }
         Insert: {
+          burn_source?: string
           cash_balance_usd?: number | null
           cash_balance_zar?: number | null
           created_at?: string | null
           created_by?: string | null
+          eur_rate?: number | null
           exchange_rate?: number | null
           id?: string
           metric_date: string
           monthly_burn_usd?: number | null
+          monthly_burn_zar?: number | null
           monthly_revenue_usd?: number | null
+          monthly_revenue_zar?: number | null
           notes?: string | null
           runway_months?: number | null
           updated_at?: string | null
         }
         Update: {
+          burn_source?: string
           cash_balance_usd?: number | null
           cash_balance_zar?: number | null
           created_at?: string | null
           created_by?: string | null
+          eur_rate?: number | null
           exchange_rate?: number | null
           id?: string
           metric_date?: string
           monthly_burn_usd?: number | null
+          monthly_burn_zar?: number | null
           monthly_revenue_usd?: number | null
+          monthly_revenue_zar?: number | null
           notes?: string | null
           runway_months?: number | null
           updated_at?: string | null
@@ -2349,6 +2361,7 @@ export type Database = {
         Row: {
           billing_type: string
           category: string | null
+          cost_eur: number | null
           cost_usd: number
           cost_zar: number | null
           created_at: string | null
@@ -2360,12 +2373,14 @@ export type Database = {
           is_paid: boolean | null
           notes: string | null
           paid_at: string | null
+          source_currency: string
           updated_at: string | null
           vendor: string | null
         }
         Insert: {
           billing_type: string
           category?: string | null
+          cost_eur?: number | null
           cost_usd: number
           cost_zar?: number | null
           created_at?: string | null
@@ -2377,12 +2392,14 @@ export type Database = {
           is_paid?: boolean | null
           notes?: string | null
           paid_at?: string | null
+          source_currency?: string
           updated_at?: string | null
           vendor?: string | null
         }
         Update: {
           billing_type?: string
           category?: string | null
+          cost_eur?: number | null
           cost_usd?: number
           cost_zar?: number | null
           created_at?: string | null
@@ -2394,6 +2411,7 @@ export type Database = {
           is_paid?: boolean | null
           notes?: string | null
           paid_at?: string | null
+          source_currency?: string
           updated_at?: string | null
           vendor?: string | null
         }
