@@ -114,7 +114,12 @@ const OwnerAccount = () => {
               balances={account.balances}
               subscriptionInvoices={account.subscriptionInvoices}
               rolInvoices={account.rolInvoices}
+              config={account.config}
+              unitCount={account.unitCount}
+              byoGateway={account.byoGateway}
+              billingPropertyId={scope.propertyIds[0] ?? null}
             />
+
 
             <AccountSubscriptionCard
               config={account.config}
