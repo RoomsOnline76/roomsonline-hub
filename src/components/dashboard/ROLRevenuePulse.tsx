@@ -21,6 +21,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useROLPulseData } from "@/hooks/useROLPulseData";
 import { ROLKPICard } from "./ROLKPICard";
+import { PulseSettlementRow } from "./PulseSettlementRow";
 import { ChannelBreakdownChart } from "./ChannelBreakdownChart";
 import { TopPropertiesTable } from "./TopPropertiesTable";
 import { RiskIndicators } from "./RiskIndicators";
