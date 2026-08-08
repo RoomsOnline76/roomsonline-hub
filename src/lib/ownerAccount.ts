@@ -366,6 +366,89 @@ export function computeBalances(input: BalanceInput): OwnerBalances {
 }
 
 /* ------------------------------------------------------------------ */
+/* Pending settlement (ROL-held booking funds without a statement)     */
+/* ------------------------------------------------------------------ */
+
+const PAID_BOOKING_PAYMENT_STATUSES = [
+  "paid",
+  "paid_externally",
+  "settled",
+  "completed",
+  "partially_paid",
+  "deposit_paid",
+];
+const EXCLUDED_BOOKING_STATUSES = ["cancelled", "canceled", "refunded", "no_show", "failed"];
+
+export interface SettlementBooking {
+  id: string;
+  status: string | null;
+  payment_status: string | null;
+  total_price: number | null;
+  calculated_commission: number | null;
+  commission_rate_applied: number | null;
+  commission_type: string | null;
+  integration_type?: string | null;
+  booking_channel?: string | null;
+  source_url?: string | null;
+  check_in_date?: string | null;
+  created_at?: string | null;
+}
+
+export interface PendingSettlement {
+  /** Net owed to the property for funds ROL holds. */
+  amount: number;
+  /** Gross collected by ROL for those bookings. */
+  gross: number;
+  /** Commission withheld from that gross. */
+  commission: number;
+  bookings: number;
+}
+
+/**
+ * Money ROL has collected for confirmed/paid bookings that no payout statement
+ * covers yet. Own-gateway (BYO) settlements are excluded — those funds never
+ * reach ROL.
+ */
+export function computePendingSettlement(
+  bookings: SettlementBooking[],
+  opts: {
+    /** Booking ids already reflected on a payout statement line. */
+    statementedBookingIds: Set<string>;
+    /** Booking ids whose gateway transaction settled through the property's own credentials. */
+    byoBookingIds?: Set<string>;
+    /** Resolves commission for a booking against its gross. */
+    resolveCommission: (booking: SettlementBooking, gross: number) => number;
+  },
+): PendingSettlement {
+  let gross = 0;
+  let commission = 0;
+  let count = 0;
+
+  for (const b of bookings) {
+    if (!b?.id) continue;
+    if (opts.statementedBookingIds.has(b.id)) continue;
+    if (EXCLUDED_BOOKING_STATUSES.includes(String(b.status || "").toLowerCase())) continue;
+    const payment = String(b.payment_status || "").toLowerCase();
+    if (!PAID_BOOKING_PAYMENT_STATUSES.includes(payment)) continue;
+    if (payment === "paid_externally") continue;
+    if (opts.byoBookingIds?.has(b.id)) continue;
+    const amount = Number(b.total_price || 0);
+    if (amount <= 0) continue;
+    gross += amount;
+    commission += Math.max(0, opts.resolveCommission(b, amount));
+    count += 1;
+  }
+
+  return {
+    amount: round2(Math.max(0, gross - commission)),
+    gross: round2(gross),
+    commission: round2(commission),
+    bookings: count,
+  };
+}
+
+
+/* ------------------------------------------------------------------ */
 /* Account statement ledger                                            */
 /* ------------------------------------------------------------------ */
 
