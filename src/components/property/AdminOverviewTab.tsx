@@ -95,6 +95,30 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
   // already resolves that scope, so read them from there.
   const wlDomain = config as any;
 
+  // A verified domain may live on the parent portfolio (shared by every member
+  // property). Fall back to it so the card reflects the domain actually serving
+  // this property's booking pages.
+  const { data: inheritedWl } = useQuery({
+    queryKey: ["admin-overview-inherited-wl", propertyId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("property_portfolio_members")
+        .select("portfolio_id, property_portfolios:portfolio_id(name, white_label_domain, white_label_domain_status)")
+        .eq("property_id", propertyId);
+      const row = (data as any[] | null)
+        ?.map((m) => m.property_portfolios)
+        .find((p) => p?.white_label_domain);
+      return row
+        ? {
+            domain: String(row.white_label_domain),
+            status: (row.white_label_domain_status || "unconfigured") as string,
+            portfolioName: row.name as string | null,
+          }
+        : null;
+    },
+    enabled: !!propertyId,
+  });
+
   const { data: paymentModeRow } = useQuery({
     queryKey: ["admin-overview-payment-mode", propertyId],
     queryFn: async () => {
@@ -155,7 +179,12 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
   const facilitator = reservationOnly ? false : config?.payment_facilitator_enabled ?? !byoEnabled;
   const customProvider = !reservationOnly && byoEnabled;
   const wlAllowed = !!config?.white_label_allowed;
-  const wlStatus = (wlDomain?.white_label_domain_status || "unconfigured") as keyof typeof DOMAIN_STATUS_META;
+  const ownDomain = (wlDomain?.white_label_domain || "").trim?.() || null;
+  const effectiveDomain = ownDomain || inheritedWl?.domain || null;
+  const domainInherited = !ownDomain && !!inheritedWl?.domain;
+  const wlStatus = ((domainInherited
+    ? inheritedWl?.status
+    : wlDomain?.white_label_domain_status) || "unconfigured") as keyof typeof DOMAIN_STATUS_META;
   const wlMeta = DOMAIN_STATUS_META[wlStatus] || DOMAIN_STATUS_META.unconfigured;
   const WlIcon = wlMeta.Icon;
   const activeReferral = referrals?.[0];
@@ -554,11 +583,19 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
           <Row
             label="Custom domain"
             value={
-              wlDomain?.white_label_domain ? (
-                <span className="font-mono">{wlDomain.white_label_domain}</span>
+              effectiveDomain ? (
+                <span className="flex items-center gap-2">
+                  <span className="font-mono">{effectiveDomain}</span>
+                  {domainInherited && <Badge variant="outline">Portfolio</Badge>}
+                </span>
               ) : (
                 <Empty />
               )
+            }
+            hint={
+              domainInherited
+                ? `Inherited from ${inheritedWl?.portfolioName || "the parent portfolio"}.`
+                : undefined
             }
           />
           <Row
