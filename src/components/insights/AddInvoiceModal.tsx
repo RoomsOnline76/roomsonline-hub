@@ -30,6 +30,12 @@ import {
   type BillCurrency,
   type FxRates,
 } from "@/lib/burnRate";
+import {
+  InvoiceDocumentField,
+  emptyInvoiceDocument,
+  type InvoiceDocument,
+} from "./InvoiceDocumentField";
+
 
 interface Invoice {
   id: string;
@@ -94,7 +100,9 @@ const emptyForm = {
   due_date: "",
   is_paid: false,
   notes: "",
+  ...emptyInvoiceDocument,
 };
+
 
 export function AddInvoiceModal({
   open,
