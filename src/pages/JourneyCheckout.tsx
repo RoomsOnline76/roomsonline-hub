@@ -325,12 +325,39 @@ export default function JourneyCheckout() {
       
       console.log('[JourneyCheckout] Booking created:', tempBooking.id);
 
-      // Step 5: Initiate payment
+      // Step 5: Reservation-only journeys skip the gateway entirely.
+      if (hasReservationOnly) {
+        await supabase
+          .from('bookings')
+          .update({
+            status: 'pending',
+            payment_status: 'awaiting_eft',
+            payment_method: 'eft',
+            reservation_hold: true,
+            hold_expires_at: reservationHoldExpiry(),
+            deposit_amount: journeyReservationTerms.amountDueNow,
+            deposit_due_date: journeyReservationTerms.dueDate,
+          } as never)
+          .eq('id', tempBooking.id);
+
+        await supabase.functions.invoke('send-booking-email', {
+          body: { booking_id: tempBooking.id, email_type: 'reservation_only' },
+        }).catch(() => undefined);
+
+        toast.success("Reservation confirmed — payment details emailed to you");
+        clearItinerary();
+        navigate(`/journey/confirmation/${itineraryId}`);
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Step 5b: Initiate payment
       console.log('[JourneyCheckout] Opening payment modal for booking:', tempBooking.id, 'gateway:', effectiveGateway);
       setPendingItineraryId(itineraryId);
       setPaymentBookingId(tempBooking.id);
       setShowPayFastModal(true);
       setIsSubmitting(false);
+
 
     } catch (error) {
       console.error('Booking error:', error);
