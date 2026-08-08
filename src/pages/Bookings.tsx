@@ -11,6 +11,15 @@ import { BookingLifecycleVisualizer, type BookingState } from "@/components/Book
 import { ModifyBookingModal } from "@/components/booking/ModifyBookingModal";
 import { CancelBookingModal } from "@/components/booking/CancelBookingModal";
 import {
+  ROL_ORIGIN_FILTER_OPTIONS,
+  ROL_ORIGIN_LABELS,
+  displayBookingReference,
+  matchesReferenceSearch,
+  resolveOriginCode,
+  kindForOrigin,
+} from "@/lib/bookingReference";
+
+import {
   Select,
   SelectContent,
   SelectItem,
