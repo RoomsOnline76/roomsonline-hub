@@ -179,6 +179,7 @@ export default function AdminPayments() {
       <Tabs defaultValue="payouts" className="space-y-4">
         <TabsList>
           <TabsTrigger value="payouts">Property Payouts</TabsTrigger>
+          <TabsTrigger value="invoices">Property Invoices</TabsTrigger>
           <TabsTrigger value="commissions" className="gap-1.5">
             Referral Commission
             {awaitingApprovalCount > 0 && (
@@ -193,6 +194,12 @@ export default function AdminPayments() {
         <TabsContent value="payouts">
           <PayoutStatementRun />
         </TabsContent>
+
+        {/* Receivables: commission + platform fees ROL bills instead of deducting */}
+        <TabsContent value="invoices">
+          <PropertyInvoiceRun />
+        </TabsContent>
+
 
         {/* Referral commission now lives on its own surface — this is the pointer. */}
         <TabsContent value="commissions">
