@@ -100,12 +100,15 @@ export default function SubscriptionPay() {
 
   const isPaid = invoice?.status === "paid" || returnStatus === "success";
   const isCancelled = invoice?.status === "cancelled" || cancelled;
+  const isOnceOff = (invoice?.invoice_kind || "").toLowerCase() === "once_off";
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-6">
       <Card className="max-w-lg w-full">
         <CardHeader>
-          <CardTitle className="text-2xl font-serif">Rooms Online Subscription</CardTitle>
+          <CardTitle className="text-2xl font-serif">
+            {isOnceOff ? "Rooms Online Setup Fee" : "Rooms Online Subscription"}
+          </CardTitle>
           <p className="text-sm text-muted-foreground mt-1">{invoice?.entity_name}</p>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -113,20 +116,30 @@ export default function SubscriptionPay() {
             <Alert className="border-green-500/50 bg-green-500/5">
               <CheckCircle2 className="h-4 w-4 text-green-600" />
               <AlertTitle>Payment received</AlertTitle>
-              <AlertDescription>Your subscription is active. Thank you.</AlertDescription>
+              <AlertDescription>
+                {isOnceOff
+                  ? "Your once-off setup fee is settled. Thank you."
+                  : "Your subscription is active. Thank you."}
+              </AlertDescription>
             </Alert>
           )}
           {isCancelled && !isPaid && (
             <Alert variant="destructive">
-              <AlertTitle>Subscription cancelled</AlertTitle>
-              <AlertDescription>Your subscription has been cancelled. Contact support to reactivate.</AlertDescription>
+              <AlertTitle>{isOnceOff ? "Invoice cancelled" : "Subscription cancelled"}</AlertTitle>
+              <AlertDescription>
+                {isOnceOff
+                  ? "This setup fee invoice has been cancelled. Contact support if this is unexpected."
+                  : "Your subscription has been cancelled. Contact support to reactivate."}
+              </AlertDescription>
             </Alert>
           )}
           {!isPaid && !isCancelled && (
             <>
               <div className="rounded-lg border p-4 space-y-2">
-                <div className="flex justify-between"><span className="text-muted-foreground">Type</span><span className="font-medium capitalize">{invoice?.invoice_kind}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Period</span><span>{invoice?.period_start} → {invoice?.period_end}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Type</span><span className="font-medium">{isOnceOff ? "Once-off setup fee" : "Monthly subscription"}</span></div>
+                {!isOnceOff && (
+                  <div className="flex justify-between"><span className="text-muted-foreground">Period</span><span>{invoice?.period_start} → {invoice?.period_end}</span></div>
+                )}
                 {invoice?.line_items && invoice.line_items.length > 0 && (
                   <div className="pt-2 border-t space-y-1">
                     {invoice.line_items.map((li, i) => (
@@ -137,7 +150,7 @@ export default function SubscriptionPay() {
                     ))}
                   </div>
                 )}
-                {Number(invoice?.once_off_amount || 0) > 0 && (
+                {!isOnceOff && Number(invoice?.once_off_amount || 0) > 0 && (
                   <div className="pt-2 border-t text-xs text-muted-foreground">
                     Includes {invoice?.currency} {Number(invoice?.once_off_amount || 0).toFixed(2)} in one-off setup fees added since your last payment.
                   </div>
@@ -146,20 +159,27 @@ export default function SubscriptionPay() {
               </div>
               <div className="flex items-start gap-2 text-sm text-muted-foreground">
                 <ShieldCheck className="h-4 w-4 mt-0.5 text-primary" />
-                <p>Secure payment via PayFast. <strong>Cancel anytime</strong> — no lock-in, no cancellation fee. Your account stays active for the paid month.</p>
+                <p>
+                  {isOnceOff
+                    ? <>Secure payment via PayFast. This is a <strong>once-off setup charge</strong> due on contract activation — it is not a subscription and does not recur.</>
+                    : <>Secure payment via PayFast. <strong>Cancel anytime</strong> — no lock-in, no cancellation fee. Your account stays active for the paid month.</>}
+                </p>
               </div>
               {error && <p className="text-sm text-destructive">{error}</p>}
               <div className="flex flex-col gap-2">
                 <Button onClick={initPayment} disabled={submitting} size="lg" className="w-full">
                   {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Redirecting to PayFast…</> : `Pay ${amountFmt}`}
                 </Button>
-                <Button variant="ghost" size="sm" onClick={cancelSubscription} disabled={cancelling} className="text-muted-foreground">
-                  {cancelling ? "Cancelling…" : "Cancel subscription"}
-                </Button>
+                {!isOnceOff && (
+                  <Button variant="ghost" size="sm" onClick={cancelSubscription} disabled={cancelling} className="text-muted-foreground">
+                    {cancelling ? "Cancelling…" : "Cancel subscription"}
+                  </Button>
+                )}
               </div>
             </>
           )}
         </CardContent>
+
       </Card>
       {formState && (
         <form ref={formRef} action={formState.url} method="post" className="hidden">
