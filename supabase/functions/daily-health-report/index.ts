@@ -794,6 +794,8 @@ Deno.serve(async (req) => {
       aiDigest,
       devTasks,
       ruWl
+    );
+
 
     // Determine subject line
     let subject: string;
