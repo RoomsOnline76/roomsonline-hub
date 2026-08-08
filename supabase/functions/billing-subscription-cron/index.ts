@@ -144,23 +144,37 @@ async function sendReminder(resend: Resend, to: string, subject: string, html: s
 async function ensureInvoiceAndEmail(supabase: any, resend: Resend, opts: {
   cfg: any; scope: "property" | "portfolio"; entityId: string; entityName: string;
   ownerId: string | null; ownerEmail: string | null; isRenewal: boolean;
+  globalFreeDefault: number;
 }) {
-  const { cfg, scope, entityId, entityName, ownerId, ownerEmail, isRenewal } = opts;
+  const { cfg, scope, entityId, entityName, ownerId, ownerEmail, isRenewal, globalFreeDefault } = opts;
   const today = new Date();
-  const periodStart = isRenewal && cfg.current_period_end ? new Date(cfg.current_period_end) : today;
-  const periodEnd = new Date(periodStart);
-  periodEnd.setMonth(periodEnd.getMonth() + 1);
-  const psStr = periodStart.toISOString().slice(0, 10);
-  const peStr = periodEnd.toISOString().slice(0, 10);
+  const todayStr = today.toISOString().slice(0, 10);
 
   // Hard gate: never invoice unless billing has been explicitly switched on.
   if (cfg.billing_enabled !== true) {
     console.log(`[cron] Skip ${scope} ${entityId}: billing_enabled is off`);
     return { skipped: true, reason: "billing_disabled" };
   }
-  if (!cfg.billing_start_date) {
-    return { skipped: true, reason: "no_billing_start_date" };
+
+  const paidStart = resolvePaidStart(cfg, globalFreeDefault);
+  if (!paidStart) {
+    return { skipped: true, reason: "no_engagement_or_billing_start_date" };
   }
+  // Free period: the clock runs but nothing is invoiced until it lapses.
+  if (!isRenewal && todayStr < paidStart) {
+    return { skipped: true, reason: "in_free_period", free_period_ends: paidStart };
+  }
+
+  // The first paid period starts the day the free period ends, so the anniversary
+  // day stays aligned with the engagement date.
+  const periodStart = isRenewal && cfg.current_period_end
+    ? new Date(`${String(cfg.current_period_end).slice(0, 10)}T00:00:00Z`)
+    : new Date(`${paidStart}T00:00:00Z`);
+  const periodEnd = new Date(periodStart);
+  periodEnd.setUTCMonth(periodEnd.getUTCMonth() + 1);
+  const psStr = periodStart.toISOString().slice(0, 10);
+  const peStr = periodEnd.toISOString().slice(0, 10);
+
 
   const entityCol = scope === "property" ? "property_id" : "portfolio_id";
 
