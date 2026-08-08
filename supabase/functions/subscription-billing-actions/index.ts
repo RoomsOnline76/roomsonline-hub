@@ -9,6 +9,7 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { Resend } from "npm:resend@2";
+import { getBillingAdminRecipients } from "../_shared/billingAdminRecipients.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -680,7 +681,6 @@ Deno.serve(async (req) => {
       const { error: cfgError } = await supabase
         .from(cfgTable)
         .update({
-          subscription_fee_monthly: pendingFee,
           pending_monthly_fee: null,
           pending_effective_date: null,
           pending_model_json: null,
