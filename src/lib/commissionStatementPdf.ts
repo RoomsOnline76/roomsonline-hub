@@ -1,18 +1,22 @@
 /**
- * Referral commission statement PDF — the referrer's paysheet.
+ * Referral commission statement PDF — a commission payout advice, not a payslip.
  *
  * Sections:
  *   A  Commission per referred property (with revenue components and rate source)
  *   B  Adjustments and clawbacks
- *   C  Net payable + banking and payment reference
+ *   C  Net commission payout (+ VAT for VAT vendors), banking and payment reference
+ *   D  Tax position — independent contractor, partner carries SARS liability
  */
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import {
   COMMISSION_BASIS_NOTE,
+  COMMISSION_PAYOUT_TAX_NOTE,
   COMMISSION_TYPE_LABELS,
+  COMMISSION_VAT_NOTE,
   RATE_SOURCE_LABELS,
   commissionAdjustments,
+  commissionVatBreakdown,
   fmtMoney,
   monthLabel,
   periodLabel,
@@ -20,6 +24,7 @@ import {
   type CommissionStatementDetail,
 } from "./commissionStatement";
 import type { VatSettings } from "./payoutStatement";
+
 
 const INK: [number, number, number] = [26, 26, 46];
 const PINK: [number, number, number] = [233, 30, 140];
