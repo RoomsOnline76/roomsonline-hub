@@ -384,21 +384,23 @@ export function AccountTwoPaymentCard({ scope, entityId, onChanged }: Props) {
           )}
         </div>
 
-        {isStaff && summary.is_staff && (
+        {isStaff && summary.is_staff && (hasOutstanding || summary.cancelled_count > 0) && (
           <div className="flex flex-wrap items-center gap-2 md:col-span-2">
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={spin("send_due_reminder")}
-              onClick={() => void run("send_due_reminder", "Reminder emailed to owner and the ROL team")}
-            >
-              {spin("send_due_reminder") ? (
-                <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Mail className="mr-2 h-3.5 w-3.5" />
-              )}
-              Email payment reminder
-            </Button>
+            {hasOutstanding && (
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={spin("send_due_reminder")}
+                onClick={() => void run("send_due_reminder", "Reminder emailed to owner and the ROL team")}
+              >
+                {spin("send_due_reminder") ? (
+                  <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Mail className="mr-2 h-3.5 w-3.5" />
+                )}
+                Email payment reminder
+              </Button>
+            )}
             {summary.cancelled_count > 0 && (
               <Button
                 size="sm"
