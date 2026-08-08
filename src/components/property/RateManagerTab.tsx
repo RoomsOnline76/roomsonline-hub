@@ -201,25 +201,6 @@ export function RateManagerTab({
         </Tabs>
       </div>
 
-      {/* Sync Dialogs */}
-      {propertyId && (
-        <>
-          <SyncRatesDialog
-            open={syncRateTypesOpen}
-            onOpenChange={setSyncRateTypesOpen}
-            currentPropertyId={propertyId}
-            mode="rate-types"
-            currentAmenities={amenities}
-          />
-          <SyncRatesDialog
-            open={syncSeasonsOpen}
-            onOpenChange={setSyncSeasonsOpen}
-            currentPropertyId={propertyId}
-            mode="seasons"
-            currentAmenities={amenities}
-          />
-        </>
-      )}
     </div>
   );
 }
