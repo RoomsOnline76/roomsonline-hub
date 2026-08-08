@@ -107,6 +107,36 @@ function generateInvoiceHTML(invoice: any, transactions: any[], property: any, b
     </tr>
   `).join("");
 
+  // Reservation-only stays are settled by bank transfer — surface the account
+  // details, what is due and by when, plus the cancellation terms.
+  const resBanking = amenities?.banking || property?.__banking || null;
+  const resTerms = property?.__reservation_terms || null;
+  const bankingBlock = (() => {
+    if (!resBanking && !resTerms) return "";
+    const rows: Array<[string, unknown]> = resBanking
+      ? [
+          ["Account holder", resBanking.account_holder],
+          ["Bank", resBanking.bank_name],
+          ["Account number", resBanking.account_number || resBanking.account_number_masked],
+          ["Account type", resBanking.account_type],
+          ["Branch code", resBanking.branch_code],
+          ["SWIFT / BIC", resBanking.swift_code],
+          ["Payment reference", resTerms?.reference || invoice.invoice_number],
+        ]
+      : [];
+    const dueNow = Number(resTerms?.deposit_amount || 0);
+    const dueLine = dueNow > 0
+      ? `<p style="margin:0 0 8px;font-size:13px;color:#444;">Due now: <strong>${invoice.currency || "ZAR"} ${dueNow.toFixed(2)}</strong>${resTerms?.deposit_due_date ? ` by <strong>${resTerms.deposit_due_date}</strong>` : ""}.</p>`
+      : "";
+    return `
+  <div style="margin-top:24px;padding:14px 16px;border:1px solid #e2e8f0;border-radius:6px;">
+    <div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#999;margin-bottom:6px;">Payment by bank transfer</div>
+    ${dueLine}
+    ${rows.filter(([, v]) => !!v).map(([label, v]) => `<div style="font-size:12px;color:#444;">${label}: <span style="font-family:monospace;">${v}</span></div>`).join("")}
+    ${resTerms?.cancellation ? `<p style="margin:10px 0 0;font-size:11px;color:#777;"><strong>Cancellation policy:</strong> ${resTerms.cancellation}</p>` : ""}
+  </div>`;
+  })();
+
   const docTitle = isProForma ? "PRO FORMA INVOICE" : (isVatRegistered ? "TAX INVOICE" : "INVOICE");
 
   // Who is being billed — printed next to the name so an accounts team can file it.
@@ -201,6 +231,8 @@ function generateInvoiceHTML(invoice: any, transactions: any[], property: any, b
     <tbody>${paymentRows}</tbody>
   </table>
   ` : ""}
+
+  ${bankingBlock}
 
   ${invoice.notes ? `<p style="margin-top:24px;padding:12px;background:#f8f8f8;border-radius:4px;font-size:13px;color:#666;">${invoice.notes}</p>` : ""}
   
@@ -603,9 +635,29 @@ Deno.serve(async (req) => {
 
         const { data: property } = await supabase
           .from("properties")
-          .select("name, brand_logo_url, brand_primary_color, amenities")
+          .select("name, brand_logo_url, brand_primary_color, amenities, payment_mode, email")
           .eq("id", invPropId)
           .single();
+
+        // Reservation-only properties collect payment manually, so a pro forma
+        // must carry their banking details and payment terms.
+        if (property && (property as any).payment_mode === "reservation_only") {
+          const { data: bank } = await supabase
+            .from("property_bank_details")
+            .select("bank_name, branch_code, account_holder, account_number_masked, account_type, swift_code")
+            .eq("property_id", invPropId)
+            .maybeSingle();
+          if (bank) (property as any).__banking = bank;
+          (property as any).__reservation_terms = {
+            deposit_amount: bookingRow?.deposit_amount ?? null,
+            deposit_due_date: bookingRow?.deposit_due_date ?? null,
+            reference: bookingRow?.rol_reference ?? null,
+            cancellation:
+              (property as any)?.amenities?.policies?.cancellation_policy ||
+              (property as any)?.amenities?.house_rules?.cancellation_policy ||
+              null,
+          };
+        }
 
         const { data: branding } = await supabase
           .from("rolos_brand_config")
