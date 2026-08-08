@@ -8,11 +8,10 @@ import autoTable from "jspdf-autotable";
 import {
   fmtMoney,
   periodLabel,
-  recoveryLines,
-  adjustmentLines,
   type PayoutStatementDetail,
   type VatSettings,
 } from "./payoutStatement";
+
 
 const INK: [number, number, number] = [26, 26, 46];
 const PINK: [number, number, number] = [233, 30, 140];
