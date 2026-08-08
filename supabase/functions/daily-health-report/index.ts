@@ -246,117 +246,147 @@ function generateEmailHtml(
   inactiveComponents: InactiveComponent[],
   nextCheckTime: string,
   aiDigest: AIDigest | null,
-  devTasks: DevTask[]
+  devTasks: DevTask[],
+  ruWl: RuWlMetrics | null
 ): string {
   const overallStatusColor = getStatusColor(overallStatus);
-  const overallStatusLabel = overallStatus === 'healthy' 
-    ? 'All Systems Operational' 
-    : overallStatus === 'degraded' 
+  const overallStatusLabel = overallStatus === 'healthy'
+    ? 'All Systems Operational'
+    : overallStatus === 'degraded'
       ? 'Some Issues Detected'
       : 'Critical Issues';
 
-  const componentRows = componentStats.map(comp => `
-    <tr style="border-bottom: 1px solid #e5e7eb;">
-      <td style="padding: 12px 8px; font-weight: 500;">${comp.component_name}</td>
-      <td style="padding: 12px 8px;">
-        <span style="display: inline-block; padding: 4px 12px; border-radius: 9999px; background-color: ${getStatusColor(comp.last_status)}20; color: ${getStatusColor(comp.last_status)}; font-weight: 500; font-size: 12px;">
-          ${getStatusEmoji(comp.last_status)} ${comp.last_status.toUpperCase()}
-        </span>
-      </td>
-      <td style="padding: 12px 8px; color: #6b7280;">${comp.last_checked}</td>
-      <td style="padding: 12px 8px; color: #6b7280;">${comp.avg_latency_ms}ms</td>
-      <td style="padding: 12px 8px; color: ${comp.failure_count_24h > 0 ? '#ef4444' : '#6b7280'}; font-weight: ${comp.failure_count_24h > 0 ? '600' : '400'};">${comp.failure_count_24h}</td>
-      <td style="padding: 12px 8px; color: #6b7280;">${comp.uptime_percentage.toFixed(1)}%</td>
-    </tr>
-  `).join('');
+  const card = 'background-color:#ffffff;border:1px solid #e5e7eb;border-radius:8px;';
+  const h3 = 'margin:0 0 8px 0;font-size:15px;font-weight:600;color:#111827;';
+  const th = 'padding:6px 8px;text-align:left;font-weight:600;color:#6b7280;font-size:11px;text-transform:uppercase;letter-spacing:.03em;';
+  const td = 'padding:6px 8px;font-size:13px;color:#374151;';
 
-  const criticalIssuesSection = criticalIssues.length > 0 ? `
-    <div style="background-color: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 16px; margin: 24px 0;">
-      <h3 style="color: #dc2626; margin: 0 0 12px 0; font-size: 16px;">⚠️ Critical Issues Requiring Attention</h3>
-      <ul style="margin: 0; padding-left: 20px; color: #7f1d1d;">
-        ${criticalIssues.map(issue => `
-          <li style="margin-bottom: 8px;">
-            <strong>${issue.component}:</strong> ${issue.message} 
-            <span style="color: #9ca3af; font-size: 12px;">(Last failed: ${issue.last_failed})</span>
-          </li>
-        `).join('')}
-      </ul>
+  const chip = (label: string, value: string | number, color: string) => `
+    <span style="display:inline-block;background-color:${color}15;color:${color};border:1px solid ${color}30;padding:3px 9px;border-radius:9999px;font-size:12px;font-weight:600;margin:0 6px 6px 0;">
+      ${label} ${value}
+    </span>`;
+
+  // ---------- 1. Channel Manager (Rentals United white-label) ----------
+  const rateColor = (r: number) => (r >= 99 ? '#22c55e' : r >= 95 ? '#eab308' : '#ef4444');
+
+  const ruSection = ruWl ? `
+    <div style="padding:16px 20px;border-bottom:1px solid #e5e7eb;">
+      <h3 style="${h3}">🔗 Channel Manager — Rentals United White-Label <span style="font-weight:400;color:#9ca3af;font-size:12px;">(last ${ruWl.window_hours}h)</span></h3>
+      <div style="margin-bottom:10px;">
+        ${chip('Calls', ruWl.total, '#0ea5e9')}
+        ${chip('Success', `${ruWl.success_rate.toFixed(1)}%`, rateColor(ruWl.success_rate))}
+        ${chip('Failed', ruWl.failed, ruWl.failed > 0 ? '#ef4444' : '#22c55e')}
+        ${chip('Reservations', ruWl.reservations_24h, '#7c3aed')}
+        ${ruWl.reservations_unprocessed > 0 ? chip('Unprocessed', ruWl.reservations_unprocessed, '#ef4444') : ''}
+        ${chip('Live properties', ruWl.live_properties, '#374151')}
+        ${chip('ARI pushed', ruWl.ari_stale_hours === null ? 'never' : `${ruWl.ari_stale_hours.toFixed(1)}h ago`, ruWl.ari_stale_hours === null || ruWl.ari_stale_hours > 8 ? '#ef4444' : '#22c55e')}
+        ${ruWl.cert ? chip('Certification', `${ruWl.cert.passed}/${ruWl.cert.total}`, ruWl.cert.passed === ruWl.cert.total ? '#22c55e' : '#eab308') : ''}
+      </div>
+      ${ruWl.actions.length > 0 ? `
+      <table style="width:100%;border-collapse:collapse;${card}">
+        <thead><tr style="background-color:#f9fafb;">
+          <th style="${th}">Action</th><th style="${th}">Calls</th><th style="${th}">Fail</th><th style="${th}">Success</th><th style="${th}">Avg</th><th style="${th}">Last run</th>
+        </tr></thead>
+        <tbody>
+          ${ruWl.actions.map(a => `
+          <tr style="border-top:1px solid #f3f4f6;">
+            <td style="${td}font-weight:500;">${a.action}</td>
+            <td style="${td}">${a.total}</td>
+            <td style="${td}color:${a.failed > 0 ? '#ef4444' : '#6b7280'};font-weight:${a.failed > 0 ? '600' : '400'};">${a.failed}</td>
+            <td style="${td}color:${rateColor(a.success_rate)};font-weight:600;">${a.success_rate.toFixed(1)}%</td>
+            <td style="${td}color:#6b7280;">${a.avg_ms}ms</td>
+            <td style="${td}color:#6b7280;">${a.last_run || '—'}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>` : '<p style="margin:0;font-size:13px;color:#9ca3af;">No channel activity recorded in the window.</p>'}
+      ${ruWl.top_errors.length > 0 ? `
+      <div style="margin-top:10px;background-color:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:10px 12px;">
+        <strong style="font-size:12px;color:#b91c1c;">Top failures</strong>
+        <ul style="margin:6px 0 0 0;padding-left:18px;color:#7f1d1d;font-size:12px;">
+          ${ruWl.top_errors.map(e => `<li style="margin-bottom:3px;"><strong>${e.code}</strong> ×${e.count} — ${e.sample}</li>`).join('')}
+        </ul>
+      </div>` : ''}
+      <p style="margin:8px 0 0 0;font-size:11px;color:#9ca3af;">Cadence: reservations pull &amp; lead lifecycle every 30 min · ARI refresh every 6h · content push weekly · notification (RLNM) refresh daily.</p>
     </div>
   ` : '';
 
-  const pmsRows = pmsIntegrations.map(pms => `
-    <tr style="border-bottom: 1px solid #e5e7eb;">
-      <td style="padding: 12px 8px; font-weight: 500;">${pms.name}</td>
-      <td style="padding: 12px 8px; color: #6b7280;">${pms.property_count}</td>
-      <td style="padding: 12px 8px; color: #6b7280;">${pms.last_sync_time || 'Never'}</td>
-      <td style="padding: 12px 8px; color: ${pms.success_rate >= 99 ? '#22c55e' : pms.success_rate >= 95 ? '#eab308' : '#ef4444'}; font-weight: 500;">${pms.success_rate.toFixed(1)}%</td>
-    </tr>
-  `).join('');
+  // ---------- 2. Attention: components not healthy ----------
+  const unhealthy = componentStats.filter(c => c.last_status !== 'healthy' || c.failure_count_24h > 0);
+  const healthyCount = componentStats.length - componentStats.filter(c => c.last_status !== 'healthy').length;
 
-  // Group tasks by status
-  const tasksByStatus = {
-    new: devTasks.filter(t => t.status === 'new'),
-    started: devTasks.filter(t => t.status === 'started'),
-    testing: devTasks.filter(t => t.status === 'testing'),
-    completed: devTasks.filter(t => t.status === 'completed'),
-  };
+  const attentionSection = `
+    <div style="padding:16px 20px;border-bottom:1px solid #e5e7eb;">
+      <h3 style="${h3}">🩺 Components needing attention <span style="font-weight:400;color:#9ca3af;font-size:12px;">(${healthyCount}/${totalComponents} healthy)</span></h3>
+      ${unhealthy.length === 0 ? '<p style="margin:0;font-size:13px;color:#16a34a;">All monitored components healthy with zero failures in 24h.</p>' : `
+      <table style="width:100%;border-collapse:collapse;${card}">
+        <thead><tr style="background-color:#f9fafb;">
+          <th style="${th}">Component</th><th style="${th}">Status</th><th style="${th}">24h fails</th><th style="${th}">Uptime</th><th style="${th}">Latency</th><th style="${th}">Checked</th>
+        </tr></thead>
+        <tbody>
+          ${unhealthy.map(c => `
+          <tr style="border-top:1px solid #f3f4f6;">
+            <td style="${td}font-weight:500;">${c.is_critical ? '★ ' : ''}${c.component_name}</td>
+            <td style="${td}color:${getStatusColor(c.last_status)};font-weight:600;">${getStatusEmoji(c.last_status)} ${c.last_status.toUpperCase()}</td>
+            <td style="${td}color:${c.failure_count_24h > 0 ? '#ef4444' : '#6b7280'};font-weight:600;">${c.failure_count_24h}</td>
+            <td style="${td}">${c.uptime_percentage.toFixed(1)}%</td>
+            <td style="${td}color:#6b7280;">${c.avg_latency_ms}ms</td>
+            <td style="${td}color:#6b7280;">${c.last_checked}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>`}
+    </div>`;
 
-  const taskTrackerSection = devTasks.length > 0 ? `
-    <!-- Dev Task Tracker -->
-    <div style="padding: 24px; background-color: #faf5ff; border-bottom: 1px solid #e9d5ff;">
-      <h3 style="margin: 0 0 16px 0; font-size: 18px; color: #7c3aed;">📋 Dev Task Tracker (${devTasks.length} Active Tasks)</h3>
-      
-      <div style="display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap;">
-        <span style="background-color: #6b728020; color: #374151; padding: 4px 12px; border-radius: 9999px; font-size: 12px;">
-          New: ${tasksByStatus.new.length}
-        </span>
-        <span style="background-color: #3b82f620; color: #1d4ed8; padding: 4px 12px; border-radius: 9999px; font-size: 12px;">
-          Started: ${tasksByStatus.started.length}
-        </span>
-        <span style="background-color: #f59e0b20; color: #b45309; padding: 4px 12px; border-radius: 9999px; font-size: 12px;">
-          Testing: ${tasksByStatus.testing.length}
-        </span>
-        <span style="background-color: #22c55e20; color: #15803d; padding: 4px 12px; border-radius: 9999px; font-size: 12px;">
-          Completed: ${tasksByStatus.completed.length}
-        </span>
+  // ---------- 3. PMS / integrations one-liner rollup ----------
+  const pmsSection = pmsIntegrations.length > 0 ? `
+    <div style="padding:16px 20px;border-bottom:1px solid #e5e7eb;">
+      <h3 style="${h3}">🏨 PMS integrations</h3>
+      <table style="width:100%;border-collapse:collapse;${card}">
+        <thead><tr style="background-color:#f9fafb;">
+          <th style="${th}">PMS</th><th style="${th}">Properties</th><th style="${th}">Last sync</th><th style="${th}">Success</th>
+        </tr></thead>
+        <tbody>
+          ${pmsIntegrations.map(p => `
+          <tr style="border-top:1px solid #f3f4f6;">
+            <td style="${td}font-weight:500;">${p.name}</td>
+            <td style="${td}">${p.property_count}</td>
+            <td style="${td}color:#6b7280;">${p.last_sync_time || 'Never'}</td>
+            <td style="${td}color:${rateColor(p.success_rate)};font-weight:600;">${p.success_rate.toFixed(1)}%</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+      ${inactiveComponents.length > 0 ? `<p style="margin:8px 0 0 0;font-size:11px;color:#9ca3af;">Parked / not active (${inactiveComponents.length}): ${inactiveComponents.map(c => c.component_name).join(' · ')}</p>` : ''}
+    </div>` : '';
+
+  // ---------- 4. Dev worklist (condensed) ----------
+  const openTasks = devTasks.filter(t => t.status !== 'completed');
+  const focusTasks = openTasks
+    .filter(t => t.priority === 'critical' || t.priority === 'high')
+    .slice(0, 8);
+
+  const taskSection = `
+    <div style="padding:16px 20px;border-bottom:1px solid #e5e7eb;">
+      <h3 style="${h3}">📋 Dev worklist</h3>
+      <div>
+        ${chip('New', devTasks.filter(t => t.status === 'new').length, '#6b7280')}
+        ${chip('Started', devTasks.filter(t => t.status === 'started').length, '#3b82f6')}
+        ${chip('Testing', devTasks.filter(t => t.status === 'testing').length, '#f59e0b')}
+        ${chip('Completed', devTasks.filter(t => t.status === 'completed').length, '#22c55e')}
       </div>
+      ${focusTasks.length > 0 ? `
+      <ul style="margin:4px 0 0 0;padding-left:18px;font-size:13px;color:#374151;">
+        ${focusTasks.map(t => `<li style="margin-bottom:3px;">${getTaskPriorityEmoji(t.priority)} <strong>${t.title}</strong> <span style="color:#9ca3af;">· ${t.status} · ${t.assigned_name || 'unassigned'}</span></li>`).join('')}
+      </ul>
+      ${openTasks.length > focusTasks.length ? `<p style="margin:6px 0 0 0;font-size:11px;color:#9ca3af;">+ ${openTasks.length - focusTasks.length} other open task(s) at medium/low priority.</p>` : ''}
+      ` : '<p style="margin:4px 0 0 0;font-size:13px;color:#9ca3af;">No critical or high-priority tasks open.</p>'}
+    </div>`;
 
-      <div style="overflow-x: auto;">
-        <table style="width: 100%; border-collapse: collapse; font-size: 14px; background-color: #ffffff; border-radius: 8px;">
-          <thead>
-            <tr style="border-bottom: 2px solid #e5e7eb;">
-              <th style="padding: 12px 8px; text-align: left; font-weight: 600; color: #374151;">Task</th>
-              <th style="padding: 12px 8px; text-align: left; font-weight: 600; color: #374151;">Priority</th>
-              <th style="padding: 12px 8px; text-align: left; font-weight: 600; color: #374151;">Status</th>
-              <th style="padding: 12px 8px; text-align: left; font-weight: 600; color: #374151;">Assigned To</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${devTasks.map(task => `
-              <tr style="border-bottom: 1px solid #e5e7eb;">
-                <td style="padding: 12px 8px; font-weight: 500;">${task.title}</td>
-                <td style="padding: 12px 8px;">
-                  ${getTaskPriorityEmoji(task.priority)} ${task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}
-                </td>
-                <td style="padding: 12px 8px;">
-                  <span style="display: inline-block; padding: 4px 12px; border-radius: 9999px; background-color: ${getTaskStatusColor(task.status)}20; color: ${getTaskStatusColor(task.status)}; font-weight: 500; font-size: 12px;">
-                    ${task.status.toUpperCase()}
-                  </span>
-                </td>
-                <td style="padding: 12px 8px; color: #6b7280;">${task.assigned_name || 'Unassigned'}</td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  ` : `
-    <!-- No Active Tasks -->
-    <div style="padding: 24px; background-color: #faf5ff; border-bottom: 1px solid #e9d5ff;">
-      <h3 style="margin: 0 0 8px 0; font-size: 18px; color: #7c3aed;">📋 Dev Task Tracker</h3>
-      <p style="margin: 0; color: #6b7280; font-size: 14px;">No active tasks in the worklist.</p>
-    </div>
-  `;
+  const criticalIssuesSection = criticalIssues.length > 0 ? `
+    <div style="background-color:#fef2f2;border-bottom:1px solid #fecaca;padding:16px 20px;">
+      <h3 style="margin:0 0 8px 0;font-size:15px;font-weight:600;color:#b91c1c;">⚠️ Critical issues (${criticalIssues.length})</h3>
+      <ul style="margin:0;padding-left:18px;color:#7f1d1d;font-size:13px;">
+        ${criticalIssues.map(i => `<li style="margin-bottom:4px;"><strong>${i.component}:</strong> ${i.message} <span style="color:#9ca3af;font-size:11px;">(last failed ${i.last_failed})</span></li>`).join('')}
+      </ul>
+    </div>` : '';
 
   return `
 <!DOCTYPE html>
@@ -366,144 +396,40 @@ function generateEmailHtml(
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>RoomsOnline Daily Health Report</title>
 </head>
-<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #1f2937; background-color: #f9fafb; margin: 0; padding: 20px;">
-  <div style="max-width: 800px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); overflow: hidden;">
-    
+<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;line-height:1.45;color:#1f2937;background-color:#f3f4f6;margin:0;padding:16px;">
+  <div style="max-width:760px;margin:0 auto;background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08);">
+
     <!-- Header -->
-    <div style="background: linear-gradient(135deg, #1e3a5f 0%, #0d1b2a 100%); color: #ffffff; padding: 32px; text-align: center;">
-      <h1 style="margin: 0 0 8px 0; font-size: 24px; font-weight: 600;">RoomsOnline Daily Health Report</h1>
-      <p style="margin: 0; opacity: 0.9; font-size: 14px;">Date: ${date}</p>
-      <p style="margin: 4px 0 0 0; opacity: 0.7; font-size: 12px;">Generated: ${generatedAt}</p>
+    <div style="background:linear-gradient(135deg,#1e3a5f 0%,#0d1b2a 100%);color:#ffffff;padding:20px;">
+      <h1 style="margin:0;font-size:18px;font-weight:600;">System Health — Daily Report</h1>
+      <p style="margin:4px 0 0 0;opacity:.75;font-size:12px;">${date} · generated ${generatedAt}</p>
     </div>
 
-    <!-- Overall Status -->
-    <div style="background-color: ${overallStatusColor}15; border-bottom: 3px solid ${overallStatusColor}; padding: 24px; text-align: center;">
-      <h2 style="margin: 0 0 8px 0; color: ${overallStatusColor}; font-size: 20px;">
-        Overall System Status: ${overallStatusLabel}
-      </h2>
-      <p style="margin: 0; color: #6b7280; font-size: 14px;">
-        Uptime: <strong>${uptimePercentage.toFixed(1)}%</strong> | 
-        Failed Components: <strong style="color: ${failedCount > 0 ? '#ef4444' : '#22c55e'};">${failedCount}/${totalComponents}</strong>
-      </p>
+    <!-- Status strip -->
+    <div style="background-color:${overallStatusColor}12;border-bottom:2px solid ${overallStatusColor};padding:12px 20px;">
+      <strong style="color:${overallStatusColor};font-size:15px;">${getStatusEmoji(overallStatus)} ${overallStatusLabel}</strong>
+      <span style="color:#6b7280;font-size:13px;"> · uptime ${uptimePercentage.toFixed(1)}% · failing ${failedCount}/${totalComponents}${ruWl ? ` · channel success ${ruWl.success_rate.toFixed(1)}%` : ''}</span>
     </div>
-
-    ${taskTrackerSection}
-
-    ${aiDigest ? `
-    <!-- AI Executive Summary -->
-    <div style="background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); border-left: 4px solid #0ea5e9; padding: 20px; margin: 24px;">
-      <h3 style="margin: 0 0 12px 0; font-size: 16px; color: #0369a1; display: flex; align-items: center; gap: 8px;">
-        🧠 AI Executive Summary
-      </h3>
-      <p style="margin: 0 0 16px 0; color: #334155; font-size: 14px; line-height: 1.6;">
-        ${aiDigest.summary}
-      </p>
-      <div style="display: flex; flex-direction: column; gap: 8px;">
-        <div style="background: white; padding: 12px; border-radius: 6px; border: 1px solid #e2e8f0;">
-          <strong style="color: #dc2626; font-size: 12px; display: block; margin-bottom: 4px;">Priority Action:</strong>
-          <span style="color: #475569; font-size: 13px;">${aiDigest.priority_action}</span>
-        </div>
-        <div style="background: white; padding: 12px; border-radius: 6px; border: 1px solid #e2e8f0;">
-          <strong style="color: #16a34a; font-size: 12px; display: block; margin-bottom: 4px;">Key Opportunity:</strong>
-          <span style="color: #475569; font-size: 13px;">${aiDigest.opportunity}</span>
-        </div>
-      </div>
-    </div>
-    ` : ''}
 
     ${criticalIssuesSection}
 
-    <!-- Component Health Summary -->
-    <div style="padding: 24px;">
-      <h3 style="margin: 0 0 16px 0; font-size: 18px; color: #1f2937;">Component Health Summary</h3>
-      <div style="overflow-x: auto;">
-        <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
-          <thead>
-            <tr style="background-color: #f9fafb; border-bottom: 2px solid #e5e7eb;">
-              <th style="padding: 12px 8px; text-align: left; font-weight: 600; color: #374151;">Component</th>
-              <th style="padding: 12px 8px; text-align: left; font-weight: 600; color: #374151;">Status</th>
-              <th style="padding: 12px 8px; text-align: left; font-weight: 600; color: #374151;">Last Checked</th>
-              <th style="padding: 12px 8px; text-align: left; font-weight: 600; color: #374151;">Latency</th>
-              <th style="padding: 12px 8px; text-align: left; font-weight: 600; color: #374151;">24h Failures</th>
-              <th style="padding: 12px 8px; text-align: left; font-weight: 600; color: #374151;">Uptime</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${componentRows}
-          </tbody>
-        </table>
-      </div>
-    </div>
+    ${aiDigest ? `
+    <div style="padding:16px 20px;border-bottom:1px solid #e5e7eb;background-color:#f0f9ff;">
+      <h3 style="${h3}color:#0369a1;">🧠 TOBI executive summary</h3>
+      <p style="margin:0 0 8px 0;font-size:13px;color:#334155;">${aiDigest.summary}</p>
+      <p style="margin:0;font-size:12px;color:#475569;"><strong style="color:#dc2626;">Priority:</strong> ${aiDigest.priority_action}</p>
+      <p style="margin:2px 0 0 0;font-size:12px;color:#475569;"><strong style="color:#16a34a;">Opportunity:</strong> ${aiDigest.opportunity}</p>
+    </div>` : ''}
 
-    <!-- PMS Integration Status -->
-    <div style="padding: 24px; background-color: #f9fafb;">
-      <h3 style="margin: 0 0 16px 0; font-size: 18px; color: #1f2937;">PMS Integration Status</h3>
-      <div style="overflow-x: auto;">
-        <table style="width: 100%; border-collapse: collapse; font-size: 14px; background-color: #ffffff; border-radius: 8px;">
-          <thead>
-            <tr style="border-bottom: 2px solid #e5e7eb;">
-              <th style="padding: 12px 8px; text-align: left; font-weight: 600; color: #374151;">PMS</th>
-              <th style="padding: 12px 8px; text-align: left; font-weight: 600; color: #374151;">Properties</th>
-              <th style="padding: 12px 8px; text-align: left; font-weight: 600; color: #374151;">Last Sync</th>
-              <th style="padding: 12px 8px; text-align: left; font-weight: 600; color: #374151;">Success Rate</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${pmsRows}
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- Inactive / Waiting Systems -->
-    ${inactiveComponents.length > 0 ? `
-    <div style="padding: 24px;">
-      <h3 style="margin: 0 0 16px 0; font-size: 18px; color: #6b7280;">⏸️ Waiting / Not Active Systems (${inactiveComponents.length})</h3>
-      <p style="margin: 0 0 12px 0; font-size: 13px; color: #9ca3af;">These systems are configured but not currently in production. No health checks are performed.</p>
-      <div style="overflow-x: auto;">
-        <table style="width: 100%; border-collapse: collapse; font-size: 14px; background-color: #f9fafb; border-radius: 8px; opacity: 0.7;">
-          <thead>
-            <tr style="border-bottom: 2px solid #e5e7eb;">
-              <th style="padding: 12px 8px; text-align: left; font-weight: 600; color: #9ca3af;">Component</th>
-              <th style="padding: 12px 8px; text-align: left; font-weight: 600; color: #9ca3af;">Type</th>
-              <th style="padding: 12px 8px; text-align: left; font-weight: 600; color: #9ca3af;">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${inactiveComponents.map(comp => `
-              <tr style="border-bottom: 1px solid #e5e7eb;">
-                <td style="padding: 12px 8px; color: #9ca3af;">${comp.component_name}</td>
-                <td style="padding: 12px 8px; color: #9ca3af;">${comp.component_type.toUpperCase()}</td>
-                <td style="padding: 12px 8px; color: #9ca3af;">Not Active</td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-      </div>
-    </div>
-    ` : ''}
-
-    <!-- Cache Note -->
-    <div style="padding: 16px 24px; background-color: #fffbeb; border-top: 1px solid #fde68a;">
-      <p style="margin: 0; font-size: 12px; color: #92400e;">
-        <strong>Cache Note:</strong> All displayed data is cached for performance. Live PMS verification is always enforced during actual bookings.
-      </p>
-      <p style="margin: 8px 0 0 0; font-size: 12px; color: #92400e;">
-        <strong>Next Check:</strong> In 30 minutes (${nextCheckTime})
-      </p>
-      <p style="margin: 8px 0 0 0; font-size: 12px; color: #92400e;">
-        <strong>View Details:</strong> Admin Console → Integrations → System Health
-      </p>
-    </div>
+    ${ruSection}
+    ${attentionSection}
+    ${pmsSection}
+    ${taskSection}
 
     <!-- Footer -->
-    <div style="padding: 24px; background-color: #1e3a5f; color: #ffffff; text-align: center;">
-      <p style="margin: 0; font-size: 12px; opacity: 0.9;">
-        This report was automatically generated by the RoomsOnline Health Monitoring System.
-      </p>
-      <p style="margin: 8px 0 0 0; font-size: 11px; opacity: 0.7;">
-        If you believe you received this in error, please contact dev@roomsonline.co.za
-      </p>
+    <div style="padding:14px 20px;background-color:#f9fafb;">
+      <p style="margin:0;font-size:11px;color:#6b7280;">Health checks run every 30 min (next ${nextCheckTime}). Cached figures only — live channel and PMS verification is always enforced at booking. Details: Admin → Integrations → System Health.</p>
+      <p style="margin:6px 0 0 0;font-size:11px;color:#9ca3af;">Automated by the RoomsOnline health monitor · dev@roomsonline.co.za</p>
     </div>
   </div>
 </body>
