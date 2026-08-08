@@ -39,6 +39,13 @@ function RepForm({ rep, onSave, saving, onCancel }: {
     is_active: rep?.is_active ?? true,
     quarterly_target: rep?.quarterly_target?.toString() ?? "5",
     notes: rep?.notes ?? "",
+    // Tax identity — commission is a payout to an independent contractor, so the
+    // partner's own SARS/VAT position determines what goes on the statement.
+    entity_type: (rep as any)?.entity_type ?? "individual",
+    trading_name: (rep as any)?.trading_name ?? "",
+    tax_reference_number: (rep as any)?.tax_reference_number ?? "",
+    vat_registered: (rep as any)?.vat_registered ?? false,
+    vat_number: (rep as any)?.vat_number ?? "",
   });
 
   const handleSubmit = () => {
@@ -52,8 +59,14 @@ function RepForm({ rep, onSave, saving, onCancel }: {
       is_active: form.is_active,
       quarterly_target: form.quarterly_target ? parseInt(form.quarterly_target) : null,
       notes: form.notes || null,
+      entity_type: form.entity_type,
+      trading_name: form.trading_name || null,
+      tax_reference_number: form.tax_reference_number || null,
+      vat_registered: form.vat_registered,
+      vat_number: form.vat_registered ? form.vat_number || null : null,
     });
   };
+
 
   return (
     <div className="space-y-4">
