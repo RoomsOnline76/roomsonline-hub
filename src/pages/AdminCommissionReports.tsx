@@ -2,7 +2,7 @@
  * Admin → Commission Statements.
  *
  * The single surface for referral partner pay: run a month, review each
- * paysheet, approve (which locks it and mints its reference), then pay.
+ * payout statement, approve (which locks it and mints its reference), then pay.
  */
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -77,7 +77,7 @@ export default function AdminCommissionReports() {
         <div className="flex-1">
           <h1 className="text-xl font-bold">Commission Statements</h1>
           <p className="text-sm text-muted-foreground">
-            Referral partner paysheets — per property, per period, with the rate applied and its source.
+            Referral partner commission payouts — per property, per period, with the rate applied and its source.
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={reload}>
@@ -122,7 +122,7 @@ export default function AdminCommissionReports() {
             <div className="flex justify-center p-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
           ) : filtered.length === 0 ? (
             <p className="py-12 text-center text-sm text-muted-foreground">
-              No statements yet — run a period above to generate the first paysheets.
+              No statements yet — run a period above to generate the first payout statements.
             </p>
           ) : (
             <Table>
@@ -133,7 +133,7 @@ export default function AdminCommissionReports() {
                   <TableHead className="text-xs">Reference</TableHead>
                   <TableHead className="text-xs text-right">Properties</TableHead>
                   <TableHead className="text-xs text-right">ROL revenue</TableHead>
-                  <TableHead className="text-xs text-right">Net payable</TableHead>
+                  <TableHead className="text-xs text-right">Net payout</TableHead>
                   <TableHead className="text-xs">Status</TableHead>
                   <TableHead className="text-xs text-right">Open</TableHead>
                 </TableRow>

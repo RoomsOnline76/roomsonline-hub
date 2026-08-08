@@ -1,6 +1,6 @@
 /**
  * Commission statement run — pick a month, preview what the engine found, then
- * generate the draft paysheets. Preview writes nothing, so it is safe to poke.
+ * generate the draft payout statements. Preview writes nothing, so it is safe to poke.
  */
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -48,7 +48,7 @@ export function CommissionStatementRun({ busy, onPreview, onGenerate }: Props) {
       <CardHeader className="pb-3">
         <CardTitle className="text-base">Statement run</CardTitle>
         <CardDescription>
-          Generates one paysheet per active referral partner for the selected month.
+          Generates one commission payout statement per active referral partner for the selected month.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">

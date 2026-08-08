@@ -197,7 +197,7 @@ export const RATE_SOURCE_LABELS: Record<string, string> = {
   constant: "Platform default",
 };
 
-/** The wording that keeps the basis of the paysheet unambiguous. */
+/** The wording that keeps the basis of the commission payout unambiguous. */
 export const COMMISSION_BASIS_NOTE =
   "Commission is earned on ROL net revenue only — guest payments, payment-gateway fees, facilitator surcharges and other pass-through costs are excluded.";
 
@@ -331,7 +331,7 @@ export interface CommissionPropertyBlock {
   breakdown: CommissionRevenueBreakdown;
 }
 
-/** One block per referred property, the shape the paysheet is read in. */
+/** One block per referred property, the shape the statement is read in. */
 export function propertyBlocks(lines: CommissionLine[]): CommissionPropertyBlock[] {
   return commissionLines(lines)
     .map((l) => ({
