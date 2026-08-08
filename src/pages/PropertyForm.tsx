@@ -19,7 +19,7 @@ const PropertyFormIntegrationsTab = lazy(() => import("@/components/property/Pro
 const AccommodationSpecialsTab = lazy(() => import("@/components/property/AccommodationSpecialsTab").then((m) => ({ default: m.AccommodationSpecialsTab })));
 const RoomManagerTab = lazy(() => import("@/components/property/RoomManagerTab").then((m) => ({ default: m.RoomManagerTab })));
 const RateManagerTab = lazy(() => import("@/components/property/RateManagerTab").then((m) => ({ default: m.RateManagerTab })));
-const RatePlansSurface = lazy(() => import("@/components/pms/rateplans/RatePlansSurface").then((m) => ({ default: m.RatePlansSurface })));
+const RatePlansPanel = lazy(() => import("@/components/pms/rateplans/RatePlansPanel").then((m) => ({ default: m.RatePlansPanel })));
 const HostfullyRoomDetails = lazy(() => import("@/components/pms/HostfullyRoomDetails").then((m) => ({ default: m.HostfullyRoomDetails })));
 const PropertyMap = lazy(() => import("@/components/PropertyMap").then((m) => ({ default: m.PropertyMap })));
 const BrandingTab = lazy(() => import("@/components/property/BrandingTab").then((m) => ({ default: m.BrandingTab })));
@@ -6965,7 +6965,11 @@ export default function PropertyForm({
               {!propertyId ? (
                 <p className="text-sm text-muted-foreground">Save the property first to configure rate plans.</p>
               ) : (
-                <RatePlansSurface properties={[{ id: propertyId, name: formData.name || "" }]} />
+                <RatePlansPanel
+                  properties={[{ id: propertyId, name: formData.name || "" }]}
+                  seedPropertyId={propertyId}
+                  pmsSystem={selectedPMS}
+                />
               )}
             </div>
           </TabsContent>
