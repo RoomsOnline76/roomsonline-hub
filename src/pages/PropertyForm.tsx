@@ -19,6 +19,7 @@ const PropertyFormIntegrationsTab = lazy(() => import("@/components/property/Pro
 const AccommodationSpecialsTab = lazy(() => import("@/components/property/AccommodationSpecialsTab").then((m) => ({ default: m.AccommodationSpecialsTab })));
 const RoomManagerTab = lazy(() => import("@/components/property/RoomManagerTab").then((m) => ({ default: m.RoomManagerTab })));
 const RateManagerTab = lazy(() => import("@/components/property/RateManagerTab").then((m) => ({ default: m.RateManagerTab })));
+const RatePlansSurface = lazy(() => import("@/components/pms/rateplans/RatePlansSurface").then((m) => ({ default: m.RatePlansSurface })));
 const HostfullyRoomDetails = lazy(() => import("@/components/pms/HostfullyRoomDetails").then((m) => ({ default: m.HostfullyRoomDetails })));
 const PropertyMap = lazy(() => import("@/components/PropertyMap").then((m) => ({ default: m.PropertyMap })));
 const BrandingTab = lazy(() => import("@/components/property/BrandingTab").then((m) => ({ default: m.BrandingTab })));
@@ -3861,6 +3862,7 @@ export default function PropertyForm({
           "images",
           "rooms",
           "rates",
+          "rate-plans",
           "onboarding",
           "integrations",
           "admin",
@@ -5686,299 +5688,6 @@ export default function PropertyForm({
           </TabsContent>
 
           {/* House Style Tab */}
-          <TabsContent value="house-style">
-            <form className="space-y-6">
-              {/* Company Logo */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>COMPANY LOGO</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div
-                    className={cn(
-                      "border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors",
-                      isLogoUploading ? "border-primary bg-primary/5" : "border-blue-300 bg-blue-50",
-                    )}
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={handleLogoDrop}
-                    onClick={() => document.getElementById("logo-upload")?.click()}
-                  >
-                    {companyLogo ? (
-                      <div className="relative">
-                        <img src={companyLogo} alt="Company Logo" className="max-h-48 mx-auto" />
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          className="absolute top-2 right-2"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setCompanyLogo(null);
-                          }}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ) : (
-                      <>
-                        <Upload className="h-12 w-12 mx-auto mb-4 text-blue-500" />
-                        <p className="text-sm text-blue-700">Click or Drag and drop image to upload</p>
-                      </>
-                    )}
-                    <input
-                      id="logo-upload"
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={handleLogoUpload}
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Book Page Header Settings */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>BOOK PAGE HEADER SETTINGS</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center gap-4">
-                    <Label className="whitespace-nowrap">RoomsOnline Bookings Link</Label>
-                    <Input
-                      value={roomsOnlineBookingsLink}
-                      onChange={(e) => setRoomsOnlineBookingsLink(e.target.value)}
-                      className="flex-1"
-                    />
-                    <Button size="sm" variant="ghost" className="text-destructive">
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-
-                  <div className="flex items-center gap-4">
-                    <Label className="whitespace-nowrap">Title Behaviour</Label>
-                    <div className="flex gap-2">
-                      <Button
-                        type="button"
-                        variant={titleBehaviour === "property-name" ? "destructive" : "outline"}
-                        onClick={() => setTitleBehaviour("property-name")}
-                      >
-                        Property Name
-                      </Button>
-                      <Button
-                        type="button"
-                        variant={titleBehaviour === "property-logo" ? "destructive" : "outline"}
-                        onClick={() => setTitleBehaviour("property-logo")}
-                      >
-                        Property Logo
-                      </Button>
-                      <Button
-                        type="button"
-                        variant={titleBehaviour === "no-title" ? "destructive" : "outline"}
-                        onClick={() => setTitleBehaviour("no-title")}
-                      >
-                        No Title
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Merchant Details */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>MERCHANT DETAILS</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="org-name">Organization Name</Label>
-                      <Input
-                        id="org-name"
-                        value={merchantDetails.organizationName}
-                        onChange={(e) => setMerchantDetails({ ...merchantDetails, organizationName: e.target.value })}
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="merchant-id">Merchant Id</Label>
-                      <Input
-                        id="merchant-id"
-                        value={merchantDetails.merchantId}
-                        onChange={(e) => setMerchantDetails({ ...merchantDetails, merchantId: e.target.value })}
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="merchant-key">Merchant Key</Label>
-                      <Input
-                        id="merchant-key"
-                        value={merchantDetails.merchantKey}
-                        onChange={(e) => setMerchantDetails({ ...merchantDetails, merchantKey: e.target.value })}
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="split-amount">Split Amount %</Label>
-                      <Input
-                        id="split-amount"
-                        value={merchantDetails.splitAmount}
-                        onChange={(e) => setMerchantDetails({ ...merchantDetails, splitAmount: e.target.value })}
-                      />
-                    </div>
-                  </div>
-                  <div className="bg-blue-50 border border-blue-200 rounded p-3 space-y-1">
-                    <p className="text-sm text-blue-700">
-                      • Split % will be of the total booking. The amount will be credited to RoomsOnline
-                    </p>
-                    <p className="text-sm text-blue-700">
-                      • Decimal split amount percentage will be round off to whole number
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* AdPay Details */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>ADPAY DETAILS</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="adpay-merchant">AdPay Merchant</Label>
-                      <Input
-                        id="adpay-merchant"
-                        value={adpayDetails.merchant}
-                        onChange={(e) => setAdpayDetails({ ...adpayDetails, merchant: e.target.value })}
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="adpay-appid">AdPay AppId</Label>
-                      <Input
-                        id="adpay-appid"
-                        value={adpayDetails.appId}
-                        onChange={(e) => setAdpayDetails({ ...adpayDetails, appId: e.target.value })}
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="adpay-storeno">AdPay StoreNo</Label>
-                      <Input
-                        id="adpay-storeno"
-                        value={adpayDetails.storeNo}
-                        onChange={(e) => setAdpayDetails({ ...adpayDetails, storeNo: e.target.value })}
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="adpay-apikey">AdPay ApiKey</Label>
-                      <Input
-                        id="adpay-apikey"
-                        value={adpayDetails.apiKey}
-                        onChange={(e) => setAdpayDetails({ ...adpayDetails, apiKey: e.target.value })}
-                      />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Motar API */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>MOTAR API</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="motar-venueid">Motar VenueId</Label>
-                      <Input
-                        id="motar-venueid"
-                        value={motarApi.venueId}
-                        onChange={(e) => setMotarApi({ ...motarApi, venueId: e.target.value })}
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="motar-xapi">Motar XAPI</Label>
-                      <Input
-                        id="motar-xapi"
-                        value={motarApi.xapi}
-                        onChange={(e) => setMotarApi({ ...motarApi, xapi: e.target.value })}
-                      />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Website Color */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>WEBSITE COLOR</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex gap-8">
-                    <div className="space-y-2">
-                      <Label>Primary</Label>
-                      <div className="flex items-center gap-2">
-                        <div
-                          className="w-12 h-12 rounded border-2 cursor-pointer"
-                          style={{ backgroundColor: websiteColors.primary }}
-                          onClick={() => document.getElementById("primary-color")?.click()}
-                        />
-                        <input
-                          id="primary-color"
-                          type="color"
-                          value={websiteColors.primary}
-                          onChange={(e) => setWebsiteColors({ ...websiteColors, primary: e.target.value })}
-                          className="sr-only"
-                        />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Secondary</Label>
-                      <div className="flex items-center gap-2">
-                        <div
-                          className="w-12 h-12 rounded border-2 cursor-pointer"
-                          style={{ backgroundColor: websiteColors.secondary }}
-                          onClick={() => document.getElementById("secondary-color")?.click()}
-                        />
-                        <input
-                          id="secondary-color"
-                          type="color"
-                          value={websiteColors.secondary}
-                          onChange={(e) => setWebsiteColors({ ...websiteColors, secondary: e.target.value })}
-                          className="sr-only"
-                        />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>FontColor</Label>
-                      <div className="flex items-center gap-2">
-                        <div
-                          className="w-12 h-12 rounded border-2 cursor-pointer"
-                          style={{ backgroundColor: websiteColors.fontColor }}
-                          onClick={() => document.getElementById("font-color")?.click()}
-                        />
-                        <input
-                          id="font-color"
-                          type="color"
-                          value={websiteColors.fontColor}
-                          onChange={(e) => setWebsiteColors({ ...websiteColors, fontColor: e.target.value })}
-                          className="sr-only"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Action Buttons */}
-              <div className="flex justify-end gap-4">
-                <Button type="button" variant="outline" onClick={() => handleNavigate("/admin/property-overview")}>
-                  Cancel
-                </Button>
-                {isDirty && (
-                  <Button type="submit" className="bg-primary">
-                    <Save className="mr-2 h-4 w-4" />
-                    Save
-                  </Button>
-                )}
-              </div>
-            </form>
-          </TabsContent>
 
           <TabsContent value="rol-spec">
             <ROLSpecTab
@@ -7248,6 +6957,17 @@ export default function PropertyForm({
               }
 
             />
+          </TabsContent>
+
+          {/* Rate Plans Tab (standalone section — sole nightly-rate authoring surface) */}
+          <TabsContent value="rate-plans" className="space-y-0">
+            <div className="p-3">
+              {!propertyId ? (
+                <p className="text-sm text-muted-foreground">Save the property first to configure rate plans.</p>
+              ) : (
+                <RatePlansSurface properties={[{ id: propertyId, name: formData.name || "" }]} />
+              )}
+            </div>
           </TabsContent>
 
           {/* Policies Tab (standalone section) */}
