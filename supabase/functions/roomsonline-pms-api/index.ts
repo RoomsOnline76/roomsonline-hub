@@ -564,7 +564,14 @@ Deno.serve(async (req) => {
       case "get_webhook_logs":
         result = await handleGetWebhookLogs(body, supabase);
         break;
+      case "get_account_balance":
+        result = await handleGetAccountBalance(body, supabase, req);
+        break;
+      case "get_account_documents":
+        result = await handleGetAccountDocuments(body, supabase, req);
+        break;
       default: {
+
         const elapsed = Date.now() - startTime;
         logApiRequest(supabase, propertyId, action, 400, elapsed, req, ERROR_CODES.INVALID_REQUEST);
         return new Response(
