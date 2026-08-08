@@ -262,14 +262,17 @@ export interface OwnerBalances {
   paidThisYear: number;
   /** Paid to ROL since engagement. */
   paidAllTime: number;
-  /** Finalised payout statements not yet paid out, plus ROL-held funds awaiting a statement. */
+  /** Payout statements not yet paid out, plus ROL-held funds awaiting a statement. */
   dueToYou: number;
+  /** Portion of `dueToYou` sitting on statements still in draft (awaiting release). */
+  awaitingRelease: number;
   /** Portion of `dueToYou` from bookings ROL has collected but not yet statemented. */
   pendingSettlement: number;
   /** Payout statements already paid, all time. */
   receivedAllTime: number;
   /** Net position: positive means you owe ROL. */
   net: number;
+
 }
 
 export interface BalanceInput {
