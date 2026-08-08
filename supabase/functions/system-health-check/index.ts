@@ -171,7 +171,7 @@ async function checkRentalsUnited(
 
   return {
     component_key: 'rentalsunited',
-    status: warnings.length ? 'degraded' : adapter.status,
+    status: warnings.length ? 'degraded' : rateLimited ? 'healthy' : adapter.status,
     latency_ms: adapter.latency_ms,
     error_code: warnings.length ? 'SYNC_STALE' : undefined,
     error_message: warnings.length ? `Channel manager sync stale — ${warnings.join('; ')}.` : undefined,
