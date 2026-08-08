@@ -273,6 +273,10 @@ export interface BalanceInput {
   rolInvoices: OwnerRolInvoice[];
   payouts: OwnerPayoutStatement[];
   currency?: string;
+  /** Contracted once-off setup still payable but not yet invoiced (or only cancelled invoices exist). */
+  uninvoicedSetupDue?: number;
+  /** Date the once-off setup became payable (contract signature / engagement). */
+  setupDueDate?: string | null;
 }
 
 export function computeBalances(input: BalanceInput): OwnerBalances {
@@ -283,6 +287,7 @@ export function computeBalances(input: BalanceInput): OwnerBalances {
   let paidThisYear = 0;
   let paidAllTime = 0;
   let oldest: string | null = null;
+
 
   const noteOverdue = (amount: number, dueDate: string | null) => {
     if (!amount || !dueDate || dueDate >= now) return;
