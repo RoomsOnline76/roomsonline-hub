@@ -466,6 +466,240 @@ Deno.serve(async (req) => {
       return json({ success: true, invoice_id: inv.id, pay_url: payUrl(inv.payfast_token) });
     }
 
+    // ---- Billing configuration changed ------------------------------------
+    // Once-off fees: bill the new balance only, never anything already paid.
+    // Monthly model: end the current plan at the end of the paid period and
+    // park the new fee for the owner to activate inside the 7-day window.
+    if (action === "apply_config_change") {
+      if (!isStaff) return json({ error: "forbidden" }, 403);
+      const before = body.before ?? {};
+
+      const notify = async (subject: string, inner: string) => {
+        try {
+          const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
+          const admins = await getBillingAdminRecipients(supabase);
+          const recipients = [...new Set([ownerEmail, ...admins].filter(Boolean))] as string[];
+          if (!recipients.length) return "no_recipients";
+          const res = await resend.emails.send({
+            from: FROM_EMAIL,
+            to: recipients,
+            subject,
+            html: `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${subject}</title></head><body style="font-family:Arial,sans-serif;background:#fff;padding:24px;color:#1A1A2E">
+              <div style="max-width:560px;margin:0 auto;border:1px solid #eee;border-radius:8px;padding:24px">
+                <h2 style="color:#E91E8C;margin-top:0">${subject}</h2>
+                ${inner}
+                <p style="text-align:center;margin:20px 0"><a href="${SITE_URL}/admin/account" style="background:#E91E8C;color:#fff;text-decoration:none;padding:12px 22px;border-radius:6px;display:inline-block;font-weight:600">Open ROL Account</a></p>
+                <p style="color:#666;font-size:13px">Cancel any time &mdash; no lock-in, no cancellation fee.</p>
+              </div></body></html>`,
+          });
+          return res.error ? `failed: ${(res.error as any)?.message ?? "unknown"}` : "sent";
+        } catch (e) {
+          console.error("[apply_config_change] email failed", e);
+          return "failed";
+        }
+      };
+
+      // --- 1. Once-off delta -------------------------------------------------
+      const beforeSetup = configSetupLines(before).reduce((s, l) => s + l.amount, 0);
+      let setupInvoice: any = null;
+      let deltaBilled = 0;
+      if (setupBalance > 0) {
+        if (openSetup) {
+          // Keep the single open once-off invoice in step with the contract.
+          if (Math.abs(Number(openSetup.amount) - setupBalance) > 0.005) {
+            const { data: updated } = await supabase
+              .from("subscription_invoices")
+              .update({
+                amount: setupBalance,
+                once_off_amount: setupBalance,
+                line_items: setupInvoiceLines(),
+              })
+              .eq("id", openSetup.id)
+              .select("id, invoice_number, amount, payfast_token")
+              .maybeSingle();
+            setupInvoice = updated ?? openSetup;
+          } else {
+            setupInvoice = openSetup;
+          }
+        } else {
+          setupInvoice = await ensureSetupInvoice();
+        }
+        deltaBilled = setupBalance;
+      }
+      const requiresCreditNote = setupTotal < beforeSetup && paidSetupAmount > setupTotal;
+
+      // --- 2. Monthly model --------------------------------------------------
+      const lastPaidSubscription = (invoices ?? []).find(
+        (i: any) => i.invoice_kind !== "once_off" && i.status === "paid",
+      );
+      const billedFee = lastPaidSubscription ? Number(lastPaidSubscription.amount) || 0 : 0;
+      const status = String(cfg.subscription_status || "pending");
+      const subscriptionLive = ["active", "past_due", "cancelling"].includes(status) && billedFee > 0;
+      const feeChanged = Math.abs(fee - billedFee) > 0.005;
+      let planChange: any = null;
+
+      if (subscriptionLive && feeChanged) {
+        const paidThrough = cfg.current_period_end ? String(cfg.current_period_end).slice(0, 10) : today();
+        const effective = addDays(paidThrough, 1);
+        const { error: planError } = await supabase
+          .from(cfgTable)
+          .update({
+            cancel_at_period_end: true,
+            cancel_effective_date: paidThrough,
+            cancelled_at: new Date().toISOString(),
+            subscription_status: "cancelling",
+            plan_change_reason: "model_change",
+            pending_monthly_fee: fee,
+            pending_effective_date: effective,
+            pending_model_json: {
+              billing_strategy: cfg.billing_strategy ?? null,
+              room_count_override: cfg.room_count_override ?? null,
+              subscription_fee_monthly: cfg.subscription_fee_monthly ?? null,
+              tier_pricing_json: cfg.tier_pricing_json ?? null,
+              monthly_fee: fee,
+            },
+          })
+          .eq(entityCol, entityId);
+        if (planError) return json({ error: planError.message }, 400);
+        planChange = {
+          previous_monthly_fee: billedFee,
+          new_monthly_fee: fee,
+          runs_to: paidThrough,
+          effective_date: effective,
+          window_opens_on: addDays(effective, -START_WINDOW_DAYS),
+        };
+      } else if (cfg.pending_monthly_fee != null && !feeChanged) {
+        // The change was reverted before it took effect.
+        await supabase
+          .from(cfgTable)
+          .update({
+            pending_monthly_fee: null,
+            pending_effective_date: null,
+            pending_model_json: null,
+            plan_change_reason: null,
+          })
+          .eq(entityCol, entityId);
+      }
+
+      // --- 3. Notify ---------------------------------------------------------
+      let notificationStatus = "not_required";
+      if (deltaBilled > 0 || planChange) {
+        const parts: string[] = [
+          `<p>The billing configuration for <strong>${entityName}</strong> has been updated.</p>`,
+        ];
+        if (deltaBilled > 0) {
+          parts.push(
+            `<p><strong>Additional once-off fee due: ${money(deltaBilled, currency)}</strong>${
+              setupInvoice?.invoice_number ? ` (invoice ${setupInvoice.invoice_number})` : ""
+            }. Fees already paid are not re-billed &mdash; only the outstanding balance is charged.</p>`,
+          );
+        }
+        if (planChange) {
+          parts.push(
+            `<p><strong>Subscription plan change scheduled.</strong> The current plan (${money(planChange.previous_monthly_fee, currency)} per month) runs to <strong>${planChange.runs_to}</strong>. The new plan of <strong>${money(planChange.new_monthly_fee, currency)} per month</strong> starts on <strong>${planChange.effective_date}</strong> and is activated by the owner from the ROL Account &mdash; the activation opens on ${planChange.window_opens_on}.</p>`,
+          );
+        }
+        if (requiresCreditNote) {
+          parts.push(
+            `<p style="color:#666;font-size:13px">A once-off fee was reduced after payment. A credit note will be raised manually by the Rooms Online team.</p>`,
+          );
+        }
+        notificationStatus = await notify(
+          planChange && deltaBilled > 0
+            ? `Billing updated - additional fee due and plan change scheduled - ${entityName}`
+            : planChange
+            ? `Subscription plan change scheduled - ${entityName}`
+            : `Billing updated - additional once-off fee due - ${entityName}`,
+          parts.join(""),
+        );
+      }
+
+      const logRow: any = {
+        owner_id: ownerId,
+        changed_by: user?.id ?? null,
+        change_type: planChange && deltaBilled > 0 ? "both" : planChange ? "subscription_model" : "setup_delta",
+        before_snapshot: before,
+        after_snapshot: cfg,
+        setup_delta: deltaBilled,
+        setup_delta_lines: setupInvoiceLines(),
+        previous_monthly_fee: billedFee,
+        new_monthly_fee: fee,
+        plan_effective_date: planChange?.effective_date ?? null,
+        invoice_id: setupInvoice?.id ?? null,
+        requires_credit_note: requiresCreditNote,
+        notification_status: notificationStatus,
+      };
+      logRow[entityCol] = entityId;
+      await supabase.from("billing_config_change_log").insert(logRow);
+
+      return json({
+        success: true,
+        setup_delta: deltaBilled,
+        setup_invoice_id: setupInvoice?.id ?? null,
+        pay_url: payUrl(setupInvoice?.payfast_token),
+        plan_change: planChange,
+        requires_credit_note: requiresCreditNote,
+        notification_status: notificationStatus,
+      });
+    }
+
+    // Owner-driven switch onto a pending plan, inside the 7-day window.
+    if (action === "activate_pending_plan") {
+      if (cfg.pending_monthly_fee == null || !cfg.pending_effective_date)
+        return json({ error: "no_pending_plan" }, 400);
+      const pendingFee = Number(cfg.pending_monthly_fee) || 0;
+      if (pendingFee <= 0) return json({ error: "zero_subscription_amount" }, 400);
+      const effective = String(cfg.pending_effective_date).slice(0, 10);
+      const opensOn = addDays(effective, -START_WINDOW_DAYS);
+      if (today() < opensOn && !isStaff) return json({ error: "too_early", window_opens_on: opensOn }, 400);
+
+      const periodStart = today() > effective ? today() : effective;
+      const periodEnd = addMonth(periodStart);
+      const insert: any = {
+        amount: pendingFee,
+        currency,
+        subscription_amount: pendingFee,
+        once_off_amount: 0,
+        line_items: [
+          { kind: "monthly_subscription", description: `Monthly subscription (${periodStart} - ${periodEnd})`, amount: pendingFee },
+        ],
+        period_start: periodStart,
+        period_end: periodEnd,
+        status: "pending",
+        invoice_kind: "activation",
+        owner_id: ownerId,
+      };
+      insert[entityCol] = entityId;
+      const { data: created, error } = await supabase
+        .from("subscription_invoices")
+        .insert(insert)
+        .select("id, payfast_token")
+        .single();
+      if (error) return json({ error: error.message }, 400);
+
+      const { error: cfgError } = await supabase
+        .from(cfgTable)
+        .update({
+          subscription_fee_monthly: pendingFee,
+          pending_monthly_fee: null,
+          pending_effective_date: null,
+          pending_model_json: null,
+          plan_change_reason: null,
+          cancel_at_period_end: false,
+          cancel_effective_date: null,
+          cancelled_at: null,
+          suspended_at: null,
+          billing_enabled: true,
+          subscription_status: "pending",
+        })
+        .eq(entityCol, entityId);
+      if (cfgError) return json({ error: cfgError.message }, 400);
+
+      return json({ success: true, invoice_id: created.id, pay_url: payUrl(created.payfast_token) });
+    }
+
+
+
     if (action === "start_subscription") {
       if (openSubscription)
         return json({ success: true, invoice_id: openSubscription.id, pay_url: payUrl(openSubscription.payfast_token) });
