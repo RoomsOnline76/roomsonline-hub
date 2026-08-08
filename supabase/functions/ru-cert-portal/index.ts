@@ -899,8 +899,13 @@ Deno.serve(async (req) => {
           status,
           rag,
           stale,
+          blocked_upstream: blockedUpstream,
+          excluded_from_score: excludedFromScore,
           age_hours: ageHours == null ? null : Math.round(ageHours * 10) / 10,
           max_age_hours: e.max_age_hours ?? null,
+          next_due_at: lastRunAt && e.max_age_hours != null
+            ? new Date(new Date(lastRunAt).getTime() + e.max_age_hours * 3600000).toISOString()
+            : null,
           detail,
           last_run_at: lastRunAt,
           source,
@@ -915,9 +920,10 @@ Deno.serve(async (req) => {
         };
       });
 
-      const implemented = rows.filter((r) => r.implemented);
+      const scored = rows.filter((r) => !r.excluded_from_score);
+      const implemented = scored.filter((r) => r.implemented);
       const adapterOk = implemented.filter((r) => r.status === "passed").length;
-      const wired = rows.filter((r) => r.rolos_wired);
+      const wired = scored.filter((r) => r.rolos_wired);
       const rolosOk = wired.filter((r) => r.rolos_status === "success").length;
       const pct = (a: number, b: number) => (b === 0 ? 0 : Math.round((a / b) * 100));
 
@@ -928,7 +934,8 @@ Deno.serve(async (req) => {
           failed: implemented.filter((r) => r.status === "failed").length,
           never_run: implemented.filter((r) => r.status === "never_run").length,
           stale: implemented.filter((r) => r.stale).length,
-          not_implemented: rows.length - implemented.length,
+          blocked: rows.filter((r) => r.status === "blocked").length,
+          not_implemented: rows.filter((r) => !r.implemented).length,
           percent: pct(adapterOk, implemented.length),
         },
         rolos: {
@@ -936,8 +943,9 @@ Deno.serve(async (req) => {
           exercised: rolosOk,
           failed: wired.filter((r) => r.rolos_status === "failed").length,
           never_used: wired.filter((r) => r.rolos_status === "never_used").length,
-          not_wired: rows.length - wired.length,
+          not_wired: rows.filter((r) => !r.rolos_wired).length,
           percent: pct(rolosOk, wired.length),
+
         },
         mandatory: {
           total: rows.filter((r) => r.mandatory).length,
