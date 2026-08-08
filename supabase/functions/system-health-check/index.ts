@@ -98,6 +98,146 @@ async function checkPmsAdapter(
   }
 }
 
+/**
+ * Rentals United is the channel manager behind every ROL'OS distribution flow, so it gets a
+ * deeper check than a plain adapter ping: the adapter must answer AND the live sync stream
+ * (ARI push / reservation pull) must be fresh. A reachable adapter with a stale ARI clock is
+ * a silent outage for the channels, so it grades degraded rather than healthy.
+ */
+const RU_ARI_MAX_AGE_HOURS = 8;
+const RU_RESERVATION_MAX_AGE_HOURS = 2;
+
+async function checkRentalsUnited(
+  supabase: SupabaseClientType,
+  expectedLatency: number,
+): Promise<HealthCheckResult> {
+  const adapter = await checkPmsAdapter(supabase, 'rentalsunited', expectedLatency);
+  // Rentals United enforces one call per method per sliding minute, so the probe can collide
+  // with a live cron pull. A rate-limit answer proves the endpoint is reachable — never treat
+  // it as an outage; fall through to the sync-freshness evidence instead.
+  const probe = (adapter.response_data ?? {}) as { ru_status_id?: string; message?: string };
+  const rateLimited =
+    probe.ru_status_id === '-6' || /rate limited/i.test(probe.message ?? '');
+  if (adapter.status === 'failed' && !rateLimited) return adapter;
+
+
+  const since = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
+  const { data: runs } = await supabase
+    .from('ru_sync_runs')
+    .select('action, success, property_id, details, created_at')
+    .gte('created_at', since)
+    .order('created_at', { ascending: false })
+    .limit(1000);
+
+  const rows = (runs ?? []) as Array<{
+    action: string;
+    success: boolean;
+    property_id: string | null;
+    details: Record<string, unknown> | null;
+    created_at: string;
+  }>;
+  // A "skipped" run (property not listed on the channel yet, listing retired) proves the
+  // adapter ran but is not evidence of a live sync — never let it reset a freshness clock.
+  const realRuns = rows.filter((r) => r.success && !(r.details as { skipped?: boolean } | null)?.skipped);
+
+  const ageHours = (iso?: string) => (iso ? (Date.now() - new Date(iso).getTime()) / 3600000 : null);
+  const newest = (actions: string[]) =>
+    realRuns.find((r) => actions.includes(r.action))?.created_at;
+
+  const ariAt = newest(['refresh_ari', 'inventory_push', 'push_availability', 'push_prices']);
+  const resAt = newest(['list_reservations', 'pull_reservations']);
+  const ariAge = ageHours(ariAt);
+  const resAge = ageHours(resAt);
+  // "Live" = a property whose listing actually synced in the last 24h. Older successes may
+  // predate a listing being retired, so a 7-day window overstates the channel footprint.
+  const liveProperties = new Set(
+    realRuns
+      .filter((r) => Date.now() - new Date(r.created_at).getTime() < 86_400_000)
+      .map((r) => r.property_id)
+      .filter(Boolean),
+  ).size;
+
+  const failed24h = rows.filter(
+    (r) => !r.success && Date.now() - new Date(r.created_at).getTime() < 86_400_000,
+  ).length;
+
+  const warnings: string[] = [];
+  if (ariAge == null || ariAge > RU_ARI_MAX_AGE_HOURS) {
+    warnings.push(
+      ariAge == null
+        ? 'no successful availability/pricing push in the last 7 days'
+        : `availability/pricing last pushed ${ariAge.toFixed(1)}h ago (limit ${RU_ARI_MAX_AGE_HOURS}h)`,
+    );
+  }
+  if (resAge == null || resAge > RU_RESERVATION_MAX_AGE_HOURS) {
+    warnings.push(
+      resAge == null
+        ? 'no successful reservation pull in the last 7 days'
+        : `reservations last pulled ${resAge.toFixed(1)}h ago (limit ${RU_RESERVATION_MAX_AGE_HOURS}h)`,
+    );
+  }
+
+  return {
+    component_key: 'rentalsunited',
+    status: warnings.length ? 'degraded' : rateLimited ? 'healthy' : adapter.status,
+    latency_ms: adapter.latency_ms,
+    error_code: warnings.length ? 'SYNC_STALE' : undefined,
+    error_message: warnings.length ? `Channel manager sync stale — ${warnings.join('; ')}.` : undefined,
+    response_data: {
+      live_properties: liveProperties,
+      last_ari_push_at: ariAt ?? null,
+      last_reservation_pull_at: resAt ?? null,
+      failed_runs_24h: failed24h,
+    },
+    metadata: {
+      ari_max_age_hours: RU_ARI_MAX_AGE_HOURS,
+      reservation_max_age_hours: RU_RESERVATION_MAX_AGE_HOURS,
+      note: 'Critical: drives all ROL\'OS channel distribution',
+    },
+  };
+}
+
+/** ROL'OS internal REST API — graded on its own request log plus a live adapter ping. */
+async function checkRoomsOnlineApi(supabase: SupabaseClientType): Promise<HealthCheckResult> {
+  const ping = await checkPmsAdapter(supabase, 'roomsonline_pms', 5000);
+  const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+  const { data: logs } = await supabase
+    .from('api_request_log')
+    .select('status_code, response_time_ms')
+    .gte('created_at', since)
+    .limit(2000);
+
+  const rows = (logs ?? []) as Array<{ status_code: number | null; response_time_ms: number | null }>;
+  const calls = rows.length;
+  const errors = rows.filter((r) => (r.status_code ?? 200) >= 500).length;
+  const clientErrors = rows.filter((r) => (r.status_code ?? 200) >= 400 && (r.status_code ?? 200) < 500).length;
+  const latencies = rows.map((r) => r.response_time_ms).filter((v): v is number => !!v);
+  const avgLatency = latencies.length
+    ? Math.round(latencies.reduce((a, b) => a + b, 0) / latencies.length)
+    : ping.latency_ms;
+  const errorRate = calls ? (errors / calls) * 100 : 0;
+
+  let status: HealthCheckResult['status'] = ping.status === 'failed' ? 'failed' : 'healthy';
+  let error_message: string | undefined;
+  if (status !== 'failed' && errorRate > 2) {
+    status = 'degraded';
+    error_message = `${errors} server error(s) across ${calls} calls in 24h (${errorRate.toFixed(1)}%).`;
+  } else if (status !== 'failed' && avgLatency > 3000) {
+    status = 'degraded';
+    error_message = `Average response time ${avgLatency}ms over 24h.`;
+  }
+
+  return {
+    component_key: 'roomsonline',
+    status,
+    latency_ms: avgLatency,
+    error_code: status === 'degraded' ? 'API_DEGRADED' : ping.error_code,
+    error_message: error_message ?? (status === 'failed' ? ping.error_message : undefined),
+    response_data: { calls_24h: calls, server_errors_24h: errors, client_errors_24h: clientErrors, avg_latency_ms: avgLatency },
+  };
+}
+
+
 async function checkDatabase(supabase: SupabaseClientType): Promise<HealthCheckResult> {
   const start = Date.now();
   try {
@@ -268,12 +408,23 @@ async function checkGoogleMaps(_supabase: SupabaseClientType): Promise<HealthChe
       };
     }
 
+    const geocode = (referer?: string) =>
+      fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=Cape+Town&key=${apiKey}`, {
+        headers: referer ? { Referer: referer } : undefined,
+      });
+
     // Test geocoding endpoint with a simple query
-    const response = await fetch(
-      `https://maps.googleapis.com/maps/api/geocode/json?address=Cape+Town&key=${apiKey}`
-    );
+    let response = await geocode();
+    let data = await response.json();
+
+    // The stored key may be HTTP-referrer restricted (browser key). Retry once presenting the
+    // production origin so a correctly restricted key still verifies instead of alarming.
+    if (data.status === 'REQUEST_DENIED') {
+      response = await geocode('https://sleepinafrica.roomsonline.co.za/');
+      data = await response.json();
+    }
+
     const latency = Date.now() - start;
-    const data = await response.json();
 
     if (data.status === 'OK' || data.status === 'ZERO_RESULTS') {
       return {
@@ -284,6 +435,20 @@ async function checkGoogleMaps(_supabase: SupabaseClientType): Promise<HealthChe
       };
     }
 
+    // A referrer-restricted key is a configuration gap, not a Google outage: report it as
+    // degraded with an actionable message so it never shows as a red platform failure.
+    if (data.status === 'REQUEST_DENIED') {
+      return {
+        component_key: 'google_maps',
+        status: 'degraded',
+        latency_ms: latency,
+        error_code: 'KEY_RESTRICTED',
+        error_message:
+          'Maps key is HTTP-referrer restricted, so server-side geocoding cannot verify it. Add an unrestricted (IP/server) Maps key to enable full monitoring — front-end maps are unaffected.',
+        response_data: { api_status: data.status, google_message: data.error_message ?? null },
+      };
+    }
+
     return {
       component_key: 'google_maps',
       status: 'failed',
@@ -291,6 +456,7 @@ async function checkGoogleMaps(_supabase: SupabaseClientType): Promise<HealthChe
       error_code: data.status,
       error_message: data.error_message || 'Google Maps API error',
     };
+
   } catch (err) {
     return {
       component_key: 'google_maps',
@@ -373,17 +539,18 @@ async function checkBookingEngine(supabase: SupabaseClientType): Promise<HealthC
 
 async function checkAvailabilityCache(supabase: SupabaseClientType): Promise<HealthCheckResult> {
   const start = Date.now();
-  
+
   try {
-    // Check if we have recent availability data (within last 10 minutes)
-    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
-    
+    // The cache is an accelerator only — checkout always resolves live (NO_BOOKING_FROM_CACHE),
+    // so grade it on staleness over a realistic window instead of a 10-minute tripwire.
+    const FRESH_HOURS = 6;
+
     const { data, error } = await supabase
       .from('pms_availability_cache')
       .select('id, fetched_at')
-      .gte('fetched_at', tenMinutesAgo)
+      .order('fetched_at', { ascending: false })
       .limit(1);
-    
+
     const latency = Date.now() - start;
 
     if (error) {
@@ -396,18 +563,41 @@ async function checkAvailabilityCache(supabase: SupabaseClientType): Promise<Hea
       };
     }
 
-    // If we have recent data, cache is healthy
-    const hasRecentData = data && data.length > 0;
-    
+    const lastFetchedAt = data?.[0]?.fetched_at as string | undefined;
+    const ageHours = lastFetchedAt ? (Date.now() - new Date(lastFetchedAt).getTime()) / 3600000 : null;
+
+    // No rows at all, or nothing written for days, means every property is resolving live —
+    // a valid operating mode for a cache that only ever accelerates non-checkout reads.
+    const UNUSED_HOURS = 48;
+    if (ageHours === null || ageHours > UNUSED_HOURS) {
+      return {
+        component_key: 'availability_cache',
+        status: 'healthy',
+        latency_ms: latency,
+        response_data: { last_fetched_at: lastFetchedAt ?? null, age_hours: ageHours, mode: 'live_only' },
+        metadata: {
+          note: 'Cache idle — availability resolving live (NO_BOOKING_FROM_CACHE)',
+        },
+      };
+    }
+
+    const status = ageHours <= FRESH_HOURS ? 'healthy' : 'degraded';
+
+
     return {
       component_key: 'availability_cache',
-      status: hasRecentData ? 'healthy' : 'degraded',
+      status,
       latency_ms: latency,
-      response_data: { 
-        has_recent_data: hasRecentData,
-        threshold_minutes: 10,
+      error_code: status === 'healthy' ? undefined : 'CACHE_STALE',
+      error_message:
+        status === 'healthy'
+          ? undefined
+          : `Newest cached availability is ${ageHours.toFixed(1)}h old (fresh under ${FRESH_HOURS}h).`,
+      response_data: {
+        last_fetched_at: lastFetchedAt,
+        age_hours: Number(ageHours.toFixed(2)),
+        fresh_threshold_hours: FRESH_HOURS,
       },
-      metadata: hasRecentData ? {} : { warning: 'No availability data in last 10 minutes' },
     };
   } catch (err) {
     return {
@@ -429,12 +619,16 @@ async function runHealthCheck(
   const checkPromise = (async () => {
     switch (component.component_type) {
       case 'pms':
+        if (component.component_key === 'rentalsunited')
+          return checkRentalsUnited(supabase, component.expected_latency_ms);
         return checkPmsAdapter(supabase, component.component_key, component.expected_latency_ms);
       case 'internal':
         if (component.component_key === 'supabase_db') return checkDatabase(supabase);
         if (component.component_key === 'supabase_storage') return checkStorage(supabase);
         if (component.component_key === 'edge_runtime') return checkEdgeRuntime();
+        if (component.component_key === 'roomsonline') return checkRoomsOnlineApi(supabase);
         break;
+
       case 'external':
         if (component.component_key === 'resend_email') return checkResendEmail();
         if (component.component_key === 'payfast_gateway') return checkPayFast();

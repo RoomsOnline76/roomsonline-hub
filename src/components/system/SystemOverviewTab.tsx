@@ -21,6 +21,8 @@ interface PmsAdapter {
   status: AdapterStatus;
   lastSync: string | null;
   propertiesCount: number;
+  isCritical?: boolean;
+
 }
 
 interface ApiEndpointStat {
@@ -121,6 +123,7 @@ export function SystemOverviewTab() {
         { data: healthChecks },
         { data: apiLogs },
         { data: syncRows },
+        { data: ruRuns },
       ] = await Promise.all([
         supabase.from("pms_credentials").select("system_type, sync_status, last_sync_at, is_active"),
         supabase
@@ -140,6 +143,12 @@ export function SystemOverviewTab() {
           .gte("created_at", new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
           .order("created_at", { ascending: false })
           .limit(500),
+        supabase
+          .from("ru_sync_runs")
+          .select("action, success, property_id, details, created_at")
+          .gte("created_at", new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
+          .order("created_at", { ascending: false })
+          .limit(1000),
       ]);
 
       // ── PMS adapters ───────────────────────────────────────────────────────
@@ -151,23 +160,60 @@ export function SystemOverviewTab() {
         if (pmsType) propertyCountByPms.set(pmsType, (propertyCountByPms.get(pmsType) || 0) + 1);
       });
 
+      // Channel manager truth comes from real sync activity, not credential rows: a run flagged
+      // `skipped` (property not listed yet / listing retired) proves nothing is live for it.
+      const ruRealRuns = (ruRuns || []).filter(
+        (r: any) => r.success && !r?.details?.skipped,
+      );
+      // "Live" = listing actually synced in the last 24h; older successes can predate a
+      // listing being retired, which would overstate the channel footprint.
+      const ruLiveProperties = new Set(
+        ruRealRuns
+          .filter((r: any) => Date.now() - new Date(r.created_at).getTime() < 24 * 60 * 60 * 1000)
+          .map((r: any) => r.property_id)
+          .filter(Boolean),
+      ).size;
+
+      const ruLastSync = ruRealRuns[0]?.created_at ?? null;
+      const ruAriAt = ruRealRuns.find((r: any) =>
+        ["refresh_ari", "inventory_push", "push_availability", "push_prices"].includes(r.action),
+      )?.created_at as string | undefined;
+      const ruAriAgeHours = ruAriAt ? (Date.now() - new Date(ruAriAt).getTime()) / 3600000 : null;
+
       const adapterMap = new Map<string, any[]>();
       (pmsCredentials || []).forEach((cred: any) => {
         if (!adapterMap.has(cred.system_type)) adapterMap.set(cred.system_type, []);
         adapterMap.get(cred.system_type)!.push(cred);
       });
 
-      const pmsAdapters: PmsAdapter[] = Array.from(adapterMap.entries()).map(([name, creds]) => {
-        const activeCount = creds.filter((c: any) => c.is_active).length;
-        const hasError = creds.some((c: any) => c.sync_status === "error" || c.sync_status === "failed");
-        const latestSync = creds.map((c: any) => c.last_sync_at).filter(Boolean).sort().pop() || null;
-        return {
-          name: titleise(name),
-          status: (hasError ? "error" : activeCount > 0 ? "healthy" : "degraded") as AdapterStatus,
-          lastSync: latestSync,
-          propertiesCount: propertyCountByPms.get(name.toLowerCase()) || 0,
-        };
-      });
+      const pmsAdapters: PmsAdapter[] = Array.from(adapterMap.entries())
+        .map(([name, creds]) => {
+          const activeCount = creds.filter((c: any) => c.is_active).length;
+          const hasError = creds.some((c: any) => c.sync_status === "error" || c.sync_status === "failed");
+          const latestSync = creds.map((c: any) => c.last_sync_at).filter(Boolean).sort().pop() || null;
+          const isRu = name.toLowerCase() === "rentalsunited";
+          const status: AdapterStatus = isRu
+            ? hasError || ruAriAgeHours === null
+              ? "error"
+              : ruAriAgeHours > 8
+                ? "degraded"
+                : "healthy"
+            : hasError
+              ? "error"
+              : activeCount > 0
+                ? "healthy"
+                : "degraded";
+          return {
+            name: titleise(name),
+            status,
+            lastSync: isRu ? ruLastSync ?? latestSync : latestSync,
+            propertiesCount: isRu ? ruLiveProperties : propertyCountByPms.get(name.toLowerCase()) || 0,
+            isCritical: isRu,
+          };
+        })
+        // Rentals United runs every ROL'OS channel: always show it first.
+        .sort((a, b) => Number(b.isCritical ?? false) - Number(a.isCritical ?? false) || a.name.localeCompare(b.name));
+
 
       // ── API traffic (real, from api_request_log) ───────────────────────────
       const endpointMap = new Map<string, { calls: number; errors: number; latency: number[] }>();
@@ -176,7 +222,10 @@ export function SystemOverviewTab() {
         if (!endpointMap.has(key)) endpointMap.set(key, { calls: 0, errors: 0, latency: [] });
         const entry = endpointMap.get(key)!;
         entry.calls += 1;
-        if ((row.status_code ?? 200) >= 400) entry.errors += 1;
+        // Only server-side faults count as platform errors; 4xx is a caller mistake and must
+        // not paint an endpoint red.
+        if ((row.status_code ?? 200) >= 500) entry.errors += 1;
+
         if (row.response_time_ms) entry.latency.push(row.response_time_ms);
       });
 
@@ -194,7 +243,7 @@ export function SystemOverviewTab() {
         .slice(0, 8);
 
       const apiCalls24h = (apiLogs || []).length;
-      const apiErrors24h = (apiLogs || []).filter((r: any) => (r.status_code ?? 200) >= 400).length;
+      const apiErrors24h = (apiLogs || []).filter((r: any) => (r.status_code ?? 200) >= 500).length;
 
       // ── Sync pipelines (real, from sync_logs) ──────────────────────────────
       const pipelineMap = new Map<string, { runs: number; failures: number; last: string | null; lastStatus: string }>();
@@ -418,16 +467,27 @@ export function SystemOverviewTab() {
             ) : (
               <div className="space-y-3">
                 {status.pmsAdapters.map((adapter) => (
-                  <div key={adapter.name} className="flex items-center justify-between p-3 rounded-lg border">
+                  <div
+                    key={adapter.name}
+                    className={`flex items-center justify-between p-3 rounded-lg border ${adapter.isCritical ? "border-primary bg-muted" : ""}`}
+                  >
                     <div className="flex items-center gap-3">
                       {getStatusIcon(adapter.status)}
                       <div>
-                        <p className="font-medium">{adapter.name}</p>
+                        <p className="font-medium flex items-center gap-2">
+                          {adapter.name}
+                          {adapter.isCritical && (
+                            <Badge variant="default" className="text-[10px] uppercase tracking-wide">
+                              Critical · Channels
+                            </Badge>
+                          )}
+                        </p>
                         <p className="text-xs text-muted-foreground">
-                          {adapter.propertiesCount} properties · last sync {formatWhen(adapter.lastSync)}
+                          {adapter.propertiesCount} live {adapter.propertiesCount === 1 ? "property" : "properties"} · last sync {formatWhen(adapter.lastSync)}
                         </p>
                       </div>
                     </div>
+
                     {getStatusBadge(adapter.status)}
                   </div>
                 ))}
