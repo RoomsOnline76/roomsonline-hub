@@ -3070,6 +3070,11 @@ const Booking = () => {
                   <Loader2 className="h-5 w-5 animate-spin" />
                   Processing...
                 </>
+              ) : isReservationOnly ? (
+                <>
+                  <CreditCard className="h-5 w-5" />
+                  Confirm reservation
+                </>
               ) : (
                 <>
                   <CreditCard className="h-5 w-5" />
@@ -3079,7 +3084,11 @@ const Booking = () => {
             </Button>
             <div className="flex items-center justify-center gap-2 mt-2 text-[10px] sm:text-xs text-muted-foreground">
               <Lock className="h-3 w-3" />
-              <span>Secured payment · 256-bit SSL</span>
+              <span>
+                {isReservationOnly
+                  ? "Reservation held for 3 days · pay the property directly"
+                  : "Secured payment · 256-bit SSL"}
+              </span>
             </div>
             {createBookingMutation.isError && (
               <div className="flex items-center gap-2 text-sm text-destructive bg-destructive/10 p-3 rounded-lg mt-3">
