@@ -37,7 +37,10 @@ export interface PropertyPayout {
   billing_scope: "property" | "portfolio";
   white_label_fee: number;
   subscription_fee: number;
+  /** Monthly fees invoiced separately — reported for context, never netted off payouts. */
+  monthly_fees: number;
   pf_enabled: boolean;
+
 
   /** Settlement split — funds ROL actually held vs funds that landed in the owner's own account. */
   rol_gross: number;
