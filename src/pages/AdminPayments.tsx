@@ -53,7 +53,7 @@ export default function AdminPayments() {
 
   useEffect(() => {
     loadPayments();
-    loadCommissionPayouts();
+    
   }, []);
 
   // Only the headline stats need raw gateway data now — reconciliation detail
