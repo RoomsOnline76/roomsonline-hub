@@ -45,7 +45,12 @@ interface Invoice {
   due_date: string | null;
   is_paid: boolean;
   notes: string | null;
+  document_path?: string | null;
+  document_name?: string | null;
+  document_size?: number | null;
+  document_type?: string | null;
 }
+
 
 interface AddInvoiceModalProps {
   open: boolean;
