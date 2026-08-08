@@ -366,28 +366,41 @@ Deno.serve(async (req) => {
 
     // Contracted setup fees are payable on signature, so the once-off invoice is
     // raised automatically the first time the account is read — no manual step.
+    // Everything already settled on once-off invoices. Anything paid here is
+    // never re-billed: a later increase or a brand-new fee is invoiced for the
+    // outstanding balance only.
+    const paidSetupAmount = (invoices ?? [])
+      .filter((i: any) => i.invoice_kind === "once_off" && i.status === "paid")
+      .reduce((sum: number, i: any) => sum + (Number(i.amount) || 0), 0);
+    const setupBalance = Math.max(0, Math.round((setupTotal - paidSetupAmount) * 100) / 100);
+
+    const setupInvoiceLines = () => {
+      const lines = setupCharges.map((c) => ({
+        kind: c.kind,
+        description: c.description,
+        amount: c.amount,
+        charge_item_id: c.itemIds[0] ?? null,
+      }));
+      if (paidSetupAmount > 0) {
+        lines.push({
+          kind: "setup_already_paid",
+          description: "Less: once-off fees already paid",
+          amount: -paidSetupAmount,
+          charge_item_id: null,
+        } as any);
+      }
+      return lines;
+    };
+
     const ensureSetupInvoice = async () => {
       if (openSetup) return openSetup;
-      if (setupTotal <= 0) return null;
-      // A setup fee is once-off. A paid invoice satisfying the current
-      // contracted amount must never be raised again merely because the
-      // account summary is refreshed. A later increase/new fee still creates
-      // an invoice for the additional amount through its queued charge item.
-      const paidSetupAmount = (invoices ?? [])
-        .filter((i: any) => i.invoice_kind === "once_off" && i.status === "paid")
-        .reduce((max: number, i: any) => Math.max(max, Number(i.amount) || 0), 0);
-      if (paidSetupAmount >= setupTotal && pendingSetupItems.length === 0) return null;
+      if (setupBalance <= 0) return null;
       const insert: any = {
-        amount: setupTotal,
+        amount: setupBalance,
         currency,
         subscription_amount: 0,
-        once_off_amount: setupTotal,
-        line_items: setupCharges.map((c) => ({
-          kind: c.kind,
-          description: c.description,
-          amount: c.amount,
-          charge_item_id: c.itemIds[0] ?? null,
-        })),
+        once_off_amount: setupBalance,
+        line_items: setupInvoiceLines(),
         period_start: today(),
         period_end: today(),
         status: "pending",
