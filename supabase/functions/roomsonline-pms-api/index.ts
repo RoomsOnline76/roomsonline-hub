@@ -3383,28 +3383,29 @@ async function handleGetAccountDocuments(body: any, supabase: any, req: Request)
   const to = body.end_date || null;
 
   let subQ = supabase.from("subscription_invoices")
-    .select("id, invoice_number, invoice_type, status, total_amount, currency, period_start, period_end, created_at, paid_at")
+    .select("id, invoice_number, invoice_kind, status, amount, once_off_amount, subscription_amount, currency, period_start, period_end, created_at, paid_at, pdf_url")
     .eq("property_id", propertyId);
   if (from) subQ = subQ.gte("created_at", from);
   if (to) subQ = subQ.lte("created_at", `${to}T23:59:59`);
 
   let rolQ = supabase.from("rol_property_invoices")
-    .select("id, invoice_number, status, total_amount, currency, issue_date, due_date, paid_at, pay_token")
+    .select("id, invoice_reference, status, subtotal, vat_amount, total, amount_paid, currency, issued_at, period_start, period_end, due_date, paid_at, pay_token, pdf_path")
     .eq("property_id", propertyId);
-  if (from) rolQ = rolQ.gte("issue_date", from);
-  if (to) rolQ = rolQ.lte("issue_date", to);
+  if (from) rolQ = rolQ.gte("period_end", from);
+  if (to) rolQ = rolQ.lte("period_start", to);
 
   let payQ = supabase.from("property_payout_statements")
-    .select("id, statement_number, status, gross_revenue, total_deductions, net_payout, currency, period_start, period_end, paid_at")
+    .select("id, statement_reference, status, gross_amount, rol_commission, ota_commission, transaction_fees, recurring_fees, other_recoveries, adjustments, net_payable, currency, period_start, period_end, paid_at, statement_pdf_path, invoice_reference, invoice_total")
     .eq("property_id", propertyId);
   if (from) payQ = payQ.gte("period_end", from);
   if (to) payQ = payQ.lte("period_start", to);
 
   const [subs, rol, payouts] = await Promise.all([
     subQ.order("created_at", { ascending: false }),
-    rolQ.order("issue_date", { ascending: false }),
+    rolQ.order("period_end", { ascending: false }),
     payQ.order("period_end", { ascending: false }),
   ]);
+
 
   const err = subs.error || rol.error || payouts.error;
   if (err) {
