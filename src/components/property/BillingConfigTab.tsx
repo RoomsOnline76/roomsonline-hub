@@ -104,7 +104,7 @@ function configToBuilder(config: BillingConfig | null): BillingConfigValue {
   v.enterprise_custom_fee = (config as any).enterprise_custom_fee != null ? String((config as any).enterprise_custom_fee) : "";
   v.volume_tiers_enabled = tiers.length > 0 && !isWidget;
   v.tier_pricing_json = tiers.length ? tiers : null;
-  v.facilitator_surcharge_enabled = (config.transaction_fee_percentage ?? 0) > 0 && !!config.payment_facilitator_enabled;
+  v.facilitator_surcharge_enabled = !!config.payment_facilitator_enabled;
   v.transaction_fee = config.transaction_fee_percentage != null ? String(config.transaction_fee_percentage) : "";
   v.byo_gateway_enabled = ((config as any).byo_gateway_monthly_fee ?? 0) > 0;
   v.byo_gateway_fee = (config as any).byo_gateway_monthly_fee != null ? String((config as any).byo_gateway_monthly_fee) : "";
