@@ -1,9 +1,13 @@
 /**
- * One referral partner's paysheet, opened from the statements list.
+ * One referral partner's commission payout statement, opened from the list.
+ *
+ * This is a commission payout, not a payslip — the partner is an independent
+ * contractor and carries their own SARS obligations.
  *
  * Read top to bottom: what each referred property earned ROL, the rate applied
  * and where that rate came from, then adjustments, then what gets paid.
  */
+
 import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -16,11 +20,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { AlertTriangle, Banknote, CheckCircle2, Download, Loader2, Mail, Plus, Ban } from "lucide-react";
 import {
   COMMISSION_BASIS_NOTE,
+  COMMISSION_PAYOUT_TAX_NOTE,
   COMMISSION_STATUS_CLASSES,
   COMMISSION_STATUS_LABELS,
   COMMISSION_TYPE_LABELS,
+  COMMISSION_VAT_NOTE,
   RATE_SOURCE_LABELS,
   commissionAdjustments,
+  commissionVatBreakdown,
   fmtMoney,
   isEditable,
   monthLabel,
@@ -29,6 +36,7 @@ import {
   statementBalances,
   type CommissionStatement,
 } from "@/lib/commissionStatement";
+
 import { downloadCommissionStatementPdf } from "@/lib/commissionStatementPdf";
 import type { VatSettings } from "@/lib/payoutStatement";
 import {
@@ -73,6 +81,9 @@ export function CommissionStatementDetailDialog({
   const editable = statement ? isEditable(statement.status) : false;
   const bank = statement?.bank_snapshot || {};
   const terms = statement?.terms_snapshot || {};
+  const tax = statement?.tax_snapshot || {};
+  const vatBreak = statement ? commissionVatBreakdown(statement, vat.vat_rate) : null;
+
 
   const captureAdjustment = async () => {
     if (!statement) return;
@@ -119,7 +130,13 @@ export function CommissionStatementDetailDialog({
               <Fact label="Period" value={monthLabel(statement.period_month)} sub={periodLabel(statement.period_start, statement.period_end)} />
               <Fact label="Tier" value={String(terms.tier_label || statement.rep_tier || "Base")} sub={`First year ${terms.first_year_rate ?? "—"}% · residual ${terms.residual_rate ?? "—"}%`} />
               <Fact label="ROL revenue" value={fmtMoney(statement.total_revenue)} sub={`${statement.property_count} propert${statement.property_count === 1 ? "y" : "ies"}`} />
-              <Fact label="Net payable" value={fmtMoney(statement.net_payable)} sub={statement.paid_at ? `Paid ${fmtDate(statement.paid_at)}` : "Awaiting payment"} strong />
+              <Fact
+                label="Net commission payout"
+                value={fmtMoney(vatBreak?.total ?? statement.net_payable)}
+                sub={statement.paid_at ? `Paid ${fmtDate(statement.paid_at)}` : "Awaiting payment"}
+                strong
+              />
+
             </div>
 
             {!balanced && (
@@ -249,16 +266,38 @@ export function CommissionStatementDetailDialog({
                 ) : (
                   <Badge variant="secondary" className="text-[10px]">Unverified</Badge>
                 )}
-                <p className="pt-2 text-muted-foreground">Reference: <span className="font-mono">{statement.paid_reference || statement.statement_reference || "—"}</span></p>
+                <p className="pt-2 text-muted-foreground">Payout reference: <span className="font-mono">{statement.paid_reference || statement.statement_reference || "—"}</span></p>
+                <p className="pt-1 text-muted-foreground">
+                  {tax.entity_type === "company" ? "Company" : "Individual"} · independent contractor
+                  {tax.tax_reference_number ? ` · SARS ref ${tax.tax_reference_number}` : " · no SARS ref on file"}
+                </p>
+                {vatBreak?.vatRegistered ? (
+                  <Badge variant="outline" className="text-[10px]">
+                    VAT vendor{vatBreak.vatNumber ? ` · ${vatBreak.vatNumber}` : ""}
+                  </Badge>
+                ) : (
+                  <Badge variant="secondary" className="text-[10px]">Not VAT registered</Badge>
+                )}
               </div>
               <div className="space-y-1 rounded-lg border p-3 text-xs">
                 <Row label="Gross commission" value={fmtMoney(statement.gross_commission)} />
                 <Row label="Adjustments" value={fmtMoney(statement.adjustments_total)} />
+                {vatBreak?.vatRegistered && (
+                  <>
+                    <Row label="Commission excluding VAT" value={fmtMoney(vatBreak.exclusive)} />
+                    <Row label={`VAT at ${vatBreak.vatRate}%`} value={fmtMoney(vatBreak.vat)} />
+                  </>
+                )}
                 <Separator className="my-1" />
-                <Row label="Net payable" value={fmtMoney(statement.net_payable)} strong />
+                <Row label="Net commission payout" value={fmtMoney(vatBreak?.total ?? statement.net_payable)} strong />
                 <p className="pt-2 text-[11px] text-muted-foreground">{COMMISSION_BASIS_NOTE}</p>
+                <p className="text-[11px] text-muted-foreground">{COMMISSION_PAYOUT_TAX_NOTE}</p>
+                {vatBreak?.vatRegistered && (
+                  <p className="text-[11px] text-muted-foreground">{COMMISSION_VAT_NOTE}</p>
+                )}
               </div>
             </section>
+
 
             {/* Actions */}
             <div className="flex flex-wrap gap-2">

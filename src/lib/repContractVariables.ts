@@ -16,6 +16,11 @@ export interface RepLike {
   email?: string | null;
   rep_code?: string | null;
   commission_tier?: string | null;
+  entity_type?: string | null;
+  trading_name?: string | null;
+  tax_reference_number?: string | null;
+  vat_registered?: boolean | null;
+  vat_number?: string | null;
 }
 
 export interface ResolvedRepTerms {
@@ -38,6 +43,10 @@ export interface RepContractVariables extends Record<string, string> {
   residual_rate: string;
   residual_duration: string;
   clawback_period: string;
+  /** Tax identity — the agreement states the partner's SARS/VAT position. */
+  partner_entity_type: string;
+  partner_tax_reference: string;
+  partner_vat_status: string;
 }
 
 const num = (v: unknown): number | null => {
@@ -117,6 +126,14 @@ export function repTermsToVariables(rep: RepLike | null | undefined, terms: Reso
     residual_rate: ratePhrase(terms.residual_rate),
     residual_duration: `${numberToWords(terms.residual_months)} (${terms.residual_months}) months`,
     clawback_period: `${numberToWords(terms.clawback_days)} (${terms.clawback_days}) days`,
+    partner_entity_type:
+      String(rep?.entity_type || "individual") === "company"
+        ? `Company / close corporation${rep?.trading_name ? ` (${rep.trading_name})` : ""}`
+        : `Individual / sole proprietor${rep?.trading_name ? ` (${rep.trading_name})` : ""}`,
+    partner_tax_reference: rep?.tax_reference_number || "Not provided",
+    partner_vat_status: rep?.vat_registered
+      ? `Registered VAT vendor${rep?.vat_number ? ` — VAT No. ${rep.vat_number}` : ""}`
+      : "Not registered for VAT",
   };
 }
 
@@ -132,7 +149,7 @@ export async function resolveRepContractVariables(opts: {
   const { repId, email } = opts;
   if (!repId && !email) return null;
 
-  let q = supabase.from("sales_reps").select("id, display_name, email, rep_code, commission_tier").limit(1);
+  let q = supabase.from("sales_reps").select("id, display_name, email, rep_code, commission_tier, entity_type, trading_name, tax_reference_number, vat_registered, vat_number").limit(1);
   q = repId ? q.eq("id", repId) : q.ilike("email", (email || "").trim());
 
   const [{ data: repRows }, globals] = await Promise.all([q, fetchRepGlobals()]);

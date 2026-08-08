@@ -1,9 +1,13 @@
 /**
- * send-commission-statement — emails a referral partner their monthly paysheet.
+ * send-commission-statement — emails a referral partner their monthly commission
+ * payout statement. This is not a payslip: the partner is an independent
+ * contractor and carries their own SARS obligations.
  *
  * The email carries the same numbers as the PDF: per-property commission, the
- * rate applied, adjustments, and the net payable with its payment reference.
+ * rate applied, adjustments, VAT (for VAT vendors) and the net payout with its
+ * payout reference.
  */
+
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { Resend } from "npm:resend@4";
 import { z } from "npm:zod@3.23.8";
@@ -112,17 +116,35 @@ Deno.serve(async (req) => {
     const reference = statement.paid_reference || statement.statement_reference || "—";
     const period = monthLabel(statement.period_month);
 
+    // VAT sits on top of the commission earned — the exclusive amount never moves.
+    const taxSnapshot = (statement.tax_snapshot || {}) as Record<string, unknown>;
+    const vatRegistered = !!taxSnapshot.vat_registered;
+    const vatRate = Number(taxSnapshot.vat_rate ?? 15) || 0;
+    const exclusive = Number(statement.net_payable ?? statement.total_amount) || 0;
+    const vatAmount = vatRegistered
+      ? Number(statement.vat_amount) || Math.round(exclusive * (vatRate / 100) * 100) / 100
+      : 0;
+    const totalPayout = Math.round((exclusive + vatAmount) * 100) / 100;
+
+    const vatRows = vatRegistered
+      ? `<tr><td style="padding:6px 10px;color:#6e6e7d">Commission excluding VAT</td><td style="padding:6px 10px;text-align:right">${fmt(exclusive)}</td></tr>
+         <tr><td style="padding:6px 10px;color:#6e6e7d">VAT at ${vatRate}%${taxSnapshot.vat_number ? ` · ${taxSnapshot.vat_number}` : ""}</td><td style="padding:6px 10px;text-align:right">${fmt(vatAmount)}</td></tr>`
+      : "";
+
     const html = `<!DOCTYPE html>
 <html><body style="margin:0;background:#f6f6f8;font-family:Arial,Helvetica,sans-serif;color:#1A1A2E">
   <div style="max-width:640px;margin:0 auto;padding:24px">
     <div style="background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e5e7eb">
       <div style="padding:24px 28px;border-bottom:1px solid #eee">
         <p style="margin:0;font-size:11px;letter-spacing:1px;color:#E91E8C;font-weight:700">ROOMSONLINE</p>
-        <h1 style="margin:6px 0 0;font-size:18px">Commission statement — ${period}</h1>
+        <h1 style="margin:6px 0 0;font-size:18px">Commission payout statement — ${period}</h1>
         <p style="margin:6px 0 0;font-size:12px;color:#6e6e7d">
           ${statement.sales_reps?.display_name || "Referral partner"}
           ${statement.sales_reps?.rep_code ? ` · ${statement.sales_reps.rep_code}` : ""}
-          · Reference <strong style="font-family:monospace">${reference}</strong>
+          · Payout reference <strong style="font-family:monospace">${reference}</strong>
+        </p>
+        <p style="margin:8px 0 0;font-size:11px;color:#6e6e7d">
+          Referral commission payout — not remuneration. No employment relationship exists.
         </p>
       </div>
       <div style="padding:24px 28px">
@@ -140,19 +162,26 @@ Deno.serve(async (req) => {
         <table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:20px">
           <tr><td style="padding:6px 10px;color:#6e6e7d">Gross commission</td><td style="padding:6px 10px;text-align:right">${fmt(statement.gross_commission)}</td></tr>
           <tr><td style="padding:6px 10px;color:#6e6e7d">Adjustments</td><td style="padding:6px 10px;text-align:right">${fmt(statement.adjustments_total)}</td></tr>
+          ${vatRows}
           <tr style="background:#1A1A2E;color:#fff">
-            <td style="padding:10px;font-weight:700">Net payable</td>
-            <td style="padding:10px;text-align:right;font-weight:700">${fmt(statement.net_payable ?? statement.total_amount)}</td>
+            <td style="padding:10px;font-weight:700">Net commission payout</td>
+            <td style="padding:10px;text-align:right;font-weight:700">${fmt(totalPayout)}</td>
           </tr>
         </table>
         <p style="margin:18px 0 0;font-size:11px;color:#6e6e7d;line-height:1.6">
           Commission is earned on ROL net revenue only — guest payments, payment-gateway fees, facilitator
           surcharges and other pass-through costs are excluded. Payment is made to the bank account on
-          file and will show the reference above on your statement.
+          file and will show the payout reference above on your statement.
+        </p>
+        <p style="margin:12px 0 0;font-size:11px;color:#6e6e7d;line-height:1.6">
+          <strong>Tax position.</strong> This is a referral commission payout, not remuneration. You act as an
+          independent contractor; no employment relationship exists and no PAYE, UIF or SDL is withheld. You are
+          solely responsible for declaring this income to SARS and for any income tax, provisional tax and VAT due on it.
+          ${vatRegistered ? "As a registered VAT vendor, VAT has been added above and a valid tax invoice is required before payment is released." : ""}
         </p>
       </div>
       <div style="background:#f9fafb;padding:14px 28px;border-top:1px solid #eee">
-        <p style="margin:0;font-size:11px;color:#999;text-align:center">RoomsOnline (Pty) Ltd · Automated commission statement</p>
+        <p style="margin:0;font-size:11px;color:#999;text-align:center">RoomsOnline (Pty) Ltd · Automated commission payout statement</p>
       </div>
     </div>
   </div>
@@ -160,9 +189,10 @@ Deno.serve(async (req) => {
 
     const resend = new Resend(resendKey);
     const { error: emailError } = await resend.emails.send({
+
       from: "RoomsOnline <hello@notify.roomsonline.co.za>",
       to: [recipient],
-      subject: `Commission statement — ${period} — ${reference}`,
+      subject: `Commission payout statement — ${period} — ${reference}`,
       html,
     });
     if (emailError) throw emailError;

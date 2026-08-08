@@ -7201,10 +7201,12 @@ export type Database = {
           rep_id: string
           statement_reference: string | null
           status: Database["public"]["Enums"]["commission_report_status"]
+          tax_snapshot: Json
           terms_snapshot: Json
           total_amount: number
           total_entries: number
           total_revenue: number
+          vat_amount: number
           void_reason: string | null
         }
         Insert: {
@@ -7230,10 +7232,12 @@ export type Database = {
           rep_id: string
           statement_reference?: string | null
           status?: Database["public"]["Enums"]["commission_report_status"]
+          tax_snapshot?: Json
           terms_snapshot?: Json
           total_amount?: number
           total_entries?: number
           total_revenue?: number
+          vat_amount?: number
           void_reason?: string | null
         }
         Update: {
@@ -7259,10 +7263,12 @@ export type Database = {
           rep_id?: string
           statement_reference?: string | null
           status?: Database["public"]["Enums"]["commission_report_status"]
+          tax_snapshot?: Json
           terms_snapshot?: Json
           total_amount?: number
           total_entries?: number
           total_revenue?: number
+          vat_amount?: number
           void_reason?: string | null
         }
         Relationships: [
@@ -13570,42 +13576,60 @@ export type Database = {
           created_at: string
           display_name: string
           email: string
+          entity_type: string
           id: string
           is_active: boolean
           notes: string | null
           phone: string | null
           quarterly_target: number | null
           rep_code: string
+          tax_reference_number: string | null
+          tax_status_confirmed_at: string | null
+          trading_name: string | null
           updated_at: string
           user_id: string | null
+          vat_number: string | null
+          vat_registered: boolean
         }
         Insert: {
           commission_tier?: Database["public"]["Enums"]["commission_tier"]
           created_at?: string
           display_name: string
           email: string
+          entity_type?: string
           id?: string
           is_active?: boolean
           notes?: string | null
           phone?: string | null
           quarterly_target?: number | null
           rep_code: string
+          tax_reference_number?: string | null
+          tax_status_confirmed_at?: string | null
+          trading_name?: string | null
           updated_at?: string
           user_id?: string | null
+          vat_number?: string | null
+          vat_registered?: boolean
         }
         Update: {
           commission_tier?: Database["public"]["Enums"]["commission_tier"]
           created_at?: string
           display_name?: string
           email?: string
+          entity_type?: string
           id?: string
           is_active?: boolean
           notes?: string | null
           phone?: string | null
           quarterly_target?: number | null
           rep_code?: string
+          tax_reference_number?: string | null
+          tax_status_confirmed_at?: string | null
+          trading_name?: string | null
           updated_at?: string
           user_id?: string | null
+          vat_number?: string | null
+          vat_registered?: boolean
         }
         Relationships: [
           {

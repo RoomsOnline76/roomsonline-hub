@@ -48,6 +48,10 @@ function json(body: Json, status = 200): Response {
 
 const PAID_INVOICE_STATUSES = ["paid", "settled", "completed"];
 
+/** South African VAT rate applied when a referral partner is a VAT vendor. */
+const DEFAULT_VAT_RATE = 15;
+
+
 /** Platform fallbacks — only used when nothing is configured anywhere. */
 const TIER_FALLBACKS: Record<string, { first_year_rate: number; residual_rate: number }> = {
   base: { first_year_rate: 20, residual_rate: 5 },
@@ -168,6 +172,11 @@ interface PreviewStatement {
   rep_tier: string;
   terms: ResolvedTerms;
   bank: Json;
+  /** Partner tax identity frozen onto the statement — SARS position at issue. */
+  tax: Json;
+  /** VAT added on top of the commission when the partner is a VAT vendor. */
+  vat_amount: number;
+
   lines: PreviewLine[];
   total_revenue: number;
   gross_commission: number;
@@ -211,7 +220,13 @@ async function calculate(supabase: Client, periodMonth: string): Promise<Preview
 
   const [{ data: reps }, { data: banks }, { data: properties }, { data: payoutLines }, { data: subInvoices }] =
     await Promise.all([
-      supabase.from("sales_reps").select("id, display_name, rep_code, email, commission_tier, is_active").in("id", repIds),
+      supabase
+        .from("sales_reps")
+        .select(
+          "id, display_name, rep_code, email, commission_tier, is_active, entity_type, trading_name, tax_reference_number, vat_registered, vat_number",
+        )
+        .in("id", repIds),
+
       supabase
         .from("sales_rep_bank_details")
         .select("rep_id, bank_name, branch_code, account_holder, account_number_masked, account_type, is_verified")
@@ -319,6 +334,17 @@ async function calculate(supabase: Client, periodMonth: string): Promise<Preview
         rep_tier: terms.tier,
         terms,
         bank: (bankMap.get(rep.id as string) as Json) || {},
+        tax: {
+          entity_type: (rep.entity_type as string) || "individual",
+          legal_name: (rep.display_name as string) || null,
+          trading_name: (rep.trading_name as string) || null,
+          tax_reference_number: (rep.tax_reference_number as string) || null,
+          vat_registered: !!rep.vat_registered,
+          vat_number: (rep.vat_number as string) || null,
+          vat_rate: DEFAULT_VAT_RATE,
+        } as Json,
+        vat_amount: 0,
+
         lines: [],
         total_revenue: 0,
         gross_commission: 0,
@@ -416,7 +442,13 @@ async function calculate(supabase: Client, periodMonth: string): Promise<Preview
     s.adjustments_total = round2(adjustments.reduce((t, l) => t + l.amount, 0));
     s.net_payable = round2(s.gross_commission + s.adjustments_total);
     s.property_count = new Set(commission.map((l) => l.property_id)).size;
+    // Commission is VAT-exclusive: a VAT-vendor partner adds VAT on top.
+    const tax = (s.tax || {}) as Record<string, unknown>;
+    s.vat_amount = tax.vat_registered
+      ? round2(s.net_payable * ((Number(tax.vat_rate) || DEFAULT_VAT_RATE) / 100))
+      : 0;
   });
+
 
   return statements.sort((a, b) => b.net_payable - a.net_payable);
 }
@@ -454,6 +486,9 @@ async function generate(supabase: Client, periodMonth: string): Promise<Response
       total_amount: s.net_payable,
       bank_snapshot: s.bank,
       terms_snapshot: s.terms,
+      tax_snapshot: s.tax,
+      vat_amount: s.vat_amount,
+
       status: "pending_approval",
       generated_at: new Date().toISOString(),
     };

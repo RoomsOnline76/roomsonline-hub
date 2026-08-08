@@ -112,6 +112,10 @@ const AUTO_VARIABLE_GROUPS: { label: string; keys: string[] }[] = [
       "residual_rate",
       "residual_duration",
       "clawback_period",
+      "partner_entity_type",
+      "partner_tax_reference",
+      "partner_vat_status",
+
     ],
   },
 ];
