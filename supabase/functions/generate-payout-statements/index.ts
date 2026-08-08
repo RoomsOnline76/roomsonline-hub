@@ -192,6 +192,8 @@ Deno.serve(async (req) => {
         txId: null,
         settlement: "rol",
         txDate: b.created_at,
+        gatewayFee: null,
+
       });
       seenBookings.add(b.id);
     });
