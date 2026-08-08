@@ -18,27 +18,31 @@ interface CoverageRow {
   direction: "pull" | "push" | "refresh" | "webhook";
   mandatory: boolean;
   implemented: boolean;
-  status: "passed" | "failed" | "skipped" | "never_run";
+  status: "passed" | "failed" | "skipped" | "never_run" | "blocked";
   rag: Rag;
   stale: boolean;
+  blocked_upstream?: boolean;
+  excluded_from_score?: boolean;
   age_hours: number | null;
   max_age_hours: number | null;
+  next_due_at?: string | null;
   detail: string | null;
   last_run_at: string | null;
   source: "cert_run" | "sync_log" | "none";
   rolos_surface: string;
   rolos_stream: string;
   rolos_wired: boolean;
-  rolos_status: "success" | "failed" | "never_used";
+  rolos_status: "success" | "failed" | "never_used" | "blocked";
   rolos_last_at: string | null;
   rolos_detail: string | null;
   note: string;
 }
 
 interface CoverageSummary {
-  adapter: { total: number; passed: number; failed: number; never_run: number; stale: number; not_implemented: number; percent: number };
+  adapter: { total: number; passed: number; failed: number; never_run: number; stale: number; blocked?: number; not_implemented: number; percent: number };
   rolos: { total_surfaces: number; exercised: number; failed: number; never_used: number; not_wired: number; percent: number };
   mandatory: { total: number; passed: number };
+
   generated_at: string;
 }
 
