@@ -151,9 +151,9 @@ function reminderHtml(o: {
   );
   const btn = (href: string, label: string) =>
     `<a href="${href}" style="background:#E91E8C;color:#fff;text-decoration:none;padding:12px 22px;border-radius:6px;display:inline-block;font-weight:600;margin:4px">${label}</a>`;
-  return `<!doctype html><html><body style="font-family:Arial,sans-serif;background:#fff;padding:24px;color:#1A1A2E">
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Payments due</title></head><body style="font-family:Arial,sans-serif;background:#fff;padding:24px;color:#1A1A2E">
   <div style="max-width:560px;margin:0 auto;border:1px solid #eee;border-radius:8px;padding:24px">
-    <h2 style="color:#E91E8C;margin-top:0">Payments due — ${o.entityName}</h2>
+    <h2 style="color:#E91E8C;margin-top:0">Payments due &mdash; ${o.entityName}</h2>
     <p>Your signed agreement is in place. There are two separate payments:</p>
     <table style="width:100%;margin:16px 0;border-collapse:collapse">${rows.join("")}</table>
     <p style="text-align:center;margin:20px 0">
