@@ -47,6 +47,7 @@ interface Invoice {
   billing_type: string;
   category: string | null;
   vendor: string | null;
+  receipt_number?: string | null;
   invoice_date: string;
   due_date: string | null;
   is_paid: boolean;
@@ -96,6 +97,7 @@ const emptyForm = {
   billing_type: "monthly",
   category: "other",
   vendor: "",
+  receipt_number: "",
   invoice_date: new Date().toISOString().split("T")[0],
   due_date: "",
   is_paid: false,
@@ -131,6 +133,7 @@ export function AddInvoiceModal({
         billing_type: editingInvoice.billing_type,
         category: editingInvoice.category || "other",
         vendor: editingInvoice.vendor || "",
+        receipt_number: editingInvoice.receipt_number || "",
         invoice_date: editingInvoice.invoice_date,
         due_date: editingInvoice.due_date || "",
         is_paid: editingInvoice.is_paid,
@@ -178,6 +181,7 @@ export function AddInvoiceModal({
         billing_type: data.billing_type,
         category: data.category,
         vendor: data.vendor || null,
+        receipt_number: data.receipt_number || null,
         invoice_date: data.invoice_date || new Date().toISOString().split("T")[0],
         due_date: data.due_date || null,
         is_paid: data.is_paid,
@@ -357,6 +361,21 @@ export function AddInvoiceModal({
                 }
                 placeholder="e.g., Supabase"
               />
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="receipt_number">Receipt no.</Label>
+              <Input
+                id="receipt_number"
+                value={formData.receipt_number}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, receipt_number: e.target.value }))
+                }
+                placeholder="e.g., 2680-0806"
+              />
+              <p className="text-xs text-muted-foreground">
+                Shown on the consolidated cost-sharing statement.
+              </p>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
