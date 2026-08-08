@@ -1,48 +1,28 @@
 import { useEffect, useState, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
 import {
   CreditCard,
   DollarSign,
   Clock,
-  Handshake,
   Building2,
   TrendingUp,
 } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
-import { format } from "date-fns";
 import { toast } from "sonner";
 import { usePropertyPayouts } from "@/hooks/usePropertyPayouts";
 import { PayoutStatementRun } from "@/components/payments/PayoutStatementRun";
 import { PropertyInvoiceRun } from "@/components/payments/PropertyInvoiceRun";
-
-interface CommissionPayout {
-  id: string;
-  rep_id: string;
-  rep_name: string;
-  rep_code: string;
-  period_month: string;
-  total_amount: number;
-  status: string;
-  has_banking: boolean;
-  banking_verified: boolean;
-}
 
 // PayFast checkout sessions don't stay open forever — a pending row older than
 // this is an abandoned attempt, not money in flight.
 const PENDING_SESSION_MS = 2 * 60 * 60 * 1000;
 
 export default function AdminPayments() {
-  const navigate = useNavigate();
-  const [commissionPayouts, setCommissionPayouts] = useState<CommissionPayout[]>([]);
   const [loading, setLoading] = useState(true);
-  const [commissionsLoading, setCommissionsLoading] = useState(true);
+
 
   const [txStats, setTxStats] = useState({
     totalRevenue: 0, pendingAmount: 0, failedCount: 0, successCount: 0,
