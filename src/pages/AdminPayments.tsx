@@ -1,13 +1,10 @@
 import { useEffect, useState, useMemo } from "react";
-import { 
-  CreditCard, 
-  DollarSign, 
-  AlertTriangle,
-  CheckCircle,
+import { useNavigate } from "react-router-dom";
+import {
+  CreditCard,
+  DollarSign,
   Clock,
-  Download,
   Handshake,
-  Loader2,
   Building2,
   TrendingUp,
 } from "lucide-react";
@@ -18,12 +15,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from "@/components/ui/table";
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -47,10 +38,11 @@ interface CommissionPayout {
 const PENDING_SESSION_MS = 2 * 60 * 60 * 1000;
 
 export default function AdminPayments() {
+  const navigate = useNavigate();
   const [commissionPayouts, setCommissionPayouts] = useState<CommissionPayout[]>([]);
   const [loading, setLoading] = useState(true);
   const [commissionsLoading, setCommissionsLoading] = useState(true);
-  const [markingPaid, setMarkingPaid] = useState<string | null>(null);
+
   const [txStats, setTxStats] = useState({
     totalRevenue: 0, pendingAmount: 0, failedCount: 0, successCount: 0,
   });
