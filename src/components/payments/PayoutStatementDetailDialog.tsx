@@ -1,7 +1,8 @@
 /**
- * Statement detail — the full A/B/C/D ledger for one payout statement, with
- * PDF downloads for both the statement and the matching ROL charges invoice.
+ * Statement detail — the A/B/C ledger for one payout statement (bookings, ROL
+ * charges invoice, net payable), with PDF downloads for statement and invoice.
  */
+
 import { useState } from "react";
 import { Download, FileText, Loader2, CheckCircle2, Ban, Lock } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -17,16 +18,15 @@ import {
 import { format } from "date-fns";
 import { usePayoutStatementDetail } from "@/hooks/usePayoutStatements";
 import {
-  adjustmentLines,
   bookingLines,
   fmtMoney,
   periodLabel,
   propertySubtotals,
-  recoveryLines,
   statementBalances,
   STATUS_LABELS,
   type VatSettings,
 } from "@/lib/payoutStatement";
+
 import { downloadPayoutStatementPdf } from "@/lib/payoutStatementPdf";
 import { downloadRolChargesInvoicePdf } from "@/lib/rolChargesInvoicePdf";
 
@@ -166,61 +166,22 @@ export function PayoutStatementDetailDialog({
               )}
             </section>
 
-            {/* Section B */}
-            <section className="space-y-2">
-              <h3 className="text-sm font-semibold tracking-wide">B · RECOVERIES &amp; PLATFORM CHARGES</h3>
-              <div className="rounded-md border overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Description</TableHead>
-                      <TableHead>Property</TableHead>
-                      <TableHead className="text-right">Amount</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {[...recoveryLines(detail.lines), ...adjustmentLines(detail.lines)].map((l) => (
-                      <TableRow key={l.id}>
-                        <TableCell className="text-xs text-muted-foreground">{fmtDay(l.line_date)}</TableCell>
-                        <TableCell className="text-sm">{l.description || "—"}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground">{l.property_name || "All"}</TableCell>
-                        <TableCell className="text-right text-sm">
-                          {money(l.commission_amount || l.fee_amount)}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                    {recoveryLines(detail.lines).length + adjustmentLines(detail.lines).length === 0 && (
-                      <TableRow>
-                        <TableCell colSpan={4} className="text-center text-sm text-muted-foreground py-6">
-                          Nothing to recover this period.
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-            </section>
-
-            {/* Section C + D */}
+            {/* Section B + C */}
             <section className="grid gap-4 md:grid-cols-2">
               <div className="rounded-md border p-4 space-y-1.5">
                 <h3 className="text-sm font-semibold tracking-wide mb-2">
-                  C · ROL CHARGES INVOICE
+                  B · ROL CHARGES INVOICE
                   {detail.invoice_reference && (
                     <span className="ml-2 font-mono text-xs text-muted-foreground">{detail.invoice_reference}</span>
                   )}
                 </h3>
                 {[
-                  ["Commission (ROL-processed)", detail.rol_commission],
-                  ["Commission (own gateway)", detail.byo_commission],
-                  ["Payment processing fees", detail.transaction_fees],
-                  ["Subscriptions & platform charges", detail.recurring_fees],
-                  ...(detail.opening_balance > 0 ? [["Balance brought forward", detail.opening_balance] as const] : []),
+                  ["Commission on bookings processed by ROL", detail.rol_commission],
+                  ["Payment processing fee recovered (non-commissionable)", detail.transaction_fees],
                 ].map(([label, value]) => (
-                  <div key={String(label)} className="flex justify-between text-sm">
+                  <div key={String(label)} className="flex justify-between gap-4 text-sm">
                     <span className="text-muted-foreground">{label}</span>
-                    <span>{money(Number(value))}</span>
+                    <span className="whitespace-nowrap">{money(Number(value))}</span>
                   </div>
                 ))}
                 {detail.invoice_vat > 0 && (
@@ -242,12 +203,13 @@ export function PayoutStatementDetailDialog({
                   <span>{money(detail.invoice_total)}</span>
                 </div>
                 <p className="text-xs text-muted-foreground pt-1">
-                  Settled by deduction from the payout — issued as paid in full.
+                  Settled by deduction from the payout — issued as paid in full. Subscriptions, platform
+                  charges and commission on own-gateway bookings are invoiced separately.
                 </p>
               </div>
-
               <div className="rounded-md border p-4 space-y-2">
-                <h3 className="text-sm font-semibold tracking-wide mb-2">D · NET PAYABLE</h3>
+                <h3 className="text-sm font-semibold tracking-wide mb-2">C · NET PAYABLE</h3>
+
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Amount held by ROL</span>
                   <span>{money(detail.amount_held)}</span>

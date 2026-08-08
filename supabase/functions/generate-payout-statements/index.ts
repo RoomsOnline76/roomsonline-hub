@@ -69,7 +69,10 @@ interface BookingEntry {
   txId: string | null;
   settlement: "rol" | "byo";
   txDate: string;
+  /** Actual fee the gateway charged us on this transaction, when reported. */
+  gatewayFee: number | null;
 }
+
 
 interface GroupBucket {
   kind: "portfolio" | "property";
@@ -126,7 +129,7 @@ Deno.serve(async (req) => {
     const { data: txRows, error: txError } = await supabase
       .from("payment_transactions")
       .select(
-        `id, amount, status, created_at, credential_source,
+        `id, amount, status, created_at, credential_source, gateway_response,
          bookings!inner(${BOOKING_FIELDS}, properties!bookings_property_id_fkey!inner(id, name, owner_email))`,
       )
       .in("status", SETTLED_TX_STATUSES)
@@ -136,6 +139,16 @@ Deno.serve(async (req) => {
 
     const entries: BookingEntry[] = [];
     const seenBookings = new Set<string>();
+
+    // PayFast (and most gateways) report the fee they charged on the ITN payload.
+    const reportedFee = (raw: unknown): number | null => {
+      if (!raw || typeof raw !== "object") return null;
+      const r = raw as Record<string, unknown>;
+      const candidate = r.amount_fee ?? r.fee ?? r.fee_amount;
+      if (candidate == null || candidate === "") return null;
+      const value = Math.abs(num(candidate));
+      return value > 0 ? round2(value) : 0;
+    };
 
     (txRows || []).forEach((tx: Record<string, any>) => {
       const booking = tx.bookings;
@@ -150,9 +163,11 @@ Deno.serve(async (req) => {
         txId: tx.id,
         settlement: String(tx.credential_source ?? "").toLowerCase() === "byo" ? "byo" : "rol",
         txDate: tx.created_at,
+        gatewayFee: reportedFee(tx.gateway_response),
       });
       seenBookings.add(booking.id);
     });
+
 
     // Bookings flagged paid on the record with no gateway transaction
     const { data: paidBookings } = await supabase
@@ -177,6 +192,8 @@ Deno.serve(async (req) => {
         txId: null,
         settlement: "rol",
         txDate: b.created_at,
+        gatewayFee: null,
+
       });
       seenBookings.add(b.id);
     });
@@ -198,14 +215,21 @@ Deno.serve(async (req) => {
       if (l.booking_id) claimedBooking.add(l.booking_id);
     });
 
+    // Own-gateway (BYO) money never reached ROL — it is invoiced separately, not settled here.
     const usable = entries.filter(
-      (e) => !(e.txId && claimedTx.has(e.txId)) && !claimedBooking.has(String(e.booking.id)),
+      (e) =>
+        e.settlement === "rol" &&
+        !(e.txId && claimedTx.has(e.txId)) &&
+        !claimedBooking.has(String(e.booking.id)),
     );
+
 
     const propertyIds = Array.from(new Set(usable.map((e) => e.propertyId)));
 
     /* ---------------- 3. reference data ------------------------------- */
-    const [membersRes, portfoliosRes, propsRes, billingRes, termsRes, globalsRes, bankRes, chargesRes] =
+    // Subscriptions, platform and one-off charges are billed on the separate ROL
+    // property invoice / subscription plan — they are deliberately NOT recovered here.
+    const [membersRes, portfoliosRes, propsRes, billingRes, termsRes, globalsRes, bankRes] =
       await Promise.all([
         supabase.from("property_portfolio_members").select("property_id, portfolio_id").in("property_id", propertyIds),
         supabase.from("property_portfolios").select("id, name, owner_email, payout_mode"),
@@ -222,11 +246,8 @@ Deno.serve(async (req) => {
           .order("effective_from", { ascending: false }),
         supabase.from("billing_global_defaults").select("*"),
         supabase.from("property_bank_details").select("*").in("property_id", propertyIds),
-        supabase
-          .from("subscription_charge_items")
-          .select("*")
-          .eq("status", "pending"),
       ]);
+
 
     const portfolioById = new Map<string, Record<string, any>>();
     (portfoliosRes.data || []).forEach((p: Record<string, any>) => portfolioById.set(p.id, p));
@@ -347,12 +368,19 @@ Deno.serve(async (req) => {
           termByKey.get(termKey) ?? null,
         );
 
+        // Pass-through processing cost: prefer what the gateway actually charged us,
+        // fall back to the configured percentage. Never commissionable.
         const pfEnabled = !!config?.payment_facilitator_enabled;
-        const pfRate =
-          e.settlement === "rol" && pfEnabled
-            ? num(config?.transaction_fee_percentage ?? globalTxFee)
-            : 0;
-        const fee = round2(e.gross * (pfRate / 100));
+        let fee = 0;
+        if (e.settlement === "rol" && pfEnabled) {
+          if (e.gatewayFee != null) {
+            fee = round2(e.gatewayFee);
+          } else {
+            const pfRate = num(config?.transaction_fee_percentage ?? globalTxFee);
+            fee = round2(e.gross * (pfRate / 100));
+          }
+        }
+
 
         grossAmount += e.gross;
         if (e.settlement === "byo") {
@@ -393,121 +421,28 @@ Deno.serve(async (req) => {
         });
       }
 
-      // BYO / channel commission is money we never held — recover it on the invoice.
-      if (byoCommission > 0) {
-        lines.push({
-          property_id: null,
-          property_name: null,
-          line_kind: "recovery",
-          line_date: periodEnd,
-          booking_id: null,
-          payment_transaction_id: null,
-          rol_reference: null,
-          description: "Commission on bookings settled to the property's own account",
-          guest_name: null,
-          check_in_date: null,
-          check_out_date: null,
-          settlement_route: "byo",
-          commission_type: null,
-          gross_amount: round2(byoGross),
-          commission_rate: byoGross > 0 ? round2((byoCommission / byoGross) * 100) : 0,
-          commission_amount: round2(byoCommission),
-          fee_amount: 0,
-          net_amount: 0,
-          is_recoverable: true,
-          source_kind: "byo_commission",
-          source_id: null,
-        });
-      }
+      /* Recoveries are deliberately NOT on this statement any more:
+         - commission on own-gateway bookings, and
+         - subscriptions / platform / one-off charges
+         are billed on the separate ROL property invoice and subscription plans.
+         The statement only settles money ROL actually holds. */
 
-      // Pending platform charges for the properties in this group.
-      const groupCharges = (chargesRes.data || []).filter((c: Record<string, any>) => {
-        if (c.portfolio_id && bucket.portfolioId) return c.portfolio_id === bucket.portfolioId;
-        return c.property_id && bucket.propertyIds.has(c.property_id);
-      });
-
-      let recurringFees = 0;
-      groupCharges.forEach((c: Record<string, any>) => {
-        const amount = round2(num(c.amount));
-        if (amount === 0) return;
-        recurringFees += amount;
-        lines.push({
-          property_id: c.property_id || null,
-          property_name: c.property_id ? propertyById.get(c.property_id)?.name || null : null,
-          line_kind: "charge",
-          line_date: String(c.created_at || periodEnd).slice(0, 10),
-          booking_id: null,
-          payment_transaction_id: null,
-          rol_reference: null,
-          description: c.description || String(c.kind || "Platform charge"),
-          guest_name: null,
-          check_in_date: null,
-          check_out_date: null,
-          settlement_route: null,
-          commission_type: null,
-          gross_amount: 0,
-          commission_rate: 0,
-          commission_amount: 0,
-          fee_amount: amount,
-          net_amount: 0,
-          is_recoverable: true,
-          source_kind: `charge:${c.kind || "other"}`,
-          source_id: c.id,
-        });
-      });
-
-      // Balance brought forward from the previous statement for this group.
-      let openingBalance = 0;
-      const prevQuery = supabase
-        .from("property_payout_statements")
-        .select("carry_forward, period_end")
-        .in("status", ["finalised", "paid"])
-        .lt("period_start", periodStart)
-        .order("period_start", { ascending: false })
-        .limit(1);
-      const { data: prev } = bucket.portfolioId
-        ? await prevQuery.eq("portfolio_id", bucket.portfolioId)
-        : await prevQuery.eq("property_id", bucket.propertyId);
-      if (prev && prev.length > 0) openingBalance = round2(num(prev[0].carry_forward));
-
-      if (openingBalance > 0) {
-        lines.push({
-          property_id: null,
-          property_name: null,
-          line_kind: "opening_balance",
-          line_date: periodStart,
-          booking_id: null,
-          payment_transaction_id: null,
-          rol_reference: null,
-          description: "Balance brought forward from previous statement",
-          guest_name: null,
-          check_in_date: null,
-          check_out_date: null,
-          settlement_route: null,
-          commission_type: null,
-          gross_amount: 0,
-          commission_rate: 0,
-          commission_amount: 0,
-          fee_amount: openingBalance,
-          net_amount: 0,
-          is_recoverable: true,
-          source_kind: "opening_balance",
-          source_id: null,
-        });
-      }
+      const recurringFees = 0;
+      const openingBalance = 0;
 
       const amountHeld = round2(rolGross - rolCommission - txFees);
-      const invoiceSubtotalRaw = round2(rolCommission + txFees + byoCommission + recurringFees);
+      const invoiceSubtotalRaw = round2(rolCommission + txFees);
       const invoiceSubtotal = vatEnabled
         ? round2(invoiceSubtotalRaw / (1 + vatRate / 100))
         : invoiceSubtotalRaw;
       const invoiceVat = vatEnabled ? round2(invoiceSubtotalRaw - invoiceSubtotal) : 0;
       const invoiceTotal = invoiceSubtotalRaw;
 
-      // Cash we can actually release, after the invoice and any brought-forward debt.
-      const payableRaw = round2(amountHeld - byoCommission - recurringFees - openingBalance);
-      const netPayable = Math.max(0, payableRaw);
-      const carryForward = payableRaw < 0 ? round2(-payableRaw) : 0;
+      // Commission and the processing fee are already withheld from the money we hold,
+      // so the full held amount is releasable — nothing can carry forward.
+      const netPayable = Math.max(0, amountHeld);
+      const carryForward = 0;
+
 
       built.push({
         key,

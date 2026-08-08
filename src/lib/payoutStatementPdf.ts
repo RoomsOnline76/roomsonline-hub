@@ -11,8 +11,6 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import {
   bookingLines,
-  recoveryLines,
-  adjustmentLines,
   propertySubtotals,
   fmtMoney,
   periodLabel,
@@ -117,7 +115,7 @@ export function buildPayoutStatementPdf(
       "", "", "", "Totals",
       money(statement.gross_amount),
       "",
-      money(statement.rol_commission + statement.byo_commission),
+      money(statement.rol_commission),
       money(statement.transaction_fees),
       money(statement.amount_held),
     ]],
@@ -154,46 +152,19 @@ export function buildPayoutStatementPdf(
     }
   }
 
-  /* ---------------- Section B ---------------- */
-  const recoveries = [...recoveryLines(statement.lines), ...adjustmentLines(statement.lines)];
-  if (recoveries.length > 0) {
-    if (y > 640) { doc.addPage(); y = 52; }
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(10);
-    doc.text("B · RECOVERIES & PLATFORM CHARGES", M, y);
-    y += 10;
-    autoTable(doc, {
-      startY: y,
-      margin: { left: M, right: M },
-      styles: { fontSize: 7.6, cellPadding: 4, textColor: INK, lineColor: LINE, lineWidth: 0.4 },
-      headStyles: { fillColor: [244, 244, 248], textColor: INK, fontStyle: "bold" },
-      head: [["Date", "Description", "Property", "Amount"]],
-      body: recoveries.map((l) => [
-        fmtDate(l.line_date),
-        l.description || "—",
-        l.property_name || "All",
-        money(l.commission_amount || l.fee_amount),
-      ]),
-    });
-    // deno-lint-ignore no-explicit-any
-    y = (doc as any).lastAutoTable.finalY + 24;
-  }
-
-  /* ---------------- Section C + D ---------------- */
+  /* ---------------- Section B + C ---------------- */
   if (y > 600) { doc.addPage(); y = 52; }
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(10);
-  doc.text("C · ROL CHARGES INVOICE", M, y);
+  doc.text("B · ROL CHARGES INVOICE", M, y);
   y += 14;
 
   const rows: [string, string][] = [
-    ["Commission on ROL-processed bookings", money(statement.rol_commission)],
-    ["Commission recovered on own-gateway bookings", money(statement.byo_commission)],
-    ["Payment processing fees", money(statement.transaction_fees)],
-    ["Subscription, white-label & platform charges", money(statement.recurring_fees)],
+    ["Commission on bookings processed by ROL", money(statement.rol_commission)],
+    ["Payment processing fee recovered (non-commissionable)", money(statement.transaction_fees)],
   ];
-  if (statement.opening_balance > 0) rows.push(["Balance brought forward", money(statement.opening_balance)]);
+
 
   doc.setFontSize(8.6);
   rows.forEach(([label, value]) => {
@@ -230,6 +201,12 @@ export function buildPayoutStatementPdf(
   doc.setFontSize(8);
   doc.setTextColor(...MUTED);
   doc.text("Settled by deduction from this payout — paid in full, no action required.", M, y);
+  y += 12;
+  doc.text(
+    "Subscriptions, platform charges and commission on own-gateway bookings are invoiced separately.",
+    M,
+    y,
+  );
   y += 30;
 
   doc.setFillColor(250, 244, 249);
@@ -237,7 +214,8 @@ export function buildPayoutStatementPdf(
   doc.setFont("helvetica", "bold");
   doc.setFontSize(10);
   doc.setTextColor(...INK);
-  doc.text("D · NET PAYABLE TO PROPERTY", M + 12, y + 4);
+  doc.text("C · NET PAYABLE TO PROPERTY", M + 12, y + 4);
+
   doc.setFontSize(16);
   doc.setTextColor(...PINK);
   doc.text(money(statement.net_payable), pageW - M - 12, y + 6, { align: "right" });
