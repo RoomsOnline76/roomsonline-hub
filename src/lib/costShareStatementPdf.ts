@@ -9,7 +9,7 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { invoiceOwnAmount, invoiceZar, type BurnInvoice, type FxRates } from "./burnRate";
-import { formatZar, type CostShareSummary, type Contribution, CONTRIBUTORS, sumContributionsZar } from "./costSharing";
+import { formatZar, type CostShareSummary, type Contribution, CONTRIBUTORS } from "./costSharing";
 
 const INK: [number, number, number] = [26, 26, 46];
 const PINK: [number, number, number] = [233, 30, 140];
@@ -186,8 +186,8 @@ export function buildCostShareStatement(opts: StatementOptions): jsPDF {
 
   block("Summary — all time", [
     ["Total funds spent to date", formatZar(summary.allTimeSpendZar), true],
-    [`Total contributed — ${CONTRIBUTORS.dawie.name}`, formatZar(sumContributionsZar(contributions, "dawie"))],
-    [`Total contributed — ${CONTRIBUTORS.carike.name}`, formatZar(sumContributionsZar(contributions, "carike"))],
+    [`Total contributed — ${CONTRIBUTORS.dawie.name} (incl. ${summary.partnerPct}% settled)`, formatZar(summary.dawieContributedZar)],
+    [`Total contributed — ${CONTRIBUTORS.carike.name}`, formatZar(summary.carikeContributedZar)],
     ["Total funds contributed", formatZar(summary.totalContributedZar), true],
     ["Total outstanding", formatZar(summary.roomsonlineOutstandingZar), true],
   ]);
