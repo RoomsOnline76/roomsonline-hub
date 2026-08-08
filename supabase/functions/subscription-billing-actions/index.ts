@@ -207,12 +207,20 @@ Deno.serve(async (req) => {
     if (scope === "property") {
       const { data: p } = await supabase
         .from("properties")
-        .select("name, owner_id, owner_email")
+        .select("name, owner_email")
         .eq("id", entityId)
         .maybeSingle();
       entityName = p?.name || "";
-      ownerId = p?.owner_id ?? null;
       ownerEmail = p?.owner_email ?? null;
+      const { data: linkedOwner } = await supabase
+        .from("property_owners")
+        .select("user_id, owner_email")
+        .eq("property_id", entityId)
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      ownerId = linkedOwner?.user_id ?? null;
+      ownerEmail = ownerEmail || linkedOwner?.owner_email || null;
     } else {
       const { data: pf } = await supabase
         .from("property_portfolios")
@@ -289,13 +297,16 @@ Deno.serve(async (req) => {
 
     const { data: invoices } = await supabase
       .from("subscription_invoices")
-      .select("id, invoice_number, invoice_kind, amount, status, period_start, period_end, payfast_token, created_at")
+      .select("id, invoice_number, invoice_kind, amount, status, period_start, period_end, payfast_token, pdf_url, line_items, created_at")
       .eq(entityCol, entityId)
       .order("created_at", { ascending: false })
       .limit(200);
 
     let openSetup = (invoices ?? []).find(
       (i: any) => i.invoice_kind === "once_off" && !["paid", "void", "cancelled"].includes(i.status),
+    );
+    const paidSetup = (invoices ?? []).find(
+      (i: any) => i.invoice_kind === "once_off" && i.status === "paid",
     );
     const openSubscription = (invoices ?? []).find(
       (i: any) => i.invoice_kind === "activation" && !["paid", "void", "cancelled"].includes(i.status),
@@ -315,6 +326,9 @@ Deno.serve(async (req) => {
         items: setupCharges.map((c) => ({ description: c.description, amount: c.amount })),
         invoice: openSetup
           ? { id: openSetup.id, number: openSetup.invoice_number, amount: Number(openSetup.amount), pay_url: payUrl(openSetup.payfast_token) }
+          : null,
+        paid_invoice: paidSetup
+          ? { id: paidSetup.id, number: paidSetup.invoice_number, amount: Number(paidSetup.amount), pdf_url: paidSetup.pdf_url }
           : null,
       },
       subscription: {
@@ -341,6 +355,14 @@ Deno.serve(async (req) => {
     const ensureSetupInvoice = async () => {
       if (openSetup) return openSetup;
       if (setupTotal <= 0) return null;
+      // A setup fee is once-off. A paid invoice satisfying the current
+      // contracted amount must never be raised again merely because the
+      // account summary is refreshed. A later increase/new fee still creates
+      // an invoice for the additional amount through its queued charge item.
+      const paidSetupAmount = (invoices ?? [])
+        .filter((i: any) => i.invoice_kind === "once_off" && i.status === "paid")
+        .reduce((max: number, i: any) => Math.max(max, Number(i.amount) || 0), 0);
+      if (paidSetupAmount >= setupTotal && pendingSetupItems.length === 0) return null;
       const insert: any = {
         amount: setupTotal,
         currency,
@@ -475,6 +497,20 @@ Deno.serve(async (req) => {
           .in("id", [openSetup?.id, openSubscription?.id].filter(Boolean) as string[]);
       }
       return json({ success: true, sent_to: recipients });
+    }
+
+    if (action === "deliver_invoice") {
+      const invoiceId = String(body.invoice_id || "");
+      const invoice = (invoices ?? []).find((i: any) => i.id === invoiceId);
+      if (!invoice || invoice.status !== "paid") return json({ error: "paid_invoice_not_found" }, 404);
+      const { data: delivery, error: deliveryError } = await supabase.functions.invoke(
+        "generate-subscription-invoice-pdf",
+        { body: { invoice_id: invoiceId } },
+      );
+      if (deliveryError || !delivery?.success) {
+        return json({ error: delivery?.error || deliveryError?.message || "invoice_delivery_failed" }, 400);
+      }
+      return json({ success: true, pdf_url: delivery.pdf_url });
     }
 
     // Staff-only manual settlement (e.g. PayFast confirmed but the ITN was lost).

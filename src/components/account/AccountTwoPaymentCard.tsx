@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { CreditCard, Mail, Trash2, CalendarClock, Loader2 } from "lucide-react";
+import { CreditCard, Mail, Trash2, CalendarClock, Loader2, Download, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { fmtMoney } from "@/lib/ownerAccount";
@@ -22,6 +22,7 @@ interface Summary {
     total: number;
     items: { description: string; amount: number }[];
     invoice: { id: string; number: string | null; amount: number; pay_url: string | null } | null;
+    paid_invoice: { id: string; number: string | null; amount: number; pdf_url: string | null } | null;
   };
   subscription: {
     monthly_fee: number;
@@ -104,6 +105,7 @@ export function AccountTwoPaymentCard({ scope, entityId, onChanged }: Props) {
 
   const cur = summary.currency;
   const setupInvoice = summary.setup.invoice;
+  const paidSetupInvoice = summary.setup.paid_invoice;
   const setupAmount = setupInvoice ? setupInvoice.amount : summary.setup.total;
   const sub = summary.subscription;
   const spin = (a: string) => busy === a;
@@ -123,9 +125,13 @@ export function AccountTwoPaymentCard({ scope, entityId, onChanged }: Props) {
         <div className="space-y-2 rounded-md border border-border/60 p-3">
           <div className="flex items-center justify-between">
             <span className="font-medium">1 · Once-off setup</span>
-            <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 text-warning">
-              Due now
-            </Badge>
+            {paidSetupInvoice && !setupInvoice ? (
+              <Badge variant="outline" className="border-green-500/40 bg-green-500/10 text-success">
+                <CheckCircle2 className="mr-1 h-3 w-3" /> Paid
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 text-warning">Due now</Badge>
+            )}
           </div>
           <div className="text-base font-semibold">{fmtMoney(setupAmount, cur)}</div>
           {summary.setup.items.length > 0 && (
@@ -141,7 +147,26 @@ export function AccountTwoPaymentCard({ scope, entityId, onChanged }: Props) {
           <p className="text-[11px] text-muted-foreground">
             Payable on signature of the agreement — separate from the monthly subscription.
           </p>
-          {setupInvoice?.pay_url ? (
+          {paidSetupInvoice && !setupInvoice ? (
+            paidSetupInvoice.pdf_url ? (
+              <Button asChild size="sm" variant="outline" className="w-full">
+                <a href={paidSetupInvoice.pdf_url} target="_blank" rel="noreferrer">
+                  <Download className="mr-2 h-3.5 w-3.5" /> Download invoice {paidSetupInvoice.number ? `· ${paidSetupInvoice.number}` : ""}
+                </a>
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full"
+                disabled={spin("deliver_invoice")}
+                onClick={() => void run("deliver_invoice", "Invoice generated and emailed", false, { invoice_id: paidSetupInvoice.id })}
+              >
+                {spin("deliver_invoice") ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <Download className="mr-2 h-3.5 w-3.5" />}
+                Generate &amp; email invoice
+              </Button>
+            )
+          ) : setupInvoice?.pay_url ? (
             <Button asChild size="sm" className="w-full">
               <a href={setupInvoice.pay_url} target="_blank" rel="noreferrer">
                 Pay setup fee {setupInvoice.number ? `· ${setupInvoice.number}` : ""}

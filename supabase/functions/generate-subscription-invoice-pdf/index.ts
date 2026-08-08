@@ -157,7 +157,7 @@ Deno.serve(async (req) => {
 
     const { data: inv, error } = await supabase
       .from("subscription_invoices")
-      .select("*, properties(name, owner_email, owner_id), property_portfolios(name, owner_id)")
+      .select("*, properties(name, owner_email), property_portfolios(name, owner_id, owner_email)")
       .eq("id", invoice_id)
       .single();
     if (error || !inv) throw new Error(error?.message || "Invoice not found");
@@ -191,9 +191,21 @@ Deno.serve(async (req) => {
 
     // Resolve owner
     const entityName = (inv.properties as any)?.name || (inv.property_portfolios as any)?.name || "Rooms Online";
-    const ownerId = inv.owner_id || (inv.properties as any)?.owner_id || (inv.property_portfolios as any)?.owner_id;
-    let ownerEmail = (inv.properties as any)?.owner_email || "";
+    let ownerId = inv.owner_id || (inv.property_portfolios as any)?.owner_id || null;
+    let ownerEmail = (inv.properties as any)?.owner_email || (inv.property_portfolios as any)?.owner_email || "";
     let ownerName = "";
+    if (!ownerId && inv.property_id) {
+      const { data: linkedOwner } = await supabase
+        .from("property_owners")
+        .select("user_id, owner_email, owner_name")
+        .eq("property_id", inv.property_id)
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      ownerId = linkedOwner?.user_id || null;
+      ownerEmail = ownerEmail || linkedOwner?.owner_email || "";
+      ownerName = linkedOwner?.owner_name || "";
+    }
     if (ownerId) {
       const { data: prof } = await supabase.from("profiles").select("email, full_name, first_name, last_name").eq("id", ownerId).single();
       if (prof) {
@@ -203,7 +215,7 @@ Deno.serve(async (req) => {
     }
 
     const lineItems: LineItem[] = Array.isArray(inv.line_items) ? inv.line_items : [];
-    const subAmount = Number(inv.subscription_amount) || Number(inv.amount);
+    const subAmount = Number(inv.subscription_amount) || 0;
     const onceOff = Number(inv.once_off_amount) || 0;
     const total = Number(inv.amount);
 
@@ -240,12 +252,12 @@ Deno.serve(async (req) => {
         <div style="max-width:560px;margin:0 auto;border:1px solid #eee;border-radius:8px;padding:24px">
           <h2 style="color:#E91E8C;margin-top:0">Thank you — payment received</h2>
           <p>Hi ${ownerName || "there"},</p>
-          <p>Your subscription for <strong>${entityName}</strong> has been renewed. Your invoice <strong>${invoiceNumber}</strong> is attached.</p>
+          <p>Your ${inv.invoice_kind === "once_off" ? "once-off setup fee" : "subscription"} payment for <strong>${entityName}</strong> has been received. Your invoice <strong>${invoiceNumber}</strong> is attached.</p>
           <table style="width:100%;margin:16px 0;border-collapse:collapse">
             <tr><td style="padding:6px 0;color:#666">Amount</td><td style="padding:6px 0;text-align:right;font-weight:600">${money(total, inv.currency)}</td></tr>
             <tr><td style="padding:6px 0;color:#666">Period</td><td style="padding:6px 0;text-align:right">${inv.period_start} → ${inv.period_end}</td></tr>
           </table>
-          <p style="color:#666;font-size:13px">You can cancel any time from your subscription page — no lock-in.</p>
+          ${inv.invoice_kind === "once_off" ? "" : '<p style="color:#666;font-size:13px">You can cancel any time from your subscription page — no lock-in.</p>'}
         </div>
       </body></html>`;
       const send = await resend.emails.send({
