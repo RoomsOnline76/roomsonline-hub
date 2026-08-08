@@ -29,12 +29,15 @@ import { MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
+import { normaliseCurrency } from "@/lib/burnRate";
 
 interface Invoice {
   id: string;
   description: string;
   cost_usd: number;
   cost_zar: number | null;
+  cost_eur?: number | null;
+  source_currency?: string | null;
   billing_type: string;
   category: string | null;
   vendor: string | null;
@@ -58,6 +61,7 @@ const BILLING_COLORS: Record<string, string> = {
 export function InvoiceTable({ invoices, isLoading, onEdit }: InvoiceTableProps) {
   const [billingFilter, setBillingFilter] = useState<string>("all");
   const [paidFilter, setPaidFilter] = useState<string>("all");
+  const [currencyFilter, setCurrencyFilter] = useState<string>("all");
   const queryClient = useQueryClient();
 
   const togglePaidMutation = useMutation({
@@ -91,24 +95,17 @@ export function InvoiceTable({ invoices, isLoading, onEdit }: InvoiceTableProps)
     if (billingFilter !== "all" && inv.billing_type !== billingFilter) return false;
     if (paidFilter === "paid" && !inv.is_paid) return false;
     if (paidFilter === "unpaid" && inv.is_paid) return false;
+    if (currencyFilter !== "all" && normaliseCurrency(inv.source_currency) !== currencyFilter)
+      return false;
     return true;
   });
 
-  const formatZAR = (value: number) => {
-    return new Intl.NumberFormat("en-ZA", {
+  const formatMoney = (value: number, currency: string) =>
+    new Intl.NumberFormat(currency === "ZAR" ? "en-ZA" : "en-US", {
       style: "currency",
-      currency: "ZAR",
+      currency,
       minimumFractionDigits: 2,
     }).format(value);
-  };
-
-  const formatUSD = (value: number) => {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-      minimumFractionDigits: 2,
-    }).format(value);
-  };
 
   if (isLoading) {
     return (
@@ -122,7 +119,7 @@ export function InvoiceTable({ invoices, isLoading, onEdit }: InvoiceTableProps)
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-4">
+      <div className="flex flex-wrap gap-4">
         <Select value={billingFilter} onValueChange={setBillingFilter}>
           <SelectTrigger className="w-[180px]">
             <SelectValue placeholder="Billing type" />
@@ -146,6 +143,18 @@ export function InvoiceTable({ invoices, isLoading, onEdit }: InvoiceTableProps)
             <SelectItem value="unpaid">Unpaid</SelectItem>
           </SelectContent>
         </Select>
+
+        <Select value={currencyFilter} onValueChange={setCurrencyFilter}>
+          <SelectTrigger className="w-[160px]">
+            <SelectValue placeholder="Currency" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Currencies</SelectItem>
+            <SelectItem value="ZAR">ZAR</SelectItem>
+            <SelectItem value="EUR">EUR</SelectItem>
+            <SelectItem value="USD">USD</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="rounded-md border">
@@ -156,7 +165,9 @@ export function InvoiceTable({ invoices, isLoading, onEdit }: InvoiceTableProps)
               <TableHead>Description</TableHead>
               <TableHead>Vendor</TableHead>
               <TableHead>Type</TableHead>
+              <TableHead>Billed in</TableHead>
               <TableHead className="text-right">ZAR</TableHead>
+              <TableHead className="text-right text-muted-foreground">EUR</TableHead>
               <TableHead className="text-right text-muted-foreground">USD</TableHead>
               <TableHead>Date</TableHead>
               <TableHead className="w-10"></TableHead>
@@ -165,71 +176,78 @@ export function InvoiceTable({ invoices, isLoading, onEdit }: InvoiceTableProps)
           <TableBody>
             {filteredInvoices.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
                   No invoices found
                 </TableCell>
               </TableRow>
             ) : (
-              filteredInvoices.map((invoice) => (
-                <TableRow key={invoice.id} className={invoice.is_paid ? "opacity-60" : ""}>
-                  <TableCell>
-                    <Checkbox
-                      checked={invoice.is_paid}
-                      onCheckedChange={(checked) =>
-                        togglePaidMutation.mutate({
-                          id: invoice.id,
-                          is_paid: checked as boolean,
-                        })
-                      }
-                    />
-                  </TableCell>
-                  <TableCell className="font-medium">
-                    {invoice.description}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {invoice.vendor || "-"}
-                  </TableCell>
-                  <TableCell>
-                    <Badge
-                      variant="secondary"
-                      className={BILLING_COLORS[invoice.billing_type]}
-                    >
-                      {invoice.billing_type.replace("_", "-")}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right font-mono font-semibold">
-                    {invoice.cost_zar ? formatZAR(invoice.cost_zar) : "-"}
-                  </TableCell>
-                  <TableCell className="text-right font-mono text-muted-foreground text-sm">
-                    {invoice.cost_usd ? formatUSD(invoice.cost_usd) : "-"}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {format(new Date(invoice.invoice_date), "MMM d, yyyy")}
-                  </TableCell>
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => onEdit(invoice)}>
-                          <Pencil className="h-4 w-4 mr-2" />
-                          Edit
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => deleteMutation.mutate(invoice.id)}
-                          className="text-destructive"
-                        >
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              ))
+              filteredInvoices.map((invoice) => {
+                const currency = normaliseCurrency(invoice.source_currency);
+                return (
+                  <TableRow key={invoice.id} className={invoice.is_paid ? "opacity-60" : ""}>
+                    <TableCell>
+                      <Checkbox
+                        checked={invoice.is_paid}
+                        onCheckedChange={(checked) =>
+                          togglePaidMutation.mutate({
+                            id: invoice.id,
+                            is_paid: checked as boolean,
+                          })
+                        }
+                      />
+                    </TableCell>
+                    <TableCell className="font-medium">{invoice.description}</TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {invoice.vendor || "-"}
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        variant="secondary"
+                        className={BILLING_COLORS[invoice.billing_type]}
+                      >
+                        {invoice.billing_type.replace("_", "-")}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline">{currency}</Badge>
+                    </TableCell>
+                    <TableCell className="text-right font-mono font-semibold">
+                      {invoice.cost_zar ? formatMoney(Number(invoice.cost_zar), "ZAR") : "-"}
+                    </TableCell>
+                    <TableCell className="text-right font-mono text-muted-foreground text-sm">
+                      {invoice.cost_eur ? formatMoney(Number(invoice.cost_eur), "EUR") : "-"}
+                    </TableCell>
+                    <TableCell className="text-right font-mono text-muted-foreground text-sm">
+                      {invoice.cost_usd ? formatMoney(Number(invoice.cost_usd), "USD") : "-"}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {format(new Date(invoice.invoice_date), "MMM d, yyyy")}
+                    </TableCell>
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => onEdit(invoice)}>
+                            <Pencil className="h-4 w-4 mr-2" />
+                            Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => deleteMutation.mutate(invoice.id)}
+                            className="text-destructive"
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
             )}
           </TableBody>
         </Table>

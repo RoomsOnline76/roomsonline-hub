@@ -15,52 +15,59 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { Loader2, Calculator } from "lucide-react";
+import { computeRunway, formatZar, DEFAULT_FX } from "@/lib/burnRate";
 
 interface AddMetricModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Derived monthly burn in ZAR (from recurring bills). */
+  derivedBurnZar: number;
+  /** Actual ROL revenue per month in ZAR (commission + subscriptions). */
+  derivedRevenueZar: number;
 }
 
-export function AddMetricModal({ open, onOpenChange }: AddMetricModalProps) {
+export function AddMetricModal({
+  open,
+  onOpenChange,
+  derivedBurnZar,
+  derivedRevenueZar,
+}: AddMetricModalProps) {
   const [formData, setFormData] = useState({
     metric_date: new Date().toISOString().split("T")[0],
-    cash_balance_usd: "",
     cash_balance_zar: "",
-    monthly_burn_usd: "",
-    monthly_revenue_usd: "",
-    exchange_rate: "18.50",
+    exchange_rate: String(DEFAULT_FX.usdZar),
+    eur_rate: String(DEFAULT_FX.eurZar),
     notes: "",
   });
 
   const queryClient = useQueryClient();
 
-  const calculatedRunway =
-    formData.cash_balance_usd && formData.monthly_burn_usd
-      ? (
-          parseFloat(formData.cash_balance_usd) /
-          parseFloat(formData.monthly_burn_usd)
-        ).toFixed(1)
-      : null;
+  const cashZar = parseFloat(formData.cash_balance_zar);
+  const runway = computeRunway(
+    Number.isFinite(cashZar) ? cashZar : null,
+    derivedBurnZar,
+    derivedRevenueZar,
+  );
 
   const mutation = useMutation({
     mutationFn: async (data: typeof formData) => {
       const { data: userData } = await supabase.auth.getUser();
+      const usdRate = data.exchange_rate ? parseFloat(data.exchange_rate) : DEFAULT_FX.usdZar;
+      const cash = data.cash_balance_zar ? parseFloat(data.cash_balance_zar) : null;
 
       const payload = {
         metric_date: data.metric_date,
-        cash_balance_usd: data.cash_balance_usd
-          ? parseFloat(data.cash_balance_usd)
+        cash_balance_zar: cash,
+        cash_balance_usd: cash !== null && usdRate ? Number((cash / usdRate).toFixed(2)) : null,
+        monthly_burn_zar: Number(derivedBurnZar.toFixed(2)),
+        monthly_revenue_zar: Number(derivedRevenueZar.toFixed(2)),
+        monthly_burn_usd: usdRate ? Number((derivedBurnZar / usdRate).toFixed(2)) : null,
+        monthly_revenue_usd: usdRate
+          ? Number((derivedRevenueZar / usdRate).toFixed(2))
           : null,
-        cash_balance_zar: data.cash_balance_zar
-          ? parseFloat(data.cash_balance_zar)
-          : null,
-        monthly_burn_usd: data.monthly_burn_usd
-          ? parseFloat(data.monthly_burn_usd)
-          : null,
-        monthly_revenue_usd: data.monthly_revenue_usd
-          ? parseFloat(data.monthly_revenue_usd)
-          : null,
-        exchange_rate: data.exchange_rate ? parseFloat(data.exchange_rate) : null,
+        exchange_rate: usdRate,
+        eur_rate: data.eur_rate ? parseFloat(data.eur_rate) : null,
+        burn_source: "recurring_invoices",
         notes: data.notes || null,
         created_by: userData.user?.id,
       };
@@ -76,11 +83,9 @@ export function AddMetricModal({ open, onOpenChange }: AddMetricModalProps) {
       onOpenChange(false);
       setFormData({
         metric_date: new Date().toISOString().split("T")[0],
-        cash_balance_usd: "",
         cash_balance_zar: "",
-        monthly_burn_usd: "",
-        monthly_revenue_usd: "",
-        exchange_rate: "18.50",
+        exchange_rate: String(DEFAULT_FX.usdZar),
+        eur_rate: String(DEFAULT_FX.eurZar),
         notes: "",
       });
     },
@@ -98,9 +103,11 @@ export function AddMetricModal({ open, onOpenChange }: AddMetricModalProps) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[450px]">
         <DialogHeader>
-          <DialogTitle>Record Financial Metrics</DialogTitle>
+          <DialogTitle>Record Financial Snapshot</DialogTitle>
           <DialogDescription>
-            Track cash position and burn rate. Runway is calculated automatically.
+            Burn comes from your recurring bills and revenue from actual commission
+            and subscription income — only the cash position and exchange rates are
+            captured here.
           </DialogDescription>
         </DialogHeader>
 
@@ -118,101 +125,81 @@ export function AddMetricModal({ open, onOpenChange }: AddMetricModalProps) {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="cash_balance_usd">Cash Balance (USD)</Label>
-                <Input
-                  id="cash_balance_usd"
-                  type="number"
-                  step="0.01"
-                  value={formData.cash_balance_usd}
-                  onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      cash_balance_usd: e.target.value,
-                    }))
-                  }
-                  placeholder="0.00"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="cash_balance_zar">Cash Balance (ZAR)</Label>
-                <Input
-                  id="cash_balance_zar"
-                  type="number"
-                  step="0.01"
-                  value={formData.cash_balance_zar}
-                  onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      cash_balance_zar: e.target.value,
-                    }))
-                  }
-                  placeholder="0.00"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="monthly_burn_usd">Monthly Burn (USD)</Label>
-                <Input
-                  id="monthly_burn_usd"
-                  type="number"
-                  step="0.01"
-                  value={formData.monthly_burn_usd}
-                  onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      monthly_burn_usd: e.target.value,
-                    }))
-                  }
-                  placeholder="0.00"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="monthly_revenue_usd">Monthly Revenue (USD)</Label>
-                <Input
-                  id="monthly_revenue_usd"
-                  type="number"
-                  step="0.01"
-                  value={formData.monthly_revenue_usd}
-                  onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      monthly_revenue_usd: e.target.value,
-                    }))
-                  }
-                  placeholder="0.00"
-                />
-              </div>
-            </div>
-
             <div className="grid gap-2">
-              <Label htmlFor="exchange_rate">Exchange Rate (USD/ZAR)</Label>
+              <Label htmlFor="cash_balance_zar">Cash Balance (ZAR)</Label>
               <Input
-                id="exchange_rate"
+                id="cash_balance_zar"
                 type="number"
                 step="0.01"
-                value={formData.exchange_rate}
+                value={formData.cash_balance_zar}
                 onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, exchange_rate: e.target.value }))
+                  setFormData((prev) => ({
+                    ...prev,
+                    cash_balance_zar: e.target.value,
+                  }))
                 }
-                placeholder="18.50"
+                placeholder="0.00"
               />
             </div>
 
-            {calculatedRunway && (
-              <div className="flex items-center gap-2 p-3 bg-muted rounded-lg">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="exchange_rate">Rate (USD/ZAR)</Label>
+                <Input
+                  id="exchange_rate"
+                  type="number"
+                  step="0.01"
+                  value={formData.exchange_rate}
+                  onChange={(e) =>
+                    setFormData((prev) => ({ ...prev, exchange_rate: e.target.value }))
+                  }
+                  placeholder="18.50"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="eur_rate">Rate (EUR/ZAR)</Label>
+                <Input
+                  id="eur_rate"
+                  type="number"
+                  step="0.01"
+                  value={formData.eur_rate}
+                  onChange={(e) =>
+                    setFormData((prev) => ({ ...prev, eur_rate: e.target.value }))
+                  }
+                  placeholder="20.00"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2 rounded-lg bg-muted p-3 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Derived monthly burn</span>
+                <span className="font-semibold">{formatZar(derivedBurnZar)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Actual monthly revenue</span>
+                <span className="font-semibold">{formatZar(derivedRevenueZar)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Net burn</span>
+                <span className="font-semibold">
+                  {runway.netBurnZar > 0 ? formatZar(runway.netBurnZar) : "—"}
+                </span>
+              </div>
+              <div className="flex items-center gap-2 border-t border-border pt-2">
                 <Calculator className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">
-                  Calculated runway:{" "}
+                <span className="text-muted-foreground">
+                  Runway:{" "}
                   <span className="font-semibold text-foreground">
-                    {calculatedRunway} months
+                    {runway.cashFlowPositive
+                      ? "Cash-flow positive"
+                      : runway.months !== null
+                        ? `${runway.months.toFixed(1)} months`
+                        : "—"}
                   </span>
                 </span>
               </div>
-            )}
+            </div>
 
             <div className="grid gap-2">
               <Label htmlFor="notes">Notes</Label>
@@ -240,7 +227,7 @@ export function AddMetricModal({ open, onOpenChange }: AddMetricModalProps) {
               {mutation.isPending && (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               )}
-              Record Metric
+              Record Snapshot
             </Button>
           </DialogFooter>
         </form>
