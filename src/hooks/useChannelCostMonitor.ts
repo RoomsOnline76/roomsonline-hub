@@ -303,8 +303,12 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
       nextStep,
       nextTier: gap ? { needed: gap.needed, rateEur: gap.tier.rateEur } : null,
       currentTier: tierFor(billableListings),
+      effectiveRateEur: tierFor(billableListings)?.rateEur ?? null,
     };
   }, [properties, events]);
+
+  const rolRevenueZar =
+    rolPerListingZar != null ? Math.round(rolPerListingZar * derived.billableListings * 100) / 100 : null;
 
   return {
     loading,
@@ -313,6 +317,9 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
     properties,
     events,
     fx,
+    rolPerListingZar,
+    rolRevenueZar,
     ...derived,
   };
+
 }
