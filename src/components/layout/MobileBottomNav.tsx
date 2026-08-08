@@ -15,6 +15,7 @@ import { navigationConfig } from "@/config/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdminActionCounts } from "@/hooks/useAdminActionCounts";
 import { PmsMobileBottomNav } from "./PmsMobileBottomNav";
+import { useNavVisibility } from "@/hooks/useNavVisibility";
 
 export function MobileBottomNav() {
   const location = useLocation();
