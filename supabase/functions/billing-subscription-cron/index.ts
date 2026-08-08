@@ -7,6 +7,7 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { Resend } from "npm:resend@2";
+import { getAdminCopyRecipients } from "../_shared/billingAdminRecipients.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -132,9 +133,15 @@ function renderEmail({ entityName, amount, currency, periodStart, periodEnd, pay
   </div></body></html>`;
 }
 
-async function sendReminder(resend: Resend, to: string, subject: string, html: string) {
+async function sendReminder(resend: Resend, to: string, subject: string, html: string, cc: string[] = []) {
   try {
-    const res = await resend.emails.send({ from: FROM_EMAIL, to, subject, html });
+    const res = await resend.emails.send({
+      from: FROM_EMAIL,
+      to,
+      ...(cc.length > 0 ? { cc } : {}),
+      subject,
+      html,
+    });
     return { ok: !res.error, id: res.data?.id, error: res.error };
   } catch (e) {
     return { ok: false, error: String(e) };
@@ -293,12 +300,19 @@ async function ensureInvoiceAndEmail(supabase: any, resend: Resend, opts: {
     isRenewal,
   });
   const subject = isRenewal ? `Renew your Rooms Online subscription — ${entityName}` : `Activate your Rooms Online subscription — ${entityName}`;
-  const send = await sendReminder(resend, ownerEmail, subject, html);
+  const adminCopies = await getAdminCopyRecipients(supabase, ownerEmail);
+  const send = await sendReminder(resend, ownerEmail, subject, html, adminCopies);
   await supabase.from("subscription_invoices").update({
     email_sent_at: new Date().toISOString(),
     reminder_count: (invoice.reminder_count || 0) + 1,
   }).eq("id", invoice.id);
-  return { sent: send.ok, invoice_id: invoice.id, to: ownerEmail };
+  await supabase.from("subscription_invoice_events").insert({
+    invoice_id: invoice.id,
+    event_type: "email",
+    status: send.ok ? "sent" : "error",
+    detail: `to:${ownerEmail}${adminCopies.length > 0 ? ` cc:${adminCopies.join(",")}` : ""}`,
+  });
+  return { sent: send.ok, invoice_id: invoice.id, to: ownerEmail, cc: adminCopies };
 }
 
 Deno.serve(async (req) => {
