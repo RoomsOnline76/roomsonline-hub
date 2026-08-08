@@ -151,9 +151,11 @@ Deno.serve(async (req) => {
 
   try {
     const token = (req.headers.get("Authorization") || "").replace("Bearer ", "");
-    const { data: auth } = await supabase.auth.getUser(token);
-    const user = auth?.user;
-    if (!user) return json({ error: "unauthorized" }, 401);
+    // The daily cron calls this function with the service-role key.
+    const isSystem = !!token && token === Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const { data: auth } = isSystem ? { data: null } : await supabase.auth.getUser(token);
+    const user = auth?.user ?? null;
+    if (!user && !isSystem) return json({ error: "unauthorized" }, 401);
 
     const body = await req.json().catch(() => ({}));
     const action = String(body.action || "");
@@ -161,9 +163,11 @@ Deno.serve(async (req) => {
     const entityId = String(body.entity_id || "");
     if (!entityId) return json({ error: "entity_id is required" }, 400);
 
-    const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", user.id);
+    const { data: roles } = user
+      ? await supabase.from("user_roles").select("role").eq("user_id", user.id)
+      : { data: [] as any[] };
     const roleSet = new Set((roles ?? []).map((r: any) => r.role));
-    const isStaff = ["admin", "dev", "fearless_leader"].some((r) => roleSet.has(r));
+    const isStaff = isSystem || ["admin", "dev", "fearless_leader"].some((r) => roleSet.has(r));
 
     const entityCol = scope === "property" ? "property_id" : "portfolio_id";
     const cfgTable = scope === "property" ? "property_billing_configs" : "portfolio_billing_configs";
@@ -194,7 +198,7 @@ Deno.serve(async (req) => {
       const { data: prof } = await supabase.from("profiles").select("email").eq("id", ownerId).maybeSingle();
       ownerEmail = prof?.email ?? null;
     }
-    const isOwner = !!ownerId && ownerId === user.id;
+    const isOwner = !!ownerId && !!user && ownerId === user.id;
     if (!isStaff && !isOwner) return json({ error: "forbidden" }, 403);
 
     const { data: cfg } = await supabase.from(cfgTable).select("*").eq(entityCol, entityId).maybeSingle();
