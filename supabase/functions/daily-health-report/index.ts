@@ -109,8 +109,13 @@ interface PmsIntegrationStats {
   name: string;
   property_count: number;
   last_sync_time: string | null;
+  /** Where the last-sync evidence came from: scheduled push/pull, live fetch, or the health probe. */
+  last_sync_source: string | null;
+  /** True when the evidence is older than the expected refresh cadence. */
+  stale: boolean;
   success_rate: number;
 }
+
 
 interface DevTask {
   id: string;
@@ -360,11 +365,13 @@ function generateEmailHtml(
           <tr style="border-top:1px solid #f3f4f6;">
             <td style="${td}font-weight:500;">${p.name}</td>
             <td style="${td}">${p.property_count}</td>
-            <td style="${td}color:#6b7280;">${p.last_sync_time || 'Never'}</td>
+            <td style="${td}color:${p.stale ? '#f59e0b' : '#6b7280'};">${p.last_sync_time || 'No sync recorded'}${p.last_sync_source ? `<span style="color:#9ca3af;"> · ${p.last_sync_source}</span>` : ''}</td>
             <td style="${td}color:${rateColor(p.success_rate)};font-weight:600;">${p.success_rate.toFixed(1)}%</td>
           </tr>`).join('')}
         </tbody>
       </table>
+      <p style="margin:6px 0 0 0;font-size:11px;color:#9ca3af;">Last sync = newest real refresh evidence (channel push/pull, live availability fetch, or scheduled adapter probe). Amber = older than the expected cadence.</p>
+
       ${inactiveComponents.length > 0 ? `<p style="margin:8px 0 0 0;font-size:11px;color:#9ca3af;">Parked / not active (${inactiveComponents.length}): ${inactiveComponents.map(c => c.component_name).join(' · ')}</p>` : ''}
     </div>` : '';
 
@@ -576,8 +583,23 @@ Deno.serve(async (req) => {
     // Fetch property counts per PMS
     const { data: properties } = await supabase
       .from('properties')
-      .select('benson_property_code, checkfront_property_code, cloudbeds_property_id, external_system')
+      .select('id, benson_property_code, checkfront_property_code, cloudbeds_property_id, external_system, rentalsunited_property_id')
       .eq('is_active', true);
+
+    // Channel-manager (RU) listings live either at building level or per active unit.
+    const { data: ruUnitRows } = await supabase
+      .from('hostfully_room_types')
+      .select('property_id')
+      .eq('is_active', true)
+      .not('rentalsunited_property_id', 'is', null);
+
+    const ruPropertyIds = new Set<string>();
+    for (const p of properties || []) {
+      if (p.rentalsunited_property_id) ruPropertyIds.add(p.id);
+    }
+    for (const u of ruUnitRows || []) {
+      if (u.property_id) ruPropertyIds.add(u.property_id);
+    }
 
     const pmsPropertyCounts: Record<string, number> = {
       benson: (properties || []).filter(p => p.benson_property_code).length,
@@ -587,30 +609,112 @@ Deno.serve(async (req) => {
       hotelbeds: (properties || []).filter(p => p.external_system === 'hotelbeds').length,
       littlehotelier: (properties || []).filter(p => p.external_system === 'littlehotelier').length,
       roomsonline_pms: (properties || []).filter(p => p.external_system === 'roomsonline').length,
+      rentalsunited: ruPropertyIds.size,
     };
 
-    // Get last sync times from sync_logs
-    const { data: syncLogs } = await supabase
-      .from('sync_logs')
-      .select('external_system, created_at, status')
-      .eq('status', 'success')
-      .order('created_at', { ascending: false })
-      .limit(100);
+    // ── Real last-sync evidence per PMS ─────────────────────────────
+    // "Never" was an artefact of matching sync_logs.external_system against the
+    // component key (e.g. `rentals_united` vs `rentalsunited`) and of ignoring the
+    // adapters that refresh through their own tables. Resolve from every source.
+    const SYNC_ALIASES: Record<string, string[]> = {
+      rentalsunited: ['rentals_united', 'rentalsunited', 'ru'],
+      hostfully: ['hostfully'],
+      benson: ['benson'],
+      hotelbeds: ['hotelbeds'],
+      checkfront: ['checkfront'],
+      cloudbeds: ['cloudbeds'],
+      littlehotelier: ['littlehotelier', 'little_hotelier'],
+      nightsbridge: ['nightsbridge'],
+      hyperguest: ['hyperguest'],
+    };
+
+    // Expected refresh cadence (hours) — beyond this the entry is flagged amber.
+    const SYNC_CADENCE_HOURS: Record<string, number> = {
+      rentalsunited: 8,
+      hostfully: 24,
+      benson: 24,
+    };
+
+    const [{ data: syncLogs }, { data: ruRuns }, { data: cacheRows }, { data: resRows }] = await Promise.all([
+      supabase
+        .from('sync_logs')
+        .select('external_system, created_at, status')
+        .in('status', ['success', 'partial', 'partial_success'])
+        .order('created_at', { ascending: false })
+        .limit(300),
+      supabase
+        .from('ru_sync_runs')
+        .select('created_at, action, success')
+        .eq('success', true)
+        .order('created_at', { ascending: false })
+        .limit(50),
+      supabase
+        .from('pms_availability_cache')
+        .select('system_type, fetched_at')
+        .order('fetched_at', { ascending: false })
+        .limit(300),
+      supabase
+        .from('pms_reservations')
+        .select('system_type, synced_at')
+        .order('synced_at', { ascending: false })
+        .limit(300),
+    ]);
+
+    const fmtStamp = (iso: string) =>
+      new Date(iso).toLocaleString('en-ZA', {
+        day: '2-digit',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZone: 'Africa/Johannesburg',
+      });
 
     const pmsIntegrations: PmsIntegrationStats[] = pmsComponents.map(pms => {
-      const lastSync = (syncLogs || []).find(log => 
-        log.external_system?.toLowerCase().includes(pms.component_key.toLowerCase())
+      const aliases = SYNC_ALIASES[pms.component_key] ?? [pms.component_key];
+      const matches = (value: string | null | undefined) =>
+        !!value && aliases.some(a => value.toLowerCase().includes(a));
+
+      const candidates: { at: string; source: string }[] = [];
+
+      const logHit = (syncLogs || []).find(l => matches(l.external_system));
+      if (logHit) candidates.push({ at: logHit.created_at, source: 'scheduled sync' });
+
+      if (pms.component_key === 'rentalsunited') {
+        const runHit = (ruRuns || []).find(r =>
+          ['refresh_ari', 'inventory_push', 'pull_reservations', 'weekly_content_refresh'].includes(r.action)
+        );
+        if (runHit) candidates.push({ at: runHit.created_at, source: 'channel push/pull' });
+      }
+
+      const cacheHit = (cacheRows || []).find(c => matches(c.system_type));
+      if (cacheHit?.fetched_at) candidates.push({ at: cacheHit.fetched_at, source: 'live availability fetch' });
+
+      const resHit = (resRows || []).find(r => matches(r.system_type));
+      if (resHit?.synced_at) candidates.push({ at: resHit.synced_at, source: 'reservation pull' });
+
+      // The scheduled adapter probe is itself a refresh — it proves the link is alive.
+      const probeHit = (recentChecks || []).find(
+        c => c.component_key === pms.component_key && (c.status === 'healthy' || c.status === 'degraded')
       );
-      
+      if (probeHit?.checked_at) candidates.push({ at: probeHit.checked_at, source: 'adapter probe' });
+
+      candidates.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
+      const best = candidates[0] ?? null;
+
+      const cadence = SYNC_CADENCE_HOURS[pms.component_key];
+      const ageHours = best ? (now.getTime() - new Date(best.at).getTime()) / 3_600_000 : Infinity;
+      const stale = cadence ? ageHours > cadence : false;
+
       return {
         name: pms.component_name,
         property_count: pmsPropertyCounts[pms.component_key] || 0,
-        last_sync_time: lastSync 
-          ? new Date(lastSync.created_at).toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit' })
-          : null,
+        last_sync_time: best ? fmtStamp(best.at) : null,
+        last_sync_source: best ? best.source : null,
+        stale,
         success_rate: pms.uptime_percentage,
       };
     });
+
 
     // Calculate overall stats
     const totalComponents = componentStats.length;
