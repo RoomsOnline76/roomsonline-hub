@@ -115,37 +115,28 @@ export default function AdminPayments() {
     }
   };
 
+  // Commission detail lives on Admin → Commission Statements; Payments only
+  // surfaces the headline so an admin knows there is money waiting there.
   const loadCommissionPayouts = async () => {
     try {
       setCommissionsLoading(true);
       const { data: reports, error } = await supabase
         .from('rep_commission_reports')
-        .select(`id, rep_id, period_month, total_amount, status, sales_reps!inner(display_name, rep_code, id)`)
-        .in('status', ['approved', 'paid'])
+        .select(`id, rep_id, period_month, total_amount, net_payable, status, sales_reps!inner(display_name, rep_code, id)`)
+        .in('status', ['pending_approval', 'approved'])
         .order('period_month', { ascending: false })
         .limit(50);
       if (error) throw error;
-
-      const repIds = [...new Set((reports || []).map((r: any) => r.rep_id))];
-      let bankingMap: Record<string, { exists: boolean; verified: boolean }> = {};
-      if (repIds.length > 0) {
-        const { data: bankData } = await supabase
-          .from('sales_rep_bank_details')
-          .select('rep_id, is_verified')
-          .in('rep_id', repIds);
-        (bankData || []).forEach((b: any) => {
-          bankingMap[b.rep_id] = { exists: true, verified: b.is_verified };
-        });
-      }
 
       setCommissionPayouts((reports || []).map((r: any) => ({
         id: r.id, rep_id: r.rep_id,
         rep_name: r.sales_reps?.display_name || 'Unknown',
         rep_code: r.sales_reps?.rep_code || '',
         period_month: r.period_month,
-        total_amount: r.total_amount || 0, status: r.status,
-        has_banking: !!bankingMap[r.rep_id]?.exists,
-        banking_verified: !!bankingMap[r.rep_id]?.verified,
+        total_amount: Number(r.net_payable ?? r.total_amount) || 0,
+        status: r.status,
+        has_banking: false,
+        banking_verified: false,
       })));
     } catch (error) {
       console.error('Error loading commission payouts:', error);
@@ -154,26 +145,11 @@ export default function AdminPayments() {
     }
   };
 
-  const handleMarkPaid = async (reportId: string) => {
-    try {
-      setMarkingPaid(reportId);
-      const { error } = await supabase
-        .from('rep_commission_reports')
-        .update({ status: 'paid', paid_at: new Date().toISOString() } as any)
-        .eq('id', reportId);
-      if (error) throw error;
-      toast.success('Commission marked as paid');
-      loadCommissionPayouts();
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to mark as paid');
-    } finally {
-      setMarkingPaid(null);
-    }
-  };
-
   const totalCommissionsDue = commissionPayouts
     .filter(p => p.status === 'approved')
     .reduce((sum, p) => sum + p.total_amount, 0);
+  const awaitingApprovalCount = commissionPayouts.filter(p => p.status === 'pending_approval').length;
+
 
   const StatCard = ({ title, value, icon: Icon, description, variant = 'default' }: {
     title: string; value: string | number; icon: React.ElementType; description?: string;
