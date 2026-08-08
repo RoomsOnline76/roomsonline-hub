@@ -309,6 +309,7 @@ export function useOwnerAccount(scope: OwnerScope | null) {
       ledger,
       subscription: subscriptionView(data.config),
       series: monthlySeries(data.revenue, ledger),
+      vat: data.vat,
     };
   }, [data]);
 
