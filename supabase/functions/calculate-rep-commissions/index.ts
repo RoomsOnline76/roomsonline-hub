@@ -438,7 +438,13 @@ async function calculate(supabase: Client, periodMonth: string): Promise<Preview
     s.adjustments_total = round2(adjustments.reduce((t, l) => t + l.amount, 0));
     s.net_payable = round2(s.gross_commission + s.adjustments_total);
     s.property_count = new Set(commission.map((l) => l.property_id)).size;
+    // Commission is VAT-exclusive: a VAT-vendor partner adds VAT on top.
+    const tax = (s.tax || {}) as Record<string, unknown>;
+    s.vat_amount = tax.vat_registered
+      ? round2(s.net_payable * ((Number(tax.vat_rate) || DEFAULT_VAT_RATE) / 100))
+      : 0;
   });
+
 
   return statements.sort((a, b) => b.net_payable - a.net_payable);
 }
