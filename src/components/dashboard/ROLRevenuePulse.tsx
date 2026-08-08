@@ -21,6 +21,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useROLPulseData } from "@/hooks/useROLPulseData";
 import { ROLKPICard } from "./ROLKPICard";
+import { PulseSettlementRow } from "./PulseSettlementRow";
 import { ChannelBreakdownChart } from "./ChannelBreakdownChart";
 import { TopPropertiesTable } from "./TopPropertiesTable";
 import { RiskIndicators } from "./RiskIndicators";
@@ -200,6 +201,11 @@ export function ROLRevenuePulse() {
           isLoading={isLoading}
         />
       </div>
+
+      {/* Settlement view — collected vs commission vs owner money, same period */}
+      <PulseSettlementRow start={dateRange.start} end={dateRange.end} />
+
+
 
       {/* Revenue stream split — appears once F&B revenue is posted */}
       {streams?.hasSplit && (
