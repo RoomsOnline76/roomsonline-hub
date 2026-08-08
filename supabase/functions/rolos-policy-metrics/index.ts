@@ -49,7 +49,7 @@ Deno.serve(async (req) => {
     const since = new Date(Date.now() - days * 24 * 3600 * 1000).toISOString();
     const { data: bookings } = await supabase
       .from("bookings")
-      .select("id, total_price, status, check_in_date, check_out_date, rate_plan_id, created_at")
+      .select("id, total_price, status, check_in_date, check_out_date, rolos_rate_plan_id, created_at")
       .eq("property_id", body.property_id)
       .gte("created_at", since);
 
