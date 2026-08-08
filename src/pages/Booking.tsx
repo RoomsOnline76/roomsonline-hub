@@ -30,6 +30,10 @@ import { toast } from "sonner";
 import { z } from "zod";
 import { FormattedPrice } from "@/components/FormattedPrice";
 import { useItinerary } from "@/contexts/ItineraryContext";
+import { usePropertyPaymentMode } from "@/hooks/usePropertyPaymentMode";
+import { resolveReservationTerms, type HouseRulesDepositBlock } from "@/lib/reservationTerms";
+import { reservationHoldExpiry } from "@/lib/paymentMode";
+import { ReservationPaymentNotice } from "@/components/booking/ReservationPaymentNotice";
 import { PaymentGatewayRouter } from "@/components/booking/PaymentGatewayRouter";
 import { PaymentMethodSelector } from "@/components/booking/PaymentMethodSelector";
 import { useActivePaymentGateways } from "@/hooks/useActivePaymentGateway";
@@ -121,6 +125,9 @@ const Booking = () => {
   const { gateways: activeGateways } = useActivePaymentGateways(id);
   const [selectedGateway, setSelectedGateway] = useState<PaymentGateway | null>(null);
   const effectiveGateway = selectedGateway || activeGateways[0] || "payfast";
+  // Reservation-only properties collect payment themselves — no gateway is offered.
+  const { isReservationOnly, banking: propertyBanking } = usePropertyPaymentMode(id);
+
   
   const navigate = useNavigate();
 
@@ -265,6 +272,21 @@ const Booking = () => {
     selectedRateType || null,
   );
   const cancellationPolicyRule = resolvedPolicy?.rule ?? null;
+
+  /** Deposit / due-date terms for reservation-only (pay-the-property) checkouts. */
+  const buildReservationTerms = useCallback(
+    (total: number) =>
+      resolveReservationTerms({
+        total,
+        checkIn: checkIn || new Date().toISOString().slice(0, 10),
+        houseRules:
+          ((property as { amenities?: { house_rules?: HouseRulesDepositBlock } } | null)?.amenities
+            ?.house_rules) ?? null,
+        cancellationRule: cancellationPolicyRule,
+      }),
+    [checkIn, property, cancellationPolicyRule],
+  );
+
 
   // Fetch VAT config from brand config, with amenities fallback
   useEffect(() => {
@@ -2140,7 +2162,30 @@ const Booking = () => {
       }
 
       // --- PAYMENT GATE ---
-      // All bookings use PayFast onsite modal (stays in ROL UI)
+      // Reservation-only properties collect payment themselves: hold the
+      // reservation, email the pro forma with banking details, no gateway.
+      if (isReservationOnly) {
+        const terms = buildReservationTerms(data.total_price);
+        await supabase
+          .from('bookings')
+          .update({
+            payment_status: 'awaiting_eft',
+            payment_method: 'eft',
+            reservation_hold: true,
+            hold_expires_at: reservationHoldExpiry(),
+            deposit_amount: terms.amountDueNow,
+            deposit_due_date: terms.dueDate,
+          } as never)
+          .eq('id', data.id);
+
+        await supabase.functions.invoke('send-booking-email', {
+          body: { booking_id: data.id, email_type: 'reservation_only' },
+        }).catch(() => undefined);
+
+        return { ...data, requiresPayment: false, reservationOnly: true, paymentAmount: 0 };
+      }
+
+      // All other bookings use the onsite payment modal (stays in ROL UI)
       // The ITN handler in payfast-api will trigger push-booking after successful payment
       
       console.log('[Booking] Created booking, opening payment modal:', data.id);
@@ -2160,12 +2205,16 @@ const Booking = () => {
         setShowPaymentModal(true);
         return;
       }
-      
-      // Fallback: direct navigation (shouldn't happen with payment gate)
-      toast.success("Booking request submitted successfully!");
+
+      if (data.reservationOnly) {
+        toast.success("Reservation confirmed — payment details emailed to you");
+      } else {
+        toast.success("Booking request submitted successfully!");
+      }
       const confirmParams = new URLSearchParams();
       if (integrationParam) confirmParams.set("integration", integrationParam);
       navigate(`/booking-confirmation/${data.id}${confirmParams.toString() ? `?${confirmParams.toString()}` : ""}`);
+
     },
     onError: (error) => {
       const message = error instanceof Error ? error.message : "Failed to create booking";
@@ -2974,7 +3023,26 @@ const Booking = () => {
           </motion.div>
         )}
 
-        {activeGateways.length > 1 && (
+        {isReservationOnly ? (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="max-w-2xl mx-auto mt-4"
+          >
+            <ReservationPaymentNotice
+              banking={propertyBanking}
+              terms={buildReservationTerms(
+                Math.max(0, (totalCost || preSelectedTotalCost || 0) + selectedAddons.reduce((s, a) => s + a.total, 0) - voucherDiscount),
+              )}
+              total={Math.max(0, (totalCost || preSelectedTotalCost || 0) + selectedAddons.reduce((s, a) => s + a.total, 0) - voucherDiscount)}
+              policySummary={
+                cancellationPolicyRule
+                  ? formatCancellationPolicy(cancellationPolicyRule as CancellationRule, checkIn || undefined, totalCost || undefined).summaryText
+                  : null
+              }
+            />
+          </motion.div>
+        ) : activeGateways.length > 1 ? (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -2986,7 +3054,8 @@ const Booking = () => {
               onSelect={setSelectedGateway}
             />
           </motion.div>
-        )}
+        ) : null}
+
 
         {/* ── Sticky Footer CTA ── */}
         <div className="fixed bottom-0 left-0 right-0 lg:static lg:mt-6 border-t lg:border-t-0 border-border p-3 sm:p-4 bg-card/98 pb-[calc(0.75rem+env(safe-area-inset-bottom))] lg:pb-4 z-40">
@@ -3001,6 +3070,11 @@ const Booking = () => {
                   <Loader2 className="h-5 w-5 animate-spin" />
                   Processing...
                 </>
+              ) : isReservationOnly ? (
+                <>
+                  <CreditCard className="h-5 w-5" />
+                  Confirm reservation
+                </>
               ) : (
                 <>
                   <CreditCard className="h-5 w-5" />
@@ -3010,7 +3084,11 @@ const Booking = () => {
             </Button>
             <div className="flex items-center justify-center gap-2 mt-2 text-[10px] sm:text-xs text-muted-foreground">
               <Lock className="h-3 w-3" />
-              <span>Secured payment · 256-bit SSL</span>
+              <span>
+                {isReservationOnly
+                  ? "Reservation held for 3 days · pay the property directly"
+                  : "Secured payment · 256-bit SSL"}
+              </span>
             </div>
             {createBookingMutation.isError && (
               <div className="flex items-center gap-2 text-sm text-destructive bg-destructive/10 p-3 rounded-lg mt-3">

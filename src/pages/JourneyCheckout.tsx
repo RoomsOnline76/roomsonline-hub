@@ -19,6 +19,10 @@ import { PaymentMethodSelector } from "@/components/booking/PaymentMethodSelecto
 import { useActivePaymentGateways } from "@/hooks/useActivePaymentGateway";
 import type { PaymentGateway } from "@/hooks/useActivePaymentGateway";
 import { sortStaysChronologically } from "@/lib/journeyUtils";
+import { usePropertiesPaymentModes } from "@/hooks/usePropertyPaymentMode";
+import { resolveReservationTerms } from "@/lib/reservationTerms";
+import { reservationHoldExpiry } from "@/lib/paymentMode";
+import { ReservationPaymentNotice } from "@/components/booking/ReservationPaymentNotice";
 import { toast } from "sonner";
 import { 
   ArrowLeft, 
@@ -84,6 +88,21 @@ export default function JourneyCheckout() {
   const effectiveTotal = appliedVoucher 
     ? Math.max(0, totalPrice - appliedVoucher.discount_amount) 
     : totalPrice;
+
+  // A journey that includes a reservation-only property cannot be charged
+  // online — the guest reserves and settles with the properties directly.
+  const { hasReservationOnly, reservationOnlyProperties } = usePropertiesPaymentModes(
+    sortedStays.map((s) => s.property_id),
+  );
+  const journeyReservationTerms = useMemo(
+    () =>
+      resolveReservationTerms({
+        total: effectiveTotal,
+        checkIn: sortedStays[0]?.dates.check_in ?? new Date().toISOString().slice(0, 10),
+      }),
+    [effectiveTotal, sortedStays],
+  );
+
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-ZA", {
@@ -306,12 +325,39 @@ export default function JourneyCheckout() {
       
       console.log('[JourneyCheckout] Booking created:', tempBooking.id);
 
-      // Step 5: Initiate payment
+      // Step 5: Reservation-only journeys skip the gateway entirely.
+      if (hasReservationOnly) {
+        await supabase
+          .from('bookings')
+          .update({
+            status: 'pending',
+            payment_status: 'awaiting_eft',
+            payment_method: 'eft',
+            reservation_hold: true,
+            hold_expires_at: reservationHoldExpiry(),
+            deposit_amount: journeyReservationTerms.amountDueNow,
+            deposit_due_date: journeyReservationTerms.dueDate,
+          } as never)
+          .eq('id', tempBooking.id);
+
+        await supabase.functions.invoke('send-booking-email', {
+          body: { booking_id: tempBooking.id, email_type: 'reservation_only' },
+        }).catch(() => undefined);
+
+        toast.success("Reservation confirmed — payment details emailed to you");
+        clearItinerary();
+        navigate(`/journey/confirmation/${itineraryId}`);
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Step 5b: Initiate payment
       console.log('[JourneyCheckout] Opening payment modal for booking:', tempBooking.id, 'gateway:', effectiveGateway);
       setPendingItineraryId(itineraryId);
       setPaymentBookingId(tempBooking.id);
       setShowPayFastModal(true);
       setIsSubmitting(false);
+
 
     } catch (error) {
       console.error('Booking error:', error);
@@ -611,13 +657,22 @@ export default function JourneyCheckout() {
                       </span>
                     </div>
 
-                    {/* Payment method selector (multi-gateway) */}
-                    {activeGateways.length > 1 && (
-                      <PaymentMethodSelector
-                        gateways={activeGateways}
-                        selected={effectiveGateway}
-                        onSelect={setSelectedGateway}
+                    {/* Reservation-only journey: banking details instead of a gateway */}
+                    {hasReservationOnly ? (
+                      <ReservationPaymentNotice
+                        banking={reservationOnlyProperties[0]?.banking ?? null}
+                        terms={journeyReservationTerms}
+                        total={effectiveTotal}
+                        compact
                       />
+                    ) : (
+                      activeGateways.length > 1 && (
+                        <PaymentMethodSelector
+                          gateways={activeGateways}
+                          selected={effectiveGateway}
+                          onSelect={setSelectedGateway}
+                        />
+                      )
                     )}
 
                     <Button
@@ -629,12 +684,16 @@ export default function JourneyCheckout() {
                       {isSubmitting || isValidating ? (
                         <>
                           <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                          {isValidating ? "Checking Availability..." : "Preparing Payment..."}
+                          {isValidating
+                            ? "Checking Availability..."
+                            : hasReservationOnly
+                              ? "Confirming Reservation..."
+                              : "Preparing Payment..."}
                         </>
                       ) : (
                         <>
                           <CheckCircle2 className="h-5 w-5 mr-2" />
-                          Pay & Confirm Booking
+                          {hasReservationOnly ? "Confirm Reservation" : "Pay & Confirm Booking"}
                         </>
                       )}
                     </Button>
@@ -642,8 +701,13 @@ export default function JourneyCheckout() {
                     {/* Trust badges */}
                     <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground pt-2">
                       <Shield className="h-4 w-4" />
-                      <span>Secure payment via {effectiveGateway === "payfast" ? "PayFast" : effectiveGateway.charAt(0).toUpperCase() + effectiveGateway.slice(1)}</span>
+                      <span>
+                        {hasReservationOnly
+                          ? "Reservation held for 3 days · pay the properties directly"
+                          : `Secure payment via ${effectiveGateway === "payfast" ? "PayFast" : effectiveGateway.charAt(0).toUpperCase() + effectiveGateway.slice(1)}`}
+                      </span>
                     </div>
+
                   </CardContent>
                 </Card>
 

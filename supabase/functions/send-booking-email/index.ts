@@ -11,7 +11,8 @@ const corsHeaders = {
 
 const requestSchema = z.object({
   booking_id: z.string().uuid({ message: "Invalid booking ID format" }),
-  status: z.enum(["success", "failed", "admin_alert", "property_notification"]),
+  status: z.enum(["success", "failed", "admin_alert", "property_notification"]).default("success"),
+  email_type: z.enum(["reservation_only"]).optional(),
   error_message: z.string().optional(),
   sync_warning: z.string().optional(),
   recipient_email: z.string().email().optional(), // For property notifications
@@ -378,6 +379,101 @@ function generateInvoiceSection(booking: any, accentColor: string): string {
     </table>`;
 }
 
+/**
+ * Reservation-only bookings are never charged online. The guest gets the
+ * property's banking details, what is due now (deposit or full prepayment),
+ * when it is due, and the cancellation terms — unobtrusive but noticeable.
+ */
+function isReservationOnlyBooking(booking: any, property: any): boolean {
+  return (
+    booking?.payment_status === "awaiting_eft" ||
+    (property?.payment_mode === "reservation_only" && booking?.payment_status !== "paid")
+  );
+}
+
+function resolveBankingBlock(property: any): Record<string, string | null> | null {
+  const banking = property?.amenities?.banking || property?.__banking || null;
+  if (!banking) return null;
+  const hasAny = banking.bank_name || banking.account_number || banking.account_number_masked || banking.account_holder;
+  return hasAny ? banking : null;
+}
+
+function resolveCancellationText(booking: any, property: any): string | null {
+  return (
+    booking?.cancellation_policy_text ||
+    property?.amenities?.policies?.cancellation_policy ||
+    property?.amenities?.house_rules?.cancellation_policy ||
+    property?.cancellation_policy ||
+    null
+  );
+}
+
+function generateReservationPaymentBlock(booking: any, property: any, accentColor: string): string {
+  const banking = resolveBankingBlock(property);
+  const total = Number(booking.total_price || 0);
+  const dueNow = Number(booking.deposit_amount || 0) > 0 ? Number(booking.deposit_amount) : total;
+  const balance = Math.max(0, Math.round((total - dueNow) * 100) / 100);
+  const dueDate = booking.deposit_due_date ? formatDate(booking.deposit_due_date) : null;
+  const cancellation = resolveCancellationText(booking, property);
+  const reference = booking.rol_reference || booking.external_reservation_id || String(booking.id).substring(0, 8).toUpperCase();
+
+  const bankRows: Array<[string, unknown]> = banking
+    ? [
+        ["Account holder", banking.account_holder],
+        ["Bank", banking.bank_name],
+        ["Account number", banking.account_number || banking.account_number_masked],
+        ["Account type", banking.account_type],
+        ["Branch code", banking.branch_code],
+        ["SWIFT / BIC", banking.swift_code],
+      ]
+    : [];
+
+  const bankHtml = banking
+    ? `
+      <table role="presentation" style="width: 100%; border-collapse: collapse; margin-top: 12px;">
+        ${bankRows
+          .filter(([, v]) => !!v)
+          .map(
+            ([label, value]) => `
+        <tr>
+          <td style="padding: 4px 0; color: #475569; font-size: 13px;">${label}</td>
+          <td style="padding: 4px 0; color: #0f172a; font-size: 13px; text-align: right; font-family: monospace;">${value}</td>
+        </tr>`,
+          )
+          .join("")}
+        <tr>
+          <td style="padding: 4px 0; color: #475569; font-size: 13px;">Payment reference</td>
+          <td style="padding: 4px 0; color: #0f172a; font-size: 13px; text-align: right; font-family: monospace;">${reference}</td>
+        </tr>
+      </table>`
+    : `<p style="margin: 10px 0 0; color: #475569; font-size: 13px;">${property?.name || "The property"} will send you their banking details shortly.</p>`;
+
+  return `
+          <tr>
+            <td style="padding: 0 40px 20px;">
+              <div style="border: 1px solid ${accentColor}; border-radius: 8px; padding: 16px;">
+                <h3 style="margin: 0 0 6px; font-size: 16px; color: #0f172a;">Reservation held — payment made directly to the property</h3>
+                <p style="margin: 0; color: #475569; font-size: 13px; line-height: 1.5;">
+                  No online payment was taken. Please settle
+                  <strong>${formatCurrency(dueNow, booking.currency || "ZAR")}</strong>${dueDate ? ` by <strong>${dueDate}</strong>` : ""}
+                  by bank transfer to secure this reservation.${
+                    balance > 0.01
+                      ? ` The remaining balance of <strong>${formatCurrency(balance, booking.currency || "ZAR")}</strong> is payable ${booking.balance_due_date ? `by ${formatDate(booking.balance_due_date)}` : "before arrival"}.`
+                      : ""
+                  }
+                </p>
+                ${bankHtml}
+                ${
+                  cancellation
+                    ? `<p style="margin: 12px 0 0; color: #64748b; font-size: 12px; line-height: 1.5;"><strong>Cancellation policy:</strong> ${cancellation}</p>`
+                    : ""
+                }
+                <p style="margin: 8px 0 0; color: #64748b; font-size: 11px;">Please email your proof of payment to ${property?.email || property?.contact_email || "the property"}. Your reservation is held for 3 days pending payment.</p>
+              </div>
+            </td>
+          </tr>`;
+}
+
 
 function generateSuccessEmail(booking: any, property: any, syncWarning?: string): string {
   const nights = calculateNights(booking.check_in_date, booking.check_out_date);
@@ -578,7 +674,9 @@ function generateSuccessEmail(booking: any, property: any, syncWarning?: string)
             </td>
           </tr>
           `
-              : `
+              : isReservationOnlyBooking(booking, property)
+                ? generateReservationPaymentBlock(booking, property, accentColor)
+                : `
           <!-- Payment Notice -->
           <tr>
             <td style="padding: 0 40px 20px;">
@@ -590,6 +688,7 @@ function generateSuccessEmail(booking: any, property: any, syncWarning?: string)
             </td>
           </tr>
           `
+
           }
 
           ${
@@ -1158,6 +1257,21 @@ Deno.serve(async (req) => {
 
     const property = booking.property;
 
+    // Reservation-only properties collect payment manually — hydrate their
+    // banking block so the guest email can carry EFT instructions.
+    if (isReservationOnlyBooking(booking, property)) {
+      try {
+        const { data: bank } = await supabaseClient
+          .from("property_bank_details")
+          .select("bank_name, branch_code, account_holder, account_number_masked, account_type, swift_code")
+          .eq("property_id", property.id)
+          .maybeSingle();
+        if (bank) (property as any).__banking = bank;
+      } catch (e) {
+        console.warn("[send-booking-email] Bank detail lookup failed:", e);
+      }
+    }
+
     // Guest-facing emails must always name the unit/room that was booked.
     // Some booking paths (PMS/native, channel pushes) leave `bookings.rooms` empty and
     // only store `rolos_room_ids` / `room_type_id`, so hydrate a rooms array from those.
@@ -1390,7 +1504,9 @@ Deno.serve(async (req) => {
 
     // Generate email HTML based on status and custom template availability
     let html: string;
-    if (status === "success" && hasCustomTemplate) {
+    // Reservation-only bookings must use the standard template so the banking
+    // details, amount due and cancellation terms are always present.
+    if (status === "success" && hasCustomTemplate && !isReservationOnlyBooking(booking, property)) {
       // Use custom template with variable replacement
       let processedContent = replaceTemplateVariables(customTemplateContent, booking, property);
       

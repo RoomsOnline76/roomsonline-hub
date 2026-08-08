@@ -1,6 +1,13 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { usePropertyPaymentMode } from "@/hooks/usePropertyPaymentMode";
+import { useResolvedCancellationPolicy } from "@/hooks/useResolvedCancellationPolicy";
+import { formatCancellationPolicy } from "@/lib/policyFormatter";
+import { resolveReservationTerms, type HouseRulesDepositBlock } from "@/lib/reservationTerms";
+import { reservationHoldExpiry } from "@/lib/paymentMode";
+import { ReservationPaymentNotice } from "./ReservationPaymentNotice";
 import { format, parseISO } from "date-fns";
-import { CreditCard, Lock, X, Calendar, Users, ChevronRight, Loader2 } from "lucide-react";
+import { CreditCard, Lock, X, Calendar, Users, ChevronRight, Loader2, Landmark } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -57,6 +64,45 @@ export function InlineCheckoutPanel({
   const { gateways: activeGateways } = useActivePaymentGateways();
   const [selectedGateway, setSelectedGateway] = useState<PaymentGateway | null>(null);
   const activeGateway = selectedGateway || activeGateways[0] || "payfast";
+
+  // Reservation-only properties never see a gateway.
+  const checkoutPropertyId = stays[0]?.property_id ?? null;
+  const { isReservationOnly, banking } = usePropertyPaymentMode(checkoutPropertyId);
+  const { data: resolvedPolicy } = useResolvedCancellationPolicy(
+    isReservationOnly ? checkoutPropertyId : null,
+    null,
+    null,
+  );
+  const { data: houseRulesBlock } = useQuery({
+    queryKey: ["reservation-house-rules", checkoutPropertyId],
+    enabled: isReservationOnly && !!checkoutPropertyId,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("properties")
+        .select("amenities")
+        .eq("id", checkoutPropertyId!)
+        .maybeSingle();
+      const amenities = data?.amenities as { house_rules?: HouseRulesDepositBlock } | null;
+      return amenities?.house_rules ?? null;
+    },
+  });
+
+  const reservationTerms = useMemo(
+    () =>
+      resolveReservationTerms({
+        total: totalPrice,
+        checkIn: stays[0]?.dates.check_in ?? new Date().toISOString().slice(0, 10),
+        houseRules: houseRulesBlock ?? null,
+        cancellationRule: resolvedPolicy?.rule ?? null,
+      }),
+    [totalPrice, stays, houseRulesBlock, resolvedPolicy?.rule],
+  );
+  const policySummary = useMemo(
+    () => (resolvedPolicy?.rule ? formatCancellationPolicy(resolvedPolicy.rule).summaryText : null),
+    [resolvedPolicy?.rule],
+  );
+
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [payFastUuid, setPayFastUuid] = useState<string | null>(null);
@@ -131,8 +177,18 @@ export function InlineCheckoutPanel({
         guest_phone: guestDetails.phone,
         total_price: totalPrice,
         status: "pending",
-        payment_status: "pending",
+        payment_status: isReservationOnly ? "awaiting_eft" : "pending",
+        ...(isReservationOnly
+          ? {
+              payment_method: "eft",
+              reservation_hold: true,
+              hold_expires_at: reservationHoldExpiry(),
+              deposit_amount: reservationTerms.amountDueNow,
+              deposit_due_date: reservationTerms.dueDate,
+            }
+          : {}),
                 special_requests: specialRequests || null,
+
         user_id: user?.id || null,
         ...origin,
         ...captureCommissionOrigin(),
@@ -167,9 +223,22 @@ export function InlineCheckoutPanel({
         booking = inserted;
       }
 
+      // Reservation-only: no gateway. Confirm the reservation and let the
+      // property collect payment by EFT.
+      if (isReservationOnly) {
+        setBookingId(booking.id);
+        await supabase.functions.invoke("send-booking-email", {
+          body: { booking_id: booking.id, email_type: "reservation_only" },
+        }).catch(() => undefined);
+        toast.success("Reservation confirmed — payment details sent to your email");
+        onPaymentSuccess(booking.id);
+        return;
+      }
+
       // Initiate payment
       setBookingId(booking.id);
       setPendingPaymentAmount(booking.total_price);
+
 
       if (activeGateway === "paygate") {
         setShowPaymentModal(true);
@@ -364,13 +433,23 @@ export function InlineCheckoutPanel({
           </div>
         </div>
 
-        {/* Payment method selector (multi-gateway) */}
-        {activeGateways.length > 1 && (
-          <PaymentMethodSelector
-            gateways={activeGateways}
-            selected={activeGateway}
-            onSelect={setSelectedGateway}
+        {/* Reservation-only: banking details instead of a gateway */}
+        {isReservationOnly ? (
+          <ReservationPaymentNotice
+            banking={banking}
+            terms={reservationTerms}
+            total={totalPrice}
+            policySummary={policySummary}
+            compact
           />
+        ) : (
+          activeGateways.length > 1 && (
+            <PaymentMethodSelector
+              gateways={activeGateways}
+              selected={activeGateway}
+              onSelect={setSelectedGateway}
+            />
+          )
         )}
       </div>
     </div>
@@ -445,6 +524,11 @@ export function InlineCheckoutPanel({
                       <Loader2 className="h-5 w-5 animate-spin" />
                       Processing...
                     </>
+                  ) : isReservationOnly ? (
+                    <>
+                      <Landmark className="h-5 w-5" />
+                      Confirm reservation
+                    </>
                   ) : (
                     <>
                       <CreditCard className="h-5 w-5" />
@@ -454,7 +538,11 @@ export function InlineCheckoutPanel({
                 </Button>
                 <div className="flex items-center justify-center gap-2 mt-2 text-[10px] sm:text-xs text-muted-foreground">
                   <Lock className="h-3 w-3" />
-                  <span>Secured by PayFast · 256-bit SSL</span>
+                  <span>
+                    {isReservationOnly
+                      ? "Held for 3 days · pay the property directly by EFT"
+                      : "Secured by PayFast · 256-bit SSL"}
+                  </span>
                 </div>
               </div>
             </motion.div>

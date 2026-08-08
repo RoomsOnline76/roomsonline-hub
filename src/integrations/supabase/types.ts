@@ -871,6 +871,7 @@ export type Database = {
           property_id: string
           rate_type_id: string | null
           requires_intervention: boolean | null
+          reservation_hold: boolean
           rol_ref_kind: string | null
           rol_ref_origin: string | null
           rol_reference: string | null
@@ -960,6 +961,7 @@ export type Database = {
           property_id: string
           rate_type_id?: string | null
           requires_intervention?: boolean | null
+          reservation_hold?: boolean
           rol_ref_kind?: string | null
           rol_ref_origin?: string | null
           rol_reference?: string | null
@@ -1049,6 +1051,7 @@ export type Database = {
           property_id?: string
           rate_type_id?: string | null
           requires_intervention?: boolean | null
+          reservation_hold?: boolean
           rol_ref_kind?: string | null
           rol_ref_origin?: string | null
           rol_reference?: string | null
@@ -4209,6 +4212,7 @@ export type Database = {
           created_at: string
           credentials: Json
           id: string
+          payment_mode: string
           payment_providers: string[]
           portfolio_id: string
           updated_at: string
@@ -4218,6 +4222,7 @@ export type Database = {
           created_at?: string
           credentials?: Json
           id?: string
+          payment_mode?: string
           payment_providers?: string[]
           portfolio_id: string
           updated_at?: string
@@ -4227,6 +4232,7 @@ export type Database = {
           created_at?: string
           credentials?: Json
           id?: string
+          payment_mode?: string
           payment_providers?: string[]
           portfolio_id?: string
           updated_at?: string
@@ -4760,6 +4766,7 @@ export type Database = {
           owner_name: string | null
           owner_notes: string | null
           owner_pms_credential_id: string | null
+          payment_mode: string
           payment_provider: string | null
           payment_provider_override: boolean
           payment_providers: string[] | null
@@ -4864,6 +4871,7 @@ export type Database = {
           owner_name?: string | null
           owner_notes?: string | null
           owner_pms_credential_id?: string | null
+          payment_mode?: string
           payment_provider?: string | null
           payment_provider_override?: boolean
           payment_providers?: string[] | null
@@ -4968,6 +4976,7 @@ export type Database = {
           owner_name?: string | null
           owner_notes?: string | null
           owner_pms_credential_id?: string | null
+          payment_mode?: string
           payment_provider?: string | null
           payment_provider_override?: boolean
           payment_providers?: string[] | null
