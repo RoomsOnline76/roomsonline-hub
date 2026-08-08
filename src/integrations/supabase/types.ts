@@ -7635,6 +7635,27 @@ export type Database = {
         }
         Relationships: []
       }
+      rol_document_counters: {
+        Row: {
+          created_at: string
+          last_value: number
+          scope_key: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          last_value?: number
+          scope_key: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          last_value?: number
+          scope_key?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       rol_financial_signoffs: {
         Row: {
           acknowledgment_text: string
@@ -15160,6 +15181,10 @@ export type Database = {
         Args: { _kind: string; _origin: string; _property_id: string }
         Returns: string
       }
+      next_rol_document_reference: {
+        Args: { _doc: string; _party_code: string; _period: string }
+        Returns: string
+      }
       nextval_subscription_invoice_number: { Args: never; Returns: number }
       rol_origin_code: {
         Args: {
@@ -15167,6 +15192,10 @@ export type Database = {
           _integration_type: string
           _origin_type: string
         }
+        Returns: string
+      }
+      rol_party_code: {
+        Args: { _portfolio_id: string; _property_id: string }
         Returns: string
       }
       rol_reference_kind: { Args: { _origin_code: string }; Returns: string }
