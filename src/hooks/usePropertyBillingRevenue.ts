@@ -42,7 +42,10 @@ export interface BillingEntityRow {
 export interface PropertyBillingRevenue {
   rows: BillingEntityRow[];
   totals: {
+    /** Recurring total for entities actively billing. */
     monthlyExpected: number;
+    /** Recurring total across every configured entity, billing or not. */
+    contractedMonthly: number;
     setupExpected: number;
     invoicedMonthly: number;
     invoicedOnceOff: number;
@@ -332,6 +335,7 @@ export function usePropertyBillingRevenue(range: Range) {
       const totals = rows.reduce(
         (acc, row) => {
           counts[row.status] += 1;
+          if (row.status !== "cancelled") acc.contractedMonthly += row.monthlyExpected;
           if (row.status === "active" || row.status === "past_due") {
             acc.monthlyExpected += row.monthlyExpected;
             acc.activeMrr += row.monthlyExpected;
@@ -347,6 +351,7 @@ export function usePropertyBillingRevenue(range: Range) {
         },
         {
           monthlyExpected: 0,
+          contractedMonthly: 0,
           setupExpected: 0,
           invoicedMonthly: 0,
           invoicedOnceOff: 0,
