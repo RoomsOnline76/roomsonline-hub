@@ -1090,7 +1090,55 @@ Deno.serve(async (req) => {
       }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    
+    // INITIATE ROL PROPERTY INVOICE PAYMENT (commission + platform fees receivable)
+    if (action === "initiate_property_invoice_payment") {
+      const token = (body?.token || "").toString();
+      if (!token) {
+        return new Response(JSON.stringify({ success: false, error: "Missing token" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      const { data: inv, error: invErr } = await supabase
+        .from("rol_property_invoices")
+        .select("*")
+        .eq("pay_token", token)
+        .single();
+      if (invErr || !inv) {
+        return new Response(JSON.stringify({ success: false, error: "Invoice not found" }),
+          { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      if (inv.status !== "issued") {
+        return new Response(JSON.stringify({ success: false, error: `Invoice ${inv.status}` }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      const due = Number(inv.total) - Number(inv.amount_paid || 0);
+      if (due <= 0) {
+        return new Response(JSON.stringify({ success: false, error: "Nothing outstanding on this invoice" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      const siteUrl = Deno.env.get("SITE_URL") || "https://sleepinafrica.roomsonline.co.za";
+      const formFields: Record<string, string> = {
+        merchant_id: merchantId!,
+        merchant_key: merchantKey!,
+        return_url: `${siteUrl}/billing/pay/${token}?status=success`,
+        cancel_url: `${siteUrl}/billing/pay/${token}?status=cancelled`,
+        notify_url: `${supabaseUrl}/functions/v1/payfast-api`,
+        m_payment_id: `ROLINV-${inv.id}`,
+        amount: due.toFixed(2),
+        item_name: `Rooms Online — ${inv.group_name}`.substring(0, 100),
+        item_description: `${inv.invoice_reference || "ROL invoice"} · ${inv.period_start} to ${inv.period_end}`.substring(0, 255),
+        ...(inv.bill_to_email ? { email_address: inv.bill_to_email } : {}),
+      };
+      formFields.signature = generateSignature(formFields, passphrase);
+      return new Response(JSON.stringify({
+        success: true,
+        checkout_url: isSandbox ? PAYFAST_SANDBOX_URL : PAYFAST_PRODUCTION_URL,
+        form_fields: formFields,
+        is_sandbox: isSandbox,
+        invoice_id: inv.id,
+      }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+
     // INITIATE ONSITE PAYMENT (Modal-based, stays in ROL UI)
     if (action === "initiate_onsite_payment") {
       const validation = InitiateOnsitePaymentSchema.safeParse(body);
