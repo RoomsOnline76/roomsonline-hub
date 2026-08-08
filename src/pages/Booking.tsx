@@ -121,6 +121,9 @@ const Booking = () => {
   const { gateways: activeGateways } = useActivePaymentGateways(id);
   const [selectedGateway, setSelectedGateway] = useState<PaymentGateway | null>(null);
   const effectiveGateway = selectedGateway || activeGateways[0] || "payfast";
+  // Reservation-only properties collect payment themselves — no gateway is offered.
+  const { isReservationOnly, banking: propertyBanking } = usePropertyPaymentMode(id);
+
   
   const navigate = useNavigate();
 
