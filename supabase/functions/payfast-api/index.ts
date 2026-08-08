@@ -569,15 +569,28 @@ async function settleSubscriptionInvoice(
     await supabase.from(tableName).update({ last_invoice_id: invoiceId }).eq(keyCol, keyVal);
   } else {
 
-    const periodStart = new Date(inv.period_start);
-    const nextEnd = new Date(periodStart);
-    nextEnd.setMonth(nextEnd.getMonth() + 1);
+    // The payment date is the real start of the paid period — the next payment
+    // then falls one month from that day, replacing any scheduled "due by" date.
+    const paidOn = new Date().toISOString().slice(0, 10);
+    const nextEnd = new Date(`${paidOn}T00:00:00Z`);
+    nextEnd.setUTCMonth(nextEnd.getUTCMonth() + 1);
+    const { data: cfgRow } = await supabase
+      .from(tableName)
+      .select("subscription_started_on")
+      .eq(keyCol, keyVal)
+      .maybeSingle();
     await supabase.from(tableName).update({
       subscription_status: "active",
+      current_period_start: paidOn,
       current_period_end: nextEnd.toISOString().slice(0, 10),
+      subscription_started_on: (cfgRow as any)?.subscription_started_on ?? paidOn,
+      billing_anchor_day: Number(paidOn.slice(8, 10)) || null,
       last_invoice_id: invoiceId,
       cancelled_at: null,
     }).eq(keyCol, keyVal);
+    await supabase.from("subscription_invoices")
+      .update({ period_start: paidOn, period_end: nextEnd.toISOString().slice(0, 10) })
+      .eq("id", invoiceId);
   }
 
   await supabase.from("subscription_charge_items")
