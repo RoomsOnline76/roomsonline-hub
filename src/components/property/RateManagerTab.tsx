@@ -116,10 +116,6 @@ export function RateManagerTab({
 
   /** ROL'OS-managed properties never edit rates from Admin — ROL'OS is the source of truth. */
   const isRolosProperty = isRolosPms(selectedPMS);
-  const rateSurfaceProperties = useMemo(
-    () => (propertyId ? [{ id: propertyId, name: "" }] : []),
-    [propertyId],
-  );
 
   // ── Local state ────────────────────────────────────────────────────────
   const defaultTab =
@@ -129,7 +125,8 @@ export function RateManagerTab({
   const effectiveTab =
     view !== "rates"
       ? defaultTab
-      : isRolosProperty && ["rate-types", "season", "rate-breakdown"].includes(activeTab)
+      : ["rate-plans", "rate-breakdown"].includes(activeTab) ||
+          (isRolosProperty && ["rate-types", "season"].includes(activeTab))
         ? "seasons-calendar"
         : activeTab;
   const [isSeasonDialogOpen, setIsSeasonDialogOpen] = useState(false);
@@ -296,21 +293,9 @@ export function RateManagerTab({
               <TabsTrigger value="seasons-calendar">Calendar / Seasons</TabsTrigger>
               {!isRolosProperty && !isRolProperty && <TabsTrigger value="season">Seasons</TabsTrigger>}
               {!isRolosProperty && <TabsTrigger value="rate-types">Rate Types</TabsTrigger>}
-              {!isRolosProperty && <TabsTrigger value="rate-plans">Rate Plans</TabsTrigger>}
-              {!isRolosProperty && <TabsTrigger value="rate-breakdown">Rate Breakdown</TabsTrigger>}
             </TabsList>
           )}
 
-          {/* ── Rate Plans Sub-tab (non-ROL'OS mirror only) ───────────────── */}
-          {!isRolosProperty && (
-            <TabsContent value="rate-plans" className="p-3 space-y-3">
-              {!propertyId ? (
-                <p className="text-sm text-muted-foreground">Save the property first to configure rate plans.</p>
-              ) : (
-                <RatePlansSurface properties={rateSurfaceProperties} />
-              )}
-            </TabsContent>
-          )}
 
 
           {/* ── Rate Types Sub-tab ────────────────────────────────────────── */}
