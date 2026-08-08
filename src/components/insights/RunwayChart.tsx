@@ -11,6 +11,8 @@ interface FinancialMetric {
   cash_balance_zar: number | null;
   monthly_burn_usd: number | null;
   monthly_revenue_usd: number | null;
+  monthly_burn_zar?: number | null;
+  monthly_revenue_zar?: number | null;
   runway_months: number | null;
   exchange_rate: number | null;
 }
@@ -34,15 +36,22 @@ export function RunwayChart({ metrics, isLoading }: RunwayChartProps) {
     (a, b) => new Date(a.metric_date).getTime() - new Date(b.metric_date).getTime()
   );
 
-  // Get ZAR value (use ZAR if available, otherwise convert from USD)
+  // Prefer the stored ZAR values; fall back to converting the USD history.
   const getZarCash = (m: FinancialMetric) => {
-    if (m.cash_balance_zar) return m.cash_balance_zar;
-    if (m.cash_balance_usd) return m.cash_balance_usd * (m.exchange_rate || 18.5);
+    if (m.cash_balance_zar) return Number(m.cash_balance_zar);
+    if (m.cash_balance_usd) return Number(m.cash_balance_usd) * (m.exchange_rate || 18.5);
     return null;
   };
 
   const getZarBurn = (m: FinancialMetric) => {
-    if (m.monthly_burn_usd) return m.monthly_burn_usd * (m.exchange_rate || 18.5);
+    if (m.monthly_burn_zar) return Number(m.monthly_burn_zar);
+    if (m.monthly_burn_usd) return Number(m.monthly_burn_usd) * (m.exchange_rate || 18.5);
+    return null;
+  };
+
+  const getZarRevenue = (m: FinancialMetric) => {
+    if (m.monthly_revenue_zar) return Number(m.monthly_revenue_zar);
+    if (m.monthly_revenue_usd) return Number(m.monthly_revenue_usd) * (m.exchange_rate || 18.5);
     return null;
   };
 
@@ -51,12 +60,14 @@ export function RunwayChart({ metrics, isLoading }: RunwayChartProps) {
     return {
       date: format(new Date(m.metric_date), "MMM yy"),
       fullDate: m.metric_date,
-      runway: m.runway_months,
+      // 999 is the cash-flow-positive sentinel — don't plot it as a runway spike.
+      runway: m.runway_months === 999 ? null : m.runway_months,
       cash: cashZar ? cashZar / 1000 : null, // Show in thousands (ZAR)
       burn: getZarBurn(m),
-      revenue: m.monthly_revenue_usd ? m.monthly_revenue_usd * (m.exchange_rate || 18.5) : null,
+      revenue: getZarRevenue(m),
     };
   });
+
 
   const formatZAR = (value: number) => {
     return new Intl.NumberFormat("en-ZA", {
