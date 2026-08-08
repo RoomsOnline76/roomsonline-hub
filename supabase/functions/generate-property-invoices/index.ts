@@ -417,8 +417,18 @@ Deno.serve(async (req) => {
         });
       }
 
-      /* --- recurring platform fees --- */
-      if (!hasSubscriptionInvoice(bucket)) {
+      /* --- recurring platform fees (fallback only) ---
+         Monthly platform fees are owned by the subscription billing stream.
+         They are only carried here when the entity has no billing-enabled
+         subscription config, so nothing is ever billed twice. */
+      const recurringConfigForGate = (bucket.portfolioId
+        ? pfBillingById.get(bucket.portfolioId)
+        : (bucket.propertyId || Array.from(bucket.propertyIds)[0])
+          ? propBillingById.get(bucket.propertyId || Array.from(bucket.propertyIds)[0]!)
+          : null) as Record<string, any> | null;
+      const subscriptionOwnsRecurring = recurringConfigForGate?.billing_enabled === true;
+      if (!subscriptionOwnsRecurring && !hasSubscriptionInvoice(bucket)) {
+
         const anchorId = bucket.propertyId || Array.from(bucket.propertyIds)[0] || null;
         const config = (bucket.portfolioId
           ? pfBillingById.get(bucket.portfolioId)
