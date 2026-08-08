@@ -67,12 +67,16 @@ Deno.serve(async (req) => {
       supabase
         .from('properties')
         .select('id, name, rentalsunited_property_id, ru_push_enabled')
+        .eq('is_active', true)
         .not('rentalsunited_property_id', 'is', null),
+      // ACTIVE units only — archived duplicates keep stale channel IDs that can never be pushed.
       supabase
         .from('hostfully_room_types')
-        .select('property_id, properties!inner(id, name, rentalsunited_property_id, ru_push_enabled)')
+        .select('property_id, is_active, properties!inner(id, name, is_active, rentalsunited_property_id, ru_push_enabled)')
+        .eq('is_active', true)
         .not('rentalsunited_property_id', 'is', null),
     ]);
+
 
     const error = buildingErr || unitErr;
     const propMap = new Map<string, { id: string; name: string; rentalsunited_property_id: string | null; ru_push_enabled?: boolean }>();
