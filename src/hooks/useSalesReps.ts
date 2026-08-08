@@ -13,7 +13,14 @@ export interface SalesRep {
   is_active: boolean;
   quarterly_target: number | null;
   notes: string | null;
+  /** Tax identity — commission is paid to an independent contractor. */
+  entity_type?: "individual" | "company";
+  trading_name?: string | null;
+  tax_reference_number?: string | null;
+  vat_registered?: boolean;
+  vat_number?: string | null;
   created_at: string;
+
   updated_at: string;
 }
 
