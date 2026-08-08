@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import { isRolosPms } from "@/lib/pmsUtils";
-import { RatePlansSurface } from "@/components/pms/rateplans/RatePlansSurface";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -116,10 +115,6 @@ export function RateManagerTab({
 
   /** ROL'OS-managed properties never edit rates from Admin — ROL'OS is the source of truth. */
   const isRolosProperty = isRolosPms(selectedPMS);
-  const rateSurfaceProperties = useMemo(
-    () => (propertyId ? [{ id: propertyId, name: "" }] : []),
-    [propertyId],
-  );
 
   // ── Local state ────────────────────────────────────────────────────────
   const defaultTab =
@@ -129,7 +124,8 @@ export function RateManagerTab({
   const effectiveTab =
     view !== "rates"
       ? defaultTab
-      : isRolosProperty && ["rate-types", "season", "rate-breakdown"].includes(activeTab)
+      : ["rate-plans", "rate-breakdown"].includes(activeTab) ||
+          (isRolosProperty && ["rate-types", "season"].includes(activeTab))
         ? "seasons-calendar"
         : activeTab;
   const [isSeasonDialogOpen, setIsSeasonDialogOpen] = useState(false);
@@ -296,21 +292,9 @@ export function RateManagerTab({
               <TabsTrigger value="seasons-calendar">Calendar / Seasons</TabsTrigger>
               {!isRolosProperty && !isRolProperty && <TabsTrigger value="season">Seasons</TabsTrigger>}
               {!isRolosProperty && <TabsTrigger value="rate-types">Rate Types</TabsTrigger>}
-              {!isRolosProperty && <TabsTrigger value="rate-plans">Rate Plans</TabsTrigger>}
-              {!isRolosProperty && <TabsTrigger value="rate-breakdown">Rate Breakdown</TabsTrigger>}
             </TabsList>
           )}
 
-          {/* ── Rate Plans Sub-tab (non-ROL'OS mirror only) ───────────────── */}
-          {!isRolosProperty && (
-            <TabsContent value="rate-plans" className="p-3 space-y-3">
-              {!propertyId ? (
-                <p className="text-sm text-muted-foreground">Save the property first to configure rate plans.</p>
-              ) : (
-                <RatePlansSurface properties={rateSurfaceProperties} />
-              )}
-            </TabsContent>
-          )}
 
 
           {/* ── Rate Types Sub-tab ────────────────────────────────────────── */}
@@ -705,232 +689,6 @@ export function RateManagerTab({
             />
           </TabsContent>
 
-          {/* ── Rate Breakdown Sub-tab ─────────────────────────────────────── */}
-          <TabsContent value="rate-breakdown" className="p-6 space-y-6">
-            {seasons.length === 0 ? (
-              (() => {
-                const currentRoom = roomTypes.find((r: any) => r.id === selectedRoomType);
-                const linkedRateTypes = currentRoom?.linkedRateTypes || [];
-                const availableRateTypes = (pmsRateTypes || []) as Array<{ id: number | string; name: string; priceType?: string }>;
-                const roomLinkedRateTypes = availableRateTypes.filter((rt) => linkedRateTypes.some((linked: number | string) => String(linked) === String(rt.id)));
-
-                if (roomLinkedRateTypes.length === 0) {
-                  return (
-                    <div className="border rounded-lg p-8 text-center text-muted-foreground">
-                      <DollarSign className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                      <p>No rate types linked to this room.</p>
-                      <p className="text-sm">Link rate types in the Room Type tab first.</p>
-                    </div>
-                  );
-                }
-
-                return (
-                  <div className="space-y-6">
-                    <p className="text-sm text-muted-foreground">
-                      Set base rates for <strong>{currentRoom?.name}</strong> (no seasons defined).
-                    </p>
-                    {roomLinkedRateTypes.map((rateType) => {
-                      const priceType = rateType.priceType || "Per Unit";
-                      const isPerPerson = priceType.toLowerCase().includes("person");
-                      const roomRateTypes = currentRoom?.rateTypes || [];
-                      const rateTypeData = roomRateTypes.find((rt: any) => rt.rateTypeId === rateType.id);
-                      const todayStr = format(new Date(), "yyyy-MM-dd");
-                      const todayRateData = rateTypeData?.rates?.find((r: any) => r.date === todayStr);
-
-                      return (
-                        <div key={rateType.id} className="border rounded-lg overflow-hidden">
-                          <div className="p-4 bg-muted/50">
-                            <div className="flex items-center gap-2">
-                              <h3 className="font-semibold">{rateType.name}</h3>
-                              <Badge variant="outline" className="text-xs">{priceType}</Badge>
-                              {selectedPMS === "benson" && <Badge variant="outline" className="text-xs bg-primary/10"><Cloud className="h-3 w-3 mr-1" />Benson</Badge>}
-                            </div>
-                            {selectedPMS === "benson" && <p className="text-xs text-muted-foreground mt-1">Today's rate from Benson ({todayStr})</p>}
-                          </div>
-                          <div className="p-4">
-                            {isPerPerson ? (
-                              <div className="grid grid-cols-5 gap-4">
-                                {["Room Amount", "Adult Amount", "Teen Amount", "Child Amount", "Infant Amount"].map((label, idx) => {
-                                  const fields = ["roomAmount", "adultAmount1", "teenAmount", "childAmount", "infantAmount"];
-                                  const altFields = [null, "adultAmount2", null, null, null];
-                                  return (
-                                    <div key={label} className="space-y-2">
-                                      <Label className="text-xs font-medium text-muted-foreground">{label}</Label>
-                                      <Input type="number" min="0" value={todayRateData?.[fields[idx]] ?? (altFields[idx] ? todayRateData?.[altFields[idx]!] : null) ?? 0} className="text-center bg-muted cursor-not-allowed" placeholder="—" disabled />
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            ) : (
-                              <div className="max-w-xs">
-                                <div className="space-y-2">
-                                  <Label className="text-xs font-medium text-muted-foreground">Room Amount</Label>
-                                  <Input type="number" min="0" value={todayRateData?.roomAmount ?? 0} className="text-center bg-muted cursor-not-allowed" placeholder="—" disabled />
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                );
-              })()
-            ) : (
-              (() => {
-                const currentRoom = roomTypes.find((r: any) => r.id === selectedRoomType);
-                const linkedRateTypes = currentRoom?.linkedRateTypes || [];
-                const availableRateTypes = (pmsRateTypes || []) as Array<{ id: number | string; name: string; priceType?: string }>;
-                const roomLinkedRateTypes = availableRateTypes.filter((rt) => linkedRateTypes.some((linked: number | string) => String(linked) === String(rt.id)));
-
-                if (roomLinkedRateTypes.length === 0) {
-                  return (
-                    <div className="border rounded-lg p-8 text-center text-muted-foreground">
-                      <DollarSign className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                      <p>No rate types linked to this room.</p>
-                      <p className="text-sm">Link rate types in the Room Type tab first.</p>
-                    </div>
-                  );
-                }
-
-                return (
-                  <>
-                    <div className="flex justify-between items-center">
-                      <p className="text-sm text-muted-foreground">
-                        Rate breakdown for <strong>{currentRoom?.name}</strong> by season
-                      </p>
-                      <Select value={rateBreakdownGroupBy} onValueChange={(v) => setRateBreakdownGroupBy(v as "season" | "mealType")}>
-                        <SelectTrigger className="w-[160px] h-8 text-xs"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="season">Group by Season</SelectItem>
-                          <SelectItem value="mealType">Group by Rate Type</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {rateBreakdownGroupBy === "season" &&
-                      seasons.map((season) => {
-                        const isExpanded = expandedSeasons[season.id] ?? true;
-                        return (
-                          <div key={season.id} className="border rounded-lg overflow-hidden">
-                            <button type="button" onClick={() => toggleSeasonExpanded(season.id)} className="w-full flex items-center justify-between p-4 bg-muted/50 hover:bg-muted transition-colors text-left">
-                              <div className="flex items-center gap-3">
-                                {isExpanded ? <Minus className="h-4 w-4 text-primary" /> : <Plus className="h-4 w-4 text-primary" />}
-                                <div className="flex items-center gap-2">
-                                  <h3 className="font-semibold">{season.name || season.title}</h3>
-                                  <span className="text-sm text-muted-foreground">
-                                    {season.from ? format(new Date(season.from), "dd MMM") : ""} - {season.to ? format(new Date(season.to), "dd MMM") : ""}
-                                  </span>
-                                </div>
-                              </div>
-                            </button>
-                            {isExpanded && (
-                              <div className="p-4 space-y-4">
-                                {roomLinkedRateTypes.map((rateType) => {
-                                  const priceType = rateType.priceType || "Per Unit";
-                                  const isPerPerson = priceType.toLowerCase().includes("person");
-                                  return (
-                                    <div key={rateType.id} className="border rounded-lg p-4 bg-card">
-                                      <div className="text-sm font-medium text-muted-foreground mb-4">{rateType.name}</div>
-                                      {isPerPerson ? (
-                                        <div className="grid grid-cols-5 gap-4">
-                                          <div className="space-y-2">
-                                            <Label className="text-xs font-medium text-muted-foreground">Room Amount</Label>
-                                            <Input type="number" min="0" value={getSeasonRate(selectedRoomType, `${season.id}-${rateType.id}`, "roomAmount")} className="text-center bg-muted cursor-not-allowed" placeholder="—" disabled />
-                                          </div>
-                                          {(["adultAmount", "teenAmount", "childAmount", "infantAmount"] as RateField[]).map((field) => (
-                                            <div key={field} className="space-y-2">
-                                              <Label className="text-xs font-medium">{field.replace("Amount", " Amount").replace(/^./, (c) => c.toUpperCase())}</Label>
-                                              <Input type="number" min="0" value={getSeasonRate(selectedRoomType, `${season.id}-${rateType.id}`, field)} onChange={(e) => updateSeasonRate(selectedRoomType, `${season.id}-${rateType.id}`, field, parseFloat(e.target.value) || 0)} className="text-center" placeholder="0.00" />
-                                            </div>
-                                          ))}
-                                        </div>
-                                      ) : (
-                                        <div className="max-w-xs">
-                                          <div className="space-y-2">
-                                            <Label className="text-xs font-medium">Room Amount</Label>
-                                            <Input type="number" min="0" value={getSeasonRate(selectedRoomType, `${season.id}-${rateType.id}`, "roomAmount")} onChange={(e) => updateSeasonRate(selectedRoomType, `${season.id}-${rateType.id}`, "roomAmount", parseFloat(e.target.value) || 0)} className="text-center" placeholder="0.00" />
-                                          </div>
-                                        </div>
-                                      )}
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-
-                    {rateBreakdownGroupBy === "mealType" &&
-                      (() => {
-                        return roomLinkedRateTypes.length === 0 ? (
-                          <div className="border rounded-lg p-8 text-center text-muted-foreground">
-                            <DollarSign className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                            <p>No rate types linked to this room.</p>
-                          </div>
-                        ) : (
-                          roomLinkedRateTypes.map((rateType) => {
-                            const isExpanded = expandedMealTypes[String(rateType.id)] ?? true;
-                            const priceType = rateType.priceType || "Per Unit";
-                            const isPerPerson = priceType.toLowerCase().includes("person");
-                            return (
-                              <div key={rateType.id} className="border rounded-lg overflow-hidden">
-                                <button type="button" onClick={() => toggleMealTypeExpanded(String(rateType.id))} className="w-full flex items-center justify-between p-4 bg-muted/50 hover:bg-muted transition-colors text-left">
-                                  <div className="flex items-center gap-3">
-                                    {isExpanded ? <Minus className="h-4 w-4 text-primary" /> : <Plus className="h-4 w-4 text-primary" />}
-                                    <div className="flex items-center gap-2">
-                                      <h3 className="font-semibold">{rateType.name}</h3>
-                                      <Badge variant="outline" className="text-xs">{priceType}</Badge>
-                                    </div>
-                                  </div>
-                                  <span className="text-sm text-muted-foreground">{seasons.length} season{seasons.length !== 1 ? "s" : ""}</span>
-                                </button>
-                                {isExpanded && (
-                                  <div className="p-4 space-y-4">
-                                    {seasons.map((season) => (
-                                      <div key={season.id} className="border rounded-lg p-4 bg-card">
-                                        <div className="text-sm font-medium text-muted-foreground mb-4">
-                                          {season.name || season.title}
-                                          <span className="ml-2 text-xs">
-                                            ({season.from ? format(new Date(season.from), "dd MMM") : ""} - {season.to ? format(new Date(season.to), "dd MMM") : ""})
-                                          </span>
-                                        </div>
-                                        {isPerPerson ? (
-                                          <div className="grid grid-cols-5 gap-4">
-                                            <div className="space-y-2">
-                                              <Label className="text-xs font-medium text-muted-foreground">Room Amount</Label>
-                                              <Input type="number" min="0" value={getSeasonRate(selectedRoomType, `${season.id}-${rateType.id}`, "roomAmount")} className="text-center bg-muted cursor-not-allowed" placeholder="—" disabled />
-                                            </div>
-                                            {(["adultAmount", "teenAmount", "childAmount", "infantAmount"] as RateField[]).map((field) => (
-                                              <div key={field} className="space-y-2">
-                                                <Label className="text-xs font-medium">{field.replace("Amount", " Amount").replace(/^./, (c) => c.toUpperCase())}</Label>
-                                                <Input type="number" min="0" value={getSeasonRate(selectedRoomType, `${season.id}-${rateType.id}`, field)} onChange={(e) => updateSeasonRate(selectedRoomType, `${season.id}-${rateType.id}`, field, parseFloat(e.target.value) || 0)} className="text-center" placeholder="0.00" />
-                                              </div>
-                                            ))}
-                                          </div>
-                                        ) : (
-                                          <div className="max-w-xs">
-                                            <div className="space-y-2">
-                                              <Label className="text-xs font-medium">Room Amount</Label>
-                                              <Input type="number" min="0" value={getSeasonRate(selectedRoomType, `${season.id}-${rateType.id}`, "roomAmount")} onChange={(e) => updateSeasonRate(selectedRoomType, `${season.id}-${rateType.id}`, "roomAmount", parseFloat(e.target.value) || 0)} className="text-center" placeholder="0.00" />
-                                            </div>
-                                          </div>
-                                        )}
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })
-                        );
-                      })()}
-                  </>
-                );
-              })()
-            )}
-          </TabsContent>
 
           {/* ── Charges Sub-tab ────────────────────────────────────────────── */}
           <TabsContent value="charges" className="p-6 space-y-6">

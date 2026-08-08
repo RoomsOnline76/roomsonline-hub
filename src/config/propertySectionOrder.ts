@@ -44,6 +44,7 @@ export type PropertySectionKey =
   | "rooms" // Rooms overview
   | "images" // Media
   | "rates" // Calendar / Seasons
+  | "rate-plans" // Rate Plans configurator
   | "policies"
   | "charges"
   | "packages"
@@ -96,6 +97,12 @@ export const PROPERTY_SECTION_ORDER: PropertySectionDef[] = [
     key: "rates",
     label: "Calendar / Seasons",
     description: "Season calendar | Season dates",
+    rolosManaged: true,
+  },
+  {
+    key: "rate-plans",
+    label: "Rate Plans",
+    description: "Nightly rates, pricing by season, restrictions, linked units, distribution.",
     rolosManaged: true,
   },
   {
@@ -182,7 +189,7 @@ export const PROPERTY_SECTION_GROUPS = [
   },
   {
     label: "Booking backend",
-    keys: ["rooms", "rates", "policies", "charges", "specials", "packages", "addons"] as PropertySectionKey[],
+    keys: ["rooms", "rates", "rate-plans", "policies", "charges", "specials", "packages", "addons"] as PropertySectionKey[],
   },
   {
     label: "Guest experience",
@@ -209,6 +216,7 @@ export const SECTION_ICON_MAP: Record<string, LucideIcon> = {
   rooms: BedDouble,
   images: ImageIcon,
   rates: Calendar,
+  "rate-plans": DollarSign,
   policies: ShieldCheck,
   charges: Wallet,
 
