@@ -216,7 +216,13 @@ async function calculate(supabase: Client, periodMonth: string): Promise<Preview
 
   const [{ data: reps }, { data: banks }, { data: properties }, { data: payoutLines }, { data: subInvoices }] =
     await Promise.all([
-      supabase.from("sales_reps").select("id, display_name, rep_code, email, commission_tier, is_active").in("id", repIds),
+      supabase
+        .from("sales_reps")
+        .select(
+          "id, display_name, rep_code, email, commission_tier, is_active, entity_type, trading_name, tax_reference_number, vat_registered, vat_number",
+        )
+        .in("id", repIds),
+
       supabase
         .from("sales_rep_bank_details")
         .select("rep_id, bank_name, branch_code, account_holder, account_number_masked, account_type, is_verified")
