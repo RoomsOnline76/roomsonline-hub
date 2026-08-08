@@ -16,8 +16,9 @@ const corsHeaders = {
 };
 
 const SITE_URL = Deno.env.get("SITE_URL") || "https://sleepinafrica.roomsonline.co.za";
+// Must be on our verified sending domain, otherwise Resend rejects the send.
 const FROM_EMAIL =
-  Deno.env.get("BILLING_FROM_EMAIL") || "Rooms Online <billing@notify.sleepinafrica.roomsonline.co.za>";
+  Deno.env.get("BILLING_FROM_EMAIL") || "Rooms Online <billing@notify.roomsonline.co.za>";
 
 const DEFAULT_FREE_PERIOD_DAYS = 60;
 /** The monthly subscription can only be started this many days before it is due. */
@@ -462,7 +463,11 @@ Deno.serve(async (req) => {
       const recipients = [...new Set([ownerEmail, ...staffEmails].filter(Boolean))] as string[];
       if (!recipients.length) return json({ error: "no_recipients" }, 400);
       const res = await resend.emails.send({ from: FROM_EMAIL, to: recipients, subject, html });
-      if (res.error) return json({ error: String(res.error) }, 400);
+      if (res.error) {
+        const msg = (res.error as any)?.message || JSON.stringify(res.error);
+        console.error("[subscription-billing-actions] reminder send failed", msg);
+        return json({ error: `email_send_failed: ${msg}` }, 400);
+      }
       if (openSubscription || openSetup) {
         await supabase
           .from("subscription_invoices")
