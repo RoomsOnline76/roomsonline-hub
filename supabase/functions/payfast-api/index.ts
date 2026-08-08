@@ -637,6 +637,29 @@ Deno.serve(async (req) => {
       
       if (!transaction) {
 
+        // ROL property invoice branch (m_payment_id like "ROLINV-<invoice_id>")
+        if (typeof mPaymentId === "string" && mPaymentId.startsWith("ROLINV-")) {
+          const invoiceId = mPaymentId.slice(7);
+          console.log("[PayFast] ROL property invoice ITN:", invoiceId, "status:", paymentStatus);
+          if (paymentStatus === "COMPLETE") {
+            const { data: rolInv } = await supabase
+              .from("rol_property_invoices")
+              .select("total, amount_paid")
+              .eq("id", invoiceId)
+              .single();
+            if (rolInv) {
+              const paid = Math.round((Number(rolInv.amount_paid || 0) + amountGross) * 100) / 100;
+              await supabase.from("rol_property_invoices").update({
+                amount_paid: paid,
+                status: paid + 0.02 >= Number(rolInv.total) ? "paid" : "issued",
+                paid_at: paid + 0.02 >= Number(rolInv.total) ? new Date().toISOString() : null,
+                payment_reference: pfPaymentId ? `PayFast ${pfPaymentId}` : "PayFast",
+              }).eq("id", invoiceId);
+            }
+          }
+          return new Response("OK", { status: 200, headers: corsHeaders });
+        }
+
         // Check subscription invoice branch (m_payment_id like "SUB-<invoice_id>")
         if (typeof mPaymentId === "string" && mPaymentId.startsWith("SUB-")) {
           const invoiceId = mPaymentId.slice(4);
