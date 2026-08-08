@@ -16,7 +16,7 @@ const BRAND_INK = rgb(0.102, 0.102, 0.180);  // #1A1A2E
 const MUTED = rgb(0.4, 0.4, 0.45);
 const RULE = rgb(0.88, 0.88, 0.90);
 
-const FROM_EMAIL = Deno.env.get("BILLING_FROM_EMAIL") || "Rooms Online <billing@notify.sleepinafrica.roomsonline.co.za>";
+const FROM_EMAIL = Deno.env.get("BILLING_FROM_EMAIL") || "Rooms Online <billing@notify.roomsonline.co.za>";
 
 interface LineItem {
   kind?: string;
@@ -208,6 +208,23 @@ Deno.serve(async (req) => {
       ownerEmail = ownerEmail || linkedOwner?.owner_email || "";
       ownerName = linkedOwner?.owner_name || "";
     }
+    if (!ownerEmail && inv.portfolio_id) {
+      const { data: member } = await supabase
+        .from("property_portfolio_members")
+        .select("property_id")
+        .eq("portfolio_id", inv.portfolio_id)
+        .limit(1)
+        .maybeSingle();
+      if (member?.property_id) {
+        const { data: property } = await supabase
+          .from("properties")
+          .select("owner_email, owner_name")
+          .eq("id", member.property_id)
+          .maybeSingle();
+        ownerEmail = property?.owner_email || "";
+        ownerName = ownerName || property?.owner_name || "";
+      }
+    }
     if (ownerId) {
       const { data: prof } = await supabase.from("profiles").select("email, full_name, first_name, last_name").eq("id", ownerId).single();
       if (prof) {
@@ -269,8 +286,9 @@ Deno.serve(async (req) => {
         html,
         attachments: [{ filename: `${invoiceNumber}.pdf`, content: bytesToBase64(pdfBytes) }],
       });
+      if (send.error) throw new Error(`Invoice email failed: ${(send.error as any)?.message || String(send.error)}`);
       await supabase.from("subscription_invoice_events").insert({
-        invoice_id, event_type: "email", status: send.error ? "error" : "sent", detail: send.error ? String(send.error) : `to:${ownerEmail}`,
+        invoice_id, event_type: "email", status: "sent", detail: `to:${ownerEmail}`,
       });
     } else {
       await supabase.from("subscription_invoice_events").insert({
