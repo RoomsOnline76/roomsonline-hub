@@ -103,6 +103,9 @@ const Bookings = () => {
   const [dateTo, setDateTo] = useState<string>(format(addDays(new Date(), 60), "yyyy-MM-dd"));
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [originFilter, setOriginFilter] = useState<string>("all");
+  const [kindFilter, setKindFilter] = useState<string>("all");
+
   const [syncingBookings, setSyncingBookings] = useState(false);
   const [expandedBookingId, setExpandedBookingId] = useState<string | null>(null);
   const [cancellingBookingId, setCancellingBookingId] = useState<string | null>(null);
