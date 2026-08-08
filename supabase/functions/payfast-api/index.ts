@@ -502,14 +502,9 @@ async function settleSubscriptionInvoice(
 
   if (isOnceOff) {
     // Setup fees do not activate the monthly subscription.
-    await supabase.from(tableName).update({
-      setup_fees_paid_at: new Date().toISOString(),
-      last_invoice_id: invoiceId,
-    }).eq(keyCol, keyVal).then(
-      () => undefined,
-      () => undefined,
-    );
+    await supabase.from(tableName).update({ last_invoice_id: invoiceId }).eq(keyCol, keyVal);
   } else {
+
     const periodStart = new Date(inv.period_start);
     const nextEnd = new Date(periodStart);
     nextEnd.setMonth(nextEnd.getMonth() + 1);
