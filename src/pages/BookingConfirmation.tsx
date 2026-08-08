@@ -161,7 +161,17 @@ const BookingConfirmation = () => {
       room.checkIn && room.checkOut && (room.checkIn !== booking.check_in_date || room.checkOut !== booking.check_out_date)
   );
 
-  const displayRef = externalRef || booking.external_reservation_id || bookingId?.slice(0, 8).toUpperCase();
+  // Standardised ROL reference leads; the channel's own reference is shown beside it.
+  const displayRef =
+    (booking as { rol_reference?: string | null }).rol_reference ||
+    externalRef ||
+    booking.external_reservation_id ||
+    bookingId?.slice(0, 8).toUpperCase();
+  const channelRef =
+    booking.external_reservation_id && booking.external_reservation_id !== displayRef
+      ? booking.external_reservation_id
+      : null;
+
   const isPaid = booking.payment_status === "paid";
   const paymentCancelled = paymentStatus === "cancelled";
 
