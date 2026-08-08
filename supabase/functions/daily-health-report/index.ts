@@ -123,6 +123,55 @@ interface DevTask {
   created_at: string;
 }
 
+interface RuWlActionStat {
+  action: string;
+  total: number;
+  failed: number;
+  success_rate: number;
+  avg_ms: number;
+  last_run: string | null;
+}
+
+interface RuWlMetrics {
+  window_hours: number;
+  total: number;
+  failed: number;
+  success_rate: number;
+  actions: RuWlActionStat[];
+  top_errors: Array<{ code: string; count: number; sample: string }>;
+  reservations_24h: number;
+  reservations_unprocessed: number;
+  last_reservation_at: string | null;
+  ari_last_push_at: string | null;
+  ari_stale_hours: number | null;
+  cert: { status: string; passed: number; total: number; at: string | null } | null;
+  live_properties: number;
+}
+
+const RU_PRIORITY_ACTIONS = [
+  'push_reservation',
+  'pull_reservations',
+  'push_ari',
+  'push_availability',
+  'push_prices',
+  'push_property',
+];
+
+function hoursSince(iso: string | null): number | null {
+  if (!iso) return null;
+  return (Date.now() - new Date(iso).getTime()) / 3600000;
+}
+
+function shortTime(iso: string | null): string | null {
+  if (!iso) return null;
+  return new Date(iso).toLocaleString('en-ZA', {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
 function getTaskStatusColor(status: string): string {
   switch (status) {
     case 'new': return '#6b7280';
