@@ -58,7 +58,7 @@ async function buildPdf(input: {
 
   // Brand
   page.drawText("Rooms Online", { x: MARGIN, y: y - 12, size: 22, font: bold, color: BRAND_INK });
-  page.drawText("Tax Invoice", { x: MARGIN, y: y - 32, size: 11, font, color: MUTED });
+  page.drawText(input.onceOffAmount > 0 ? "Once-off Tax Invoice" : "Subscription Tax Invoice", { x: MARGIN, y: y - 32, size: 11, font, color: MUTED });
 
   // Invoice meta (right)
   const rightX = width - MARGIN - 200;
@@ -67,7 +67,7 @@ async function buildPdf(input: {
   page.drawText(`Issued`, { x: rightX, y: y - 28, size: 9, font, color: MUTED });
   page.drawText(input.issueDate, { x: rightX + 60, y: y - 28, size: 10, font, color: BRAND_INK });
   page.drawText(`Period`, { x: rightX, y: y - 44, size: 9, font, color: MUTED });
-  page.drawText(`${input.periodStart} → ${input.periodEnd}`, { x: rightX + 60, y: y - 44, size: 10, font, color: BRAND_INK });
+  page.drawText(`${input.periodStart} to ${input.periodEnd}`, { x: rightX + 60, y: y - 44, size: 10, font, color: BRAND_INK });
 
   y -= 80;
   page.drawLine({ start: { x: MARGIN, y }, end: { x: width - MARGIN, y }, thickness: 0.5, color: RULE });
@@ -90,7 +90,7 @@ async function buildPdf(input: {
 
   // Monthly subscription line
   if (input.subscriptionAmount > 0) {
-    page.drawText(`Monthly subscription — ${input.entityName}`, { x: MARGIN + 8, y, size: 10, font, color: BRAND_INK });
+    page.drawText(`Monthly subscription - ${input.entityName}`, { x: MARGIN + 8, y, size: 10, font, color: BRAND_INK });
     page.drawText(money(input.subscriptionAmount, input.currency), { x: width - MARGIN - 80, y, size: 10, font, color: BRAND_INK });
     y -= 18;
   }
@@ -130,8 +130,10 @@ async function buildPdf(input: {
 
   // Footer
   page.drawLine({ start: { x: MARGIN, y: MARGIN + 30 }, end: { x: width - MARGIN, y: MARGIN + 30 }, thickness: 0.5, color: RULE });
-  page.drawText("Rooms Online · sleepinafrica.roomsonline.co.za", { x: MARGIN, y: MARGIN + 16, size: 8, font, color: MUTED });
-  page.drawText("Cancel any time from your subscription page — no lock-in.", { x: MARGIN, y: MARGIN + 4, size: 8, font, color: MUTED });
+  page.drawText("Rooms Online - sleepinafrica.roomsonline.co.za", { x: MARGIN, y: MARGIN + 16, size: 8, font, color: MUTED });
+  if (input.subscriptionAmount > 0) {
+    page.drawText("Cancel any time from your subscription page - no lock-in.", { x: MARGIN, y: MARGIN + 4, size: 8, font, color: MUTED });
+  }
 
   return await pdf.save();
 }
