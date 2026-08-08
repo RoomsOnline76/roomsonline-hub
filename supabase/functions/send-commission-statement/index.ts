@@ -192,7 +192,7 @@ Deno.serve(async (req) => {
 
       from: "RoomsOnline <hello@notify.roomsonline.co.za>",
       to: [recipient],
-      subject: `Commission statement — ${period} — ${reference}`,
+      subject: `Commission payout statement — ${period} — ${reference}`,
       html,
     });
     if (emailError) throw emailError;
