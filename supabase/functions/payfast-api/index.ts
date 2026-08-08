@@ -467,6 +467,163 @@ async function findTransactionByRef(supabase: any, ref: string) {
   return legacy || null;
 }
 
+/**
+ * Settle a subscription / setup-fee invoice. Shared by the ITN webhook and the
+ * return-path verification so a lost ITN never leaves a paid invoice pending.
+ */
+/**
+ * Look up a payment in PayFast's transaction history API by our own reference.
+ * Used to confirm a payment when the ITN webhook never arrived. Returns null
+ * when the payment cannot be confirmed (never assume success).
+ */
+async function lookupPayFastTransaction(
+  ref: string,
+  merchantId: string | undefined,
+  passphrase: string | undefined,
+): Promise<{ pf_payment_id: string | null; raw: Record<string, unknown> } | null> {
+  if (!merchantId) return null;
+  const dates: string[] = [];
+  for (let i = 0; i < 3; i++) {
+    const d = new Date(Date.now() - i * 86400000);
+    dates.push(d.toISOString().slice(0, 10));
+  }
+
+  for (const date of dates) {
+    try {
+      const timestamp = new Date().toISOString().replace(/\.\d{3}Z$/, "+02:00");
+      const headerParams: Record<string, string> = {
+        "merchant-id": merchantId,
+        timestamp,
+        version: "v1",
+      };
+      if (passphrase) headerParams["passphrase"] = passphrase;
+      const sigString = Object.keys(headerParams)
+        .sort()
+        .map((k) => `${k}=${encodeURIComponent(headerParams[k]).replace(/%20/g, "+")}`)
+        .join("&");
+      const signature = await md5(sigString);
+
+      const res = await fetch(`https://api.payfast.co.za/transactions/history/daily?date=${date}`, {
+        headers: {
+          "merchant-id": merchantId,
+          version: "v1",
+          timestamp,
+          signature,
+        },
+      });
+      if (!res.ok) {
+        console.error("[PayFast] History lookup failed", date, res.status);
+        continue;
+      }
+      const payload = await res.json().catch(() => null);
+      const rows: any[] = Array.isArray(payload?.data?.response)
+        ? payload.data.response
+        : Array.isArray(payload?.data)
+        ? payload.data
+        : [];
+      for (const row of rows) {
+        const values = Object.values(row ?? {}).map((v) => String(v ?? ""));
+        if (!values.includes(ref)) continue;
+        const pfKey = Object.keys(row).find((k) => /pf/i.test(k) && /payment/i.test(k));
+        return { pf_payment_id: pfKey ? String(row[pfKey]) : null, raw: row };
+      }
+    } catch (e) {
+      console.error("[PayFast] History lookup error", e);
+    }
+  }
+  return null;
+}
+
+async function settleSubscriptionInvoice(
+
+  supabase: any,
+  invoiceId: string,
+  subStatus: "paid" | "failed" | "cancelled",
+  pfPaymentId: string | null,
+  raw: Record<string, unknown> = {},
+) {
+  const { data: inv } = await supabase
+    .from("subscription_invoices")
+    .select("*")
+    .eq("id", invoiceId)
+    .maybeSingle();
+  if (!inv) return false;
+  if (inv.status === "paid") return true;
+
+  await supabase.from("subscription_invoices").update({
+    status: subStatus,
+    payfast_payment_id: pfPaymentId,
+    paid_at: subStatus === "paid" ? new Date().toISOString() : null,
+    metadata: { ...(inv.metadata ?? {}), itn: raw },
+  }).eq("id", invoiceId);
+
+  if (subStatus !== "paid") return true;
+
+  const isOnceOff = String(inv.invoice_kind || "") === "once_off";
+  const tableName = inv.property_id ? "property_billing_configs" : "portfolio_billing_configs";
+  const keyCol = inv.property_id ? "property_id" : "portfolio_id";
+  const keyVal = inv.property_id || inv.portfolio_id;
+
+  if (isOnceOff) {
+    // Setup fees do not activate the monthly subscription.
+    await supabase.from(tableName).update({ last_invoice_id: invoiceId }).eq(keyCol, keyVal);
+  } else {
+
+    const periodStart = new Date(inv.period_start);
+    const nextEnd = new Date(periodStart);
+    nextEnd.setMonth(nextEnd.getMonth() + 1);
+    await supabase.from(tableName).update({
+      subscription_status: "active",
+      current_period_end: nextEnd.toISOString().slice(0, 10),
+      last_invoice_id: invoiceId,
+      cancelled_at: null,
+    }).eq(keyCol, keyVal);
+  }
+
+  await supabase.from("subscription_charge_items")
+    .update({ invoiced_at: new Date().toISOString() })
+    .eq("invoiced_on_invoice_id", invoiceId)
+    .is("invoiced_at", null);
+
+  if (!inv.invoice_number) {
+    const { count } = await supabase
+      .from("subscription_invoices")
+      .select("id", { count: "exact", head: true })
+      .not("invoice_number", "is", null);
+    const year = new Date().getFullYear();
+    const invoiceNumber = `RO-${year}-${String(1000 + (count || 0) + 1).padStart(6, "0")}`;
+    await supabase.from("subscription_invoices").update({ invoice_number: invoiceNumber }).eq("id", invoiceId);
+  }
+
+  await supabase.from("billing_transactions").insert({
+    property_id: inv.property_id,
+    owner_id: inv.owner_id,
+    type: isOnceOff ? "once_off" : "subscription",
+    amount: inv.amount,
+    currency: inv.currency,
+    reference_id: invoiceId,
+    calculated_by: "payfast",
+    metadata: {
+      portfolio_id: inv.portfolio_id,
+      pf_payment_id: pfPaymentId,
+      period_start: inv.period_start,
+      period_end: inv.period_end,
+    },
+  });
+
+  try {
+    await supabase.functions.invoke("generate-subscription-invoice-pdf", { body: { invoice_id: invoiceId } });
+  } catch (e) {
+    console.error("[PayFast] Failed to trigger invoice PDF:", e);
+    await supabase.from("subscription_invoice_events").insert({
+      invoice_id: invoiceId, event_type: "pdf_dispatch", status: "error", detail: String(e),
+    });
+  }
+  return true;
+}
+
+
+
 
 
 // Server-side validation with PayFast
@@ -665,76 +822,9 @@ Deno.serve(async (req) => {
           const invoiceId = mPaymentId.slice(4);
           console.log("[PayFast] Subscription ITN for invoice:", invoiceId, "status:", paymentStatus);
           const subStatus = paymentStatus === "COMPLETE" ? "paid" : paymentStatus === "FAILED" ? "failed" : "cancelled";
-          const { data: inv } = await supabase
-            .from("subscription_invoices")
-            .select("*")
-            .eq("id", invoiceId)
-            .single();
-          if (inv) {
-            await supabase.from("subscription_invoices").update({
-              status: subStatus,
-              payfast_payment_id: pfPaymentId,
-              paid_at: subStatus === "paid" ? new Date().toISOString() : null,
-              metadata: { ...(inv.metadata ?? {}), itn: itnData },
-            }).eq("id", invoiceId);
-
-            if (subStatus === "paid") {
-              const periodStart = new Date(inv.period_start);
-              const nextEnd = new Date(periodStart);
-              nextEnd.setMonth(nextEnd.getMonth() + 1);
-              const nextEndStr = nextEnd.toISOString().slice(0, 10);
-              const tableName = inv.property_id ? "property_billing_configs" : "portfolio_billing_configs";
-              const keyCol = inv.property_id ? "property_id" : "portfolio_id";
-              const keyVal = inv.property_id || inv.portfolio_id;
-              await supabase.from(tableName).update({
-                subscription_status: "active",
-                current_period_end: nextEndStr,
-                last_invoice_id: invoiceId,
-                cancelled_at: null,
-              }).eq(keyCol, keyVal);
-
-              // Mark any charge items invoiced on this invoice as billed
-              await supabase.from("subscription_charge_items")
-                .update({ invoiced_at: new Date().toISOString() })
-                .eq("invoiced_on_invoice_id", invoiceId)
-                .is("invoiced_at", null);
-
-              // Assign human-readable invoice number if missing
-              if (!inv.invoice_number) {
-                const { data: seq } = await supabase.rpc("nextval_subscription_invoice_number").catch(() => ({ data: null } as any));
-                let number = seq;
-                if (!number) {
-                  const { data: s } = await supabase.from("subscription_invoices").select("id").order("created_at", { ascending: false }).limit(1);
-                  number = 1000 + (s?.length || 0);
-                }
-                const year = new Date().getFullYear();
-                const invoiceNumber = `RO-${year}-${String(number).padStart(6, "0")}`;
-                await supabase.from("subscription_invoices").update({ invoice_number: invoiceNumber }).eq("id", invoiceId);
-              }
-
-              await supabase.from("billing_transactions").insert({
-                property_id: inv.property_id,
-                owner_id: inv.owner_id,
-                type: "subscription",
-                amount: inv.amount,
-                currency: inv.currency,
-                reference_id: invoiceId,
-                calculated_by: "payfast_itn",
-                metadata: { portfolio_id: inv.portfolio_id, pf_payment_id: pfPaymentId, period_start: inv.period_start, period_end: inv.period_end },
-              });
-
-              // Fire-and-log: PDF + email
-              try {
-                await supabase.functions.invoke("generate-subscription-invoice-pdf", { body: { invoice_id: invoiceId } });
-              } catch (e) {
-                console.error("[PayFast] Failed to trigger invoice PDF:", e);
-                await supabase.from("subscription_invoice_events").insert({
-                  invoice_id: invoiceId, event_type: "pdf_dispatch", status: "error", detail: String(e),
-                });
-              }
-            }
-          }
+          await settleSubscriptionInvoice(supabase, invoiceId, subStatus, pfPaymentId, itnData);
           return new Response("OK", { status: 200, headers: corsHeaders });
+
         }
         console.error("[PayFast] Transaction not found for m_payment_id:", mPaymentId);
         return new Response("OK", { status: 200, headers: corsHeaders });
@@ -1112,6 +1202,42 @@ Deno.serve(async (req) => {
         invoice_id: inv.id,
       }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
+
+    // VERIFY SUBSCRIPTION / SETUP-FEE PAYMENT — return-path safety net when an
+    // ITN is delayed or never delivered. Confirms against PayFast's transaction
+    // history API before marking the invoice paid.
+    if (action === "verify_subscription_payment") {
+      const token = (body?.token || "").toString();
+      if (!token) {
+        return new Response(JSON.stringify({ success: false, error: "Missing token" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      const { data: inv } = await supabase
+        .from("subscription_invoices")
+        .select("id, status, amount")
+        .eq("payfast_token", token)
+        .maybeSingle();
+      if (!inv) {
+        return new Response(JSON.stringify({ success: false, error: "Invoice not found" }),
+          { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      if (inv.status === "paid") {
+        return new Response(JSON.stringify({ success: true, status: "paid", verified: true }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+
+      const match = await lookupPayFastTransaction(`SUB-${inv.id}`, merchantId, passphrase);
+      if (match) {
+        await settleSubscriptionInvoice(supabase, inv.id, "paid", match.pf_payment_id, match.raw);
+        return new Response(JSON.stringify({ success: true, status: "paid", verified: true }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+
+      return new Response(JSON.stringify({ success: true, status: inv.status, verified: false }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+
 
     // INITIATE ROL PROPERTY INVOICE PAYMENT (commission + platform fees receivable)
     if (action === "initiate_property_invoice_payment") {
