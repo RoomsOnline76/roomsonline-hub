@@ -89,11 +89,17 @@ export function AccountBalanceStrip({
                   {balances.oldestOverdueDays} day{balances.oldestOverdueDays === 1 ? "" : "s"} old
                 </div>
               )}
-              {t.label === "Due to you" && balances.pendingSettlement > 0 && (
-                <div className="mt-1 text-[11px] text-muted-foreground">
-                  incl. {fmtMoney(balances.pendingSettlement, c)} awaiting a payout statement
+              {t.label === "Due to you" && (balances.pendingSettlement > 0 || balances.awaitingRelease > 0) && (
+                <div className="mt-1 space-y-0.5 text-[11px] text-muted-foreground">
+                  {balances.awaitingRelease > 0 && (
+                    <div>incl. {fmtMoney(balances.awaitingRelease, c)} on statements awaiting release</div>
+                  )}
+                  {balances.pendingSettlement > 0 && (
+                    <div>incl. {fmtMoney(balances.pendingSettlement, c)} awaiting a payout statement</div>
+                  )}
                 </div>
               )}
+
 
             </CardContent>
           </Card>
