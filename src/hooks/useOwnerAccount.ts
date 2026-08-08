@@ -162,9 +162,10 @@ export function useOwnerAccount(scope: OwnerScope | null) {
           .limit(200),
         supabase
           .from("bookings")
-          .select("total_amount, check_in_date, status, property_id")
+          .select(
+            "id, total_price, check_in_date, status, payment_status, property_id, calculated_commission, commission_rate_applied, commission_type, integration_type, booking_channel, source_url, created_at",
+          )
           .in("property_id", scope.propertyIds)
-          .in("status", ["confirmed", "completed", "checked_in", "checked_out"])
           .limit(2000),
         supabase
           .from("rolos_rooms")
@@ -175,6 +176,36 @@ export function useOwnerAccount(scope: OwnerScope | null) {
           .select("allow_custom_payment_provider")
           .in("id", scope.propertyIds),
       ]);
+
+      const bookings = ((bookRes.data || []) as unknown as SettlementBooking[]).filter(Boolean);
+      const bookingIds = bookings.map((b) => b.id);
+
+      const [lineRes, txRes] = bookingIds.length
+        ? await Promise.all([
+            (supabase as any)
+              .from("property_payout_statement_lines")
+              .select("booking_id")
+              .in("booking_id", bookingIds)
+              .limit(4000),
+            (supabase as any)
+              .from("payment_transactions")
+              .select("booking_id, credential_source, status")
+              .in("booking_id", bookingIds)
+              .limit(4000),
+          ])
+        : [{ data: [] }, { data: [] }];
+
+      const statementedBookingIds = new Set(
+        ((lineRes?.data || []) as { booking_id: string | null }[])
+          .map((l) => l.booking_id)
+          .filter((id): id is string => !!id),
+      );
+      const byoBookingIds = new Set(
+        ((txRes?.data || []) as { booking_id: string | null; credential_source: string | null }[])
+          .filter((t) => String(t.credential_source || "").toLowerCase() === "byo" && t.booking_id)
+          .map((t) => t.booking_id as string),
+      );
+
 
       const revenueMap = new Map<string, RevenueRow>();
       for (const b of (bookRes.data || []) as unknown as {
