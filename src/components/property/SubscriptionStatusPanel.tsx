@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { CheckCircle2, Clock, AlertTriangle, Copy, ExternalLink, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { ADMIN_DOMAIN } from "@/lib/config";
+import { resolveBillingSchedule } from "@/lib/billingSchedule";
 
 interface Props {
   scope: "property" | "portfolio";
@@ -27,7 +28,7 @@ export function SubscriptionStatusPanel({ scope, entityId }: Props) {
     queryKey: ["subscription-status", scope, entityId],
     queryFn: async () => {
       const { data: cfg } = await (supabase as any).from(table)
-        .select("subscription_status, current_period_end, billing_start_date, last_invoice_id, cancelled_at")
+        .select("subscription_status, current_period_end, billing_start_date, engagement_date, free_period_days, last_invoice_id, cancelled_at")
         .eq(keyCol, entityId).maybeSingle();
       const { data: latest } = await (supabase as any).from("subscription_invoices")
         .select("id, amount, subscription_amount, once_off_amount, line_items, invoice_number, pdf_url, currency, status, period_start, period_end, payfast_token, invoice_kind, created_at, paid_at")
@@ -44,6 +45,7 @@ export function SubscriptionStatusPanel({ scope, entityId }: Props) {
     enabled: !!entityId,
   });
 
+  const schedule = resolveBillingSchedule(data?.cfg as any);
   const status = data?.cfg?.subscription_status || "pending";
   const meta = STATUS_META[status] || STATUS_META.pending;
   const Icon = meta.icon;
@@ -73,8 +75,19 @@ export function SubscriptionStatusPanel({ scope, entityId }: Props) {
       <CardContent className="text-xs space-y-2">
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <div className="text-muted-foreground">Billing start</div>
-            <div className="font-medium">{data?.cfg?.billing_start_date || "—"}</div>
+            <div className="text-muted-foreground">Engagement date</div>
+            <div className="font-medium">{data?.cfg?.engagement_date || data?.cfg?.billing_start_date || "—"}</div>
+          </div>
+          <div>
+            <div className="text-muted-foreground">Paid billing starts</div>
+            <div className="font-medium">
+              {schedule.paidStart || "—"}
+              {schedule.inFreePeriod && (
+                <span className="ml-1 text-[10px] text-muted-foreground">
+                  ({schedule.freeDaysRemaining} free day{schedule.freeDaysRemaining === 1 ? "" : "s"} left)
+                </span>
+              )}
+            </div>
           </div>
           <div>
             <div className="text-muted-foreground">Current period ends</div>
@@ -134,6 +147,10 @@ export function SubscriptionStatusPanel({ scope, entityId }: Props) {
             </div>
           </div>
         )}
+        <p className="text-[10px] text-muted-foreground">
+          Setup fees are invoiced upfront on contract signature and are billed separately from the
+          monthly subscription. Booking commission is invoiced separately again.
+        </p>
         <p className="text-[10px] text-muted-foreground">
           Owners receive an automated email when payment is due. They can pay via PayFast and cancel any time — no lock-in.
         </p>

@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { splitInvoiceMargin } from "@/lib/feeMargin";
 
 export interface RolActualRevenue {
   /** Commission + subscription revenue earned in the current calendar month (ZAR). */
@@ -8,6 +9,12 @@ export interface RolActualRevenue {
   trailingMonthlyAvgZar: number;
   commissionZar: number;
   subscriptionZar: number;
+  /** Upfront setup-fee revenue collected in the trailing window (ZAR). */
+  setupZar: number;
+  /** Portion of platform-fee revenue that only recovers a third-party cost. */
+  passthroughZar: number;
+  /** Commission + platform fees less pass-through recoveries — true ROL margin. */
+  netMarginZar: number;
   /** Number of commission-bearing bookings in the trailing window. */
   bookingCount: number;
 }
@@ -50,7 +57,7 @@ export function useRolActualRevenue() {
           .gte("created_at", windowStart),
         supabase
           .from("subscription_invoices")
-          .select("amount, currency, status, paid_at, created_at")
+          .select("amount, currency, status, paid_at, created_at, invoice_kind, line_items")
           .eq("status", "paid")
           .gte("created_at", windowStart),
       ]);
@@ -60,6 +67,8 @@ export function useRolActualRevenue() {
 
       let commissionZar = 0;
       let subscriptionZar = 0;
+      let setupZar = 0;
+      let passthroughZar = 0;
       let currentMonthZar = 0;
       let bookingCount = 0;
 
@@ -74,18 +83,26 @@ export function useRolActualRevenue() {
       for (const row of subsRes.data ?? []) {
         const amount = Number(row.amount ?? 0);
         if (!Number.isFinite(amount) || amount === 0) continue;
-        subscriptionZar += amount;
+        if ((row as { invoice_kind?: string | null }).invoice_kind === "setup") setupZar += amount;
+        else subscriptionZar += amount;
+        passthroughZar += splitInvoiceMargin(
+          (row as { line_items?: Array<{ kind?: string | null; amount?: number | null }> | null }).line_items,
+          amount,
+        ).passthrough;
         const stamp = row.paid_at ?? row.created_at ?? "";
         if (stamp >= monthStart) currentMonthZar += amount;
       }
 
-      const total = commissionZar + subscriptionZar;
+      const total = commissionZar + subscriptionZar + setupZar;
 
       return {
         currentMonthZar,
         trailingMonthlyAvgZar: total / 3,
         commissionZar,
         subscriptionZar,
+        setupZar,
+        passthroughZar,
+        netMarginZar: total - passthroughZar,
         bookingCount,
       };
     },

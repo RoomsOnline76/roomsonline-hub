@@ -25,7 +25,10 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+import { splitInvoiceMargin } from "../_shared/feeMargin.ts";
+
 type Json = Record<string, unknown>;
+
 // deno-lint-ignore no-explicit-any
 type Client = any;
 
@@ -132,8 +135,14 @@ interface RevenueBreakdown {
   booking_commission: number;
   booking_count: number;
   recovered_commission: number;
+  /** Paid subscription revenue — shown for transparency, never commissionable. */
   subscription_revenue: number;
+  /** Paid upfront setup-fee revenue — shown for transparency, never commissionable. */
+  setup_revenue: number;
+  /** Portion of subscription/setup revenue that only recovers a third-party cost. */
+  passthrough_revenue: number;
 }
+
 
 interface PreviewLine {
   rep_id: string;
@@ -220,7 +229,8 @@ async function calculate(supabase: Client, periodMonth: string): Promise<Preview
         .lte("property_payout_statements.period_end", end),
       supabase
         .from("subscription_invoices")
-        .select("property_id, amount, status, period_start, paid_at")
+        .select("property_id, amount, status, period_start, paid_at, invoice_kind, line_items")
+
         .in("property_id", propertyIds.length ? propertyIds : ["00000000-0000-0000-0000-000000000000"])
         .in("status", PAID_INVOICE_STATUSES)
         .gte("period_start", start)
@@ -239,6 +249,8 @@ async function calculate(supabase: Client, periodMonth: string): Promise<Preview
       booking_count: 0,
       recovered_commission: 0,
       subscription_revenue: 0,
+      setup_revenue: 0,
+      passthrough_revenue: 0,
     };
     revenue.set(propertyId, existing);
     return existing;
@@ -258,11 +270,23 @@ async function calculate(supabase: Client, periodMonth: string): Promise<Preview
     }
   });
 
+  // Subscription & setup revenue is reported for transparency only — rep
+  // commission is earned on booking commission, never on platform fees or
+  // pass-through third-party costs.
   ((subInvoices || []) as Record<string, unknown>[]).forEach((inv) => {
     const propertyId = inv.property_id as string | null;
     if (!propertyId) return;
-    bump(propertyId).subscription_revenue += Number(inv.amount) || 0;
+    const bucket = bump(propertyId);
+    const amount = Number(inv.amount) || 0;
+    const split = splitInvoiceMargin(
+      inv.line_items as Array<{ kind?: string | null; amount?: number | null }> | null,
+      amount,
+    );
+    if (String(inv.invoice_kind) === "setup") bucket.setup_revenue += amount;
+    else bucket.subscription_revenue += amount;
+    bucket.passthrough_revenue += split.passthrough;
   });
+
 
   // Prior reversals, so a clawback is never applied twice
   const { data: priorClawbacks } = await supabase
@@ -347,12 +371,15 @@ async function calculate(supabase: Client, periodMonth: string): Promise<Preview
 
     const rate = isFirstYear ? terms.first_year_rate : terms.residual_rate;
     const breakdown = revenue.get(propertyId);
+    // Commissionable base = booking commission only. Setup fees and monthly
+    // subscriptions are billed and settled separately and are not commissionable.
     const baseRevenue = round2(
-      (breakdown?.booking_commission || 0) +
-        (breakdown?.recovered_commission || 0) +
-        (breakdown?.subscription_revenue || 0),
+      (breakdown?.booking_commission || 0) + (breakdown?.recovered_commission || 0),
     );
-    if (baseRevenue <= 0) continue;
+    const reportedPlatformRevenue = round2(
+      (breakdown?.subscription_revenue || 0) + (breakdown?.setup_revenue || 0),
+    );
+    if (baseRevenue <= 0 && reportedPlatformRevenue <= 0) continue;
 
     statement.lines.push({
       rep_id: rep.id as string,
@@ -371,7 +398,10 @@ async function calculate(supabase: Client, periodMonth: string): Promise<Preview
         booking_count: breakdown?.booking_count || 0,
         recovered_commission: round2(breakdown?.recovered_commission || 0),
         subscription_revenue: round2(breakdown?.subscription_revenue || 0),
+        setup_revenue: round2(breakdown?.setup_revenue || 0),
+        passthrough_revenue: round2(breakdown?.passthrough_revenue || 0),
       },
+
       description: null,
     });
   }

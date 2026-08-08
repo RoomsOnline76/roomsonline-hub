@@ -16,7 +16,41 @@ const corsHeaders = {
 const SITE_URL = Deno.env.get("SITE_URL") || "https://sleepinafrica.roomsonline.co.za";
 const FROM_EMAIL = Deno.env.get("BILLING_FROM_EMAIL") || "Rooms Online <billing@notify.sleepinafrica.roomsonline.co.za>";
 
+const DEFAULT_FREE_PERIOD_DAYS = 60;
+
+function addDays(iso: string, days: number): string {
+  const d = new Date(`${iso.slice(0, 10)}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * The paid subscription clock starts at engagement_date + free_period_days.
+ * Legacy configs without an engagement date keep using billing_start_date.
+ */
+function resolvePaidStart(cfg: any, globalFreeDefault: number): string | null {
+  const freeDays = cfg?.free_period_days ?? globalFreeDefault;
+  if (cfg?.engagement_date) return addDays(String(cfg.engagement_date), Number(freeDays) || 0);
+  return cfg?.billing_start_date ? String(cfg.billing_start_date).slice(0, 10) : null;
+}
+
+/** Setup fees are invoiced upfront on contract signature — never bundled monthly. */
+function isSetupCharge(kind: string | null | undefined): boolean {
+  return !!kind && /setup/i.test(kind);
+}
+
+async function getGlobalFreePeriodDefault(supabase: any, strategy: string): Promise<number> {
+  const { data } = await supabase
+    .from("billing_global_defaults")
+    .select("free_period_days_default")
+    .eq("strategy", strategy || "default")
+    .maybeSingle();
+  const v = Number(data?.free_period_days_default);
+  return Number.isFinite(v) && v >= 0 ? v : DEFAULT_FREE_PERIOD_DAYS;
+}
+
 type Tier = { min_rooms: number; max_rooms: number | null; monthly_fee: number };
+
 
 function resolveMonthlyFeeFromTiers(tiers: Tier[] | null | undefined, rooms: number): number {
   if (!tiers || tiers.length === 0) return 0;
@@ -110,23 +144,37 @@ async function sendReminder(resend: Resend, to: string, subject: string, html: s
 async function ensureInvoiceAndEmail(supabase: any, resend: Resend, opts: {
   cfg: any; scope: "property" | "portfolio"; entityId: string; entityName: string;
   ownerId: string | null; ownerEmail: string | null; isRenewal: boolean;
+  globalFreeDefault: number;
 }) {
-  const { cfg, scope, entityId, entityName, ownerId, ownerEmail, isRenewal } = opts;
+  const { cfg, scope, entityId, entityName, ownerId, ownerEmail, isRenewal, globalFreeDefault } = opts;
   const today = new Date();
-  const periodStart = isRenewal && cfg.current_period_end ? new Date(cfg.current_period_end) : today;
-  const periodEnd = new Date(periodStart);
-  periodEnd.setMonth(periodEnd.getMonth() + 1);
-  const psStr = periodStart.toISOString().slice(0, 10);
-  const peStr = periodEnd.toISOString().slice(0, 10);
+  const todayStr = today.toISOString().slice(0, 10);
 
   // Hard gate: never invoice unless billing has been explicitly switched on.
   if (cfg.billing_enabled !== true) {
     console.log(`[cron] Skip ${scope} ${entityId}: billing_enabled is off`);
     return { skipped: true, reason: "billing_disabled" };
   }
-  if (!cfg.billing_start_date) {
-    return { skipped: true, reason: "no_billing_start_date" };
+
+  const paidStart = resolvePaidStart(cfg, globalFreeDefault);
+  if (!paidStart) {
+    return { skipped: true, reason: "no_engagement_or_billing_start_date" };
   }
+  // Free period: the clock runs but nothing is invoiced until it lapses.
+  if (!isRenewal && todayStr < paidStart) {
+    return { skipped: true, reason: "in_free_period", free_period_ends: paidStart };
+  }
+
+  // The first paid period starts the day the free period ends, so the anniversary
+  // day stays aligned with the engagement date.
+  const periodStart = isRenewal && cfg.current_period_end
+    ? new Date(`${String(cfg.current_period_end).slice(0, 10)}T00:00:00Z`)
+    : new Date(`${paidStart}T00:00:00Z`);
+  const periodEnd = new Date(periodStart);
+  periodEnd.setUTCMonth(periodEnd.getUTCMonth() + 1);
+  const psStr = periodStart.toISOString().slice(0, 10);
+  const peStr = periodEnd.toISOString().slice(0, 10);
+
 
   const entityCol = scope === "property" ? "property_id" : "portfolio_id";
 
@@ -155,14 +203,18 @@ async function ensureInvoiceAndEmail(supabase: any, resend: Resend, opts: {
   if (!invoice) {
     const subscriptionAmount = await computeSubscriptionAmount(supabase, cfg, scope, entityId);
 
-    // Pull pending once-off charges for this entity
+    // Pull pending once-off charges for this entity. Setup fees are excluded —
+    // those are raised as a standalone upfront invoice on contract signature.
     const chargeCol = entityCol;
-    const { data: pendingCharges } = await supabase
+    const { data: allPending } = await supabase
       .from("subscription_charge_items")
       .select("id, kind, description, amount, currency")
       .eq(chargeCol, entityId)
-      .is("invoiced_at", null);
-    const onceOffAmount = (pendingCharges ?? []).reduce((s: number, c: any) => s + (Number(c.amount) || 0), 0);
+      .is("invoiced_at", null)
+      .is("invoiced_on_invoice_id", null);
+    const pendingCharges = (allPending ?? []).filter((c: any) => !isSetupCharge(c.kind));
+    const onceOffAmount = pendingCharges.reduce((s: number, c: any) => s + (Number(c.amount) || 0), 0);
+
     const total = subscriptionAmount + onceOffAmount;
 
     if (!total || total <= 0) {
@@ -248,12 +300,20 @@ Deno.serve(async (req) => {
   const in5Str = in5Days.toISOString().slice(0, 10);
 
   const results: any[] = [];
+  const freeDefaultCache = new Map<string, number>();
+  const freeDefaultFor = async (strategy: string) => {
+    const key = strategy || "default";
+    if (!freeDefaultCache.has(key)) {
+      freeDefaultCache.set(key, await getGlobalFreePeriodDefault(supabase, key));
+    }
+    return freeDefaultCache.get(key)!;
+  };
 
-  // 1) Activation reminders — property scope
+  // 1) Activation reminders — property scope. The date gate lives in
+  //    ensureInvoiceAndEmail so engagement-date + free-period configs qualify too.
   const { data: propStart } = await supabase
     .from("property_billing_configs")
     .select("*, properties!inner(id, name, owner_id, owner_email, is_active)")
-    .lte("billing_start_date", todayStr)
     .eq("billing_enabled", true)
     .eq("subscription_status", "pending")
     .eq("properties.is_active", true);
@@ -262,6 +322,7 @@ Deno.serve(async (req) => {
     const r = await ensureInvoiceAndEmail(supabase, resend, {
       cfg, scope: "property", entityId: p.id, entityName: p.name,
       ownerId: p.owner_id, ownerEmail: p.owner_email, isRenewal: false,
+      globalFreeDefault: await freeDefaultFor(cfg.billing_strategy),
     });
     results.push({ property_id: p.id, ...r });
   }
@@ -270,7 +331,6 @@ Deno.serve(async (req) => {
   const { data: portStart } = await supabase
     .from("portfolio_billing_configs")
     .select("*, property_portfolios!inner(id, name, owner_id)")
-    .lte("billing_start_date", todayStr)
     .eq("billing_enabled", true)
     .eq("subscription_status", "pending");
   for (const cfg of portStart ?? []) {
@@ -283,9 +343,11 @@ Deno.serve(async (req) => {
     const r = await ensureInvoiceAndEmail(supabase, resend, {
       cfg, scope: "portfolio", entityId: pf.id, entityName: pf.name,
       ownerId: pf.owner_id, ownerEmail, isRenewal: false,
+      globalFreeDefault: await freeDefaultFor(cfg.billing_strategy),
     });
     results.push({ portfolio_id: pf.id, ...r });
   }
+
 
   // 3) Renewals — property (within 5 days of current_period_end)
   const { data: propRenew } = await supabase
@@ -299,6 +361,8 @@ Deno.serve(async (req) => {
     const r = await ensureInvoiceAndEmail(supabase, resend, {
       cfg, scope: "property", entityId: p.id, entityName: p.name,
       ownerId: p.owner_id, ownerEmail: p.owner_email, isRenewal: true,
+      globalFreeDefault: await freeDefaultFor(cfg.billing_strategy),
+
     });
     results.push({ property_id: p.id, renewal: true, ...r });
   }
@@ -320,6 +384,8 @@ Deno.serve(async (req) => {
     const r = await ensureInvoiceAndEmail(supabase, resend, {
       cfg, scope: "portfolio", entityId: pf.id, entityName: pf.name,
       ownerId: pf.owner_id, ownerEmail, isRenewal: true,
+      globalFreeDefault: await freeDefaultFor(cfg.billing_strategy),
+
     });
     results.push({ portfolio_id: pf.id, renewal: true, ...r });
   }

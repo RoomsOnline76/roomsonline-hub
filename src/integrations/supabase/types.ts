@@ -339,6 +339,8 @@ export type Database = {
           default_subscription_fee: number | null
           default_transaction_fee: number | null
           enterprise_custom_fee: number | null
+          fee_margin_map_json: Json
+          free_period_days_default: number
           id: string
           invoice_due_days: number
           invoice_footer_note: string | null
@@ -384,6 +386,8 @@ export type Database = {
           default_subscription_fee?: number | null
           default_transaction_fee?: number | null
           enterprise_custom_fee?: number | null
+          fee_margin_map_json?: Json
+          free_period_days_default?: number
           id?: string
           invoice_due_days?: number
           invoice_footer_note?: string | null
@@ -429,6 +433,8 @@ export type Database = {
           default_subscription_fee?: number | null
           default_transaction_fee?: number | null
           enterprise_custom_fee?: number | null
+          fee_margin_map_json?: Json
+          free_period_days_default?: number
           id?: string
           invoice_due_days?: number
           invoice_footer_note?: string | null
@@ -4115,6 +4121,7 @@ export type Database = {
       }
       portfolio_billing_configs: {
         Row: {
+          billing_anchor_day: number | null
           billing_enabled: boolean
           billing_start_date: string | null
           billing_strategy: Database["public"]["Enums"]["billing_strategy"]
@@ -4132,7 +4139,9 @@ export type Database = {
           current_period_end: string | null
           custom_domain_error: string | null
           custom_overrides: Json | null
+          engagement_date: string | null
           enterprise_custom_fee: number | null
+          free_period_days: number | null
           id: string
           last_invoice_id: string | null
           linked_contract_id: string | null
@@ -4161,6 +4170,7 @@ export type Database = {
           widget_flat_commission_rate: number | null
         }
         Insert: {
+          billing_anchor_day?: number | null
           billing_enabled?: boolean
           billing_start_date?: string | null
           billing_strategy?: Database["public"]["Enums"]["billing_strategy"]
@@ -4178,7 +4188,9 @@ export type Database = {
           current_period_end?: string | null
           custom_domain_error?: string | null
           custom_overrides?: Json | null
+          engagement_date?: string | null
           enterprise_custom_fee?: number | null
+          free_period_days?: number | null
           id?: string
           last_invoice_id?: string | null
           linked_contract_id?: string | null
@@ -4207,6 +4219,7 @@ export type Database = {
           widget_flat_commission_rate?: number | null
         }
         Update: {
+          billing_anchor_day?: number | null
           billing_enabled?: boolean
           billing_start_date?: string | null
           billing_strategy?: Database["public"]["Enums"]["billing_strategy"]
@@ -4224,7 +4237,9 @@ export type Database = {
           current_period_end?: string | null
           custom_domain_error?: string | null
           custom_overrides?: Json | null
+          engagement_date?: string | null
           enterprise_custom_fee?: number | null
+          free_period_days?: number | null
           id?: string
           last_invoice_id?: string | null
           linked_contract_id?: string | null
@@ -5293,6 +5308,7 @@ export type Database = {
       }
       property_billing_configs: {
         Row: {
+          billing_anchor_day: number | null
           billing_enabled: boolean
           billing_start_date: string | null
           billing_strategy: Database["public"]["Enums"]["billing_strategy"]
@@ -5310,7 +5326,9 @@ export type Database = {
           current_period_end: string | null
           custom_domain_error: string | null
           custom_overrides: Json | null
+          engagement_date: string | null
           enterprise_custom_fee: number | null
+          free_period_days: number | null
           id: string
           last_invoice_id: string | null
           linked_contract_id: string | null
@@ -5341,6 +5359,7 @@ export type Database = {
           widget_flat_commission_rate: number | null
         }
         Insert: {
+          billing_anchor_day?: number | null
           billing_enabled?: boolean
           billing_start_date?: string | null
           billing_strategy?: Database["public"]["Enums"]["billing_strategy"]
@@ -5358,7 +5377,9 @@ export type Database = {
           current_period_end?: string | null
           custom_domain_error?: string | null
           custom_overrides?: Json | null
+          engagement_date?: string | null
           enterprise_custom_fee?: number | null
+          free_period_days?: number | null
           id?: string
           last_invoice_id?: string | null
           linked_contract_id?: string | null
@@ -5389,6 +5410,7 @@ export type Database = {
           widget_flat_commission_rate?: number | null
         }
         Update: {
+          billing_anchor_day?: number | null
           billing_enabled?: boolean
           billing_start_date?: string | null
           billing_strategy?: Database["public"]["Enums"]["billing_strategy"]
@@ -5406,7 +5428,9 @@ export type Database = {
           current_period_end?: string | null
           custom_domain_error?: string | null
           custom_overrides?: Json | null
+          engagement_date?: string | null
           enterprise_custom_fee?: number | null
+          free_period_days?: number | null
           id?: string
           last_invoice_id?: string | null
           linked_contract_id?: string | null

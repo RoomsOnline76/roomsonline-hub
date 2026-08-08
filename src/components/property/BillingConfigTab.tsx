@@ -17,6 +17,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { normalizeTiers, PricingTier } from "@/lib/billingTierResolver";
+import { resolveBillingSchedule, DEFAULT_FREE_PERIOD_DAYS } from "@/lib/billingSchedule";
+
 import {
   BillingConfigBuilder,
   BillingConfigValue,
@@ -185,6 +187,8 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
   const [strategy, setStrategy] = useState<string>("default");
   const [builder, setBuilder] = useState<BillingConfigValue>(emptyBuilderValue());
   const [billingStartDate, setBillingStartDate] = useState("");
+  const [engagementDate, setEngagementDate] = useState("");
+  const [freePeriodDays, setFreePeriodDays] = useState("");
   const [billingEnabled, setBillingEnabled] = useState(false);
   const [presetJustApplied, setPresetJustApplied] = useState<string | null>(null);
 
@@ -193,9 +197,23 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
       setStrategy(config.billing_strategy || "default");
       setBuilder(configToBuilder(config));
       setBillingStartDate(config.billing_start_date || "");
+      const c = config as unknown as { engagement_date?: string | null; free_period_days?: number | null };
+      setEngagementDate(c.engagement_date || "");
+      setFreePeriodDays(c.free_period_days != null ? String(c.free_period_days) : "");
       setBillingEnabled(!!(config as unknown as { billing_enabled?: boolean }).billing_enabled);
     }
   }, [config]);
+
+  const schedulePreview = useMemo(
+    () =>
+      resolveBillingSchedule({
+        engagement_date: engagementDate || null,
+        billing_start_date: billingStartDate || null,
+        free_period_days: freePeriodDays === "" ? null : Number(freePeriodDays),
+      }),
+    [engagementDate, billingStartDate, freePeriodDays],
+  );
+
 
   const selectedPreset = useMemo(() => getDefaultsForStrategy(strategy), [strategy, defaults]);
   const placeholders = useMemo(() => {
@@ -264,6 +282,10 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
       pricelabs_setup_fee: isRolosPms && v.pricelabs_enabled ? toNum(v.pricelabs_setup_fee) : null,
       tier_pricing_json: v.volume_tiers_enabled ? (v.tier_pricing_json as any) : null,
       billing_start_date: startDate || null,
+      engagement_date: engagementDate || null,
+      free_period_days: freePeriodDays === "" ? null : Number(freePeriodDays),
+      billing_anchor_day: engagementDate ? Number(schedulePreview.paidStart?.slice(8, 10)) || null : null,
+
       billing_enabled: enabled,
     } as any);
   };
@@ -472,16 +494,48 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
             {summarizeBuilderValue(builder)}
           </div>
 
-          {/* Billing start date */}
-          <div className="space-y-2">
-            <Label>Billing start date</Label>
-            <Input
-              type="date"
-              value={billingStartDate}
-              onChange={(e) => setBillingStartDate(e.target.value)}
-              className="text-xs"
-            />
+          {/* Engagement date + free period → drives the monthly subscription clock */}
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="space-y-2">
+              <Label>Engagement date</Label>
+              <Input
+                type="date"
+                value={engagementDate}
+                onChange={(e) => setEngagementDate(e.target.value)}
+                className="text-xs"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Free period (days)</Label>
+              <Input
+                type="number"
+                min={0}
+                value={freePeriodDays}
+                placeholder={String(DEFAULT_FREE_PERIOD_DAYS)}
+                onChange={(e) => setFreePeriodDays(e.target.value)}
+                className="text-xs"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Billing start date</Label>
+              <Input
+                type="date"
+                value={billingStartDate}
+                onChange={(e) => setBillingStartDate(e.target.value)}
+                className="text-xs"
+              />
+            </div>
           </div>
+          <p className="text-[11px] text-muted-foreground">
+            {schedulePreview.paidStart
+              ? `Monthly subscription billing starts ${schedulePreview.paidStart}${
+                  schedulePreview.inFreePeriod
+                    ? ` — ${schedulePreview.freeDaysRemaining} free day(s) remaining`
+                    : ""
+                }. Setup fees are invoiced upfront on contract signature and are never bundled into a monthly invoice.`
+              : "Capture an engagement date — the free period runs from it and monthly billing starts the day it ends. Setup fees are invoiced upfront on contract signature."}
+          </p>
+
 
           {/* Billing activation switch (admin only) */}
           {isAdmin && (

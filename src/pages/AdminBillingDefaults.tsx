@@ -12,6 +12,8 @@ import { Loader2, Save, DollarSign, ArrowLeft, Plus, Trash2, Layers, Sparkles, U
 import { useBillingDefaults, BillingDefault, presetLabel } from "@/hooks/useBillingDefaults";
 import { useAuth } from "@/hooks/useAuth";
 import { normalizeTiers, PricingTier } from "@/lib/billingTierResolver";
+import { DEFAULT_FEE_MARGIN_MAP, FEE_MARGIN_LABELS, type FeeMargin } from "@/lib/feeMargin";
+import { DEFAULT_FREE_PERIOD_DAYS } from "@/lib/billingSchedule";
 import { MonthlyAnnualSetup, MonthlyAnnualSetupValue } from "@/components/admin/billing/MonthlyAnnualSetup";
 import { TierCriteriaEditor, RepTierCriteria, DEFAULT_TIER_CRITERIA } from "@/components/admin/billing/TierCriteriaEditor";
 import {
@@ -362,6 +364,12 @@ function AddOnsPanel({ row, onSave, saving }: { row: BillingDefault | undefined;
   const [aggMonthly, setAggMonthly] = useState(toStr((row as any).portfolio_aggregator_monthly_default ?? null));
   const [aggSetup, setAggSetup] = useState(toStr((row as any).portfolio_aggregator_setup_default ?? null));
 
+  const [freeDays, setFreeDays] = useState(toStr((row as any).free_period_days_default ?? null));
+  const [marginMap, setMarginMap] = useState<Record<string, FeeMargin>>({
+    ...DEFAULT_FEE_MARGIN_MAP,
+    ...(((row as any).fee_margin_map_json as Record<string, FeeMargin> | null) || {}),
+  });
+
   const handleSave = () => {
     onSave({
       id: row.id,
@@ -375,8 +383,11 @@ function AddOnsPanel({ row, onSave, saving }: { row: BillingDefault | undefined;
       portfolio_aggregator_billing_mode: aggMode,
       portfolio_aggregator_monthly_default: aggMode === "monthly" ? toNum(aggMonthly) : null,
       portfolio_aggregator_setup_default: aggMode === "once_off" ? toNum(aggSetup) : null,
+      free_period_days_default: freeDays === "" ? DEFAULT_FREE_PERIOD_DAYS : toNum(freeDays),
+      fee_margin_map_json: marginMap,
     } as any);
   };
+
 
   return (
     <div className="space-y-4">
@@ -453,6 +464,49 @@ function AddOnsPanel({ row, onSave, saving }: { row: BillingDefault | undefined;
           <div className="space-y-1">
             <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Once-off default (ZAR)</Label>
             <Input type="number" min="0" step="50" value={aggSetup} onChange={(e) => setAggSetup(e.target.value)} placeholder="0" disabled={aggMode !== "once_off"} className="h-8 text-sm" />
+          </div>
+        </div>
+      </div>
+      <div className="rounded-md border p-3 space-y-3">
+        <div>
+          <Label className="text-sm font-medium">Subscription lifecycle &amp; fee treatment</Label>
+          <p className="text-[11px] text-muted-foreground">
+            Monthly billing starts at a property&apos;s engagement date plus the free period below.
+            Setup fees are invoiced upfront on contract signature, never bundled into a monthly invoice.
+          </p>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-1">
+            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Free period (days)</Label>
+            <Input
+              type="number"
+              min="0"
+              step="1"
+              value={freeDays}
+              onChange={(e) => setFreeDays(e.target.value)}
+              placeholder={String(DEFAULT_FREE_PERIOD_DAYS)}
+              className="h-8 text-sm"
+            />
+          </div>
+        </div>
+        <div className="space-y-1">
+          <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">
+            Fee classification — pass-through fees never earn rep commission
+          </Label>
+          <div className="grid gap-1 sm:grid-cols-2">
+            {Object.keys({ ...DEFAULT_FEE_MARGIN_MAP, ...marginMap }).sort().map((kind) => (
+              <div key={kind} className="flex items-center justify-between gap-2 rounded border px-2 py-1">
+                <span className="text-[11px] font-mono">{kind}</span>
+                <select
+                  value={marginMap[kind] || "margin"}
+                  onChange={(e) => setMarginMap({ ...marginMap, [kind]: e.target.value as FeeMargin })}
+                  className="h-7 text-[11px] rounded-md border border-input bg-background px-1"
+                >
+                  <option value="margin">{FEE_MARGIN_LABELS.margin}</option>
+                  <option value="passthrough">{FEE_MARGIN_LABELS.passthrough}</option>
+                </select>
+              </div>
+            ))}
           </div>
         </div>
       </div>
