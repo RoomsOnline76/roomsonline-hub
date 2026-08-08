@@ -196,7 +196,7 @@ export default function AdminPayments() {
 
   return (
     <AppLayout>
-      <PageHeader title="Payments" subtitle="Property payouts, transactions, and commission management" />
+      <PageHeader title="Payments" subtitle="Property payout statements, ROL charges invoices, and commission management" />
 
       <div className="grid gap-4 md:grid-cols-3 xl:grid-cols-6 xl:gap-6 mb-8">
         <StatCard title="Due to Properties" value={`R${Math.round(payoutStats.totalDue).toLocaleString()}`} icon={Building2} description={`${payoutStats.propertiesCount} properties`} variant="warning" />
