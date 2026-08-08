@@ -129,7 +129,7 @@ Deno.serve(async (req) => {
     const { data: txRows, error: txError } = await supabase
       .from("payment_transactions")
       .select(
-        `id, amount, status, created_at, credential_source,
+        `id, amount, status, created_at, credential_source, gateway_response,
          bookings!inner(${BOOKING_FIELDS}, properties!bookings_property_id_fkey!inner(id, name, owner_email))`,
       )
       .in("status", SETTLED_TX_STATUSES)
@@ -139,6 +139,16 @@ Deno.serve(async (req) => {
 
     const entries: BookingEntry[] = [];
     const seenBookings = new Set<string>();
+
+    // PayFast (and most gateways) report the fee they charged on the ITN payload.
+    const reportedFee = (raw: unknown): number | null => {
+      if (!raw || typeof raw !== "object") return null;
+      const r = raw as Record<string, unknown>;
+      const candidate = r.amount_fee ?? r.fee ?? r.fee_amount;
+      if (candidate == null || candidate === "") return null;
+      const value = Math.abs(num(candidate));
+      return value > 0 ? round2(value) : 0;
+    };
 
     (txRows || []).forEach((tx: Record<string, any>) => {
       const booking = tx.bookings;
@@ -153,9 +163,11 @@ Deno.serve(async (req) => {
         txId: tx.id,
         settlement: String(tx.credential_source ?? "").toLowerCase() === "byo" ? "byo" : "rol",
         txDate: tx.created_at,
+        gatewayFee: reportedFee(tx.gateway_response),
       });
       seenBookings.add(booking.id);
     });
+
 
     // Bookings flagged paid on the record with no gateway transaction
     const { data: paidBookings } = await supabase
