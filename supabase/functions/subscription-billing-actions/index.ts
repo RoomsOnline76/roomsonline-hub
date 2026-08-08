@@ -394,37 +394,9 @@ Deno.serve(async (req) => {
     }
 
     if (action === "raise_setup_invoice") {
-      if (openSetup) return json({ success: true, invoice_id: openSetup.id, pay_url: payUrl(openSetup.payfast_token) });
-      if (setupTotal <= 0) return json({ error: "no_setup_fees_due" }, 400);
-      const insert: any = {
-        amount: setupTotal,
-        currency,
-        subscription_amount: 0,
-        once_off_amount: setupTotal,
-        line_items: setupCharges.map((c) => ({
-          kind: c.kind,
-          description: c.description,
-          amount: c.amount,
-          charge_item_id: c.itemIds[0] ?? null,
-        })),
-        period_start: today(),
-        period_end: today(),
-        status: "pending",
-        invoice_kind: "once_off",
-        owner_id: ownerId,
-      };
-      insert[entityCol] = entityId;
-      const { data: created, error } = await supabase
-        .from("subscription_invoices")
-        .insert(insert)
-        .select("id, payfast_token")
-        .single();
-      if (error) return json({ error: error.message }, 400);
-      await supabase
-        .from("subscription_charge_items")
-        .update({ invoiced_on_invoice_id: created.id })
-        .in("id", setupCharges.flatMap((c) => c.itemIds));
-      return json({ success: true, invoice_id: created.id, pay_url: payUrl(created.payfast_token) });
+      const inv = await ensureSetupInvoice();
+      if (!inv) return json({ error: "no_setup_fees_due" }, 400);
+      return json({ success: true, invoice_id: inv.id, pay_url: payUrl(inv.payfast_token) });
     }
 
     if (action === "start_subscription") {
