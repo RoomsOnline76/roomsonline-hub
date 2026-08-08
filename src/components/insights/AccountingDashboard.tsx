@@ -13,6 +13,7 @@ import { Plus, TrendingUp, Receipt, Repeat, Users } from "lucide-react";
 import { CostSharingPanel } from "./CostSharingPanel";
 
 import { AddMetricModal } from "./AddMetricModal";
+import { RevenueStreamsPanel } from "./RevenueStreamsPanel";
 import { useRolActualRevenue } from "@/hooks/useRolActualRevenue";
 import {
   computeRunway,
@@ -126,6 +127,8 @@ export function AccountingDashboard({ dateRange }: AccountingDashboardProps) {
         cashBalance={cashBalanceZar}
         isLoading={invoicesLoading || metricsLoading || revenueLoading}
       />
+
+      <RevenueStreamsPanel revenue={revenue} />
 
       <Tabs defaultValue="invoices" className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
