@@ -207,10 +207,9 @@ export function PayoutStatementDetailDialog({
                   charges and commission on own-gateway bookings are invoiced separately.
                 </p>
               </div>
-
-
               <div className="rounded-md border p-4 space-y-2">
-                <h3 className="text-sm font-semibold tracking-wide mb-2">D · NET PAYABLE</h3>
+                <h3 className="text-sm font-semibold tracking-wide mb-2">C · NET PAYABLE</h3>
+
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Amount held by ROL</span>
                   <span>{money(detail.amount_held)}</span>
