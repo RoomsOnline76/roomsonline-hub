@@ -118,6 +118,7 @@ export interface OwnerAccountData {
   byoGateway: boolean;
   /** ROL-held booking funds not yet covered by a payout statement. */
   pendingSettlement: PendingSettlement;
+  vat: VatSettings;
 }
 
 const EMPTY_PENDING: PendingSettlement = { amount: 0, gross: 0, commission: 0, bookings: 0 };
@@ -131,6 +132,7 @@ const EMPTY: OwnerAccountData = {
   unitCount: 0,
   byoGateway: false,
   pendingSettlement: EMPTY_PENDING,
+  vat: DEFAULT_VAT_SETTINGS,
 };
 
 
