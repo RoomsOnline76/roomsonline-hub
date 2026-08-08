@@ -73,7 +73,7 @@ export function AppSidebar() {
   });
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
   const [profileModalOpen, setProfileModalOpen] = useState(false);
-  const [hasRolProperties, setHasRolProperties] = useState(false);
+  const { hasRolProperties, canAccessItem, canAccessSection } = useNavVisibility();
 
   // Live "needs action" counters for approval/admin queues.
   const { counts: actionCounts, details: actionDetails } = useAdminActionCounts({ isAdmin, isDev, isFearlessLeader });
@@ -82,39 +82,8 @@ export function AppSidebar() {
     localStorage.setItem("sidebar-collapsed", JSON.stringify(collapsed));
   }, [collapsed]);
 
-  useEffect(() => {
-    const checkRolProperties = async () => {
-      if (!user) return;
-      if (isDev || isAdmin) {
-        setHasRolProperties(true);
-        return;
-      }
-      const { count } = await supabase
-        .from("properties")
-        .select("id", { count: "exact", head: true })
-        .eq("is_rol_property", true);
-      setHasRolProperties((count || 0) > 0);
-    };
-    checkRolProperties();
-  }, [user, isDev, isAdmin]);
-
-
-
-
   const isActive = (href: string) => location.pathname === href;
 
-  const canAccessItem = (item: NavItem) => {
-    // ROL'OS owners manage bookings inside the ROL'OS shell (/pms/bookings),
-    // so the workspace Bookings entry is hidden from the admin menu for them.
-    if (item.id === 'bookings' && hasRolProperties && !isAdmin && !isDev) return false;
-    return hasMinRole(userRole as UserRole, item.minRole);
-  };
-
-  const canAccessSection = (section: NavSection) => {
-    // PMS section has special visibility logic
-    if (section.id === 'pms' && !hasRolProperties) return false;
-    return hasMinRole(userRole as UserRole, section.minRole);
-  };
 
   const toggleSection = (sectionId: string) => {
     setCollapsedSections(prev => ({ ...prev, [sectionId]: !prev[sectionId] }));
