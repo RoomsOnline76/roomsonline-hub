@@ -665,6 +665,113 @@ Deno.serve(async (req) => {
       }));
     }
 
+    // ---- Channel Manager (Rentals United white-label) metrics, last 24h ----
+    let ruWl: RuWlMetrics | null = null;
+    try {
+      const [{ data: syncRuns }, { data: ruNotifs }, { data: certRuns }, { data: ruOwners }] = await Promise.all([
+        supabase
+          .from('ru_sync_runs')
+          .select('action, success, error_code, error_message, elapsed_ms, created_at')
+          .gte('created_at', twentyFourHoursAgo.toISOString())
+          .order('created_at', { ascending: false })
+          .limit(5000),
+        supabase
+          .from('ru_notifications')
+          .select('processed, created_at')
+          .gte('created_at', twentyFourHoursAgo.toISOString())
+          .order('created_at', { ascending: false })
+          .limit(2000),
+        supabase
+          .from('ru_cert_runs')
+          .select('status, passed, total, finished_at, created_at')
+          .order('created_at', { ascending: false })
+          .limit(1),
+        supabase.from('ru_owner_accounts').select('id', { count: 'exact', head: true }),
+      ]);
+
+      const runs = syncRuns || [];
+      const byAction = new Map<string, typeof runs>();
+      for (const r of runs) {
+        const key = r.action || 'unknown';
+        if (!byAction.has(key)) byAction.set(key, []);
+        byAction.get(key)!.push(r);
+      }
+
+      const actions: RuWlActionStat[] = [...byAction.entries()]
+        .map(([action, list]) => {
+          const failed = list.filter(r => r.success === false).length;
+          const latencies = list.filter(r => r.elapsed_ms).map(r => r.elapsed_ms as number);
+          return {
+            action,
+            total: list.length,
+            failed,
+            success_rate: list.length > 0 ? ((list.length - failed) / list.length) * 100 : 100,
+            avg_ms: latencies.length > 0 ? Math.round(latencies.reduce((a, b) => a + b, 0) / latencies.length) : 0,
+            last_run: shortTime(list[0]?.created_at ?? null),
+          };
+        })
+        .sort((a, b) => {
+          // Priority first (business-critical flows), then failures, then volume
+          const pa = RU_PRIORITY_ACTIONS.indexOf(a.action);
+          const pb = RU_PRIORITY_ACTIONS.indexOf(b.action);
+          const ra = pa === -1 ? 99 : pa;
+          const rb = pb === -1 ? 99 : pb;
+          if (ra !== rb) return ra - rb;
+          if (b.failed !== a.failed) return b.failed - a.failed;
+          return b.total - a.total;
+        })
+        .slice(0, 8);
+
+      const errorCounts = new Map<string, { count: number; sample: string }>();
+      for (const r of runs.filter(x => x.success === false)) {
+        const code = r.error_code || 'UNKNOWN';
+        const entry = errorCounts.get(code) || { count: 0, sample: r.error_message || 'No message' };
+        entry.count += 1;
+        errorCounts.set(code, entry);
+      }
+      const topErrors = [...errorCounts.entries()]
+        .map(([code, v]) => ({ code, count: v.count, sample: (v.sample || '').slice(0, 140) }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 4);
+
+      const totalRuns = runs.length;
+      const failedRuns = runs.filter(r => r.success === false).length;
+      const ariRuns = runs.filter(r => (r.action || '').includes('ari') || (r.action || '').includes('availab') || (r.action || '').includes('price'));
+      const lastAri = ariRuns[0]?.created_at ?? null;
+      const cert = certRuns?.[0]
+        ? {
+            status: certRuns[0].status as string,
+            passed: (certRuns[0].passed as number) ?? 0,
+            total: (certRuns[0].total as number) ?? 0,
+            at: shortTime((certRuns[0].finished_at as string) || (certRuns[0].created_at as string)),
+          }
+        : null;
+
+      ruWl = {
+        window_hours: 24,
+        total: totalRuns,
+        failed: failedRuns,
+        success_rate: totalRuns > 0 ? ((totalRuns - failedRuns) / totalRuns) * 100 : 100,
+        actions,
+        top_errors: topErrors,
+        reservations_24h: (ruNotifs || []).length,
+        reservations_unprocessed: (ruNotifs || []).filter(n => n.processed === false).length,
+        last_reservation_at: shortTime((ruNotifs || [])[0]?.created_at ?? null),
+        ari_last_push_at: shortTime(lastAri),
+        ari_stale_hours: hoursSince(lastAri),
+        cert,
+        live_properties: (ruOwners as unknown as { length?: number })?.length ?? 0,
+      };
+
+      // count() head request returns count on the response, not data
+      const { count: ownerCount } = await supabase
+        .from('ru_owner_accounts')
+        .select('id', { count: 'exact', head: true });
+      ruWl.live_properties = ownerCount ?? 0;
+    } catch (ruError) {
+      console.error('[Daily Health Report] Channel metrics error:', ruError);
+    }
+
     const aiDigest = await generateAIDigest(
       overallStatus,
       overallUptime,
@@ -690,8 +797,8 @@ Deno.serve(async (req) => {
       inactiveComponentsList,
       formatTime(nextCheckTime),
       aiDigest,
-      devTasks
-    );
+      devTasks,
+      ruWl
 
     // Determine subject line
     let subject: string;
