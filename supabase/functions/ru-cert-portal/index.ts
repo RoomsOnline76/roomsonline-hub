@@ -405,7 +405,14 @@ const RU_ENDPOINT_REGISTRY: {
   /** Extra RU method names a certification step may have recorded for this endpoint. */
   cert_methods?: string[];
   max_age_hours?: number;
+  /**
+   * Endpoint RU cannot answer for this sandbox/white-label account (reachable, but no
+   * usable response). Still exercised on cadence, but a failure is reported as
+   * "blocked upstream" and excluded from the compliance denominators.
+   */
+  informational?: boolean;
   note: string;
+
 
 }[] = [
   // ── account ──
