@@ -1,15 +1,31 @@
+import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, ArrowUpRight, CreditCard } from "lucide-react";
+import { AlertTriangle, ArrowUpRight, CreditCard, Lock } from "lucide-react";
 import { ADMIN_DOMAIN } from "@/lib/config";
-import { fmtMoney, type OwnerBalances, type OwnerRolInvoice, type OwnerSubscriptionInvoice } from "@/lib/ownerAccount";
+import { useAuth } from "@/hooks/useAuth";
+import { BillingSetupDialog } from "@/components/account/BillingSetupDialog";
+import {
+  fmtMoney,
+  type OwnerBalances,
+  type OwnerBillingConfig,
+  type OwnerRolInvoice,
+  type OwnerSubscriptionInvoice,
+} from "@/lib/ownerAccount";
 
 interface Props {
   balances: OwnerBalances;
   subscriptionInvoices: OwnerSubscriptionInvoice[];
   rolInvoices: OwnerRolInvoice[];
+  /** Billing config in scope — powers the read-only owner view. */
+  config?: OwnerBillingConfig | null;
+  unitCount?: number;
+  byoGateway?: boolean;
+  /** Property to open in the admin billing config (first property of a portfolio). */
+  billingPropertyId?: string | null;
 }
+
 
 /** Resolve the oldest open document and the production settlement link for it. */
 function oldestPayLink(subs: OwnerSubscriptionInvoice[], rol: OwnerRolInvoice[]): string | null {
@@ -27,9 +43,21 @@ function oldestPayLink(subs: OwnerSubscriptionInvoice[], rol: OwnerRolInvoice[])
   return candidates[0]?.url ?? null;
 }
 
-export function AccountBalanceStrip({ balances, subscriptionInvoices, rolInvoices }: Props) {
+export function AccountBalanceStrip({
+  balances,
+  subscriptionInvoices,
+  rolInvoices,
+  config = null,
+  unitCount = 0,
+  byoGateway = false,
+  billingPropertyId = null,
+}: Props) {
   const payUrl = oldestPayLink(subscriptionInvoices, rolInvoices);
   const c = balances.currency;
+  const { isAdmin, isDev, isFearlessLeader } = useAuth();
+  const canEditBilling = isAdmin || isDev || isFearlessLeader;
+  const [setupOpen, setSetupOpen] = useState(false);
+
 
   const tiles = [
     { label: "Due", value: balances.due, tone: balances.due > 0 ? "warning" : "muted" },
@@ -79,16 +107,36 @@ export function AccountBalanceStrip({ balances, subscriptionInvoices, rolInvoice
             Nothing due
           </Badge>
         )}
-        <Button asChild variant="outline" size="sm">
-          <a href={`${ADMIN_DOMAIN}/admin/account`} target="_blank" rel="noreferrer">
+        {canEditBilling && billingPropertyId ? (
+          <Button asChild variant="outline" size="sm">
+            <a
+              href={`${ADMIN_DOMAIN}/admin/properties/${billingPropertyId}?tab=admin&sub=billing`}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Billing portal
+              <ArrowUpRight className="ml-1 h-3.5 w-3.5" />
+            </a>
+          </Button>
+        ) : (
+          <Button variant="outline" size="sm" onClick={() => setSetupOpen(true)}>
+            <Lock className="mr-1.5 h-3.5 w-3.5" />
             Billing portal
-            <ArrowUpRight className="ml-1 h-3.5 w-3.5" />
-          </a>
-        </Button>
+          </Button>
+        )}
         <span className="text-xs text-muted-foreground">
           Net position {fmtMoney(balances.net, c)} — positive means due to ROL
         </span>
       </div>
+
+      <BillingSetupDialog
+        open={setupOpen}
+        onOpenChange={setSetupOpen}
+        config={config}
+        unitCount={unitCount}
+        byoGateway={byoGateway}
+        currency={c}
+      />
     </div>
   );
 }
