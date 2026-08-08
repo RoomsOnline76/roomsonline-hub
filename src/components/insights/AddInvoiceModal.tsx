@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -22,12 +22,22 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
+import {
+  convertToZar,
+  formatZar,
+  normaliseCurrency,
+  DEFAULT_FX,
+  type BillCurrency,
+  type FxRates,
+} from "@/lib/burnRate";
 
 interface Invoice {
   id: string;
   description: string;
   cost_usd: number;
   cost_zar: number | null;
+  cost_eur?: number | null;
+  source_currency?: string | null;
   billing_type: string;
   category: string | null;
   vendor: string | null;
@@ -41,6 +51,8 @@ interface AddInvoiceModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   editingInvoice: Invoice | null;
+  /** Exchange rates from the latest financial snapshot. */
+  fxRates?: FxRates;
 }
 
 const CATEGORIES = [
@@ -54,39 +66,55 @@ const CATEGORIES = [
 ];
 
 const BILLING_TYPES = [
-  { value: "monthly", label: "Monthly" },
-  { value: "annual", label: "Annual" },
-  { value: "quarterly", label: "Quarterly" },
+  { value: "monthly", label: "Monthly (recurring)" },
+  { value: "quarterly", label: "Quarterly (recurring)" },
+  { value: "annual", label: "Annual (recurring)" },
   { value: "once_off", label: "Once-off" },
 ];
+
+const CURRENCIES: { value: BillCurrency; label: string }[] = [
+  { value: "ZAR", label: "ZAR — Rand" },
+  { value: "EUR", label: "EUR — Euro" },
+  { value: "USD", label: "USD — Dollar" },
+];
+
+const emptyForm = {
+  description: "",
+  currency: "ZAR" as BillCurrency,
+  amount: "",
+  billing_type: "monthly",
+  category: "other",
+  vendor: "",
+  invoice_date: new Date().toISOString().split("T")[0],
+  due_date: "",
+  is_paid: false,
+  notes: "",
+};
 
 export function AddInvoiceModal({
   open,
   onOpenChange,
   editingInvoice,
+  fxRates = DEFAULT_FX,
 }: AddInvoiceModalProps) {
-  const [formData, setFormData] = useState({
-    description: "",
-    cost_usd: "",
-    cost_zar: "",
-    billing_type: "monthly",
-    category: "other",
-    vendor: "",
-    invoice_date: new Date().toISOString().split("T")[0],
-    due_date: "",
-    is_paid: false,
-    notes: "",
-  });
+  const [formData, setFormData] = useState(emptyForm);
 
   const queryClient = useQueryClient();
   const isEditing = !!editingInvoice;
 
   useEffect(() => {
     if (editingInvoice) {
+      const currency = normaliseCurrency(editingInvoice.source_currency);
+      const own =
+        currency === "EUR"
+          ? editingInvoice.cost_eur
+          : currency === "USD"
+            ? editingInvoice.cost_usd
+            : editingInvoice.cost_zar;
       setFormData({
         description: editingInvoice.description,
-        cost_usd: String(editingInvoice.cost_usd),
-        cost_zar: editingInvoice.cost_zar ? String(editingInvoice.cost_zar) : "",
+        currency,
+        amount: own !== null && own !== undefined ? String(own) : "",
         billing_type: editingInvoice.billing_type,
         category: editingInvoice.category || "other",
         vendor: editingInvoice.vendor || "",
@@ -96,32 +124,39 @@ export function AddInvoiceModal({
         notes: editingInvoice.notes || "",
       });
     } else {
-      setFormData({
-        description: "",
-        cost_usd: "",
-        cost_zar: "",
-        billing_type: "monthly",
-        category: "other",
-        vendor: "",
-        invoice_date: new Date().toISOString().split("T")[0],
-        due_date: "",
-        is_paid: false,
-        notes: "",
-      });
+      setFormData({ ...emptyForm, invoice_date: new Date().toISOString().split("T")[0] });
     }
   }, [editingInvoice, open]);
+
+  const parsedAmount = parseFloat(formData.amount);
+  const zarEquivalent = useMemo(() => {
+    if (!Number.isFinite(parsedAmount)) return null;
+    return convertToZar(parsedAmount, formData.currency, fxRates);
+  }, [parsedAmount, formData.currency, fxRates]);
+
+  const rateLabel =
+    formData.currency === "EUR"
+      ? `1 EUR = R${(fxRates.eurZar || DEFAULT_FX.eurZar).toFixed(2)}`
+      : formData.currency === "USD"
+        ? `1 USD = R${(fxRates.usdZar || DEFAULT_FX.usdZar).toFixed(2)}`
+        : null;
 
   const mutation = useMutation({
     mutationFn: async (data: typeof formData) => {
       const { data: userData } = await supabase.auth.getUser();
 
-      const parsedUsd = parseFloat(data.cost_usd);
-      const parsedZar = parseFloat(data.cost_zar);
+      const amount = parseFloat(data.amount);
+      const zar = convertToZar(amount, data.currency, fxRates);
 
       const payload = {
         description: data.description,
-        cost_usd: isNaN(parsedUsd) ? 0 : parsedUsd,
-        cost_zar: data.cost_zar && !isNaN(parsedZar) ? parsedZar : null,
+        source_currency: data.currency,
+        cost_zar: Math.round(zar * 100) / 100,
+        cost_usd:
+          data.currency === "USD"
+            ? amount
+            : Math.round((zar / (fxRates.usdZar || DEFAULT_FX.usdZar)) * 100) / 100,
+        cost_eur: data.currency === "EUR" ? amount : null,
         billing_type: data.billing_type,
         category: data.category,
         vendor: data.vendor || null,
@@ -159,8 +194,8 @@ export function AddInvoiceModal({
       toast.error("Description is required");
       return;
     }
-    if (!formData.cost_zar || isNaN(parseFloat(formData.cost_zar))) {
-      toast.error("Valid ZAR amount is required");
+    if (!formData.amount || !Number.isFinite(parseFloat(formData.amount))) {
+      toast.error(`Valid ${formData.currency} amount is required`);
       return;
     }
     mutation.mutate(formData);
@@ -170,9 +205,7 @@ export function AddInvoiceModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>
-            {isEditing ? "Edit Invoice" : "Add Invoice"}
-          </DialogTitle>
+          <DialogTitle>{isEditing ? "Edit Invoice" : "Add Invoice"}</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -191,33 +224,54 @@ export function AddInvoiceModal({
 
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
-                <Label htmlFor="cost_zar">Amount (ZAR) *</Label>
-                <Input
-                  id="cost_zar"
-                  type="number"
-                  step="0.01"
-                  value={formData.cost_zar}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, cost_zar: e.target.value }))
+                <Label htmlFor="currency">Bill Currency</Label>
+                <Select
+                  value={formData.currency}
+                  onValueChange={(value) =>
+                    setFormData((prev) => ({ ...prev, currency: value as BillCurrency }))
                   }
-                  placeholder="0.00"
-                />
+                >
+                  <SelectTrigger id="currency">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CURRENCIES.map((currency) => (
+                      <SelectItem key={currency.value} value={currency.value}>
+                        {currency.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="cost_usd" className="text-muted-foreground">Amount (USD)</Label>
+                <Label htmlFor="amount">Amount ({formData.currency}) *</Label>
                 <Input
-                  id="cost_usd"
+                  id="amount"
                   type="number"
                   step="0.01"
-                  value={formData.cost_usd}
+                  value={formData.amount}
                   onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, cost_usd: e.target.value }))
+                    setFormData((prev) => ({ ...prev, amount: e.target.value }))
                   }
                   placeholder="0.00"
-                  className="border-muted"
                 />
               </div>
             </div>
+
+            {formData.currency !== "ZAR" && (
+              <p className="text-xs text-muted-foreground">
+                {rateLabel}
+                {zarEquivalent !== null && (
+                  <>
+                    {" · "}
+                    <span className="font-medium text-foreground">
+                      {formatZar(zarEquivalent)}
+                    </span>{" "}
+                    will be recorded in Rand
+                  </>
+                )}
+              </p>
+            )}
 
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
@@ -228,7 +282,7 @@ export function AddInvoiceModal({
                     setFormData((prev) => ({ ...prev, billing_type: value }))
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="billing_type">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -248,7 +302,7 @@ export function AddInvoiceModal({
                     setFormData((prev) => ({ ...prev, category: value }))
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="category">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -261,6 +315,14 @@ export function AddInvoiceModal({
                 </Select>
               </div>
             </div>
+
+            {formData.billing_type !== "once_off" && (
+              <p className="rounded-md bg-muted p-2 text-xs text-muted-foreground">
+                Recurring bill: this commitment counts once towards monthly burn.
+                Loading later invoices for the same vendor and description updates the
+                price rather than adding to the burn.
+              </p>
+            )}
 
             <div className="grid gap-2">
               <Label htmlFor="vendor">Vendor</Label>
