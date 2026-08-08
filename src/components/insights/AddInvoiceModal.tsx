@@ -135,7 +135,12 @@ export function AddInvoiceModal({
         due_date: editingInvoice.due_date || "",
         is_paid: editingInvoice.is_paid,
         notes: editingInvoice.notes || "",
+        document_path: editingInvoice.document_path ?? null,
+        document_name: editingInvoice.document_name ?? null,
+        document_size: editingInvoice.document_size ?? null,
+        document_type: editingInvoice.document_type ?? null,
       });
+
     } else {
       setFormData({ ...emptyForm, invoice_date: new Date().toISOString().split("T")[0] });
     }
