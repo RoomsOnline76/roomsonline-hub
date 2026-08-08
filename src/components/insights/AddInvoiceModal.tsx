@@ -30,6 +30,12 @@ import {
   type BillCurrency,
   type FxRates,
 } from "@/lib/burnRate";
+import {
+  InvoiceDocumentField,
+  emptyInvoiceDocument,
+  type InvoiceDocument,
+} from "./InvoiceDocumentField";
+
 
 interface Invoice {
   id: string;
@@ -45,7 +51,12 @@ interface Invoice {
   due_date: string | null;
   is_paid: boolean;
   notes: string | null;
+  document_path?: string | null;
+  document_name?: string | null;
+  document_size?: number | null;
+  document_type?: string | null;
 }
+
 
 interface AddInvoiceModalProps {
   open: boolean;
@@ -89,7 +100,9 @@ const emptyForm = {
   due_date: "",
   is_paid: false,
   notes: "",
+  ...emptyInvoiceDocument,
 };
+
 
 export function AddInvoiceModal({
   open,
@@ -122,7 +135,12 @@ export function AddInvoiceModal({
         due_date: editingInvoice.due_date || "",
         is_paid: editingInvoice.is_paid,
         notes: editingInvoice.notes || "",
+        document_path: editingInvoice.document_path ?? null,
+        document_name: editingInvoice.document_name ?? null,
+        document_size: editingInvoice.document_size ?? null,
+        document_type: editingInvoice.document_type ?? null,
       });
+
     } else {
       setFormData({ ...emptyForm, invoice_date: new Date().toISOString().split("T")[0] });
     }
@@ -164,8 +182,13 @@ export function AddInvoiceModal({
         due_date: data.due_date || null,
         is_paid: data.is_paid,
         notes: data.notes || null,
+        document_path: data.document_path,
+        document_name: data.document_name,
+        document_size: data.document_size,
+        document_type: data.document_type,
         created_by: userData.user?.id,
       };
+
 
       if (isEditing && editingInvoice) {
         const { error } = await supabase
@@ -373,6 +396,20 @@ export function AddInvoiceModal({
                 rows={2}
               />
             </div>
+
+            <InvoiceDocumentField
+              value={{
+                document_path: formData.document_path,
+                document_name: formData.document_name,
+                document_size: formData.document_size,
+                document_type: formData.document_type,
+              }}
+              onChange={(doc: InvoiceDocument) =>
+                setFormData((prev) => ({ ...prev, ...doc }))
+              }
+            />
+
+
 
             <div className="flex items-center justify-between">
               <Label htmlFor="is_paid">Paid</Label>

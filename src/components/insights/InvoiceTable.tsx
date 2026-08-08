@@ -25,11 +25,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { FileText, MoreHorizontal, Paperclip, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
 import { normaliseCurrency } from "@/lib/burnRate";
+import { INVOICE_BUCKET, openInvoiceDocument } from "./InvoiceDocumentField";
 
 interface Invoice {
   id: string;
@@ -43,7 +44,10 @@ interface Invoice {
   vendor: string | null;
   invoice_date: string;
   is_paid: boolean;
+  document_path?: string | null;
+  document_name?: string | null;
 }
+
 
 interface InvoiceTableProps {
   invoices: Invoice[];
@@ -78,10 +82,14 @@ export function InvoiceTable({ invoices, isLoading, onEdit }: InvoiceTableProps)
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("invoices").delete().eq("id", id);
+    mutationFn: async (invoice: Invoice) => {
+      const { error } = await supabase.from("invoices").delete().eq("id", invoice.id);
       if (error) throw error;
+      if (invoice.document_path) {
+        await supabase.storage.from(INVOICE_BUCKET).remove([invoice.document_path]);
+      }
     },
+
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
       toast.success("Invoice deleted");
@@ -170,16 +178,18 @@ export function InvoiceTable({ invoices, isLoading, onEdit }: InvoiceTableProps)
               <TableHead className="text-right text-muted-foreground">EUR</TableHead>
               <TableHead className="text-right text-muted-foreground">USD</TableHead>
               <TableHead>Date</TableHead>
+              <TableHead className="w-10 text-center">Doc</TableHead>
               <TableHead className="w-10"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filteredInvoices.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={11} className="text-center text-muted-foreground py-8">
                   No invoices found
                 </TableCell>
               </TableRow>
+
             ) : (
               filteredInvoices.map((invoice) => {
                 const currency = normaliseCurrency(invoice.source_currency);
@@ -223,7 +233,31 @@ export function InvoiceTable({ invoices, isLoading, onEdit }: InvoiceTableProps)
                     <TableCell className="text-muted-foreground">
                       {format(new Date(invoice.invoice_date), "MMM d, yyyy")}
                     </TableCell>
+                    <TableCell className="text-center">
+                      {invoice.document_path ? (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          title={invoice.document_name || "Open invoice document"}
+                          onClick={() => void openInvoiceDocument(invoice.document_path!)}
+                        >
+                          <FileText className="h-4 w-4 text-primary" />
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground"
+                          title="Attach invoice document"
+                          onClick={() => onEdit(invoice)}
+                        >
+                          <Paperclip className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </TableCell>
                     <TableCell>
+
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -236,7 +270,7 @@ export function InvoiceTable({ invoices, isLoading, onEdit }: InvoiceTableProps)
                             Edit
                           </DropdownMenuItem>
                           <DropdownMenuItem
-                            onClick={() => deleteMutation.mutate(invoice.id)}
+                            onClick={() => deleteMutation.mutate(invoice)}
                             className="text-destructive"
                           >
                             <Trash2 className="h-4 w-4 mr-2" />
