@@ -95,6 +95,7 @@ export function ChannelCostSummary({ data }: Props) {
         <Stat
           label="ROL revenue (default)"
           value={rolRevenueZar != null ? formatZar(rolRevenueZar) : "Not configured"}
+          danger={rolRevenueZar != null && costZar != null && rolRevenueZar < costZar}
           hint={
             rolPerListingZar != null
               ? `${formatZar(rolPerListingZar)} × ${billableListings} listings / mo`
