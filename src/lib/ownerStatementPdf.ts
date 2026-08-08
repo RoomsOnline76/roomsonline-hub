@@ -152,9 +152,7 @@ export function buildOwnerStatementPdf(opts: OwnerStatementOptions): jsPDF {
     headStyles: { fillColor: IVORY, textColor: INK, fontStyle: "bold" },
     alternateRowStyles: { fillColor: [252, 252, 254] },
     columnStyles: {
-      0: { cellWidth: 62 },
-      1: { cellWidth: 76 },
-      2: { cellWidth: 86 },
+      0: { cellWidth: 58 },
       4: { halign: "right" },
       5: { halign: "right" },
     },
