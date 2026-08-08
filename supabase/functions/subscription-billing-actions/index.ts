@@ -473,6 +473,142 @@ Deno.serve(async (req) => {
       return json({ success: true, invoice_id: created.id, pay_url: payUrl(created.payfast_token) });
     }
 
+    // ---- Subscription lifecycle -------------------------------------------
+    // Cancelling never stops service immediately. The account keeps running to
+    // the last day already paid for (current_period_end), after which the daily
+    // cron suspends it pending reactivation.
+    if (action === "cancel_subscription") {
+      const status = String(cfg.subscription_status || "pending");
+      if (!["active", "past_due"].includes(status))
+        return json({ error: "subscription_not_active" }, 400);
+      if (cfg.cancel_at_period_end)
+        return json({ success: true, already_scheduled: true, cancel_effective_date: cfg.cancel_effective_date });
+
+      const paidThrough = cfg.current_period_end ? String(cfg.current_period_end).slice(0, 10) : today();
+      const nowIso = new Date().toISOString();
+      const { error } = await supabase
+        .from(cfgTable)
+        .update({
+          cancel_at_period_end: true,
+          cancel_effective_date: paidThrough,
+          cancelled_at: nowIso,
+          subscription_status: "cancelling",
+        })
+        .eq(entityCol, entityId);
+      if (error) return json({ error: error.message }, 400);
+
+      // Notify the owner (and staff) that the account will be suspended.
+      try {
+        const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
+        const { data: staffRoles } = await supabase
+          .from("user_roles")
+          .select("user_id")
+          .in("role", ["admin", "fearless_leader", "dev"]);
+        const staffIds = [...new Set((staffRoles ?? []).map((r: any) => r.user_id))];
+        const { data: staffProfiles } = staffIds.length
+          ? await supabase.from("profiles").select("email").in("id", staffIds)
+          : { data: [] as any[] };
+        const recipients = [
+          ...(ownerEmail ? [ownerEmail] : []),
+          ...(staffProfiles ?? []).map((p: any) => p.email).filter(Boolean),
+        ];
+        if (recipients.length) {
+          await resend.emails.send({
+            from: FROM_EMAIL,
+            to: recipients,
+            subject: `Subscription cancellation scheduled - ${entityName}`,
+            html: `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><title>Subscription cancellation</title></head><body style="font-family:Arial,sans-serif;background:#fff;padding:24px;color:#1A1A2E">
+              <div style="max-width:560px;margin:0 auto;border:1px solid #eee;border-radius:8px;padding:24px">
+                <h2 style="color:#E91E8C;margin-top:0">Subscription cancellation scheduled</h2>
+                <p>The monthly subscription for <strong>${entityName}</strong> has been scheduled for cancellation.</p>
+                <p>Your service continues in full until <strong>${paidThrough}</strong> &mdash; the last day already paid for. After that date the account is <strong>suspended pending reactivation</strong>: access and functionality are restricted, although your data is retained.</p>
+                <p>You can keep the subscription running at any time before ${paidThrough}, or reactivate later, from your ROL Account.</p>
+                <p style="text-align:center;margin:20px 0"><a href="${SITE_URL}/admin/account" style="background:#E91E8C;color:#fff;text-decoration:none;padding:12px 22px;border-radius:6px;display:inline-block;font-weight:600">Open ROL Account</a></p>
+              </div></body></html>`,
+          });
+        }
+      } catch (mailErr) {
+        console.error("[cancel_subscription] email failed", mailErr);
+      }
+
+      return json({ success: true, cancel_effective_date: paidThrough });
+    }
+
+    // Undo a scheduled cancellation while the paid period is still running.
+    if (action === "resume_subscription") {
+      if (!cfg.cancel_at_period_end) return json({ success: true, already_active: true });
+      if (cfg.suspended_at) return json({ error: "already_suspended" }, 400);
+      const { error } = await supabase
+        .from(cfgTable)
+        .update({
+          cancel_at_period_end: false,
+          cancel_effective_date: null,
+          cancelled_at: null,
+          subscription_status: "active",
+        })
+        .eq(entityCol, entityId);
+      if (error) return json({ error: error.message }, 400);
+      return json({ success: true });
+    }
+
+    // Lift a suspension: clears the cancellation and raises a fresh monthly invoice.
+    if (action === "reactivate_subscription") {
+      if (fee <= 0) return json({ error: "zero_subscription_amount" }, 400);
+      const periodStart = today();
+      const periodEnd = addMonth(periodStart);
+      let invoice = openSubscription;
+      if (!invoice) {
+        const insert: any = {
+          amount: fee,
+          currency,
+          subscription_amount: fee,
+          once_off_amount: 0,
+          line_items: [
+            { kind: "monthly_subscription", description: `Monthly subscription (${periodStart} - ${periodEnd})`, amount: fee },
+          ],
+          period_start: periodStart,
+          period_end: periodEnd,
+          status: "pending",
+          invoice_kind: "activation",
+          owner_id: ownerId,
+        };
+        insert[entityCol] = entityId;
+        const { data: created, error } = await supabase
+          .from("subscription_invoices")
+          .insert(insert)
+          .select("id, payfast_token")
+          .single();
+        if (error) return json({ error: error.message }, 400);
+        invoice = created as any;
+      }
+      const { error: cfgError } = await supabase
+        .from(cfgTable)
+        .update({
+          cancel_at_period_end: false,
+          cancel_effective_date: null,
+          cancelled_at: null,
+          suspended_at: null,
+          billing_enabled: true,
+          subscription_status: "pending",
+        })
+        .eq(entityCol, entityId);
+      if (cfgError) return json({ error: cfgError.message }, 400);
+      return json({ success: true, invoice_id: invoice!.id, pay_url: payUrl((invoice as any).payfast_token) });
+    }
+
+    // Staff-only: suspend right now (used by the daily cron once the paid period lapses).
+    if (action === "suspend_now") {
+      if (!isStaff) return json({ error: "forbidden" }, 403);
+      const { error } = await supabase
+        .from(cfgTable)
+        .update({ subscription_status: "suspended", suspended_at: new Date().toISOString() })
+        .eq(entityCol, entityId);
+      if (error) return json({ error: error.message }, 400);
+      return json({ success: true });
+    }
+
+
+
     if (action === "send_due_reminder") {
       const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
       // Staff copies: admin / fearless leader / dev
