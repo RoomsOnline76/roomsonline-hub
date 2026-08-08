@@ -237,7 +237,7 @@ export function SystemOverviewTab() {
         .slice(0, 8);
 
       const apiCalls24h = (apiLogs || []).length;
-      const apiErrors24h = (apiLogs || []).filter((r: any) => (r.status_code ?? 200) >= 400).length;
+      const apiErrors24h = (apiLogs || []).filter((r: any) => (r.status_code ?? 200) >= 500).length;
 
       // ── Sync pipelines (real, from sync_logs) ──────────────────────────────
       const pipelineMap = new Map<string, { runs: number; failures: number; last: string | null; lastStatus: string }>();
