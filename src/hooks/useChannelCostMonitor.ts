@@ -264,6 +264,10 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
       setProperties(priced);
       setEvents((eventsRes.data || []) as ArchiveEventRow[]);
       setFx(fxRate);
+      const defaultsRows = (defaultsRes?.data || []) as Array<{ channel_manager_per_unit_fee: number | null }>;
+      const perUnit = defaultsRows.find((r) => (r.channel_manager_per_unit_fee ?? 0) > 0)?.channel_manager_per_unit_fee;
+      setRolPerListingZar(perUnit != null ? Number(perUnit) : null);
+
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load channel cost data");
     } finally {
