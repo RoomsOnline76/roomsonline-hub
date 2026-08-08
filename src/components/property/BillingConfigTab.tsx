@@ -472,16 +472,48 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
             {summarizeBuilderValue(builder)}
           </div>
 
-          {/* Billing start date */}
-          <div className="space-y-2">
-            <Label>Billing start date</Label>
-            <Input
-              type="date"
-              value={billingStartDate}
-              onChange={(e) => setBillingStartDate(e.target.value)}
-              className="text-xs"
-            />
+          {/* Engagement date + free period → drives the monthly subscription clock */}
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="space-y-2">
+              <Label>Engagement date</Label>
+              <Input
+                type="date"
+                value={engagementDate}
+                onChange={(e) => setEngagementDate(e.target.value)}
+                className="text-xs"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Free period (days)</Label>
+              <Input
+                type="number"
+                min={0}
+                value={freePeriodDays}
+                placeholder={String(DEFAULT_FREE_PERIOD_DAYS)}
+                onChange={(e) => setFreePeriodDays(e.target.value)}
+                className="text-xs"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Billing start date</Label>
+              <Input
+                type="date"
+                value={billingStartDate}
+                onChange={(e) => setBillingStartDate(e.target.value)}
+                className="text-xs"
+              />
+            </div>
           </div>
+          <p className="text-[11px] text-muted-foreground">
+            {schedulePreview.paidStart
+              ? `Monthly subscription billing starts ${schedulePreview.paidStart}${
+                  schedulePreview.inFreePeriod
+                    ? ` — ${schedulePreview.freeDaysRemaining} free day(s) remaining`
+                    : ""
+                }. Setup fees are invoiced upfront on contract signature and are never bundled into a monthly invoice.`
+              : "Capture an engagement date — the free period runs from it and monthly billing starts the day it ends. Setup fees are invoiced upfront on contract signature."}
+          </p>
+
 
           {/* Billing activation switch (admin only) */}
           {isAdmin && (
