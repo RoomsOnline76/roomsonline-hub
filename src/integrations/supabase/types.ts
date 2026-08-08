@@ -2367,6 +2367,10 @@ export type Database = {
           created_at: string | null
           created_by: string | null
           description: string
+          document_name: string | null
+          document_path: string | null
+          document_size: number | null
+          document_type: string | null
           due_date: string | null
           id: string
           invoice_date: string | null
@@ -2386,6 +2390,10 @@ export type Database = {
           created_at?: string | null
           created_by?: string | null
           description: string
+          document_name?: string | null
+          document_path?: string | null
+          document_size?: number | null
+          document_type?: string | null
           due_date?: string | null
           id?: string
           invoice_date?: string | null
@@ -2405,6 +2413,10 @@ export type Database = {
           created_at?: string | null
           created_by?: string | null
           description?: string
+          document_name?: string | null
+          document_path?: string | null
+          document_size?: number | null
+          document_type?: string | null
           due_date?: string | null
           id?: string
           invoice_date?: string | null
