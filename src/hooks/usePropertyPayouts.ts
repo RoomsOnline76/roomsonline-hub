@@ -188,6 +188,31 @@ function routeFromCredentialSource(source: unknown): SettlementRoute {
   return String(source ?? '').toLowerCase() === 'byo' ? 'byo' : 'rol';
 }
 
+/** Payment methods that mean ROL's own gateway processed the money. */
+const ROL_GATEWAY_METHODS = ['payfast', 'yoco', 'stripe', 'paygate', 'ozow', 'peach', 'card', 'gateway'];
+/** Payment methods that mean the money landed outside ROL (owner bank / cash / channel). */
+const OWNER_COLLECTED_METHODS = ['eft', 'bank', 'bank_transfer', 'cash', 'manual', 'invoice', 'offline'];
+
+/**
+ * Route for a booking with no settled gateway transaction. Payment evidence wins:
+ * channel-settled and owner-banked stays never reached us, gateway references did.
+ * Only with no evidence at all do we fall back to the property's configured route.
+ */
+function inferSettlementFromBooking(booking: any, propertyIsByo: boolean): SettlementRoute {
+  const paymentStatus = String(booking?.payment_status || '').toLowerCase();
+  if (paymentStatus === 'paid_externally') return 'byo';
+
+  const method = String(booking?.payment_method || '').toLowerCase();
+  if (method) {
+    if (ROL_GATEWAY_METHODS.some((m) => method.includes(m))) return 'rol';
+    if (OWNER_COLLECTED_METHODS.some((m) => method.includes(m))) return 'byo';
+  }
+  if (booking?.payment_reference) return 'rol';
+
+  return propertyIsByo ? 'byo' : 'rol';
+}
+
+
 
 
 export interface PayoutPeriod {
