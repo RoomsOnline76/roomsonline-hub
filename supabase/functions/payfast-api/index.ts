@@ -471,7 +471,71 @@ async function findTransactionByRef(supabase: any, ref: string) {
  * Settle a subscription / setup-fee invoice. Shared by the ITN webhook and the
  * return-path verification so a lost ITN never leaves a paid invoice pending.
  */
+/**
+ * Look up a payment in PayFast's transaction history API by our own reference.
+ * Used to confirm a payment when the ITN webhook never arrived. Returns null
+ * when the payment cannot be confirmed (never assume success).
+ */
+async function lookupPayFastTransaction(
+  ref: string,
+  merchantId: string | undefined,
+  passphrase: string | undefined,
+): Promise<{ pf_payment_id: string | null; raw: Record<string, unknown> } | null> {
+  if (!merchantId) return null;
+  const dates: string[] = [];
+  for (let i = 0; i < 3; i++) {
+    const d = new Date(Date.now() - i * 86400000);
+    dates.push(d.toISOString().slice(0, 10));
+  }
+
+  for (const date of dates) {
+    try {
+      const timestamp = new Date().toISOString().replace(/\.\d{3}Z$/, "+02:00");
+      const headerParams: Record<string, string> = {
+        "merchant-id": merchantId,
+        timestamp,
+        version: "v1",
+      };
+      if (passphrase) headerParams["passphrase"] = passphrase;
+      const sigString = Object.keys(headerParams)
+        .sort()
+        .map((k) => `${k}=${encodeURIComponent(headerParams[k]).replace(/%20/g, "+")}`)
+        .join("&");
+      const signature = await md5(sigString);
+
+      const res = await fetch(`https://api.payfast.co.za/transactions/history/daily?date=${date}`, {
+        headers: {
+          "merchant-id": merchantId,
+          version: "v1",
+          timestamp,
+          signature,
+        },
+      });
+      if (!res.ok) {
+        console.error("[PayFast] History lookup failed", date, res.status);
+        continue;
+      }
+      const payload = await res.json().catch(() => null);
+      const rows: any[] = Array.isArray(payload?.data?.response)
+        ? payload.data.response
+        : Array.isArray(payload?.data)
+        ? payload.data
+        : [];
+      for (const row of rows) {
+        const values = Object.values(row ?? {}).map((v) => String(v ?? ""));
+        if (!values.includes(ref)) continue;
+        const pfKey = Object.keys(row).find((k) => /pf/i.test(k) && /payment/i.test(k));
+        return { pf_payment_id: pfKey ? String(row[pfKey]) : null, raw: row };
+      }
+    } catch (e) {
+      console.error("[PayFast] History lookup error", e);
+    }
+  }
+  return null;
+}
+
 async function settleSubscriptionInvoice(
+
   supabase: any,
   invoiceId: string,
   subStatus: "paid" | "failed" | "cancelled",
