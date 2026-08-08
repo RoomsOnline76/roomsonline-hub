@@ -486,6 +486,9 @@ async function generate(supabase: Client, periodMonth: string): Promise<Response
       total_amount: s.net_payable,
       bank_snapshot: s.bank,
       terms_snapshot: s.terms,
+      tax_snapshot: s.tax,
+      vat_amount: s.vat_amount,
+
       status: "pending_approval",
       generated_at: new Date().toISOString(),
     };
