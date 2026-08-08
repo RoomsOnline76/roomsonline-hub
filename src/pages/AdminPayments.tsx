@@ -31,7 +31,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { usePropertyPayouts } from "@/hooks/usePropertyPayouts";
-import { PropertyPayoutTable } from "@/components/payments/PropertyPayoutTable";
+import { PayoutStatementRun } from "@/components/payments/PayoutStatementRun";
 
 interface PaymentTransaction {
   id: string;
