@@ -384,6 +384,8 @@ Deno.serve(async (req) => {
     const r = await ensureInvoiceAndEmail(supabase, resend, {
       cfg, scope: "portfolio", entityId: pf.id, entityName: pf.name,
       ownerId: pf.owner_id, ownerEmail, isRenewal: true,
+      globalFreeDefault: await freeDefaultFor(cfg.billing_strategy),
+
     });
     results.push({ portfolio_id: pf.id, renewal: true, ...r });
   }
