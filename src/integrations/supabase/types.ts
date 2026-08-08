@@ -4242,6 +4242,7 @@ export type Database = {
           commission_rate: number | null
           created_at: string
           current_period_end: string | null
+          current_period_start: string | null
           custom_domain_error: string | null
           custom_overrides: Json | null
           engagement_date: string | null
@@ -4266,6 +4267,7 @@ export type Database = {
           room_count_override: number | null
           subscription_fee_monthly: number | null
           subscription_reset_pending: boolean
+          subscription_started_on: string | null
           subscription_status: string
           suspended_at: string | null
           tier_pricing_json: Json | null
@@ -4302,6 +4304,7 @@ export type Database = {
           commission_rate?: number | null
           created_at?: string
           current_period_end?: string | null
+          current_period_start?: string | null
           custom_domain_error?: string | null
           custom_overrides?: Json | null
           engagement_date?: string | null
@@ -4326,6 +4329,7 @@ export type Database = {
           room_count_override?: number | null
           subscription_fee_monthly?: number | null
           subscription_reset_pending?: boolean
+          subscription_started_on?: string | null
           subscription_status?: string
           suspended_at?: string | null
           tier_pricing_json?: Json | null
@@ -4362,6 +4366,7 @@ export type Database = {
           commission_rate?: number | null
           created_at?: string
           current_period_end?: string | null
+          current_period_start?: string | null
           custom_domain_error?: string | null
           custom_overrides?: Json | null
           engagement_date?: string | null
@@ -4386,6 +4391,7 @@ export type Database = {
           room_count_override?: number | null
           subscription_fee_monthly?: number | null
           subscription_reset_pending?: boolean
+          subscription_started_on?: string | null
           subscription_status?: string
           suspended_at?: string | null
           tier_pricing_json?: Json | null
@@ -5462,6 +5468,7 @@ export type Database = {
           commission_rate: number | null
           created_at: string | null
           current_period_end: string | null
+          current_period_start: string | null
           custom_domain_error: string | null
           custom_overrides: Json | null
           engagement_date: string | null
@@ -5487,6 +5494,7 @@ export type Database = {
           room_count_override: number | null
           subscription_fee_monthly: number | null
           subscription_reset_pending: boolean
+          subscription_started_on: string | null
           subscription_status: string
           suspended_at: string | null
           tier_pricing_json: Json | null
@@ -5524,6 +5532,7 @@ export type Database = {
           commission_rate?: number | null
           created_at?: string | null
           current_period_end?: string | null
+          current_period_start?: string | null
           custom_domain_error?: string | null
           custom_overrides?: Json | null
           engagement_date?: string | null
@@ -5549,6 +5558,7 @@ export type Database = {
           room_count_override?: number | null
           subscription_fee_monthly?: number | null
           subscription_reset_pending?: boolean
+          subscription_started_on?: string | null
           subscription_status?: string
           suspended_at?: string | null
           tier_pricing_json?: Json | null
@@ -5586,6 +5596,7 @@ export type Database = {
           commission_rate?: number | null
           created_at?: string | null
           current_period_end?: string | null
+          current_period_start?: string | null
           custom_domain_error?: string | null
           custom_overrides?: Json | null
           engagement_date?: string | null
@@ -5611,6 +5622,7 @@ export type Database = {
           room_count_override?: number | null
           subscription_fee_monthly?: number | null
           subscription_reset_pending?: boolean
+          subscription_started_on?: string | null
           subscription_status?: string
           suspended_at?: string | null
           tier_pricing_json?: Json | null
