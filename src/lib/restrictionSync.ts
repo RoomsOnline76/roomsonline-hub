@@ -26,7 +26,7 @@ export async function syncRestrictionsToChannels(
         body: { property_id: propertyId, action: "refresh_ari", trigger: `${label}_change` },
       });
       const code: string | undefined = data?.error?.code;
-      if (code === "RU_NOT_LISTED" || code === "RU_NOT_CONFIGURED") {
+      if (code === "RU_NOT_LISTED" || code === "RU_NOT_CONFIGURED" || code === "RU_LISTING_STALE" || code === "CHANNEL_MANAGER_DISABLED") {
         summary.skipped += 1;
         continue;
       }

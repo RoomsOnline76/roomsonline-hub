@@ -73,6 +73,11 @@ export async function queueRuAriDelta(
     const { data, error } = await supabase.functions.invoke("push-property-to-ru", {
       body: { property_id: propertyId, action: "refresh_ari", trigger },
     });
+    const code: string | undefined = data?.error?.code;
+    if (code && ["RU_NOT_LISTED", "RU_NOT_CONFIGURED", "RU_LISTING_STALE", "CHANNEL_MANAGER_DISABLED"].includes(code)) {
+      console.log(`[ruAriDelta] ${trigger} delta skipped for ${propertyId}: ${code}`);
+      return { queued: false, reason: "not_connected" };
+    }
     if (error || data?.success === false) {
       const message = error?.message || data?.error?.message || "ARI delta failed";
       console.warn(`[ruAriDelta] ${trigger} delta failed for ${propertyId}: ${message}`);

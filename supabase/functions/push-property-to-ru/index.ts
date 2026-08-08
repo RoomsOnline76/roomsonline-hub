@@ -2997,44 +2997,77 @@ Deno.serve(async (req) => {
       }
 
       if (targets.length === 0) {
+        // Nothing is listed at the Channel Manager yet — a skip, not a failure. Returned as 200
+        // so schedulers can read the code instead of seeing an opaque non-2xx invoke error.
         return new Response(
           JSON.stringify({
             success: false,
             error: {
               code: 'RU_NOT_LISTED',
-              message: 'This property has no Rentals United PropertyID yet — run a full push before refreshing availability and pricing.',
+              message: 'This property has no Channel Manager listing yet — run a full push before refreshing availability and pricing.',
             },
           }),
-          { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
         );
       }
+
+      // The channel deletes/re-creates listings on its side; a stored ID can therefore go stale.
+      // Re-pushing a dead ID fails forever, so detect it, clear the mapping and report a
+      // re-list-required code instead of an endless "does not exist" failure loop.
+      const isMissingListing = (msg?: string) =>
+        !!msg && /(property (with given id )?does not exist)/i.test(msg);
 
       const ariResults: Record<string, any>[] = [];
       for (const t of targets) {
         const r = await pushARI(supabase, t.ru_id, property as PropertyRow, t.units, t.unit, childAuthPayload, currencyDecision);
-        ariResults.push({ target: t.label, ru_property_id: t.ru_id, ...r });
+        const stale = isMissingListing(r.availability_error) || isMissingListing(r.prices_error);
+        if (stale) {
+          console.warn(`[push-property-to-ru] Stale channel listing ${t.ru_id} (${t.label}) — clearing mapping, full push required`);
+          if (t.unit?.id) {
+            await supabase.from('hostfully_room_types').update({ rentalsunited_property_id: null }).eq('id', t.unit.id);
+          } else {
+            await supabase.from('properties').update({ rentalsunited_property_id: null }).eq('id', property_id);
+          }
+        }
+        ariResults.push({ target: t.label, ru_property_id: t.ru_id, stale_listing: stale, ...r });
         if (targets.length > 1) await new Promise((res) => setTimeout(res, 1000));
       }
 
       const allOk = ariResults.every((r) => r.availability_pushed === true && !r.availability_error && !r.prices_error);
+      const staleCount = ariResults.filter((r) => r.stale_listing).length;
+      const failedCount = ariResults.filter((r) => r.availability_pushed !== true || r.availability_error || r.prices_error).length;
+      const allStale = !allOk && staleCount > 0 && staleCount === failedCount;
+      const errorCode = allOk ? null : allStale ? 'RU_LISTING_STALE' : 'RU_ARI_REFRESH_INCOMPLETE';
+      const errorMessage = allOk
+        ? null
+        : allStale
+          ? `${staleCount} listing(s) no longer exist at the Channel Manager — the stale mapping was cleared, run a full push to re-list.`
+          : ariResults.map((r) => r.availability_error || r.prices_error).filter(Boolean).join('; ');
       try {
         await supabase.from('ru_sync_runs').insert({
           batch_id: crypto.randomUUID(),
           property_id,
           action: 'refresh_ari',
           success: allOk,
-          error_code: allOk ? null : 'RU_ARI_REFRESH_INCOMPLETE',
-          error_message: allOk ? null : ariResults.map((r) => r.availability_error || r.prices_error).filter(Boolean).join('; '),
+          error_code: errorCode,
+          error_message: errorMessage,
           details: {
             ru_owner_id: ruOwnerId,
             trigger: typeof reqBody.trigger === 'string' ? reqBody.trigger : 'manual',
+            stale_listings: staleCount,
             targets: ariResults,
           },
         });
       } catch (_e) { /* evidence only */ }
 
       return new Response(
-        JSON.stringify({ success: allOk, action: 'refresh_ari', property_id, targets: ariResults }),
+        JSON.stringify({
+          success: allOk,
+          action: 'refresh_ari',
+          property_id,
+          targets: ariResults,
+          ...(allOk ? {} : { error: { code: errorCode, message: errorMessage } }),
+        }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
