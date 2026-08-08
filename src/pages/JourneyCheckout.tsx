@@ -19,6 +19,10 @@ import { PaymentMethodSelector } from "@/components/booking/PaymentMethodSelecto
 import { useActivePaymentGateways } from "@/hooks/useActivePaymentGateway";
 import type { PaymentGateway } from "@/hooks/useActivePaymentGateway";
 import { sortStaysChronologically } from "@/lib/journeyUtils";
+import { usePropertiesPaymentModes } from "@/hooks/usePropertyPaymentMode";
+import { resolveReservationTerms } from "@/lib/reservationTerms";
+import { reservationHoldExpiry } from "@/lib/paymentMode";
+import { ReservationPaymentNotice } from "@/components/booking/ReservationPaymentNotice";
 import { toast } from "sonner";
 import { 
   ArrowLeft, 
