@@ -121,6 +121,7 @@ const OwnerAccount = () => {
               subscription={account.subscription}
               balances={account.balances}
               unitCount={account.unitCount}
+              byoGateway={account.byoGateway}
               invoices={account.subscriptionInvoices}
             />
 

@@ -6,6 +6,7 @@ import { CreditCard, Mail, Trash2, CalendarClock, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { fmtMoney } from "@/lib/ownerAccount";
+import { useAuth } from "@/hooks/useAuth";
 
 interface Props {
   scope: "property" | "portfolio";
@@ -47,6 +48,9 @@ interface Summary {
  * button only unlocks a week before the first paid billing date.
  */
 export function AccountTwoPaymentCard({ scope, entityId, onChanged }: Props) {
+  const { isAdmin, isDev, isFearlessLeader } = useAuth();
+  // Staff-only tools (reminders, deleting cancelled invoices) never render for owners.
+  const isStaff = isAdmin || isDev || isFearlessLeader;
   const [summary, setSummary] = useState<Summary | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -193,7 +197,7 @@ export function AccountTwoPaymentCard({ scope, entityId, onChanged }: Props) {
           )}
         </div>
 
-        {summary.is_staff && (
+        {isStaff && summary.is_staff && (
           <div className="flex flex-wrap items-center gap-2 md:col-span-2">
             <Button
               size="sm"

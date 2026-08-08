@@ -39,6 +39,33 @@ function addMonth(iso: string): string {
 
 const isSetupCharge = (kind?: string | null) => !!kind && /setup/i.test(kind);
 
+/**
+ * Setup charge items have been enqueued by more than one path over time, using
+ * different kind spellings (`setup_pricelabs` vs `pricelabs_setup`). Normalising
+ * the kind lets us dedupe them and reconcile against the billing config, which
+ * is the contracted source of truth for once-off fees.
+ */
+function setupKey(kind?: string | null): string {
+  const k = String(kind || "").toLowerCase().replace(/^setup[_-]/, "").replace(/[_-]setup$/, "");
+  if (/price ?labs/.test(k)) return "pricelabs";
+  if (/white[_-]?label|^wl$/.test(k)) return "white_label";
+  if (/brand/.test(k)) return "branding";
+  return k || "other";
+}
+
+/** Contracted once-off fees straight off the billing config. */
+function configSetupLines(cfg: any): { key: string; description: string; amount: number }[] {
+  const rows: { key: string; description: string; amount: number }[] = [];
+  const add = (key: string, description: string, amount: unknown) => {
+    const n = Number(amount) || 0;
+    if (n > 0) rows.push({ key, description, amount: n });
+  };
+  add("white_label", "White-label setup fee", cfg?.white_label_setup_fee);
+  if (!cfg?.white_label_allowed) add("branding", "Branding add-on setup fee", cfg?.branding_addon_setup_fee);
+  if (cfg?.pricelabs_allowed) add("pricelabs", "PriceLabs revenue management setup fee", cfg?.pricelabs_setup_fee);
+  return rows;
+}
+
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -215,10 +242,49 @@ Deno.serve(async (req) => {
       .select("id, kind, description, amount, currency, invoiced_at, invoiced_on_invoice_id")
       .eq(entityCol, entityId)
       .is("invoiced_at", null);
-    const setupCharges = (charges ?? []).filter(
+    const pendingSetupItems = (charges ?? []).filter(
       (c: any) => isSetupCharge(c.kind) && !c.invoiced_on_invoice_id,
     );
-    const setupTotal = setupCharges.reduce((s: number, c: any) => s + (Number(c.amount) || 0), 0);
+
+    // Reconcile the queued charge items with the contracted config: one line per
+    // fee, config amount wins, duplicate items are collapsed (but still linked
+    // to the invoice so they can never be billed a second time).
+    const itemsByKey = new Map<string, any[]>();
+    for (const item of pendingSetupItems) {
+      const key = setupKey(item.kind);
+      itemsByKey.set(key, [...(itemsByKey.get(key) ?? []), item]);
+    }
+    const setupCharges: {
+      key: string;
+      kind: string;
+      description: string;
+      amount: number;
+      itemIds: string[];
+    }[] = [];
+    const seen = new Set<string>();
+    for (const line of configSetupLines(cfg)) {
+      const matches = itemsByKey.get(line.key) ?? [];
+      seen.add(line.key);
+      setupCharges.push({
+        key: line.key,
+        kind: matches[0]?.kind ?? `setup_${line.key}`,
+        description: matches[0]?.description ?? line.description,
+        amount: line.amount,
+        itemIds: matches.map((m: any) => m.id),
+      });
+    }
+    // Queued charges with no matching config fee stay on the invoice as-is.
+    for (const [key, matches] of itemsByKey) {
+      if (seen.has(key)) continue;
+      setupCharges.push({
+        key,
+        kind: matches[0].kind,
+        description: matches[0].description,
+        amount: Number(matches[0].amount) || 0,
+        itemIds: matches.map((m: any) => m.id),
+      });
+    }
+    const setupTotal = setupCharges.reduce((s: number, c) => s + c.amount, 0);
 
     const { data: invoices } = await supabase
       .from("subscription_invoices")
@@ -245,7 +311,7 @@ Deno.serve(async (req) => {
       is_staff: isStaff,
       setup: {
         total: setupTotal,
-        items: setupCharges.map((c: any) => ({ description: c.description, amount: Number(c.amount) || 0 })),
+        items: setupCharges.map((c) => ({ description: c.description, amount: c.amount })),
         invoice: openSetup
           ? { id: openSetup.id, number: openSetup.invoice_number, amount: Number(openSetup.amount), pay_url: payUrl(openSetup.payfast_token) }
           : null,
@@ -292,11 +358,11 @@ Deno.serve(async (req) => {
         currency,
         subscription_amount: 0,
         once_off_amount: setupTotal,
-        line_items: setupCharges.map((c: any) => ({
+        line_items: setupCharges.map((c) => ({
           kind: c.kind,
           description: c.description,
-          amount: Number(c.amount) || 0,
-          charge_item_id: c.id,
+          amount: c.amount,
+          charge_item_id: c.itemIds[0] ?? null,
         })),
         period_start: today(),
         period_end: today(),
@@ -314,7 +380,7 @@ Deno.serve(async (req) => {
       await supabase
         .from("subscription_charge_items")
         .update({ invoiced_on_invoice_id: created.id })
-        .in("id", setupCharges.map((c: any) => c.id));
+        .in("id", setupCharges.flatMap((c) => c.itemIds));
       return json({ success: true, invoice_id: created.id, pay_url: payUrl(created.payfast_token) });
     }
 
