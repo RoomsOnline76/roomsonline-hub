@@ -433,8 +433,19 @@ export function BillingConfigBuilder({ value, onChange, scope, placeholders = {}
         <div className="rounded-md border border-blue-500/30 bg-blue-500/5 p-2.5 text-[11px] text-blue-900 dark:text-blue-200 flex items-start gap-1.5">
           <Info className="h-3 w-3 mt-0.5 shrink-0" />
           <span>
-            <strong>Payment model.</strong> Enable either the <em>facilitator surcharge %</em> (ROL processes payments) or the{" "}
-            <em>BYO gateway add-on</em> (owner uses their own provider) — usually not both.
+            <strong>Payment model.</strong> Enable the <em>facilitator surcharge %</em> (ROL processes payments) or the{" "}
+            <em>BYO gateway add-on</em> (owner uses their own provider) — never both. Leave <strong>both off</strong> for a{" "}
+            <em>reservation-only</em> property: no online payment is processed and the guest pays the property by bank transfer.
+          </span>
+        </div>
+      )}
+
+      {!value.facilitator_surcharge_enabled && !value.byo_gateway_enabled && (
+        <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-2.5 text-[11px] text-amber-900 dark:text-amber-200 flex items-start gap-1.5">
+          <Info className="h-3 w-3 mt-0.5 shrink-0" />
+          <span>
+            <strong>Reservation only.</strong> Payment processing is <strong>NONE</strong>. No gateway is offered at checkout —
+            the guest reserves, receives banking details on a pro forma invoice, and the property marks the reservation paid in ROL'OS.
           </span>
         </div>
       )}
@@ -442,15 +453,15 @@ export function BillingConfigBuilder({ value, onChange, scope, placeholders = {}
       {/* ── ROL facilitator surcharge ──────────────────────────────── */}
       <ToggleRow
         title="ROL payment facilitator surcharge"
-        description="Per-booking % added when ROL processes payments via PayFast. Charged on the booking amount only — does not compound on commission or add-ons. Stacks on top of commission. Sales reps do not earn commission on this fee. Mutually exclusive with the BYO gateway add-on — exactly one must be enabled."
+        description="Per-booking % added when ROL processes payments via PayFast. Charged on the booking amount only — does not compound on commission or add-ons. Stacks on top of commission. Sales reps do not earn commission on this fee. Mutually exclusive with the BYO gateway add-on; turn both off for a reservation-only property."
         enabled={value.facilitator_surcharge_enabled}
         onToggle={(v) => {
           if (v) {
             // Turning on facilitator → turn off BYO
             onChange({ ...value, facilitator_surcharge_enabled: true, byo_gateway_enabled: false });
           } else {
-            // Cannot turn off if BYO is also off — auto-flip to BYO
-            onChange({ ...value, facilitator_surcharge_enabled: false, byo_gateway_enabled: true });
+            // Both off is valid → reservation-only
+            onChange({ ...value, facilitator_surcharge_enabled: false });
           }
         }}
       >
@@ -469,16 +480,17 @@ export function BillingConfigBuilder({ value, onChange, scope, placeholders = {}
       {/* ── BYO gateway add-on ─────────────────────────────────────── */}
       <ToggleRow
         title="BYO payment gateway add-on"
-        description="Flat monthly fee when the owner connects their own gateway. ROL does not handle the money. Mutually exclusive with the ROL facilitator surcharge."
+        description="Flat monthly fee when the owner connects their own gateway. ROL does not handle the money. Mutually exclusive with the ROL facilitator surcharge; turn both off for a reservation-only property."
         enabled={value.byo_gateway_enabled}
         onToggle={(v) => {
           if (v) {
             onChange({ ...value, byo_gateway_enabled: true, facilitator_surcharge_enabled: false });
           } else {
-            onChange({ ...value, byo_gateway_enabled: false, facilitator_surcharge_enabled: true });
+            onChange({ ...value, byo_gateway_enabled: false });
           }
         }}
       >
+
         <div className="grid grid-cols-[1fr_auto] items-center gap-2">
           <Input
             type="number" step="50" min="0"

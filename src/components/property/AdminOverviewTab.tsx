@@ -90,19 +90,24 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
     enabled: !!propertyId,
   });
 
-  const { data: wlDomain } = useQuery({
-    queryKey: ["admin-overview-wl-domain", propertyId],
+  // White-label / add-on fields live on whichever billing row is authoritative
+  // (portfolio row for portfolio members, property row otherwise) — `config`
+  // already resolves that scope, so read them from there.
+  const wlDomain = config as any;
+
+  const { data: paymentModeRow } = useQuery({
+    queryKey: ["admin-overview-payment-mode", propertyId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("property_billing_configs")
-        .select("white_label_domain,white_label_domain_status,white_label_monthly_fee,white_label_setup_fee,white_label_billing_mode,branding_addon_enabled,branding_addon_monthly_fee,branding_addon_setup_fee,pricelabs_allowed,pricelabs_monthly_fee,pricelabs_setup_fee,channel_manager_enabled,channel_manager_per_unit_fee")
-        .eq("property_id", propertyId)
+      const { data } = await supabase
+        .from("properties")
+        .select("payment_mode")
+        .eq("id", propertyId)
         .maybeSingle();
-      if (error) throw error;
-      return data as any;
+      return data as { payment_mode?: string | null } | null;
     },
     enabled: !!propertyId,
   });
+
 
   const { data: unitCount } = useQuery({
     queryKey: ["admin-overview-unit-count", propertyId, scope.source, ...scope.siblingPropertyIds],
@@ -141,15 +146,20 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
 
   const strategy = config?.billing_strategy || "default";
   const strategyLabel = STRATEGY_LABELS[strategy] || strategy;
-  // Default to true when unset: legacy properties without an explicit billing-tab
-  // save still process guest payments via the Rooms Online PayFast facilitator.
-  const facilitator = config?.payment_facilitator_enabled ?? true;
-  const customProvider = !!property?.allow_custom_payment_provider;
+  const byoEnabled =
+    !!property?.allow_custom_payment_provider || Number((config as any)?.byo_gateway_monthly_fee ?? 0) > 0;
+  // Reservation-only = neither the ROL facilitator nor a BYO gateway is enabled.
+  const reservationOnly =
+    paymentModeRow?.payment_mode === "reservation_only" ||
+    (config != null && config.payment_facilitator_enabled === false && !byoEnabled);
+  const facilitator = reservationOnly ? false : config?.payment_facilitator_enabled ?? !byoEnabled;
+  const customProvider = !reservationOnly && byoEnabled;
   const wlAllowed = !!config?.white_label_allowed;
   const wlStatus = (wlDomain?.white_label_domain_status || "unconfigured") as keyof typeof DOMAIN_STATUS_META;
   const wlMeta = DOMAIN_STATUS_META[wlStatus] || DOMAIN_STATUS_META.unconfigured;
   const WlIcon = wlMeta.Icon;
   const activeReferral = referrals?.[0];
+
 
   // ── Estimated cost calculation (excludes commission / transaction fees) ──
   // Use `config` (property_billing_configs) as single source of truth; `wlDomain`
@@ -393,8 +403,27 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
 
           <Row
             label="Subscription (monthly)"
-            value={config?.subscription_fee_monthly != null ? `R ${config.subscription_fee_monthly}` : <Empty />}
+            value={
+              config?.subscription_fee_monthly != null ? (
+                `R ${config.subscription_fee_monthly}`
+              ) : isTierStrategy(strategy) && resolvedTier?.effectiveMonthlyFee != null ? (
+                <span>
+                  R {resolvedTier.effectiveMonthlyFee}
+                  <span className="text-xs text-muted-foreground">
+                    {" "}
+                    · tier {resolvedTier.tier?.label?.toUpperCase() ?? "—"} · {resolvedTier.rooms} room
+                    {resolvedTier.rooms === 1 ? "" : "s"}
+                  </span>
+                </span>
+              ) : isTierStrategy(strategy) && resolvedTier?.requiresCustomFee ? (
+                <span className="text-xs text-muted-foreground">Enterprise — custom fee pending</span>
+              ) : (
+                <Empty />
+              )
+            }
+            hint={isTierStrategy(strategy) ? "Resolved from the room-count tier table." : undefined}
           />
+
           {facilitator && (
             <Row
               label="Booking surcharge % (ROL facilitator)"
@@ -447,7 +476,9 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
           <Row
             label="Gateway"
             value={
-              customProvider ? (
+              reservationOnly ? (
+                <Badge variant="outline">None — reservation only</Badge>
+              ) : customProvider ? (
                 <Badge variant="default">Own provider</Badge>
               ) : facilitator ? (
                 <Badge variant="secondary">Rooms Online PayFast</Badge>
@@ -456,7 +487,9 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
               )
             }
             hint={
-              customProvider
+              reservationOnly
+                ? "No online payment is offered at checkout. The guest reserves and pays the property by bank transfer; the property marks it paid in ROL'OS."
+                : customProvider
                 ? "Owner configures credentials in ROL'OS → Integrations."
                 : facilitator
                 ? "Payment Facilitator fee applied on each transaction."
@@ -466,13 +499,16 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
           <Row
             label="Facilitator fee"
             value={
-              facilitator ? (
+              reservationOnly ? (
+                <Badge variant="outline">N/A — reservation only</Badge>
+              ) : facilitator ? (
                 <Badge variant="outline">Active</Badge>
               ) : (
                 <Badge variant="secondary">Disabled</Badge>
               )
             }
           />
+
         </CardContent>
       </Card>
 

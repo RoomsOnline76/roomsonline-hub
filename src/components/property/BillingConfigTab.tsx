@@ -104,7 +104,7 @@ function configToBuilder(config: BillingConfig | null): BillingConfigValue {
   v.enterprise_custom_fee = (config as any).enterprise_custom_fee != null ? String((config as any).enterprise_custom_fee) : "";
   v.volume_tiers_enabled = tiers.length > 0 && !isWidget;
   v.tier_pricing_json = tiers.length ? tiers : null;
-  v.facilitator_surcharge_enabled = (config.transaction_fee_percentage ?? 0) > 0 && !!config.payment_facilitator_enabled;
+  v.facilitator_surcharge_enabled = !!config.payment_facilitator_enabled;
   v.transaction_fee = config.transaction_fee_percentage != null ? String(config.transaction_fee_percentage) : "";
   v.byo_gateway_enabled = ((config as any).byo_gateway_monthly_fee ?? 0) > 0;
   v.byo_gateway_fee = (config as any).byo_gateway_monthly_fee != null ? String((config as any).byo_gateway_monthly_fee) : "";
@@ -236,17 +236,22 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
   }, [selectedPreset]);
 
   const persistBuilder = (nextStrategy: string, v: BillingConfigValue, startDate: string, enabled: boolean) => {
-    // Sync BYO toggle → property.allow_custom_payment_provider so ROLOS/Integrations
-    // unlocks or locks the gateway configurator accordingly. Replaces the old
-    // dedicated Payment Providers tab.
+    // Sync payment toggles → property flags so ROLOS/Integrations unlocks or locks
+    // the gateway configurator accordingly. When BOTH the ROL facilitator and the
+    // BYO gateway are off the property is reservation-only: no online payment.
     const nextAllowCustom = v.byo_gateway_enabled;
-    if (nextAllowCustom !== customProviderEnabled) {
-      supabase
-        .from("properties")
-        .update({ allow_custom_payment_provider: nextAllowCustom })
-        .eq("id", propertyId)
-        .then(() => { /* silent — surfaced via query invalidation below */ });
-    }
+    const nextPaymentMode = v.byo_gateway_enabled
+      ? "byo"
+      : v.facilitator_surcharge_enabled
+      ? "rol"
+      : "reservation_only";
+    const targetIds =
+      isPortfolioScope && scope.siblingPropertyIds.length ? scope.siblingPropertyIds : [propertyId];
+    supabase
+      .from("properties")
+      .update({ allow_custom_payment_provider: nextAllowCustom, payment_mode: nextPaymentMode } as any)
+      .in("id", targetIds)
+      .then(() => { /* silent — surfaced via query invalidation below */ });
     upsert.mutate({
       property_id: propertyId,
       billing_strategy: nextStrategy as BillingConfig["billing_strategy"],
@@ -261,9 +266,10 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
 
       enterprise_custom_fee: v.pms_enabled ? toNum(v.enterprise_custom_fee) : null,
       transaction_fee_percentage: v.facilitator_surcharge_enabled ? toNum(v.transaction_fee) : null,
-      // Facilitator surcharge is mutually exclusive with the BYO gateway toggle
-      payment_facilitator_enabled: !v.byo_gateway_enabled,
+      // Both off = reservation only (no online payment processing at all)
+      payment_facilitator_enabled: v.facilitator_surcharge_enabled,
       byo_gateway_monthly_fee: v.byo_gateway_enabled ? toNum(v.byo_gateway_fee) : null,
+
       white_label_allowed: v.white_label_enabled,
       white_label_monthly_fee: v.white_label_enabled ? toNum(v.white_label_monthly_fee) : null,
       white_label_setup_fee: v.white_label_enabled ? toNum(v.white_label_setup_fee) : null,
