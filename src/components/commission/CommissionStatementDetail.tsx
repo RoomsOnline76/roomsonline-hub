@@ -1,9 +1,13 @@
 /**
- * One referral partner's paysheet, opened from the statements list.
+ * One referral partner's commission payout statement, opened from the list.
+ *
+ * This is a commission payout, not a payslip — the partner is an independent
+ * contractor and carries their own SARS obligations.
  *
  * Read top to bottom: what each referred property earned ROL, the rate applied
  * and where that rate came from, then adjustments, then what gets paid.
  */
+
 import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
