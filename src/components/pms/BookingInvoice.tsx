@@ -287,7 +287,12 @@ export function BookingInvoice({ bookingId, guestName, guestEmail, checkIn, chec
           <div className="text-right">
             <p className="font-bold">{invoiceNumber}</p>
             <p className="text-xs text-muted-foreground">Date: {today}</p>
+            <p className="text-[10px] text-muted-foreground">Booking ref: {displayRef}</p>
+            {channelRef && (
+              <p className="text-[10px] text-muted-foreground">Channel ref: {channelRef}</p>
+            )}
           </div>
+
         </div>
 
         <div className="grid grid-cols-2 gap-4 mb-4">
