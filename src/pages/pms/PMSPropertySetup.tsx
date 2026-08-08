@@ -11,9 +11,10 @@ import { usePropertyFieldRequirements } from "@/hooks/usePropertyFieldRequiremen
 import { focusRequirementField } from "@/lib/requirementFocus";
 import {
   buildSectionGroups,
-
+  PROPERTY_SECTION_ORDER,
   type PropertySectionKey,
 } from "@/config/propertySectionOrder";
+
 
 
 /**
