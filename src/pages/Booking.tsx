@@ -2162,7 +2162,30 @@ const Booking = () => {
       }
 
       // --- PAYMENT GATE ---
-      // All bookings use PayFast onsite modal (stays in ROL UI)
+      // Reservation-only properties collect payment themselves: hold the
+      // reservation, email the pro forma with banking details, no gateway.
+      if (isReservationOnly) {
+        const terms = buildReservationTerms(data.total_price);
+        await supabase
+          .from('bookings')
+          .update({
+            payment_status: 'awaiting_eft',
+            payment_method: 'eft',
+            reservation_hold: true,
+            hold_expires_at: reservationHoldExpiry(),
+            deposit_amount: terms.amountDueNow,
+            deposit_due_date: terms.dueDate,
+          } as never)
+          .eq('id', data.id);
+
+        await supabase.functions.invoke('send-booking-email', {
+          body: { booking_id: data.id, email_type: 'reservation_only' },
+        }).catch(() => undefined);
+
+        return { ...data, requiresPayment: false, reservationOnly: true, paymentAmount: 0 };
+      }
+
+      // All other bookings use the onsite payment modal (stays in ROL UI)
       // The ITN handler in payfast-api will trigger push-booking after successful payment
       
       console.log('[Booking] Created booking, opening payment modal:', data.id);
@@ -2182,12 +2205,16 @@ const Booking = () => {
         setShowPaymentModal(true);
         return;
       }
-      
-      // Fallback: direct navigation (shouldn't happen with payment gate)
-      toast.success("Booking request submitted successfully!");
+
+      if (data.reservationOnly) {
+        toast.success("Reservation confirmed — payment details emailed to you");
+      } else {
+        toast.success("Booking request submitted successfully!");
+      }
       const confirmParams = new URLSearchParams();
       if (integrationParam) confirmParams.set("integration", integrationParam);
       navigate(`/booking-confirmation/${data.id}${confirmParams.toString() ? `?${confirmParams.toString()}` : ""}`);
+
     },
     onError: (error) => {
       const message = error instanceof Error ? error.message : "Failed to create booking";
