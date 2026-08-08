@@ -14,7 +14,7 @@ const corsHeaders = {
 };
 
 const SITE_URL = Deno.env.get("SITE_URL") || "https://sleepinafrica.roomsonline.co.za";
-const FROM_EMAIL = Deno.env.get("BILLING_FROM_EMAIL") || "Rooms Online <billing@notify.sleepinafrica.roomsonline.co.za>";
+const FROM_EMAIL = Deno.env.get("BILLING_FROM_EMAIL") || "Rooms Online <billing@notify.roomsonline.co.za>";
 
 const DEFAULT_FREE_PERIOD_DAYS = 60;
 
@@ -369,6 +369,7 @@ Deno.serve(async (req) => {
     .select("*, properties!inner(id, name, owner_id, owner_email)")
     .eq("billing_enabled", true)
     .eq("subscription_status", "active")
+    .eq("cancel_at_period_end", false)
     .lte("current_period_end", in5Str);
   for (const cfg of propRenew ?? []) {
     const p = (cfg as any).properties;
@@ -387,6 +388,7 @@ Deno.serve(async (req) => {
     .select("*, property_portfolios!inner(id, name, owner_id)")
     .eq("billing_enabled", true)
     .eq("subscription_status", "active")
+    .eq("cancel_at_period_end", false)
     .lte("current_period_end", in5Str);
   for (const cfg of portRenew ?? []) {
     const pf = (cfg as any).property_portfolios;
@@ -442,15 +444,67 @@ Deno.serve(async (req) => {
     }
   }
 
-  // 5) Mark past_due (property + portfolio)
+  // 5) Mark past_due (property + portfolio) — never for accounts that are
+  //     winding down: a scheduled cancellation is not a missed payment.
   await supabase.from("property_billing_configs")
     .update({ subscription_status: "past_due" })
     .eq("subscription_status", "active")
+    .eq("cancel_at_period_end", false)
     .lt("current_period_end", todayStr);
   await supabase.from("portfolio_billing_configs")
     .update({ subscription_status: "past_due" })
     .eq("subscription_status", "active")
+    .eq("cancel_at_period_end", false)
     .lt("current_period_end", todayStr);
+
+  // 6) Suspend accounts whose scheduled cancellation date has passed. Service
+  //    ran to the last paid day; from here access and functionality are
+  //    restricted pending reactivation. Data is retained.
+  for (const [table, col, scope, joinSel] of [
+    ["property_billing_configs", "property_id", "property", "properties!inner(id, name, owner_email)"],
+    ["portfolio_billing_configs", "portfolio_id", "portfolio", "property_portfolios!inner(id, name, owner_id)"],
+  ] as const) {
+    const { data: due } = await supabase
+      .from(table)
+      .select(`${col}, cancel_effective_date, current_period_end, ${joinSel}`)
+      .eq("cancel_at_period_end", true)
+      .is("suspended_at", null);
+    for (const row of due ?? []) {
+      const effective = String((row as any).cancel_effective_date || (row as any).current_period_end || "").slice(0, 10);
+      if (!effective || effective >= todayStr) continue;
+      const entityId = (row as any)[col];
+      await supabase
+        .from(table)
+        .update({ subscription_status: "suspended", suspended_at: new Date().toISOString() })
+        .eq(col, entityId);
+
+      const entity = (row as any).properties ?? (row as any).property_portfolios ?? {};
+      let ownerEmail: string | null = entity.owner_email ?? null;
+      if (!ownerEmail && entity.owner_id) {
+        const { data: prof } = await supabase.from("profiles").select("email").eq("id", entity.owner_id).maybeSingle();
+        ownerEmail = prof?.email ?? null;
+      }
+      if (ownerEmail) {
+        try {
+          await resend.emails.send({
+            from: FROM_EMAIL,
+            to: [ownerEmail],
+            subject: `Account suspended - ${entity.name || "your account"}`,
+            html: `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><title>Account suspended</title></head><body style="font-family:Arial,sans-serif;background:#fff;padding:24px;color:#1A1A2E">
+              <div style="max-width:560px;margin:0 auto;border:1px solid #eee;border-radius:8px;padding:24px">
+                <h2 style="color:#E91E8C;margin-top:0">Account suspended</h2>
+                <p>The subscription for <strong>${entity.name || ""}</strong> was cancelled and the paid period ended on <strong>${effective}</strong>.</p>
+                <p>Access and functionality are now restricted pending reactivation. Your data is retained and everything is restored the moment the subscription is reactivated.</p>
+                <p style="text-align:center;margin:20px 0"><a href="${SITE_URL}/admin/account" style="background:#E91E8C;color:#fff;text-decoration:none;padding:12px 22px;border-radius:6px;display:inline-block;font-weight:600">Reactivate subscription</a></p>
+              </div></body></html>`,
+          });
+        } catch (e) {
+          console.error("[billing-cron] suspension email failed", e);
+        }
+      }
+      results.push({ scope, entity_id: entityId, suspended: true, effective_from: effective });
+    }
+  }
 
   return new Response(JSON.stringify({ success: true, ran_at: new Date().toISOString(), results }), {
     status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },

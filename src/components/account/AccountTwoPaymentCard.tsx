@@ -2,7 +2,29 @@ import { useCallback, useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { CreditCard, Mail, Trash2, CalendarClock, Loader2, Download, CheckCircle2 } from "lucide-react";
+import {
+  CreditCard,
+  Mail,
+  Trash2,
+  CalendarClock,
+  Loader2,
+  Download,
+  CheckCircle2,
+  AlertTriangle,
+  RotateCcw,
+  XCircle,
+} from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { fmtMoney } from "@/lib/ownerAccount";
@@ -30,6 +52,14 @@ interface Summary {
     due_by: string | null;
     window_opens_on: string | null;
     can_start: boolean;
+    status: string;
+    paid_through: string | null;
+    cancel_at_period_end: boolean;
+    cancel_effective_date: string | null;
+    suspended_at: string | null;
+    can_cancel: boolean;
+    can_resume: boolean;
+    can_reactivate: boolean;
     invoice: {
       id: string;
       number: string | null;
@@ -233,12 +263,103 @@ export function AccountTwoPaymentCard({ scope, entityId, onChanged }: Props) {
               ? `Can be started from ${sub.window_opens_on} (a week before the first billing date).`
               : "Set an engagement date to schedule the first billing date."}
           </p>
+          {sub.suspended_at && (
+            <p className="flex items-start gap-1.5 rounded-md bg-destructive/10 p-2 text-[11px] text-destructive">
+              <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" />
+              <span>
+                Account suspended. Access and functionality are restricted pending reactivation — your data is
+                retained.
+              </span>
+            </p>
+          )}
+          {sub.cancel_at_period_end && !sub.suspended_at && (
+            <p className="flex items-start gap-1.5 rounded-md bg-muted p-2 text-[11px] text-muted-foreground">
+              <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" />
+              <span>
+                Cancellation scheduled. Service continues until{" "}
+                <strong>{sub.cancel_effective_date ?? sub.paid_through ?? "the end of the paid period"}</strong>, then
+                the account is suspended pending reactivation.
+              </span>
+            </p>
+          )}
+
           {sub.invoice?.pay_url ? (
             <Button asChild size="sm" variant="default" className="w-full">
               <a href={sub.invoice.pay_url} target="_blank" rel="noreferrer">
                 Pay subscription · {sub.invoice.period_start} → {sub.invoice.period_end}
               </a>
             </Button>
+          ) : sub.can_reactivate ? (
+            <Button
+              size="sm"
+              variant="default"
+              className="w-full"
+              disabled={spin("reactivate_subscription")}
+              onClick={() => void run("reactivate_subscription", "Subscription reactivated", true)}
+            >
+              {spin("reactivate_subscription") ? (
+                <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <RotateCcw className="mr-2 h-3.5 w-3.5" />
+              )}
+              Reactivate subscription
+            </Button>
+          ) : sub.can_resume ? (
+            <Button
+              size="sm"
+              variant="outline"
+              className="w-full"
+              disabled={spin("resume_subscription")}
+              onClick={() => void run("resume_subscription", "Cancellation withdrawn — subscription continues", true)}
+            >
+              {spin("resume_subscription") ? (
+                <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <RotateCcw className="mr-2 h-3.5 w-3.5" />
+              )}
+              Keep subscription (undo cancellation)
+            </Button>
+          ) : sub.can_cancel ? (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button size="sm" variant="outline" className="w-full text-destructive" disabled={spin("cancel_subscription")}>
+                  {spin("cancel_subscription") ? (
+                    <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <XCircle className="mr-2 h-3.5 w-3.5" />
+                  )}
+                  Cancel subscription
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Cancel this subscription?</AlertDialogTitle>
+                  <AlertDialogDescription asChild>
+                    <div className="space-y-2 text-sm">
+                      <p>
+                        The account will be <strong>suspended pending reactivation</strong>.
+                      </p>
+                      <p>
+                        The service continues in full until{" "}
+                        <strong>{sub.paid_through ?? "the last day of the paid period"}</strong> — the last day already
+                        paid for. After that date access and functionality cease until the subscription is reactivated.
+                      </p>
+                      <p className="text-muted-foreground">
+                        You can undo this at any time before that date. Your data is retained either way.
+                      </p>
+                    </div>
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Keep subscription</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() => void run("cancel_subscription", "Cancellation scheduled for the end of the paid period", true)}
+                  >
+                    Cancel subscription
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           ) : (
             <Button
               size="sm"

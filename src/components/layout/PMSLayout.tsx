@@ -13,6 +13,8 @@ import { ForcePasswordChangeModal } from "@/components/pms/ForcePasswordChangeMo
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { RolosOnboardingWizard } from "@/components/onboarding/rolos/RolosOnboardingWizard";
+import { useSubscriptionAccess } from "@/hooks/useSubscriptionAccess";
+import { SubscriptionSuspendedBanner } from "@/components/pms/SubscriptionSuspendedBanner";
 
 interface PMSLayoutProps {
   children: ReactNode;
@@ -26,6 +28,8 @@ export function PMSLayout({ children }: PMSLayoutProps) {
   const { mustChangePassword, loading: roleLoading } = usePmsStaffRole(propertyId);
   const [propertyName, setPropertyName] = useState<string | undefined>();
   const [pwChanged, setPwChanged] = useState(false);
+  // Suspended (cancelled + paid period lapsed) accounts run in restricted mode.
+  const access = useSubscriptionAccess(propertyId);
 
   const isPortfolio = !!(portfolioProperties && portfolioProperties.length > 1);
   const portfolioPropertyIds = isPortfolio ? portfolioProperties!.map(p => p.id) : [];
@@ -67,6 +71,12 @@ export function PMSLayout({ children }: PMSLayoutProps) {
           ].join(" ")}
         >
           <div className="w-full mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-3 md:py-6 max-w-[2000px] animate-fade-in">
+            {!access.loading && (access.suspended || access.cancelling) && (
+              <SubscriptionSuspendedBanner
+                suspended={access.suspended}
+                paidThrough={access.paidThrough}
+              />
+            )}
             {children}
           </div>
           <footer className="py-3 border-t border-border">
