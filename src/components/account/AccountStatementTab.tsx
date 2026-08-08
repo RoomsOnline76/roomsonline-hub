@@ -13,6 +13,7 @@ import {
   type OwnerBalances,
 } from "@/lib/ownerAccount";
 import { buildOwnerStatementPdf } from "@/lib/ownerStatementPdf";
+import type { VatSettings } from "@/lib/payoutStatement";
 
 interface Props {
   ledger: LedgerEntry[];
@@ -20,6 +21,7 @@ interface Props {
   scopeName: string;
   periodStart: string;
   periodEnd: string;
+  vat?: VatSettings;
 }
 
 const KIND_LABEL: Record<string, string> = {
