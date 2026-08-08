@@ -4131,6 +4131,8 @@ export type Database = {
           branding_addon_monthly_fee: number | null
           branding_addon_setup_fee: number | null
           byo_gateway_monthly_fee: number | null
+          cancel_at_period_end: boolean
+          cancel_effective_date: string | null
           cancelled_at: string | null
           channel_manager_enabled: boolean | null
           channel_manager_per_unit_fee: number | null
@@ -4159,6 +4161,7 @@ export type Database = {
           subscription_fee_monthly: number | null
           subscription_reset_pending: boolean
           subscription_status: string
+          suspended_at: string | null
           tier_pricing_json: Json | null
           transaction_fee_percentage: number | null
           updated_at: string
@@ -4184,6 +4187,8 @@ export type Database = {
           branding_addon_monthly_fee?: number | null
           branding_addon_setup_fee?: number | null
           byo_gateway_monthly_fee?: number | null
+          cancel_at_period_end?: boolean
+          cancel_effective_date?: string | null
           cancelled_at?: string | null
           channel_manager_enabled?: boolean | null
           channel_manager_per_unit_fee?: number | null
@@ -4212,6 +4217,7 @@ export type Database = {
           subscription_fee_monthly?: number | null
           subscription_reset_pending?: boolean
           subscription_status?: string
+          suspended_at?: string | null
           tier_pricing_json?: Json | null
           transaction_fee_percentage?: number | null
           updated_at?: string
@@ -4237,6 +4243,8 @@ export type Database = {
           branding_addon_monthly_fee?: number | null
           branding_addon_setup_fee?: number | null
           byo_gateway_monthly_fee?: number | null
+          cancel_at_period_end?: boolean
+          cancel_effective_date?: string | null
           cancelled_at?: string | null
           channel_manager_enabled?: boolean | null
           channel_manager_per_unit_fee?: number | null
@@ -4265,6 +4273,7 @@ export type Database = {
           subscription_fee_monthly?: number | null
           subscription_reset_pending?: boolean
           subscription_status?: string
+          suspended_at?: string | null
           tier_pricing_json?: Json | null
           transaction_fee_percentage?: number | null
           updated_at?: string
@@ -5330,6 +5339,8 @@ export type Database = {
           branding_addon_monthly_fee: number | null
           branding_addon_setup_fee: number | null
           byo_gateway_monthly_fee: number | null
+          cancel_at_period_end: boolean
+          cancel_effective_date: string | null
           cancelled_at: string | null
           channel_manager_enabled: boolean | null
           channel_manager_per_unit_fee: number | null
@@ -5359,6 +5370,7 @@ export type Database = {
           subscription_fee_monthly: number | null
           subscription_reset_pending: boolean
           subscription_status: string
+          suspended_at: string | null
           tier_pricing_json: Json | null
           tier_scope: string | null
           transaction_fee_percentage: number | null
@@ -5385,6 +5397,8 @@ export type Database = {
           branding_addon_monthly_fee?: number | null
           branding_addon_setup_fee?: number | null
           byo_gateway_monthly_fee?: number | null
+          cancel_at_period_end?: boolean
+          cancel_effective_date?: string | null
           cancelled_at?: string | null
           channel_manager_enabled?: boolean | null
           channel_manager_per_unit_fee?: number | null
@@ -5414,6 +5428,7 @@ export type Database = {
           subscription_fee_monthly?: number | null
           subscription_reset_pending?: boolean
           subscription_status?: string
+          suspended_at?: string | null
           tier_pricing_json?: Json | null
           tier_scope?: string | null
           transaction_fee_percentage?: number | null
@@ -5440,6 +5455,8 @@ export type Database = {
           branding_addon_monthly_fee?: number | null
           branding_addon_setup_fee?: number | null
           byo_gateway_monthly_fee?: number | null
+          cancel_at_period_end?: boolean
+          cancel_effective_date?: string | null
           cancelled_at?: string | null
           channel_manager_enabled?: boolean | null
           channel_manager_per_unit_fee?: number | null
@@ -5469,6 +5486,7 @@ export type Database = {
           subscription_fee_monthly?: number | null
           subscription_reset_pending?: boolean
           subscription_status?: string
+          suspended_at?: string | null
           tier_pricing_json?: Json | null
           tier_scope?: string | null
           transaction_fee_percentage?: number | null
