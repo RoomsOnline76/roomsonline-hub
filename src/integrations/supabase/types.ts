@@ -340,6 +340,8 @@ export type Database = {
           default_transaction_fee: number | null
           enterprise_custom_fee: number | null
           id: string
+          invoice_due_days: number
+          invoice_footer_note: string | null
           is_preset: boolean
           listing_commission_rate: number | null
           notes: string | null
@@ -383,6 +385,8 @@ export type Database = {
           default_transaction_fee?: number | null
           enterprise_custom_fee?: number | null
           id?: string
+          invoice_due_days?: number
+          invoice_footer_note?: string | null
           is_preset?: boolean
           listing_commission_rate?: number | null
           notes?: string | null
@@ -426,6 +430,8 @@ export type Database = {
           default_transaction_fee?: number | null
           enterprise_custom_fee?: number | null
           id?: string
+          invoice_due_days?: number
+          invoice_footer_note?: string | null
           is_preset?: boolean
           listing_commission_rate?: number | null
           notes?: string | null
@@ -7625,6 +7631,285 @@ export type Database = {
           },
         ]
       }
+      rol_property_invoice_lines: {
+        Row: {
+          amount: number
+          booking_id: string | null
+          check_in_date: string | null
+          check_out_date: string | null
+          commission_type: string | null
+          created_at: string
+          description: string | null
+          gross_amount: number
+          guest_name: string | null
+          id: string
+          invoice_id: string
+          is_waived: boolean
+          line_date: string | null
+          line_kind: string
+          property_id: string | null
+          property_name: string | null
+          quantity: number
+          rate: number
+          rol_reference: string | null
+          settlement_route: string | null
+          source_id: string | null
+          source_kind: string | null
+        }
+        Insert: {
+          amount?: number
+          booking_id?: string | null
+          check_in_date?: string | null
+          check_out_date?: string | null
+          commission_type?: string | null
+          created_at?: string
+          description?: string | null
+          gross_amount?: number
+          guest_name?: string | null
+          id?: string
+          invoice_id: string
+          is_waived?: boolean
+          line_date?: string | null
+          line_kind?: string
+          property_id?: string | null
+          property_name?: string | null
+          quantity?: number
+          rate?: number
+          rol_reference?: string | null
+          settlement_route?: string | null
+          source_id?: string | null
+          source_kind?: string | null
+        }
+        Update: {
+          amount?: number
+          booking_id?: string | null
+          check_in_date?: string | null
+          check_out_date?: string | null
+          commission_type?: string | null
+          created_at?: string
+          description?: string | null
+          gross_amount?: number
+          guest_name?: string | null
+          id?: string
+          invoice_id?: string
+          is_waived?: boolean
+          line_date?: string | null
+          line_kind?: string
+          property_id?: string | null
+          property_name?: string | null
+          quantity?: number
+          rate?: number
+          rol_reference?: string | null
+          settlement_route?: string | null
+          source_id?: string | null
+          source_kind?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rol_property_invoice_lines_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rol_property_invoice_lines_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings_decrypted"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rol_property_invoice_lines_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "rol_property_invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rol_property_invoice_lines_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "rol_property_invoice_lines_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rol_property_invoice_lines_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rol_property_invoices: {
+        Row: {
+          adjustment_total: number
+          amount_paid: number
+          bill_to_address: string | null
+          bill_to_email: string | null
+          bill_to_name: string | null
+          booking_count: number
+          charge_total: number
+          commission_total: number
+          created_at: string
+          created_by: string | null
+          currency: string
+          due_date: string | null
+          emailed_at: string | null
+          group_code: string | null
+          group_kind: string
+          group_name: string
+          id: string
+          invoice_reference: string | null
+          issued_at: string | null
+          issued_by: string | null
+          notes: string | null
+          paid_at: string | null
+          paid_by: string | null
+          pay_token: string | null
+          payment_reference: string | null
+          payment_transaction_id: string | null
+          pdf_path: string | null
+          period_end: string
+          period_start: string
+          portfolio_id: string | null
+          property_id: string | null
+          recurring_total: number
+          status: string
+          subtotal: number
+          total: number
+          updated_at: string
+          vat_amount: number
+          vat_rate: number
+          vat_snapshot: Json
+          void_reason: string | null
+          voided_at: string | null
+        }
+        Insert: {
+          adjustment_total?: number
+          amount_paid?: number
+          bill_to_address?: string | null
+          bill_to_email?: string | null
+          bill_to_name?: string | null
+          booking_count?: number
+          charge_total?: number
+          commission_total?: number
+          created_at?: string
+          created_by?: string | null
+          currency?: string
+          due_date?: string | null
+          emailed_at?: string | null
+          group_code?: string | null
+          group_kind?: string
+          group_name: string
+          id?: string
+          invoice_reference?: string | null
+          issued_at?: string | null
+          issued_by?: string | null
+          notes?: string | null
+          paid_at?: string | null
+          paid_by?: string | null
+          pay_token?: string | null
+          payment_reference?: string | null
+          payment_transaction_id?: string | null
+          pdf_path?: string | null
+          period_end: string
+          period_start: string
+          portfolio_id?: string | null
+          property_id?: string | null
+          recurring_total?: number
+          status?: string
+          subtotal?: number
+          total?: number
+          updated_at?: string
+          vat_amount?: number
+          vat_rate?: number
+          vat_snapshot?: Json
+          void_reason?: string | null
+          voided_at?: string | null
+        }
+        Update: {
+          adjustment_total?: number
+          amount_paid?: number
+          bill_to_address?: string | null
+          bill_to_email?: string | null
+          bill_to_name?: string | null
+          booking_count?: number
+          charge_total?: number
+          commission_total?: number
+          created_at?: string
+          created_by?: string | null
+          currency?: string
+          due_date?: string | null
+          emailed_at?: string | null
+          group_code?: string | null
+          group_kind?: string
+          group_name?: string
+          id?: string
+          invoice_reference?: string | null
+          issued_at?: string | null
+          issued_by?: string | null
+          notes?: string | null
+          paid_at?: string | null
+          paid_by?: string | null
+          pay_token?: string | null
+          payment_reference?: string | null
+          payment_transaction_id?: string | null
+          pdf_path?: string | null
+          period_end?: string
+          period_start?: string
+          portfolio_id?: string | null
+          property_id?: string | null
+          recurring_total?: number
+          status?: string
+          subtotal?: number
+          total?: number
+          updated_at?: string
+          vat_amount?: number
+          vat_rate?: number
+          vat_snapshot?: Json
+          void_reason?: string | null
+          voided_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rol_property_invoices_portfolio_id_fkey"
+            columns: ["portfolio_id"]
+            isOneToOne: false
+            referencedRelation: "property_portfolios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rol_property_invoices_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "rol_property_invoices_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rol_property_invoices_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rol_revenue_ledger: {
         Row: {
           commission_amount: number
@@ -14702,6 +14987,31 @@ export type Database = {
         Returns: {
           external_system: string
           latest_fetched_at: string
+        }[]
+      }
+      get_rol_property_invoice_by_token: {
+        Args: { _token: string }
+        Returns: {
+          adjustment_total: number
+          amount_paid: number
+          bill_to_name: string
+          booking_count: number
+          charge_total: number
+          commission_total: number
+          currency: string
+          due_date: string
+          group_name: string
+          id: string
+          invoice_reference: string
+          lines: Json
+          period_end: string
+          period_start: string
+          recurring_total: number
+          status: string
+          subtotal: number
+          total: number
+          vat_amount: number
+          vat_rate: number
         }[]
       }
       get_ru_cron_jobs: {
