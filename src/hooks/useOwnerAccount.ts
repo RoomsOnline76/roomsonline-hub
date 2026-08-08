@@ -189,6 +189,10 @@ export function useOwnerAccount(scope: OwnerScope | null) {
           .from("properties")
           .select("allow_custom_payment_provider")
           .in("id", scope.propertyIds),
+        supabase
+          .from("billing_global_defaults")
+          .select("vat_enabled, vat_rate, vat_number, company_legal_name, company_address")
+          .limit(1),
       ]);
 
       const bookings = ((bookRes.data || []) as unknown as SettlementBooking[]).filter(Boolean);
