@@ -47,7 +47,20 @@ const label = (status: string, overdue: boolean) =>
 
 export function AccountInvoicesTab({ subscriptionInvoices, rolInvoices, currency }: Props) {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const today = new Date().toISOString().slice(0, 10);
+
+  const handleDownload = async (id: string, number: string | null) => {
+    setDownloadingId(id);
+    try {
+      await downloadSubscriptionInvoice(id, number);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not download the invoice");
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
 
   const isSetup = (inv: OwnerSubscriptionInvoice) =>
     inv.invoice_kind === "once_off" ||
