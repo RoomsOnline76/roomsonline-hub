@@ -368,12 +368,15 @@ async function calculate(supabase: Client, periodMonth: string): Promise<Preview
 
     const rate = isFirstYear ? terms.first_year_rate : terms.residual_rate;
     const breakdown = revenue.get(propertyId);
+    // Commissionable base = booking commission only. Setup fees and monthly
+    // subscriptions are billed and settled separately and are not commissionable.
     const baseRevenue = round2(
-      (breakdown?.booking_commission || 0) +
-        (breakdown?.recovered_commission || 0) +
-        (breakdown?.subscription_revenue || 0),
+      (breakdown?.booking_commission || 0) + (breakdown?.recovered_commission || 0),
     );
-    if (baseRevenue <= 0) continue;
+    const reportedPlatformRevenue = round2(
+      (breakdown?.subscription_revenue || 0) + (breakdown?.setup_revenue || 0),
+    );
+    if (baseRevenue <= 0 && reportedPlatformRevenue <= 0) continue;
 
     statement.lines.push({
       rep_id: rep.id as string,
@@ -392,7 +395,10 @@ async function calculate(supabase: Client, periodMonth: string): Promise<Preview
         booking_count: breakdown?.booking_count || 0,
         recovered_commission: round2(breakdown?.recovered_commission || 0),
         subscription_revenue: round2(breakdown?.subscription_revenue || 0),
+        setup_revenue: round2(breakdown?.setup_revenue || 0),
+        passthrough_revenue: round2(breakdown?.passthrough_revenue || 0),
       },
+
       description: null,
     });
   }
