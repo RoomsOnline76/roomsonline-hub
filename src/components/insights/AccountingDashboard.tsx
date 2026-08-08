@@ -9,7 +9,9 @@ const RunwayChart = lazy(() => import("./RunwayChart").then((m) => ({ default: m
 import { FinancialMetricsCards } from "./FinancialMetricsCards";
 import { RecurringCommitmentsPanel } from "./RecurringCommitmentsPanel";
 import { Button } from "@/components/ui/button";
-import { Plus, TrendingUp, Receipt, Repeat } from "lucide-react";
+import { Plus, TrendingUp, Receipt, Repeat, Users } from "lucide-react";
+import { CostSharingPanel } from "./CostSharingPanel";
+
 import { AddMetricModal } from "./AddMetricModal";
 import { useRolActualRevenue } from "@/hooks/useRolActualRevenue";
 import {
@@ -140,7 +142,12 @@ export function AccountingDashboard({ dateRange }: AccountingDashboardProps) {
               <TrendingUp className="h-4 w-4" />
               Runway &amp; Metrics
             </TabsTrigger>
+            <TabsTrigger value="costshare" className="gap-2">
+              <Users className="h-4 w-4" />
+              Cost Sharing
+            </TabsTrigger>
           </TabsList>
+
 
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => setIsAddMetricOpen(true)}>
@@ -178,7 +185,17 @@ export function AccountingDashboard({ dateRange }: AccountingDashboardProps) {
             <RunwayChart metrics={(metrics as any[]) || []} isLoading={metricsLoading} />
           </Suspense>
         </TabsContent>
+
+        <TabsContent value="costshare" className="space-y-4">
+          <CostSharingPanel
+            allInvoices={(invoices as any[]) || []}
+            periodInvoices={filteredInvoices as any[]}
+            fxRates={fxRates}
+            dateRange={dateRange}
+          />
+        </TabsContent>
       </Tabs>
+
 
       <AddInvoiceModal
         open={isAddInvoiceOpen}
