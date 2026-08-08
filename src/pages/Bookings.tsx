@@ -15,7 +15,7 @@ import {
   ROL_ORIGIN_LABELS,
   displayBookingReference,
   matchesReferenceSearch,
-  resolveOriginCode,
+  bookingOriginCode,
   kindForOrigin,
 } from "@/lib/bookingReference";
 
@@ -536,7 +536,7 @@ const Bookings = () => {
     if (originFilter !== "all") {
       result = result.filter(
         (booking) =>
-          resolveOriginCode({
+          bookingOriginCode({
             rol_reference: booking.rol_reference,
             rol_ref_origin: booking.rol_ref_origin,
             integration_type: booking.integration_type,
@@ -546,7 +546,7 @@ const Bookings = () => {
     }
     if (kindFilter !== "all") {
       result = result.filter((booking) => {
-        const origin = resolveOriginCode({
+        const origin = bookingOriginCode({
           rol_reference: booking.rol_reference,
           rol_ref_origin: booking.rol_ref_origin,
           integration_type: booking.integration_type,
