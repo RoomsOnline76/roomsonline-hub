@@ -148,8 +148,10 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
   const [properties, setProperties] = useState<ChannelPropertyRow[]>([]);
   const [events, setEvents] = useState<ArchiveEventRow[]>([]);
   const [fx, setFx] = useState<FxRate | null>(null);
+  const [rolPerListingZar, setRolPerListingZar] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
 
   const load = useCallback(async () => {
     setLoading(true);
