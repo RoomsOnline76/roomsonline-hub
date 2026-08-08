@@ -300,12 +300,19 @@ async function ensureInvoiceAndEmail(supabase: any, resend: Resend, opts: {
     isRenewal,
   });
   const subject = isRenewal ? `Renew your Rooms Online subscription — ${entityName}` : `Activate your Rooms Online subscription — ${entityName}`;
-  const send = await sendReminder(resend, ownerEmail, subject, html);
+  const adminCopies = await getAdminCopyRecipients(supabase, ownerEmail);
+  const send = await sendReminder(resend, ownerEmail, subject, html, adminCopies);
   await supabase.from("subscription_invoices").update({
     email_sent_at: new Date().toISOString(),
     reminder_count: (invoice.reminder_count || 0) + 1,
   }).eq("id", invoice.id);
-  return { sent: send.ok, invoice_id: invoice.id, to: ownerEmail };
+  await supabase.from("subscription_invoice_events").insert({
+    invoice_id: invoice.id,
+    event_type: "email",
+    status: send.ok ? "sent" : "error",
+    detail: `to:${ownerEmail}${adminCopies.length > 0 ? ` cc:${adminCopies.join(",")}` : ""}`,
+  });
+  return { sent: send.ok, invoice_id: invoice.id, to: ownerEmail, cc: adminCopies };
 }
 
 Deno.serve(async (req) => {
