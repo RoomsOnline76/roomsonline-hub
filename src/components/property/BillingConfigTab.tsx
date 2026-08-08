@@ -185,6 +185,8 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
   const [strategy, setStrategy] = useState<string>("default");
   const [builder, setBuilder] = useState<BillingConfigValue>(emptyBuilderValue());
   const [billingStartDate, setBillingStartDate] = useState("");
+  const [engagementDate, setEngagementDate] = useState("");
+  const [freePeriodDays, setFreePeriodDays] = useState("");
   const [billingEnabled, setBillingEnabled] = useState(false);
   const [presetJustApplied, setPresetJustApplied] = useState<string | null>(null);
 
@@ -193,9 +195,23 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
       setStrategy(config.billing_strategy || "default");
       setBuilder(configToBuilder(config));
       setBillingStartDate(config.billing_start_date || "");
+      const c = config as unknown as { engagement_date?: string | null; free_period_days?: number | null };
+      setEngagementDate(c.engagement_date || "");
+      setFreePeriodDays(c.free_period_days != null ? String(c.free_period_days) : "");
       setBillingEnabled(!!(config as unknown as { billing_enabled?: boolean }).billing_enabled);
     }
   }, [config]);
+
+  const schedulePreview = useMemo(
+    () =>
+      resolveBillingSchedule({
+        engagement_date: engagementDate || null,
+        billing_start_date: billingStartDate || null,
+        free_period_days: freePeriodDays === "" ? null : Number(freePeriodDays),
+      }),
+    [engagementDate, billingStartDate, freePeriodDays],
+  );
+
 
   const selectedPreset = useMemo(() => getDefaultsForStrategy(strategy), [strategy, defaults]);
   const placeholders = useMemo(() => {
