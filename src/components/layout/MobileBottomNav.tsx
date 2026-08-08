@@ -15,12 +15,14 @@ import { navigationConfig } from "@/config/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdminActionCounts } from "@/hooks/useAdminActionCounts";
 import { PmsMobileBottomNav } from "./PmsMobileBottomNav";
+import { useNavVisibility } from "@/hooks/useNavVisibility";
 
 export function MobileBottomNav() {
   const location = useLocation();
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
   const { userRole, signOut } = useAuth();
+  const { canAccessItem, canAccessSection } = useNavVisibility();
 
   const isAdmin = hasMinRole(userRole, 'admin');
   const isDev = hasMinRole(userRole, 'dev');
@@ -36,10 +38,9 @@ export function MobileBottomNav() {
   if (isAdmin) quickItems.push(adminMobileNavItem);
   quickItems.push(mobileNavItems[0], mobileNavItems[1]);
 
-  // Every section the role can reach, including link-only sections (ROL'OS PMS).
-  const accessibleSections = navigationConfig.filter((section) =>
-    hasMinRole(userRole, section.minRole)
-  );
+  // Same section visibility rules as the desktop sidebar.
+  const accessibleSections = navigationConfig.filter(canAccessSection);
+
 
   const go = (href: string) => {
     navigate(href);
@@ -97,9 +98,8 @@ export function MobileBottomNav() {
             </SheetHeader>
             <div className="mt-4 min-h-0 flex-1 space-y-6 overflow-y-auto pb-8">
               {accessibleSections.map((section) => {
-                const accessibleItems = section.items.filter((item) =>
-                  hasMinRole(userRole, item.minRole)
-                );
+                const accessibleItems = section.items.filter(canAccessItem);
+
                 const SectionIcon = section.icon;
 
                 // Link-only section (e.g. ROL'OS PMS) — render as a single row.
