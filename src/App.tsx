@@ -45,6 +45,7 @@ const PropertyOnboarding = lazy(() => import("./pages/PropertyOnboarding"));
 const GuestPortal = lazy(() => import("./pages/GuestPortal"));
 const GroupRoomingPortal = lazy(() => import("./pages/GroupRoomingPortal"));
 const SubscriptionPay = lazy(() => import("./pages/SubscriptionPay"));
+const PropertyInvoicePay = lazy(() => import("./pages/PropertyInvoicePay"));
 const RecaptchaBridge = lazy(() => import("./pages/RecaptchaBridge"));
 
 // ─── Lazy — admin pages ──────────────────────────────────────────
