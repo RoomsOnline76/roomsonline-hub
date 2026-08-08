@@ -772,17 +772,10 @@ Deno.serve(async (req) => {
         reservations_24h: (ruNotifs || []).length,
         reservations_unprocessed: (ruNotifs || []).filter(n => n.processed === false).length,
         last_reservation_at: shortTime((ruNotifs || [])[0]?.created_at ?? null),
-        current_ok: runs.length > 0 ? runs.every(r => r.action ? true : true) && (() => {
-          // current state = every action's most recent run succeeded
-          const seen = new Set<string>();
-          for (const r of runs) {
-            const key = r.action || 'unknown';
-            if (seen.has(key)) continue;
-            seen.add(key);
-            if (r.success === false) return false;
-          }
-          return true;
-        })() : null,
+        // Current state = the most recent run of every action succeeded
+        current_ok: runs.length === 0
+          ? null
+          : [...byAction.values()].every(list => list[0]?.success !== false),
         recovered_actions: actions.filter(a => a.recovered).length,
         ari_last_push_at: shortTime(lastAri),
         ari_stale_hours: hoursSince(lastAri),
