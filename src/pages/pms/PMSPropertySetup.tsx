@@ -11,9 +11,10 @@ import { usePropertyFieldRequirements } from "@/hooks/usePropertyFieldRequiremen
 import { focusRequirementField } from "@/lib/requirementFocus";
 import {
   buildSectionGroups,
-
+  PROPERTY_SECTION_ORDER,
   type PropertySectionKey,
 } from "@/config/propertySectionOrder";
+
 
 
 /**
@@ -24,39 +25,17 @@ import {
  * (same IA as Admin PropertyForm and the onboarding wizard).
  */
 
-type TabKey = Extract<
-  PropertySectionKey,
-  | "info-facilities"
-  | "rooms"
-  | "rates"
-  | "rate-plans"
-  | "policies"
-  | "charges"
-  | "packages"
-  | "specials"
-  | "addons"
-  | "templates"
-  | "announcements"
-  | "contacts"
-  | "images"
->;
+type TabKey = PropertySectionKey;
 
-/** Only sections that are editable inside this hub */
-const HUB_KEYS: TabKey[] = [
-  "info-facilities",
-  "rooms",
-  "rates",
-  "rate-plans",
-  "policies",
-  "charges",
-  "packages",
-  "specials",
-  "addons",
-  "templates",
-  "announcements",
-  "contacts",
-  "images",
-];
+/**
+ * Sections editable inside this hub — derived from the shared section config so the
+ * hub and Admin → Edit property can never drift: every ROL'OS-managed section plus
+ * Media (shared guest-experience section).
+ */
+const HUB_KEYS: TabKey[] = PROPERTY_SECTION_ORDER.filter(
+  (s) => s.rolosManaged || s.key === "images",
+).map((s) => s.key);
+
 
 const SECTION_GROUPS = buildSectionGroups(HUB_KEYS);
 const VALID_TABS = new Set<TabKey>(
