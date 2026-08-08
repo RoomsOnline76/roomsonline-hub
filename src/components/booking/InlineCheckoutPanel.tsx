@@ -223,9 +223,22 @@ export function InlineCheckoutPanel({
         booking = inserted;
       }
 
+      // Reservation-only: no gateway. Confirm the reservation and let the
+      // property collect payment by EFT.
+      if (isReservationOnly) {
+        setBookingId(booking.id);
+        await supabase.functions.invoke("send-booking-email", {
+          body: { booking_id: booking.id, email_type: "reservation_only" },
+        }).catch(() => undefined);
+        toast.success("Reservation confirmed — payment details sent to your email");
+        onPaymentSuccess(booking.id);
+        return;
+      }
+
       // Initiate payment
       setBookingId(booking.id);
       setPendingPaymentAmount(booking.total_price);
+
 
       if (activeGateway === "paygate") {
         setShowPaymentModal(true);
