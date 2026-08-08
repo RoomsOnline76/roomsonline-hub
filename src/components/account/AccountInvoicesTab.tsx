@@ -116,13 +116,21 @@ export function AccountInvoicesTab({ subscriptionInvoices, rolInvoices, currency
           <TableCell className="whitespace-nowrap">{inv.paid_at?.slice(0, 10) || "—"}</TableCell>
           <TableCell className="text-right">
             <div className="flex justify-end gap-1">
-              {inv.pdf_url && (
-                <Button asChild size="sm" variant="ghost">
-                  <a href={inv.pdf_url} target="_blank" rel="noreferrer">
+              {(inv.pdf_url || inv.status === "paid") && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={downloadingId === inv.id}
+                  onClick={() => handleDownload(inv.id, inv.invoice_number)}
+                >
+                  {downloadingId === inv.id ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
                     <Download className="h-3.5 w-3.5" />
-                  </a>
+                  )}
                 </Button>
               )}
+
               {payUrl && (
                 <Button asChild size="sm" variant="outline">
                   <a href={payUrl} target="_blank" rel="noreferrer">
