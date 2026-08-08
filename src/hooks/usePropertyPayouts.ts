@@ -445,6 +445,8 @@ export function usePropertyPayouts(period?: PayoutPeriod | string) {
           billing_scope: resolved?.scope || 'property',
           white_label_fee: wlFee,
           subscription_fee: subFee,
+          monthly_fees: monthlyFees,
+
           pf_enabled: pfEnabled,
           rol_gross: p.rolGross,
           byo_gross: p.byoGross,
