@@ -130,7 +130,13 @@ export function CommissionStatementDetailDialog({
               <Fact label="Period" value={monthLabel(statement.period_month)} sub={periodLabel(statement.period_start, statement.period_end)} />
               <Fact label="Tier" value={String(terms.tier_label || statement.rep_tier || "Base")} sub={`First year ${terms.first_year_rate ?? "—"}% · residual ${terms.residual_rate ?? "—"}%`} />
               <Fact label="ROL revenue" value={fmtMoney(statement.total_revenue)} sub={`${statement.property_count} propert${statement.property_count === 1 ? "y" : "ies"}`} />
-              <Fact label="Net payable" value={fmtMoney(statement.net_payable)} sub={statement.paid_at ? `Paid ${fmtDate(statement.paid_at)}` : "Awaiting payment"} strong />
+              <Fact
+                label="Net commission payout"
+                value={fmtMoney(vatBreak?.total ?? statement.net_payable)}
+                sub={statement.paid_at ? `Paid ${fmtDate(statement.paid_at)}` : "Awaiting payment"}
+                strong
+              />
+
             </div>
 
             {!balanced && (
