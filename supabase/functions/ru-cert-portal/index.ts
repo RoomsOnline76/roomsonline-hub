@@ -824,7 +824,7 @@ Deno.serve(async (req) => {
         }
 
         // ROLOS-side evidence: the real product surfaces log to ru_sync_runs.
-        let rolosStatus: "success" | "failed" | "never_used" = "never_used";
+        let rolosStatus: "success" | "failed" | "never_used" | "blocked" = "never_used";
         let rolosLastAt: string | null = null;
         let rolosDetail: string | null = null;
         for (const act of e.sync_actions) {
