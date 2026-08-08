@@ -323,6 +323,8 @@ Deno.serve(async (req) => {
       is_staff: isStaff,
       setup: {
         total: setupTotal,
+        paid_total: paidSetupAmount,
+        outstanding: setupBalance,
         items: setupCharges.map((c) => ({ description: c.description, amount: c.amount })),
         invoice: openSetup
           ? { id: openSetup.id, number: openSetup.invoice_number, amount: Number(openSetup.amount), pay_url: payUrl(openSetup.payfast_token) }
@@ -331,6 +333,21 @@ Deno.serve(async (req) => {
           ? { id: paidSetup.id, number: paidSetup.invoice_number, amount: Number(paidSetup.amount), pdf_url: paidSetup.pdf_url }
           : null,
       },
+      // A billing-model change schedules the current plan to end and parks the
+      // new monthly fee until the owner activates it.
+      pending_plan: cfg.pending_monthly_fee != null
+        ? {
+            monthly_fee: Number(cfg.pending_monthly_fee) || 0,
+            effective_date: cfg.pending_effective_date ? String(cfg.pending_effective_date).slice(0, 10) : null,
+            reason: cfg.plan_change_reason ?? null,
+            window_opens_on: cfg.pending_effective_date
+              ? addDays(String(cfg.pending_effective_date), -START_WINDOW_DAYS)
+              : null,
+            can_activate:
+              !!cfg.pending_effective_date &&
+              today() >= addDays(String(cfg.pending_effective_date), -START_WINDOW_DAYS),
+          }
+        : null,
       subscription: {
         monthly_fee: fee,
         due_by: paidStart,
