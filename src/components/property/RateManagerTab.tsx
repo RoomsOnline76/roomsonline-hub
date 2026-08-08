@@ -1,24 +1,9 @@
-import { useMemo, useState } from "react";
-import { isRolosPms } from "@/lib/pmsUtils";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Separator } from "@/components/ui/separator";
-import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar as CalendarIcon, Plus, Minus, Trash2, Copy, Edit, DollarSign, Calendar, Cloud } from "lucide-react";
-import { Calendar as CalendarComponent } from "@/components/ui/calendar";
-import { format } from "date-fns";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { ACCOMMODATION_LABEL_OPTIONS } from "@/lib/accommodationLabels";
 import { AdditionalChargesManager } from "@/components/charges";
 import SeasonsCalendar from "@/components/property/SeasonsCalendar";
-import { SyncRatesDialog } from "@/components/property/SyncRatesDialog";
 import { PoliciesTab } from "@/components/property/PoliciesTab";
-import { useToast } from "@/hooks/use-toast";
+
 
 // ── Types ──────────────────────────────────────────────────────────────────
 type RateField = "roomAmount" | "adultAmount" | "teenAmount" | "childAmount" | "infantAmount";
