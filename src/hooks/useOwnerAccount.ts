@@ -30,6 +30,7 @@ import {
   type SettlementBooking,
 } from "@/lib/ownerAccount";
 import { resolveBookingCommission, type CommissionConfigLike } from "@/lib/commissionResolver";
+import { DEFAULT_VAT_SETTINGS, type VatSettings } from "@/lib/payoutStatement";
 
 
 interface ScopeRow {
