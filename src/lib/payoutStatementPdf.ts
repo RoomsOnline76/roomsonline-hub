@@ -115,7 +115,7 @@ export function buildPayoutStatementPdf(
       "", "", "", "Totals",
       money(statement.gross_amount),
       "",
-      money(statement.rol_commission + statement.byo_commission),
+      money(statement.rol_commission),
       money(statement.transaction_fees),
       money(statement.amount_held),
     ]],
