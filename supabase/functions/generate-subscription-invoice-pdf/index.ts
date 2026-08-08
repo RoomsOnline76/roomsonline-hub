@@ -288,7 +288,7 @@ Deno.serve(async (req) => {
     await supabase.from("subscription_invoices").update({ pdf_url: pdfUrl }).eq("id", invoice_id);
 
     // Email owner with attachment
-    if (ownerEmail) {
+    if (ownerEmail && mode !== "url") {
       const html = `<!doctype html><html><body style="font-family:Arial,sans-serif;background:#fff;padding:24px;color:#1A1A2E">
         <div style="max-width:560px;margin:0 auto;border:1px solid #eee;border-radius:8px;padding:24px">
           <h2 style="color:#E91E8C;margin-top:0">Thank you — payment received</h2>
@@ -318,7 +318,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    return new Response(JSON.stringify({ success: true, invoice_number: invoiceNumber, pdf_url: pdfUrl }), {
+    return new Response(JSON.stringify({ success: true, invoice_number: invoiceNumber, pdf_url: pdfUrl, url: pdfUrl }), {
       status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e: any) {
