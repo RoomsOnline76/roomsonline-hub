@@ -300,12 +300,20 @@ Deno.serve(async (req) => {
   const in5Str = in5Days.toISOString().slice(0, 10);
 
   const results: any[] = [];
+  const freeDefaultCache = new Map<string, number>();
+  const freeDefaultFor = async (strategy: string) => {
+    const key = strategy || "default";
+    if (!freeDefaultCache.has(key)) {
+      freeDefaultCache.set(key, await getGlobalFreePeriodDefault(supabase, key));
+    }
+    return freeDefaultCache.get(key)!;
+  };
 
-  // 1) Activation reminders — property scope
+  // 1) Activation reminders — property scope. The date gate lives in
+  //    ensureInvoiceAndEmail so engagement-date + free-period configs qualify too.
   const { data: propStart } = await supabase
     .from("property_billing_configs")
     .select("*, properties!inner(id, name, owner_id, owner_email, is_active)")
-    .lte("billing_start_date", todayStr)
     .eq("billing_enabled", true)
     .eq("subscription_status", "pending")
     .eq("properties.is_active", true);
@@ -314,6 +322,7 @@ Deno.serve(async (req) => {
     const r = await ensureInvoiceAndEmail(supabase, resend, {
       cfg, scope: "property", entityId: p.id, entityName: p.name,
       ownerId: p.owner_id, ownerEmail: p.owner_email, isRenewal: false,
+      globalFreeDefault: await freeDefaultFor(cfg.billing_strategy),
     });
     results.push({ property_id: p.id, ...r });
   }
@@ -322,7 +331,6 @@ Deno.serve(async (req) => {
   const { data: portStart } = await supabase
     .from("portfolio_billing_configs")
     .select("*, property_portfolios!inner(id, name, owner_id)")
-    .lte("billing_start_date", todayStr)
     .eq("billing_enabled", true)
     .eq("subscription_status", "pending");
   for (const cfg of portStart ?? []) {
@@ -335,9 +343,11 @@ Deno.serve(async (req) => {
     const r = await ensureInvoiceAndEmail(supabase, resend, {
       cfg, scope: "portfolio", entityId: pf.id, entityName: pf.name,
       ownerId: pf.owner_id, ownerEmail, isRenewal: false,
+      globalFreeDefault: await freeDefaultFor(cfg.billing_strategy),
     });
     results.push({ portfolio_id: pf.id, ...r });
   }
+
 
   // 3) Renewals — property (within 5 days of current_period_end)
   const { data: propRenew } = await supabase
