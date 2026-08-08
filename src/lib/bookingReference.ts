@@ -99,6 +99,25 @@ export function kindForOrigin(origin: RolOriginCode): RolReferenceKind {
   return IN_ECOSYSTEM_ORIGINS.includes(origin) ? "B" : "R";
 }
 
+/**
+ * Origin code for a booking row: prefers the minted reference, then the stored
+ * origin column, and finally derives it from the channel/integration fields so
+ * legacy rows still filter correctly.
+ */
+export function bookingOriginCode(booking: {
+  rol_reference?: string | null;
+  rol_ref_origin?: string | null;
+  integration_type?: string | null;
+  booking_channel?: string | null;
+}): RolOriginCode {
+  const parsed = parseRolReference(booking.rol_reference);
+  if (parsed) return parsed.origin;
+  const stored = (booking.rol_ref_origin || "").toUpperCase();
+  if (ROL_ORIGIN_FILTER_OPTIONS.includes(stored as RolOriginCode)) return stored as RolOriginCode;
+  return resolveOriginCode(booking.integration_type, booking.booking_channel);
+}
+
+
 export interface ParsedRolReference {
   origin: RolOriginCode;
   kind: RolReferenceKind;
