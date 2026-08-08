@@ -48,6 +48,10 @@ function json(body: Json, status = 200): Response {
 
 const PAID_INVOICE_STATUSES = ["paid", "settled", "completed"];
 
+/** South African VAT rate applied when a referral partner is a VAT vendor. */
+const DEFAULT_VAT_RATE = 15;
+
+
 /** Platform fallbacks — only used when nothing is configured anywhere. */
 const TIER_FALLBACKS: Record<string, { first_year_rate: number; residual_rate: number }> = {
   base: { first_year_rate: 20, residual_rate: 5 },
