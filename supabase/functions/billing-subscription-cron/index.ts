@@ -203,14 +203,18 @@ async function ensureInvoiceAndEmail(supabase: any, resend: Resend, opts: {
   if (!invoice) {
     const subscriptionAmount = await computeSubscriptionAmount(supabase, cfg, scope, entityId);
 
-    // Pull pending once-off charges for this entity
+    // Pull pending once-off charges for this entity. Setup fees are excluded —
+    // those are raised as a standalone upfront invoice on contract signature.
     const chargeCol = entityCol;
-    const { data: pendingCharges } = await supabase
+    const { data: allPending } = await supabase
       .from("subscription_charge_items")
       .select("id, kind, description, amount, currency")
       .eq(chargeCol, entityId)
-      .is("invoiced_at", null);
-    const onceOffAmount = (pendingCharges ?? []).reduce((s: number, c: any) => s + (Number(c.amount) || 0), 0);
+      .is("invoiced_at", null)
+      .is("invoiced_on_invoice_id", null);
+    const pendingCharges = (allPending ?? []).filter((c: any) => !isSetupCharge(c.kind));
+    const onceOffAmount = pendingCharges.reduce((s: number, c: any) => s + (Number(c.amount) || 0), 0);
+
     const total = subscriptionAmount + onceOffAmount;
 
     if (!total || total <= 0) {
