@@ -477,7 +477,61 @@ Deno.serve(async (req) => {
       return json({ success: true, sent_to: recipients });
     }
 
+    // Staff-only manual settlement (e.g. PayFast confirmed but the ITN was lost).
+    if (action === "mark_invoice_paid") {
+      if (!isStaff) return json({ error: "forbidden" }, 403);
+      const invoiceId = String(body.invoice_id || "");
+      if (!invoiceId) return json({ error: "invoice_id is required" }, 400);
+      const { data: inv } = await supabase
+        .from("subscription_invoices")
+        .select("*")
+        .eq("id", invoiceId)
+        .maybeSingle();
+      if (!inv) return json({ error: "invoice_not_found" }, 404);
+      if (inv.status === "paid") return json({ success: true, already_paid: true });
+
+      const now = new Date().toISOString();
+      await supabase
+        .from("subscription_invoices")
+        .update({
+          status: "paid",
+          paid_at: now,
+          payfast_payment_id: body.payment_reference ? String(body.payment_reference) : inv.payfast_payment_id,
+          metadata: { ...(inv.metadata ?? {}), manual_settlement: { by: user?.id ?? "system", at: now } },
+        })
+        .eq("id", invoiceId);
+
+      await supabase
+        .from("subscription_charge_items")
+        .update({ invoiced_at: now })
+        .eq("invoiced_on_invoice_id", invoiceId)
+        .is("invoiced_at", null);
+
+      if (String(inv.invoice_kind) !== "once_off") {
+        await supabase
+          .from(cfgTable)
+          .update({ subscription_status: "active", current_period_end: addMonth(inv.period_start), cancelled_at: null, last_invoice_id: invoiceId })
+          .eq(entityCol, entityId);
+      } else {
+        await supabase.from(cfgTable).update({ last_invoice_id: invoiceId }).eq(entityCol, entityId);
+      }
+
+      await supabase.from("billing_transactions").insert({
+        property_id: inv.property_id,
+        owner_id: inv.owner_id,
+        type: String(inv.invoice_kind) === "once_off" ? "once_off" : "subscription",
+        amount: inv.amount,
+        currency: inv.currency,
+        reference_id: invoiceId,
+        calculated_by: "manual_settlement",
+        metadata: { portfolio_id: inv.portfolio_id, period_start: inv.period_start, period_end: inv.period_end },
+      });
+
+      return json({ success: true, invoice_id: invoiceId });
+    }
+
     return json({ error: "unknown_action" }, 400);
+
   } catch (e) {
     console.error("[subscription-billing-actions]", e);
     return json({ error: String(e) }, 500);
