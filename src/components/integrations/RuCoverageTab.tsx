@@ -357,8 +357,13 @@ export function RuCoverageTab() {
                   </div>
                   <div className="flex flex-wrap items-center gap-1.5">
                     <Badge variant="outline" className={`text-[10px] ${RAG_CLASS[r.rag]}`}>
-                      RU: {RAG_LABEL[r.rag]}
+                      RU: {r.status === "blocked" ? "Blocked upstream" : RAG_LABEL[r.rag]}
                     </Badge>
+                    {r.excluded_from_score && (
+                      <Badge variant="outline" className="text-[10px]">
+                        Excluded from score
+                      </Badge>
+                    )}
                     <Badge
                       variant="outline"
                       className={`text-[10px] ${r.rolos_wired ? ROLOS_CLASS[r.rolos_status] : RAG_CLASS.grey}`}
@@ -366,6 +371,7 @@ export function RuCoverageTab() {
                       {r.rolos_wired ? ROLOS_LABEL[r.rolos_status] : "Not wired"}
                     </Badge>
                   </div>
+
                 </div>
 
                 <div className="grid gap-1 text-xs text-muted-foreground sm:grid-cols-2">
