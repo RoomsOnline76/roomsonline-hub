@@ -150,7 +150,7 @@ export function useOwnerAccount(scope: OwnerScope | null) {
       const keyCol = scope.kind === "property" ? "property_id" : "portfolio_id";
       const cfgTable = scope.kind === "property" ? "property_billing_configs" : "portfolio_billing_configs";
 
-      const [cfgRes, subRes, invRes, payRes, bookRes, unitRes, propRes] = await Promise.all([
+      const [cfgRes, subRes, invRes, payRes, bookRes, unitRes, propRes, vatRes] = await Promise.all([
         (supabase as any).from(cfgTable).select("*").eq(keyCol, scope.id).maybeSingle(),
         (supabase as any)
           .from("subscription_invoices")
