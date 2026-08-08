@@ -108,40 +108,8 @@ export default function AdminPayments() {
     }
   };
 
-  // Commission detail lives on Admin → Commission Statements; Payments only
-  // surfaces the headline so an admin knows there is money waiting there.
-  const loadCommissionPayouts = async () => {
-    try {
-      setCommissionsLoading(true);
-      const { data: reports, error } = await supabase
-        .from('rep_commission_reports')
-        .select(`id, rep_id, period_month, total_amount, net_payable, status, sales_reps!inner(display_name, rep_code, id)`)
-        .in('status', ['pending_approval', 'approved'])
-        .order('period_month', { ascending: false })
-        .limit(50);
-      if (error) throw error;
 
-      setCommissionPayouts((reports || []).map((r: any) => ({
-        id: r.id, rep_id: r.rep_id,
-        rep_name: r.sales_reps?.display_name || 'Unknown',
-        rep_code: r.sales_reps?.rep_code || '',
-        period_month: r.period_month,
-        total_amount: Number(r.net_payable ?? r.total_amount) || 0,
-        status: r.status,
-        has_banking: false,
-        banking_verified: false,
-      })));
-    } catch (error) {
-      console.error('Error loading commission payouts:', error);
-    } finally {
-      setCommissionsLoading(false);
-    }
-  };
 
-  const totalCommissionsDue = commissionPayouts
-    .filter(p => p.status === 'approved')
-    .reduce((sum, p) => sum + p.total_amount, 0);
-  const awaitingApprovalCount = commissionPayouts.filter(p => p.status === 'pending_approval').length;
 
 
   const StatCard = ({ title, value, icon: Icon, description, variant = 'default' }: {
