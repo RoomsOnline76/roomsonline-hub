@@ -161,7 +161,17 @@ const BookingConfirmation = () => {
       room.checkIn && room.checkOut && (room.checkIn !== booking.check_in_date || room.checkOut !== booking.check_out_date)
   );
 
-  const displayRef = externalRef || booking.external_reservation_id || bookingId?.slice(0, 8).toUpperCase();
+  // Standardised ROL reference leads; the channel's own reference is shown beside it.
+  const displayRef =
+    (booking as { rol_reference?: string | null }).rol_reference ||
+    externalRef ||
+    booking.external_reservation_id ||
+    bookingId?.slice(0, 8).toUpperCase();
+  const channelRef =
+    booking.external_reservation_id && booking.external_reservation_id !== displayRef
+      ? booking.external_reservation_id
+      : null;
+
   const isPaid = booking.payment_status === "paid";
   const paymentCancelled = paymentStatus === "cancelled";
 
@@ -259,8 +269,14 @@ const BookingConfirmation = () => {
           {/* Reference bar — uses primary as accent */}
           <div className="bg-primary/5 px-5 py-3 flex items-center justify-between border-b border-primary/10">
             <span className="text-xs font-medium text-primary/70 uppercase tracking-wider">Reference</span>
-            <span className="font-mono text-sm font-semibold tracking-wide text-primary">{displayRef}</span>
+            <span className="text-right">
+              <span className="block font-mono text-sm font-semibold tracking-wide text-primary">{displayRef}</span>
+              {channelRef && (
+                <span className="block font-mono text-[10px] text-muted-foreground">channel ref {channelRef}</span>
+              )}
+            </span>
           </div>
+
 
           <div className="px-5 py-5 space-y-4">
             {/* Property */}

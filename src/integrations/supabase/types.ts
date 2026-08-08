@@ -572,6 +572,49 @@ export type Database = {
         }
         Relationships: []
       }
+      booking_reference_counters: {
+        Row: {
+          created_at: string
+          last_seq: number
+          property_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          last_seq?: number
+          property_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          last_seq?: number
+          property_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_reference_counters_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: true
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "booking_reference_counters_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: true
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_reference_counters_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: true
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       booking_revenue_attributions: {
         Row: {
           basis_amount: number
@@ -828,6 +871,9 @@ export type Database = {
           property_id: string
           rate_type_id: string | null
           requires_intervention: boolean | null
+          rol_ref_kind: string | null
+          rol_ref_origin: string | null
+          rol_reference: string | null
           rolos_check_in_time: string | null
           rolos_check_out_time: string | null
           rolos_folio_id: string | null
@@ -914,6 +960,9 @@ export type Database = {
           property_id: string
           rate_type_id?: string | null
           requires_intervention?: boolean | null
+          rol_ref_kind?: string | null
+          rol_ref_origin?: string | null
+          rol_reference?: string | null
           rolos_check_in_time?: string | null
           rolos_check_out_time?: string | null
           rolos_folio_id?: string | null
@@ -1000,6 +1049,9 @@ export type Database = {
           property_id?: string
           rate_type_id?: string | null
           requires_intervention?: boolean | null
+          rol_ref_kind?: string | null
+          rol_ref_origin?: string | null
+          rol_reference?: string | null
           rolos_check_in_time?: string | null
           rolos_check_out_time?: string | null
           rolos_folio_id?: string | null
@@ -4721,6 +4773,7 @@ export type Database = {
           property_type: string
           property_url: string | null
           rate_resolution_mode: string
+          ref_code: string | null
           rentalsunited_building_id: string | null
           rentalsunited_property_id: string | null
           review_sentiment: Json | null
@@ -4824,6 +4877,7 @@ export type Database = {
           property_type: string
           property_url?: string | null
           rate_resolution_mode?: string
+          ref_code?: string | null
           rentalsunited_building_id?: string | null
           rentalsunited_property_id?: string | null
           review_sentiment?: Json | null
@@ -4927,6 +4981,7 @@ export type Database = {
           property_type?: string
           property_url?: string | null
           rate_resolution_mode?: string
+          ref_code?: string | null
           rentalsunited_building_id?: string | null
           rentalsunited_property_id?: string | null
           review_sentiment?: Json | null
@@ -14175,7 +14230,20 @@ export type Database = {
         Args: { _property_id: string; _user_id: string }
         Returns: boolean
       }
+      next_rol_booking_reference: {
+        Args: { _kind: string; _origin: string; _property_id: string }
+        Returns: string
+      }
       nextval_subscription_invoice_number: { Args: never; Returns: number }
+      rol_origin_code: {
+        Args: {
+          _booking_channel: string
+          _integration_type: string
+          _origin_type: string
+        }
+        Returns: string
+      }
+      rol_reference_kind: { Args: { _origin_code: string }; Returns: string }
       rolos_adjust_booked_inventory: {
         Args: {
           _delta: number
@@ -14256,6 +14324,7 @@ export type Database = {
           user_role: string
         }[]
       }
+      suggest_property_ref_code: { Args: { _name: string }; Returns: string }
       sync_portfolio_payment_config: {
         Args: { _portfolio_id: string; _property_id?: string }
         Returns: undefined

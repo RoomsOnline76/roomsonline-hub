@@ -11,6 +11,16 @@ import { BookingLifecycleVisualizer, type BookingState } from "@/components/Book
 import { ModifyBookingModal } from "@/components/booking/ModifyBookingModal";
 import { CancelBookingModal } from "@/components/booking/CancelBookingModal";
 import {
+  ROL_ORIGIN_FILTER_OPTIONS,
+  ROL_ORIGIN_LABELS,
+  displayBookingReference,
+  describeRolReference,
+  matchesReferenceSearch,
+  bookingOriginCode,
+  kindForOrigin,
+} from "@/lib/bookingReference";
+
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -69,13 +79,19 @@ interface Booking {
   special_requests: string | null;
   voucher: string | null;
   external_reservation_id: string | null;
+  /** Standardised ROL booking reference (ROL-<origin>-<kind>-<prop>-<seq>). */
+  rol_reference?: string | null;
+  rol_ref_origin?: string | null;
+  rol_ref_kind?: string | null;
   created_at: string | null;
   source?: "internal" | "pms";
   ai_metadata?: any;
   booking_channel?: string | null;
+  integration_type?: string | null;
   rolos_rate_plan_id?: string | null;
   payment_status?: string | null;
 }
+
 
 
 const Bookings = () => {
@@ -88,6 +104,9 @@ const Bookings = () => {
   const [dateTo, setDateTo] = useState<string>(format(addDays(new Date(), 60), "yyyy-MM-dd"));
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [originFilter, setOriginFilter] = useState<string>("all");
+  const [kindFilter, setKindFilter] = useState<string>("all");
+
   const [syncingBookings, setSyncingBookings] = useState(false);
   const [expandedBookingId, setExpandedBookingId] = useState<string | null>(null);
   const [cancellingBookingId, setCancellingBookingId] = useState<string | null>(null);
@@ -512,7 +531,32 @@ const Bookings = () => {
         booking.status?.toLowerCase() !== "cancelled"
       );
     }
-    
+
+    // Filter by reference origin / kind (falls back to the booking's channel data
+    // for any row whose reference has not been minted yet).
+    if (originFilter !== "all") {
+      result = result.filter(
+        (booking) =>
+          bookingOriginCode({
+            rol_reference: booking.rol_reference,
+            rol_ref_origin: booking.rol_ref_origin,
+            integration_type: booking.integration_type,
+            booking_channel: booking.booking_channel,
+          }) === originFilter,
+      );
+    }
+    if (kindFilter !== "all") {
+      result = result.filter((booking) => {
+        const origin = bookingOriginCode({
+          rol_reference: booking.rol_reference,
+          rol_ref_origin: booking.rol_ref_origin,
+          integration_type: booking.integration_type,
+          booking_channel: booking.booking_channel,
+        });
+        return (booking.rol_ref_kind || kindForOrigin(origin)) === kindFilter;
+      });
+    }
+
     // Filter by search term - searches all visible columns
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
@@ -531,11 +575,13 @@ const Bookings = () => {
         const itineraryRef = (booking.ai_metadata as any)?.itinerary_id?.substring(0, 8)?.toLowerCase() || "";
         
         return (
+          matchesReferenceSearch(booking.rol_reference, term) ||
           booking.guest_name.toLowerCase().includes(term) ||
           booking.guest_email.toLowerCase().includes(term) ||
           booking.property_name?.toLowerCase().includes(term) ||
           booking.external_reservation_id?.toLowerCase().includes(term) ||
           internalRef.startsWith(term) ||
+
           itineraryRef.startsWith(term) ||
           checkInDate.includes(term) ||
           checkOutDate.includes(term) ||
@@ -809,13 +855,47 @@ const Bookings = () => {
                 </Select>
               </div>
 
+              {/* Origin Filter — driven by the ROL reference origin code */}
+              <div className="space-y-1">
+                <Label className="text-xs">Origin</Label>
+                <Select value={originFilter} onValueChange={setOriginFilter}>
+                  <SelectTrigger className="h-8 w-[150px] text-xs">
+                    <SelectValue placeholder="All origins" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All origins</SelectItem>
+                    {ROL_ORIGIN_FILTER_OPTIONS.map((code) => (
+                      <SelectItem key={code} value={code}>
+                        {code} · {ROL_ORIGIN_LABELS[code]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Kind Filter — bookings made in-ecosystem vs reservations received */}
+              <div className="space-y-1">
+                <Label className="text-xs">Type</Label>
+                <Select value={kindFilter} onValueChange={setKindFilter}>
+                  <SelectTrigger className="h-8 w-[130px] text-xs">
+                    <SelectValue placeholder="All" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All</SelectItem>
+                    <SelectItem value="B">Bookings (B)</SelectItem>
+                    <SelectItem value="R">Reservations (R)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+
               {/* Search */}
               <div className="space-y-1 flex-1 min-w-[150px]">
                 <Label className="text-xs">Search</Label>
                 <div className="relative">
                   <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
                   <Input
-                    placeholder="Guest, email, ref..."
+                    placeholder="Guest, email, ROL-WEB-B-… ref"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="h-8 pl-7 text-xs"
@@ -932,21 +1012,31 @@ const Bookings = () => {
                                 ? format(parseISO(booking.created_at), "dd MMM HH:mm")
                                 : "—"}
                             </TableCell>
-                            <TableCell className="py-1.5 px-2 text-muted-foreground truncate max-w-[90px]">
+                            <TableCell className="py-1.5 px-2 text-muted-foreground max-w-[170px]">
                               <span className="flex items-center gap-1">
                                 {booking.booking_channel === 'rentals_united' && (
                                   <Badge className="bg-orange-500 hover:bg-orange-600 text-white text-[10px] px-1 py-0 font-bold shrink-0">RU</Badge>
                                 )}
-                                {(booking.ai_metadata as any)?.itinerary_id ? (
-                                  <>
-                                    <Badge variant="outline" className="text-[10px] px-1 py-0 bg-primary/10 text-primary border-primary/30">J</Badge>
-                                    {(booking.ai_metadata as any).itinerary_id.substring(0, 8).toUpperCase()}
-                                  </>
-                                ) : (
-                                  <span className="truncate">{booking.external_reservation_id || booking.id.slice(0, 8).toUpperCase()}</span>
+                                {(booking.ai_metadata as any)?.itinerary_id && (
+                                  <Badge variant="outline" className="text-[10px] px-1 py-0 bg-primary/10 text-primary border-primary/30">J</Badge>
                                 )}
+                                <span className="flex flex-col leading-tight min-w-0">
+                                  <span
+                                    className="font-mono text-[11px] text-foreground truncate"
+                                    title={describeRolReference(booking.rol_reference) || undefined}
+                                  >
+                                    {displayBookingReference(booking)}
+                                  </span>
+                                  {booking.external_reservation_id &&
+                                    booking.external_reservation_id !== displayBookingReference(booking) && (
+                                      <span className="font-mono text-[10px] truncate">
+                                        {booking.external_reservation_id}
+                                      </span>
+                                    )}
+                                </span>
                               </span>
                             </TableCell>
+
                           </TableRow>
                           {/* Expanded room details */}
                           {isExpanded && (

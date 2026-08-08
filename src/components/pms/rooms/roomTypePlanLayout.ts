@@ -7,8 +7,12 @@ import type { CalendarBookingRow } from "@/components/pms/bookingCalendarHelpers
 /** A reservation as loaded by the Rooms page. */
 export interface RoomsBooking extends CalendarBookingRow {
   rolos_room_ids: string[] | null;
-  booking_reference?: string | null;
+  /** Standardised ROL booking reference, e.g. ROL-WEB-B-DAS-00142. */
+  rol_reference?: string | null;
+  /** The channel/PMS's own reservation id, kept for reconciliation. */
+  external_reservation_id?: string | null;
 }
+
 
 export interface PlanRoom {
   id: string;

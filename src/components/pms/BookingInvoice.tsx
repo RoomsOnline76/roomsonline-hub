@@ -5,6 +5,8 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
 import { toast } from "sonner";
 import { Printer, Mail } from "lucide-react";
+import { displayBookingReference } from "@/lib/bookingReference";
+
 
 interface BookingInvoiceProps {
   bookingId: string;
@@ -98,20 +100,32 @@ export function BookingInvoice({ bookingId, guestName, guestEmail, checkIn, chec
   const [loading, setLoading] = useState(true);
   const [emailing, setEmailing] = useState(false);
   const invoiceRef = useRef<HTMLDivElement>(null);
+  const [bookingRef, setBookingRef] = useState<{ rol_reference: string | null; external_reservation_id: string | null }>({
+    rol_reference: null,
+    external_reservation_id: null,
+  });
 
   useEffect(() => {
     const load = async () => {
       setLoading(true);
-      const [folioRes, propRes, brandRes, payRes] = await Promise.all([
+      const [folioRes, propRes, brandRes, payRes, refRes] = await Promise.all([
         callPmsApi<{ transactions: Transaction[] }>("get_folio", { booking_id: bookingId }),
         supabase.from("properties").select("name, amenities").eq("id", propertyId).single(),
         supabase.from("rolos_brand_config").select("is_vat_registered, vat_rate, vat_number").eq("property_id", propertyId).maybeSingle(),
         supabase.from("payment_transactions").select("amount, status").eq("booking_id", bookingId),
+        supabase.from("bookings").select("rol_reference, external_reservation_id").eq("id", bookingId).maybeSingle(),
       ]);
       if (folioRes.success && folioRes.data) setTransactions(folioRes.data.transactions || []);
       if (propRes.data) setPropertyName(propRes.data.name);
+      if (refRes.data) {
+        setBookingRef({
+          rol_reference: refRes.data.rol_reference ?? null,
+          external_reservation_id: refRes.data.external_reservation_id ?? null,
+        });
+      }
       const settled = (payRes.data || []).filter(p => PAID_STATUSES.includes(String(p.status || "").toLowerCase()));
       setGatewayPaid(settled.reduce((s, p) => s + Number(p.amount || 0), 0));
+
 
       
       const amenityVatNumber = getVatNumber(propRes.data?.amenities);
@@ -193,7 +207,15 @@ export function BookingInvoice({ bookingId, guestName, guestEmail, checkIn, chec
   const balance = Math.max(0, subtotal - totalPayments);
   const settledExternally = onlineBookingPayment > 0;
 
-  const invoiceNumber = `INV-${bookingId.slice(0, 8).toUpperCase()}`;
+  // Invoice number is derived from the standardised ROL booking reference so the
+  // invoice, the statement line and the property's own system all agree.
+  const displayRef = displayBookingReference({ ...bookingRef, id: bookingId });
+  const channelRef =
+    bookingRef.external_reservation_id && bookingRef.external_reservation_id !== displayRef
+      ? bookingRef.external_reservation_id
+      : null;
+  const invoiceNumber = `INV-${displayRef.replace(/^ROL-/, "")}`;
+
   const today = new Date().toLocaleDateString("en-ZA");
   const invoiceTitle = isVat ? "Tax Invoice" : "Invoice";
 
@@ -265,7 +287,12 @@ export function BookingInvoice({ bookingId, guestName, guestEmail, checkIn, chec
           <div className="text-right">
             <p className="font-bold">{invoiceNumber}</p>
             <p className="text-xs text-muted-foreground">Date: {today}</p>
+            <p className="text-[10px] text-muted-foreground">Booking ref: {displayRef}</p>
+            {channelRef && (
+              <p className="text-[10px] text-muted-foreground">Channel ref: {channelRef}</p>
+            )}
           </div>
+
         </div>
 
         <div className="grid grid-cols-2 gap-4 mb-4">

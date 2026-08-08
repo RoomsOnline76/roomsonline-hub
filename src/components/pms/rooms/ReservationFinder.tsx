@@ -5,6 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { paxLabel, stayNights, type PlanRoom, type RoomsBooking } from "./roomTypePlanLayout";
+import { displayBookingReference, matchesReferenceSearch } from "@/lib/bookingReference";
+
 
 interface Props {
   bookings: RoomsBooking[];
@@ -52,11 +54,14 @@ export function ReservationFinder({ bookings, rooms, propertyNames, onSelectBook
     return bookings
       .filter((booking) => {
         const roomLabels = (booking.rolos_room_ids || []).map((id) => roomLabelById.get(id) || "").join(" ");
+        // ROL reference matches on partial input too ("00142", "jon-003", "rol-wl").
+        if (matchesReferenceSearch(booking.rol_reference, term)) return true;
         const haystack = [
           booking.guest_name,
           booking.guest_email,
           booking.guest_phone,
-          booking.booking_reference,
+          booking.rol_reference,
+          booking.external_reservation_id,
           roomLabels,
           propertyNames.get(booking.property_id) || "",
           booking.check_in_date,
@@ -65,6 +70,7 @@ export function ReservationFinder({ bookings, rooms, propertyNames, onSelectBook
           .join(" ")
           .toLowerCase();
         return haystack.includes(term);
+
       })
       .sort((a, b) => a.check_in_date.localeCompare(b.check_in_date))
       .slice(0, 25);
@@ -123,6 +129,7 @@ export function ReservationFinder({ bookings, rooms, propertyNames, onSelectBook
               >
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-sm font-medium">{booking.guest_name}</span>
+                  <span className="font-mono text-[10px] text-muted-foreground">{displayBookingReference(booking)}</span>
                   <Badge variant="secondary" className="text-[10px] capitalize">{booking.status.replace(/_/g, " ")}</Badge>
                   {booking.payment_status && (
                     <Badge variant="outline" className="text-[10px] capitalize">{booking.payment_status.replace(/_/g, " ")}</Badge>
@@ -131,6 +138,7 @@ export function ReservationFinder({ bookings, rooms, propertyNames, onSelectBook
                     <span className="text-[10px] text-muted-foreground">{propertyNames.get(booking.property_id)}</span>
                   )}
                 </div>
+
                 <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
                   <span>
                     {format(parseISO(booking.check_in_date), "d MMM")} → {format(parseISO(booking.check_out_date), "d MMM yyyy")} ·{" "}
