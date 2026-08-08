@@ -21,6 +21,8 @@ interface PmsAdapter {
   status: AdapterStatus;
   lastSync: string | null;
   propertiesCount: number;
+  isCritical?: boolean;
+
 }
 
 interface ApiEndpointStat {
@@ -121,6 +123,7 @@ export function SystemOverviewTab() {
         { data: healthChecks },
         { data: apiLogs },
         { data: syncRows },
+        { data: ruRuns },
       ] = await Promise.all([
         supabase.from("pms_credentials").select("system_type, sync_status, last_sync_at, is_active"),
         supabase
@@ -140,6 +143,12 @@ export function SystemOverviewTab() {
           .gte("created_at", new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
           .order("created_at", { ascending: false })
           .limit(500),
+        supabase
+          .from("ru_sync_runs")
+          .select("action, success, property_id, details, created_at")
+          .gte("created_at", new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
+          .order("created_at", { ascending: false })
+          .limit(1000),
       ]);
 
       // ── PMS adapters ───────────────────────────────────────────────────────
@@ -151,23 +160,54 @@ export function SystemOverviewTab() {
         if (pmsType) propertyCountByPms.set(pmsType, (propertyCountByPms.get(pmsType) || 0) + 1);
       });
 
+      // Channel manager truth comes from real sync activity, not credential rows: a run flagged
+      // `skipped` (property not listed yet / listing retired) proves nothing is live for it.
+      const ruRealRuns = (ruRuns || []).filter(
+        (r: any) => r.success && !r?.details?.skipped,
+      );
+      const ruLiveProperties = new Set(
+        ruRealRuns.map((r: any) => r.property_id).filter(Boolean),
+      ).size;
+      const ruLastSync = ruRealRuns[0]?.created_at ?? null;
+      const ruAriAt = ruRealRuns.find((r: any) =>
+        ["refresh_ari", "inventory_push", "push_availability", "push_prices"].includes(r.action),
+      )?.created_at as string | undefined;
+      const ruAriAgeHours = ruAriAt ? (Date.now() - new Date(ruAriAt).getTime()) / 3600000 : null;
+
       const adapterMap = new Map<string, any[]>();
       (pmsCredentials || []).forEach((cred: any) => {
         if (!adapterMap.has(cred.system_type)) adapterMap.set(cred.system_type, []);
         adapterMap.get(cred.system_type)!.push(cred);
       });
 
-      const pmsAdapters: PmsAdapter[] = Array.from(adapterMap.entries()).map(([name, creds]) => {
-        const activeCount = creds.filter((c: any) => c.is_active).length;
-        const hasError = creds.some((c: any) => c.sync_status === "error" || c.sync_status === "failed");
-        const latestSync = creds.map((c: any) => c.last_sync_at).filter(Boolean).sort().pop() || null;
-        return {
-          name: titleise(name),
-          status: (hasError ? "error" : activeCount > 0 ? "healthy" : "degraded") as AdapterStatus,
-          lastSync: latestSync,
-          propertiesCount: propertyCountByPms.get(name.toLowerCase()) || 0,
-        };
-      });
+      const pmsAdapters: PmsAdapter[] = Array.from(adapterMap.entries())
+        .map(([name, creds]) => {
+          const activeCount = creds.filter((c: any) => c.is_active).length;
+          const hasError = creds.some((c: any) => c.sync_status === "error" || c.sync_status === "failed");
+          const latestSync = creds.map((c: any) => c.last_sync_at).filter(Boolean).sort().pop() || null;
+          const isRu = name.toLowerCase() === "rentalsunited";
+          const status: AdapterStatus = isRu
+            ? hasError || ruAriAgeHours === null
+              ? "error"
+              : ruAriAgeHours > 8
+                ? "degraded"
+                : "healthy"
+            : hasError
+              ? "error"
+              : activeCount > 0
+                ? "healthy"
+                : "degraded";
+          return {
+            name: titleise(name),
+            status,
+            lastSync: isRu ? ruLastSync ?? latestSync : latestSync,
+            propertiesCount: isRu ? ruLiveProperties : propertyCountByPms.get(name.toLowerCase()) || 0,
+            isCritical: isRu,
+          };
+        })
+        // Rentals United runs every ROL'OS channel: always show it first.
+        .sort((a, b) => Number(b.isCritical ?? false) - Number(a.isCritical ?? false) || a.name.localeCompare(b.name));
+
 
       // ── API traffic (real, from api_request_log) ───────────────────────────
       const endpointMap = new Map<string, { calls: number; errors: number; latency: number[] }>();
@@ -418,16 +458,27 @@ export function SystemOverviewTab() {
             ) : (
               <div className="space-y-3">
                 {status.pmsAdapters.map((adapter) => (
-                  <div key={adapter.name} className="flex items-center justify-between p-3 rounded-lg border">
+                  <div
+                    key={adapter.name}
+                    className={`flex items-center justify-between p-3 rounded-lg border ${adapter.isCritical ? "border-primary bg-muted" : ""}`}
+                  >
                     <div className="flex items-center gap-3">
                       {getStatusIcon(adapter.status)}
                       <div>
-                        <p className="font-medium">{adapter.name}</p>
+                        <p className="font-medium flex items-center gap-2">
+                          {adapter.name}
+                          {adapter.isCritical && (
+                            <Badge variant="default" className="text-[10px] uppercase tracking-wide">
+                              Critical · Channels
+                            </Badge>
+                          )}
+                        </p>
                         <p className="text-xs text-muted-foreground">
-                          {adapter.propertiesCount} properties · last sync {formatWhen(adapter.lastSync)}
+                          {adapter.propertiesCount} live {adapter.propertiesCount === 1 ? "property" : "properties"} · last sync {formatWhen(adapter.lastSync)}
                         </p>
                       </div>
                     </div>
+
                     {getStatusBadge(adapter.status)}
                   </div>
                 ))}
