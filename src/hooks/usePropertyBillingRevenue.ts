@@ -37,6 +37,8 @@ export interface BillingEntityRow {
   firstBillingDate: string | null;
   rooms: number;
   requiresCustomFee: boolean;
+  /** Contracted setup fees that are due but not yet invoiced. */
+  setupDue: number;
 }
 
 export interface PropertyBillingRevenue {
@@ -47,6 +49,8 @@ export interface PropertyBillingRevenue {
     /** Recurring total across every configured entity, billing or not. */
     contractedMonthly: number;
     setupExpected: number;
+    /** Once-off setup contracted, due, and still awaiting an invoice. */
+    setupDue: number;
     invoicedMonthly: number;
     invoicedOnceOff: number;
     paidMonthly: number;
@@ -81,6 +85,23 @@ const CONFIG_FIELDS = `
   payment_facilitator_enabled, subscription_status, billing_enabled, engagement_date,
   billing_start_date, free_period_days, billing_anchor_day, current_period_end
 `;
+
+/**
+ * Only clients actually engaged on ROL'OS belong in the subscription pipeline.
+ * A billing config row alone means nothing — most catalogue properties carry a
+ * default config with no engagement date and billing switched off.
+ */
+function isOnRolos(cfg: {
+  subscription_status?: string | null;
+  billing_enabled?: boolean | null;
+  engagement_date?: string | null;
+  billing_start_date?: string | null;
+}): boolean {
+  const raw = (cfg.subscription_status || "pending").toLowerCase();
+  if (["active", "past_due", "cancelled"].includes(raw)) return true;
+  if (cfg.billing_enabled === true) return true;
+  return !!(cfg.engagement_date || cfg.billing_start_date);
+}
 
 function resolveStatus(
   cfg: {
@@ -265,6 +286,7 @@ export function usePropertyBillingRevenue(range: Range) {
       for (const cfg of portfolioCfgs) {
         const portfolioId = String(cfg.portfolio_id);
         portfolioBilled.add(portfolioId);
+        if (!isOnRolos(cfg as never)) continue;
         const memberIds = membersOf.get(portfolioId) ?? [];
         const units = memberIds.reduce((sum, id) => sum + (unitCount.get(id) ?? 0), 0);
         const byo = memberIds.some((id) => propertyMeta.get(id)?.byo);
@@ -294,6 +316,7 @@ export function usePropertyBillingRevenue(range: Range) {
           firstBillingDate: schedule.paidStart,
           rooms: units,
           requiresCustomFee: expected.requiresCustomFee,
+          setupDue: Math.max(0, expected.setup - (a?.invoicedOnceOff ?? 0)),
         });
       }
 
@@ -302,6 +325,7 @@ export function usePropertyBillingRevenue(range: Range) {
         const propertyId = String(cfg.property_id);
         const parent = portfolioOf.get(propertyId);
         if (parent && portfolioBilled.has(parent)) continue;
+        if (!isOnRolos(cfg as never)) continue;
         const meta = propertyMeta.get(propertyId);
         const units = unitCount.get(propertyId) ?? 0;
         const expected = computeExpectedBilling(cfg as ExpectedBillingConfig, {
@@ -328,6 +352,7 @@ export function usePropertyBillingRevenue(range: Range) {
           firstBillingDate: schedule.paidStart,
           rooms: units,
           requiresCustomFee: expected.requiresCustomFee,
+          setupDue: Math.max(0, expected.setup - (a?.invoicedOnceOff ?? 0)),
         });
       }
 
@@ -340,7 +365,8 @@ export function usePropertyBillingRevenue(range: Range) {
             acc.monthlyExpected += row.monthlyExpected;
             acc.activeMrr += row.monthlyExpected;
           }
-          acc.setupExpected += Math.max(0, row.setupExpected - row.invoicedOnceOff);
+          acc.setupExpected += row.setupDue;
+          if (row.status !== "cancelled") acc.setupDue += row.setupDue;
           acc.invoicedMonthly += row.invoicedMonthly;
           acc.invoicedOnceOff += row.invoicedOnceOff;
           acc.paidMonthly += row.paidMonthly;
@@ -353,6 +379,7 @@ export function usePropertyBillingRevenue(range: Range) {
           monthlyExpected: 0,
           contractedMonthly: 0,
           setupExpected: 0,
+          setupDue: 0,
           invoicedMonthly: 0,
           invoicedOnceOff: 0,
           paidMonthly: 0,

@@ -50,11 +50,21 @@ export function PropertyBillingRevenueSection({ start, end }: Props) {
         />
         <ROLKPICard
           title="Outstanding"
-          value={t ? zar(t.outstanding) : "-"}
-          subtitle={t && t.overdue > 0 ? `${zar(t.overdue)} overdue` : "Invoiced, unpaid"}
+          value={t ? zar(t.outstanding + t.setupDue) : "-"}
+          subtitle={
+            t
+              ? [
+                  `${zar(t.outstanding)} invoiced`,
+                  t.setupDue > 0 ? `${zar(t.setupDue)} setup due` : null,
+                  t.overdue > 0 ? `${zar(t.overdue)} overdue` : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")
+              : "Invoiced, unpaid"
+          }
           icon={AlertTriangle}
           isLoading={isLoading}
-          valueClassName={t && t.overdue > 0 ? "text-destructive" : undefined}
+          valueClassName={t && (t.overdue > 0 || t.setupDue > 0) ? "text-destructive" : undefined}
         />
       </div>
 
@@ -107,12 +117,16 @@ export function PropertyBillingRevenueSection({ start, end }: Props) {
             </div>
             <div className="flex items-center justify-between border-t pt-2">
               <div>
-                <div className="font-medium">Still expected</div>
+                <div className="font-medium">Due, awaiting invoice</div>
                 <div className="text-[10px] text-muted-foreground">
-                  Contracted setup fees not yet invoiced
+                  Contracted setup fees payable on signature
                 </div>
               </div>
-              <span className="font-semibold tabular-nums">{zar(t?.setupExpected ?? 0)}</span>
+              <span
+                className={`font-semibold tabular-nums ${(t?.setupDue ?? 0) > 0 ? "text-destructive" : ""}`}
+              >
+                {zar(t?.setupDue ?? 0)}
+              </span>
             </div>
           </CardContent>
         </Card>

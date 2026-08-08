@@ -39,10 +39,12 @@ export function resolveBillingSchedule(
 ): ScheduleResult {
   const freeDays = cfg?.free_period_days ?? globalFreeDefault;
   const engagement = cfg?.engagement_date || null;
-  const paidStart = engagement
-    ? addDays(engagement, freeDays)
-    : cfg?.billing_start_date
-      ? cfg.billing_start_date.slice(0, 10)
+  // An explicitly authored billing start date is the contracted truth and wins
+  // over the engagement + free-period derivation.
+  const paidStart = cfg?.billing_start_date
+    ? cfg.billing_start_date.slice(0, 10)
+    : engagement
+      ? addDays(engagement, freeDays)
       : null;
   const inFreePeriod = !!paidStart && today < paidStart;
   const freeDaysRemaining = inFreePeriod
