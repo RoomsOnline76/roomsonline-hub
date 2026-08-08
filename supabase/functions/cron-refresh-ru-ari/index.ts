@@ -69,13 +69,18 @@ Deno.serve(async (req) => {
 
     console.log(`[cron-refresh-ru-ari] Refreshing ARI for ${properties.length} properties (batch ${batchId})`);
 
-    const results: { property_id: string; name: string; success: boolean; error?: string }[] = [];
+    const results: { property_id: string; name: string; success: boolean; skipped?: boolean; error?: string }[] = [];
+
+    // Codes that mean "nothing to push", not "push failed" — they must not pollute the failure rate.
+    const SKIP_CODES = new Set(['RU_NOT_LISTED', 'RU_NOT_CONFIGURED', 'RU_LISTING_STALE', 'CHANNEL_MANAGER_DISABLED']);
 
     for (const prop of properties) {
       const startedAt = Date.now();
       let success = false;
+      let skipped = false;
       let errMsg: string | null = null;
       let httpStatus: number | null = null;
+      let errCode: string | null = null;
 
       try {
         // ARI-only mode: availability + pricing for inventory already listed at RU. Static
@@ -87,17 +92,20 @@ Deno.serve(async (req) => {
         if (error) {
           errMsg = error.message;
         } else if (!data?.success) {
+          errCode = data?.error?.code ?? null;
           errMsg = data?.error?.message || 'Unknown error';
+          if (errCode && SKIP_CODES.has(errCode)) skipped = true;
         } else {
           success = true;
         }
-        httpStatus = success ? 200 : 502;
+        httpStatus = success ? 200 : skipped ? 200 : 502;
       } catch (err) {
         errMsg = err instanceof Error ? err.message : String(err);
       }
 
       const elapsed = Date.now() - startedAt;
-      results.push({ property_id: prop.id, name: prop.name, success, error: errMsg || undefined });
+      results.push({ property_id: prop.id, name: prop.name, success, skipped, error: errMsg || undefined });
+
 
       // Log to ru_sync_runs (non-blocking)
       await supabase.from('ru_sync_runs').insert({
