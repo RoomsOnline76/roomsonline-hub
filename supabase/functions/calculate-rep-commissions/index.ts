@@ -330,6 +330,17 @@ async function calculate(supabase: Client, periodMonth: string): Promise<Preview
         rep_tier: terms.tier,
         terms,
         bank: (bankMap.get(rep.id as string) as Json) || {},
+        tax: {
+          entity_type: (rep.entity_type as string) || "individual",
+          legal_name: (rep.display_name as string) || null,
+          trading_name: (rep.trading_name as string) || null,
+          tax_reference_number: (rep.tax_reference_number as string) || null,
+          vat_registered: !!rep.vat_registered,
+          vat_number: (rep.vat_number as string) || null,
+          vat_rate: DEFAULT_VAT_RATE,
+        } as Json,
+        vat_amount: 0,
+
         lines: [],
         total_revenue: 0,
         gross_commission: 0,
