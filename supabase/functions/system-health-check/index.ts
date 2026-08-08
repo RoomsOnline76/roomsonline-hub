@@ -148,7 +148,15 @@ async function checkRentalsUnited(
   const resAt = newest(['list_reservations', 'pull_reservations']);
   const ariAge = ageHours(ariAt);
   const resAge = ageHours(resAt);
-  const liveProperties = new Set(realRuns.map((r) => r.property_id).filter(Boolean)).size;
+  // "Live" = a property whose listing actually synced in the last 24h. Older successes may
+  // predate a listing being retired, so a 7-day window overstates the channel footprint.
+  const liveProperties = new Set(
+    realRuns
+      .filter((r) => Date.now() - new Date(r.created_at).getTime() < 86_400_000)
+      .map((r) => r.property_id)
+      .filter(Boolean),
+  ).size;
+
   const failed24h = rows.filter(
     (r) => !r.success && Date.now() - new Date(r.created_at).getTime() < 86_400_000,
   ).length;
