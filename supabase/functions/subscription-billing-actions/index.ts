@@ -459,7 +459,7 @@ Deno.serve(async (req) => {
         subscriptionUrl: payUrl(openSubscription?.payfast_token),
         currency,
       });
-      const subject = `Setup & subscription payment due${paidStart ? ` by ${paidStart}` : ""} — ${entityName}`;
+      const subject = `Setup & subscription payment due${paidStart ? ` by ${paidStart}` : ""} - ${entityName}`;
       const recipients = [...new Set([ownerEmail, ...staffEmails].filter(Boolean))] as string[];
       if (!recipients.length) return json({ error: "no_recipients" }, 400);
       const res = await resend.emails.send({ from: FROM_EMAIL, to: recipients, subject, html });
