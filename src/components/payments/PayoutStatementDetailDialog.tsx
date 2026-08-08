@@ -1,7 +1,8 @@
 /**
- * Statement detail — the full A/B/C/D ledger for one payout statement, with
- * PDF downloads for both the statement and the matching ROL charges invoice.
+ * Statement detail — the A/B/C ledger for one payout statement (bookings, ROL
+ * charges invoice, net payable), with PDF downloads for statement and invoice.
  */
+
 import { useState } from "react";
 import { Download, FileText, Loader2, CheckCircle2, Ban, Lock } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
