@@ -33,7 +33,7 @@ const KIND_LABEL: Record<string, string> = {
   payout_paid: "Payout paid",
 };
 
-export function AccountStatementTab({ ledger, balances, scopeName, periodStart, periodEnd }: Props) {
+export function AccountStatementTab({ ledger, balances, scopeName, periodStart, periodEnd, vat }: Props) {
   const currency = balances.currency;
   const statement = useMemo(
     () => buildStatement(ledger, { start: periodStart, end: periodEnd }),
@@ -49,6 +49,9 @@ export function AccountStatementTab({ ledger, balances, scopeName, periodStart, 
         currency,
         statement,
         dueToYou: balances.dueToYou,
+        companyName: vat?.company_legal_name || undefined,
+        vatNumber: vat?.vat_number,
+        companyAddress: vat?.company_address,
       });
       doc.save(`account-statement-${periodStart}-${periodEnd}.pdf`);
     } catch (err) {
