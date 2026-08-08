@@ -215,9 +215,14 @@ Deno.serve(async (req) => {
       if (l.booking_id) claimedBooking.add(l.booking_id);
     });
 
+    // Own-gateway (BYO) money never reached ROL — it is invoiced separately, not settled here.
     const usable = entries.filter(
-      (e) => !(e.txId && claimedTx.has(e.txId)) && !claimedBooking.has(String(e.booking.id)),
+      (e) =>
+        e.settlement === "rol" &&
+        !(e.txId && claimedTx.has(e.txId)) &&
+        !claimedBooking.has(String(e.booking.id)),
     );
+
 
     const propertyIds = Array.from(new Set(usable.map((e) => e.propertyId)));
 
