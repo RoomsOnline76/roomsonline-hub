@@ -146,15 +146,20 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
 
   const strategy = config?.billing_strategy || "default";
   const strategyLabel = STRATEGY_LABELS[strategy] || strategy;
-  // Default to true when unset: legacy properties without an explicit billing-tab
-  // save still process guest payments via the Rooms Online PayFast facilitator.
-  const facilitator = config?.payment_facilitator_enabled ?? true;
-  const customProvider = !!property?.allow_custom_payment_provider;
+  const byoEnabled =
+    !!property?.allow_custom_payment_provider || Number((config as any)?.byo_gateway_monthly_fee ?? 0) > 0;
+  // Reservation-only = neither the ROL facilitator nor a BYO gateway is enabled.
+  const reservationOnly =
+    paymentModeRow?.payment_mode === "reservation_only" ||
+    (config != null && config.payment_facilitator_enabled === false && !byoEnabled);
+  const facilitator = reservationOnly ? false : config?.payment_facilitator_enabled ?? !byoEnabled;
+  const customProvider = !reservationOnly && byoEnabled;
   const wlAllowed = !!config?.white_label_allowed;
   const wlStatus = (wlDomain?.white_label_domain_status || "unconfigured") as keyof typeof DOMAIN_STATUS_META;
   const wlMeta = DOMAIN_STATUS_META[wlStatus] || DOMAIN_STATUS_META.unconfigured;
   const WlIcon = wlMeta.Icon;
   const activeReferral = referrals?.[0];
+
 
   // ── Estimated cost calculation (excludes commission / transaction fees) ──
   // Use `config` (property_billing_configs) as single source of truth; `wlDomain`
