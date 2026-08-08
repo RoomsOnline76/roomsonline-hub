@@ -57,7 +57,7 @@ Deno.serve(async (req) => {
     for (const pid of body.policy_ids) stats[pid] = { room_nights: 0, revenue: 0, total: 0, cancelled: 0 };
 
     for (const b of bookings ?? []) {
-      const rp = (b as { rate_plan_id?: string | null }).rate_plan_id;
+      const rp = (b as { rolos_rate_plan_id?: string | null }).rolos_rate_plan_id;
       const pid = (rp && ratePlanToPolicy.get(rp)) || defaultPolicyId;
       if (!pid || !stats[pid]) continue;
       const ci = new Date(b.check_in_date as string);
