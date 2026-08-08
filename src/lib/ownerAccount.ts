@@ -210,6 +210,21 @@ export function expectedMonthlyFee(
   }).monthly;
 }
 
+/** Contracted once-off (setup) total, payable on signature. */
+export function expectedSetupFee(
+  cfg: OwnerBillingConfig | null | undefined,
+  unitCount = 0,
+  byoGateway = false,
+): number {
+  if (!cfg) return 0;
+  return computeExpectedBilling(cfg as unknown as ExpectedBillingConfig, {
+    units: unitCount,
+    rooms: unitCount,
+    byoGateway,
+  }).setup;
+}
+
+
 /* ------------------------------------------------------------------ */
 /* Balances                                                            */
 /* ------------------------------------------------------------------ */
@@ -258,6 +273,10 @@ export interface BalanceInput {
   rolInvoices: OwnerRolInvoice[];
   payouts: OwnerPayoutStatement[];
   currency?: string;
+  /** Contracted once-off setup still payable but not yet invoiced (or only cancelled invoices exist). */
+  uninvoicedSetupDue?: number;
+  /** Date the once-off setup became payable (contract signature / engagement). */
+  setupDueDate?: string | null;
 }
 
 export function computeBalances(input: BalanceInput): OwnerBalances {
@@ -268,6 +287,7 @@ export function computeBalances(input: BalanceInput): OwnerBalances {
   let paidThisYear = 0;
   let paidAllTime = 0;
   let oldest: string | null = null;
+
 
   const noteOverdue = (amount: number, dueDate: string | null) => {
     if (!amount || !dueDate || dueDate >= now) return;
@@ -296,6 +316,15 @@ export function computeBalances(input: BalanceInput): OwnerBalances {
       if ((inv.paid_at || inv.created_at).slice(0, 4) === year) paidThisYear += paid;
     }
   }
+
+  // Contracted once-off setup that is payable now but has no live invoice yet.
+  const setupDue = round2(Math.max(0, Number(input.uninvoicedSetupDue || 0)));
+  if (setupDue > 0) {
+    due += setupDue;
+    noteOverdue(setupDue, input.setupDueDate ? input.setupDueDate.slice(0, 10) : null);
+  }
+
+
 
   let dueToYou = 0;
   let receivedAllTime = 0;

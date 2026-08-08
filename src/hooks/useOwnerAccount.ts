@@ -15,6 +15,8 @@ import { toast } from "sonner";
 import {
   buildLedger,
   computeBalances,
+  expectedSetupFee,
+
   monthlySeries,
   subscriptionView,
   type OwnerBillingConfig,
@@ -216,17 +218,36 @@ export function useOwnerAccount(scope: OwnerScope | null) {
       rolInvoices: data.rolInvoices,
       payouts: data.payouts,
     });
+
+    // Once-off (setup) is payable on signature. Only count it as invoiced when a
+    // live (non-cancelled/void) invoice carries it.
+    const contractedSetup = expectedSetupFee(data.config, data.unitCount, data.byoGateway);
+    const invoicedSetup = data.subscriptionInvoices
+      .filter((inv) => !["cancelled", "canceled", "void"].includes(String(inv.status)))
+      .reduce(
+        (sum, inv) =>
+          sum +
+          Number(
+            inv.once_off_amount || (inv.invoice_kind === "once_off" || inv.invoice_kind === "setup" ? inv.amount : 0) || 0,
+          ),
+        0,
+      );
+    const uninvoicedSetupDue = data.config?.billing_enabled === false ? 0 : Math.max(0, contractedSetup - invoicedSetup);
+
     return {
       balances: computeBalances({
         subscriptionInvoices: data.subscriptionInvoices,
         rolInvoices: data.rolInvoices,
         payouts: data.payouts,
+        uninvoicedSetupDue,
+        setupDueDate: data.config?.engagement_date || null,
       }),
       ledger,
       subscription: subscriptionView(data.config),
       series: monthlySeries(data.revenue, ledger),
     };
   }, [data]);
+
 
   return { ...data, ...derived, loading, refresh: load };
 }
