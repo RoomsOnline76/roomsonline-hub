@@ -142,7 +142,12 @@ export function AccountingDashboard({ dateRange }: AccountingDashboardProps) {
               <TrendingUp className="h-4 w-4" />
               Runway &amp; Metrics
             </TabsTrigger>
+            <TabsTrigger value="costshare" className="gap-2">
+              <Users className="h-4 w-4" />
+              Cost Sharing
+            </TabsTrigger>
           </TabsList>
+
 
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => setIsAddMetricOpen(true)}>
