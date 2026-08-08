@@ -339,6 +339,10 @@ export function computeBalances(input: BalanceInput): OwnerBalances {
     else if (s.status === "finalised") dueToYou += net;
   }
 
+  // Money ROL already collected for bookings that no statement covers yet.
+  const pendingSettlement = round2(Math.max(0, Number(input.pendingSettlement || 0)));
+  dueToYou += pendingSettlement;
+
   const oldestOverdueDays = oldest
     ? Math.max(
         0,
@@ -354,9 +358,11 @@ export function computeBalances(input: BalanceInput): OwnerBalances {
     paidThisYear: round2(paidThisYear),
     paidAllTime: round2(paidAllTime),
     dueToYou: round2(dueToYou),
+    pendingSettlement,
     receivedAllTime: round2(receivedAllTime),
     net: round2(due - dueToYou),
   };
+
 }
 
 /* ------------------------------------------------------------------ */
