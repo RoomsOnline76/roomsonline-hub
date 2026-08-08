@@ -109,8 +109,13 @@ interface PmsIntegrationStats {
   name: string;
   property_count: number;
   last_sync_time: string | null;
+  /** Where the last-sync evidence came from: scheduled push/pull, live fetch, or the health probe. */
+  last_sync_source: string | null;
+  /** True when the evidence is older than the expected refresh cadence. */
+  stale: boolean;
   success_rate: number;
 }
+
 
 interface DevTask {
   id: string;
