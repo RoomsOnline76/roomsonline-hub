@@ -333,17 +333,29 @@ export function computeBalances(input: BalanceInput): OwnerBalances {
 
 
 
+  // Any statement that is not yet paid out is money we owe the owner, whether it
+  // is still a draft, finalised or approved for payment. Only cancelled/void
+  // statements are ignored.
+  const IGNORED_PAYOUT_STATUSES = ["cancelled", "canceled", "void", "voided", "rejected"];
   let dueToYou = 0;
   let receivedAllTime = 0;
+  let awaitingRelease = 0;
   for (const s of input.payouts) {
     const net = Number(s.net_payable || 0);
-    if (s.status === "paid") receivedAllTime += net;
-    else if (s.status === "finalised") dueToYou += net;
+    const status = String(s.status || "").toLowerCase();
+    if (status === "paid") {
+      receivedAllTime += net;
+      continue;
+    }
+    if (IGNORED_PAYOUT_STATUSES.includes(status)) continue;
+    dueToYou += net;
+    if (status === "draft") awaitingRelease += net;
   }
 
   // Money ROL already collected for bookings that no statement covers yet.
   const pendingSettlement = round2(Math.max(0, Number(input.pendingSettlement || 0)));
   dueToYou += pendingSettlement;
+
 
   const oldestOverdueDays = oldest
     ? Math.max(
