@@ -895,7 +895,7 @@ const Bookings = () => {
                 <div className="relative">
                   <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
                   <Input
-                    placeholder="Guest, email, ref..."
+                    placeholder="Guest, email, ROL-WEB-B-… ref"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="h-8 pl-7 text-xs"
