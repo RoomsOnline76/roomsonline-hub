@@ -33,18 +33,6 @@ import { toast } from "sonner";
 import { usePropertyPayouts } from "@/hooks/usePropertyPayouts";
 import { PayoutStatementRun } from "@/components/payments/PayoutStatementRun";
 
-interface PaymentTransaction {
-  id: string;
-  booking_id: string;
-  amount: number;
-  currency: string;
-  status: string;
-  payment_method: string | null;
-  created_at: string;
-  guest_name?: string;
-  property_name?: string;
-}
-
 interface CommissionPayout {
   id: string;
   rep_id: string;
@@ -62,13 +50,9 @@ interface CommissionPayout {
 const PENDING_SESSION_MS = 2 * 60 * 60 * 1000;
 
 export default function AdminPayments() {
-  const [transactions, setTransactions] = useState<PaymentTransaction[]>([]);
-  const [showExpired, setShowExpired] = useState(false);
   const [commissionPayouts, setCommissionPayouts] = useState<CommissionPayout[]>([]);
   const [loading, setLoading] = useState(true);
   const [commissionsLoading, setCommissionsLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [searchTerm, setSearchTerm] = useState('');
   const [markingPaid, setMarkingPaid] = useState<string | null>(null);
   const [txStats, setTxStats] = useState({
     totalRevenue: 0, pendingAmount: 0, failedCount: 0, successCount: 0,
@@ -112,49 +96,32 @@ export default function AdminPayments() {
   useEffect(() => {
     loadPayments();
     loadCommissionPayouts();
-  }, [statusFilter]);
+  }, []);
 
+  // Only the headline stats need raw gateway data now — reconciliation detail
+  // lives on the payout statements and the unassigned-payments panel.
   const loadPayments = async () => {
     try {
       setLoading(true);
-      let query = supabase
-        .from('payment_transactions')
-        .select(`*, bookings!inner(guest_name, properties!bookings_property_id_fkey(name))`)
-        .order('created_at', { ascending: false })
-        .limit(50);
-      if (statusFilter !== 'all') query = query.eq('status', statusFilter);
-
-      const { data, error } = await query;
-      if (error) throw error;
-
-      setTransactions((data || []).map((t: any) => ({
-        id: t.id, booking_id: t.booking_id, amount: t.amount,
-        currency: t.currency || 'ZAR', status: t.status,
-        payment_method: t.payment_method, created_at: t.created_at,
-        guest_name: t.bookings?.guest_name,
-        property_name: t.bookings?.properties?.name,
-      })));
-
       // Totals must mirror what the page treats as live money: cancelled bookings
       // (test data, refunds, abandoned) and expired checkout sessions are excluded.
-      const { data: all } = await supabase
+      const { data: all, error } = await supabase
         .from('payment_transactions')
         .select('amount, status, created_at, bookings!inner(status)');
+      if (error) throw error;
       if (all) {
         // Gateways write 'paid'; some providers write 'completed'/'succeeded'.
-        const isSettled = (s: string | null) => ['paid', 'completed', 'succeeded', 'success'].includes(String(s || '').toLowerCase());
+        const isSettled = (st: string | null) => ['paid', 'completed', 'succeeded', 'success'].includes(String(st || '').toLowerCase());
         const live = (all as any[]).filter(t => !['cancelled', 'canceled'].includes(String(t.bookings?.status || '').toLowerCase()));
         const isLivePending = (t: any) =>
           t.status === 'pending' && Date.now() - new Date(t.created_at).getTime() <= PENDING_SESSION_MS;
         setTxStats({
-          totalRevenue: live.filter(t => isSettled(t.status)).reduce((s, t) => s + (Number(t.amount) || 0), 0),
-          pendingAmount: live.filter(isLivePending).reduce((s, t) => s + (Number(t.amount) || 0), 0),
+          totalRevenue: live.filter(t => isSettled(t.status)).reduce((sum, t) => sum + (Number(t.amount) || 0), 0),
+          pendingAmount: live.filter(isLivePending).reduce((sum, t) => sum + (Number(t.amount) || 0), 0),
           failedCount: live.filter(t => ['failed', 'cancelled'].includes(String(t.status || '').toLowerCase())).length,
           successCount: live.filter(t => isSettled(t.status)).length,
         });
       }
-
-
     } catch (error) {
       console.error('Error loading payments:', error);
       toast.error('Failed to load payment data');
@@ -240,25 +207,6 @@ export default function AdminPayments() {
     }
   };
 
-
-  const isExpiredTx = useCallback((t: PaymentTransaction) =>
-    t.status === 'pending' && Date.now() - new Date(t.created_at).getTime() > PENDING_SESSION_MS,
-  [PENDING_SESSION_MS]);
-
-  const expiredCount = useMemo(() => transactions.filter(isExpiredTx).length, [transactions, isExpiredTx]);
-
-  const filteredTransactions = useMemo(() => {
-    const base = showExpired ? transactions : transactions.filter(t => !isExpiredTx(t));
-    if (!searchTerm.trim()) return base;
-    const term = searchTerm.toLowerCase();
-    return base.filter(t => {
-      const dateStr = format(new Date(t.created_at), 'MMM d, yyyy HH:mm').toLowerCase();
-      const amountStr = `${t.currency} ${t.amount.toLocaleString()}`.toLowerCase();
-      return dateStr.includes(term) || t.guest_name?.toLowerCase().includes(term) ||
-        t.property_name?.toLowerCase().includes(term) || t.payment_method?.toLowerCase().includes(term) ||
-        amountStr.includes(term) || t.status.toLowerCase().includes(term);
-    });
-  }, [transactions, searchTerm, showExpired, isExpiredTx]);
 
   const totalCommissionsDue = commissionPayouts
     .filter(p => p.status === 'approved')
