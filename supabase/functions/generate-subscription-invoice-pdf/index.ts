@@ -287,8 +287,9 @@ Deno.serve(async (req) => {
     const pdfUrl = signed?.signedUrl || null;
     await supabase.from("subscription_invoices").update({ pdf_url: pdfUrl }).eq("id", invoice_id);
 
-    // Email owner with attachment
-    if (ownerEmail && mode !== "url") {
+    // Email owner (and copy the internal billing admins) with the attachment
+    const adminCopies = mode !== "url" ? await getAdminCopyRecipients(supabase, ownerEmail) : [];
+    if ((ownerEmail || adminCopies.length > 0) && mode !== "url") {
       const html = `<!doctype html><html><body style="font-family:Arial,sans-serif;background:#fff;padding:24px;color:#1A1A2E">
         <div style="max-width:560px;margin:0 auto;border:1px solid #eee;border-radius:8px;padding:24px">
           <h2 style="color:#E91E8C;margin-top:0">Thank you — payment received</h2>
@@ -301,20 +302,24 @@ Deno.serve(async (req) => {
           ${inv.invoice_kind === "once_off" ? "" : '<p style="color:#666;font-size:13px">You can cancel any time from your subscription page — no lock-in.</p>'}
         </div>
       </body></html>`;
+      const primary = ownerEmail ? [ownerEmail] : adminCopies;
+      const cc = ownerEmail ? adminCopies : [];
       const send = await resend.emails.send({
         from: FROM_EMAIL,
-        to: ownerEmail,
+        to: primary,
+        ...(cc.length > 0 ? { cc } : {}),
         subject: `Rooms Online invoice ${invoiceNumber} — ${entityName}`,
         html,
         attachments: [{ filename: `${invoiceNumber}.pdf`, content: bytesToBase64(pdfBytes) }],
       });
       if (send.error) throw new Error(`Invoice email failed: ${(send.error as any)?.message || String(send.error)}`);
       await supabase.from("subscription_invoice_events").insert({
-        invoice_id, event_type: "email", status: "sent", detail: `to:${ownerEmail}`,
+        invoice_id, event_type: "email", status: "sent",
+        detail: `to:${primary.join(",")}${cc.length > 0 ? ` cc:${cc.join(",")}` : ""}`,
       });
-    } else {
+    } else if (mode !== "url") {
       await supabase.from("subscription_invoice_events").insert({
-        invoice_id, event_type: "email", status: "skipped", detail: "no owner email",
+        invoice_id, event_type: "email", status: "skipped", detail: "no owner or admin email",
       });
     }
 
