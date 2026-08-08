@@ -657,13 +657,22 @@ export default function JourneyCheckout() {
                       </span>
                     </div>
 
-                    {/* Payment method selector (multi-gateway) */}
-                    {activeGateways.length > 1 && (
-                      <PaymentMethodSelector
-                        gateways={activeGateways}
-                        selected={effectiveGateway}
-                        onSelect={setSelectedGateway}
+                    {/* Reservation-only journey: banking details instead of a gateway */}
+                    {hasReservationOnly ? (
+                      <ReservationPaymentNotice
+                        banking={reservationOnlyProperties[0]?.banking ?? null}
+                        terms={journeyReservationTerms}
+                        total={effectiveTotal}
+                        compact
                       />
+                    ) : (
+                      activeGateways.length > 1 && (
+                        <PaymentMethodSelector
+                          gateways={activeGateways}
+                          selected={effectiveGateway}
+                          onSelect={setSelectedGateway}
+                        />
+                      )
                     )}
 
                     <Button
@@ -675,12 +684,16 @@ export default function JourneyCheckout() {
                       {isSubmitting || isValidating ? (
                         <>
                           <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                          {isValidating ? "Checking Availability..." : "Preparing Payment..."}
+                          {isValidating
+                            ? "Checking Availability..."
+                            : hasReservationOnly
+                              ? "Confirming Reservation..."
+                              : "Preparing Payment..."}
                         </>
                       ) : (
                         <>
                           <CheckCircle2 className="h-5 w-5 mr-2" />
-                          Pay & Confirm Booking
+                          {hasReservationOnly ? "Confirm Reservation" : "Pay & Confirm Booking"}
                         </>
                       )}
                     </Button>
@@ -688,8 +701,13 @@ export default function JourneyCheckout() {
                     {/* Trust badges */}
                     <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground pt-2">
                       <Shield className="h-4 w-4" />
-                      <span>Secure payment via {effectiveGateway === "payfast" ? "PayFast" : effectiveGateway.charAt(0).toUpperCase() + effectiveGateway.slice(1)}</span>
+                      <span>
+                        {hasReservationOnly
+                          ? "Reservation held for 3 days · pay the properties directly"
+                          : `Secure payment via ${effectiveGateway === "payfast" ? "PayFast" : effectiveGateway.charAt(0).toUpperCase() + effectiveGateway.slice(1)}`}
+                      </span>
                     </div>
+
                   </CardContent>
                 </Card>
 
