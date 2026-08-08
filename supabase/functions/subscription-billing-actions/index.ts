@@ -346,9 +346,23 @@ Deno.serve(async (req) => {
               pay_url: payUrl(openSubscription.payfast_token),
             }
           : null,
+        // Lifecycle — a cancellation is always scheduled for the end of the
+        // period the owner has already paid for; service only stops after that.
+        status: String(cfg.subscription_status || "pending"),
+        paid_through: cfg.current_period_end ? String(cfg.current_period_end).slice(0, 10) : null,
+        cancel_at_period_end: !!cfg.cancel_at_period_end,
+        cancel_effective_date: cfg.cancel_effective_date ? String(cfg.cancel_effective_date).slice(0, 10) : null,
+        suspended_at: cfg.suspended_at ?? null,
+        can_cancel:
+          !cfg.cancel_at_period_end &&
+          ["active", "past_due"].includes(String(cfg.subscription_status || "")),
+        can_resume: !!cfg.cancel_at_period_end && !cfg.suspended_at,
+        can_reactivate:
+          !!cfg.suspended_at || ["suspended", "cancelled"].includes(String(cfg.subscription_status || "")),
       },
       cancelled_count: cancelled.length,
     });
+
 
     // Contracted setup fees are payable on signature, so the once-off invoice is
     // raised automatically the first time the account is read — no manual step.
