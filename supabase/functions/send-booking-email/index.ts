@@ -673,7 +673,9 @@ function generateSuccessEmail(booking: any, property: any, syncWarning?: string)
             </td>
           </tr>
           `
-              : `
+              : isReservationOnlyBooking(booking, property)
+                ? generateReservationPaymentBlock(booking, property, accentColor)
+                : `
           <!-- Payment Notice -->
           <tr>
             <td style="padding: 0 40px 20px;">
@@ -685,6 +687,7 @@ function generateSuccessEmail(booking: any, property: any, syncWarning?: string)
             </td>
           </tr>
           `
+
           }
 
           ${
