@@ -316,8 +316,9 @@ export function RuCoverageTab() {
             lines={[
               `${summary.adapter.passed}/${summary.adapter.total} passing · ${summary.adapter.failed} failing · ${summary.adapter.never_run} never run`,
               `${summary.adapter.stale} outside their refresh window · ${summary.adapter.not_implemented} not implemented`,
-              `Mandatory: ${summary.mandatory.passed}/${summary.mandatory.total}`,
+              `${summary.adapter.blocked ?? 0} blocked upstream (excluded from score) · Mandatory: ${summary.mandatory.passed}/${summary.mandatory.total}`,
             ]}
+
           />
           <ScoreCard
             title="ROL'OS integration compliance"
