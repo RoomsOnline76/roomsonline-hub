@@ -25,7 +25,10 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+import { splitInvoiceMargin } from "../_shared/feeMargin.ts";
+
 type Json = Record<string, unknown>;
+
 // deno-lint-ignore no-explicit-any
 type Client = any;
 
