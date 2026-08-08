@@ -780,7 +780,7 @@ export default function PropertyForm({
   const [starRating, setStarRating] = useState(0);
   const [isRolProperty, setIsRolProperty] = useState(false);
   const [isTestProperty, setIsTestProperty] = useState(false);
-  const [adminSubTab, setAdminSubTab] = useState<string>("overview");
+  const [adminSubTab, setAdminSubTab] = useState<string>(() => searchParams.get("sub") || "overview");
   const [selectedFacilities, setSelectedFacilities] = useState<string[]>([]);
   const [aiAmenityOpen, setAiAmenityOpen] = useState(false);
   const [selectedBreakfastOptions, setSelectedBreakfastOptions] = useState<string[]>([]);
