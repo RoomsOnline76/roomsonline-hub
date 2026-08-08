@@ -524,6 +524,11 @@ export function InlineCheckoutPanel({
                       <Loader2 className="h-5 w-5 animate-spin" />
                       Processing...
                     </>
+                  ) : isReservationOnly ? (
+                    <>
+                      <Landmark className="h-5 w-5" />
+                      Confirm reservation
+                    </>
                   ) : (
                     <>
                       <CreditCard className="h-5 w-5" />
@@ -533,7 +538,11 @@ export function InlineCheckoutPanel({
                 </Button>
                 <div className="flex items-center justify-center gap-2 mt-2 text-[10px] sm:text-xs text-muted-foreground">
                   <Lock className="h-3 w-3" />
-                  <span>Secured by PayFast · 256-bit SSL</span>
+                  <span>
+                    {isReservationOnly
+                      ? "Held for 3 days · pay the property directly by EFT"
+                      : "Secured by PayFast · 256-bit SSL"}
+                  </span>
                 </div>
               </div>
             </motion.div>
