@@ -6,7 +6,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { CreditCard, ExternalLink, Eye, EyeOff, Save, ShieldCheck, Loader2, Globe, MapPin, ChevronDown, Building2 } from "lucide-react";
+import { CreditCard, ExternalLink, Eye, EyeOff, Save, ShieldCheck, Loader2, Globe, MapPin, ChevronDown, Building2, Wallet } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { PAYMENT_MODES, normalisePaymentMode, type PaymentMode } from "@/lib/paymentMode";
 import { Switch } from "@/components/ui/switch";
 import { usePropertyPortfolioPayment } from "@/hooks/usePortfolioPaymentConfig";
 import { usePropertyAllowsCustomPayment } from "@/hooks/usePropertyAllowsCustomPayment";
@@ -255,7 +257,7 @@ export function PropertyPaymentProviderSelect({ propertyId }: PropertyPaymentPro
     queryFn: async () => {
       const { data, error } = await supabase
         .from("properties")
-        .select("payment_provider, payment_providers")
+        .select("payment_provider, payment_providers, payment_mode, allow_custom_payment_provider")
         .eq("id", propertyId)
         .single();
       if (error) throw error;
@@ -263,6 +265,35 @@ export function PropertyPaymentProviderSelect({ propertyId }: PropertyPaymentPro
     },
     enabled: !!propertyId,
   });
+
+  const paymentMode: PaymentMode = normalisePaymentMode(
+    (propertyData as { payment_mode?: string | null } | null)?.payment_mode,
+    (propertyData as { allow_custom_payment_provider?: boolean | null } | null)
+      ?.allow_custom_payment_provider,
+  );
+
+  const paymentModeMutation = useMutation({
+    mutationFn: async (mode: PaymentMode) => {
+      const { error } = await supabase
+        .from("properties")
+        .update({
+          payment_mode: mode,
+          // Own-gateway mode implies custom providers are unlocked.
+          ...(mode === "byo" ? { allow_custom_payment_provider: true } : {}),
+        } as never)
+        .eq("id", propertyId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["property-payment-providers", propertyId] });
+      queryClient.invalidateQueries({ queryKey: ["property-payment-mode", propertyId] });
+      queryClient.invalidateQueries({ queryKey: ["property-allow-custom-payment", propertyId] });
+      toast.success("Payment handling updated");
+    },
+    onError: (e: unknown) =>
+      toast.error("Failed to update payment handling", { description: describeError(e) }),
+  });
+
 
   // Sync from DB
   useEffect(() => {
@@ -575,6 +606,49 @@ export function PropertyPaymentProviderSelect({ propertyId }: PropertyPaymentPro
               </div>
             ) : (
               <>
+                {/* Payment handling mode — admin / dev / fearless leader only */}
+                <div className="rounded-lg border px-3 py-2.5 space-y-2">
+                  <div className="flex items-start gap-2">
+                    <Wallet className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium">Payment handling</p>
+                      <p className="text-xs text-muted-foreground">
+                        {PAYMENT_MODES.find((m) => m.value === paymentMode)?.description}
+                      </p>
+                    </div>
+                  </div>
+                  {canOverride ? (
+                    <Select
+                      value={paymentMode}
+                      onValueChange={(v) => paymentModeMutation.mutate(v as PaymentMode)}
+                      disabled={paymentModeMutation.isPending}
+                    >
+                      <SelectTrigger className="h-9 text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {PAYMENT_MODES.map((m) => (
+                          <SelectItem key={m.value} value={m.value} className="text-sm">
+                            {m.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Badge variant="secondary" className="text-[10px]">
+                      {PAYMENT_MODES.find((m) => m.value === paymentMode)?.label}
+                    </Badge>
+                  )}
+                  {paymentMode === "reservation_only" && (
+                    <p className="text-xs text-muted-foreground">
+                      Guests reserve without paying. The pro forma invoice and reservation email
+                      carry this property's banking details (captured under Company Information),
+                      the deposit due and the cancellation policy. Mark the reservation paid in
+                      ROL'OS once funds are received.
+                    </p>
+                  )}
+                </div>
+
                 {portfolioName && (
                   <div className="rounded-lg border border-primary/30 bg-primary/5 px-3 py-2.5 space-y-2">
                     <div className="flex items-start gap-2">
@@ -607,7 +681,7 @@ export function PropertyPaymentProviderSelect({ propertyId }: PropertyPaymentPro
                   </div>
                 )}
 
-                {settlement && (
+                {settlement && paymentMode !== "reservation_only" && (
                   <div
                     className={cn(
                       "rounded-lg border px-3 py-2.5 flex items-start gap-2",
@@ -640,7 +714,7 @@ export function PropertyPaymentProviderSelect({ propertyId }: PropertyPaymentPro
                   </div>
                 )}
 
-                {(byoAllowed || settlement?.credential_source === "byo") && (
+                {paymentMode !== "reservation_only" && (byoAllowed || settlement?.credential_source === "byo") && (
                   <ByoSetupChecklist
                     propertyId={propertyId}
                     provider={
@@ -659,7 +733,7 @@ export function PropertyPaymentProviderSelect({ propertyId }: PropertyPaymentPro
 
 
 
-                {!inheritsFromPortfolio && (
+                {!inheritsFromPortfolio && paymentMode !== "reservation_only" && (
                 <>
                 <Collapsible open={saOpen} onOpenChange={setSaOpen}>
                   <CollapsibleTrigger className="flex items-center justify-between w-full rounded-lg border px-3 py-2 hover:bg-muted/30 transition-colors">

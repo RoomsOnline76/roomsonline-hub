@@ -1,4 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { usePropertyPaymentMode } from "@/hooks/usePropertyPaymentMode";
+import { useResolvedCancellationPolicy } from "@/hooks/useResolvedCancellationPolicy";
+import { formatCancellationPolicy } from "@/lib/policyFormatter";
+import { resolveReservationTerms, type HouseRulesDepositBlock } from "@/lib/reservationTerms";
+import { reservationHoldExpiry } from "@/lib/paymentMode";
+import { ReservationPaymentNotice } from "./ReservationPaymentNotice";
 import { format, parseISO } from "date-fns";
 import { CreditCard, Lock, X, Calendar, Users, ChevronRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -57,6 +64,45 @@ export function InlineCheckoutPanel({
   const { gateways: activeGateways } = useActivePaymentGateways();
   const [selectedGateway, setSelectedGateway] = useState<PaymentGateway | null>(null);
   const activeGateway = selectedGateway || activeGateways[0] || "payfast";
+
+  // Reservation-only properties never see a gateway.
+  const checkoutPropertyId = stays[0]?.property_id ?? null;
+  const { isReservationOnly, banking } = usePropertyPaymentMode(checkoutPropertyId);
+  const { data: resolvedPolicy } = useResolvedCancellationPolicy(
+    isReservationOnly ? checkoutPropertyId : null,
+    null,
+    null,
+  );
+  const { data: houseRulesBlock } = useQuery({
+    queryKey: ["reservation-house-rules", checkoutPropertyId],
+    enabled: isReservationOnly && !!checkoutPropertyId,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("properties")
+        .select("amenities")
+        .eq("id", checkoutPropertyId!)
+        .maybeSingle();
+      const amenities = data?.amenities as { house_rules?: HouseRulesDepositBlock } | null;
+      return amenities?.house_rules ?? null;
+    },
+  });
+
+  const reservationTerms = useMemo(
+    () =>
+      resolveReservationTerms({
+        total: totalPrice,
+        checkIn: stays[0]?.dates.check_in ?? new Date().toISOString().slice(0, 10),
+        houseRules: houseRulesBlock ?? null,
+        cancellationRule: resolvedPolicy?.rule ?? null,
+      }),
+    [totalPrice, stays, houseRulesBlock, resolvedPolicy?.rule],
+  );
+  const policySummary = useMemo(
+    () => (resolvedPolicy?.rule ? formatCancellationPolicy(resolvedPolicy.rule).summaryText : null),
+    [resolvedPolicy?.rule],
+  );
+
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [payFastUuid, setPayFastUuid] = useState<string | null>(null);
@@ -131,8 +177,18 @@ export function InlineCheckoutPanel({
         guest_phone: guestDetails.phone,
         total_price: totalPrice,
         status: "pending",
-        payment_status: "pending",
+        payment_status: isReservationOnly ? "awaiting_eft" : "pending",
+        ...(isReservationOnly
+          ? {
+              payment_method: "eft",
+              reservation_hold: true,
+              hold_expires_at: reservationHoldExpiry(),
+              deposit_amount: reservationTerms.amountDueNow,
+              deposit_due_date: reservationTerms.dueDate,
+            }
+          : {}),
                 special_requests: specialRequests || null,
+
         user_id: user?.id || null,
         ...origin,
         ...captureCommissionOrigin(),
