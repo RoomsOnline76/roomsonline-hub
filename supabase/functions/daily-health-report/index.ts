@@ -668,7 +668,7 @@ Deno.serve(async (req) => {
     // ---- Channel Manager (Rentals United white-label) metrics, last 24h ----
     let ruWl: RuWlMetrics | null = null;
     try {
-      const [{ data: syncRuns }, { data: ruNotifs }, { data: certRuns }, { data: ruOwners }] = await Promise.all([
+      const [{ data: syncRuns }, { data: ruNotifs }, { data: certRuns }, { count: ownerCount }] = await Promise.all([
         supabase
           .from('ru_sync_runs')
           .select('action, success, error_code, error_message, elapsed_ms, created_at')
