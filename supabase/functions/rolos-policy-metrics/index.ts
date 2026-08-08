@@ -49,7 +49,7 @@ Deno.serve(async (req) => {
     const since = new Date(Date.now() - days * 24 * 3600 * 1000).toISOString();
     const { data: bookings } = await supabase
       .from("bookings")
-      .select("id, total_price, status, check_in_date, check_out_date, rate_plan_id, created_at")
+      .select("id, total_price, status, check_in_date, check_out_date, rolos_rate_plan_id, created_at")
       .eq("property_id", body.property_id)
       .gte("created_at", since);
 
@@ -57,7 +57,7 @@ Deno.serve(async (req) => {
     for (const pid of body.policy_ids) stats[pid] = { room_nights: 0, revenue: 0, total: 0, cancelled: 0 };
 
     for (const b of bookings ?? []) {
-      const rp = (b as { rate_plan_id?: string | null }).rate_plan_id;
+      const rp = (b as { rolos_rate_plan_id?: string | null }).rolos_rate_plan_id;
       const pid = (rp && ratePlanToPolicy.get(rp)) || defaultPolicyId;
       if (!pid || !stats[pid]) continue;
       const ci = new Date(b.check_in_date as string);
