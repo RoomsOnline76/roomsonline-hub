@@ -17,6 +17,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { normalizeTiers, PricingTier } from "@/lib/billingTierResolver";
+import { resolveBillingSchedule, DEFAULT_FREE_PERIOD_DAYS } from "@/lib/billingSchedule";
+
 import {
   BillingConfigBuilder,
   BillingConfigValue,
