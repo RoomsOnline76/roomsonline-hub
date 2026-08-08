@@ -1,3 +1,4 @@
+import { computeExpectedBilling, type ExpectedBillingConfig } from "@/lib/billingExpected";
 /**
  * Owner account (ROL Account) — derivation helpers.
  *
@@ -173,27 +174,40 @@ export interface FeeComponent {
   amount: number;
 }
 
-/** What the monthly fee is made up of, for transparency on the owner page. */
-export function feeBreakdown(cfg: OwnerBillingConfig | null | undefined, unitCount = 0): FeeComponent[] {
+/**
+ * What the monthly fee is made up of, for transparency on the owner page.
+ *
+ * Uses the same contracted resolution as the Estimated Client Cost card, so the
+ * tier-resolved ROL'OS PMS subscription is always included even when
+ * `subscription_fee_monthly` has not been written to the config.
+ */
+export function feeBreakdown(
+  cfg: OwnerBillingConfig | null | undefined,
+  unitCount = 0,
+  byoGateway = false,
+): FeeComponent[] {
   if (!cfg) return [];
-  const rows: FeeComponent[] = [];
-  const platform = Number(cfg.subscription_fee_monthly || 0);
-  if (platform) rows.push({ label: "Platform subscription", amount: platform });
-  if (cfg.channel_manager_enabled && Number(cfg.channel_manager_per_unit_fee || 0) > 0) {
-    rows.push({
-      label: `Channel manager${unitCount ? ` (${unitCount} unit${unitCount === 1 ? "" : "s"})` : ""}`,
-      amount: round2(Number(cfg.channel_manager_per_unit_fee) * Math.max(unitCount, 1)),
-    });
-  }
-  if (Number(cfg.white_label_monthly_fee || 0) > 0)
-    rows.push({ label: "White-label domain", amount: Number(cfg.white_label_monthly_fee) });
-  if (cfg.pricelabs_allowed && Number(cfg.pricelabs_monthly_fee || 0) > 0)
-    rows.push({ label: "Revenue management", amount: Number(cfg.pricelabs_monthly_fee) });
-  if (cfg.branding_addon_enabled && Number(cfg.branding_addon_monthly_fee || 0) > 0)
-    rows.push({ label: "Branding add-on", amount: Number(cfg.branding_addon_monthly_fee) });
-  if (Number(cfg.byo_gateway_monthly_fee || 0) > 0)
-    rows.push({ label: "Own payment gateway", amount: Number(cfg.byo_gateway_monthly_fee) });
-  return rows;
+  return computeExpectedBilling(cfg as unknown as ExpectedBillingConfig, {
+    units: unitCount,
+    rooms: unitCount,
+    byoGateway,
+  })
+    .lines.filter((l) => !l.once)
+    .map((l) => ({ label: l.label, amount: l.amount }));
+}
+
+/** Contracted monthly total (tier + add-ons), regardless of stored fee. */
+export function expectedMonthlyFee(
+  cfg: OwnerBillingConfig | null | undefined,
+  unitCount = 0,
+  byoGateway = false,
+): number {
+  if (!cfg) return 0;
+  return computeExpectedBilling(cfg as unknown as ExpectedBillingConfig, {
+    units: unitCount,
+    rooms: unitCount,
+    byoGateway,
+  }).monthly;
 }
 
 /* ------------------------------------------------------------------ */

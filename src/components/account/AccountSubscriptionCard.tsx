@@ -5,6 +5,7 @@ import { AlertTriangle, CheckCircle2, Clock, PowerOff, XCircle, CreditCard } fro
 import { ADMIN_DOMAIN } from "@/lib/config";
 import { resolveBillingSchedule } from "@/lib/billingSchedule";
 import {
+  expectedMonthlyFee,
   feeBreakdown,
   fmtMoney,
   type OwnerBalances,
@@ -18,6 +19,7 @@ interface Props {
   subscription: SubscriptionView;
   balances: OwnerBalances;
   unitCount: number;
+  byoGateway?: boolean;
   invoices: OwnerSubscriptionInvoice[];
 }
 
@@ -39,10 +41,21 @@ const BADGE = {
   reset_pending: "bg-destructive/10 text-destructive border-destructive/40",
 } as const;
 
-export function AccountSubscriptionCard({ config, subscription, balances, unitCount, invoices }: Props) {
+export function AccountSubscriptionCard({
+  config,
+  subscription,
+  balances,
+  unitCount,
+  byoGateway = false,
+  invoices,
+}: Props) {
   const schedule = resolveBillingSchedule(config);
   const Icon = ICONS[subscription.status];
-  const components = feeBreakdown(config, unitCount);
+  const components = feeBreakdown(config, unitCount, byoGateway);
+  // Contracted monthly total — includes the tier-resolved PMS subscription even
+  // when the stored subscription fee has not been written yet.
+  const contractedMonthly = expectedMonthlyFee(config, unitCount, byoGateway);
+  const monthlyFee = subscription.monthlyFee > 0 ? subscription.monthlyFee : contractedMonthly;
   const currency = balances.currency;
   const openSub = invoices.find((i) => !["paid", "void"].includes(i.status) && i.payfast_token);
   // GLOBAL RULE: settlement links always resolve to the production domain.
@@ -98,7 +111,12 @@ export function AccountSubscriptionCard({ config, subscription, balances, unitCo
         <div className="grid gap-3 sm:grid-cols-4">
           <div>
             <div className="text-muted-foreground">Monthly fee</div>
-            <div className="text-base font-semibold">{fmtMoney(subscription.monthlyFee, currency)}</div>
+            <div className="text-base font-semibold">{fmtMoney(monthlyFee, currency)}</div>
+            {contractedMonthly > 0 && Math.abs(contractedMonthly - monthlyFee) > 0.01 && (
+              <div className="text-[10px] text-muted-foreground">
+                {fmtMoney(contractedMonthly, currency)} contracted
+              </div>
+            )}
           </div>
           <div>
             <div className="text-muted-foreground">Engagement date</div>
