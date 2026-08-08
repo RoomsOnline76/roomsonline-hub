@@ -4125,6 +4125,7 @@ export type Database = {
           billing_enabled: boolean
           billing_start_date: string | null
           billing_strategy: Database["public"]["Enums"]["billing_strategy"]
+          billing_switched_off_at: string | null
           branding_addon_billing_mode: string | null
           branding_addon_enabled: boolean | null
           branding_addon_monthly_fee: number | null
@@ -4147,13 +4148,16 @@ export type Database = {
           linked_contract_id: string | null
           listing_commission_rate: number | null
           payment_facilitator_enabled: boolean | null
+          plan_changed_at: string | null
           pms_commission_rate: number | null
           portfolio_id: string
+          previous_subscription_fee: number | null
           pricelabs_allowed: boolean
           pricelabs_monthly_fee: number | null
           pricelabs_setup_fee: number | null
           room_count_override: number | null
           subscription_fee_monthly: number | null
+          subscription_reset_pending: boolean
           subscription_status: string
           tier_pricing_json: Json | null
           transaction_fee_percentage: number | null
@@ -4174,6 +4178,7 @@ export type Database = {
           billing_enabled?: boolean
           billing_start_date?: string | null
           billing_strategy?: Database["public"]["Enums"]["billing_strategy"]
+          billing_switched_off_at?: string | null
           branding_addon_billing_mode?: string | null
           branding_addon_enabled?: boolean | null
           branding_addon_monthly_fee?: number | null
@@ -4196,13 +4201,16 @@ export type Database = {
           linked_contract_id?: string | null
           listing_commission_rate?: number | null
           payment_facilitator_enabled?: boolean | null
+          plan_changed_at?: string | null
           pms_commission_rate?: number | null
           portfolio_id: string
+          previous_subscription_fee?: number | null
           pricelabs_allowed?: boolean
           pricelabs_monthly_fee?: number | null
           pricelabs_setup_fee?: number | null
           room_count_override?: number | null
           subscription_fee_monthly?: number | null
+          subscription_reset_pending?: boolean
           subscription_status?: string
           tier_pricing_json?: Json | null
           transaction_fee_percentage?: number | null
@@ -4223,6 +4231,7 @@ export type Database = {
           billing_enabled?: boolean
           billing_start_date?: string | null
           billing_strategy?: Database["public"]["Enums"]["billing_strategy"]
+          billing_switched_off_at?: string | null
           branding_addon_billing_mode?: string | null
           branding_addon_enabled?: boolean | null
           branding_addon_monthly_fee?: number | null
@@ -4245,13 +4254,16 @@ export type Database = {
           linked_contract_id?: string | null
           listing_commission_rate?: number | null
           payment_facilitator_enabled?: boolean | null
+          plan_changed_at?: string | null
           pms_commission_rate?: number | null
           portfolio_id?: string
+          previous_subscription_fee?: number | null
           pricelabs_allowed?: boolean
           pricelabs_monthly_fee?: number | null
           pricelabs_setup_fee?: number | null
           room_count_override?: number | null
           subscription_fee_monthly?: number | null
+          subscription_reset_pending?: boolean
           subscription_status?: string
           tier_pricing_json?: Json | null
           transaction_fee_percentage?: number | null
@@ -5312,6 +5324,7 @@ export type Database = {
           billing_enabled: boolean
           billing_start_date: string | null
           billing_strategy: Database["public"]["Enums"]["billing_strategy"]
+          billing_switched_off_at: string | null
           branding_addon_billing_mode: string | null
           branding_addon_enabled: boolean | null
           branding_addon_monthly_fee: number | null
@@ -5335,13 +5348,16 @@ export type Database = {
           listing_commission_rate: number | null
           owner_id: string | null
           payment_facilitator_enabled: boolean | null
+          plan_changed_at: string | null
           pms_commission_rate: number | null
+          previous_subscription_fee: number | null
           pricelabs_allowed: boolean
           pricelabs_monthly_fee: number | null
           pricelabs_setup_fee: number | null
           property_id: string
           room_count_override: number | null
           subscription_fee_monthly: number | null
+          subscription_reset_pending: boolean
           subscription_status: string
           tier_pricing_json: Json | null
           tier_scope: string | null
@@ -5363,6 +5379,7 @@ export type Database = {
           billing_enabled?: boolean
           billing_start_date?: string | null
           billing_strategy?: Database["public"]["Enums"]["billing_strategy"]
+          billing_switched_off_at?: string | null
           branding_addon_billing_mode?: string | null
           branding_addon_enabled?: boolean | null
           branding_addon_monthly_fee?: number | null
@@ -5386,13 +5403,16 @@ export type Database = {
           listing_commission_rate?: number | null
           owner_id?: string | null
           payment_facilitator_enabled?: boolean | null
+          plan_changed_at?: string | null
           pms_commission_rate?: number | null
+          previous_subscription_fee?: number | null
           pricelabs_allowed?: boolean
           pricelabs_monthly_fee?: number | null
           pricelabs_setup_fee?: number | null
           property_id: string
           room_count_override?: number | null
           subscription_fee_monthly?: number | null
+          subscription_reset_pending?: boolean
           subscription_status?: string
           tier_pricing_json?: Json | null
           tier_scope?: string | null
@@ -5414,6 +5434,7 @@ export type Database = {
           billing_enabled?: boolean
           billing_start_date?: string | null
           billing_strategy?: Database["public"]["Enums"]["billing_strategy"]
+          billing_switched_off_at?: string | null
           branding_addon_billing_mode?: string | null
           branding_addon_enabled?: boolean | null
           branding_addon_monthly_fee?: number | null
@@ -5437,13 +5458,16 @@ export type Database = {
           listing_commission_rate?: number | null
           owner_id?: string | null
           payment_facilitator_enabled?: boolean | null
+          plan_changed_at?: string | null
           pms_commission_rate?: number | null
+          previous_subscription_fee?: number | null
           pricelabs_allowed?: boolean
           pricelabs_monthly_fee?: number | null
           pricelabs_setup_fee?: number | null
           property_id?: string
           room_count_override?: number | null
           subscription_fee_monthly?: number | null
+          subscription_reset_pending?: boolean
           subscription_status?: string
           tier_pricing_json?: Json | null
           tier_scope?: string | null

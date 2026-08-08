@@ -156,6 +156,20 @@ async function ensureInvoiceAndEmail(supabase: any, resend: Resend, opts: {
     return { skipped: true, reason: "billing_disabled" };
   }
 
+  // Plan changed by admin: the owner must approve and settle the new balance
+  // before the subscription renews on the new fee. Existing paid period stands.
+  if (cfg.subscription_reset_pending === true && isRenewal) {
+    console.log(`[cron] Skip renewal ${scope} ${entityId}: subscription reset pending re-approval`);
+    return { skipped: true, reason: "subscription_reset_pending" };
+  }
+
+  // Switched off by admin: keep the paid period in force, never renew past it.
+  if (cfg.billing_switched_off_at && isRenewal) {
+    console.log(`[cron] Skip renewal ${scope} ${entityId}: billing switched off ${cfg.billing_switched_off_at}`);
+    return { skipped: true, reason: "billing_switched_off" };
+  }
+
+
   const paidStart = resolvePaidStart(cfg, globalFreeDefault);
   if (!paidStart) {
     return { skipped: true, reason: "no_engagement_or_billing_start_date" };
