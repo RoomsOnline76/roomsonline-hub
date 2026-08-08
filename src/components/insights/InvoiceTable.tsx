@@ -30,7 +30,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
 import { normaliseCurrency } from "@/lib/burnRate";
-import { openInvoiceDocument } from "./InvoiceDocumentField";
+import { INVOICE_BUCKET, openInvoiceDocument } from "./InvoiceDocumentField";
 
 interface Invoice {
   id: string;
@@ -270,7 +270,7 @@ export function InvoiceTable({ invoices, isLoading, onEdit }: InvoiceTableProps)
                             Edit
                           </DropdownMenuItem>
                           <DropdownMenuItem
-                            onClick={() => deleteMutation.mutate(invoice.id)}
+                            onClick={() => deleteMutation.mutate(invoice)}
                             className="text-destructive"
                           >
                             <Trash2 className="h-4 w-4 mr-2" />
