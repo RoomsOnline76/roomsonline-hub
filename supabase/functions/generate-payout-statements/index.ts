@@ -69,7 +69,10 @@ interface BookingEntry {
   txId: string | null;
   settlement: "rol" | "byo";
   txDate: string;
+  /** Actual fee the gateway charged us on this transaction, when reported. */
+  gatewayFee: number | null;
 }
+
 
 interface GroupBucket {
   kind: "portfolio" | "property";
