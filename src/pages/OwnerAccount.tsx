@@ -15,6 +15,7 @@ import { AccountInvoicesTab } from "@/components/account/AccountInvoicesTab";
 import { AccountPayoutsTab } from "@/components/account/AccountPayoutsTab";
 import { AccountAnalyticsTab } from "@/components/account/AccountAnalyticsTab";
 import { AccountStatementTab } from "@/components/account/AccountStatementTab";
+import { AccountTwoPaymentCard } from "@/components/account/AccountTwoPaymentCard";
 
 const startOfYear = () => `${new Date().getFullYear()}-01-01`;
 const todayIso = () => new Date().toISOString().slice(0, 10);
@@ -110,6 +111,12 @@ const OwnerAccount = () => {
               balances={account.balances}
               unitCount={account.unitCount}
               invoices={account.subscriptionInvoices}
+            />
+
+            <AccountTwoPaymentCard
+              scope={scope.kind}
+              entityId={scope.id}
+              onChanged={() => void account.refresh()}
             />
 
             <Tabs defaultValue="invoices">

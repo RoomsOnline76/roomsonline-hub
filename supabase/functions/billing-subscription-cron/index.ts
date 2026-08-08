@@ -404,6 +404,44 @@ Deno.serve(async (req) => {
     results.push({ portfolio_id: pf.id, renewal: true, ...r });
   }
 
+  // 4b) Upcoming-start reminders — the owner (plus admin / fearless leader / dev)
+  //     is reminded that the once-off setup fee and the first monthly
+  //     subscription are due, from a week before the first billing date.
+  const remindWindowStart = todayStr;
+  const remindWindowEnd = addDays(todayStr, 7);
+  const notifyDue = async (scope: "property" | "portfolio", entityId: string) => {
+    try {
+      const res = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/subscription-billing-actions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+        },
+        body: JSON.stringify({ action: "send_due_reminder", scope, entity_id: entityId }),
+      });
+      const body = await res.json().catch(() => ({}));
+      results.push({ scope, entity_id: entityId, due_reminder: res.ok, detail: body });
+    } catch (e) {
+      results.push({ scope, entity_id: entityId, due_reminder: false, error: String(e) });
+    }
+  };
+
+  for (const [table, col, scope] of [
+    ["property_billing_configs", "property_id", "property"],
+    ["portfolio_billing_configs", "portfolio_id", "portfolio"],
+  ] as const) {
+    const { data: rows } = await supabase
+      .from(table)
+      .select(`${col}, engagement_date, billing_start_date, free_period_days, billing_strategy, subscription_status`)
+      .neq("subscription_status", "active");
+    for (const row of rows ?? []) {
+      const paidStart = resolvePaidStart(row, await freeDefaultFor((row as any).billing_strategy));
+      if (!paidStart) continue;
+      if (paidStart < remindWindowStart || paidStart > remindWindowEnd) continue;
+      await notifyDue(scope, (row as any)[col]);
+    }
+  }
+
   // 5) Mark past_due (property + portfolio)
   await supabase.from("property_billing_configs")
     .update({ subscription_status: "past_due" })
