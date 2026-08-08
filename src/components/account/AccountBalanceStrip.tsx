@@ -43,9 +43,21 @@ function oldestPayLink(subs: OwnerSubscriptionInvoice[], rol: OwnerRolInvoice[])
   return candidates[0]?.url ?? null;
 }
 
-export function AccountBalanceStrip({ balances, subscriptionInvoices, rolInvoices }: Props) {
+export function AccountBalanceStrip({
+  balances,
+  subscriptionInvoices,
+  rolInvoices,
+  config = null,
+  unitCount = 0,
+  byoGateway = false,
+  billingPropertyId = null,
+}: Props) {
   const payUrl = oldestPayLink(subscriptionInvoices, rolInvoices);
   const c = balances.currency;
+  const { isAdmin, isDev, isFearlessLeader } = useAuth();
+  const canEditBilling = isAdmin || isDev || isFearlessLeader;
+  const [setupOpen, setSetupOpen] = useState(false);
+
 
   const tiles = [
     { label: "Due", value: balances.due, tone: balances.due > 0 ? "warning" : "muted" },
