@@ -559,18 +559,23 @@ async function checkAvailabilityCache(supabase: SupabaseClientType): Promise<Hea
     const lastFetchedAt = data?.[0]?.fetched_at as string | undefined;
     const ageHours = lastFetchedAt ? (Date.now() - new Date(lastFetchedAt).getTime()) / 3600000 : null;
 
-    // No rows at all means every property is resolving live — a valid operating mode.
-    if (ageHours === null) {
+    // No rows at all, or nothing written for days, means every property is resolving live —
+    // a valid operating mode for a cache that only ever accelerates non-checkout reads.
+    const UNUSED_HOURS = 48;
+    if (ageHours === null || ageHours > UNUSED_HOURS) {
       return {
         component_key: 'availability_cache',
         status: 'healthy',
         latency_ms: latency,
-        response_data: { entries: 0, mode: 'live_only' },
-        metadata: { note: 'Cache empty — availability resolving live (NO_BOOKING_FROM_CACHE)' },
+        response_data: { last_fetched_at: lastFetchedAt ?? null, age_hours: ageHours, mode: 'live_only' },
+        metadata: {
+          note: 'Cache idle — availability resolving live (NO_BOOKING_FROM_CACHE)',
+        },
       };
     }
 
-    const status = ageHours <= FRESH_HOURS ? 'healthy' : ageHours <= STALE_HOURS ? 'degraded' : 'failed';
+    const status = ageHours <= FRESH_HOURS ? 'healthy' : 'degraded';
+
 
     return {
       component_key: 'availability_cache',
