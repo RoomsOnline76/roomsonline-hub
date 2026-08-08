@@ -3327,11 +3327,11 @@ async function handleGetAccountBalance(body: any, supabase: any, req: Request): 
   const propertyId = body.propertyId;
 
   const [subs, rol, payouts, cfg] = await Promise.all([
-    supabase.from("subscription_invoices").select("id, invoice_number, status, total_amount, currency, period_start, period_end, created_at, paid_at, invoice_type")
+    supabase.from("subscription_invoices").select("id, invoice_number, status, amount, currency, period_start, period_end, created_at, paid_at, invoice_kind")
       .eq("property_id", propertyId).order("created_at", { ascending: false }),
-    supabase.from("rol_property_invoices").select("id, invoice_number, status, total_amount, currency, issue_date, due_date, paid_at")
-      .eq("property_id", propertyId).order("issue_date", { ascending: false }),
-    supabase.from("property_payout_statements").select("id, statement_number, status, net_payout, currency, period_start, period_end, paid_at")
+    supabase.from("rol_property_invoices").select("id, invoice_reference, status, total, amount_paid, currency, issued_at, due_date, paid_at")
+      .eq("property_id", propertyId).order("due_date", { ascending: false }),
+    supabase.from("property_payout_statements").select("id, statement_reference, status, net_payable, currency, period_start, period_end, paid_at")
       .eq("property_id", propertyId).order("period_end", { ascending: false }),
     supabase.from("property_billing_configs").select("*").eq("property_id", propertyId).maybeSingle(),
   ]);
@@ -3349,26 +3349,30 @@ async function handleGetAccountBalance(body: any, supabase: any, req: Request): 
   const overdueRol = openRol.filter((r: { due_date?: string }) => r.due_date && r.due_date < today);
   const unpaidPayouts = payoutRows.filter((r: { status: string }) => r.status !== "paid");
 
-  const currency = (cfg.data?.currency as string) || rolRows[0]?.currency || subRows[0]?.currency || "ZAR";
+  const currency = rolRows[0]?.currency || subRows[0]?.currency || payoutRows[0]?.currency || "ZAR";
 
   return new Response(JSON.stringify(createSuccessResponse({
     currency,
-    due: sum(openSubs, "total_amount") + sum(openRol, "total_amount"),
-    overdue: sum(overdueRol, "total_amount"),
-    due_to_you: sum(unpaidPayouts, "net_payout"),
-    paid_to_rol: sum(subRows.filter((r: { status: string }) => r.status === "paid"), "total_amount")
-      + sum(rolRows.filter((r: { status: string }) => r.status === "paid"), "total_amount"),
-    received_from_rol: sum(payoutRows.filter((r: { status: string }) => r.status === "paid"), "net_payout"),
+    due: sum(openSubs, "amount") + sum(openRol, "total") - sum(openRol, "amount_paid"),
+    overdue: sum(overdueRol, "total") - sum(overdueRol, "amount_paid"),
+    due_to_you: sum(unpaidPayouts, "net_payable"),
+    paid_to_rol: sum(subRows.filter((r: { status: string }) => r.status === "paid"), "amount")
+      + sum(rolRows, "amount_paid"),
+    received_from_rol: sum(payoutRows.filter((r: { status: string }) => r.status === "paid"), "net_payable"),
     subscription: {
-      active: cfg.data?.subscription_active ?? null,
+      status: cfg.data?.subscription_status ?? null,
+      billing_enabled: cfg.data?.billing_enabled ?? null,
       engagement_date: cfg.data?.engagement_date ?? null,
+      current_period_end: cfg.data?.current_period_end ?? null,
       switched_off_at: cfg.data?.billing_switched_off_at ?? null,
       reset_pending: cfg.data?.subscription_reset_pending ?? false,
       plan_changed_at: cfg.data?.plan_changed_at ?? null,
+      monthly_fee: cfg.data?.subscription_fee_monthly ?? null,
     },
     open_invoice_count: openSubs.length + openRol.length,
   }, "get_account_balance")), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
 }
+
 
 // deno-lint-ignore no-explicit-any
 async function handleGetAccountDocuments(body: any, supabase: any, req: Request): Promise<Response> {
