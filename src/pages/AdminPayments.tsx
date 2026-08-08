@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { 
   CreditCard, 
   DollarSign, 
@@ -6,8 +6,6 @@ import {
   CheckCircle,
   Clock,
   Download,
-  Filter,
-  Search,
   Handshake,
   Loader2,
   Building2,
@@ -19,7 +17,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -31,19 +28,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { usePropertyPayouts } from "@/hooks/usePropertyPayouts";
-import { PropertyPayoutTable } from "@/components/payments/PropertyPayoutTable";
-
-interface PaymentTransaction {
-  id: string;
-  booking_id: string;
-  amount: number;
-  currency: string;
-  status: string;
-  payment_method: string | null;
-  created_at: string;
-  guest_name?: string;
-  property_name?: string;
-}
+import { PayoutStatementRun } from "@/components/payments/PayoutStatementRun";
 
 interface CommissionPayout {
   id: string;
@@ -62,13 +47,9 @@ interface CommissionPayout {
 const PENDING_SESSION_MS = 2 * 60 * 60 * 1000;
 
 export default function AdminPayments() {
-  const [transactions, setTransactions] = useState<PaymentTransaction[]>([]);
-  const [showExpired, setShowExpired] = useState(false);
   const [commissionPayouts, setCommissionPayouts] = useState<CommissionPayout[]>([]);
   const [loading, setLoading] = useState(true);
   const [commissionsLoading, setCommissionsLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [searchTerm, setSearchTerm] = useState('');
   const [markingPaid, setMarkingPaid] = useState<string | null>(null);
   const [txStats, setTxStats] = useState({
     totalRevenue: 0, pendingAmount: 0, failedCount: 0, successCount: 0,
@@ -92,69 +73,40 @@ export default function AdminPayments() {
     }
   }, [payoutPeriod]);
 
-  const payoutRangeLabel = useMemo(() => {
-    if (payoutPeriod === 'all') return 'All time, by payment date';
-    const fromD = payoutRange.from ? new Date(payoutRange.from) : null;
-    const toD = payoutRange.to ? new Date(new Date(payoutRange.to).getTime() - 86400000) : new Date();
-    if (!fromD) return 'By payment date';
-    return `${format(fromD, 'd MMM yyyy')} – ${format(toD, 'd MMM yyyy')}, by payment date`;
-  }, [payoutPeriod, payoutRange]);
-
-  const {
-    payouts,
-    loading: payoutsLoading,
-    stats: payoutStats,
-    lastUpdated: payoutsUpdatedAt,
-    refresh: refreshPayouts,
-  } = usePropertyPayouts(payoutRange);
+  // Headline stats still use the live payout view; the statement run below is
+  // the authoritative, persisted document set.
+  const { stats: payoutStats } = usePropertyPayouts(payoutRange);
 
 
   useEffect(() => {
     loadPayments();
     loadCommissionPayouts();
-  }, [statusFilter]);
+  }, []);
 
+  // Only the headline stats need raw gateway data now — reconciliation detail
+  // lives on the payout statements and the unassigned-payments panel.
   const loadPayments = async () => {
     try {
       setLoading(true);
-      let query = supabase
-        .from('payment_transactions')
-        .select(`*, bookings!inner(guest_name, properties!bookings_property_id_fkey(name))`)
-        .order('created_at', { ascending: false })
-        .limit(50);
-      if (statusFilter !== 'all') query = query.eq('status', statusFilter);
-
-      const { data, error } = await query;
-      if (error) throw error;
-
-      setTransactions((data || []).map((t: any) => ({
-        id: t.id, booking_id: t.booking_id, amount: t.amount,
-        currency: t.currency || 'ZAR', status: t.status,
-        payment_method: t.payment_method, created_at: t.created_at,
-        guest_name: t.bookings?.guest_name,
-        property_name: t.bookings?.properties?.name,
-      })));
-
       // Totals must mirror what the page treats as live money: cancelled bookings
       // (test data, refunds, abandoned) and expired checkout sessions are excluded.
-      const { data: all } = await supabase
+      const { data: all, error } = await supabase
         .from('payment_transactions')
         .select('amount, status, created_at, bookings!inner(status)');
+      if (error) throw error;
       if (all) {
         // Gateways write 'paid'; some providers write 'completed'/'succeeded'.
-        const isSettled = (s: string | null) => ['paid', 'completed', 'succeeded', 'success'].includes(String(s || '').toLowerCase());
+        const isSettled = (st: string | null) => ['paid', 'completed', 'succeeded', 'success'].includes(String(st || '').toLowerCase());
         const live = (all as any[]).filter(t => !['cancelled', 'canceled'].includes(String(t.bookings?.status || '').toLowerCase()));
         const isLivePending = (t: any) =>
           t.status === 'pending' && Date.now() - new Date(t.created_at).getTime() <= PENDING_SESSION_MS;
         setTxStats({
-          totalRevenue: live.filter(t => isSettled(t.status)).reduce((s, t) => s + (Number(t.amount) || 0), 0),
-          pendingAmount: live.filter(isLivePending).reduce((s, t) => s + (Number(t.amount) || 0), 0),
+          totalRevenue: live.filter(t => isSettled(t.status)).reduce((sum, t) => sum + (Number(t.amount) || 0), 0),
+          pendingAmount: live.filter(isLivePending).reduce((sum, t) => sum + (Number(t.amount) || 0), 0),
           failedCount: live.filter(t => ['failed', 'cancelled'].includes(String(t.status || '').toLowerCase())).length,
           successCount: live.filter(t => isSettled(t.status)).length,
         });
       }
-
-
     } catch (error) {
       console.error('Error loading payments:', error);
       toast.error('Failed to load payment data');
@@ -219,47 +171,6 @@ export default function AdminPayments() {
     }
   };
 
-  const getStatusBadge = (status: string, createdAt?: string) => {
-    switch (status) {
-      case 'paid':
-      case 'succeeded':
-      case 'success':
-      case 'completed':
-        return <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20">Paid</Badge>;
-      case 'pending': {
-        const stale = createdAt ? Date.now() - new Date(createdAt).getTime() > PENDING_SESSION_MS : false;
-        return stale
-          ? <Badge variant="outline" className="text-muted-foreground">Expired</Badge>
-          : <Badge variant="secondary">Pending</Badge>;
-      }
-
-      case 'failed':
-        return <Badge variant="destructive">Failed</Badge>;
-      default:
-        return <Badge variant="outline">{status}</Badge>;
-    }
-  };
-
-
-  const isExpiredTx = useCallback((t: PaymentTransaction) =>
-    t.status === 'pending' && Date.now() - new Date(t.created_at).getTime() > PENDING_SESSION_MS,
-  [PENDING_SESSION_MS]);
-
-  const expiredCount = useMemo(() => transactions.filter(isExpiredTx).length, [transactions, isExpiredTx]);
-
-  const filteredTransactions = useMemo(() => {
-    const base = showExpired ? transactions : transactions.filter(t => !isExpiredTx(t));
-    if (!searchTerm.trim()) return base;
-    const term = searchTerm.toLowerCase();
-    return base.filter(t => {
-      const dateStr = format(new Date(t.created_at), 'MMM d, yyyy HH:mm').toLowerCase();
-      const amountStr = `${t.currency} ${t.amount.toLocaleString()}`.toLowerCase();
-      return dateStr.includes(term) || t.guest_name?.toLowerCase().includes(term) ||
-        t.property_name?.toLowerCase().includes(term) || t.payment_method?.toLowerCase().includes(term) ||
-        amountStr.includes(term) || t.status.toLowerCase().includes(term);
-    });
-  }, [transactions, searchTerm, showExpired, isExpiredTx]);
-
   const totalCommissionsDue = commissionPayouts
     .filter(p => p.status === 'approved')
     .reduce((sum, p) => sum + p.total_amount, 0);
@@ -285,7 +196,7 @@ export default function AdminPayments() {
 
   return (
     <AppLayout>
-      <PageHeader title="Payments" subtitle="Property payouts, transactions, and commission management" />
+      <PageHeader title="Payments" subtitle="Property payout statements, ROL charges invoices, and commission management" />
 
       <div className="grid gap-4 md:grid-cols-3 xl:grid-cols-6 xl:gap-6 mb-8">
         <StatCard title="Due to Properties" value={`R${Math.round(payoutStats.totalDue).toLocaleString()}`} icon={Building2} description={`${payoutStats.propertiesCount} properties`} variant="warning" />
@@ -300,7 +211,6 @@ export default function AdminPayments() {
       <Tabs defaultValue="payouts" className="space-y-4">
         <TabsList>
           <TabsTrigger value="payouts">Property Payouts</TabsTrigger>
-          <TabsTrigger value="transactions">Transactions</TabsTrigger>
           <TabsTrigger value="commissions" className="gap-1.5">
             Commission Payouts
             {totalCommissionsDue > 0 && (
@@ -311,122 +221,11 @@ export default function AdminPayments() {
           </TabsTrigger>
         </TabsList>
 
-        {/* Property Payouts — default tab */}
+        {/* Property Payouts — persisted statements, default tab */}
         <TabsContent value="payouts">
-          <Card>
-            <CardHeader>
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <CardTitle className="flex items-center gap-2"><Building2 className="h-5 w-5" />Property Payout Summary</CardTitle>
-                  <CardDescription>
-                    Net amounts due to each property after commission and fees · {payoutRangeLabel}
-                    {payoutsUpdatedAt && (
-                      <span className="block text-xs mt-0.5">
-                        As at {format(payoutsUpdatedAt, 'd MMM yyyy HH:mm')}
-                      </span>
-                    )}
-                  </CardDescription>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Select value={payoutPeriod} onValueChange={setPayoutPeriod}>
-                    <SelectTrigger className="w-[150px] h-9">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="this_month">This month</SelectItem>
-                      <SelectItem value="last_month">Last month</SelectItem>
-                      <SelectItem value="last_90">Last 90 days</SelectItem>
-                      <SelectItem value="all">All time</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Button variant="outline" size="sm" onClick={() => refreshPayouts()} disabled={payoutsLoading}>
-                    {payoutsLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Refresh'}
-                  </Button>
-                  <Button
-                    variant={showExpired ? "secondary" : "outline"}
-                    size="sm"
-                    onClick={() => setShowExpired(v => !v)}
-                  >
-                    {showExpired ? "Hide expired" : `Show expired${expiredCount ? ` (${expiredCount})` : ""}`}
-                  </Button>
-                  <Button variant="outline" size="sm"><Download className="h-4 w-4 mr-2" />Export</Button>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <PropertyPayoutTable payouts={payouts} loading={payoutsLoading} />
-            </CardContent>
-          </Card>
-
+          <PayoutStatementRun />
         </TabsContent>
 
-        {/* Transactions tab */}
-        <TabsContent value="transactions">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle>Transactions</CardTitle>
-                  <CardDescription>Recent payment activity</CardDescription>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input placeholder="Search all columns..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9 w-[200px]" />
-                  </div>
-                  <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="w-[140px]">
-                      <Filter className="h-4 w-4 mr-2" />
-                      <SelectValue placeholder="Filter" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Status</SelectItem>
-                      <SelectItem value="paid">Paid</SelectItem>
-                      <SelectItem value="pending">Pending</SelectItem>
-                      <SelectItem value="failed">Failed</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Button variant="outline" size="sm"><Download className="h-4 w-4 mr-2" />Export</Button>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {loading ? (
-                <div className="space-y-4">{[1,2,3,4,5].map(i => <Skeleton key={i} className="h-12 w-full" />)}</div>
-              ) : filteredTransactions.length === 0 ? (
-                <div className="text-center py-12">
-                  <CreditCard className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground">{searchTerm ? "No transactions match your search" : "No transactions found"}</p>
-                </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Guest</TableHead>
-                      <TableHead>Property</TableHead>
-                      <TableHead>Method</TableHead>
-                      <TableHead>Amount</TableHead>
-                      <TableHead>Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredTransactions.map(t => (
-                      <TableRow key={t.id}>
-                        <TableCell className="text-sm">{format(new Date(t.created_at), 'MMM d, yyyy HH:mm')}</TableCell>
-                        <TableCell className="font-medium">{t.guest_name || 'Unknown'}</TableCell>
-                        <TableCell className="text-muted-foreground">{t.property_name || 'Unknown'}</TableCell>
-                        <TableCell className="capitalize">{t.payment_method || '-'}</TableCell>
-                        <TableCell className="font-medium">{t.currency} {t.amount.toLocaleString()}</TableCell>
-                        <TableCell>{getStatusBadge(t.status, t.created_at)}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
 
         {/* Commission Payouts tab */}
         <TabsContent value="commissions">
