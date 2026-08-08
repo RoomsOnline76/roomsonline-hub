@@ -1139,6 +1139,42 @@ Deno.serve(async (req) => {
       }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
+    // VERIFY SUBSCRIPTION / SETUP-FEE PAYMENT — return-path safety net when an
+    // ITN is delayed or never delivered. Confirms against PayFast's transaction
+    // history API before marking the invoice paid.
+    if (action === "verify_subscription_payment") {
+      const token = (body?.token || "").toString();
+      if (!token) {
+        return new Response(JSON.stringify({ success: false, error: "Missing token" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      const { data: inv } = await supabase
+        .from("subscription_invoices")
+        .select("id, status, amount")
+        .eq("payfast_token", token)
+        .maybeSingle();
+      if (!inv) {
+        return new Response(JSON.stringify({ success: false, error: "Invoice not found" }),
+          { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      if (inv.status === "paid") {
+        return new Response(JSON.stringify({ success: true, status: "paid", verified: true }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+
+      const match = await lookupPayFastTransaction(`SUB-${inv.id}`, merchantId, passphrase);
+      if (match) {
+        await settleSubscriptionInvoice(supabase, inv.id, "paid", match.pf_payment_id, match.raw);
+        return new Response(JSON.stringify({ success: true, status: "paid", verified: true }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+
+      return new Response(JSON.stringify({ success: true, status: inv.status, verified: false }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+
+
     // INITIATE ROL PROPERTY INVOICE PAYMENT (commission + platform fees receivable)
     if (action === "initiate_property_invoice_payment") {
       const token = (body?.token || "").toString();
