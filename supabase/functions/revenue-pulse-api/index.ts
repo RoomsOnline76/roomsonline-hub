@@ -44,16 +44,22 @@ Deno.serve(async (req) => {
     const endDate = dateRange?.end || new Date().toISOString().split('T')[0];
 
     if (action === "get_rol_pulse") {
+      // Revenue is recognised when the booking is taken, not when the guest arrives,
+      // so the window filters on created_at (matching Payments and the payout hook).
+      const createdFrom = `${startDate}T00:00:00.000Z`;
+      const createdToDate = new Date(`${endDate}T00:00:00.000Z`);
+      createdToDate.setUTCDate(createdToDate.getUTCDate() + 1);
+
       const { data: bookings, error: bookingsError } = await supabase
         .from("bookings")
         .select(`
           id, total_price, calculated_commission, commission_rate_applied, commission_type,
           check_in_date, check_out_date, status, payment_status, booking_channel,
-          integration_type, created_at, property_id,
+          integration_type, source_url, created_at, property_id,
           properties!bookings_property_id_fkey ( id, name )
         `)
-        .gte("check_in_date", startDate)
-        .lte("check_in_date", endDate)
+        .gte("created_at", createdFrom)
+        .lt("created_at", createdToDate.toISOString())
         .in("status", ["confirmed", "completed"])
         .in("payment_status", ALL_REVENUE_PAYMENT_STATUSES);
 
@@ -72,18 +78,77 @@ Deno.serve(async (req) => {
       });
 
       const paidBookings = deduped.filter(b => isRevenuePaymentStatus(b.payment_status, false));
+
+      // Commission fallback: many bookings never had calculated_commission written,
+      // so resolve the rate from commercial terms / billing config / globals.
+      const propertyIds = Array.from(new Set(paidBookings.map(b => b.property_id).filter(Boolean)));
+      const [propCfgRes, memberRes, termsRes, globalsRes] = await Promise.all([
+        propertyIds.length
+          ? supabase.from("property_billing_configs")
+              .select("property_id, billing_strategy, commission_rate, listing_commission_rate, pms_commission_rate, widget_flat_commission_rate")
+              .in("property_id", propertyIds)
+          : Promise.resolve({ data: [] as any[] }),
+        propertyIds.length
+          ? supabase.from("property_portfolio_members").select("property_id, portfolio_id").in("property_id", propertyIds)
+          : Promise.resolve({ data: [] as any[] }),
+        propertyIds.length
+          ? supabase.from("property_commercial_terms")
+              .select("property_id, revenue_share_percent, commission_type, contract_status, effective_from, effective_to")
+              .in("property_id", propertyIds)
+          : Promise.resolve({ data: [] as any[] }),
+        supabase.from("billing_global_defaults")
+          .select("strategy, default_commission_rate, listing_commission_rate, pms_commission_rate, widget_flat_commission_rate"),
+      ]);
+
+      const portfolioIds = Array.from(new Set(((memberRes.data as any[]) || []).map(m => m.portfolio_id).filter(Boolean)));
+      const portCfgRes = portfolioIds.length
+        ? await supabase.from("portfolio_billing_configs")
+            .select("portfolio_id, billing_strategy, commission_rate, listing_commission_rate, pms_commission_rate, widget_flat_commission_rate")
+            .in("portfolio_id", portfolioIds)
+        : { data: [] as any[] };
+
+      const propCfg = new Map(((propCfgRes.data as any[]) || []).map(r => [r.property_id, r]));
+      const portOf = new Map(((memberRes.data as any[]) || []).map(m => [m.property_id, m.portfolio_id]));
+      const portCfg = new Map(((portCfgRes.data as any[]) || []).map(r => [r.portfolio_id, r]));
+      const globalRows = (globalsRes.data as any[]) || [];
+
+      const configFor = (propertyId: string) => {
+        const pid = portOf.get(propertyId);
+        return (pid && portCfg.get(pid)) || propCfg.get(propertyId) || null;
+      };
+      const termFor = (propertyId: string, type: string): number | null => {
+        const rows = ((termsRes.data as any[]) || []).filter(t =>
+          t.property_id === propertyId &&
+          String(t.contract_status || "").toLowerCase() === "active" &&
+          (t.commission_type ? String(t.commission_type) === type : true),
+        );
+        const rate = rows.length ? Number(rows[0].revenue_share_percent) : NaN;
+        return Number.isFinite(rate) ? rate : null;
+      };
+
+      const commissionOf = (b: any): number => {
+        const cfg = configFor(b.property_id);
+        const globals = pickGlobals(globalRows, cfg?.billing_strategy);
+        const type = resolveCommissionType(b);
+        return resolveBookingCommission(b, Number(b.total_price) || 0, cfg, globals, termFor(b.property_id, type)).amount;
+      };
+
+      const commissionById = new Map<string, number>(paidBookings.map(b => [b.id as string, commissionOf(b)]));
+      const commissionTypeById = new Map<string, string>(paidBookings.map(b => [b.id as string, resolveCommissionType(b)]));
+      const comm = (b: any) => commissionById.get(b.id as string) || 0;
+
       const gbv = paidBookings.reduce((s, b) => s + (b.total_price || 0), 0);
-      const rolRevenue = paidBookings.reduce((s, b) => s + (b.calculated_commission || 0), 0);
+      const rolRevenue = paidBookings.reduce((s, b) => s + comm(b), 0);
       const avgCommissionRate = gbv > 0 ? (rolRevenue / gbv) * 100 : 10;
       const netBookings = paidBookings.length;
 
       // Split revenue by commission type
       const listingRevenue = paidBookings
-        .filter(b => (b.commission_type || 'listing') === 'listing')
-        .reduce((s, b) => s + (b.calculated_commission || 0), 0);
+        .filter(b => commissionTypeById.get(b.id as string) === 'listing')
+        .reduce((s, b) => s + comm(b), 0);
       const pmsRevenue = paidBookings
-        .filter(b => b.commission_type === 'pms')
-        .reduce((s, b) => s + (b.calculated_commission || 0), 0);
+        .filter(b => commissionTypeById.get(b.id as string) === 'pms')
+        .reduce((s, b) => s + comm(b), 0);
 
       // Channel breakdown
       const channelBreakdown: Record<string, { gbv: number; commission: number; count: number }> = {};
@@ -91,7 +156,7 @@ Deno.serve(async (req) => {
         const channel = b.booking_channel || "Direct";
         if (!channelBreakdown[channel]) channelBreakdown[channel] = { gbv: 0, commission: 0, count: 0 };
         channelBreakdown[channel].gbv += b.total_price || 0;
-        channelBreakdown[channel].commission += b.calculated_commission || 0;
+        channelBreakdown[channel].commission += comm(b);
         channelBreakdown[channel].count += 1;
       });
 
@@ -100,10 +165,10 @@ Deno.serve(async (req) => {
       paidBookings.forEach(b => {
         const pid = b.property_id;
         if (!propBreakdown[pid]) {
-          propBreakdown[pid] = { name: b.properties?.name || "Unknown", gbv: 0, commission: 0, count: 0, commissionType: b.commission_type || 'listing' };
+          propBreakdown[pid] = { name: b.properties?.name || "Unknown", gbv: 0, commission: 0, count: 0, commissionType: commissionTypeById.get(b.id as string) || 'listing' };
         }
         propBreakdown[pid].gbv += b.total_price || 0;
-        propBreakdown[pid].commission += b.calculated_commission || 0;
+        propBreakdown[pid].commission += comm(b);
         propBreakdown[pid].count += 1;
       });
 
@@ -112,16 +177,17 @@ Deno.serve(async (req) => {
         .sort((a, b) => b.commission - a.commission)
         .slice(0, 10);
 
-      // Timeline
+      // Timeline — grouped by the month the booking was taken.
       const timelineData: Record<string, { date: string; gbv: number; commission: number; count: number }> = {};
       paidBookings.forEach(b => {
-        const date = b.check_in_date?.slice(0, 7) || "unknown";
+        const date = String(b.created_at || "").slice(0, 7) || "unknown";
         if (!timelineData[date]) timelineData[date] = { date, gbv: 0, commission: 0, count: 0 };
         timelineData[date].gbv += b.total_price || 0;
-        timelineData[date].commission += b.calculated_commission || 0;
+        timelineData[date].commission += comm(b);
         timelineData[date].count += 1;
       });
       const timeline = Object.values(timelineData).sort((a, b) => a.date.localeCompare(b.date));
+
 
       // Risk indicators
       const allBookings = bookings || [];
