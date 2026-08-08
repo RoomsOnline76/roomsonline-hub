@@ -397,6 +397,20 @@ export function AddInvoiceModal({
               />
             </div>
 
+            <InvoiceDocumentField
+              value={{
+                document_path: formData.document_path,
+                document_name: formData.document_name,
+                document_size: formData.document_size,
+                document_type: formData.document_type,
+              }}
+              onChange={(doc: InvoiceDocument) =>
+                setFormData((prev) => ({ ...prev, ...doc }))
+              }
+            />
+
+
+
             <div className="flex items-center justify-between">
               <Label htmlFor="is_paid">Paid</Label>
               <Switch
