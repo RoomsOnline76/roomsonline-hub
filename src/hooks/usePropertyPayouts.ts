@@ -379,14 +379,17 @@ export function usePropertyPayouts(period?: PayoutPeriod | string) {
           ? Number(billing?.transaction_fee_percentage ?? globalTxFee) || 0
           : 0;
         const pfFee = p.rolGross * (pfRate / 100);
+        // Monthly subscription / white-label fees are billed as their own invoices —
+        // they are reported here for context but never deducted from booking cash.
         const monthlyFees = wlFee + subFee;
-        const totalFees = monthlyFees + pfFee;
+        const totalFees = pfFee;
 
-        // Cash we hold for the owner, after our commission and fees on that cash.
-        const payoutBeforeInvoice = p.rolGross - p.rolCommission - pfFee - monthlyFees;
+        // Cash we hold for the owner, after our commission and the transaction fee on that cash.
+        const payoutBeforeInvoice = p.rolGross - p.rolCommission - pfFee;
         const netPayout = Math.max(0, payoutBeforeInvoice);
-        // BYO commission is never in our hands — invoice it, plus any shortfall.
+        // Commission on money that never reached us is invoiced to the owner.
         const invoiced = p.byoCommission + Math.max(0, -payoutBeforeInvoice);
+
 
         const settlementMode: SettlementMode =
           p.byoGross > 0 && p.rolGross > 0 ? 'mixed' : p.byoGross > 0 ? 'invoice' : 'payout';
