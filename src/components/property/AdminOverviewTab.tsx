@@ -476,7 +476,9 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
           <Row
             label="Gateway"
             value={
-              customProvider ? (
+              reservationOnly ? (
+                <Badge variant="outline">None — reservation only</Badge>
+              ) : customProvider ? (
                 <Badge variant="default">Own provider</Badge>
               ) : facilitator ? (
                 <Badge variant="secondary">Rooms Online PayFast</Badge>
@@ -485,7 +487,9 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
               )
             }
             hint={
-              customProvider
+              reservationOnly
+                ? "No online payment is offered at checkout. The guest reserves and pays the property by bank transfer; the property marks it paid in ROL'OS."
+                : customProvider
                 ? "Owner configures credentials in ROL'OS → Integrations."
                 : facilitator
                 ? "Payment Facilitator fee applied on each transaction."
@@ -495,13 +499,16 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
           <Row
             label="Facilitator fee"
             value={
-              facilitator ? (
+              reservationOnly ? (
+                <Badge variant="outline">N/A — reservation only</Badge>
+              ) : facilitator ? (
                 <Badge variant="outline">Active</Badge>
               ) : (
                 <Badge variant="secondary">Disabled</Badge>
               )
             }
           />
+
         </CardContent>
       </Card>
 
