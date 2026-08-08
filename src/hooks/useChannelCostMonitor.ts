@@ -157,7 +157,8 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
     setLoading(true);
     setError(null);
     try {
-      const [propsRes, unitsRes, membersRes, portfoliosRes, runsRes, eventsRes, fxRate] = await Promise.all([
+      const [propsRes, unitsRes, membersRes, portfoliosRes, runsRes, eventsRes, fxRate, defaultsRes] =
+        await Promise.all([
         supabase
           .from("properties")
           .select("id, name, is_active, ru_push_enabled, ru_archived, ru_archived_at, rentalsunited_property_id"),
@@ -178,7 +179,12 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
           .order("created_at", { ascending: false })
           .limit(100),
         resolveEurToZar(),
+        supabase
+          .from("billing_global_defaults")
+          .select("channel_manager_per_unit_fee, sort_order")
+          .order("sort_order", { ascending: true }),
       ]);
+
 
       if (propsRes.error) throw propsRes.error;
 
