@@ -93,7 +93,9 @@ const insightsSection: NavSection = {
   collapsible: false,
   items: [
     { id: 'property-pulse', title: 'Property Pulse', icon: BarChart3, href: '/dashboard/reports', minRole: 'owner' },
+    { id: 'rol-account', title: 'ROL Account', icon: CreditCard, href: '/admin/account', minRole: 'owner', description: 'Billing, invoices, payouts & statements' },
     { id: 'revenue-pulse', title: 'Revenue Pulse', icon: TrendingUp, href: '/pulse', minRole: 'dev' },
+
     { id: 'channel-monitor', title: 'Channel Cost Monitor', icon: Gauge, href: '/admin/channel-monitor', minRole: 'admin', description: 'Distribution spend forecast & listing archive' },
 
     { id: 'intelligence', title: 'Intelligence', icon: Search, href: '/dashboard/insights', minRole: 'dev' },
