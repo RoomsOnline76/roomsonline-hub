@@ -137,6 +137,10 @@ const baseRequestSchema = z.object({
     "list_webhook_subscriptions",
     "test_webhook",
     "get_webhook_logs",
+    // Owner account (ROL billing portal)
+    "get_account_balance",
+    "get_account_documents",
+
   ]),
   propertyId: z.string().uuid().optional(),
   // Pagination params
