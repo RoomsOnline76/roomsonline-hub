@@ -6,6 +6,7 @@ import { CreditCard, Mail, Trash2, CalendarClock, Loader2, Download, CheckCircle
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { fmtMoney } from "@/lib/ownerAccount";
+import { downloadSubscriptionInvoice } from "@/lib/invoiceDownload";
 import { useAuth } from "@/hooks/useAuth";
 
 interface Props {
@@ -54,6 +55,7 @@ export function AccountTwoPaymentCard({ scope, entityId, onChanged }: Props) {
   const isStaff = isAdmin || isDev || isFearlessLeader;
   const [summary, setSummary] = useState<Summary | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState(false);
 
   const call = useCallback(
     async (action: string, extra: Record<string, unknown> = {}) => {
