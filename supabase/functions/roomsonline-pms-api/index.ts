@@ -3285,3 +3285,132 @@ async function handleGetWebhookLogs(body: any, supabase: any): Promise<Response>
   return new Response(JSON.stringify(createSuccessResponse({ logs: data || [] }, "get_webhook_logs")),
     { headers: { ...corsHeaders, "Content-Type": "application/json" } });
 }
+
+// ============================================================================
+// OWNER ACCOUNT HANDLERS (ROL billing portal)
+// Financial data — always requires a signed-in user with access to the property.
+// ============================================================================
+
+// deno-lint-ignore no-explicit-any
+async function requirePropertyAccess(body: any, supabase: any, req: Request, action: string) {
+  if (!body.propertyId) {
+    return { error: new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "propertyId required", action)),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }) };
+  }
+  const token = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
+  if (!token) {
+    return { error: new Response(JSON.stringify(createErrorResponse("UNAUTHORIZED", "Authentication required", action)),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 401 }) };
+  }
+  const { data: userData, error: userErr } = await supabase.auth.getUser(token);
+  if (userErr || !userData?.user) {
+    return { error: new Response(JSON.stringify(createErrorResponse("UNAUTHORIZED", "Invalid session", action)),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 401 }) };
+  }
+  const { data: allowed } = await supabase.rpc("can_access_property", {
+    _property_id: body.propertyId,
+    _user_id: userData.user.id,
+  });
+  if (!allowed) {
+    return { error: new Response(JSON.stringify(createErrorResponse("FORBIDDEN", "No access to this property", action)),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 403 }) };
+  }
+  return { userId: userData.user.id as string };
+}
+
+const OPEN_INVOICE_STATUSES = ["pending", "sent", "overdue", "partially_paid"];
+
+// deno-lint-ignore no-explicit-any
+async function handleGetAccountBalance(body: any, supabase: any, req: Request): Promise<Response> {
+  const gate = await requirePropertyAccess(body, supabase, req, "get_account_balance");
+  if (gate.error) return gate.error;
+  const propertyId = body.propertyId;
+
+  const [subs, rol, payouts, cfg] = await Promise.all([
+    supabase.from("subscription_invoices").select("id, invoice_number, status, total_amount, currency, period_start, period_end, created_at, paid_at, invoice_type")
+      .eq("property_id", propertyId).order("created_at", { ascending: false }),
+    supabase.from("rol_property_invoices").select("id, invoice_number, status, total_amount, currency, issue_date, due_date, paid_at")
+      .eq("property_id", propertyId).order("issue_date", { ascending: false }),
+    supabase.from("property_payout_statements").select("id, statement_number, status, net_payout, currency, period_start, period_end, paid_at")
+      .eq("property_id", propertyId).order("period_end", { ascending: false }),
+    supabase.from("property_billing_configs").select("*").eq("property_id", propertyId).maybeSingle(),
+  ]);
+
+  const today = new Date().toISOString().slice(0, 10);
+  // deno-lint-ignore no-explicit-any
+  const sum = (rows: any[], field: string) => rows.reduce((t, r) => t + Number(r[field] || 0), 0);
+
+  const subRows = subs.data || [];
+  const rolRows = rol.data || [];
+  const payoutRows = payouts.data || [];
+
+  const openSubs = subRows.filter((r: { status: string }) => OPEN_INVOICE_STATUSES.includes(r.status));
+  const openRol = rolRows.filter((r: { status: string }) => OPEN_INVOICE_STATUSES.includes(r.status));
+  const overdueRol = openRol.filter((r: { due_date?: string }) => r.due_date && r.due_date < today);
+  const unpaidPayouts = payoutRows.filter((r: { status: string }) => r.status !== "paid");
+
+  const currency = (cfg.data?.currency as string) || rolRows[0]?.currency || subRows[0]?.currency || "ZAR";
+
+  return new Response(JSON.stringify(createSuccessResponse({
+    currency,
+    due: sum(openSubs, "total_amount") + sum(openRol, "total_amount"),
+    overdue: sum(overdueRol, "total_amount"),
+    due_to_you: sum(unpaidPayouts, "net_payout"),
+    paid_to_rol: sum(subRows.filter((r: { status: string }) => r.status === "paid"), "total_amount")
+      + sum(rolRows.filter((r: { status: string }) => r.status === "paid"), "total_amount"),
+    received_from_rol: sum(payoutRows.filter((r: { status: string }) => r.status === "paid"), "net_payout"),
+    subscription: {
+      active: cfg.data?.subscription_active ?? null,
+      engagement_date: cfg.data?.engagement_date ?? null,
+      switched_off_at: cfg.data?.billing_switched_off_at ?? null,
+      reset_pending: cfg.data?.subscription_reset_pending ?? false,
+      plan_changed_at: cfg.data?.plan_changed_at ?? null,
+    },
+    open_invoice_count: openSubs.length + openRol.length,
+  }, "get_account_balance")), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+}
+
+// deno-lint-ignore no-explicit-any
+async function handleGetAccountDocuments(body: any, supabase: any, req: Request): Promise<Response> {
+  const gate = await requirePropertyAccess(body, supabase, req, "get_account_documents");
+  if (gate.error) return gate.error;
+  const propertyId = body.propertyId;
+  const from = body.start_date || null;
+  const to = body.end_date || null;
+
+  let subQ = supabase.from("subscription_invoices")
+    .select("id, invoice_number, invoice_type, status, total_amount, currency, period_start, period_end, created_at, paid_at")
+    .eq("property_id", propertyId);
+  if (from) subQ = subQ.gte("created_at", from);
+  if (to) subQ = subQ.lte("created_at", `${to}T23:59:59`);
+
+  let rolQ = supabase.from("rol_property_invoices")
+    .select("id, invoice_number, status, total_amount, currency, issue_date, due_date, paid_at, pay_token")
+    .eq("property_id", propertyId);
+  if (from) rolQ = rolQ.gte("issue_date", from);
+  if (to) rolQ = rolQ.lte("issue_date", to);
+
+  let payQ = supabase.from("property_payout_statements")
+    .select("id, statement_number, status, gross_revenue, total_deductions, net_payout, currency, period_start, period_end, paid_at")
+    .eq("property_id", propertyId);
+  if (from) payQ = payQ.gte("period_end", from);
+  if (to) payQ = payQ.lte("period_start", to);
+
+  const [subs, rol, payouts] = await Promise.all([
+    subQ.order("created_at", { ascending: false }),
+    rolQ.order("issue_date", { ascending: false }),
+    payQ.order("period_end", { ascending: false }),
+  ]);
+
+  const err = subs.error || rol.error || payouts.error;
+  if (err) {
+    return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, err.message, "get_account_documents")),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 });
+  }
+
+  return new Response(JSON.stringify(createSuccessResponse({
+    subscription_invoices: subs.data || [],
+    rol_invoices: rol.data || [],
+    payout_statements: payouts.data || [],
+  }, "get_account_documents")), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+}
