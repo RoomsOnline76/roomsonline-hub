@@ -1,4 +1,4 @@
-import { useState, lazy, Suspense } from "react";
+import { useState, useMemo, lazy, Suspense } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -7,9 +7,18 @@ import { AddInvoiceModal } from "./AddInvoiceModal";
 /* Charts pull in the full charting runtime — load it after the cards paint. */
 const RunwayChart = lazy(() => import("./RunwayChart").then((m) => ({ default: m.RunwayChart })));
 import { FinancialMetricsCards } from "./FinancialMetricsCards";
+import { RecurringCommitmentsPanel } from "./RecurringCommitmentsPanel";
 import { Button } from "@/components/ui/button";
-import { Plus, TrendingUp, Receipt } from "lucide-react";
+import { Plus, TrendingUp, Receipt, Repeat } from "lucide-react";
 import { AddMetricModal } from "./AddMetricModal";
+import { useRolActualRevenue } from "@/hooks/useRolActualRevenue";
+import {
+  computeRunway,
+  deriveRecurringCommitments,
+  invoiceZar,
+  DEFAULT_FX,
+  type FxRates,
+} from "@/lib/burnRate";
 
 interface AccountingDashboardProps {
   dateRange?: { start: string; end: string };
@@ -45,66 +54,98 @@ export function AccountingDashboard({ dateRange }: AccountingDashboardProps) {
     },
   });
 
-  const latestMetric = metrics?.[0];
-  const exchangeRate = latestMetric?.exchange_rate || 18.5;
+  const { data: revenue, isLoading: revenueLoading } = useRolActualRevenue();
 
-  // Helper to get ZAR value (use cost_zar if available, otherwise convert from USD)
-  const getZarValue = (invoice: { cost_zar: number | null; cost_usd: number }) => {
-    return invoice.cost_zar ?? (Number(invoice.cost_usd) * exchangeRate);
-  };
+  const latestMetric = metrics?.[0] as any;
 
-  // Filter invoices by date range if provided
-  const filteredInvoices = invoices?.filter((inv) => {
-    if (!dateRange) return true;
-    const invDate = inv.invoice_date || inv.created_at;
-    if (!invDate) return true;
-    return invDate >= dateRange.start && invDate <= dateRange.end;
-  });
+  const fxRates: FxRates = useMemo(
+    () => ({
+      usdZar: Number(latestMetric?.exchange_rate) || DEFAULT_FX.usdZar,
+      eurZar: Number(latestMetric?.eur_rate) || DEFAULT_FX.eurZar,
+    }),
+    [latestMetric?.exchange_rate, latestMetric?.eur_rate],
+  );
 
-  // Calculate invoice stats in ZAR using filtered invoices
-  const monthlyTotal = filteredInvoices
-    ?.filter((inv) => inv.billing_type === "monthly" && !inv.is_paid)
-    ?.reduce((sum, inv) => sum + getZarValue(inv), 0) || 0;
+  /**
+   * Burn is derived from ALL recurring bills ever loaded (not the date filter):
+   * a recurring commitment is an ongoing obligation, counted once.
+   */
+  const commitments = useMemo(
+    () => deriveRecurringCommitments(invoices as any[], fxRates),
+    [invoices, fxRates],
+  );
+  const monthlyBurnZar = useMemo(
+    () => commitments.reduce((sum, c) => sum + c.monthlyZar, 0),
+    [commitments],
+  );
+
+  const monthlyRevenueZar = revenue?.trailingMonthlyAvgZar ?? 0;
+
+  // Filter invoices by date range for spend/unpaid figures only.
+  const filteredInvoices = useMemo(
+    () =>
+      (invoices ?? []).filter((inv: any) => {
+        if (!dateRange) return true;
+        const invDate = inv.invoice_date || inv.created_at;
+        if (!invDate) return true;
+        return invDate >= dateRange.start && invDate <= dateRange.end;
+      }),
+    [invoices, dateRange],
+  );
 
   const unpaidTotal = filteredInvoices
-    ?.filter((inv) => !inv.is_paid)
-    ?.reduce((sum, inv) => sum + getZarValue(inv), 0) || 0;
+    .filter((inv: any) => !inv.is_paid)
+    .reduce((sum: number, inv: any) => sum + invoiceZar(inv, fxRates), 0);
 
-  const periodTotal = filteredInvoices
-    ?.reduce((sum, inv) => sum + getZarValue(inv), 0) || 0;
+  const periodTotal = filteredInvoices.reduce(
+    (sum: number, inv: any) => sum + invoiceZar(inv, fxRates),
+    0,
+  );
 
-  // Calculate cash balance in ZAR
-  const cashBalanceZar = latestMetric?.cash_balance_zar ?? 
-    (latestMetric?.cash_balance_usd ? latestMetric.cash_balance_usd * exchangeRate : null);
+  const cashBalanceZar =
+    latestMetric?.cash_balance_zar ??
+    (latestMetric?.cash_balance_usd
+      ? Number(latestMetric.cash_balance_usd) * fxRates.usdZar
+      : null);
+
+  const runway = computeRunway(cashBalanceZar, monthlyBurnZar, monthlyRevenueZar);
 
   return (
     <div className="space-y-6">
       <FinancialMetricsCards
-        monthlyBurn={monthlyTotal}
+        monthlyBurn={monthlyBurnZar}
+        commitmentCount={commitments.length}
+        monthlyRevenue={monthlyRevenueZar}
+        netBurn={runway.netBurnZar}
         unpaidTotal={unpaidTotal}
         ytdTotal={periodTotal}
-        runwayMonths={latestMetric?.runway_months}
+        runwayMonths={runway.months}
+        cashFlowPositive={runway.cashFlowPositive}
         cashBalance={cashBalanceZar}
-        isLoading={invoicesLoading || metricsLoading}
+        isLoading={invoicesLoading || metricsLoading || revenueLoading}
       />
 
       <Tabs defaultValue="invoices" className="space-y-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <TabsList>
             <TabsTrigger value="invoices" className="gap-2">
               <Receipt className="h-4 w-4" />
               Invoices
             </TabsTrigger>
+            <TabsTrigger value="recurring" className="gap-2">
+              <Repeat className="h-4 w-4" />
+              Recurring
+            </TabsTrigger>
             <TabsTrigger value="runway" className="gap-2">
               <TrendingUp className="h-4 w-4" />
-              Runway & Metrics
+              Runway &amp; Metrics
             </TabsTrigger>
           </TabsList>
-          
+
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => setIsAddMetricOpen(true)}>
               <Plus className="h-4 w-4 mr-2" />
-              Add Metric
+              Add Snapshot
             </Button>
             <Button onClick={() => setIsAddInvoiceOpen(true)}>
               <Plus className="h-4 w-4 mr-2" />
@@ -115,7 +156,7 @@ export function AccountingDashboard({ dateRange }: AccountingDashboardProps) {
 
         <TabsContent value="invoices" className="space-y-4">
           <InvoiceTable
-            invoices={invoices || []}
+            invoices={(invoices as any[]) || []}
             isLoading={invoicesLoading}
             onEdit={(invoice) => {
               setEditingInvoice(invoice);
@@ -124,9 +165,20 @@ export function AccountingDashboard({ dateRange }: AccountingDashboardProps) {
           />
         </TabsContent>
 
+        <TabsContent value="recurring" className="space-y-4">
+          <RecurringCommitmentsPanel
+            commitments={commitments}
+            monthlyBurnZar={monthlyBurnZar}
+          />
+        </TabsContent>
+
         <TabsContent value="runway" className="space-y-4">
+          <RecurringCommitmentsPanel
+            commitments={commitments}
+            monthlyBurnZar={monthlyBurnZar}
+          />
           <Suspense fallback={<div className="h-[300px] w-full animate-pulse rounded bg-muted/50" aria-hidden />}>
-            <RunwayChart metrics={metrics || []} isLoading={metricsLoading} />
+            <RunwayChart metrics={(metrics as any[]) || []} isLoading={metricsLoading} />
           </Suspense>
         </TabsContent>
       </Tabs>
@@ -138,11 +190,14 @@ export function AccountingDashboard({ dateRange }: AccountingDashboardProps) {
           if (!open) setEditingInvoice(null);
         }}
         editingInvoice={editingInvoice}
+        fxRates={fxRates}
       />
 
       <AddMetricModal
         open={isAddMetricOpen}
         onOpenChange={setIsAddMetricOpen}
+        derivedBurnZar={monthlyBurnZar}
+        derivedRevenueZar={monthlyRevenueZar}
       />
     </div>
   );
