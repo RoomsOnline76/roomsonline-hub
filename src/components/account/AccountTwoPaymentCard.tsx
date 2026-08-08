@@ -47,6 +47,13 @@ interface Summary {
     invoice: { id: string; number: string | null; amount: number; pay_url: string | null } | null;
     paid_invoice: { id: string; number: string | null; amount: number; pdf_url: string | null } | null;
   };
+  pending_plan: {
+    monthly_fee: number;
+    effective_date: string | null;
+    reason: string | null;
+    window_opens_on: string | null;
+    can_activate: boolean;
+  } | null;
   subscription: {
     monthly_fee: number;
     due_by: string | null;
@@ -289,6 +296,34 @@ export function AccountTwoPaymentCard({ scope, entityId, onChanged }: Props) {
                 the account is suspended pending reactivation.
               </span>
             </p>
+          )}
+
+          {summary.pending_plan && !sub.suspended_at && (
+            <div className="space-y-2 rounded-md border border-primary/30 bg-primary/5 p-2">
+              <p className="flex items-start gap-1.5 text-[11px] text-muted-foreground">
+                <CalendarClock className="mt-px h-3.5 w-3.5 shrink-0 text-primary" />
+                <span>
+                  <strong className="text-foreground">Plan change scheduled.</strong> Current plan runs to{" "}
+                  {sub.cancel_effective_date ?? sub.paid_through ?? "the end of the paid period"}. The new plan of{" "}
+                  <strong className="text-foreground">{fmtMoney(summary.pending_plan.monthly_fee, cur)} / month</strong>{" "}
+                  starts on <strong className="text-foreground">{summary.pending_plan.effective_date}</strong>.
+                </span>
+              </p>
+              <Button
+                size="sm"
+                className="w-full"
+                disabled={(!summary.pending_plan.can_activate && !summary.is_staff) || spin("activate_pending_plan")}
+                onClick={() => void run("activate_pending_plan", "New plan activated - settle the invoice to continue", true)}
+              >
+                {spin("activate_pending_plan") && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
+                Activate new plan
+              </Button>
+              {!summary.pending_plan.can_activate && (
+                <p className="text-[11px] text-muted-foreground">
+                  Activation opens on {summary.pending_plan.window_opens_on} (a week before the new plan starts).
+                </p>
+              )}
+            </div>
           )}
 
           {sub.invoice?.pay_url ? (

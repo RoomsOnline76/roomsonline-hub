@@ -325,6 +325,108 @@ export type Database = {
         }
         Relationships: []
       }
+      billing_config_change_log: {
+        Row: {
+          after_snapshot: Json
+          before_snapshot: Json
+          change_type: string
+          changed_by: string | null
+          created_at: string
+          id: string
+          invoice_id: string | null
+          new_monthly_fee: number | null
+          notes: string | null
+          notification_status: string
+          owner_id: string | null
+          plan_effective_date: string | null
+          portfolio_id: string | null
+          previous_monthly_fee: number | null
+          property_id: string | null
+          requires_credit_note: boolean
+          setup_delta: number
+          setup_delta_lines: Json
+          updated_at: string
+        }
+        Insert: {
+          after_snapshot?: Json
+          before_snapshot?: Json
+          change_type?: string
+          changed_by?: string | null
+          created_at?: string
+          id?: string
+          invoice_id?: string | null
+          new_monthly_fee?: number | null
+          notes?: string | null
+          notification_status?: string
+          owner_id?: string | null
+          plan_effective_date?: string | null
+          portfolio_id?: string | null
+          previous_monthly_fee?: number | null
+          property_id?: string | null
+          requires_credit_note?: boolean
+          setup_delta?: number
+          setup_delta_lines?: Json
+          updated_at?: string
+        }
+        Update: {
+          after_snapshot?: Json
+          before_snapshot?: Json
+          change_type?: string
+          changed_by?: string | null
+          created_at?: string
+          id?: string
+          invoice_id?: string | null
+          new_monthly_fee?: number | null
+          notes?: string | null
+          notification_status?: string
+          owner_id?: string | null
+          plan_effective_date?: string | null
+          portfolio_id?: string | null
+          previous_monthly_fee?: number | null
+          property_id?: string | null
+          requires_credit_note?: boolean
+          setup_delta?: number
+          setup_delta_lines?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "billing_config_change_log_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "subscription_invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "billing_config_change_log_portfolio_id_fkey"
+            columns: ["portfolio_id"]
+            isOneToOne: false
+            referencedRelation: "property_portfolios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "billing_config_change_log_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "billing_config_change_log_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "billing_config_change_log_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       billing_global_defaults: {
         Row: {
           branding_addon_allowed: boolean | null
@@ -4150,6 +4252,10 @@ export type Database = {
           linked_contract_id: string | null
           listing_commission_rate: number | null
           payment_facilitator_enabled: boolean | null
+          pending_effective_date: string | null
+          pending_model_json: Json | null
+          pending_monthly_fee: number | null
+          plan_change_reason: string | null
           plan_changed_at: string | null
           pms_commission_rate: number | null
           portfolio_id: string
@@ -4206,6 +4312,10 @@ export type Database = {
           linked_contract_id?: string | null
           listing_commission_rate?: number | null
           payment_facilitator_enabled?: boolean | null
+          pending_effective_date?: string | null
+          pending_model_json?: Json | null
+          pending_monthly_fee?: number | null
+          plan_change_reason?: string | null
           plan_changed_at?: string | null
           pms_commission_rate?: number | null
           portfolio_id: string
@@ -4262,6 +4372,10 @@ export type Database = {
           linked_contract_id?: string | null
           listing_commission_rate?: number | null
           payment_facilitator_enabled?: boolean | null
+          pending_effective_date?: string | null
+          pending_model_json?: Json | null
+          pending_monthly_fee?: number | null
+          plan_change_reason?: string | null
           plan_changed_at?: string | null
           pms_commission_rate?: number | null
           portfolio_id?: string
@@ -5359,6 +5473,10 @@ export type Database = {
           listing_commission_rate: number | null
           owner_id: string | null
           payment_facilitator_enabled: boolean | null
+          pending_effective_date: string | null
+          pending_model_json: Json | null
+          pending_monthly_fee: number | null
+          plan_change_reason: string | null
           plan_changed_at: string | null
           pms_commission_rate: number | null
           previous_subscription_fee: number | null
@@ -5417,6 +5535,10 @@ export type Database = {
           listing_commission_rate?: number | null
           owner_id?: string | null
           payment_facilitator_enabled?: boolean | null
+          pending_effective_date?: string | null
+          pending_model_json?: Json | null
+          pending_monthly_fee?: number | null
+          plan_change_reason?: string | null
           plan_changed_at?: string | null
           pms_commission_rate?: number | null
           previous_subscription_fee?: number | null
@@ -5475,6 +5597,10 @@ export type Database = {
           listing_commission_rate?: number | null
           owner_id?: string | null
           payment_facilitator_enabled?: boolean | null
+          pending_effective_date?: string | null
+          pending_model_json?: Json | null
+          pending_monthly_fee?: number | null
+          plan_change_reason?: string | null
           plan_changed_at?: string | null
           pms_commission_rate?: number | null
           previous_subscription_fee?: number | null

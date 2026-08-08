@@ -125,7 +125,21 @@ export function useBillingConfig(propertyId: string | undefined) {
 
   const upsert = useMutation({
     mutationFn: async (config: Partial<BillingConfig> & { property_id: string }) => {
-      if (scope.source === "portfolio" && scope.portfolioId) {
+      const isPortfolio = scope.source === "portfolio" && !!scope.portfolioId;
+      const entityCol = isPortfolio ? "portfolio_id" : "property_id";
+      const entityId = isPortfolio ? scope.portfolioId! : config.property_id;
+      const table = isPortfolio ? "portfolio_billing_configs" : "property_billing_configs";
+
+      // Snapshot the contracted position before the change so the backend can
+      // bill only the new balance and detect a subscription-model switch.
+      const { data: before } = await supabase
+        .from(table as any)
+        .select("*")
+        .eq(entityCol, entityId)
+        .maybeSingle();
+
+      let saved: any;
+      if (isPortfolio) {
         const { property_id: _pid, id: _id, owner_id: _oid, ...rest } = config as any;
         const payload = { ...rest, portfolio_id: scope.portfolioId };
         const { data, error } = await supabase
@@ -134,16 +148,36 @@ export function useBillingConfig(propertyId: string | undefined) {
           .select()
           .single();
         if (error) throw error;
-        return data;
+        saved = data;
+      } else {
+        const { data, error } = await supabase
+          .from("property_billing_configs")
+          .upsert(config as any, { onConflict: "property_id" })
+          .select()
+          .single();
+        if (error) throw error;
+        saved = data;
       }
-      const { data, error } = await supabase
-        .from("property_billing_configs")
-        .upsert(config as any, { onConflict: "property_id" })
-        .select()
-        .single();
-      if (error) throw error;
-      return data;
+
+      // React to the change: incremental once-off invoice and/or scheduled
+      // subscription-model switch, with owner + admin notifications.
+      let change: any = null;
+      try {
+        const { data: res } = await supabase.functions.invoke("subscription-billing-actions", {
+          body: {
+            action: "apply_config_change",
+            scope: isPortfolio ? "portfolio" : "property",
+            entity_id: entityId,
+            before: before ?? {},
+          },
+        });
+        if (res?.success) change = res;
+      } catch (e) {
+        console.error("[useBillingConfig] apply_config_change failed", e);
+      }
+      return { ...saved, __change: change };
     },
+
     onSuccess: async (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["billing-config", propertyId] });
       queryClient.invalidateQueries({ queryKey: ["billing-config-membership", propertyId] });
@@ -162,11 +196,28 @@ export function useBillingConfig(propertyId: string | undefined) {
             .in("id", targetIds);
         }
       }
+      const change = data?.__change;
+      const notes: string[] = [];
+      if (Number(change?.setup_delta) > 0) {
+        notes.push(`Outstanding once-off balance of R${Number(change.setup_delta).toLocaleString()} invoiced`);
+      }
+      if (change?.plan_change) {
+        notes.push(
+          `Plan change scheduled — current plan runs to ${change.plan_change.runs_to}, new monthly fee of R${Number(
+            change.plan_change.new_monthly_fee
+          ).toLocaleString()} activates from ${change.plan_change.effective_date}`
+        );
+      }
+      if (change?.requires_credit_note) {
+        notes.push("A once-off fee was reduced after payment — a credit note must be raised manually");
+      }
       toast.success(
         scope.source === "portfolio"
           ? `Portfolio billing saved — applies to ${scope.siblingPropertyIds.length} propert${scope.siblingPropertyIds.length === 1 ? "y" : "ies"}`
-          : "Billing configuration saved"
+          : "Billing configuration saved",
+        notes.length ? { description: notes.join(". "), duration: 10000 } : undefined
       );
+
     },
     onError: (error: any) => {
       toast.error("Failed to save billing config", { description: error.message });
