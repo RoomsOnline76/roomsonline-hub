@@ -141,6 +141,14 @@ export function AccountTwoPaymentCard({ scope, entityId, onChanged }: Props) {
   const setupAmount = setupInvoice ? setupInvoice.amount : summary.setup.total;
   const sub = summary.subscription;
   const spin = (a: string) => busy === a;
+  // A reminder only makes sense while something is actually outstanding: an open
+  // setup-fee invoice, an unpaid subscription invoice, or a subscription that has
+  // not been started yet.
+  const hasOutstanding =
+    !!setupInvoice ||
+    !!sub.invoice ||
+    (sub.monthly_fee > 0 && !sub.cancel_at_period_end && !sub.suspended_at && sub.status !== "active");
+
 
   return (
     <Card className="border-border/60">
