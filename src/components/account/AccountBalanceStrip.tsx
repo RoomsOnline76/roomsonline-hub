@@ -137,11 +137,6 @@ export function AccountBalanceStrip({
         byoGateway={byoGateway}
         currency={c}
       />
-
-        <span className="text-xs text-muted-foreground">
-          Net position {fmtMoney(balances.net, c)} — positive means due to ROL
-        </span>
-      </div>
     </div>
   );
 }
