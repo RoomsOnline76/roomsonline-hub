@@ -90,19 +90,24 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
     enabled: !!propertyId,
   });
 
-  const { data: wlDomain } = useQuery({
-    queryKey: ["admin-overview-wl-domain", propertyId],
+  // White-label / add-on fields live on whichever billing row is authoritative
+  // (portfolio row for portfolio members, property row otherwise) — `config`
+  // already resolves that scope, so read them from there.
+  const wlDomain = config as any;
+
+  const { data: paymentModeRow } = useQuery({
+    queryKey: ["admin-overview-payment-mode", propertyId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("property_billing_configs")
-        .select("white_label_domain,white_label_domain_status,white_label_monthly_fee,white_label_setup_fee,white_label_billing_mode,branding_addon_enabled,branding_addon_monthly_fee,branding_addon_setup_fee,pricelabs_allowed,pricelabs_monthly_fee,pricelabs_setup_fee,channel_manager_enabled,channel_manager_per_unit_fee")
-        .eq("property_id", propertyId)
+      const { data } = await supabase
+        .from("properties")
+        .select("payment_mode")
+        .eq("id", propertyId)
         .maybeSingle();
-      if (error) throw error;
-      return data as any;
+      return data as { payment_mode?: string | null } | null;
     },
     enabled: !!propertyId,
   });
+
 
   const { data: unitCount } = useQuery({
     queryKey: ["admin-overview-unit-count", propertyId, scope.source, ...scope.siblingPropertyIds],
