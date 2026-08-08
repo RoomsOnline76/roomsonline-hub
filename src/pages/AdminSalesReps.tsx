@@ -107,6 +107,71 @@ function RepForm({ rep, onSave, saving, onCancel }: {
         <Switch checked={form.is_active} onCheckedChange={(v) => setForm({ ...form, is_active: v })} />
         <Label className="text-xs">Active</Label>
       </div>
+
+      {/* Tax identity — printed on every commission payout statement */}
+      <div className="space-y-3 rounded-lg border p-3">
+        <div>
+          <p className="text-xs font-semibold">Tax identity</p>
+          <p className="text-[11px] text-muted-foreground">
+            Commission is a payout to an independent contractor — no PAYE, UIF or SDL is withheld and the
+            partner declares this income to SARS themselves.
+          </p>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <Label className="text-xs">Entity Type</Label>
+            <Select value={form.entity_type} onValueChange={(v) => setForm({ ...form, entity_type: v })}>
+              <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="individual">Individual / sole proprietor</SelectItem>
+                <SelectItem value="company">Company / close corporation</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Trading Name (optional)</Label>
+            <Input value={form.trading_name} onChange={(e) => setForm({ ...form, trading_name: e.target.value })} placeholder="Registered / trading name" className="h-8 text-sm" />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">SARS Tax Reference</Label>
+            <Input value={form.tax_reference_number} onChange={(e) => setForm({ ...form, tax_reference_number: e.target.value })} placeholder="10 digits" className="h-8 text-sm" />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">VAT Number</Label>
+            <Input
+              value={form.vat_number}
+              onChange={(e) => setForm({ ...form, vat_number: e.target.value })}
+              placeholder={form.vat_registered ? "4XXXXXXXXX" : "Not VAT registered"}
+              disabled={!form.vat_registered}
+              className="h-8 text-sm"
+            />
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <Switch checked={form.vat_registered} onCheckedChange={(v) => setForm({ ...form, vat_registered: v })} />
+          <Label className="text-xs">Registered VAT vendor — VAT is added on top of commission</Label>
+        </div>
+      </div>
+
+      <div className="space-y-1">
+        <Label className="text-xs">Notes</Label>
+        <Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={2} className="text-xs" />
+      </div>
+      <div className="flex gap-2 justify-end">
+        <Button variant="outline" size="sm" onClick={onCancel}>Cancel</Button>
+        <Button
+          size="sm"
+          onClick={handleSubmit}
+          disabled={
+            saving || !form.rep_code || !form.display_name || !form.email ||
+            (form.vat_registered && !form.vat_number.trim())
+          }
+        >
+          {saving ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
+          {rep ? "Update" : "Create"} Rep
+        </Button>
+      </div>
+
       <div className="space-y-1">
         <Label className="text-xs">Notes</Label>
         <Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={2} className="text-xs" />
