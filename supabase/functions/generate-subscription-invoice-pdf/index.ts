@@ -5,6 +5,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { PDFDocument, StandardFonts, rgb } from "https://esm.sh/pdf-lib@1.17.1";
 import { Resend } from "npm:resend@2";
+import { getAdminCopyRecipients } from "../_shared/billingAdminRecipients.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
