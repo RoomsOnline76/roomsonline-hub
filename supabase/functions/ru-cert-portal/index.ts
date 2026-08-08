@@ -492,10 +492,11 @@ const RU_ENDPOINT_REGISTRY: {
     rolos_surface: "ru-lnm-handler → MCQ orders / refresh", rolos_stream: "Inbound webhooks", rolos_wired: true, sync_actions: ["LNM_Notification"], note: "Routes PropertyMCQEligibilityCheck" },
   { key: "sales_channels", area: "notifications", label: "List sales channels", ru_method: "Pull_ListSalesChannels_RQ", direction: "pull", mandatory: true, implemented: true,
     rolos_surface: "RU console → Phase 4 channel ID", rolos_stream: "Onboarding P4 — channel readiness", rolos_wired: true, sync_actions: ["resolve_sales_channel", "list_sales_channels"], max_age_hours: 720, note: "Resolves LekkeSlaap ChannelID for MCQ" },
-  { rolos_via_cert: true, key: "mcq", area: "notifications", label: "Order content quality check", ru_method: "CM_LNM_OrderMinimumContentQualityCheck_RQ", direction: "push", mandatory: false, implemented: true,
-    rolos_surface: "RU console → Phase 4 quality check + property status chips", rolos_stream: "Onboarding P4 — channel readiness", rolos_wired: true, sync_actions: ["order_mcq", "mcq_duplicate_test"], note: "Requires LNM subscription + ChannelID" },
-  { rolos_via_cert: true, key: "mcq_duplicate", area: "notifications", label: "MCQ duplicate-order test", ru_method: "CM_LNM_OrderMinimumContentQualityCheck_RQ (idempotency)", direction: "push", mandatory: false, implemented: true,
-    rolos_surface: "Live notifications panel → Duplicate test", rolos_stream: "Certification evidence", rolos_wired: true, sync_actions: ["mcq_duplicate_test"], note: "Orders twice; status 17 is an RU-side fault" },
+  { rolos_via_cert: true, informational: true, max_age_hours: 168, key: "mcq", area: "notifications", label: "Order content quality check", ru_method: "CM_LNM_OrderMinimumContentQualityCheck_RQ", direction: "push", mandatory: false, implemented: true,
+    rolos_surface: "RU console → Phase 4 quality check + property status chips", rolos_stream: "Onboarding P4 — channel readiness", rolos_wired: true, sync_actions: ["order_mcq", "mcq_duplicate_test"], note: "Endpoint reachable; the channel account cannot return a quality-check result, so failures are reported as blocked upstream and excluded from the score" },
+  { rolos_via_cert: true, informational: true, max_age_hours: 168, key: "mcq_duplicate", area: "notifications", label: "MCQ duplicate-order test", ru_method: "CM_LNM_OrderMinimumContentQualityCheck_RQ (idempotency)", direction: "push", mandatory: false, implemented: true,
+    rolos_surface: "Live notifications panel → Duplicate test", rolos_stream: "Certification evidence", rolos_wired: true, sync_actions: ["mcq_duplicate_test"], note: "Orders twice; no usable channel response in this account — blocked upstream, excluded from the score" },
+
 
 ];
 
