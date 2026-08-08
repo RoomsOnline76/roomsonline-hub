@@ -246,6 +246,8 @@ async function calculate(supabase: Client, periodMonth: string): Promise<Preview
       booking_count: 0,
       recovered_commission: 0,
       subscription_revenue: 0,
+      setup_revenue: 0,
+      passthrough_revenue: 0,
     };
     revenue.set(propertyId, existing);
     return existing;
@@ -265,11 +267,23 @@ async function calculate(supabase: Client, periodMonth: string): Promise<Preview
     }
   });
 
+  // Subscription & setup revenue is reported for transparency only — rep
+  // commission is earned on booking commission, never on platform fees or
+  // pass-through third-party costs.
   ((subInvoices || []) as Record<string, unknown>[]).forEach((inv) => {
     const propertyId = inv.property_id as string | null;
     if (!propertyId) return;
-    bump(propertyId).subscription_revenue += Number(inv.amount) || 0;
+    const bucket = bump(propertyId);
+    const amount = Number(inv.amount) || 0;
+    const split = splitInvoiceMargin(
+      inv.line_items as Array<{ kind?: string | null; amount?: number | null }> | null,
+      amount,
+    );
+    if (String(inv.invoice_kind) === "setup") bucket.setup_revenue += amount;
+    else bucket.subscription_revenue += amount;
+    bucket.passthrough_revenue += split.passthrough;
   });
+
 
   // Prior reversals, so a clawback is never applied twice
   const { data: priorClawbacks } = await supabase
