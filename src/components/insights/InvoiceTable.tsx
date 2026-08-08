@@ -229,7 +229,31 @@ export function InvoiceTable({ invoices, isLoading, onEdit }: InvoiceTableProps)
                     <TableCell className="text-muted-foreground">
                       {format(new Date(invoice.invoice_date), "MMM d, yyyy")}
                     </TableCell>
+                    <TableCell className="text-center">
+                      {invoice.document_path ? (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          title={invoice.document_name || "Open invoice document"}
+                          onClick={() => void openInvoiceDocument(invoice.document_path!)}
+                        >
+                          <FileText className="h-4 w-4 text-primary" />
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground"
+                          title="Attach invoice document"
+                          onClick={() => onEdit(invoice)}
+                        >
+                          <Paperclip className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </TableCell>
                     <TableCell>
+
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="icon" className="h-8 w-8">
