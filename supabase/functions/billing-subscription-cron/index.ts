@@ -78,6 +78,14 @@ async function getRoomCount(supabase: any, propertyIds: string[]): Promise<numbe
 }
 
 async function computeSubscriptionAmount(supabase: any, cfg: any, scope: "property" | "portfolio", entityId: string): Promise<number> {
+  // A pending plan change takes over the moment its effective date arrives.
+  if (cfg.pending_monthly_fee != null && cfg.pending_effective_date) {
+    const effective = String(cfg.pending_effective_date).slice(0, 10);
+    if (new Date().toISOString().slice(0, 10) >= effective) {
+      const pending = Number(cfg.pending_monthly_fee) || 0;
+      if (pending > 0) return pending;
+    }
+  }
   // Direct fixed monthly fee wins
   if (cfg.subscription_fee_monthly && Number(cfg.subscription_fee_monthly) > 0) {
     return Number(cfg.subscription_fee_monthly);
@@ -269,6 +277,24 @@ async function ensureInvoiceAndEmail(supabase: any, resend: Resend, opts: {
     const { data: created, error: crErr } = await supabase.from("subscription_invoices").insert(insert).select("id, payfast_token, reminder_count, email_sent_at").single();
     if (crErr) { console.error("[cron] insert error:", crErr); return { error: crErr }; }
     invoice = created;
+
+    // The pending plan has now been invoiced — retire it and lift the scheduled
+    // cancellation so the account continues on the new model once paid.
+    if (cfg.pending_monthly_fee != null && cfg.pending_effective_date &&
+        new Date().toISOString().slice(0, 10) >= String(cfg.pending_effective_date).slice(0, 10)) {
+      await supabase
+        .from(scope === "property" ? "property_billing_configs" : "portfolio_billing_configs")
+        .update({
+          pending_monthly_fee: null,
+          pending_effective_date: null,
+          pending_model_json: null,
+          plan_change_reason: null,
+          cancel_at_period_end: false,
+          cancel_effective_date: null,
+          cancelled_at: null,
+        })
+        .eq(entityCol, entityId);
+    }
 
     // Reserve the charge items against this invoice (invoiced_at set on payment)
     if (pendingCharges && pendingCharges.length > 0) {
