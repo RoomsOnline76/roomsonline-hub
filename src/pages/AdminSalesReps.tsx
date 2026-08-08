@@ -171,18 +171,6 @@ function RepForm({ rep, onSave, saving, onCancel }: {
           {rep ? "Update" : "Create"} Rep
         </Button>
       </div>
-
-      <div className="space-y-1">
-        <Label className="text-xs">Notes</Label>
-        <Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={2} className="text-xs" />
-      </div>
-      <div className="flex gap-2 justify-end">
-        <Button variant="outline" size="sm" onClick={onCancel}>Cancel</Button>
-        <Button size="sm" onClick={handleSubmit} disabled={saving || !form.rep_code || !form.display_name || !form.email}>
-          {saving ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
-          {rep ? "Update" : "Create"} Rep
-        </Button>
-      </div>
     </div>
   );
 }
