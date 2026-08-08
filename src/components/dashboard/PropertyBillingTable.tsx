@@ -171,15 +171,12 @@ export function PropertyBillingTable({ rows, isLoading }: Props) {
                     <td className="px-3 py-2 text-muted-foreground">{row.firstBillingDate ?? "—"}</td>
                     <td className="px-3 py-2 text-right">
                       <Button asChild size="sm" variant="ghost" className="h-6 px-2 text-[10px]">
-                        <a
-                          href={`/admin/account?scope=${row.scope}&id=${row.id}`}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
+                        <Link to={`/admin/account?scope=${row.scope}&id=${row.id}`}>
                           <ExternalLink className="h-3 w-3" />
-                        </a>
+                        </Link>
                       </Button>
                     </td>
+
                   </tr>
                 );
               })}
