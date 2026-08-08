@@ -17,16 +17,15 @@ import {
 import { format } from "date-fns";
 import { usePayoutStatementDetail } from "@/hooks/usePayoutStatements";
 import {
-  adjustmentLines,
   bookingLines,
   fmtMoney,
   periodLabel,
   propertySubtotals,
-  recoveryLines,
   statementBalances,
   STATUS_LABELS,
   type VatSettings,
 } from "@/lib/payoutStatement";
+
 import { downloadPayoutStatementPdf } from "@/lib/payoutStatementPdf";
 import { downloadRolChargesInvoicePdf } from "@/lib/rolChargesInvoicePdf";
 
