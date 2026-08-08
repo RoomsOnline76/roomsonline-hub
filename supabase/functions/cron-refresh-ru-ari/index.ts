@@ -130,8 +130,9 @@ Deno.serve(async (req) => {
       JSON.stringify({
         success: true,
         batch_id: batchId,
-        message: `Refreshed ARI for ${successCount}/${properties.length} properties`,
+        message: `Refreshed ARI for ${successCount}/${properties.length} properties${skippedCount ? ` (${skippedCount} skipped — nothing listed)` : ''}`,
         pushed: successCount,
+        skipped: skippedCount,
         total: properties.length,
         results,
       }),
