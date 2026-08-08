@@ -760,14 +760,9 @@ Deno.serve(async (req) => {
         ari_last_push_at: shortTime(lastAri),
         ari_stale_hours: hoursSince(lastAri),
         cert,
-        live_properties: (ruOwners as unknown as { length?: number })?.length ?? 0,
+        live_properties: ownerCount ?? 0,
       };
 
-      // count() head request returns count on the response, not data
-      const { count: ownerCount } = await supabase
-        .from('ru_owner_accounts')
-        .select('id', { count: 'exact', head: true });
-      ruWl.live_properties = ownerCount ?? 0;
     } catch (ruError) {
       console.error('[Daily Health Report] Channel metrics error:', ruError);
     }
