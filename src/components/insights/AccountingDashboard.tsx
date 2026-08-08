@@ -173,10 +173,7 @@ export function AccountingDashboard({ dateRange }: AccountingDashboardProps) {
         </TabsContent>
 
         <TabsContent value="runway" className="space-y-4">
-          <RecurringCommitmentsPanel
-            commitments={commitments}
-            monthlyBurnZar={monthlyBurnZar}
-          />
+
           <Suspense fallback={<div className="h-[300px] w-full animate-pulse rounded bg-muted/50" aria-hidden />}>
             <RunwayChart metrics={(metrics as any[]) || []} isLoading={metricsLoading} />
           </Suspense>
