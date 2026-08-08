@@ -205,7 +205,15 @@ export function BookingInvoice({ bookingId, guestName, guestEmail, checkIn, chec
   const balance = Math.max(0, subtotal - totalPayments);
   const settledExternally = onlineBookingPayment > 0;
 
-  const invoiceNumber = `INV-${bookingId.slice(0, 8).toUpperCase()}`;
+  // Invoice number is derived from the standardised ROL booking reference so the
+  // invoice, the statement line and the property's own system all agree.
+  const displayRef = displayBookingReference({ ...bookingRef, id: bookingId });
+  const channelRef =
+    bookingRef.external_reservation_id && bookingRef.external_reservation_id !== displayRef
+      ? bookingRef.external_reservation_id
+      : null;
+  const invoiceNumber = `INV-${displayRef.replace(/^ROL-/, "")}`;
+
   const today = new Date().toLocaleDateString("en-ZA");
   const invoiceTitle = isVat ? "Tax Invoice" : "Invoice";
 
