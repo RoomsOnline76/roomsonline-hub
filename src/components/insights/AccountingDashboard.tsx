@@ -185,7 +185,17 @@ export function AccountingDashboard({ dateRange }: AccountingDashboardProps) {
             <RunwayChart metrics={(metrics as any[]) || []} isLoading={metricsLoading} />
           </Suspense>
         </TabsContent>
+
+        <TabsContent value="costshare" className="space-y-4">
+          <CostSharingPanel
+            allInvoices={(invoices as any[]) || []}
+            periodInvoices={filteredInvoices as any[]}
+            fxRates={fxRates}
+            dateRange={dateRange}
+          />
+        </TabsContent>
       </Tabs>
+
 
       <AddInvoiceModal
         open={isAddInvoiceOpen}
