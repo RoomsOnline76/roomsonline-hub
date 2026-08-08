@@ -89,6 +89,21 @@ export default function JourneyCheckout() {
     ? Math.max(0, totalPrice - appliedVoucher.discount_amount) 
     : totalPrice;
 
+  // A journey that includes a reservation-only property cannot be charged
+  // online — the guest reserves and settles with the properties directly.
+  const { hasReservationOnly, reservationOnlyProperties } = usePropertiesPaymentModes(
+    sortedStays.map((s) => s.property_id),
+  );
+  const journeyReservationTerms = useMemo(
+    () =>
+      resolveReservationTerms({
+        total: effectiveTotal,
+        checkIn: sortedStays[0]?.dates.check_in ?? new Date().toISOString().slice(0, 10),
+      }),
+    [effectiveTotal, sortedStays],
+  );
+
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-ZA", {
       style: "currency",
