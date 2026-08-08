@@ -20,11 +20,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { AlertTriangle, Banknote, CheckCircle2, Download, Loader2, Mail, Plus, Ban } from "lucide-react";
 import {
   COMMISSION_BASIS_NOTE,
+  COMMISSION_PAYOUT_TAX_NOTE,
   COMMISSION_STATUS_CLASSES,
   COMMISSION_STATUS_LABELS,
   COMMISSION_TYPE_LABELS,
+  COMMISSION_VAT_NOTE,
   RATE_SOURCE_LABELS,
   commissionAdjustments,
+  commissionVatBreakdown,
   fmtMoney,
   isEditable,
   monthLabel,
@@ -33,6 +36,7 @@ import {
   statementBalances,
   type CommissionStatement,
 } from "@/lib/commissionStatement";
+
 import { downloadCommissionStatementPdf } from "@/lib/commissionStatementPdf";
 import type { VatSettings } from "@/lib/payoutStatement";
 import {
