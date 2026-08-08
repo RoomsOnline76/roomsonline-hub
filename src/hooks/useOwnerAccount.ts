@@ -226,6 +226,9 @@ export function useOwnerAccount(scope: OwnerScope | null) {
 
       const config = (cfgRes?.data || null) as OwnerBillingConfig | null;
 
+      const vatRows = (vatRes?.data || []) as unknown as VatSettings[];
+      const vat = vatRows[0] ? { ...DEFAULT_VAT_SETTINGS, ...vatRows[0] } : DEFAULT_VAT_SETTINGS;
+
       const revenueMap = new Map<string, RevenueRow>();
       const CONFIRMED = ["confirmed", "completed", "checked_in", "checked_out"];
       for (const b of bookings) {
