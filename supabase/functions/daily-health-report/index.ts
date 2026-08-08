@@ -365,11 +365,13 @@ function generateEmailHtml(
           <tr style="border-top:1px solid #f3f4f6;">
             <td style="${td}font-weight:500;">${p.name}</td>
             <td style="${td}">${p.property_count}</td>
-            <td style="${td}color:#6b7280;">${p.last_sync_time || 'Never'}</td>
+            <td style="${td}color:${p.stale ? '#f59e0b' : '#6b7280'};">${p.last_sync_time || 'No sync recorded'}${p.last_sync_source ? `<span style="color:#9ca3af;"> · ${p.last_sync_source}</span>` : ''}</td>
             <td style="${td}color:${rateColor(p.success_rate)};font-weight:600;">${p.success_rate.toFixed(1)}%</td>
           </tr>`).join('')}
         </tbody>
       </table>
+      <p style="margin:6px 0 0 0;font-size:11px;color:#9ca3af;">Last sync = newest real refresh evidence (channel push/pull, live availability fetch, or scheduled adapter probe). Amber = older than the expected cadence.</p>
+
       ${inactiveComponents.length > 0 ? `<p style="margin:8px 0 0 0;font-size:11px;color:#9ca3af;">Parked / not active (${inactiveComponents.length}): ${inactiveComponents.map(c => c.component_name).join(' · ')}</p>` : ''}
     </div>` : '';
 
