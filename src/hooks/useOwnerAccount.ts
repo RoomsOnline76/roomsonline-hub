@@ -106,6 +106,8 @@ export interface OwnerAccountData {
   payouts: OwnerPayoutStatement[];
   revenue: RevenueRow[];
   unitCount: number;
+  /** True when any property in scope settles through its own payment gateway. */
+  byoGateway: boolean;
 }
 
 const EMPTY: OwnerAccountData = {
@@ -115,6 +117,7 @@ const EMPTY: OwnerAccountData = {
   payouts: [],
   revenue: [],
   unitCount: 0,
+  byoGateway: false,
 };
 
 export function useOwnerAccount(scope: OwnerScope | null) {
@@ -131,7 +134,7 @@ export function useOwnerAccount(scope: OwnerScope | null) {
       const keyCol = scope.kind === "property" ? "property_id" : "portfolio_id";
       const cfgTable = scope.kind === "property" ? "property_billing_configs" : "portfolio_billing_configs";
 
-      const [cfgRes, subRes, invRes, payRes, bookRes, unitRes] = await Promise.all([
+      const [cfgRes, subRes, invRes, payRes, bookRes, unitRes, propRes] = await Promise.all([
         (supabase as any).from(cfgTable).select("*").eq(keyCol, scope.id).maybeSingle(),
         (supabase as any)
           .from("subscription_invoices")
@@ -165,6 +168,10 @@ export function useOwnerAccount(scope: OwnerScope | null) {
           .from("rolos_rooms")
           .select("id", { count: "exact", head: true })
           .in("property_id", scope.propertyIds),
+        supabase
+          .from("properties")
+          .select("allow_custom_payment_provider")
+          .in("id", scope.propertyIds),
       ]);
 
       const revenueMap = new Map<string, RevenueRow>();
@@ -187,6 +194,9 @@ export function useOwnerAccount(scope: OwnerScope | null) {
         payouts: (payRes?.data || []) as OwnerPayoutStatement[],
         revenue: [...revenueMap.values()].sort((a, b) => a.month.localeCompare(b.month)),
         unitCount: unitRes?.count || 0,
+        byoGateway: ((propRes?.data || []) as { allow_custom_payment_provider: boolean | null }[]).some(
+          (p) => !!p.allow_custom_payment_provider,
+        ),
       });
     } catch (err) {
       console.error("[owner-account] load failed", err);
