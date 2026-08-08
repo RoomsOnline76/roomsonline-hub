@@ -81,7 +81,8 @@ const PAID_BOOKING_STATUSES = ALL_REVENUE_PAYMENT_STATUSES;
 
 
 const BOOKING_ORIGIN_FIELDS =
-  'id, property_id, guest_name, check_in_date, check_out_date, total_price, status, payment_status, integration_type, booking_channel, source_url, calculated_commission, commission_rate_applied, commission_type';
+  'id, property_id, guest_name, check_in_date, check_out_date, total_price, status, payment_status, payment_method, payment_reference, integration_type, booking_channel, source_url, calculated_commission, commission_rate_applied, commission_type';
+
 
 interface ResolvedBillingScope {
   config: (CommissionConfigLike & Record<string, any>) | null;
