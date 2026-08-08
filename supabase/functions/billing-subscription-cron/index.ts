@@ -497,6 +497,51 @@ Deno.serve(async (req) => {
     .eq("cancel_at_period_end", false)
     .lt("current_period_end", todayStr);
 
+  // 5b) Pending plan change: once the 7-day activation window opens, invite the
+  //     owner to activate the new monthly plan. Sent once per pending plan.
+  for (const [table, col, joinSel] of [
+    ["property_billing_configs", "property_id", "properties!inner(id, name, owner_email)"],
+    ["portfolio_billing_configs", "portfolio_id", "property_portfolios!inner(id, name, owner_id)"],
+  ] as const) {
+    const { data: pendingPlans } = await supabase
+      .from(table)
+      .select(`${col}, pending_monthly_fee, pending_effective_date, plan_change_reason, cancel_effective_date, ${joinSel}`)
+      .not("pending_effective_date", "is", null)
+      .eq("plan_change_reason", "model_change")
+      .lte("pending_effective_date", in5Str);
+    for (const row of pendingPlans ?? []) {
+      const entityId = (row as any)[col];
+      const effective = String((row as any).pending_effective_date).slice(0, 10);
+      const fee = Number((row as any).pending_monthly_fee) || 0;
+      if (fee <= 0) continue;
+      const entity = (row as any).properties ?? (row as any).property_portfolios ?? {};
+      let ownerEmail: string | null = entity.owner_email ?? null;
+      if (!ownerEmail && entity.owner_id) {
+        const { data: prof } = await supabase.from("profiles").select("email").eq("id", entity.owner_id).maybeSingle();
+        ownerEmail = prof?.email ?? null;
+      }
+      const cc = await getAdminCopyRecipients(supabase, ownerEmail);
+      if (ownerEmail) {
+        await sendReminder(
+          resend,
+          ownerEmail,
+          `Activate your new subscription plan - ${entity.name || ""}`,
+          `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><title>Activate your new plan</title></head><body style="font-family:Arial,sans-serif;background:#fff;padding:24px;color:#1A1A2E">
+            <div style="max-width:560px;margin:0 auto;border:1px solid #eee;border-radius:8px;padding:24px">
+              <h2 style="color:#E91E8C;margin-top:0">Activate your new subscription plan</h2>
+              <p>The billing plan for <strong>${entity.name || ""}</strong> has changed. Your current plan runs to <strong>${String((row as any).cancel_effective_date || "").slice(0, 10) || effective}</strong>.</p>
+              <p>The new plan of <strong>${fmtCurrency(fee)} per month</strong> starts on <strong>${effective}</strong> and needs to be activated from your ROL Account to keep the account running.</p>
+              <p style="text-align:center;margin:20px 0"><a href="${SITE_URL}/admin/account" style="background:#E91E8C;color:#fff;text-decoration:none;padding:12px 22px;border-radius:6px;display:inline-block;font-weight:600">Activate new plan</a></p>
+              <p style="color:#666;font-size:13px">Cancel any time &mdash; no lock-in, no cancellation fee.</p>
+            </div></body></html>`,
+          cc,
+        );
+      }
+      await supabase.from(table).update({ plan_change_reason: "model_change_notified" }).eq(col, entityId);
+      results.push({ scope: table === "property_billing_configs" ? "property" : "portfolio", entity_id: entityId, plan_change_reminder: true, effective_from: effective });
+    }
+  }
+
   // 6) Suspend accounts whose scheduled cancellation date has passed. Service
   //    ran to the last paid day; from here access and functionality are
   //    restricted pending reactivation. Data is retained.
