@@ -154,46 +154,19 @@ export function buildPayoutStatementPdf(
     }
   }
 
-  /* ---------------- Section B ---------------- */
-  const recoveries = [...recoveryLines(statement.lines), ...adjustmentLines(statement.lines)];
-  if (recoveries.length > 0) {
-    if (y > 640) { doc.addPage(); y = 52; }
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(10);
-    doc.text("B · RECOVERIES & PLATFORM CHARGES", M, y);
-    y += 10;
-    autoTable(doc, {
-      startY: y,
-      margin: { left: M, right: M },
-      styles: { fontSize: 7.6, cellPadding: 4, textColor: INK, lineColor: LINE, lineWidth: 0.4 },
-      headStyles: { fillColor: [244, 244, 248], textColor: INK, fontStyle: "bold" },
-      head: [["Date", "Description", "Property", "Amount"]],
-      body: recoveries.map((l) => [
-        fmtDate(l.line_date),
-        l.description || "—",
-        l.property_name || "All",
-        money(l.commission_amount || l.fee_amount),
-      ]),
-    });
-    // deno-lint-ignore no-explicit-any
-    y = (doc as any).lastAutoTable.finalY + 24;
-  }
-
-  /* ---------------- Section C + D ---------------- */
+  /* ---------------- Section B + C ---------------- */
   if (y > 600) { doc.addPage(); y = 52; }
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(10);
-  doc.text("C · ROL CHARGES INVOICE", M, y);
+  doc.text("B · ROL CHARGES INVOICE", M, y);
   y += 14;
 
   const rows: [string, string][] = [
-    ["Commission on ROL-processed bookings", money(statement.rol_commission)],
-    ["Commission recovered on own-gateway bookings", money(statement.byo_commission)],
-    ["Payment processing fees", money(statement.transaction_fees)],
-    ["Subscription, white-label & platform charges", money(statement.recurring_fees)],
+    ["Commission on bookings processed by ROL", money(statement.rol_commission)],
+    ["Payment processing fee recovered (non-commissionable)", money(statement.transaction_fees)],
   ];
-  if (statement.opening_balance > 0) rows.push(["Balance brought forward", money(statement.opening_balance)]);
+
 
   doc.setFontSize(8.6);
   rows.forEach(([label, value]) => {
