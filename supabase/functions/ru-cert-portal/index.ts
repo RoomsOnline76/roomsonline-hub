@@ -873,7 +873,11 @@ Deno.serve(async (req) => {
         // Informational endpoints (reachable, but this channel account returns no usable
         // result) never count as a hard failure and never enter the score denominators.
         const blockedUpstream = !!e.informational && status === "failed";
-        if (blockedUpstream) status = "blocked";
+        if (blockedUpstream) {
+          status = "blocked";
+          if (rolosStatus === "failed") rolosStatus = "blocked";
+          detail = `Blocked upstream — endpoint reachable, no usable channel response. ${detail ?? ""}`.trim();
+        }
         const excludedFromScore = !!e.informational;
 
         let rag: "green" | "amber" | "red" | "grey" = "grey";
@@ -881,6 +885,7 @@ Deno.serve(async (req) => {
         else if (status === "blocked") rag = "amber";
         else if (status === "failed") rag = "red";
         else if (!e.implemented) rag = "grey";
+
 
 
         return {
