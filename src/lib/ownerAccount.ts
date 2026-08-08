@@ -210,6 +210,21 @@ export function expectedMonthlyFee(
   }).monthly;
 }
 
+/** Contracted once-off (setup) total, payable on signature. */
+export function expectedSetupFee(
+  cfg: OwnerBillingConfig | null | undefined,
+  unitCount = 0,
+  byoGateway = false,
+): number {
+  if (!cfg) return 0;
+  return computeExpectedBilling(cfg as unknown as ExpectedBillingConfig, {
+    units: unitCount,
+    rooms: unitCount,
+    byoGateway,
+  }).setup;
+}
+
+
 /* ------------------------------------------------------------------ */
 /* Balances                                                            */
 /* ------------------------------------------------------------------ */
