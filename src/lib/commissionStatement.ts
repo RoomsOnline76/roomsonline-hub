@@ -88,6 +88,21 @@ export interface CommissionTermsSnapshot {
   source?: string;
 }
 
+/**
+ * The partner's tax identity frozen at approval time — the statement must keep
+ * showing the position that applied when it was issued.
+ */
+export interface CommissionTaxSnapshot {
+  entity_type?: "individual" | "company" | string;
+  legal_name?: string | null;
+  trading_name?: string | null;
+  tax_reference_number?: string | null;
+  vat_registered?: boolean;
+  vat_number?: string | null;
+  vat_rate?: number;
+}
+
+
 export interface CommissionStatement {
   id: string;
   rep_id: string;
