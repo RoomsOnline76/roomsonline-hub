@@ -4,8 +4,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Download, ExternalLink, FileText } from "lucide-react";
+import { Download, ExternalLink, FileText, Loader2 } from "lucide-react";
 import { ADMIN_DOMAIN } from "@/lib/config";
+import { toast } from "sonner";
+import { downloadSubscriptionInvoice } from "@/lib/invoiceDownload";
 import {
   downloadCsv,
   fmtMoney,
@@ -15,6 +17,7 @@ import {
   type OwnerRolInvoice,
   type OwnerSubscriptionInvoice,
 } from "@/lib/ownerAccount";
+
 
 interface Props {
   subscriptionInvoices: OwnerSubscriptionInvoice[];
