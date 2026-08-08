@@ -18,6 +18,7 @@ const RatesOverviewPanel = lazy(() => import("@/components/property/RatesOvervie
 const PropertyFormIntegrationsTab = lazy(() => import("@/components/property/PropertyFormIntegrationsTab").then((m) => ({ default: m.PropertyFormIntegrationsTab })));
 const AccommodationSpecialsTab = lazy(() => import("@/components/property/AccommodationSpecialsTab").then((m) => ({ default: m.AccommodationSpecialsTab })));
 const RoomManagerTab = lazy(() => import("@/components/property/RoomManagerTab").then((m) => ({ default: m.RoomManagerTab })));
+const PropertyContactDetails = lazy(() => import("@/components/property/PropertyContactDetails"));
 const RateManagerTab = lazy(() => import("@/components/property/RateManagerTab").then((m) => ({ default: m.RateManagerTab })));
 const RatePlansPanel = lazy(() => import("@/components/pms/rateplans/RatePlansPanel").then((m) => ({ default: m.RatePlansPanel })));
 const HostfullyRoomDetails = lazy(() => import("@/components/pms/HostfullyRoomDetails").then((m) => ({ default: m.HostfullyRoomDetails })));
@@ -3849,28 +3850,17 @@ export default function PropertyForm({
   };
 
   // Visible sections (shared IA) — drives both the hidden TabsList and the left rail
-  const visibleSectionKeys = PROPERTY_SECTION_ORDER.filter((s) => s.key !== "contacts")
-    .filter((s) => {
-      if (s.key === "onboarding" && !propertyId) return false;
-      if (s.adminOnly && !(isAdmin || isDev || isFearlessLeader)) return false;
-      if (isRolosPms(selectedPMS) && !forceTabs && s.rolosManaged) return false;
-      if (selectedPMS === "nightsbridge") {
-        return [
-          "general",
-          "rol-spec",
-          "branding",
-          "images",
-          "rooms",
-          "rates",
-          "rate-plans",
-          "onboarding",
-          "integrations",
-          "admin",
-        ].includes(s.key);
-      }
-      return true;
-    })
-    .map((s) => s.key as string);
+  /**
+   * Section list mirrors ROL'OS Property Setup exactly (same order, same grouping)
+   * plus the admin-only advanced sections. Nothing is hidden because of the
+   * connected system — ROL'OS remains the source of truth for its sections, which
+   * the banner below states, but the section stays reachable here.
+   */
+  const visibleSectionKeys = PROPERTY_SECTION_ORDER.filter((s) => {
+    if (s.key === "onboarding" && !propertyId) return false;
+    if (s.adminOnly && !(isAdmin || isDev || isFearlessLeader)) return false;
+    return true;
+  }).map((s) => s.key as string);
 
   const railGroups = buildSectionGroups(visibleSectionKeys);
 
@@ -4015,8 +4005,9 @@ export default function PropertyForm({
             <Sparkles className="h-4 w-4 text-primary" />
             <AlertDescription className="text-sm">
               <span className="font-medium">
-                Info &amp; Facilities, Rooms, Rates, Packages, Specials, Addons, House Rules, Templates &amp;
-                Announcements are managed in ROLOS.
+                ROL&apos;OS is the source of truth for Facilities, Rooms, Calendar / Seasons, Rate Plans,
+                Policies, Charges, Packages, Specials, Addons, Templates, Announcements and Contacts. You can
+                edit them here or in ROL&apos;OS — both write the same records.
               </span>{" "}
               <button
                 type="button"
@@ -6957,6 +6948,17 @@ export default function PropertyForm({
               }
 
             />
+          </TabsContent>
+
+          {/* Contacts Tab (same editor ROL'OS Property Setup uses) */}
+          <TabsContent value="contacts" className="space-y-0">
+            {!propertyId ? (
+              <p className="p-3 text-sm text-muted-foreground">
+                Save the property first to configure public contacts.
+              </p>
+            ) : (
+              <PropertyContactDetails propertyId={propertyId} />
+            )}
           </TabsContent>
 
           {/* Rate Plans Tab (standalone section — sole nightly-rate authoring surface) */}
