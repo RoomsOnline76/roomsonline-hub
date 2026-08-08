@@ -266,16 +266,38 @@ export function CommissionStatementDetailDialog({
                 ) : (
                   <Badge variant="secondary" className="text-[10px]">Unverified</Badge>
                 )}
-                <p className="pt-2 text-muted-foreground">Reference: <span className="font-mono">{statement.paid_reference || statement.statement_reference || "—"}</span></p>
+                <p className="pt-2 text-muted-foreground">Payout reference: <span className="font-mono">{statement.paid_reference || statement.statement_reference || "—"}</span></p>
+                <p className="pt-1 text-muted-foreground">
+                  {tax.entity_type === "company" ? "Company" : "Individual"} · independent contractor
+                  {tax.tax_reference_number ? ` · SARS ref ${tax.tax_reference_number}` : " · no SARS ref on file"}
+                </p>
+                {vatBreak?.vatRegistered ? (
+                  <Badge variant="outline" className="text-[10px]">
+                    VAT vendor{vatBreak.vatNumber ? ` · ${vatBreak.vatNumber}` : ""}
+                  </Badge>
+                ) : (
+                  <Badge variant="secondary" className="text-[10px]">Not VAT registered</Badge>
+                )}
               </div>
               <div className="space-y-1 rounded-lg border p-3 text-xs">
                 <Row label="Gross commission" value={fmtMoney(statement.gross_commission)} />
                 <Row label="Adjustments" value={fmtMoney(statement.adjustments_total)} />
+                {vatBreak?.vatRegistered && (
+                  <>
+                    <Row label="Commission excluding VAT" value={fmtMoney(vatBreak.exclusive)} />
+                    <Row label={`VAT at ${vatBreak.vatRate}%`} value={fmtMoney(vatBreak.vat)} />
+                  </>
+                )}
                 <Separator className="my-1" />
-                <Row label="Net payable" value={fmtMoney(statement.net_payable)} strong />
+                <Row label="Net commission payout" value={fmtMoney(vatBreak?.total ?? statement.net_payable)} strong />
                 <p className="pt-2 text-[11px] text-muted-foreground">{COMMISSION_BASIS_NOTE}</p>
+                <p className="text-[11px] text-muted-foreground">{COMMISSION_PAYOUT_TAX_NOTE}</p>
+                {vatBreak?.vatRegistered && (
+                  <p className="text-[11px] text-muted-foreground">{COMMISSION_VAT_NOTE}</p>
+                )}
               </div>
             </section>
+
 
             {/* Actions */}
             <div className="flex flex-wrap gap-2">
