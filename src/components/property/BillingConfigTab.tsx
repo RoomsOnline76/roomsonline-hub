@@ -282,6 +282,10 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
       pricelabs_setup_fee: isRolosPms && v.pricelabs_enabled ? toNum(v.pricelabs_setup_fee) : null,
       tier_pricing_json: v.volume_tiers_enabled ? (v.tier_pricing_json as any) : null,
       billing_start_date: startDate || null,
+      engagement_date: engagementDate || null,
+      free_period_days: freePeriodDays === "" ? null : Number(freePeriodDays),
+      billing_anchor_day: engagementDate ? Number(schedulePreview.paidStart?.slice(8, 10)) || null : null,
+
       billing_enabled: enabled,
     } as any);
   };
