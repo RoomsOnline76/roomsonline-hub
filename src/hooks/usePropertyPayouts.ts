@@ -478,6 +478,11 @@ export function usePropertyPayouts(period?: PayoutPeriod | string) {
     totalDue: payouts.reduce((s, p) => s + p.net_payout, 0),
     totalCommission: payouts.reduce((s, p) => s + p.commission_amount, 0),
     totalGross: payouts.reduce((s, p) => s + p.gross_amount, 0),
+    /** Guest money that landed in ROL's own account. */
+    totalRolGross: payouts.reduce((s, p) => s + p.rol_gross, 0),
+    /** Guest money collected by the owner's gateway or a sales channel. */
+    totalByoGross: payouts.reduce((s, p) => s + p.byo_gross, 0),
+
     totalInvoiced: payouts.reduce((s, p) => s + p.invoiced_amount, 0),
     totalPfFees: payouts.reduce((s, p) => s + p.pf_fee, 0),
     propertiesCount: payouts.length,
