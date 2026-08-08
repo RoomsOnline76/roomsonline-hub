@@ -188,10 +188,10 @@ export default function AdminPayments() {
         <TabsList>
           <TabsTrigger value="payouts">Property Payouts</TabsTrigger>
           <TabsTrigger value="commissions" className="gap-1.5">
-            Commission Payouts
-            {totalCommissionsDue > 0 && (
-              <Badge variant="secondary" className="ml-1 text-[10px] h-4 px-1.5">
-                {commissionPayouts.filter(p => p.status === 'approved').length}
+            Referral Commission
+            {awaitingApprovalCount > 0 && (
+              <Badge variant="secondary" className="ml-1 h-4 px-1.5 text-[10px]">
+                {awaitingApprovalCount}
               </Badge>
             )}
           </TabsTrigger>
@@ -202,91 +202,46 @@ export default function AdminPayments() {
           <PayoutStatementRun />
         </TabsContent>
 
-
-        {/* Commission Payouts tab */}
+        {/* Referral commission now lives on its own surface — this is the pointer. */}
         <TabsContent value="commissions">
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="flex items-center gap-2"><Handshake className="h-5 w-5" />Commission Payouts</CardTitle>
-                  <CardDescription>Approved commissions ready for payout to referral partners</CardDescription>
-                </div>
-              </div>
+              <CardTitle className="flex items-center gap-2"><Handshake className="h-5 w-5" />Referral commission</CardTitle>
+              <CardDescription>
+                Partner paysheets are generated, approved, emailed and paid on Commission Statements.
+              </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
               {commissionsLoading ? (
-                <div className="space-y-4">{[1,2,3].map(i => <Skeleton key={i} className="h-12 w-full" />)}</div>
-              ) : commissionPayouts.length === 0 ? (
-                <div className="text-center py-12">
-                  <Handshake className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground">No commission payouts to process</p>
-                </div>
+                <div className="space-y-3">{[1, 2].map(i => <Skeleton key={i} className="h-12 w-full" />)}</div>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Rep</TableHead>
-                      <TableHead>Period</TableHead>
-                      <TableHead>Amount</TableHead>
-                      <TableHead>Banking</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {commissionPayouts.map(p => (
-                      <TableRow key={p.id}>
-                        <TableCell>
-                          <div>
-                            <p className="font-medium text-sm">{p.rep_name}</p>
-                            <p className="text-xs text-muted-foreground">{p.rep_code}</p>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-sm">
-                          {p.period_month ? format(new Date(p.period_month), 'MMMM yyyy') : '—'}
-                        </TableCell>
-                        <TableCell className="font-semibold">R{p.total_amount.toLocaleString()}</TableCell>
-                        <TableCell>
-                          {p.has_banking ? (
-                            p.banking_verified ? (
-                              <Badge variant="outline" className="text-emerald-600 border-emerald-200 text-[10px]">
-                                <CheckCircle className="h-2.5 w-2.5 mr-1" /> Verified
-                              </Badge>
-                            ) : (
-                              <Badge variant="secondary" className="text-[10px]">On file</Badge>
-                            )
-                          ) : (
-                            <Badge variant="destructive" className="text-[10px]">Missing</Badge>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {p.status === 'paid' ? (
-                            <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20">Paid</Badge>
-                          ) : (
-                            <Badge variant="secondary">Approved</Badge>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {p.status === 'approved' && (
-                            <Button size="sm" variant="outline" className="h-7 text-xs"
-                              disabled={!p.has_banking || markingPaid === p.id}
-                              onClick={() => handleMarkPaid(p.id)}
-                            >
-                              {markingPaid === p.id ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <CheckCircle className="h-3 w-3 mr-1" />}
-                              Mark Paid
-                            </Button>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div className="rounded-lg border p-3">
+                    <p className="text-xs text-muted-foreground">Awaiting approval</p>
+                    <p className="text-lg font-bold">{awaitingApprovalCount}</p>
+                  </div>
+                  <div className="rounded-lg border p-3">
+                    <p className="text-xs text-muted-foreground">Approved, awaiting payment</p>
+                    <p className="text-lg font-bold">R{totalCommissionsDue.toLocaleString()}</p>
+                  </div>
+                  <div className="rounded-lg border p-3">
+                    <p className="text-xs text-muted-foreground">Latest period</p>
+                    <p className="text-lg font-bold">
+                      {commissionPayouts[0]?.period_month
+                        ? format(new Date(commissionPayouts[0].period_month), 'MMM yyyy')
+                        : '—'}
+                    </p>
+                  </div>
+                </div>
               )}
+              <Button onClick={() => navigate('/admin/commission-reports')}>
+                Open Commission Statements
+              </Button>
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
+
     </AppLayout>
   );
 }
