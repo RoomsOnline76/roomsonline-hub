@@ -7,7 +7,7 @@ import { resolveReservationTerms, type HouseRulesDepositBlock } from "@/lib/rese
 import { reservationHoldExpiry } from "@/lib/paymentMode";
 import { ReservationPaymentNotice } from "./ReservationPaymentNotice";
 import { format, parseISO } from "date-fns";
-import { CreditCard, Lock, X, Calendar, Users, ChevronRight, Loader2 } from "lucide-react";
+import { CreditCard, Lock, X, Calendar, Users, ChevronRight, Loader2, Landmark } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
