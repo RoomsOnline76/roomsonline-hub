@@ -9,7 +9,9 @@ const RunwayChart = lazy(() => import("./RunwayChart").then((m) => ({ default: m
 import { FinancialMetricsCards } from "./FinancialMetricsCards";
 import { RecurringCommitmentsPanel } from "./RecurringCommitmentsPanel";
 import { Button } from "@/components/ui/button";
-import { Plus, TrendingUp, Receipt, Repeat } from "lucide-react";
+import { Plus, TrendingUp, Receipt, Repeat, Users } from "lucide-react";
+import { CostSharingPanel } from "./CostSharingPanel";
+
 import { AddMetricModal } from "./AddMetricModal";
 import { useRolActualRevenue } from "@/hooks/useRolActualRevenue";
 import {
