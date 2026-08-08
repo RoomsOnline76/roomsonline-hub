@@ -120,6 +120,9 @@ export interface CommissionStatement {
   status: CommissionStatementStatus;
   bank_snapshot: CommissionBankSnapshot;
   terms_snapshot: CommissionTermsSnapshot;
+  tax_snapshot: CommissionTaxSnapshot;
+  vat_amount: number;
+
   generated_at: string;
   approved_by: string | null;
   approved_at: string | null;
