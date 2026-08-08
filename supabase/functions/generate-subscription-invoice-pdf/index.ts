@@ -151,7 +151,9 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { invoice_id } = await req.json();
+    const body = await req.json();
+    const invoice_id = body?.invoice_id;
+    const mode = String(body?.mode || "generate");
     if (!invoice_id) return new Response(JSON.stringify({ error: "invoice_id required" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
     const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
@@ -163,7 +165,27 @@ Deno.serve(async (req) => {
       .eq("id", invoice_id)
       .single();
     if (error || !inv) throw new Error(error?.message || "Invoice not found");
+
+    // mode=url -> mint a fresh short-lived signed URL for the already-stored PDF.
+    // Stored pdf_url values expire, which is why downloads later fail.
+    if (mode === "url" && inv.pdf_url) {
+      const m = String(inv.pdf_url).match(/\/object\/(?:sign|public)\/invoices\/(.+?)(?:\?|$)/);
+      const storedPath = m ? decodeURIComponent(m[1]) : null;
+      if (storedPath) {
+        const { data: fresh, error: signErr } = await supabase.storage
+          .from("invoices")
+          .createSignedUrl(storedPath, 60 * 10, { download: `${inv.invoice_number || "invoice"}.pdf` });
+        if (!signErr && fresh?.signedUrl) {
+          return new Response(JSON.stringify({ success: true, url: fresh.signedUrl, invoice_number: inv.invoice_number }), {
+            status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      }
+      // fall through to regeneration if the stored object is unreachable
+    }
+
     if (inv.status !== "paid") throw new Error(`Invoice status is ${inv.status}, expected paid`);
+
 
     // Assign invoice number if missing (ROL-<DOC>-<PARTY>-<YYYYMM>-<NNN> protocol)
     let invoiceNumber = inv.invoice_number;
@@ -266,7 +288,7 @@ Deno.serve(async (req) => {
     await supabase.from("subscription_invoices").update({ pdf_url: pdfUrl }).eq("id", invoice_id);
 
     // Email owner with attachment
-    if (ownerEmail) {
+    if (ownerEmail && mode !== "url") {
       const html = `<!doctype html><html><body style="font-family:Arial,sans-serif;background:#fff;padding:24px;color:#1A1A2E">
         <div style="max-width:560px;margin:0 auto;border:1px solid #eee;border-radius:8px;padding:24px">
           <h2 style="color:#E91E8C;margin-top:0">Thank you — payment received</h2>
@@ -296,7 +318,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    return new Response(JSON.stringify({ success: true, invoice_number: invoiceNumber, pdf_url: pdfUrl }), {
+    return new Response(JSON.stringify({ success: true, invoice_number: invoiceNumber, pdf_url: pdfUrl, url: pdfUrl }), {
       status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e: any) {

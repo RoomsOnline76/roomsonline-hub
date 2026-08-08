@@ -6,6 +6,7 @@ import { CreditCard, Mail, Trash2, CalendarClock, Loader2, Download, CheckCircle
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { fmtMoney } from "@/lib/ownerAccount";
+import { downloadSubscriptionInvoice } from "@/lib/invoiceDownload";
 import { useAuth } from "@/hooks/useAuth";
 
 interface Props {
@@ -54,6 +55,7 @@ export function AccountTwoPaymentCard({ scope, entityId, onChanged }: Props) {
   const isStaff = isAdmin || isDev || isFearlessLeader;
   const [summary, setSummary] = useState<Summary | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState(false);
 
   const call = useCallback(
     async (action: string, extra: Record<string, unknown> = {}) => {
@@ -149,10 +151,24 @@ export function AccountTwoPaymentCard({ scope, entityId, onChanged }: Props) {
           </p>
           {paidSetupInvoice && !setupInvoice ? (
             paidSetupInvoice.pdf_url ? (
-              <Button asChild size="sm" variant="outline" className="w-full">
-                <a href={paidSetupInvoice.pdf_url} target="_blank" rel="noreferrer">
-                  <Download className="mr-2 h-3.5 w-3.5" /> Download invoice {paidSetupInvoice.number ? `· ${paidSetupInvoice.number}` : ""}
-                </a>
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full"
+                disabled={downloading}
+                onClick={async () => {
+                  setDownloading(true);
+                  try {
+                    await downloadSubscriptionInvoice(paidSetupInvoice.id, paidSetupInvoice.number);
+                  } catch (e) {
+                    toast.error(e instanceof Error ? e.message : "Could not download the invoice");
+                  } finally {
+                    setDownloading(false);
+                  }
+                }}
+              >
+                {downloading ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <Download className="mr-2 h-3.5 w-3.5" />}
+                Download invoice {paidSetupInvoice.number ? `· ${paidSetupInvoice.number}` : ""}
               </Button>
             ) : (
               <Button
@@ -167,6 +183,7 @@ export function AccountTwoPaymentCard({ scope, entityId, onChanged }: Props) {
               </Button>
             )
           ) : setupInvoice?.pay_url ? (
+
             <Button asChild size="sm" className="w-full">
               <a href={setupInvoice.pay_url} target="_blank" rel="noreferrer">
                 Pay setup fee {setupInvoice.number ? `· ${setupInvoice.number}` : ""}

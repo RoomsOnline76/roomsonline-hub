@@ -4,8 +4,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Download, ExternalLink, FileText } from "lucide-react";
+import { Download, ExternalLink, FileText, Loader2 } from "lucide-react";
 import { ADMIN_DOMAIN } from "@/lib/config";
+import { toast } from "sonner";
+import { downloadSubscriptionInvoice } from "@/lib/invoiceDownload";
 import {
   downloadCsv,
   fmtMoney,
@@ -15,6 +17,7 @@ import {
   type OwnerRolInvoice,
   type OwnerSubscriptionInvoice,
 } from "@/lib/ownerAccount";
+
 
 interface Props {
   subscriptionInvoices: OwnerSubscriptionInvoice[];
@@ -44,7 +47,20 @@ const label = (status: string, overdue: boolean) =>
 
 export function AccountInvoicesTab({ subscriptionInvoices, rolInvoices, currency }: Props) {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const today = new Date().toISOString().slice(0, 10);
+
+  const handleDownload = async (id: string, number: string | null) => {
+    setDownloadingId(id);
+    try {
+      await downloadSubscriptionInvoice(id, number);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not download the invoice");
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
 
   const isSetup = (inv: OwnerSubscriptionInvoice) =>
     inv.invoice_kind === "once_off" ||
@@ -113,13 +129,21 @@ export function AccountInvoicesTab({ subscriptionInvoices, rolInvoices, currency
           <TableCell className="whitespace-nowrap">{inv.paid_at?.slice(0, 10) || "—"}</TableCell>
           <TableCell className="text-right">
             <div className="flex justify-end gap-1">
-              {inv.pdf_url && (
-                <Button asChild size="sm" variant="ghost">
-                  <a href={inv.pdf_url} target="_blank" rel="noreferrer">
+              {(inv.pdf_url || inv.status === "paid") && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={downloadingId === inv.id}
+                  onClick={() => handleDownload(inv.id, inv.invoice_number)}
+                >
+                  {downloadingId === inv.id ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
                     <Download className="h-3.5 w-3.5" />
-                  </a>
+                  )}
                 </Button>
               )}
+
               {payUrl && (
                 <Button asChild size="sm" variant="outline">
                   <a href={payUrl} target="_blank" rel="noreferrer">
