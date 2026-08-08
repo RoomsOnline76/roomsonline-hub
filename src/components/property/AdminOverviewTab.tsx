@@ -179,7 +179,12 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
   const facilitator = reservationOnly ? false : config?.payment_facilitator_enabled ?? !byoEnabled;
   const customProvider = !reservationOnly && byoEnabled;
   const wlAllowed = !!config?.white_label_allowed;
-  const wlStatus = (wlDomain?.white_label_domain_status || "unconfigured") as keyof typeof DOMAIN_STATUS_META;
+  const ownDomain = (wlDomain?.white_label_domain || "").trim?.() || null;
+  const effectiveDomain = ownDomain || inheritedWl?.domain || null;
+  const domainInherited = !ownDomain && !!inheritedWl?.domain;
+  const wlStatus = ((domainInherited
+    ? inheritedWl?.status
+    : wlDomain?.white_label_domain_status) || "unconfigured") as keyof typeof DOMAIN_STATUS_META;
   const wlMeta = DOMAIN_STATUS_META[wlStatus] || DOMAIN_STATUS_META.unconfigured;
   const WlIcon = wlMeta.Icon;
   const activeReferral = referrals?.[0];
