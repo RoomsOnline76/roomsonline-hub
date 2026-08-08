@@ -530,7 +530,32 @@ const Bookings = () => {
         booking.status?.toLowerCase() !== "cancelled"
       );
     }
-    
+
+    // Filter by reference origin / kind (falls back to the booking's channel data
+    // for any row whose reference has not been minted yet).
+    if (originFilter !== "all") {
+      result = result.filter(
+        (booking) =>
+          resolveOriginCode({
+            rol_reference: booking.rol_reference,
+            rol_ref_origin: booking.rol_ref_origin,
+            integration_type: booking.integration_type,
+            booking_channel: booking.booking_channel,
+          }) === originFilter,
+      );
+    }
+    if (kindFilter !== "all") {
+      result = result.filter((booking) => {
+        const origin = resolveOriginCode({
+          rol_reference: booking.rol_reference,
+          rol_ref_origin: booking.rol_ref_origin,
+          integration_type: booking.integration_type,
+          booking_channel: booking.booking_channel,
+        });
+        return (booking.rol_ref_kind || kindForOrigin(origin)) === kindFilter;
+      });
+    }
+
     // Filter by search term - searches all visible columns
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
@@ -549,11 +574,13 @@ const Bookings = () => {
         const itineraryRef = (booking.ai_metadata as any)?.itinerary_id?.substring(0, 8)?.toLowerCase() || "";
         
         return (
+          matchesReferenceSearch(booking.rol_reference, term) ||
           booking.guest_name.toLowerCase().includes(term) ||
           booking.guest_email.toLowerCase().includes(term) ||
           booking.property_name?.toLowerCase().includes(term) ||
           booking.external_reservation_id?.toLowerCase().includes(term) ||
           internalRef.startsWith(term) ||
+
           itineraryRef.startsWith(term) ||
           checkInDate.includes(term) ||
           checkOutDate.includes(term) ||
