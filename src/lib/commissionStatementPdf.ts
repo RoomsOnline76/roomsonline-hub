@@ -213,17 +213,32 @@ export function buildCommissionStatementPdf(
   }
 
   /* ---------------- Section C ---------------- */
-  if (y > 600) { doc.addPage(); y = 52; }
+  if (y > 560) { doc.addPage(); y = 52; }
 
+  const boxH = vatBreak.vatRegistered ? 108 : 74;
   doc.setFillColor(250, 244, 249);
-  doc.rect(M, y - 14, pageW - M * 2, 74, "F");
+  doc.rect(M, y - 14, pageW - M * 2, boxH, "F");
   doc.setFont("helvetica", "bold");
   doc.setFontSize(10);
   doc.setTextColor(...INK);
-  doc.text(adjustments.length > 0 ? "C · NET PAYABLE" : "B · NET PAYABLE", M + 12, y + 4);
+  doc.text(
+    adjustments.length > 0 ? "C · NET COMMISSION PAYOUT" : "B · NET COMMISSION PAYOUT",
+    M + 12,
+    y + 4,
+  );
   doc.setFontSize(16);
   doc.setTextColor(...PINK);
-  doc.text(money(statement.net_payable), pageW - M - 12, y + 6, { align: "right" });
+  doc.text(money(vatBreak.total), pageW - M - 12, y + 6, { align: "right" });
+
+  let boxY = y + 26;
+  if (vatBreak.vatRegistered) {
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(...MUTED);
+    doc.text(`Commission excluding VAT: ${money(vatBreak.exclusive)}`, M + 12, boxY);
+    doc.text(`VAT at ${vatBreak.vatRate}%: ${money(vatBreak.vat)}`, M + 12, boxY + 13);
+    boxY += 30;
+  }
 
   const bank = statement.bank_snapshot || {};
   doc.setFont("helvetica", "normal");
@@ -232,26 +247,39 @@ export function buildCommissionStatementPdf(
   const bankLine = bank.bank_name || bank.account_number_masked
     ? `${bank.account_holder || statement.rep_name || "Referral partner"} · ${bank.bank_name || "bank on file"} · ${bank.account_number_masked || "account on file"}${bank.is_verified ? "" : " · banking not yet verified"}`
     : "No banking details on file — capture them before paying this statement.";
-  doc.text(bankLine, M + 12, y + 26);
+  doc.text(bankLine, M + 12, boxY);
   doc.setFont("helvetica", "bold");
   doc.setTextColor(...INK);
   doc.text(
-    `Payment reference: ${statement.paid_reference || statement.statement_reference || "(issued on approval)"}`,
+    `Payout reference: ${statement.paid_reference || statement.statement_reference || "(issued on approval)"}`,
     M + 12,
-    y + 42,
+    boxY + 16,
   );
-  y += 82;
+  y += boxH + 22;
+
+  /* ---------------- Section D — tax position ---------------- */
+  if (y > 640) { doc.addPage(); y = 52; }
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(9);
+  doc.setTextColor(...INK);
+  doc.text("TAX POSITION", M, y);
+  y += 12;
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(7.6);
   doc.setTextColor(...MUTED);
-  doc.text(doc.splitTextToSize(COMMISSION_BASIS_NOTE, pageW - M * 2), M, y);
-  y += 24;
+  const notes = [COMMISSION_PAYOUT_TAX_NOTE, vatBreak.vatRegistered ? COMMISSION_VAT_NOTE : null, COMMISSION_BASIS_NOTE]
+    .filter(Boolean)
+    .join("\n\n");
+  const wrapped = doc.splitTextToSize(notes, pageW - M * 2);
+  doc.text(wrapped, M, y);
+  y += wrapped.length * 9 + 12;
 
   if (statement.status === "paid" && statement.paid_at) {
     doc.setFontSize(8);
     doc.text(`Paid on ${fmtDate(statement.paid_at)}.`, M, y);
   }
+
 
   const pageCount = doc.getNumberOfPages();
   for (let i = 1; i <= pageCount; i += 1) {
