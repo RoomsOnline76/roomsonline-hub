@@ -182,8 +182,13 @@ export function AddInvoiceModal({
         due_date: data.due_date || null,
         is_paid: data.is_paid,
         notes: data.notes || null,
+        document_path: data.document_path,
+        document_name: data.document_name,
+        document_size: data.document_size,
+        document_type: data.document_type,
         created_by: userData.user?.id,
       };
+
 
       if (isEditing && editingInvoice) {
         const { error } = await supabase
