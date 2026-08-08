@@ -129,6 +129,7 @@ export function ReservationFinder({ bookings, rooms, propertyNames, onSelectBook
               >
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-sm font-medium">{booking.guest_name}</span>
+                  <span className="font-mono text-[10px] text-muted-foreground">{displayBookingReference(booking)}</span>
                   <Badge variant="secondary" className="text-[10px] capitalize">{booking.status.replace(/_/g, " ")}</Badge>
                   {booking.payment_status && (
                     <Badge variant="outline" className="text-[10px] capitalize">{booking.payment_status.replace(/_/g, " ")}</Badge>
@@ -137,6 +138,7 @@ export function ReservationFinder({ bookings, rooms, propertyNames, onSelectBook
                     <span className="text-[10px] text-muted-foreground">{propertyNames.get(booking.property_id)}</span>
                   )}
                 </div>
+
                 <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
                   <span>
                     {format(parseISO(booking.check_in_date), "d MMM")} → {format(parseISO(booking.check_out_date), "d MMM yyyy")} ·{" "}
