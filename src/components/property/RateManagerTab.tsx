@@ -146,7 +146,7 @@ export function RateManagerTab({
 
       {/* Main Content */}
       <div className="flex-1 overflow-auto">
-        <Tabs value={effectiveTab} onValueChange={setActiveTab} className="w-full">
+        <Tabs value={effectiveTab} className="w-full">
           {/* ── Seasons Calendar Sub-tab ───────────────────────────────────── */}
           <TabsContent value="seasons-calendar" className="p-4">
             <SeasonsCalendar
