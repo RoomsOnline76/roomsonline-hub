@@ -53,3 +53,51 @@ export function usePropertyPaymentMode(propertyId?: string | null): PaymentModeR
     isLoading,
   };
 }
+
+/**
+ * Multi-property variant used by journey checkout. A journey cannot be charged
+ * online when any leg belongs to a reservation-only property, so the whole
+ * journey falls back to reserve-and-pay-the-property.
+ */
+export function usePropertiesPaymentModes(propertyIds: (string | null | undefined)[]) {
+  const ids = Array.from(
+    new Set(propertyIds.filter((v): v is string => !!v && UUID_RE.test(v))),
+  ).sort();
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["properties-payment-modes", ids.join(",")],
+    enabled: ids.length > 0,
+    staleTime: 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("properties")
+        .select("id, name, payment_mode, allow_custom_payment_provider, amenities")
+        .in("id", ids);
+      if (error) return [];
+      return data ?? [];
+    },
+  });
+
+  const rows = (data ?? []) as {
+    id: string;
+    name?: string | null;
+    payment_mode?: string | null;
+    allow_custom_payment_provider?: boolean | null;
+    amenities?: unknown;
+  }[];
+
+  const reservationOnlyRows = rows.filter(
+    (r) => normalisePaymentMode(r.payment_mode, r.allow_custom_payment_provider) === "reservation_only",
+  );
+
+  return {
+    isLoading,
+    hasReservationOnly: reservationOnlyRows.length > 0,
+    reservationOnlyProperties: reservationOnlyRows.map((r) => ({
+      id: r.id,
+      name: r.name ?? null,
+      banking: extractBankingDetails(r.amenities),
+    })),
+  };
+}
+
