@@ -293,7 +293,7 @@ Deno.serve(async (req) => {
       .order("created_at", { ascending: false })
       .limit(200);
 
-    const openSetup = (invoices ?? []).find(
+    let openSetup = (invoices ?? []).find(
       (i: any) => i.invoice_kind === "once_off" && !["paid", "void", "cancelled"].includes(i.status),
     );
     const openSubscription = (invoices ?? []).find(
@@ -335,24 +335,11 @@ Deno.serve(async (req) => {
       cancelled_count: cancelled.length,
     });
 
-    if (action === "summary") return json({ success: true, ...summary() });
-
-    if (action === "delete_cancelled") {
-      if (!isStaff) return json({ error: "forbidden" }, 403);
-      const ids = cancelled.map((i: any) => i.id);
-      if (!ids.length) return json({ success: true, deleted: 0 });
-      await supabase
-        .from("subscription_charge_items")
-        .update({ invoiced_on_invoice_id: null })
-        .in("invoiced_on_invoice_id", ids);
-      const { error } = await supabase.from("subscription_invoices").delete().in("id", ids);
-      if (error) return json({ error: error.message }, 400);
-      return json({ success: true, deleted: ids.length });
-    }
-
-    if (action === "raise_setup_invoice") {
-      if (openSetup) return json({ success: true, invoice_id: openSetup.id, pay_url: payUrl(openSetup.payfast_token) });
-      if (setupTotal <= 0) return json({ error: "no_setup_fees_due" }, 400);
+    // Contracted setup fees are payable on signature, so the once-off invoice is
+    // raised automatically the first time the account is read — no manual step.
+    const ensureSetupInvoice = async () => {
+      if (openSetup) return openSetup;
+      if (setupTotal <= 0) return null;
       const insert: any = {
         amount: setupTotal,
         currency,
@@ -374,14 +361,42 @@ Deno.serve(async (req) => {
       const { data: created, error } = await supabase
         .from("subscription_invoices")
         .insert(insert)
-        .select("id, payfast_token")
+        .select("id, invoice_number, invoice_kind, amount, status, period_start, period_end, payfast_token, created_at")
         .single();
-      if (error) return json({ error: error.message }, 400);
+      if (error || !created) return null;
+      const itemIds = setupCharges.flatMap((c) => c.itemIds);
+      if (itemIds.length) {
+        await supabase
+          .from("subscription_charge_items")
+          .update({ invoiced_on_invoice_id: created.id })
+          .in("id", itemIds);
+      }
+      openSetup = created;
+      return created;
+    };
+
+    if (action === "summary") {
+      await ensureSetupInvoice();
+      return json({ success: true, ...summary() });
+    }
+
+    if (action === "delete_cancelled") {
+      if (!isStaff) return json({ error: "forbidden" }, 403);
+      const ids = cancelled.map((i: any) => i.id);
+      if (!ids.length) return json({ success: true, deleted: 0 });
       await supabase
         .from("subscription_charge_items")
-        .update({ invoiced_on_invoice_id: created.id })
-        .in("id", setupCharges.flatMap((c) => c.itemIds));
-      return json({ success: true, invoice_id: created.id, pay_url: payUrl(created.payfast_token) });
+        .update({ invoiced_on_invoice_id: null })
+        .in("invoiced_on_invoice_id", ids);
+      const { error } = await supabase.from("subscription_invoices").delete().in("id", ids);
+      if (error) return json({ error: error.message }, 400);
+      return json({ success: true, deleted: ids.length });
+    }
+
+    if (action === "raise_setup_invoice") {
+      const inv = await ensureSetupInvoice();
+      if (!inv) return json({ error: "no_setup_fees_due" }, 400);
+      return json({ success: true, invoice_id: inv.id, pay_url: payUrl(inv.payfast_token) });
     }
 
     if (action === "start_subscription") {

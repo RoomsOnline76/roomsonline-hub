@@ -143,18 +143,13 @@ export function AccountTwoPaymentCard({ scope, entityId, onChanged }: Props) {
               </a>
             </Button>
           ) : setupAmount > 0 ? (
-            <Button
-              size="sm"
-              className="w-full"
-              disabled={spin("raise_setup_invoice")}
-              onClick={() => void run("raise_setup_invoice", "Setup invoice raised", true)}
-            >
-              {spin("raise_setup_invoice") && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
-              Pay setup fee now
-            </Button>
+            <p className="text-[11px] text-muted-foreground">
+              Invoice is being raised automatically — refresh in a moment.
+            </p>
           ) : (
             <p className="text-[11px] text-muted-foreground">No setup fees outstanding.</p>
           )}
+
         </div>
 
         {/* 2 — monthly subscription */}
