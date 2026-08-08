@@ -416,121 +416,28 @@ Deno.serve(async (req) => {
         });
       }
 
-      // BYO / channel commission is money we never held — recover it on the invoice.
-      if (byoCommission > 0) {
-        lines.push({
-          property_id: null,
-          property_name: null,
-          line_kind: "recovery",
-          line_date: periodEnd,
-          booking_id: null,
-          payment_transaction_id: null,
-          rol_reference: null,
-          description: "Commission on bookings settled to the property's own account",
-          guest_name: null,
-          check_in_date: null,
-          check_out_date: null,
-          settlement_route: "byo",
-          commission_type: null,
-          gross_amount: round2(byoGross),
-          commission_rate: byoGross > 0 ? round2((byoCommission / byoGross) * 100) : 0,
-          commission_amount: round2(byoCommission),
-          fee_amount: 0,
-          net_amount: 0,
-          is_recoverable: true,
-          source_kind: "byo_commission",
-          source_id: null,
-        });
-      }
+      /* Recoveries are deliberately NOT on this statement any more:
+         - commission on own-gateway bookings, and
+         - subscriptions / platform / one-off charges
+         are billed on the separate ROL property invoice and subscription plans.
+         The statement only settles money ROL actually holds. */
 
-      // Pending platform charges for the properties in this group.
-      const groupCharges = (chargesRes.data || []).filter((c: Record<string, any>) => {
-        if (c.portfolio_id && bucket.portfolioId) return c.portfolio_id === bucket.portfolioId;
-        return c.property_id && bucket.propertyIds.has(c.property_id);
-      });
-
-      let recurringFees = 0;
-      groupCharges.forEach((c: Record<string, any>) => {
-        const amount = round2(num(c.amount));
-        if (amount === 0) return;
-        recurringFees += amount;
-        lines.push({
-          property_id: c.property_id || null,
-          property_name: c.property_id ? propertyById.get(c.property_id)?.name || null : null,
-          line_kind: "charge",
-          line_date: String(c.created_at || periodEnd).slice(0, 10),
-          booking_id: null,
-          payment_transaction_id: null,
-          rol_reference: null,
-          description: c.description || String(c.kind || "Platform charge"),
-          guest_name: null,
-          check_in_date: null,
-          check_out_date: null,
-          settlement_route: null,
-          commission_type: null,
-          gross_amount: 0,
-          commission_rate: 0,
-          commission_amount: 0,
-          fee_amount: amount,
-          net_amount: 0,
-          is_recoverable: true,
-          source_kind: `charge:${c.kind || "other"}`,
-          source_id: c.id,
-        });
-      });
-
-      // Balance brought forward from the previous statement for this group.
-      let openingBalance = 0;
-      const prevQuery = supabase
-        .from("property_payout_statements")
-        .select("carry_forward, period_end")
-        .in("status", ["finalised", "paid"])
-        .lt("period_start", periodStart)
-        .order("period_start", { ascending: false })
-        .limit(1);
-      const { data: prev } = bucket.portfolioId
-        ? await prevQuery.eq("portfolio_id", bucket.portfolioId)
-        : await prevQuery.eq("property_id", bucket.propertyId);
-      if (prev && prev.length > 0) openingBalance = round2(num(prev[0].carry_forward));
-
-      if (openingBalance > 0) {
-        lines.push({
-          property_id: null,
-          property_name: null,
-          line_kind: "opening_balance",
-          line_date: periodStart,
-          booking_id: null,
-          payment_transaction_id: null,
-          rol_reference: null,
-          description: "Balance brought forward from previous statement",
-          guest_name: null,
-          check_in_date: null,
-          check_out_date: null,
-          settlement_route: null,
-          commission_type: null,
-          gross_amount: 0,
-          commission_rate: 0,
-          commission_amount: 0,
-          fee_amount: openingBalance,
-          net_amount: 0,
-          is_recoverable: true,
-          source_kind: "opening_balance",
-          source_id: null,
-        });
-      }
+      const recurringFees = 0;
+      const openingBalance = 0;
 
       const amountHeld = round2(rolGross - rolCommission - txFees);
-      const invoiceSubtotalRaw = round2(rolCommission + txFees + byoCommission + recurringFees);
+      const invoiceSubtotalRaw = round2(rolCommission + txFees);
       const invoiceSubtotal = vatEnabled
         ? round2(invoiceSubtotalRaw / (1 + vatRate / 100))
         : invoiceSubtotalRaw;
       const invoiceVat = vatEnabled ? round2(invoiceSubtotalRaw - invoiceSubtotal) : 0;
       const invoiceTotal = invoiceSubtotalRaw;
 
-      // Cash we can actually release, after the invoice and any brought-forward debt.
-      const payableRaw = round2(amountHeld - byoCommission - recurringFees - openingBalance);
-      const netPayable = Math.max(0, payableRaw);
-      const carryForward = payableRaw < 0 ? round2(-payableRaw) : 0;
+      // Commission and the processing fee are already withheld from the money we hold,
+      // so the full held amount is releasable — nothing can carry forward.
+      const netPayable = Math.max(0, amountHeld);
+      const carryForward = 0;
+
 
       built.push({
         key,
