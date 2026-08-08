@@ -83,8 +83,10 @@ export interface CostShareSummary {
   partnerAllocationZar: number;
   /** Contributions received from Carike (all time). */
   carikeContributedZar: number;
-  /** Contributions/settlements recorded against Dawie (all time). */
+  /** Dawie's contribution: his 40% is deemed paid (he settled every invoice), plus any recorded extra. */
   dawieContributedZar: number;
+  /** Only the contributions explicitly captured against Dawie. */
+  dawieRecordedZar: number;
   /** Carike's remaining balance after her contributions. */
   roomsonlineOutstandingZar: number;
   /** Dawie's 40% is settled by the invoices he already paid. */
