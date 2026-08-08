@@ -1,9 +1,13 @@
 /**
- * send-commission-statement — emails a referral partner their monthly paysheet.
+ * send-commission-statement — emails a referral partner their monthly commission
+ * payout statement. This is not a payslip: the partner is an independent
+ * contractor and carries their own SARS obligations.
  *
  * The email carries the same numbers as the PDF: per-property commission, the
- * rate applied, adjustments, and the net payable with its payment reference.
+ * rate applied, adjustments, VAT (for VAT vendors) and the net payout with its
+ * payout reference.
  */
+
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { Resend } from "npm:resend@4";
 import { z } from "npm:zod@3.23.8";
