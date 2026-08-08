@@ -403,8 +403,27 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
 
           <Row
             label="Subscription (monthly)"
-            value={config?.subscription_fee_monthly != null ? `R ${config.subscription_fee_monthly}` : <Empty />}
+            value={
+              config?.subscription_fee_monthly != null ? (
+                `R ${config.subscription_fee_monthly}`
+              ) : isTierStrategy(strategy) && resolvedTier?.effectiveMonthlyFee != null ? (
+                <span>
+                  R {resolvedTier.effectiveMonthlyFee}
+                  <span className="text-xs text-muted-foreground">
+                    {" "}
+                    · tier {resolvedTier.tier?.label?.toUpperCase() ?? "—"} · {resolvedTier.rooms} room
+                    {resolvedTier.rooms === 1 ? "" : "s"}
+                  </span>
+                </span>
+              ) : isTierStrategy(strategy) && resolvedTier?.requiresCustomFee ? (
+                <span className="text-xs text-muted-foreground">Enterprise — custom fee pending</span>
+              ) : (
+                <Empty />
+              )
+            }
+            hint={isTierStrategy(strategy) ? "Resolved from the room-count tier table." : undefined}
           />
+
           {facilitator && (
             <Row
               label="Booking surcharge % (ROL facilitator)"
