@@ -7,6 +7,7 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { Resend } from "npm:resend@2";
+import { getAdminCopyRecipients } from "../_shared/billingAdminRecipients.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
