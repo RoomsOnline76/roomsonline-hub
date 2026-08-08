@@ -11,7 +11,8 @@ const corsHeaders = {
 
 const requestSchema = z.object({
   booking_id: z.string().uuid({ message: "Invalid booking ID format" }),
-  status: z.enum(["success", "failed", "admin_alert", "property_notification"]),
+  status: z.enum(["success", "failed", "admin_alert", "property_notification"]).default("success"),
+  email_type: z.enum(["reservation_only"]).optional(),
   error_message: z.string().optional(),
   sync_warning: z.string().optional(),
   recipient_email: z.string().email().optional(), // For property notifications
@@ -1256,6 +1257,21 @@ Deno.serve(async (req) => {
 
     const property = booking.property;
 
+    // Reservation-only properties collect payment manually — hydrate their
+    // banking block so the guest email can carry EFT instructions.
+    if (isReservationOnlyBooking(booking, property)) {
+      try {
+        const { data: bank } = await supabaseClient
+          .from("property_bank_details")
+          .select("bank_name, branch_code, account_holder, account_number_masked, account_type, swift_code")
+          .eq("property_id", property.id)
+          .maybeSingle();
+        if (bank) (property as any).__banking = bank;
+      } catch (e) {
+        console.warn("[send-booking-email] Bank detail lookup failed:", e);
+      }
+    }
+
     // Guest-facing emails must always name the unit/room that was booked.
     // Some booking paths (PMS/native, channel pushes) leave `bookings.rooms` empty and
     // only store `rolos_room_ids` / `room_type_id`, so hydrate a rooms array from those.
@@ -1488,7 +1504,9 @@ Deno.serve(async (req) => {
 
     // Generate email HTML based on status and custom template availability
     let html: string;
-    if (status === "success" && hasCustomTemplate) {
+    // Reservation-only bookings must use the standard template so the banking
+    // details, amount due and cancellation terms are always present.
+    if (status === "success" && hasCustomTemplate && !isReservationOnlyBooking(booking, property)) {
       // Use custom template with variable replacement
       let processedContent = replaceTemplateVariables(customTemplateContent, booking, property);
       
