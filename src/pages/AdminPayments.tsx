@@ -1,13 +1,10 @@
 import { useEffect, useState, useMemo } from "react";
-import { 
-  CreditCard, 
-  DollarSign, 
-  AlertTriangle,
-  CheckCircle,
+import { useNavigate } from "react-router-dom";
+import {
+  CreditCard,
+  DollarSign,
   Clock,
-  Download,
   Handshake,
-  Loader2,
   Building2,
   TrendingUp,
 } from "lucide-react";
@@ -18,12 +15,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from "@/components/ui/table";
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -47,10 +38,11 @@ interface CommissionPayout {
 const PENDING_SESSION_MS = 2 * 60 * 60 * 1000;
 
 export default function AdminPayments() {
+  const navigate = useNavigate();
   const [commissionPayouts, setCommissionPayouts] = useState<CommissionPayout[]>([]);
   const [loading, setLoading] = useState(true);
   const [commissionsLoading, setCommissionsLoading] = useState(true);
-  const [markingPaid, setMarkingPaid] = useState<string | null>(null);
+
   const [txStats, setTxStats] = useState({
     totalRevenue: 0, pendingAmount: 0, failedCount: 0, successCount: 0,
   });
@@ -115,37 +107,28 @@ export default function AdminPayments() {
     }
   };
 
+  // Commission detail lives on Admin → Commission Statements; Payments only
+  // surfaces the headline so an admin knows there is money waiting there.
   const loadCommissionPayouts = async () => {
     try {
       setCommissionsLoading(true);
       const { data: reports, error } = await supabase
         .from('rep_commission_reports')
-        .select(`id, rep_id, period_month, total_amount, status, sales_reps!inner(display_name, rep_code, id)`)
-        .in('status', ['approved', 'paid'])
+        .select(`id, rep_id, period_month, total_amount, net_payable, status, sales_reps!inner(display_name, rep_code, id)`)
+        .in('status', ['pending_approval', 'approved'])
         .order('period_month', { ascending: false })
         .limit(50);
       if (error) throw error;
-
-      const repIds = [...new Set((reports || []).map((r: any) => r.rep_id))];
-      let bankingMap: Record<string, { exists: boolean; verified: boolean }> = {};
-      if (repIds.length > 0) {
-        const { data: bankData } = await supabase
-          .from('sales_rep_bank_details')
-          .select('rep_id, is_verified')
-          .in('rep_id', repIds);
-        (bankData || []).forEach((b: any) => {
-          bankingMap[b.rep_id] = { exists: true, verified: b.is_verified };
-        });
-      }
 
       setCommissionPayouts((reports || []).map((r: any) => ({
         id: r.id, rep_id: r.rep_id,
         rep_name: r.sales_reps?.display_name || 'Unknown',
         rep_code: r.sales_reps?.rep_code || '',
         period_month: r.period_month,
-        total_amount: r.total_amount || 0, status: r.status,
-        has_banking: !!bankingMap[r.rep_id]?.exists,
-        banking_verified: !!bankingMap[r.rep_id]?.verified,
+        total_amount: Number(r.net_payable ?? r.total_amount) || 0,
+        status: r.status,
+        has_banking: false,
+        banking_verified: false,
       })));
     } catch (error) {
       console.error('Error loading commission payouts:', error);
@@ -154,26 +137,11 @@ export default function AdminPayments() {
     }
   };
 
-  const handleMarkPaid = async (reportId: string) => {
-    try {
-      setMarkingPaid(reportId);
-      const { error } = await supabase
-        .from('rep_commission_reports')
-        .update({ status: 'paid', paid_at: new Date().toISOString() } as any)
-        .eq('id', reportId);
-      if (error) throw error;
-      toast.success('Commission marked as paid');
-      loadCommissionPayouts();
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to mark as paid');
-    } finally {
-      setMarkingPaid(null);
-    }
-  };
-
   const totalCommissionsDue = commissionPayouts
     .filter(p => p.status === 'approved')
     .reduce((sum, p) => sum + p.total_amount, 0);
+  const awaitingApprovalCount = commissionPayouts.filter(p => p.status === 'pending_approval').length;
+
 
   const StatCard = ({ title, value, icon: Icon, description, variant = 'default' }: {
     title: string; value: string | number; icon: React.ElementType; description?: string;
@@ -212,10 +180,10 @@ export default function AdminPayments() {
         <TabsList>
           <TabsTrigger value="payouts">Property Payouts</TabsTrigger>
           <TabsTrigger value="commissions" className="gap-1.5">
-            Commission Payouts
-            {totalCommissionsDue > 0 && (
-              <Badge variant="secondary" className="ml-1 text-[10px] h-4 px-1.5">
-                {commissionPayouts.filter(p => p.status === 'approved').length}
+            Referral Commission
+            {awaitingApprovalCount > 0 && (
+              <Badge variant="secondary" className="ml-1 h-4 px-1.5 text-[10px]">
+                {awaitingApprovalCount}
               </Badge>
             )}
           </TabsTrigger>
@@ -226,91 +194,46 @@ export default function AdminPayments() {
           <PayoutStatementRun />
         </TabsContent>
 
-
-        {/* Commission Payouts tab */}
+        {/* Referral commission now lives on its own surface — this is the pointer. */}
         <TabsContent value="commissions">
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="flex items-center gap-2"><Handshake className="h-5 w-5" />Commission Payouts</CardTitle>
-                  <CardDescription>Approved commissions ready for payout to referral partners</CardDescription>
-                </div>
-              </div>
+              <CardTitle className="flex items-center gap-2"><Handshake className="h-5 w-5" />Referral commission</CardTitle>
+              <CardDescription>
+                Partner paysheets are generated, approved, emailed and paid on Commission Statements.
+              </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
               {commissionsLoading ? (
-                <div className="space-y-4">{[1,2,3].map(i => <Skeleton key={i} className="h-12 w-full" />)}</div>
-              ) : commissionPayouts.length === 0 ? (
-                <div className="text-center py-12">
-                  <Handshake className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground">No commission payouts to process</p>
-                </div>
+                <div className="space-y-3">{[1, 2].map(i => <Skeleton key={i} className="h-12 w-full" />)}</div>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Rep</TableHead>
-                      <TableHead>Period</TableHead>
-                      <TableHead>Amount</TableHead>
-                      <TableHead>Banking</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {commissionPayouts.map(p => (
-                      <TableRow key={p.id}>
-                        <TableCell>
-                          <div>
-                            <p className="font-medium text-sm">{p.rep_name}</p>
-                            <p className="text-xs text-muted-foreground">{p.rep_code}</p>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-sm">
-                          {p.period_month ? format(new Date(p.period_month), 'MMMM yyyy') : '—'}
-                        </TableCell>
-                        <TableCell className="font-semibold">R{p.total_amount.toLocaleString()}</TableCell>
-                        <TableCell>
-                          {p.has_banking ? (
-                            p.banking_verified ? (
-                              <Badge variant="outline" className="text-emerald-600 border-emerald-200 text-[10px]">
-                                <CheckCircle className="h-2.5 w-2.5 mr-1" /> Verified
-                              </Badge>
-                            ) : (
-                              <Badge variant="secondary" className="text-[10px]">On file</Badge>
-                            )
-                          ) : (
-                            <Badge variant="destructive" className="text-[10px]">Missing</Badge>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {p.status === 'paid' ? (
-                            <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20">Paid</Badge>
-                          ) : (
-                            <Badge variant="secondary">Approved</Badge>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {p.status === 'approved' && (
-                            <Button size="sm" variant="outline" className="h-7 text-xs"
-                              disabled={!p.has_banking || markingPaid === p.id}
-                              onClick={() => handleMarkPaid(p.id)}
-                            >
-                              {markingPaid === p.id ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <CheckCircle className="h-3 w-3 mr-1" />}
-                              Mark Paid
-                            </Button>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div className="rounded-lg border p-3">
+                    <p className="text-xs text-muted-foreground">Awaiting approval</p>
+                    <p className="text-lg font-bold">{awaitingApprovalCount}</p>
+                  </div>
+                  <div className="rounded-lg border p-3">
+                    <p className="text-xs text-muted-foreground">Approved, awaiting payment</p>
+                    <p className="text-lg font-bold">R{totalCommissionsDue.toLocaleString()}</p>
+                  </div>
+                  <div className="rounded-lg border p-3">
+                    <p className="text-xs text-muted-foreground">Latest period</p>
+                    <p className="text-lg font-bold">
+                      {commissionPayouts[0]?.period_month
+                        ? format(new Date(commissionPayouts[0].period_month), 'MMM yyyy')
+                        : '—'}
+                    </p>
+                  </div>
+                </div>
               )}
+              <Button onClick={() => navigate('/admin/commission-reports')}>
+                Open Commission Statements
+              </Button>
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
+
     </AppLayout>
   );
 }
