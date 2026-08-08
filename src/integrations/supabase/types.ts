@@ -2377,6 +2377,7 @@ export type Database = {
           is_paid: boolean | null
           notes: string | null
           paid_at: string | null
+          receipt_number: string | null
           source_currency: string
           updated_at: string | null
           vendor: string | null
@@ -2400,6 +2401,7 @@ export type Database = {
           is_paid?: boolean | null
           notes?: string | null
           paid_at?: string | null
+          receipt_number?: string | null
           source_currency?: string
           updated_at?: string | null
           vendor?: string | null
@@ -2423,6 +2425,7 @@ export type Database = {
           is_paid?: boolean | null
           notes?: string | null
           paid_at?: string | null
+          receipt_number?: string | null
           source_currency?: string
           updated_at?: string | null
           vendor?: string | null
@@ -6879,6 +6882,108 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      rol_contributions: {
+        Row: {
+          amount: number
+          amount_zar: number
+          contribution_date: string
+          contributor_key: string
+          contributor_name: string
+          created_at: string
+          created_by: string | null
+          document_name: string | null
+          document_path: string | null
+          document_size: number | null
+          document_type: string | null
+          id: string
+          method: string | null
+          notes: string | null
+          reference: string | null
+          source_currency: string
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          amount_zar: number
+          contribution_date?: string
+          contributor_key: string
+          contributor_name: string
+          created_at?: string
+          created_by?: string | null
+          document_name?: string | null
+          document_path?: string | null
+          document_size?: number | null
+          document_type?: string | null
+          id?: string
+          method?: string | null
+          notes?: string | null
+          reference?: string | null
+          source_currency?: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          amount_zar?: number
+          contribution_date?: string
+          contributor_key?: string
+          contributor_name?: string
+          created_at?: string
+          created_by?: string | null
+          document_name?: string | null
+          document_path?: string | null
+          document_size?: number | null
+          document_type?: string | null
+          id?: string
+          method?: string | null
+          notes?: string | null
+          reference?: string | null
+          source_currency?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      rol_cost_share_config: {
+        Row: {
+          commissioned_at: string | null
+          commissioning_complete: boolean
+          created_at: string
+          id: string
+          partner_pct: number
+          roomsonline_pct: number
+          singleton: boolean
+          split_active: boolean
+          statement_fx_usd_zar: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          commissioned_at?: string | null
+          commissioning_complete?: boolean
+          created_at?: string
+          id?: string
+          partner_pct?: number
+          roomsonline_pct?: number
+          singleton?: boolean
+          split_active?: boolean
+          statement_fx_usd_zar?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          commissioned_at?: string | null
+          commissioning_complete?: boolean
+          created_at?: string
+          id?: string
+          partner_pct?: number
+          roomsonline_pct?: number
+          singleton?: boolean
+          split_active?: boolean
+          statement_fx_usd_zar?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
       }
       rol_financial_signoffs: {
         Row: {
@@ -13972,6 +14077,7 @@ export type Database = {
         Args: { _property_id: string; _user_id: string }
         Returns: boolean
       }
+      can_view_cost_share: { Args: never; Returns: boolean }
       can_view_rol_pulse: { Args: { user_id: string }; Returns: boolean }
       cancel_subscription_by_token: {
         Args: { _token: string }
@@ -14059,6 +14165,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_cost_share_owner: { Args: never; Returns: boolean }
       is_linked_owner: {
         Args: { _property_id: string; _user_id: string }
         Returns: boolean
