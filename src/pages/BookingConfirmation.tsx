@@ -269,8 +269,14 @@ const BookingConfirmation = () => {
           {/* Reference bar — uses primary as accent */}
           <div className="bg-primary/5 px-5 py-3 flex items-center justify-between border-b border-primary/10">
             <span className="text-xs font-medium text-primary/70 uppercase tracking-wider">Reference</span>
-            <span className="font-mono text-sm font-semibold tracking-wide text-primary">{displayRef}</span>
+            <span className="text-right">
+              <span className="block font-mono text-sm font-semibold tracking-wide text-primary">{displayRef}</span>
+              {channelRef && (
+                <span className="block font-mono text-[10px] text-muted-foreground">channel ref {channelRef}</span>
+              )}
+            </span>
           </div>
+
 
           <div className="px-5 py-5 space-y-4">
             {/* Property */}
