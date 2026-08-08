@@ -273,6 +273,21 @@ const Booking = () => {
   );
   const cancellationPolicyRule = resolvedPolicy?.rule ?? null;
 
+  /** Deposit / due-date terms for reservation-only (pay-the-property) checkouts. */
+  const buildReservationTerms = useCallback(
+    (total: number) =>
+      resolveReservationTerms({
+        total,
+        checkIn: checkIn || new Date().toISOString().slice(0, 10),
+        houseRules:
+          ((property as { amenities?: { house_rules?: HouseRulesDepositBlock } } | null)?.amenities
+            ?.house_rules) ?? null,
+        cancellationRule: cancellationPolicyRule,
+      }),
+    [checkIn, property, cancellationPolicyRule],
+  );
+
+
   // Fetch VAT config from brand config, with amenities fallback
   useEffect(() => {
     if (!property?.id) return;
