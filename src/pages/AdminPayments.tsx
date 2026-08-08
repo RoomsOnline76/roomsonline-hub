@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { 
   CreditCard, 
   DollarSign, 
@@ -6,8 +6,6 @@ import {
   CheckCircle,
   Clock,
   Download,
-  Filter,
-  Search,
   Handshake,
   Loader2,
   Building2,
@@ -19,7 +17,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -76,21 +73,9 @@ export default function AdminPayments() {
     }
   }, [payoutPeriod]);
 
-  const payoutRangeLabel = useMemo(() => {
-    if (payoutPeriod === 'all') return 'All time, by payment date';
-    const fromD = payoutRange.from ? new Date(payoutRange.from) : null;
-    const toD = payoutRange.to ? new Date(new Date(payoutRange.to).getTime() - 86400000) : new Date();
-    if (!fromD) return 'By payment date';
-    return `${format(fromD, 'd MMM yyyy')} – ${format(toD, 'd MMM yyyy')}, by payment date`;
-  }, [payoutPeriod, payoutRange]);
-
-  const {
-    payouts,
-    loading: payoutsLoading,
-    stats: payoutStats,
-    lastUpdated: payoutsUpdatedAt,
-    refresh: refreshPayouts,
-  } = usePropertyPayouts(payoutRange);
+  // Headline stats still use the live payout view; the statement run below is
+  // the authoritative, persisted document set.
+  const { stats: payoutStats } = usePropertyPayouts(payoutRange);
 
 
   useEffect(() => {
@@ -185,28 +170,6 @@ export default function AdminPayments() {
       setMarkingPaid(null);
     }
   };
-
-  const getStatusBadge = (status: string, createdAt?: string) => {
-    switch (status) {
-      case 'paid':
-      case 'succeeded':
-      case 'success':
-      case 'completed':
-        return <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20">Paid</Badge>;
-      case 'pending': {
-        const stale = createdAt ? Date.now() - new Date(createdAt).getTime() > PENDING_SESSION_MS : false;
-        return stale
-          ? <Badge variant="outline" className="text-muted-foreground">Expired</Badge>
-          : <Badge variant="secondary">Pending</Badge>;
-      }
-
-      case 'failed':
-        return <Badge variant="destructive">Failed</Badge>;
-      default:
-        return <Badge variant="outline">{status}</Badge>;
-    }
-  };
-
 
   const totalCommissionsDue = commissionPayouts
     .filter(p => p.status === 'approved')
