@@ -114,11 +114,13 @@ export function computeCostShare(params: {
   const partnerAllocationZar = (allTimeSpendZar * partnerPct) / 100;
 
   const carikeContributedZar = sumContributionsZar(contributions, "carike");
-  const dawieContributedZar = sumContributionsZar(contributions, "dawie");
+  const dawieRecordedZar = sumContributionsZar(contributions, "dawie");
 
-  /* Dawie already paid the invoices in full, so anything he contributed beyond
-     his own 40% allocation is a credit against Carike's side. */
-  const dawieCredit = Math.max(0, dawieContributedZar - partnerAllocationZar);
+  /* Dawie settled every invoice in full, so his 40% allocation counts as
+     contributed by default. Anything recorded beyond it is a credit against
+     Carike's side. */
+  const dawieCredit = Math.max(0, dawieRecordedZar - partnerAllocationZar);
+  const dawieContributedZar = Math.max(partnerAllocationZar, dawieRecordedZar);
 
   const roomsonlineOutstandingZar = Math.max(
     0,
@@ -134,9 +136,10 @@ export function computeCostShare(params: {
     partnerAllocationZar,
     carikeContributedZar,
     dawieContributedZar,
+    dawieRecordedZar,
     roomsonlineOutstandingZar,
     partnerOutstandingZar: 0,
-    totalContributedZar: sumContributionsZar(contributions),
+    totalContributedZar: dawieContributedZar + carikeContributedZar,
   };
 }
 
