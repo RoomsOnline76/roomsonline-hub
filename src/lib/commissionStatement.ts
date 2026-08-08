@@ -1,16 +1,19 @@
 /**
  * Referral commission statements — shared types and display maths.
  *
- * A commission statement is the referrer's paysheet for one month:
+ * A commission statement is a referral partner's monthly commission payout —
+ * NOT a payslip. The partner is an independent contractor: no PAYE/UIF/SDL is
+ * withheld and the partner carries their own SARS obligations.
  *
  *   Per property   ROL revenue earned in the period  x  rate  =  commission
  *   Adjustments    manual corrections and clawbacks (negative lines)
- *   Net payable    gross commission + adjustments
+ *   Net payout     gross commission + adjustments (+ VAT if a VAT vendor)
  *
  * Rates and revenue are computed by the `calculate-rep-commissions` engine and
  * snapshotted onto every line, so nothing is recomputed in the browser — what
- * an admin approves is exactly what the rep is paid.
+ * an admin approves is exactly what the partner is paid.
  */
+
 
 export type CommissionStatementStatus =
   | "draft"
