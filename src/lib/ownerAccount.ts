@@ -375,7 +375,9 @@ export function computeBalances(input: BalanceInput): OwnerBalances {
     paidThisYear: round2(paidThisYear),
     paidAllTime: round2(paidAllTime),
     dueToYou: round2(dueToYou),
+    awaitingRelease: round2(awaitingRelease),
     pendingSettlement,
+
     receivedAllTime: round2(receivedAllTime),
     net: round2(due - dueToYou),
   };
