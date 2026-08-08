@@ -245,6 +245,12 @@ Deno.serve(async (req) => {
     const paidStart = paidStartFor(cfg);
     const windowOpensOn = paidStart ? addDays(paidStart, -START_WINDOW_DAYS) : null;
     const canStart = !!windowOpensOn && today() >= windowOpensOn;
+    // A paid subscription re-anchors on the settlement date: the next payment
+    // date replaces the originally scheduled first-billing date.
+    const hasStarted = !!cfg.subscription_started_on || !!cfg.current_period_end;
+    const nextDue = hasStarted && cfg.current_period_end
+      ? String(cfg.current_period_end).slice(0, 10)
+      : paidStart;
 
     // Pending setup charge items (never bundled into the monthly invoice)
     const { data: charges } = await supabase
@@ -351,7 +357,12 @@ Deno.serve(async (req) => {
         : null,
       subscription: {
         monthly_fee: fee,
-        due_by: paidStart,
+        // Once the subscription has been paid, the payment date is the start of
+        // the paid period and the "due by" date becomes the next renewal date.
+        due_by: nextDue,
+        started_on: cfg.subscription_started_on ? String(cfg.subscription_started_on).slice(0, 10) : null,
+        period_start: cfg.current_period_start ? String(cfg.current_period_start).slice(0, 10) : null,
+        has_started: hasStarted,
         window_opens_on: windowOpensOn,
         can_start: canStart,
         invoice: openSubscription
@@ -958,10 +969,24 @@ Deno.serve(async (req) => {
         .is("invoiced_at", null);
 
       if (String(inv.invoice_kind) !== "once_off") {
+        // Settlement date starts the paid period; next payment is one month on.
+        const paidOn = today();
         await supabase
           .from(cfgTable)
-          .update({ subscription_status: "active", current_period_end: addMonth(inv.period_start), cancelled_at: null, last_invoice_id: invoiceId })
+          .update({
+            subscription_status: "active",
+            current_period_start: paidOn,
+            current_period_end: addMonth(paidOn),
+            subscription_started_on: cfg.subscription_started_on ?? paidOn,
+            billing_anchor_day: Number(paidOn.slice(8, 10)) || null,
+            cancelled_at: null,
+            last_invoice_id: invoiceId,
+          })
           .eq(entityCol, entityId);
+        await supabase
+          .from("subscription_invoices")
+          .update({ period_start: paidOn, period_end: addMonth(paidOn) })
+          .eq("id", invoiceId);
       } else {
         await supabase.from(cfgTable).update({ last_invoice_id: invoiceId }).eq(entityCol, entityId);
       }
