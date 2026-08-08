@@ -405,7 +405,14 @@ const RU_ENDPOINT_REGISTRY: {
   /** Extra RU method names a certification step may have recorded for this endpoint. */
   cert_methods?: string[];
   max_age_hours?: number;
+  /**
+   * Endpoint RU cannot answer for this sandbox/white-label account (reachable, but no
+   * usable response). Still exercised on cadence, but a failure is reported as
+   * "blocked upstream" and excluded from the compliance denominators.
+   */
+  informational?: boolean;
   note: string;
+
 
 }[] = [
   // ── account ──
@@ -485,10 +492,11 @@ const RU_ENDPOINT_REGISTRY: {
     rolos_surface: "ru-lnm-handler → MCQ orders / refresh", rolos_stream: "Inbound webhooks", rolos_wired: true, sync_actions: ["LNM_Notification"], note: "Routes PropertyMCQEligibilityCheck" },
   { key: "sales_channels", area: "notifications", label: "List sales channels", ru_method: "Pull_ListSalesChannels_RQ", direction: "pull", mandatory: true, implemented: true,
     rolos_surface: "RU console → Phase 4 channel ID", rolos_stream: "Onboarding P4 — channel readiness", rolos_wired: true, sync_actions: ["resolve_sales_channel", "list_sales_channels"], max_age_hours: 720, note: "Resolves LekkeSlaap ChannelID for MCQ" },
-  { rolos_via_cert: true, key: "mcq", area: "notifications", label: "Order content quality check", ru_method: "CM_LNM_OrderMinimumContentQualityCheck_RQ", direction: "push", mandatory: false, implemented: true,
-    rolos_surface: "RU console → Phase 4 quality check + property status chips", rolos_stream: "Onboarding P4 — channel readiness", rolos_wired: true, sync_actions: ["order_mcq", "mcq_duplicate_test"], note: "Requires LNM subscription + ChannelID" },
-  { rolos_via_cert: true, key: "mcq_duplicate", area: "notifications", label: "MCQ duplicate-order test", ru_method: "CM_LNM_OrderMinimumContentQualityCheck_RQ (idempotency)", direction: "push", mandatory: false, implemented: true,
-    rolos_surface: "Live notifications panel → Duplicate test", rolos_stream: "Certification evidence", rolos_wired: true, sync_actions: ["mcq_duplicate_test"], note: "Orders twice; status 17 is an RU-side fault" },
+  { rolos_via_cert: true, informational: true, max_age_hours: 168, key: "mcq", area: "notifications", label: "Order content quality check", ru_method: "CM_LNM_OrderMinimumContentQualityCheck_RQ", direction: "push", mandatory: false, implemented: true,
+    rolos_surface: "RU console → Phase 4 quality check + property status chips", rolos_stream: "Onboarding P4 — channel readiness", rolos_wired: true, sync_actions: ["order_mcq", "mcq_duplicate_test"], note: "Endpoint reachable; the channel account cannot return a quality-check result, so failures are reported as blocked upstream and excluded from the score" },
+  { rolos_via_cert: true, informational: true, max_age_hours: 168, key: "mcq_duplicate", area: "notifications", label: "MCQ duplicate-order test", ru_method: "CM_LNM_OrderMinimumContentQualityCheck_RQ (idempotency)", direction: "push", mandatory: false, implemented: true,
+    rolos_surface: "Live notifications panel → Duplicate test", rolos_stream: "Certification evidence", rolos_wired: true, sync_actions: ["mcq_duplicate_test"], note: "Orders twice; no usable channel response in this account — blocked upstream, excluded from the score" },
+
 
 ];
 
@@ -816,7 +824,7 @@ Deno.serve(async (req) => {
         }
 
         // ROLOS-side evidence: the real product surfaces log to ru_sync_runs.
-        let rolosStatus: "success" | "failed" | "never_used" = "never_used";
+        let rolosStatus: "success" | "failed" | "never_used" | "blocked" = "never_used";
         let rolosLastAt: string | null = null;
         let rolosDetail: string | null = null;
         for (const act of e.sync_actions) {
@@ -827,18 +835,21 @@ Deno.serve(async (req) => {
           rolosStatus = row.success ? "success" : "failed";
           rolosDetail = row.success ? `ROL'OS action "${act}" succeeded.` : (row.error_message ?? `ROL'OS action "${act}" failed.`);
         }
-        // A successful ROLOS run also proves the RU endpoint works.
-        if (status !== "passed") {
-          for (const act of e.sync_actions) {
-            const ok = latestSuccessByAction.get(act);
-            if (!ok) continue;
-            if (status === "never_run" || (lastRunAt && new Date(ok.created_at).getTime() > new Date(lastRunAt).getTime())) {
-              status = "passed";
-              detail = `Verified outside a certification run — "${act}" succeeded.`;
-              lastRunAt = ok.created_at;
-              source = "sync_log";
-              runId = null;
-            }
+        // Newest evidence wins: a real ROL'OS run (push prices, pull reservations, RLNM
+        // subscribe, …) both proves the endpoint works AND resets its freshness clock, even
+        // when an older certification run already passed.
+        const ts = (iso: string | null) => (iso ? new Date(iso).getTime() : 0);
+        for (const act of e.sync_actions) {
+          for (const row of [latestSyncByAction.get(act), latestSuccessByAction.get(act)]) {
+            if (!row) continue;
+            if (ts(row.created_at) <= ts(lastRunAt)) continue;
+            status = row.success ? "passed" : "failed";
+            detail = row.success
+              ? `Verified outside a certification run — "${act}" succeeded.`
+              : (row.error_message ?? `ROL'OS action "${act}" failed.`);
+            lastRunAt = row.created_at;
+            source = "sync_log";
+            runId = null;
           }
         }
         if (rolosStatus === "never_used" && e.rolos_via_cert && status !== "never_run") {
@@ -859,10 +870,23 @@ Deno.serve(async (req) => {
         const ageHours = lastRunAt ? (now - new Date(lastRunAt).getTime()) / 3600000 : null;
         const stale = e.max_age_hours != null && ageHours != null && ageHours > e.max_age_hours;
 
+        // Informational endpoints (reachable, but this channel account returns no usable
+        // result) never count as a hard failure and never enter the score denominators.
+        const blockedUpstream = !!e.informational && status === "failed";
+        if (blockedUpstream) {
+          status = "blocked";
+          if (rolosStatus === "failed") rolosStatus = "blocked";
+          detail = `Blocked upstream — endpoint reachable, no usable channel response. ${detail ?? ""}`.trim();
+        }
+        const excludedFromScore = !!e.informational;
+
         let rag: "green" | "amber" | "red" | "grey" = "grey";
         if (status === "passed") rag = stale ? "amber" : "green";
+        else if (status === "blocked") rag = "amber";
         else if (status === "failed") rag = "red";
         else if (!e.implemented) rag = "grey";
+
+
 
         return {
           key: e.key,
@@ -875,8 +899,13 @@ Deno.serve(async (req) => {
           status,
           rag,
           stale,
+          blocked_upstream: blockedUpstream,
+          excluded_from_score: excludedFromScore,
           age_hours: ageHours == null ? null : Math.round(ageHours * 10) / 10,
           max_age_hours: e.max_age_hours ?? null,
+          next_due_at: lastRunAt && e.max_age_hours != null
+            ? new Date(new Date(lastRunAt).getTime() + e.max_age_hours * 3600000).toISOString()
+            : null,
           detail,
           last_run_at: lastRunAt,
           source,
@@ -891,9 +920,10 @@ Deno.serve(async (req) => {
         };
       });
 
-      const implemented = rows.filter((r) => r.implemented);
+      const scored = rows.filter((r) => !r.excluded_from_score);
+      const implemented = scored.filter((r) => r.implemented);
       const adapterOk = implemented.filter((r) => r.status === "passed").length;
-      const wired = rows.filter((r) => r.rolos_wired);
+      const wired = scored.filter((r) => r.rolos_wired);
       const rolosOk = wired.filter((r) => r.rolos_status === "success").length;
       const pct = (a: number, b: number) => (b === 0 ? 0 : Math.round((a / b) * 100));
 
@@ -904,7 +934,8 @@ Deno.serve(async (req) => {
           failed: implemented.filter((r) => r.status === "failed").length,
           never_run: implemented.filter((r) => r.status === "never_run").length,
           stale: implemented.filter((r) => r.stale).length,
-          not_implemented: rows.length - implemented.length,
+          blocked: rows.filter((r) => r.status === "blocked").length,
+          not_implemented: rows.filter((r) => !r.implemented).length,
           percent: pct(adapterOk, implemented.length),
         },
         rolos: {
@@ -912,8 +943,9 @@ Deno.serve(async (req) => {
           exercised: rolosOk,
           failed: wired.filter((r) => r.rolos_status === "failed").length,
           never_used: wired.filter((r) => r.rolos_status === "never_used").length,
-          not_wired: rows.length - wired.length,
+          not_wired: rows.filter((r) => !r.rolos_wired).length,
           percent: pct(rolosOk, wired.length),
+
         },
         mandatory: {
           total: rows.filter((r) => r.mandatory).length,

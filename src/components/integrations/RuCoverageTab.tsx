@@ -18,27 +18,31 @@ interface CoverageRow {
   direction: "pull" | "push" | "refresh" | "webhook";
   mandatory: boolean;
   implemented: boolean;
-  status: "passed" | "failed" | "skipped" | "never_run";
+  status: "passed" | "failed" | "skipped" | "never_run" | "blocked";
   rag: Rag;
   stale: boolean;
+  blocked_upstream?: boolean;
+  excluded_from_score?: boolean;
   age_hours: number | null;
   max_age_hours: number | null;
+  next_due_at?: string | null;
   detail: string | null;
   last_run_at: string | null;
   source: "cert_run" | "sync_log" | "none";
   rolos_surface: string;
   rolos_stream: string;
   rolos_wired: boolean;
-  rolos_status: "success" | "failed" | "never_used";
+  rolos_status: "success" | "failed" | "never_used" | "blocked";
   rolos_last_at: string | null;
   rolos_detail: string | null;
   note: string;
 }
 
 interface CoverageSummary {
-  adapter: { total: number; passed: number; failed: number; never_run: number; stale: number; not_implemented: number; percent: number };
+  adapter: { total: number; passed: number; failed: number; never_run: number; stale: number; blocked?: number; not_implemented: number; percent: number };
   rolos: { total_surfaces: number; exercised: number; failed: number; never_used: number; not_wired: number; percent: number };
   mandatory: { total: number; passed: number };
+
   generated_at: string;
 }
 
@@ -64,14 +68,17 @@ const RAG_LABEL: Record<Rag, string> = {
 const ROLOS_CLASS: Record<CoverageRow["rolos_status"], string> = {
   success: "bg-success/10 text-success border-success/30",
   failed: "bg-destructive/10 text-destructive border-destructive/30",
+  blocked: "bg-warning/10 text-warning border-warning/30",
   never_used: "bg-muted text-muted-foreground border-border",
 };
 
 const ROLOS_LABEL: Record<CoverageRow["rolos_status"], string> = {
   success: "Integrated · used",
   failed: "Integrated · failing",
+  blocked: "Integrated · blocked upstream",
   never_used: "Integrated · not yet used",
 };
+
 
 const fmt = (iso: string | null) => (iso ? new Date(iso).toLocaleString() : "—");
 
@@ -309,8 +316,9 @@ export function RuCoverageTab() {
             lines={[
               `${summary.adapter.passed}/${summary.adapter.total} passing · ${summary.adapter.failed} failing · ${summary.adapter.never_run} never run`,
               `${summary.adapter.stale} outside their refresh window · ${summary.adapter.not_implemented} not implemented`,
-              `Mandatory: ${summary.mandatory.passed}/${summary.mandatory.total}`,
+              `${summary.adapter.blocked ?? 0} blocked upstream (excluded from score) · Mandatory: ${summary.mandatory.passed}/${summary.mandatory.total}`,
             ]}
+
           />
           <ScoreCard
             title="ROL'OS integration compliance"
@@ -350,8 +358,13 @@ export function RuCoverageTab() {
                   </div>
                   <div className="flex flex-wrap items-center gap-1.5">
                     <Badge variant="outline" className={`text-[10px] ${RAG_CLASS[r.rag]}`}>
-                      RU: {RAG_LABEL[r.rag]}
+                      RU: {r.status === "blocked" ? "Blocked upstream" : RAG_LABEL[r.rag]}
                     </Badge>
+                    {r.excluded_from_score && (
+                      <Badge variant="outline" className="text-[10px]">
+                        Excluded from score
+                      </Badge>
+                    )}
                     <Badge
                       variant="outline"
                       className={`text-[10px] ${r.rolos_wired ? ROLOS_CLASS[r.rolos_status] : RAG_CLASS.grey}`}
@@ -359,6 +372,7 @@ export function RuCoverageTab() {
                       {r.rolos_wired ? ROLOS_LABEL[r.rolos_status] : "Not wired"}
                     </Badge>
                   </div>
+
                 </div>
 
                 <div className="grid gap-1 text-xs text-muted-foreground sm:grid-cols-2">
