@@ -362,6 +362,12 @@ function AddOnsPanel({ row, onSave, saving }: { row: BillingDefault | undefined;
   const [aggMonthly, setAggMonthly] = useState(toStr((row as any).portfolio_aggregator_monthly_default ?? null));
   const [aggSetup, setAggSetup] = useState(toStr((row as any).portfolio_aggregator_setup_default ?? null));
 
+  const [freeDays, setFreeDays] = useState(toStr((row as any).free_period_days_default ?? null));
+  const [marginMap, setMarginMap] = useState<Record<string, FeeMargin>>({
+    ...DEFAULT_FEE_MARGIN_MAP,
+    ...(((row as any).fee_margin_map_json as Record<string, FeeMargin> | null) || {}),
+  });
+
   const handleSave = () => {
     onSave({
       id: row.id,
@@ -375,8 +381,11 @@ function AddOnsPanel({ row, onSave, saving }: { row: BillingDefault | undefined;
       portfolio_aggregator_billing_mode: aggMode,
       portfolio_aggregator_monthly_default: aggMode === "monthly" ? toNum(aggMonthly) : null,
       portfolio_aggregator_setup_default: aggMode === "once_off" ? toNum(aggSetup) : null,
+      free_period_days_default: freeDays === "" ? DEFAULT_FREE_PERIOD_DAYS : toNum(freeDays),
+      fee_margin_map_json: marginMap,
     } as any);
   };
+
 
   return (
     <div className="space-y-4">
