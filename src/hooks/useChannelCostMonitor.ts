@@ -69,7 +69,14 @@ export interface ChannelCostMonitorData {
   schedule: ForecastResult[];
   nextTier: { needed: number; rateEur: number } | null;
   fx: FxRate | null;
+  /** ROL's default channel-manager billing value per listing per month, in ZAR. */
+  rolPerListingZar: number | null;
+  /** Derived ROL revenue for the current billable listing count, in ZAR. */
+  rolRevenueZar: number | null;
+  /** Effective per-listing cost at the current tier, in EUR (null below the tier floor). */
+  effectiveRateEur: number | null;
 }
+
 
 interface PropertyRecord {
   id: string;
