@@ -81,6 +81,9 @@ export function CommissionStatementDetailDialog({
   const editable = statement ? isEditable(statement.status) : false;
   const bank = statement?.bank_snapshot || {};
   const terms = statement?.terms_snapshot || {};
+  const tax = statement?.tax_snapshot || {};
+  const vatBreak = statement ? commissionVatBreakdown(statement, vat.vat_rate) : null;
+
 
   const captureAdjustment = async () => {
     if (!statement) return;
