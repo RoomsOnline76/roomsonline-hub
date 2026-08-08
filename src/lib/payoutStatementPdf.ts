@@ -11,8 +11,6 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import {
   bookingLines,
-  recoveryLines,
-  adjustmentLines,
   propertySubtotals,
   fmtMoney,
   periodLabel,
