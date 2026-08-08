@@ -19,7 +19,6 @@ export default function PMSRatePlans() {
 
   const [viewMode, setViewMode] = useState<"portfolio" | "single" | null>(null);
   const [userOverrode, setUserOverrode] = useState(false);
-  const surfaceRef = useRef<RatePlansSurfaceHandle>(null);
 
   // Default to portfolio once portfolio context is known; don't override user choice
   useEffect(() => {
