@@ -133,9 +133,15 @@ function renderEmail({ entityName, amount, currency, periodStart, periodEnd, pay
   </div></body></html>`;
 }
 
-async function sendReminder(resend: Resend, to: string, subject: string, html: string) {
+async function sendReminder(resend: Resend, to: string, subject: string, html: string, cc: string[] = []) {
   try {
-    const res = await resend.emails.send({ from: FROM_EMAIL, to, subject, html });
+    const res = await resend.emails.send({
+      from: FROM_EMAIL,
+      to,
+      ...(cc.length > 0 ? { cc } : {}),
+      subject,
+      html,
+    });
     return { ok: !res.error, id: res.data?.id, error: res.error };
   } catch (e) {
     return { ok: false, error: String(e) };
