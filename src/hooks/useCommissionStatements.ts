@@ -318,7 +318,7 @@ export async function addCommissionAdjustment(input: {
   return true;
 }
 
-/** Email the paysheet to the referrer. */
+/** Email the commission payout statement to the referral partner. */
 export async function emailCommissionStatement(statementId: string): Promise<boolean> {
   const { data, error } = await supabase.functions.invoke("send-commission-statement", {
     body: { statement_id: statementId },
