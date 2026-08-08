@@ -200,20 +200,37 @@ function inferLabel(tier: PricingTier | null): TierLabel | null {
 
 /** Full resolution: reads override tiers → global tiers, override room count → live count. */
 export async function resolvePropertyTier(propertyId: string): Promise<ResolvedTierInfo> {
-  const [configRes, globalsRes] = await Promise.all([
+  const SELECT = "billing_strategy, tier_pricing_json, tier_scope, room_count_override, enterprise_custom_fee";
+  const [configRes, globalsRes, membershipRes] = await Promise.all([
     supabase
       .from("property_billing_configs")
-      .select("billing_strategy, tier_pricing_json, tier_scope, room_count_override, enterprise_custom_fee")
+      .select(SELECT)
       .eq("property_id", propertyId)
       .maybeSingle(),
     supabase
       .from("billing_global_defaults")
       .select("strategy, tier_pricing_json, enterprise_custom_fee")
       .in("strategy", [...TIER_STRATEGIES]),
+    supabase
+      .from("property_portfolio_members")
+      .select("portfolio_id")
+      .eq("property_id", propertyId)
+      .maybeSingle(),
   ]);
 
-  const config = configRes.data as any;
+  let config = configRes.data as any;
+  // Portfolio members are billed from the shared portfolio config row.
+  const portfolioId = (membershipRes.data as { portfolio_id?: string } | null)?.portfolio_id;
+  if (!config && portfolioId) {
+    const { data: pfConfig } = await supabase
+      .from("portfolio_billing_configs" as any)
+      .select(SELECT)
+      .eq("portfolio_id", portfolioId)
+      .maybeSingle();
+    if (pfConfig) config = pfConfig as any;
+  }
   const strategy = config?.billing_strategy || "default";
+
   const global = (globalsRes.data as any[] | null)?.find((g) => g.strategy === strategy);
 
   const overrideTiers = normalizeTiers(config?.tier_pricing_json);
