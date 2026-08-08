@@ -259,6 +259,7 @@ export function useOwnerAccount(scope: OwnerScope | null) {
           (p) => !!p.allow_custom_payment_provider,
         ),
         pendingSettlement,
+        vat,
       });
 
     } catch (err) {
