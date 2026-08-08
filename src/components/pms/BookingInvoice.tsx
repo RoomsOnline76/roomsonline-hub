@@ -5,6 +5,8 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
 import { toast } from "sonner";
 import { Printer, Mail } from "lucide-react";
+import { displayBookingReference } from "@/lib/bookingReference";
+
 
 interface BookingInvoiceProps {
   bookingId: string;
