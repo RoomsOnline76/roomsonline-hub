@@ -300,7 +300,6 @@ export default function AdminPayments() {
       <Tabs defaultValue="payouts" className="space-y-4">
         <TabsList>
           <TabsTrigger value="payouts">Property Payouts</TabsTrigger>
-          <TabsTrigger value="transactions">Transactions</TabsTrigger>
           <TabsTrigger value="commissions" className="gap-1.5">
             Commission Payouts
             {totalCommissionsDue > 0 && (
@@ -311,122 +310,11 @@ export default function AdminPayments() {
           </TabsTrigger>
         </TabsList>
 
-        {/* Property Payouts — default tab */}
+        {/* Property Payouts — persisted statements, default tab */}
         <TabsContent value="payouts">
-          <Card>
-            <CardHeader>
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <CardTitle className="flex items-center gap-2"><Building2 className="h-5 w-5" />Property Payout Summary</CardTitle>
-                  <CardDescription>
-                    Net amounts due to each property after commission and fees · {payoutRangeLabel}
-                    {payoutsUpdatedAt && (
-                      <span className="block text-xs mt-0.5">
-                        As at {format(payoutsUpdatedAt, 'd MMM yyyy HH:mm')}
-                      </span>
-                    )}
-                  </CardDescription>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Select value={payoutPeriod} onValueChange={setPayoutPeriod}>
-                    <SelectTrigger className="w-[150px] h-9">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="this_month">This month</SelectItem>
-                      <SelectItem value="last_month">Last month</SelectItem>
-                      <SelectItem value="last_90">Last 90 days</SelectItem>
-                      <SelectItem value="all">All time</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Button variant="outline" size="sm" onClick={() => refreshPayouts()} disabled={payoutsLoading}>
-                    {payoutsLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Refresh'}
-                  </Button>
-                  <Button
-                    variant={showExpired ? "secondary" : "outline"}
-                    size="sm"
-                    onClick={() => setShowExpired(v => !v)}
-                  >
-                    {showExpired ? "Hide expired" : `Show expired${expiredCount ? ` (${expiredCount})` : ""}`}
-                  </Button>
-                  <Button variant="outline" size="sm"><Download className="h-4 w-4 mr-2" />Export</Button>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <PropertyPayoutTable payouts={payouts} loading={payoutsLoading} />
-            </CardContent>
-          </Card>
-
+          <PayoutStatementRun />
         </TabsContent>
 
-        {/* Transactions tab */}
-        <TabsContent value="transactions">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle>Transactions</CardTitle>
-                  <CardDescription>Recent payment activity</CardDescription>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input placeholder="Search all columns..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9 w-[200px]" />
-                  </div>
-                  <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="w-[140px]">
-                      <Filter className="h-4 w-4 mr-2" />
-                      <SelectValue placeholder="Filter" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Status</SelectItem>
-                      <SelectItem value="paid">Paid</SelectItem>
-                      <SelectItem value="pending">Pending</SelectItem>
-                      <SelectItem value="failed">Failed</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Button variant="outline" size="sm"><Download className="h-4 w-4 mr-2" />Export</Button>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {loading ? (
-                <div className="space-y-4">{[1,2,3,4,5].map(i => <Skeleton key={i} className="h-12 w-full" />)}</div>
-              ) : filteredTransactions.length === 0 ? (
-                <div className="text-center py-12">
-                  <CreditCard className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground">{searchTerm ? "No transactions match your search" : "No transactions found"}</p>
-                </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Guest</TableHead>
-                      <TableHead>Property</TableHead>
-                      <TableHead>Method</TableHead>
-                      <TableHead>Amount</TableHead>
-                      <TableHead>Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredTransactions.map(t => (
-                      <TableRow key={t.id}>
-                        <TableCell className="text-sm">{format(new Date(t.created_at), 'MMM d, yyyy HH:mm')}</TableCell>
-                        <TableCell className="font-medium">{t.guest_name || 'Unknown'}</TableCell>
-                        <TableCell className="text-muted-foreground">{t.property_name || 'Unknown'}</TableCell>
-                        <TableCell className="capitalize">{t.payment_method || '-'}</TableCell>
-                        <TableCell className="font-medium">{t.currency} {t.amount.toLocaleString()}</TableCell>
-                        <TableCell>{getStatusBadge(t.status, t.created_at)}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
 
         {/* Commission Payouts tab */}
         <TabsContent value="commissions">
