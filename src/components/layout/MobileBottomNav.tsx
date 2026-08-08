@@ -21,6 +21,7 @@ export function MobileBottomNav() {
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
   const { userRole, signOut } = useAuth();
+  const { canAccessItem, canAccessSection } = useNavVisibility();
 
   const isAdmin = hasMinRole(userRole, 'admin');
   const isDev = hasMinRole(userRole, 'dev');
@@ -36,10 +37,9 @@ export function MobileBottomNav() {
   if (isAdmin) quickItems.push(adminMobileNavItem);
   quickItems.push(mobileNavItems[0], mobileNavItems[1]);
 
-  // Every section the role can reach, including link-only sections (ROL'OS PMS).
-  const accessibleSections = navigationConfig.filter((section) =>
-    hasMinRole(userRole, section.minRole)
-  );
+  // Same section visibility rules as the desktop sidebar.
+  const accessibleSections = navigationConfig.filter(canAccessSection);
+
 
   const go = (href: string) => {
     navigate(href);
