@@ -107,12 +107,37 @@ export function AccountBalanceStrip({
             Nothing due
           </Badge>
         )}
-        <Button asChild variant="outline" size="sm">
-          <a href={`${ADMIN_DOMAIN}/admin/account`} target="_blank" rel="noreferrer">
+        {canEditBilling && billingPropertyId ? (
+          <Button asChild variant="outline" size="sm">
+            <a
+              href={`${ADMIN_DOMAIN}/admin/properties/${billingPropertyId}?tab=admin&sub=billing`}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Billing portal
+              <ArrowUpRight className="ml-1 h-3.5 w-3.5" />
+            </a>
+          </Button>
+        ) : (
+          <Button variant="outline" size="sm" onClick={() => setSetupOpen(true)}>
+            <Lock className="mr-1.5 h-3.5 w-3.5" />
             Billing portal
-            <ArrowUpRight className="ml-1 h-3.5 w-3.5" />
-          </a>
-        </Button>
+          </Button>
+        )}
+        <span className="text-xs text-muted-foreground">
+          Net position {fmtMoney(balances.net, c)} — positive means due to ROL
+        </span>
+      </div>
+
+      <BillingSetupDialog
+        open={setupOpen}
+        onOpenChange={setSetupOpen}
+        config={config}
+        unitCount={unitCount}
+        byoGateway={byoGateway}
+        currency={c}
+      />
+
         <span className="text-xs text-muted-foreground">
           Net position {fmtMoney(balances.net, c)} — positive means due to ROL
         </span>
