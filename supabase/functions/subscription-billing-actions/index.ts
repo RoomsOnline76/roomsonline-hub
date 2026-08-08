@@ -335,7 +335,50 @@ Deno.serve(async (req) => {
       cancelled_count: cancelled.length,
     });
 
-    if (action === "summary") return json({ success: true, ...summary() });
+    // Contracted setup fees are payable on signature, so the once-off invoice is
+    // raised automatically the first time the account is read — no manual step.
+    const ensureSetupInvoice = async () => {
+      if (openSetup) return openSetup;
+      if (setupTotal <= 0) return null;
+      const insert: any = {
+        amount: setupTotal,
+        currency,
+        subscription_amount: 0,
+        once_off_amount: setupTotal,
+        line_items: setupCharges.map((c) => ({
+          kind: c.kind,
+          description: c.description,
+          amount: c.amount,
+          charge_item_id: c.itemIds[0] ?? null,
+        })),
+        period_start: today(),
+        period_end: today(),
+        status: "pending",
+        invoice_kind: "once_off",
+        owner_id: ownerId,
+      };
+      insert[entityCol] = entityId;
+      const { data: created, error } = await supabase
+        .from("subscription_invoices")
+        .insert(insert)
+        .select("id, invoice_number, invoice_kind, amount, status, period_start, period_end, payfast_token, created_at")
+        .single();
+      if (error || !created) return null;
+      const itemIds = setupCharges.flatMap((c) => c.itemIds);
+      if (itemIds.length) {
+        await supabase
+          .from("subscription_charge_items")
+          .update({ invoiced_on_invoice_id: created.id })
+          .in("id", itemIds);
+      }
+      openSetup = created;
+      return created;
+    };
+
+    if (action === "summary") {
+      await ensureSetupInvoice();
+      return json({ success: true, ...summary() });
+    }
 
     if (action === "delete_cancelled") {
       if (!isStaff) return json({ error: "forbidden" }, 403);
