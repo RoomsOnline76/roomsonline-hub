@@ -260,8 +260,10 @@ export interface OwnerBalances {
   paidThisYear: number;
   /** Paid to ROL since engagement. */
   paidAllTime: number;
-  /** Finalised payout statements not yet paid out. */
+  /** Finalised payout statements not yet paid out, plus ROL-held funds awaiting a statement. */
   dueToYou: number;
+  /** Portion of `dueToYou` from bookings ROL has collected but not yet statemented. */
+  pendingSettlement: number;
   /** Payout statements already paid, all time. */
   receivedAllTime: number;
   /** Net position: positive means you owe ROL. */
@@ -277,7 +279,10 @@ export interface BalanceInput {
   uninvoicedSetupDue?: number;
   /** Date the once-off setup became payable (contract signature / engagement). */
   setupDueDate?: string | null;
+  /** ROL-collected booking funds (net of commission/fees) not yet on a payout statement. */
+  pendingSettlement?: number;
 }
+
 
 export function computeBalances(input: BalanceInput): OwnerBalances {
   const now = today();
