@@ -165,7 +165,7 @@ function reminderHtml(o: {
         ? `<p style="color:#666;font-size:13px">The monthly subscription can be started from ${addDays(o.dueBy, -START_WINDOW_DAYS)} and must be settled by <strong>${o.dueBy}</strong>.</p>`
         : ""
     }
-    <p style="color:#666;font-size:13px">Cancel any time — no lock-in, no cancellation fee.</p>
+    <p style="color:#666;font-size:13px">Cancel any time &mdash; no lock-in, no cancellation fee.</p>
   </div></body></html>`;
 }
 
