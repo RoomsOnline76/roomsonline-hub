@@ -548,7 +548,7 @@ export function usePropertyPayouts(period?: PayoutPeriod | string) {
         commission_rate: commission.rate,
         commission_type: commission.type,
         source,
-        settlement: source === 'booking' && propertyIsByo ? 'byo' : settlement,
+        settlement: source === 'booking' ? inferSettlementFromBooking(booking, propertyIsByo) : settlement,
       };
     });
   };
