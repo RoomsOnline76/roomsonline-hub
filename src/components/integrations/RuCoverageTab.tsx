@@ -68,14 +68,17 @@ const RAG_LABEL: Record<Rag, string> = {
 const ROLOS_CLASS: Record<CoverageRow["rolos_status"], string> = {
   success: "bg-success/10 text-success border-success/30",
   failed: "bg-destructive/10 text-destructive border-destructive/30",
+  blocked: "bg-warning/10 text-warning border-warning/30",
   never_used: "bg-muted text-muted-foreground border-border",
 };
 
 const ROLOS_LABEL: Record<CoverageRow["rolos_status"], string> = {
   success: "Integrated · used",
   failed: "Integrated · failing",
+  blocked: "Integrated · blocked upstream",
   never_used: "Integrated · not yet used",
 };
+
 
 const fmt = (iso: string | null) => (iso ? new Date(iso).toLocaleString() : "—");
 
