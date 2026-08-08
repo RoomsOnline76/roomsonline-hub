@@ -25,14 +25,24 @@ const todayIso = () => new Date().toISOString().slice(0, 10);
  * ROL owes them, every document to download and a statement for any period.
  */
 const OwnerAccount = () => {
+  const [searchParams] = useSearchParams();
   const { scopes, loading: scopesLoading } = useOwnerScopes();
   const [scopeKey, setScopeKey] = useState<string>("");
   const [periodStart, setPeriodStart] = useState(startOfYear());
   const [periodEnd, setPeriodEnd] = useState(todayIso());
 
   useEffect(() => {
-    if (!scopeKey && scopes.length) setScopeKey(`${scopes[0].kind}:${scopes[0].id}`);
-  }, [scopes, scopeKey]);
+    if (scopeKey || !scopes.length) return;
+    // Deep link support: /admin/account?scope=portfolio&id=<uuid>
+    const wantedScope = searchParams.get("scope");
+    const wantedId = searchParams.get("id");
+    const match =
+      wantedScope && wantedId
+        ? scopes.find((s) => s.kind === wantedScope && s.id === wantedId)
+        : null;
+    const target = match ?? scopes[0];
+    setScopeKey(`${target.kind}:${target.id}`);
+  }, [scopes, scopeKey, searchParams]);
 
   const scope = useMemo(
     () => scopes.find((s) => `${s.kind}:${s.id}` === scopeKey) ?? null,
