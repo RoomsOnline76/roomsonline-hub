@@ -70,6 +70,9 @@ function toStatement(row: Row): CommissionStatement {
     status: row.status,
     bank_snapshot: row.bank_snapshot || {},
     terms_snapshot: row.terms_snapshot || {},
+    tax_snapshot: row.tax_snapshot || {},
+    vat_amount: Number(row.vat_amount) || 0,
+
     generated_at: row.generated_at,
     approved_by: row.approved_by ?? null,
     approved_at: row.approved_at ?? null,
