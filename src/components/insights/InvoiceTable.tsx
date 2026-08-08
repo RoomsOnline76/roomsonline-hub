@@ -82,10 +82,14 @@ export function InvoiceTable({ invoices, isLoading, onEdit }: InvoiceTableProps)
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("invoices").delete().eq("id", id);
+    mutationFn: async (invoice: Invoice) => {
+      const { error } = await supabase.from("invoices").delete().eq("id", invoice.id);
       if (error) throw error;
+      if (invoice.document_path) {
+        await supabase.storage.from(INVOICE_BUCKET).remove([invoice.document_path]);
+      }
     },
+
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
       toast.success("Invoice deleted");
