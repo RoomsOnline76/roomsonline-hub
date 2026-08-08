@@ -121,7 +121,10 @@ function resolveStatus(
     return "active";
   }
   if (reservationOnly) return "reservation_only";
-  if (schedule.paidStart && schedule.inFreePeriod) return "trial";
+  // A client only counts as being in its free period once the subscription has
+  // actually been started. Until then it is simply pending its first billing
+  // date, even if the contracted free days are still running.
+  if ((raw === "trial" || raw === "trialing") && schedule.inFreePeriod) return "trial";
   return "pending";
 }
 
