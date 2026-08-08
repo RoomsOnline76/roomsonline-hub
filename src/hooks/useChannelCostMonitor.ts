@@ -69,7 +69,14 @@ export interface ChannelCostMonitorData {
   schedule: ForecastResult[];
   nextTier: { needed: number; rateEur: number } | null;
   fx: FxRate | null;
+  /** ROL's default channel-manager billing value per listing per month, in ZAR. */
+  rolPerListingZar: number | null;
+  /** Derived ROL revenue for the current billable listing count, in ZAR. */
+  rolRevenueZar: number | null;
+  /** Effective per-listing cost at the current tier, in EUR (null below the tier floor). */
+  effectiveRateEur: number | null;
 }
+
 
 interface PropertyRecord {
   id: string;
@@ -141,14 +148,17 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
   const [properties, setProperties] = useState<ChannelPropertyRow[]>([]);
   const [events, setEvents] = useState<ArchiveEventRow[]>([]);
   const [fx, setFx] = useState<FxRate | null>(null);
+  const [rolPerListingZar, setRolPerListingZar] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [propsRes, unitsRes, membersRes, portfoliosRes, runsRes, eventsRes, fxRate] = await Promise.all([
+      const [propsRes, unitsRes, membersRes, portfoliosRes, runsRes, eventsRes, fxRate, defaultsRes] =
+        await Promise.all([
         supabase
           .from("properties")
           .select("id, name, is_active, ru_push_enabled, ru_archived, ru_archived_at, rentalsunited_property_id"),
@@ -169,7 +179,12 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
           .order("created_at", { ascending: false })
           .limit(100),
         resolveEurToZar(),
+        supabase
+          .from("billing_global_defaults")
+          .select("channel_manager_per_unit_fee, sort_order")
+          .order("sort_order", { ascending: true }),
       ]);
+
 
       if (propsRes.error) throw propsRes.error;
 
@@ -249,6 +264,10 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
       setProperties(priced);
       setEvents((eventsRes.data || []) as ArchiveEventRow[]);
       setFx(fxRate);
+      const defaultsRows = (defaultsRes?.data || []) as Array<{ channel_manager_per_unit_fee: number | null }>;
+      const perUnit = defaultsRows.find((r) => (r.channel_manager_per_unit_fee ?? 0) > 0)?.channel_manager_per_unit_fee;
+      setRolPerListingZar(perUnit != null ? Number(perUnit) : null);
+
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load channel cost data");
     } finally {
@@ -284,8 +303,12 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
       nextStep,
       nextTier: gap ? { needed: gap.needed, rateEur: gap.tier.rateEur } : null,
       currentTier: tierFor(billableListings),
+      effectiveRateEur: tierFor(billableListings)?.rateEur ?? null,
     };
   }, [properties, events]);
+
+  const rolRevenueZar =
+    rolPerListingZar != null ? Math.round(rolPerListingZar * derived.billableListings * 100) / 100 : null;
 
   return {
     loading,
@@ -294,6 +317,9 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
     properties,
     events,
     fx,
+    rolPerListingZar,
+    rolRevenueZar,
     ...derived,
   };
+
 }
