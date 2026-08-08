@@ -112,7 +112,14 @@ async function checkRentalsUnited(
   expectedLatency: number,
 ): Promise<HealthCheckResult> {
   const adapter = await checkPmsAdapter(supabase, 'rentalsunited', expectedLatency);
-  if (adapter.status === 'failed') return adapter;
+  // Rentals United enforces one call per method per sliding minute, so the probe can collide
+  // with a live cron pull. A rate-limit answer proves the endpoint is reachable — never treat
+  // it as an outage; fall through to the sync-freshness evidence instead.
+  const probe = (adapter.response_data ?? {}) as { ru_status_id?: string; message?: string };
+  const rateLimited =
+    probe.ru_status_id === '-6' || /rate limited/i.test(probe.message ?? '');
+  if (adapter.status === 'failed' && !rateLimited) return adapter;
+
 
   const since = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
   const { data: runs } = await supabase
