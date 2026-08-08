@@ -13,17 +13,23 @@ function Stat({
   value,
   hint,
   accent,
+  danger,
 }: {
   label: string;
   value: string;
   hint?: string;
   accent?: boolean;
+  danger?: boolean;
 }) {
   return (
     <Card className={cn(accent && "border-primary")}>
       <CardContent className="p-4">
         <p className="text-[11px] uppercase tracking-wider text-muted-foreground">{label}</p>
-        <p className={cn("mt-1 text-2xl font-semibold tabular-nums", accent && "text-primary")}>{value}</p>
+        <p className={cn(
+          "mt-1 text-2xl font-semibold tabular-nums",
+          accent && "text-primary",
+          danger && "text-destructive font-bold"
+        )}>{value}</p>
         {hint && <p className="mt-1 text-xs text-muted-foreground">{hint}</p>}
       </CardContent>
     </Card>
@@ -89,6 +95,7 @@ export function ChannelCostSummary({ data }: Props) {
         <Stat
           label="ROL revenue (default)"
           value={rolRevenueZar != null ? formatZar(rolRevenueZar) : "Not configured"}
+          danger={rolRevenueZar != null && costZar != null && rolRevenueZar < costZar}
           hint={
             rolPerListingZar != null
               ? `${formatZar(rolPerListingZar)} × ${billableListings} listings / mo`
