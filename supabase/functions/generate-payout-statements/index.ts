@@ -222,7 +222,9 @@ Deno.serve(async (req) => {
     const propertyIds = Array.from(new Set(usable.map((e) => e.propertyId)));
 
     /* ---------------- 3. reference data ------------------------------- */
-    const [membersRes, portfoliosRes, propsRes, billingRes, termsRes, globalsRes, bankRes, chargesRes] =
+    // Subscriptions, platform and one-off charges are billed on the separate ROL
+    // property invoice / subscription plan — they are deliberately NOT recovered here.
+    const [membersRes, portfoliosRes, propsRes, billingRes, termsRes, globalsRes, bankRes] =
       await Promise.all([
         supabase.from("property_portfolio_members").select("property_id, portfolio_id").in("property_id", propertyIds),
         supabase.from("property_portfolios").select("id, name, owner_email, payout_mode"),
@@ -239,11 +241,8 @@ Deno.serve(async (req) => {
           .order("effective_from", { ascending: false }),
         supabase.from("billing_global_defaults").select("*"),
         supabase.from("property_bank_details").select("*").in("property_id", propertyIds),
-        supabase
-          .from("subscription_charge_items")
-          .select("*")
-          .eq("status", "pending"),
       ]);
+
 
     const portfolioById = new Map<string, Record<string, any>>();
     (portfoliosRes.data || []).forEach((p: Record<string, any>) => portfolioById.set(p.id, p));
