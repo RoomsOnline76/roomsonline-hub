@@ -536,7 +536,6 @@ async function checkAvailabilityCache(supabase: SupabaseClientType): Promise<Hea
     // The cache is an accelerator only — checkout always resolves live (NO_BOOKING_FROM_CACHE),
     // so grade it on staleness over a realistic window instead of a 10-minute tripwire.
     const FRESH_HOURS = 6;
-    const STALE_HOURS = 24;
 
     const { data, error } = await supabase
       .from('pms_availability_cache')
