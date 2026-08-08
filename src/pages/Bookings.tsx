@@ -14,6 +14,7 @@ import {
   ROL_ORIGIN_FILTER_OPTIONS,
   ROL_ORIGIN_LABELS,
   displayBookingReference,
+  describeRolReference,
   matchesReferenceSearch,
   bookingOriginCode,
   kindForOrigin,
