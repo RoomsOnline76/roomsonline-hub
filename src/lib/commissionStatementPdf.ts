@@ -58,7 +58,7 @@ export function buildCommissionStatementPdf(
   y += 24;
   doc.setFontSize(19);
   doc.setTextColor(...INK);
-  doc.text("COMMISSION STATEMENT", M, y);
+  doc.text("COMMISSION PAYOUT STATEMENT", M, y);
 
   doc.setFontSize(9);
   doc.setFont("helvetica", "normal");
@@ -67,9 +67,19 @@ export function buildCommissionStatementPdf(
     align: "right",
   });
 
-  y += 16;
+  y += 13;
+  doc.setFontSize(7.8);
+  doc.setTextColor(...MUTED);
+  doc.text(
+    "Referral commission payout — not remuneration. No employment relationship exists.",
+    M,
+    y,
+  );
+
+  y += 12;
   doc.setDrawColor(...LINE);
   doc.line(M, y, pageW - M, y);
+
 
   y += 20;
   const col2 = pageW / 2 + 10;
