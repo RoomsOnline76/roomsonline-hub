@@ -63,6 +63,8 @@ const TestBookingBenson = lazy(() => import("./pages/TestBookingBenson"));
 const NB = lazy(() => import("./pages/NB"));
 const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
 const AdminPayments = lazy(() => import("./pages/AdminPayments"));
+const OwnerAccount = lazy(() => import("./pages/OwnerAccount"));
+
 const AdminKeys = lazy(() => import("./pages/AdminKeys"));
 const AdminUsers = lazy(() => import("./pages/AdminUsers"));
 const AdminAccessRequests = lazy(() => import("./pages/AdminAccessRequests"));
