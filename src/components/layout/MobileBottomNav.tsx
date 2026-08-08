@@ -98,9 +98,8 @@ export function MobileBottomNav() {
             </SheetHeader>
             <div className="mt-4 min-h-0 flex-1 space-y-6 overflow-y-auto pb-8">
               {accessibleSections.map((section) => {
-                const accessibleItems = section.items.filter((item) =>
-                  hasMinRole(userRole, item.minRole)
-                );
+                const accessibleItems = section.items.filter(canAccessItem);
+
                 const SectionIcon = section.icon;
 
                 // Link-only section (e.g. ROL'OS PMS) — render as a single row.
