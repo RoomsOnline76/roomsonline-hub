@@ -29,6 +29,7 @@ import { PropertyAcquisitionTracker } from "./PropertyAcquisitionTracker";
 import { PortfolioDemandForecast } from "./PortfolioDemandForecast";
 import { AccountingDashboard } from "@/components/insights/AccountingDashboard";
 import { BillingPulseCard } from "./BillingPulseCard";
+import { PropertyBillingRevenueSection } from "./PropertyBillingRevenueSection";
 import { BankExportDashboard } from "@/components/bank-export";
 import { InsightPanelTrigger } from "@/components/InsightPanel";
 import { supabase } from "@/integrations/supabase/client";
@@ -368,6 +369,9 @@ export function ROLRevenuePulse() {
 
       {/* Property Acquisition & PMS Distribution */}
       <PropertyAcquisitionTracker />
+
+      {/* Property billing & subscriptions — expected / invoiced / paid */}
+      <PropertyBillingRevenueSection start={dateRange.start} end={dateRange.end} />
 
       {/* Billing Summary */}
       <BillingPulseCard />

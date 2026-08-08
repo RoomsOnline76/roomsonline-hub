@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { splitInvoiceMargin } from "@/lib/feeMargin";
+import { invoiceStream } from "@/lib/billingExpected";
 
 export interface RolActualRevenue {
   /** Commission + subscription revenue earned in the current calendar month (ZAR). */
@@ -83,7 +84,7 @@ export function useRolActualRevenue() {
       for (const row of subsRes.data ?? []) {
         const amount = Number(row.amount ?? 0);
         if (!Number.isFinite(amount) || amount === 0) continue;
-        if ((row as { invoice_kind?: string | null }).invoice_kind === "setup") setupZar += amount;
+        if (invoiceStream((row as { invoice_kind?: string | null }).invoice_kind) === "once_off") setupZar += amount;
         else subscriptionZar += amount;
         passthroughZar += splitInvoiceMargin(
           (row as { line_items?: Array<{ kind?: string | null; amount?: number | null }> | null }).line_items,
