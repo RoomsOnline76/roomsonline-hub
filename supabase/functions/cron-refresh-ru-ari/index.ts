@@ -97,7 +97,13 @@ Deno.serve(async (req) => {
         });
 
         if (error) {
-          errMsg = error.message;
+          // invoke() hides the JSON body behind "non-2xx status code" — read it so the
+          // health report shows the real reason and status instead of an UNKNOWN bucket.
+          const detail = await readInvokeError(error, 'ARI refresh failed');
+          errMsg = detail.message;
+          errCode = detail.errorCode ?? (detail.httpStatus ? `HTTP_${detail.httpStatus}` : null);
+          httpStatus = detail.httpStatus;
+          if (errCode && SKIP_CODES.has(errCode)) skipped = true;
         } else if (!data?.success) {
           errCode = data?.error?.code ?? null;
           errMsg = data?.error?.message || 'Unknown error';
@@ -105,7 +111,8 @@ Deno.serve(async (req) => {
         } else {
           success = true;
         }
-        httpStatus = success ? 200 : skipped ? 200 : 502;
+        if (httpStatus === null) httpStatus = success ? 200 : skipped ? 200 : 502;
+
       } catch (err) {
         errMsg = err instanceof Error ? err.message : String(err);
       }
