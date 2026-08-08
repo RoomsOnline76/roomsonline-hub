@@ -3023,7 +3023,26 @@ const Booking = () => {
           </motion.div>
         )}
 
-        {activeGateways.length > 1 && (
+        {isReservationOnly ? (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="max-w-2xl mx-auto mt-4"
+          >
+            <ReservationPaymentNotice
+              banking={propertyBanking}
+              terms={buildReservationTerms(
+                Math.max(0, (totalCost || preSelectedTotalCost || 0) + selectedAddons.reduce((s, a) => s + a.total, 0) - voucherDiscount),
+              )}
+              total={Math.max(0, (totalCost || preSelectedTotalCost || 0) + selectedAddons.reduce((s, a) => s + a.total, 0) - voucherDiscount)}
+              policySummary={
+                cancellationPolicyRule
+                  ? formatCancellationPolicy(cancellationPolicyRule as CancellationRule, checkIn || undefined, totalCost || undefined).summaryText
+                  : null
+              }
+            />
+          </motion.div>
+        ) : activeGateways.length > 1 ? (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -3035,7 +3054,8 @@ const Booking = () => {
               onSelect={setSelectedGateway}
             />
           </motion.div>
-        )}
+        ) : null}
+
 
         {/* ── Sticky Footer CTA ── */}
         <div className="fixed bottom-0 left-0 right-0 lg:static lg:mt-6 border-t lg:border-t-0 border-border p-3 sm:p-4 bg-card/98 pb-[calc(0.75rem+env(safe-area-inset-bottom))] lg:pb-4 z-40">
