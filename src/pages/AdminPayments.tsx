@@ -20,6 +20,7 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 import { usePropertyPayouts } from "@/hooks/usePropertyPayouts";
 import { PayoutStatementRun } from "@/components/payments/PayoutStatementRun";
+import { PropertyInvoiceRun } from "@/components/payments/PropertyInvoiceRun";
 
 interface CommissionPayout {
   id: string;
