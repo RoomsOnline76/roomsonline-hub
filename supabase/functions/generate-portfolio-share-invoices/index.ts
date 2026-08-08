@@ -67,7 +67,6 @@ Deno.serve(async (req) => {
     let created = 0;
     for (const g of groups.values()) {
       if (g.total <= 0) continue;
-      const invoiceNumber = `PS-${periodStart.slice(0, 7)}-${g.from_property_id.slice(0, 4).toUpperCase()}-${g.to_property_id.slice(0, 4).toUpperCase()}`;
       const { data: inv, error: invErr } = await supabase
         .from("portfolio_share_invoices")
         .upsert({
@@ -81,7 +80,8 @@ Deno.serve(async (req) => {
           total: g.total,
           currency: g.currency,
           status: "draft",
-          invoice_number: invoiceNumber,
+          // invoice_number is minted by the ROL document reference protocol (ROL-SHR-<PARTY>-<YYYYMM>-<NNN>)
+
         }, { onConflict: "portfolio_id,from_property_id,to_property_id,period_start" })
         .select("id")
         .single();

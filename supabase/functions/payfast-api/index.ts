@@ -586,14 +586,30 @@ async function settleSubscriptionInvoice(
     .is("invoiced_at", null);
 
   if (!inv.invoice_number) {
-    const { count } = await supabase
-      .from("subscription_invoices")
-      .select("id", { count: "exact", head: true })
-      .not("invoice_number", "is", null);
-    const year = new Date().getFullYear();
-    const invoiceNumber = `RO-${year}-${String(1000 + (count || 0) + 1).padStart(6, "0")}`;
-    await supabase.from("subscription_invoices").update({ invoice_number: invoiceNumber }).eq("id", invoiceId);
+    // ROL-<DOC>-<PARTY>-<YYYYMM>-<NNN> protocol (same family as booking references)
+    const kind = String(inv.invoice_kind || "subscription").toLowerCase();
+    const doc = kind === "once_off" || kind === "setup"
+      ? "SET"
+      : kind === "adjustment"
+      ? "ADJ"
+      : kind === "credit"
+      ? "CRD"
+      : "SUB";
+    const { data: party } = await supabase.rpc("rol_party_code", {
+      _property_id: inv.property_id ?? null,
+      _portfolio_id: inv.portfolio_id ?? null,
+    });
+    const period = String(inv.period_start || new Date().toISOString().slice(0, 10)).slice(0, 7).replace("-", "");
+    const { data: ref } = await supabase.rpc("next_rol_document_reference", {
+      _doc: doc,
+      _party_code: party || "GEN",
+      _period: period,
+    });
+    if (ref) {
+      await supabase.from("subscription_invoices").update({ invoice_number: ref }).eq("id", invoiceId);
+    }
   }
+
 
   await supabase.from("billing_transactions").insert({
     property_id: inv.property_id,

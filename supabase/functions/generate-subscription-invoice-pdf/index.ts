@@ -163,14 +163,31 @@ Deno.serve(async (req) => {
     if (error || !inv) throw new Error(error?.message || "Invoice not found");
     if (inv.status !== "paid") throw new Error(`Invoice status is ${inv.status}, expected paid`);
 
-    // Assign invoice number if missing
+    // Assign invoice number if missing (ROL-<DOC>-<PARTY>-<YYYYMM>-<NNN> protocol)
     let invoiceNumber = inv.invoice_number;
     if (!invoiceNumber) {
-      const { data: seq } = await supabase.rpc("nextval_subscription_invoice_number");
-      const num = Number(seq) || 1000;
-      invoiceNumber = `RO-${new Date().getFullYear()}-${String(num).padStart(6, "0")}`;
+      const kind = String(inv.invoice_kind || "subscription").toLowerCase();
+      const doc = kind === "once_off" || kind === "setup"
+        ? "SET"
+        : kind === "adjustment"
+        ? "ADJ"
+        : kind === "credit"
+        ? "CRD"
+        : "SUB";
+      const { data: party } = await supabase.rpc("rol_party_code", {
+        _property_id: inv.property_id ?? null,
+        _portfolio_id: inv.portfolio_id ?? null,
+      });
+      const period = String(inv.period_start || new Date().toISOString().slice(0, 10)).slice(0, 7).replace("-", "");
+      const { data: ref } = await supabase.rpc("next_rol_document_reference", {
+        _doc: doc,
+        _party_code: party || "GEN",
+        _period: period,
+      });
+      invoiceNumber = ref || `ROL-${doc}-GEN-${period}-001`;
       await supabase.from("subscription_invoices").update({ invoice_number: invoiceNumber }).eq("id", invoice_id);
     }
+
 
     // Resolve owner
     const entityName = (inv.properties as any)?.name || (inv.property_portfolios as any)?.name || "Rooms Online";
