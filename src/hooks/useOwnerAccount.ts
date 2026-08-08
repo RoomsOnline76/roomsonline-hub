@@ -30,6 +30,7 @@ import {
   type SettlementBooking,
 } from "@/lib/ownerAccount";
 import { resolveBookingCommission, type CommissionConfigLike } from "@/lib/commissionResolver";
+import { DEFAULT_VAT_SETTINGS, type VatSettings } from "@/lib/payoutStatement";
 
 
 interface ScopeRow {
@@ -117,6 +118,7 @@ export interface OwnerAccountData {
   byoGateway: boolean;
   /** ROL-held booking funds not yet covered by a payout statement. */
   pendingSettlement: PendingSettlement;
+  vat: VatSettings;
 }
 
 const EMPTY_PENDING: PendingSettlement = { amount: 0, gross: 0, commission: 0, bookings: 0 };
@@ -130,6 +132,7 @@ const EMPTY: OwnerAccountData = {
   unitCount: 0,
   byoGateway: false,
   pendingSettlement: EMPTY_PENDING,
+  vat: DEFAULT_VAT_SETTINGS,
 };
 
 
@@ -147,7 +150,7 @@ export function useOwnerAccount(scope: OwnerScope | null) {
       const keyCol = scope.kind === "property" ? "property_id" : "portfolio_id";
       const cfgTable = scope.kind === "property" ? "property_billing_configs" : "portfolio_billing_configs";
 
-      const [cfgRes, subRes, invRes, payRes, bookRes, unitRes, propRes] = await Promise.all([
+      const [cfgRes, subRes, invRes, payRes, bookRes, unitRes, propRes, vatRes] = await Promise.all([
         (supabase as any).from(cfgTable).select("*").eq(keyCol, scope.id).maybeSingle(),
         (supabase as any)
           .from("subscription_invoices")
@@ -186,6 +189,10 @@ export function useOwnerAccount(scope: OwnerScope | null) {
           .from("properties")
           .select("allow_custom_payment_provider")
           .in("id", scope.propertyIds),
+        supabase
+          .from("billing_global_defaults")
+          .select("vat_enabled, vat_rate, vat_number, company_legal_name, company_address")
+          .limit(1),
       ]);
 
       const bookings = ((bookRes.data || []) as unknown as SettlementBooking[]).filter(Boolean);
@@ -219,6 +226,9 @@ export function useOwnerAccount(scope: OwnerScope | null) {
 
       const config = (cfgRes?.data || null) as OwnerBillingConfig | null;
 
+      const vatRows = (vatRes?.data || []) as unknown as VatSettings[];
+      const vat = vatRows[0] ? { ...DEFAULT_VAT_SETTINGS, ...vatRows[0] } : DEFAULT_VAT_SETTINGS;
+
       const revenueMap = new Map<string, RevenueRow>();
       const CONFIRMED = ["confirmed", "completed", "checked_in", "checked_out"];
       for (const b of bookings) {
@@ -249,6 +259,7 @@ export function useOwnerAccount(scope: OwnerScope | null) {
           (p) => !!p.allow_custom_payment_provider,
         ),
         pendingSettlement,
+        vat,
       });
 
     } catch (err) {
@@ -298,6 +309,7 @@ export function useOwnerAccount(scope: OwnerScope | null) {
       ledger,
       subscription: subscriptionView(data.config),
       series: monthlySeries(data.revenue, ledger),
+      vat: data.vat,
     };
   }, [data]);
 

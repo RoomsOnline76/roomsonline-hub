@@ -167,6 +167,7 @@ const OwnerAccount = () => {
                   scopeName={scope.name}
                   periodStart={periodStart}
                   periodEnd={periodEnd}
+                  vat={account.vat}
                 />
               </TabsContent>
             </Tabs>
