@@ -294,12 +294,16 @@ export function usePropertyPayouts(period?: PayoutPeriod | string) {
         supabase.from('billing_global_defaults').select('*'),
       ]);
 
-      // Bookings with no gateway record inherit the property's configured settlement route.
+      // Bookings with no gateway record: read the payment evidence first, and only
+      // fall back to the property's configured route when there is none.
       Object.values(bookingGross).forEach((entry) => {
-        if (entry.source === 'booking' && byoProperties.has(entry.booking.properties.id)) {
-          entry.settlement = 'byo';
-        }
+        if (entry.source !== 'booking') return;
+        entry.settlement = inferSettlementFromBooking(
+          entry.booking,
+          byoProperties.has(entry.booking.properties.id),
+        );
       });
+
 
       const bankMap: Record<string, { exists: boolean; verified: boolean }> = {};
       (bankRes.data || []).forEach((b: any) => { bankMap[b.property_id] = { exists: true, verified: b.is_verified }; });
