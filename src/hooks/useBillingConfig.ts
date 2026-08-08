@@ -196,11 +196,28 @@ export function useBillingConfig(propertyId: string | undefined) {
             .in("id", targetIds);
         }
       }
+      const change = data?.__change;
+      const notes: string[] = [];
+      if (Number(change?.setup_delta) > 0) {
+        notes.push(`Outstanding once-off balance of R${Number(change.setup_delta).toLocaleString()} invoiced`);
+      }
+      if (change?.plan_change) {
+        notes.push(
+          `Plan change scheduled — current plan runs to ${change.plan_change.runs_to}, new monthly fee of R${Number(
+            change.plan_change.new_monthly_fee
+          ).toLocaleString()} activates from ${change.plan_change.effective_date}`
+        );
+      }
+      if (change?.requires_credit_note) {
+        notes.push("A once-off fee was reduced after payment — a credit note must be raised manually");
+      }
       toast.success(
         scope.source === "portfolio"
           ? `Portfolio billing saved — applies to ${scope.siblingPropertyIds.length} propert${scope.siblingPropertyIds.length === 1 ? "y" : "ies"}`
-          : "Billing configuration saved"
+          : "Billing configuration saved",
+        notes.length ? { description: notes.join(". "), duration: 10000 } : undefined
       );
+
     },
     onError: (error: any) => {
       toast.error("Failed to save billing config", { description: error.message });
