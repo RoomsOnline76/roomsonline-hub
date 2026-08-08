@@ -37,7 +37,10 @@ export interface PropertyPayout {
   billing_scope: "property" | "portfolio";
   white_label_fee: number;
   subscription_fee: number;
+  /** Monthly fees invoiced separately — reported for context, never netted off payouts. */
+  monthly_fees: number;
   pf_enabled: boolean;
+
 
   /** Settlement split — funds ROL actually held vs funds that landed in the owner's own account. */
   rol_gross: number;
@@ -81,7 +84,8 @@ const PAID_BOOKING_STATUSES = ALL_REVENUE_PAYMENT_STATUSES;
 
 
 const BOOKING_ORIGIN_FIELDS =
-  'id, property_id, guest_name, check_in_date, check_out_date, total_price, status, payment_status, integration_type, booking_channel, source_url, calculated_commission, commission_rate_applied, commission_type';
+  'id, property_id, guest_name, check_in_date, check_out_date, total_price, status, payment_status, payment_method, payment_reference, integration_type, booking_channel, source_url, calculated_commission, commission_rate_applied, commission_type';
+
 
 interface ResolvedBillingScope {
   config: (CommissionConfigLike & Record<string, any>) | null;
@@ -187,6 +191,31 @@ async function loadByoProperties(propertyIds: string[]): Promise<Set<string>> {
 function routeFromCredentialSource(source: unknown): SettlementRoute {
   return String(source ?? '').toLowerCase() === 'byo' ? 'byo' : 'rol';
 }
+
+/** Payment methods that mean ROL's own gateway processed the money. */
+const ROL_GATEWAY_METHODS = ['payfast', 'yoco', 'stripe', 'paygate', 'ozow', 'peach', 'card', 'gateway'];
+/** Payment methods that mean the money landed outside ROL (owner bank / cash / channel). */
+const OWNER_COLLECTED_METHODS = ['eft', 'bank', 'bank_transfer', 'cash', 'manual', 'invoice', 'offline'];
+
+/**
+ * Route for a booking with no settled gateway transaction. Payment evidence wins:
+ * channel-settled and owner-banked stays never reached us, gateway references did.
+ * Only with no evidence at all do we fall back to the property's configured route.
+ */
+function inferSettlementFromBooking(booking: any, propertyIsByo: boolean): SettlementRoute {
+  const paymentStatus = String(booking?.payment_status || '').toLowerCase();
+  if (paymentStatus === 'paid_externally') return 'byo';
+
+  const method = String(booking?.payment_method || '').toLowerCase();
+  if (method) {
+    if (ROL_GATEWAY_METHODS.some((m) => method.includes(m))) return 'rol';
+    if (OWNER_COLLECTED_METHODS.some((m) => method.includes(m))) return 'byo';
+  }
+  if (booking?.payment_reference) return 'rol';
+
+  return propertyIsByo ? 'byo' : 'rol';
+}
+
 
 
 
@@ -294,12 +323,16 @@ export function usePropertyPayouts(period?: PayoutPeriod | string) {
         supabase.from('billing_global_defaults').select('*'),
       ]);
 
-      // Bookings with no gateway record inherit the property's configured settlement route.
+      // Bookings with no gateway record: read the payment evidence first, and only
+      // fall back to the property's configured route when there is none.
       Object.values(bookingGross).forEach((entry) => {
-        if (entry.source === 'booking' && byoProperties.has(entry.booking.properties.id)) {
-          entry.settlement = 'byo';
-        }
+        if (entry.source !== 'booking') return;
+        entry.settlement = inferSettlementFromBooking(
+          entry.booking,
+          byoProperties.has(entry.booking.properties.id),
+        );
       });
+
 
       const bankMap: Record<string, { exists: boolean; verified: boolean }> = {};
       (bankRes.data || []).forEach((b: any) => { bankMap[b.property_id] = { exists: true, verified: b.is_verified }; });
@@ -379,14 +412,17 @@ export function usePropertyPayouts(period?: PayoutPeriod | string) {
           ? Number(billing?.transaction_fee_percentage ?? globalTxFee) || 0
           : 0;
         const pfFee = p.rolGross * (pfRate / 100);
+        // Monthly subscription / white-label fees are billed as their own invoices —
+        // they are reported here for context but never deducted from booking cash.
         const monthlyFees = wlFee + subFee;
-        const totalFees = monthlyFees + pfFee;
+        const totalFees = pfFee;
 
-        // Cash we hold for the owner, after our commission and fees on that cash.
-        const payoutBeforeInvoice = p.rolGross - p.rolCommission - pfFee - monthlyFees;
+        // Cash we hold for the owner, after our commission and the transaction fee on that cash.
+        const payoutBeforeInvoice = p.rolGross - p.rolCommission - pfFee;
         const netPayout = Math.max(0, payoutBeforeInvoice);
-        // BYO commission is never in our hands — invoice it, plus any shortfall.
+        // Commission on money that never reached us is invoiced to the owner.
         const invoiced = p.byoCommission + Math.max(0, -payoutBeforeInvoice);
+
 
         const settlementMode: SettlementMode =
           p.byoGross > 0 && p.rolGross > 0 ? 'mixed' : p.byoGross > 0 ? 'invoice' : 'payout';
@@ -409,6 +445,8 @@ export function usePropertyPayouts(period?: PayoutPeriod | string) {
           billing_scope: resolved?.scope || 'property',
           white_label_fee: wlFee,
           subscription_fee: subFee,
+          monthly_fees: monthlyFees,
+
           pf_enabled: pfEnabled,
           rol_gross: p.rolGross,
           byo_gross: p.byoGross,
@@ -440,6 +478,11 @@ export function usePropertyPayouts(period?: PayoutPeriod | string) {
     totalDue: payouts.reduce((s, p) => s + p.net_payout, 0),
     totalCommission: payouts.reduce((s, p) => s + p.commission_amount, 0),
     totalGross: payouts.reduce((s, p) => s + p.gross_amount, 0),
+    /** Guest money that landed in ROL's own account. */
+    totalRolGross: payouts.reduce((s, p) => s + p.rol_gross, 0),
+    /** Guest money collected by the owner's gateway or a sales channel. */
+    totalByoGross: payouts.reduce((s, p) => s + p.byo_gross, 0),
+
     totalInvoiced: payouts.reduce((s, p) => s + p.invoiced_amount, 0),
     totalPfFees: payouts.reduce((s, p) => s + p.pf_fee, 0),
     propertiesCount: payouts.length,
@@ -515,7 +558,7 @@ export function usePropertyPayouts(period?: PayoutPeriod | string) {
         commission_rate: commission.rate,
         commission_type: commission.type,
         source,
-        settlement: source === 'booking' && propertyIsByo ? 'byo' : settlement,
+        settlement: source === 'booking' ? inferSettlementFromBooking(booking, propertyIsByo) : settlement,
       };
     });
   };

@@ -1,6 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Building2, CreditCard, DollarSign, TrendingUp } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { usePropertyPayouts } from "@/hooks/usePropertyPayouts";
 import { ROLKPICard } from "./ROLKPICard";
 
@@ -10,9 +9,6 @@ interface PulseSettlementRowProps {
   /** Inclusive end date, yyyy-MM-dd. */
   end: string;
 }
-
-// Gateways write 'paid'; some providers write 'completed'/'succeeded'.
-const SETTLED_TX_STATUSES = ["paid", "completed", "succeeded", "success"];
 
 const formatZar = (value: number) =>
   new Intl.NumberFormat("en-ZA", {
@@ -40,44 +36,24 @@ export function PulseSettlementRow({ start, end }: PulseSettlementRowProps) {
 
   const { stats, loading } = usePropertyPayouts(range);
 
-  const [collected, setCollected] = useState<number | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      setCollected(null);
-      // Cancelled stays are test data / refunds — never "collected".
-      const { data, error } = await supabase
-        .from("payment_transactions")
-        .select("amount, bookings!inner(status)")
-        .in("status", SETTLED_TX_STATUSES)
-        .gte("created_at", range.from)
-        .lt("created_at", range.to);
-      if (cancelled) return;
-      if (error) {
-        setCollected(0);
-        return;
-      }
-      const total = (data as any[] | null)
-        ?.filter((t) => !["cancelled", "canceled"].includes(String(t.bookings?.status || "").toLowerCase()))
-        .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
-      setCollected(total || 0);
-    };
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, [range.from, range.to]);
+  // "Collected" is every rand received for a revenue-bearing booking, whether it
+  // came through a gateway transaction, a manual/EFT capture on the booking, or
+  // a sales channel. The subtitle keeps ROL-held cash distinguishable.
+  const collected = stats.totalGross;
 
   return (
     <div className="space-y-2">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 xl:gap-4">
         <ROLKPICard
           title="Total Collected"
-          value={collected === null ? "-" : formatZar(collected)}
-          subtitle="Settled gateway payments"
+          value={loading ? "-" : formatZar(collected)}
+          subtitle={
+            loading
+              ? "Loading"
+              : `${formatZar(stats.totalRolGross)} to ROL · ${formatZar(stats.totalByoGross)} to owner/channel`
+          }
           icon={DollarSign}
-          isLoading={collected === null}
+          isLoading={loading}
         />
         <ROLKPICard
           title="Commission Earned"
@@ -103,9 +79,11 @@ export function PulseSettlementRow({ start, end }: PulseSettlementRowProps) {
         />
       </div>
       <p className="text-xs text-muted-foreground">
-        Live estimates for the selected period. Payout statements and property invoices under Payments remain the
+        Live estimates for the selected period, by booking date. Monthly subscription and white-label fees are invoiced
+        separately and are not deducted here. Payout statements and property invoices under Payments remain the
         authoritative documents.
       </p>
     </div>
   );
 }
+

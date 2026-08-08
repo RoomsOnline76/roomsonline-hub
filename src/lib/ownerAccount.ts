@@ -262,14 +262,17 @@ export interface OwnerBalances {
   paidThisYear: number;
   /** Paid to ROL since engagement. */
   paidAllTime: number;
-  /** Finalised payout statements not yet paid out, plus ROL-held funds awaiting a statement. */
+  /** Payout statements not yet paid out, plus ROL-held funds awaiting a statement. */
   dueToYou: number;
+  /** Portion of `dueToYou` sitting on statements still in draft (awaiting release). */
+  awaitingRelease: number;
   /** Portion of `dueToYou` from bookings ROL has collected but not yet statemented. */
   pendingSettlement: number;
   /** Payout statements already paid, all time. */
   receivedAllTime: number;
   /** Net position: positive means you owe ROL. */
   net: number;
+
 }
 
 export interface BalanceInput {
@@ -333,17 +336,29 @@ export function computeBalances(input: BalanceInput): OwnerBalances {
 
 
 
+  // Any statement that is not yet paid out is money we owe the owner, whether it
+  // is still a draft, finalised or approved for payment. Only cancelled/void
+  // statements are ignored.
+  const IGNORED_PAYOUT_STATUSES = ["cancelled", "canceled", "void", "voided", "rejected"];
   let dueToYou = 0;
   let receivedAllTime = 0;
+  let awaitingRelease = 0;
   for (const s of input.payouts) {
     const net = Number(s.net_payable || 0);
-    if (s.status === "paid") receivedAllTime += net;
-    else if (s.status === "finalised") dueToYou += net;
+    const status = String(s.status || "").toLowerCase();
+    if (status === "paid") {
+      receivedAllTime += net;
+      continue;
+    }
+    if (IGNORED_PAYOUT_STATUSES.includes(status)) continue;
+    dueToYou += net;
+    if (status === "draft") awaitingRelease += net;
   }
 
   // Money ROL already collected for bookings that no statement covers yet.
   const pendingSettlement = round2(Math.max(0, Number(input.pendingSettlement || 0)));
   dueToYou += pendingSettlement;
+
 
   const oldestOverdueDays = oldest
     ? Math.max(
@@ -360,7 +375,9 @@ export function computeBalances(input: BalanceInput): OwnerBalances {
     paidThisYear: round2(paidThisYear),
     paidAllTime: round2(paidAllTime),
     dueToYou: round2(dueToYou),
+    awaitingRelease: round2(awaitingRelease),
     pendingSettlement,
+
     receivedAllTime: round2(receivedAllTime),
     net: round2(due - dueToYou),
   };
