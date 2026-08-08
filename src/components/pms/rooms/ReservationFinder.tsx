@@ -52,11 +52,14 @@ export function ReservationFinder({ bookings, rooms, propertyNames, onSelectBook
     return bookings
       .filter((booking) => {
         const roomLabels = (booking.rolos_room_ids || []).map((id) => roomLabelById.get(id) || "").join(" ");
+        // ROL reference matches on partial input too ("00142", "jon-003", "rol-wl").
+        if (matchesReferenceSearch(booking.rol_reference, term)) return true;
         const haystack = [
           booking.guest_name,
           booking.guest_email,
           booking.guest_phone,
-          booking.booking_reference,
+          booking.rol_reference,
+          booking.external_reservation_id,
           roomLabels,
           propertyNames.get(booking.property_id) || "",
           booking.check_in_date,
@@ -65,6 +68,7 @@ export function ReservationFinder({ bookings, rooms, propertyNames, onSelectBook
           .join(" ")
           .toLowerCase();
         return haystack.includes(term);
+
       })
       .sort((a, b) => a.check_in_date.localeCompare(b.check_in_date))
       .slice(0, 25);
