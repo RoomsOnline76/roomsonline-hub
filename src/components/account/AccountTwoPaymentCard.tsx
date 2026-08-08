@@ -57,6 +57,9 @@ interface Summary {
   subscription: {
     monthly_fee: number;
     due_by: string | null;
+    started_on: string | null;
+    period_start: string | null;
+    has_started: boolean;
     window_opens_on: string | null;
     can_start: boolean;
     status: string;
@@ -266,7 +269,9 @@ export function AccountTwoPaymentCard({ scope, entityId, onChanged }: Props) {
             <span className="font-medium">2 · Monthly subscription</span>
             <Badge variant="outline" className="gap-1 text-[10px]">
               <CalendarClock className="h-3 w-3" />
-              {sub.due_by ? `Due by ${sub.due_by}` : "No start date"}
+              {sub.due_by
+                ? `${sub.has_started ? "Next payment" : "Due by"} ${sub.due_by}`
+                : "No start date"}
             </Badge>
           </div>
           <div className="text-base font-semibold">
@@ -274,7 +279,9 @@ export function AccountTwoPaymentCard({ scope, entityId, onChanged }: Props) {
             <span className="text-[11px] font-normal text-muted-foreground"> / month</span>
           </div>
           <p className="text-[11px] text-muted-foreground">
-            {sub.window_opens_on
+            {sub.has_started
+              ? `Started ${sub.started_on ?? sub.period_start ?? ""} — current period runs to ${sub.due_by}, when the next payment is due.`
+              : sub.window_opens_on
               ? `Can be started from ${sub.window_opens_on} (a week before the first billing date).`
               : "Set an engagement date to schedule the first billing date."}
           </p>
