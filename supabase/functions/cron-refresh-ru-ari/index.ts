@@ -61,8 +61,9 @@ Deno.serve(async (req) => {
     }
     for (const row of (unitRows ?? []) as any[]) {
       const p = row.properties;
-      if (p && !propMap.has(p.id) && p.ru_push_enabled !== false) propMap.set(p.id, p);
+      if (p && p.is_active !== false && !propMap.has(p.id) && p.ru_push_enabled !== false) propMap.set(p.id, p);
     }
+
     let properties = Array.from(propMap.values());
     if (scopeIds.length) properties = properties.filter((p) => scopeIds.includes(p.id));
 
