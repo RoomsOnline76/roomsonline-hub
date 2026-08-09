@@ -30,7 +30,7 @@ export function PropertyAcquisitionTracker() {
     queryFn: async () => {
       const { data } = await supabase
         .from("properties")
-        .select("id, name, owner_email, owner_name, property_type, bedrooms, max_guests, external_system, created_at, is_active")
+        .select("id, name, owner_email, owner_name, property_type, bedrooms, max_guests, external_system, created_at, is_active, is_trading, is_sandbox")
         .eq("is_active", true);
       return data || [];
     },
