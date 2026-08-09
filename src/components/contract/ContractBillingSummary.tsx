@@ -29,6 +29,8 @@ interface BillingBlock {
   title: string;
   subtitle: string;
   strategyLabel: string;
+  /** Agreed payment model label, shown as its own row. */
+  paymentModelLabel: string;
   scope: "portfolio" | "property" | "global";
   onceOff: LineItem[];
   monthly: LineItem[];
@@ -162,6 +164,13 @@ function buildBlock(
       note: vars.widget_flat_commission_rate,
     });
   }
+  if (!isNA(vars.reservation_only_clause)) {
+    commissions.push({
+      label: "Reservation only — no online payment",
+      amount: null,
+      note: "Guest pays the property directly; commission invoiced monthly",
+    });
+  }
   if (!isNA(vars.payment_facilitator_clause)) {
     commissions.push({
       label: "Payment facilitation fee",
@@ -175,6 +184,7 @@ function buildBlock(
     title,
     subtitle,
     strategyLabel: vars.billing_strategy_label,
+    paymentModelLabel: vars.payment_model_label,
     scope: vars.scope,
     onceOff,
     monthly,
@@ -316,6 +326,11 @@ export function ContractBillingSummary({ propertyIds, propertyNames }: Props) {
                   <p className="text-xs text-muted-foreground">
                     {b.strategyLabel} · {b.subtitle} · {totalUnits} units
                   </p>
+                  {b.paymentModelLabel && (
+                    <p className="text-xs text-muted-foreground">
+                      Payment model: <span className="font-medium">{b.paymentModelLabel}</span>
+                    </p>
+                  )}
                 </div>
                 <Badge variant="secondary" className="text-[10px] flex-shrink-0">
                   {b.scope === "portfolio"
