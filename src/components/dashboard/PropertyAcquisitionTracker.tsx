@@ -200,7 +200,7 @@ export function PropertyAcquisitionTracker() {
             <Network className="h-4 w-4 text-muted-foreground" />
             <span className="text-sm font-medium">Property Acquisition & PMS Distribution</span>
             <span className="text-xs text-muted-foreground">
-              {pmsStats.totalProperties} total · {pmsStats.connectedToPMS} connected ({pmsStats.connectionRate.toFixed(0)}%)
+              {pmsStats.tradingProperties} trading · {pmsStats.staleProperties} stale · {pmsStats.totalProperties} total · {pmsStats.connectedToPMS} connected ({pmsStats.connectionRate.toFixed(0)}%)
             </span>
           </div>
           <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", pmsExpanded && "rotate-180")} />
