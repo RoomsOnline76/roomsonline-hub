@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/table";
 import { format } from "date-fns";
 import { usePayoutStatements, type PayoutPeriodRange } from "@/hooks/usePayoutStatements";
-import { fmtMoney, periodLabel, STATUS_LABELS } from "@/lib/payoutStatement";
+import { fmtMoney, grossReceivedByRol, periodLabel, STATUS_LABELS } from "@/lib/payoutStatement";
 import { PayoutStatementDetailDialog } from "./PayoutStatementDetailDialog";
 import { UnassignedPaymentsPanel } from "./UnassignedPaymentsPanel";
 
