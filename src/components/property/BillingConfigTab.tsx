@@ -300,13 +300,21 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
     setStrategy(slug);
     const preset = defaults.find((d) => d.strategy === slug);
     if (preset) {
-      const next = presetToBuilder(preset);
+      // Presets seed fees, but the payment model (ROL / BYO / none) stays the
+      // property's explicit choice — a reservation-only property must not be
+      // silently switched back onto a gateway model by a preset.
+      const next = {
+        ...presetToBuilder(preset),
+        facilitator_surcharge_enabled: builder.facilitator_surcharge_enabled,
+        byo_gateway_enabled: builder.byo_gateway_enabled,
+      };
       setBuilder(next);
       setPresetJustApplied(presetLabel(preset));
       // Immediately persist preset values to this property.
       persistBuilder(slug, next, billingStartDate, billingEnabled);
     }
   };
+
 
   // ── Channel Manager entitlement fan-out ───────────────────────────────
   const savedChannelManager = !!config?.channel_manager_enabled;

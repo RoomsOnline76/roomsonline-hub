@@ -433,12 +433,50 @@ export function BillingConfigBuilder({ value, onChange, scope, placeholders = {}
         <div className="rounded-md border border-blue-500/30 bg-blue-500/5 p-2.5 text-[11px] text-blue-900 dark:text-blue-200 flex items-start gap-1.5">
           <Info className="h-3 w-3 mt-0.5 shrink-0" />
           <span>
-            <strong>Payment model.</strong> Enable the <em>facilitator surcharge %</em> (ROL processes payments) or the{" "}
-            <em>BYO gateway add-on</em> (owner uses their own provider) — never both. Leave <strong>both off</strong> for a{" "}
-            <em>reservation-only</em> property: no online payment is processed and the guest pays the property by bank transfer.
+            <strong>Payment model.</strong> Pick exactly one: <em>ROL processes payments</em> (facilitator surcharge %),{" "}
+            <em>Owner's own gateway</em> (BYO monthly add-on), or <em>None</em> — a{" "}
+            <strong>reservation-only</strong> property where no online payment is processed and the guest pays the property by bank transfer.
           </span>
         </div>
       )}
+
+      {/* Explicit tri-state payment model — "None" is a first-class choice */}
+      <div className="rounded-md border p-3 space-y-2">
+        <p className="text-xs font-medium">Payment model</p>
+        <div className="grid grid-cols-3 gap-2">
+          {([
+            { key: "rol", label: "ROL processes", hint: "Facilitator surcharge %" },
+            { key: "byo", label: "Owner's gateway", hint: "Flat monthly add-on" },
+            { key: "none", label: "None", hint: "Reservation only" },
+          ] as const).map((opt) => {
+            const active =
+              opt.key === "rol"
+                ? value.facilitator_surcharge_enabled && !value.byo_gateway_enabled
+                : opt.key === "byo"
+                ? value.byo_gateway_enabled && !value.facilitator_surcharge_enabled
+                : !value.facilitator_surcharge_enabled && !value.byo_gateway_enabled;
+            return (
+              <button
+                key={opt.key}
+                type="button"
+                onClick={() =>
+                  onChange({
+                    ...value,
+                    facilitator_surcharge_enabled: opt.key === "rol",
+                    byo_gateway_enabled: opt.key === "byo",
+                  })
+                }
+                className={`rounded-md border p-2 text-left transition-colors ${
+                  active ? "border-primary bg-primary/10" : "border-input hover:bg-muted/40"
+                }`}
+              >
+                <span className="block text-xs font-medium">{opt.label}</span>
+                <span className="block text-[10px] text-muted-foreground">{opt.hint}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
       {!value.facilitator_surcharge_enabled && !value.byo_gateway_enabled && (
         <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-2.5 text-[11px] text-amber-900 dark:text-amber-200 flex items-start gap-1.5">
@@ -449,6 +487,7 @@ export function BillingConfigBuilder({ value, onChange, scope, placeholders = {}
           </span>
         </div>
       )}
+
 
       {/* ── ROL facilitator surcharge ──────────────────────────────── */}
       <ToggleRow
