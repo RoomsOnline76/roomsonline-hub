@@ -201,10 +201,14 @@ export function buildRecurringComponents(
     }
   }
 
-  // 6. BYO gateway support fee — only meaningful when the property collects itself.
-  const byoFee = num(config.byo_gateway_monthly_fee ?? globals.byo_gateway_monthly_fee);
-  if (byoFee > 0) {
-    out.push({ key: "byo_gateway", description: "Own payment gateway integration", amount: round2(byoFee), quantity: 1, rate: 0 });
+  // 6. BYO gateway support fee — only when the property actually collects via
+  //    its own gateway. ROL-processed and reservation-only clients never pay it,
+  //    even when a global default fee exists.
+  if (resolvePaymentModel({ config }) === "byo") {
+    const byoFee = num(config.byo_gateway_monthly_fee ?? globals.byo_gateway_monthly_fee);
+    if (byoFee > 0) {
+      out.push({ key: "byo_gateway", description: "Own payment gateway integration", amount: round2(byoFee), quantity: 1, rate: 0 });
+    }
   }
 
   // 7. Portfolio aggregator surface.
