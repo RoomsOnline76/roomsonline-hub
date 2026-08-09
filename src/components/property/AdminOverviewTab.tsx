@@ -26,6 +26,7 @@ import {
   ShieldQuestion,
   Pencil,
   Calculator,
+  AlertTriangle,
 } from "lucide-react";
 
 interface AdminOverviewTabProps {
