@@ -7,6 +7,7 @@
  * the resolved room/unit counts and tier fee.
  */
 
+import { resolvePaymentModel } from "@/lib/paymentMode";
 import { DEFAULT_TIERS, isTierStrategy, resolveTier, type PricingTier } from "@/lib/billingTierResolver";
 
 export interface ExpectedBillingLine {
@@ -36,6 +37,8 @@ export interface ExpectedBillingConfig {
   pricelabs_setup_fee?: number | null;
   byo_gateway_monthly_fee?: number | null;
   payment_facilitator_enabled?: boolean | null;
+  /** Canonical payment model: `rol` | `byo` | `reservation_only`. */
+  payment_model?: string | null;
 }
 
 export interface ExpectedBillingContext {
@@ -137,8 +140,13 @@ export function computeExpectedBilling(
   if (config.pricelabs_allowed) push("PriceLabs add-on", config.pricelabs_monthly_fee);
   push("PriceLabs setup", config.pricelabs_setup_fee, true);
 
-  // BYO gateway add-on
-  if (ctx.byoGateway) push("BYO payment gateway add-on", config.byo_gateway_monthly_fee);
+  // BYO gateway add-on — only when the property collects through its own
+  // gateway. ROL-processed and reservation-only clients are never charged it.
+  const paymentModel = resolvePaymentModel({
+    config,
+    property: { allow_custom_payment_provider: ctx.byoGateway },
+  });
+  if (paymentModel === "byo") push("BYO payment gateway add-on", config.byo_gateway_monthly_fee);
 
   const monthly = lines.filter((l) => !l.once).reduce((s, l) => s + l.amount, 0);
   const setup = lines.filter((l) => l.once).reduce((s, l) => s + l.amount, 0);

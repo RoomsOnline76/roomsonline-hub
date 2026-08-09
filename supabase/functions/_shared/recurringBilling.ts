@@ -73,6 +73,8 @@ export interface RecurringConfigLike {
   branding_addon_monthly_fee?: number | null;
   branding_addon_billing_mode?: string | null;
   byo_gateway_monthly_fee?: number | null;
+  payment_model?: string | null;
+  payment_facilitator_enabled?: boolean | null;
   portfolio_aggregator_billing_mode?: string | null;
   portfolio_aggregator_monthly_default?: number | null;
 }
