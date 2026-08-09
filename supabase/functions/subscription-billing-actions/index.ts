@@ -10,6 +10,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { Resend } from "npm:resend@2";
 import { getBillingAdminRecipients } from "../_shared/billingAdminRecipients.ts";
+import { computeExpectedBilling } from "../_shared/expectedBilling.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
