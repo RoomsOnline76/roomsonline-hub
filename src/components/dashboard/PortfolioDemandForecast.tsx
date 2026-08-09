@@ -20,24 +20,42 @@ export function PortfolioDemandForecast() {
   const today = format(new Date(), "yyyy-MM-dd");
   const futureEnd = format(addDays(new Date(), FORECAST_DAYS), "yyyy-MM-dd");
 
-  // Fetch all ROLOS rooms across portfolio
+  // Trading properties only — rooms belonging to stale inventory would inflate
+  // the available-room denominator and crush the occupancy forecast.
+  const { data: tradingPropertyIds = [], isLoading: propsLoading } = useQuery({
+    queryKey: ["portfolio-trading-property-ids"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("properties")
+        .select("id")
+        .eq("is_trading", true)
+        .eq("is_sandbox", false);
+      return (data || []).map((p: any) => p.id as string);
+    },
+  });
+
+  // Fetch ROLOS rooms for trading properties
   const { data: allRooms = [], isLoading: roomsLoading } = useQuery({
-    queryKey: ["portfolio-rooms"],
+    queryKey: ["portfolio-rooms", tradingPropertyIds.join(",")],
+    enabled: tradingPropertyIds.length > 0,
     queryFn: async () => {
       const { data } = await supabase
         .from("rolos_rooms" as any)
-        .select("id, property_id");
+        .select("id, property_id")
+        .in("property_id", tradingPropertyIds);
       return data || [];
     },
   });
 
-  // Fetch all upcoming bookings across portfolio
+  // Fetch all upcoming bookings for trading properties
   const { data: allBookings = [], isLoading: bookingsLoading } = useQuery({
-    queryKey: ["portfolio-future-bookings", today, futureEnd],
+    queryKey: ["portfolio-future-bookings", today, futureEnd, tradingPropertyIds.join(",")],
+    enabled: tradingPropertyIds.length > 0,
     queryFn: async () => {
       const { data } = await supabase
         .from("bookings")
         .select("id, property_id, check_in_date, check_out_date, total_price, status")
+        .in("property_id", tradingPropertyIds)
         .gte("check_out_date", today)
         .lte("check_in_date", futureEnd)
         .neq("status", "cancelled");
@@ -45,7 +63,7 @@ export function PortfolioDemandForecast() {
     },
   });
 
-  const loading = roomsLoading || bookingsLoading;
+  const loading = propsLoading || roomsLoading || bookingsLoading;
   const totalRooms = Math.max(1, allRooms.length);
 
   // Properties with rooms (PMS properties)

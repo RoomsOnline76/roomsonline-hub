@@ -68,7 +68,9 @@ export default function AdminDashboard() {
         supabase.from('bookings').select('*', { count: 'exact', head: true }).in('payment_status', ALL_REVENUE_PAYMENT_STATUSES).not('status', 'in', '(cancelled,failed)'),
         supabase.from('bookings').select('*', { count: 'exact', head: true }).in('payment_status', ALL_REVENUE_PAYMENT_STATUSES).eq('status', 'confirmed'),
         supabase.from('properties').select('*', { count: 'exact', head: true }),
-        supabase.from('properties').select('*', { count: 'exact', head: true }).eq('is_active', true),
+        // Trading properties only — stale inventory (connected/contracted but not
+        // processing anything) must never inflate the operational counts.
+        supabase.from('properties').select('*', { count: 'exact', head: true }).eq('is_trading', true).eq('is_sandbox', false),
         supabase.from('access_requests').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
         supabase
           .from('bookings')
@@ -173,10 +175,10 @@ export default function AdminDashboard() {
         />
 
         <StatCard
-          title="Active Properties"
+          title="Trading Properties"
           value={`${stats?.activeProperties || 0} / ${stats?.totalProperties || 0}`}
           icon={Building2}
-          description="Currently listed"
+          description="Trading now vs total inventory"
           onClick={() => navigate('/admin/all-properties')}
         />
         <StatCard

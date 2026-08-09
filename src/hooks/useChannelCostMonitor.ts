@@ -33,6 +33,8 @@ export interface ChannelPropertyRow {
   archivedAt: string | null;
   lastPushAt: string | null;
   monthlyCostEur: number;
+  /** Counts in dashboards/metrics: staff-flagged trading and not sandbox. */
+  isTrading: boolean;
 }
 
 export interface ArchiveEventRow {
@@ -82,6 +84,8 @@ interface PropertyRecord {
   id: string;
   name: string | null;
   is_active: boolean | null;
+  is_trading: boolean | null;
+  is_sandbox: boolean | null;
   ru_push_enabled: boolean | null;
   ru_archived: boolean | null;
   ru_archived_at: string | null;
@@ -161,7 +165,7 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
         await Promise.all([
         supabase
           .from("properties")
-          .select("id, name, is_active, ru_push_enabled, ru_archived, ru_archived_at, rentalsunited_property_id"),
+          .select("id, name, is_active, is_trading, is_sandbox, ru_push_enabled, ru_archived, ru_archived_at, rentalsunited_property_id"),
         supabase
           .from("hostfully_room_types")
           .select("id, property_id, name, is_active, rentalsunited_property_id"),

@@ -780,6 +780,9 @@ export default function PropertyForm({
   const [starRating, setStarRating] = useState(0);
   const [isRolProperty, setIsRolProperty] = useState(false);
   const [isTestProperty, setIsTestProperty] = useState(false);
+  // Metric gate: only trading (and non-sandbox) properties feed counts/dashboards.
+  const [isTrading, setIsTrading] = useState(false);
+  const [isSandbox, setIsSandbox] = useState(false);
   const [adminSubTab, setAdminSubTab] = useState<string>(() => searchParams.get("sub") || "overview");
   const [selectedFacilities, setSelectedFacilities] = useState<string[]>([]);
   const [aiAmenityOpen, setAiAmenityOpen] = useState(false);
@@ -2512,6 +2515,8 @@ export default function PropertyForm({
           // Load is_rol_property and is_test_property
           setIsRolProperty((data as any).is_rol_property ?? false);
           setIsTestProperty((data as any).is_test_property ?? false);
+          setIsTrading((data as any).is_trading ?? false);
+          setIsSandbox((data as any).is_sandbox ?? false);
 
           // Load meal types if available
           if (amenities?.meal_types && Array.isArray(amenities.meal_types)) {
@@ -3121,6 +3126,8 @@ export default function PropertyForm({
         wetu_id: formData.wetu_id?.trim() || null,
         is_rol_property: isRolProperty,
         is_test_property: isTestProperty,
+        is_trading: isTrading,
+        is_sandbox: isSandbox || isTestProperty,
         is_active: true,
         images: uploadedImages,
         ru_image_tags: pruneRuImageTagMap(imageTags, uploadedImages),
@@ -4832,6 +4839,7 @@ export default function PropertyForm({
                                   checked={isTestProperty}
                                   onCheckedChange={(checked) => {
                                     setIsTestProperty(checked as boolean);
+                                    setIsSandbox(checked as boolean);
                                     setIsDirty(true);
                                   }}
                                 />
@@ -4842,6 +4850,35 @@ export default function PropertyForm({
                             </div>
                           </div>
                         )}
+
+                        {(isAdmin || isDev || isFearlessLeader) && (
+                          <div className="flex flex-col gap-1 md:col-span-2">
+                            <Label className="text-xs">Trading status</Label>
+                            <div className="flex items-start gap-2 rounded-md border border-border bg-secondary px-3 py-2">
+                              <Switch
+                                id="is_trading"
+                                checked={isTrading}
+                                onCheckedChange={(checked) => {
+                                  setIsTrading(checked);
+                                  setIsDirty(true);
+                                }}
+                              />
+                              <div className="flex flex-col gap-0.5">
+                                <Label htmlFor="is_trading" className="cursor-pointer text-xs font-medium">
+                                  Trading — include in counts and metrics
+                                </Label>
+                                <p className="text-[11px] leading-snug text-muted-foreground">
+                                  {isSandbox
+                                    ? "Test / sandbox property: fully editable and connectable, but never counted in dashboards."
+                                    : isTrading
+                                      ? "Counted in dashboards, occupancy, forecasts and revenue reporting."
+                                      : "Stale inventory: fully editable and connectable, but excluded from all dashboards and metrics until it genuinely trades."}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
 
                         <div className="flex flex-col gap-1">
                           <Label htmlFor="telephone" className="text-xs">
