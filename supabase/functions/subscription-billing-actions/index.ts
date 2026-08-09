@@ -622,6 +622,13 @@ Deno.serve(async (req) => {
             `<p><strong>Subscription plan change scheduled.</strong> The current plan (${money(planChange.previous_monthly_fee, currency)} per month) runs to <strong>${planChange.runs_to}</strong>. The new plan of <strong>${money(planChange.new_monthly_fee, currency)} per month</strong> starts on <strong>${planChange.effective_date}</strong> and is activated by the owner from the ROL Account &mdash; the activation opens on ${planChange.window_opens_on}.</p>`,
           );
         }
+        if (!planChange && feeChanged) {
+          parts.push(
+            billedFee > 0
+              ? `<p><strong>Monthly subscription amount changed</strong> from ${money(billedFee, currency)} to <strong>${money(fee, currency)} per month</strong>. The amount currently collected by the payment gateway is ${money(billedFee, currency)} &mdash; the existing subscription must be cancelled and the new plan activated from the ROL Account so the correct amount is collected.</p>`
+              : `<p>The contracted monthly subscription is now <strong>${money(fee, currency)} per month</strong>. It is activated by the owner from the ROL Account when it becomes due.</p>`,
+          );
+        }
         if (requiresCreditNote) {
           parts.push(
             `<p style="color:#666;font-size:13px">A once-off fee was reduced after payment. A credit note will be raised manually by the Rooms Online team.</p>`,
@@ -632,9 +639,12 @@ Deno.serve(async (req) => {
             ? `Billing updated - additional fee due and plan change scheduled - ${entityName}`
             : planChange
             ? `Subscription plan change scheduled - ${entityName}`
-            : `Billing updated - additional once-off fee due - ${entityName}`,
+            : deltaBilled > 0
+            ? `Billing updated - additional once-off fee due - ${entityName}`
+            : `Subscription amount changed - ${entityName}`,
           parts.join(""),
         );
+
       }
 
       const logRow: any = {
