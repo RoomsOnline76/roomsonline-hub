@@ -104,9 +104,10 @@ function configToBuilder(config: BillingConfig | null): BillingConfigValue {
   v.enterprise_custom_fee = (config as any).enterprise_custom_fee != null ? String((config as any).enterprise_custom_fee) : "";
   v.volume_tiers_enabled = tiers.length > 0 && !isWidget;
   v.tier_pricing_json = tiers.length ? tiers : null;
-  v.facilitator_surcharge_enabled = !!config.payment_facilitator_enabled;
+  const model = resolvePaymentModel({ config: config as any });
+  v.facilitator_surcharge_enabled = model === "rol";
   v.transaction_fee = config.transaction_fee_percentage != null ? String(config.transaction_fee_percentage) : "";
-  v.byo_gateway_enabled = ((config as any).byo_gateway_monthly_fee ?? 0) > 0;
+  v.byo_gateway_enabled = model === "byo";
   v.byo_gateway_fee = (config as any).byo_gateway_monthly_fee != null ? String((config as any).byo_gateway_monthly_fee) : "";
   v.white_label_enabled = !!config.white_label_allowed;
   v.white_label_monthly_fee = config.white_label_monthly_fee != null ? String(config.white_label_monthly_fee) : "";
@@ -240,7 +241,7 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
     // the gateway configurator accordingly. When BOTH the ROL facilitator and the
     // BYO gateway are off the property is reservation-only: no online payment.
     const nextAllowCustom = v.byo_gateway_enabled;
-    const nextPaymentMode = v.byo_gateway_enabled
+    const nextPaymentMode: PaymentMode = v.byo_gateway_enabled
       ? "byo"
       : v.facilitator_surcharge_enabled
       ? "rol"
@@ -266,7 +267,9 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
 
       enterprise_custom_fee: v.pms_enabled ? toNum(v.enterprise_custom_fee) : null,
       transaction_fee_percentage: v.facilitator_surcharge_enabled ? toNum(v.transaction_fee) : null,
-      // Both off = reservation only (no online payment processing at all)
+      // Both off = reservation only (no online payment processing at all).
+      // `payment_model` is the explicit commercial record contracts + invoices read.
+      payment_model: nextPaymentMode,
       payment_facilitator_enabled: v.facilitator_surcharge_enabled,
       byo_gateway_monthly_fee: v.byo_gateway_enabled ? toNum(v.byo_gateway_fee) : null,
 
