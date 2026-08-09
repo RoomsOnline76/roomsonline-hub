@@ -373,6 +373,11 @@ Deno.serve(async (req) => {
         : null,
       subscription: {
         monthly_fee: fee,
+        /** What the gateway is collecting today (last paid subscription). */
+        billed_amount: billedAmount,
+        /** True when the contracted fee no longer matches the collected amount. */
+        amount_drift: amountDrift,
+
         // Once the subscription has been paid, the payment date is the start of
         // the paid period and the "due by" date becomes the next renewal date.
         due_by: nextDue,
