@@ -298,7 +298,8 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
 
     return {
       billableListings,
-      activeProperties: properties.filter((r) => r.state === "live").length,
+      // Live AND trading — parked/stale inventory must not read as active spend.
+      activeProperties: properties.filter((r) => r.state === "live" && r.isTrading).length,
       pausedProperties: properties.filter((r) => r.state === "paused").length,
       archivedProperties: properties.filter((r) => r.state === "archived").length,
       archivedUnits: properties.reduce((sum, r) => sum + r.archivedUnits, 0),
