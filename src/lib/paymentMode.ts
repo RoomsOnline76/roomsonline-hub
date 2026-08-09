@@ -85,3 +85,48 @@ export function bankingLines(b: PropertyBankingDetails): { label: string; value:
   if (b.swift_code) rows.push({ label: "SWIFT / BIC", value: b.swift_code });
   return rows;
 }
+
+// ── Canonical payment model resolution ────────────────────────────────────────
+/**
+ * The commercial record of how a property collects money. Billing configs now
+ * store this explicitly (`payment_model`); older rows are inferred from the
+ * facilitator flag / gateway fee, and finally from the property switch.
+ */
+export interface PaymentModelConfigLike {
+  payment_model?: string | null;
+  payment_facilitator_enabled?: boolean | null;
+  byo_gateway_monthly_fee?: number | null;
+}
+
+export interface PaymentModelSources {
+  /** Property-level billing config (highest priority). */
+  config?: PaymentModelConfigLike | null;
+  /** Portfolio-level billing config, used when the property has none. */
+  portfolioConfig?: PaymentModelConfigLike | null;
+  /** Operational switch stored on the property row. */
+  property?: { payment_mode?: string | null; allow_custom_payment_provider?: boolean | null } | null;
+}
+
+function fromConfig(cfg?: PaymentModelConfigLike | null): PaymentMode | null {
+  if (!cfg) return null;
+  if (isPaymentMode(cfg.payment_model)) return cfg.payment_model;
+  if (cfg.payment_facilitator_enabled) return "rol";
+  if ((cfg.byo_gateway_monthly_fee ?? 0) > 0) return "byo";
+  return null;
+}
+
+export function resolvePaymentModel(sources: PaymentModelSources): PaymentMode {
+  return (
+    fromConfig(sources.config) ??
+    fromConfig(sources.portfolioConfig) ??
+    (isPaymentMode(sources.property?.payment_mode)
+      ? (sources.property!.payment_mode as PaymentMode)
+      : sources.property?.allow_custom_payment_provider
+        ? "byo"
+        : "reservation_only")
+  );
+}
+
+export function paymentModelLabel(mode: PaymentMode): string {
+  return PAYMENT_MODES.find((m) => m.value === mode)?.label ?? mode;
+}
