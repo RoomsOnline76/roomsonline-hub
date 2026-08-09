@@ -72,7 +72,11 @@ export default function DevOverview() {
       const { data: properties } = await supabase
         .from('properties')
         .select('id, external_system, benson_property_code, owner_pms_credential_id')
-        .eq('is_active', true);
+        // Adapter "live properties" means trading properties — stale inventory is
+        // connected but not processing anything.
+        .eq('is_active', true)
+        .eq('is_trading', true)
+        .eq('is_sandbox', false);
 
       // Count properties per PMS type
       const propertyCountByPms = new Map<string, number>();
