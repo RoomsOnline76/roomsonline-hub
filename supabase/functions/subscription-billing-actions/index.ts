@@ -10,6 +10,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { Resend } from "npm:resend@2";
 import { getBillingAdminRecipients } from "../_shared/billingAdminRecipients.ts";
+import { computeExpectedBilling } from "../_shared/expectedBilling.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -75,18 +76,6 @@ function json(body: unknown, status = 200) {
   });
 }
 
-type Tier = { min_rooms: number; max_rooms: number | null; monthly_fee: number };
-
-function feeFromTiers(tiers: Tier[] | null, rooms: number): number {
-  if (!tiers?.length) return 0;
-  const sorted = [...tiers].sort((a, b) => a.min_rooms - b.min_rooms);
-  for (const t of sorted) {
-    const max = t.max_rooms == null ? Infinity : t.max_rooms;
-    if (rooms >= t.min_rooms && rooms <= max) return Number(t.monthly_fee) || 0;
-  }
-  return Number(sorted[sorted.length - 1].monthly_fee) || 0;
-}
-
 async function propertyIdsFor(supabase: any, scope: string, entityId: string): Promise<string[]> {
   if (scope === "property") return [entityId];
   const { data } = await supabase
@@ -97,8 +86,7 @@ async function propertyIdsFor(supabase: any, scope: string, entityId: string): P
 }
 
 async function monthlyFee(supabase: any, cfg: any, scope: string, entityId: string): Promise<number> {
-  if (Number(cfg?.subscription_fee_monthly) > 0) return Number(cfg.subscription_fee_monthly);
-  let tiers: Tier[] | null = Array.isArray(cfg?.tier_pricing_json) ? cfg.tier_pricing_json : null;
+  let tiers: any[] | null = Array.isArray(cfg?.tier_pricing_json) ? cfg.tier_pricing_json : null;
   if (!tiers?.length) {
     const { data } = await supabase
       .from("billing_global_defaults")
@@ -116,14 +104,21 @@ async function monthlyFee(supabase: any, cfg: any, scope: string, entityId: stri
       .in("property_id", ids);
     rooms = count || 0;
   }
-  const addOns =
-    (Number(cfg?.white_label_monthly_fee) || 0) +
-    (Number(cfg?.branding_addon_monthly_fee) || 0) +
-    (Number(cfg?.pricelabs_monthly_fee) || 0) +
-    (Number(cfg?.byo_gateway_monthly_fee) || 0) +
-    (cfg?.channel_manager_enabled ? (Number(cfg?.channel_manager_per_unit_fee) || 0) * rooms : 0);
-  return feeFromTiers(tiers, rooms) + addOns;
+  // The operational payment switch on the property backs up the config when the
+  // config has no explicit payment model (single-property scopes only).
+  let property: any = null;
+  if (ids.length === 1) {
+    const { data } = await supabase
+      .from("properties")
+      .select("payment_mode, allow_custom_payment_provider")
+      .eq("id", ids[0])
+      .maybeSingle();
+    property = data ?? null;
+  }
+  // Same formula as the on-screen "Estimated client cost" breakdown.
+  return computeExpectedBilling(cfg, { units: rooms, rooms, tiers: tiers as any, property }).monthly;
 }
+
 
 function paidStartFor(cfg: any): string | null {
   const freeDays = cfg?.free_period_days ?? DEFAULT_FREE_PERIOD_DAYS;
@@ -320,6 +315,15 @@ Deno.serve(async (req) => {
     );
     const cancelled = (invoices ?? []).filter((i: any) => ["cancelled", "void"].includes(i.status));
     const fee = await monthlyFee(supabase, cfg, scope, entityId);
+    // The amount the payment gateway is actually collecting = the last paid
+    // subscription invoice. When it differs from the contracted fee the account
+    // is drifting and the plan change must be scheduled / activated.
+    const lastPaidSub = (invoices ?? []).find(
+      (i: any) => i.invoice_kind !== "once_off" && i.status === "paid",
+    );
+    const billedAmount = lastPaidSub ? Number(lastPaidSub.amount) || 0 : 0;
+    const amountDrift = billedAmount > 0 && Math.abs(fee - billedAmount) > 0.005;
+
 
     const payUrl = (t?: string | null) => (t ? `${SITE_URL}/subscribe/pay/${t}` : null);
 
@@ -357,6 +361,11 @@ Deno.serve(async (req) => {
         : null,
       subscription: {
         monthly_fee: fee,
+        /** What the gateway is collecting today (last paid subscription). */
+        billed_amount: billedAmount,
+        /** True when the contracted fee no longer matches the collected amount. */
+        amount_drift: amountDrift,
+
         // Once the subscription has been paid, the payment date is the start of
         // the paid period and the "due by" date becomes the next renewal date.
         due_by: nextDue,
@@ -594,8 +603,12 @@ Deno.serve(async (req) => {
       }
 
       // --- 3. Notify ---------------------------------------------------------
+      // Any change to the monthly fee is notified, even when no plan change was
+      // scheduled (e.g. the subscription has not been activated yet) so the
+      // owner and admin always know the contracted amount moved.
       let notificationStatus = "not_required";
-      if (deltaBilled > 0 || planChange) {
+      if (deltaBilled > 0 || planChange || feeChanged) {
+
         const parts: string[] = [
           `<p>The billing configuration for <strong>${entityName}</strong> has been updated.</p>`,
         ];
@@ -611,6 +624,13 @@ Deno.serve(async (req) => {
             `<p><strong>Subscription plan change scheduled.</strong> The current plan (${money(planChange.previous_monthly_fee, currency)} per month) runs to <strong>${planChange.runs_to}</strong>. The new plan of <strong>${money(planChange.new_monthly_fee, currency)} per month</strong> starts on <strong>${planChange.effective_date}</strong> and is activated by the owner from the ROL Account &mdash; the activation opens on ${planChange.window_opens_on}.</p>`,
           );
         }
+        if (!planChange && feeChanged) {
+          parts.push(
+            billedFee > 0
+              ? `<p><strong>Monthly subscription amount changed</strong> from ${money(billedFee, currency)} to <strong>${money(fee, currency)} per month</strong>. The amount currently collected by the payment gateway is ${money(billedFee, currency)} &mdash; the existing subscription must be cancelled and the new plan activated from the ROL Account so the correct amount is collected.</p>`
+              : `<p>The contracted monthly subscription is now <strong>${money(fee, currency)} per month</strong>. It is activated by the owner from the ROL Account when it becomes due.</p>`,
+          );
+        }
         if (requiresCreditNote) {
           parts.push(
             `<p style="color:#666;font-size:13px">A once-off fee was reduced after payment. A credit note will be raised manually by the Rooms Online team.</p>`,
@@ -621,15 +641,23 @@ Deno.serve(async (req) => {
             ? `Billing updated - additional fee due and plan change scheduled - ${entityName}`
             : planChange
             ? `Subscription plan change scheduled - ${entityName}`
-            : `Billing updated - additional once-off fee due - ${entityName}`,
+            : deltaBilled > 0
+            ? `Billing updated - additional once-off fee due - ${entityName}`
+            : `Subscription amount changed - ${entityName}`,
           parts.join(""),
         );
+
       }
 
       const logRow: any = {
         owner_id: ownerId,
         changed_by: user?.id ?? null,
-        change_type: planChange && deltaBilled > 0 ? "both" : planChange ? "subscription_model" : "setup_delta",
+        change_type:
+          (planChange || feeChanged) && deltaBilled > 0
+            ? "both"
+            : planChange || feeChanged
+            ? "subscription_model"
+            : "setup_delta",
         before_snapshot: before,
         after_snapshot: cfg,
         setup_delta: deltaBilled,

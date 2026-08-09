@@ -28,6 +28,7 @@ import {
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { fmtMoney } from "@/lib/ownerAccount";
+import { detectSubscriptionDrift, driftMessage } from "@/lib/subscriptionDrift";
 import { downloadSubscriptionInvoice } from "@/lib/invoiceDownload";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -56,6 +57,10 @@ interface Summary {
   } | null;
   subscription: {
     monthly_fee: number;
+    /** Amount the payment gateway is actually collecting. */
+    billed_amount?: number | null;
+    /** True when the collected amount no longer matches the contracted fee. */
+    amount_drift?: boolean;
     due_by: string | null;
     started_on: string | null;
     period_start: string | null;
@@ -150,6 +155,12 @@ export function AccountTwoPaymentCard({ scope, entityId, onChanged }: Props) {
   const paidSetupInvoice = summary.setup.paid_invoice;
   const setupAmount = setupInvoice ? setupInvoice.amount : summary.setup.total;
   const sub = summary.subscription;
+  // Contracted fee vs the amount the gateway is actually collecting.
+  const drift = detectSubscriptionDrift({
+    contractedMonthlyFee: sub.monthly_fee,
+    billedAmount: sub.billed_amount ?? null,
+    pendingMonthlyFee: summary.pending_plan?.monthly_fee ?? null,
+  });
   const spin = (a: string) => busy === a;
   // A reminder only makes sense while something is actually outstanding: an open
   // setup-fee invoice, an unpaid subscription invoice, or a subscription that has
@@ -303,6 +314,33 @@ export function AccountTwoPaymentCard({ scope, entityId, onChanged }: Props) {
                 the account is suspended pending reactivation.
               </span>
             </p>
+          )}
+
+          {drift.drifting && !summary.pending_plan && !sub.suspended_at && (
+            <div className="space-y-2 rounded-md border border-destructive/40 bg-destructive/10 p-2">
+              <p className="flex items-start gap-1.5 text-[11px] text-destructive">
+                <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" />
+                <span>
+                  <strong>Subscription amount changed.</strong>{" "}
+                  {driftMessage(drift, (n) => fmtMoney(n, cur))} The current subscription must be
+                  cancelled and the new plan activated so the correct amount is collected.
+                </span>
+              </p>
+              {isStaff && summary.is_staff && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-[11px]"
+                  disabled={spin("apply_config_change")}
+                  onClick={() =>
+                    void run("apply_config_change", "Plan change scheduled - the owner activates the new plan")
+                  }
+                >
+                  {spin("apply_config_change") && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
+                  Schedule plan change
+                </Button>
+              )}
+            </div>
           )}
 
           {summary.pending_plan && !sub.suspended_at && (

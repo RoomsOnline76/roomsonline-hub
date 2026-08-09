@@ -9,6 +9,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
+import { useBillingConfig } from "@/hooks/useBillingConfig";
 
 interface PaymentProvidersTabProps {
   propertyId: string | null;
@@ -25,7 +26,9 @@ export function PaymentProvidersTab({
 }: PaymentProvidersTabProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { upsert, scope } = useBillingConfig(propertyId ?? undefined);
   const [saving, setSaving] = useState(false);
+
   const canEdit = isAdmin || isDev || isFearlessLeader;
 
   const { data, isLoading } = useQuery({
@@ -51,24 +54,34 @@ export function PaymentProvidersTab({
     setSaving(true);
     const { error } = await supabase
       .from("properties")
-      .update({ allow_custom_payment_provider: next })
+      .update({
+        allow_custom_payment_provider: next,
+        payment_mode: next ? "byo" : "rol",
+      } as any)
       .eq("id", propertyId);
 
-    // Keep billing config in sync: facilitator is the inverse of custom provider
-    const { error: billingErr } = await supabase
-      .from("property_billing_configs")
-      .upsert(
-        { property_id: propertyId, payment_facilitator_enabled: !next },
-        { onConflict: "property_id" }
-      );
-
-    setSaving(false);
-    if (error || billingErr) {
-      toast.error("Failed to update payment provider access", {
-        description: (error || billingErr)?.message,
-      });
+    if (error) {
+      setSaving(false);
+      toast.error("Failed to update payment provider access", { description: error.message });
       return;
     }
+
+    // Billing must go through the billing engine (never a direct write): it
+    // writes to the effective config (portfolio-wide where applicable), bills
+    // only the new balance, schedules a subscription plan change when the
+    // monthly fee moves, and notifies the owner + admin.
+    try {
+      await upsert.mutateAsync({
+        property_id: propertyId,
+        payment_facilitator_enabled: !next,
+        payment_model: next ? "byo" : "rol",
+      } as any);
+    } catch {
+      setSaving(false);
+      return; // upsert surfaces its own error toast
+    }
+
+    setSaving(false);
     toast.success(
       next
         ? "Custom payment provider enabled — facilitator fee disabled"
@@ -77,6 +90,7 @@ export function PaymentProvidersTab({
     queryClient.invalidateQueries({ queryKey: ["property-allow-custom-payment", propertyId] });
     queryClient.invalidateQueries({ queryKey: ["billing-config", propertyId] });
   };
+
 
   if (!propertyId) {
     return (
@@ -121,7 +135,16 @@ export function PaymentProvidersTab({
                   When off, all bookings settle through the Rooms Online PayFast gateway.
                   When on, the owner unlocks the payment provider configurator in Integrations.
                 </p>
+                {scope.source === "portfolio" && (
+                  <p className="text-xs text-muted-foreground">
+                    Billing for this property is managed at portfolio level
+                    {scope.portfolioName ? ` (${scope.portfolioName})` : ""} — changing this updates
+                    the shared billing configuration and, where the monthly fee changes, schedules a
+                    subscription plan change and notifies the owner and admin.
+                  </p>
+                )}
               </div>
+
               <Switch
                 id="allow-custom-payment"
                 checked={allowed}
