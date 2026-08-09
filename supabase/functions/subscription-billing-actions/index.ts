@@ -327,6 +327,15 @@ Deno.serve(async (req) => {
     );
     const cancelled = (invoices ?? []).filter((i: any) => ["cancelled", "void"].includes(i.status));
     const fee = await monthlyFee(supabase, cfg, scope, entityId);
+    // The amount the payment gateway is actually collecting = the last paid
+    // subscription invoice. When it differs from the contracted fee the account
+    // is drifting and the plan change must be scheduled / activated.
+    const lastPaidSub = (invoices ?? []).find(
+      (i: any) => i.invoice_kind !== "once_off" && i.status === "paid",
+    );
+    const billedAmount = lastPaidSub ? Number(lastPaidSub.amount) || 0 : 0;
+    const amountDrift = billedAmount > 0 && Math.abs(fee - billedAmount) > 0.005;
+
 
     const payUrl = (t?: string | null) => (t ? `${SITE_URL}/subscribe/pay/${t}` : null);
 
