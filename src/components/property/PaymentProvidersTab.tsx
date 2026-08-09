@@ -25,7 +25,9 @@ export function PaymentProvidersTab({
 }: PaymentProvidersTabProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { upsert, scope } = useBillingConfig(propertyId ?? undefined);
   const [saving, setSaving] = useState(false);
+
   const canEdit = isAdmin || isDev || isFearlessLeader;
 
   const { data, isLoading } = useQuery({
