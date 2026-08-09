@@ -601,8 +601,12 @@ Deno.serve(async (req) => {
       }
 
       // --- 3. Notify ---------------------------------------------------------
+      // Any change to the monthly fee is notified, even when no plan change was
+      // scheduled (e.g. the subscription has not been activated yet) so the
+      // owner and admin always know the contracted amount moved.
       let notificationStatus = "not_required";
-      if (deltaBilled > 0 || planChange) {
+      if (deltaBilled > 0 || planChange || feeChanged) {
+
         const parts: string[] = [
           `<p>The billing configuration for <strong>${entityName}</strong> has been updated.</p>`,
         ];
