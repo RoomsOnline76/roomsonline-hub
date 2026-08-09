@@ -135,7 +135,16 @@ export function PaymentProvidersTab({
                   When off, all bookings settle through the Rooms Online PayFast gateway.
                   When on, the owner unlocks the payment provider configurator in Integrations.
                 </p>
+                {scope.source === "portfolio" && (
+                  <p className="text-xs text-muted-foreground">
+                    Billing for this property is managed at portfolio level
+                    {scope.portfolioName ? ` (${scope.portfolioName})` : ""} — changing this updates
+                    the shared billing configuration and, where the monthly fee changes, schedules a
+                    subscription plan change and notifies the owner and admin.
+                  </p>
+                )}
               </div>
+
               <Switch
                 id="allow-custom-payment"
                 checked={allowed}
