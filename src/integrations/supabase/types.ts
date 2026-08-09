@@ -4253,6 +4253,7 @@ export type Database = {
           linked_contract_id: string | null
           listing_commission_rate: number | null
           payment_facilitator_enabled: boolean | null
+          payment_model: string | null
           pending_effective_date: string | null
           pending_model_json: Json | null
           pending_monthly_fee: number | null
@@ -4315,6 +4316,7 @@ export type Database = {
           linked_contract_id?: string | null
           listing_commission_rate?: number | null
           payment_facilitator_enabled?: boolean | null
+          payment_model?: string | null
           pending_effective_date?: string | null
           pending_model_json?: Json | null
           pending_monthly_fee?: number | null
@@ -4377,6 +4379,7 @@ export type Database = {
           linked_contract_id?: string | null
           listing_commission_rate?: number | null
           payment_facilitator_enabled?: boolean | null
+          payment_model?: string | null
           pending_effective_date?: string | null
           pending_model_json?: Json | null
           pending_monthly_fee?: number | null
@@ -5486,6 +5489,7 @@ export type Database = {
           listing_commission_rate: number | null
           owner_id: string | null
           payment_facilitator_enabled: boolean | null
+          payment_model: string | null
           pending_effective_date: string | null
           pending_model_json: Json | null
           pending_monthly_fee: number | null
@@ -5550,6 +5554,7 @@ export type Database = {
           listing_commission_rate?: number | null
           owner_id?: string | null
           payment_facilitator_enabled?: boolean | null
+          payment_model?: string | null
           pending_effective_date?: string | null
           pending_model_json?: Json | null
           pending_monthly_fee?: number | null
@@ -5614,6 +5619,7 @@ export type Database = {
           listing_commission_rate?: number | null
           owner_id?: string | null
           payment_facilitator_enabled?: boolean | null
+          payment_model?: string | null
           pending_effective_date?: string | null
           pending_model_json?: Json | null
           pending_monthly_fee?: number | null
@@ -15348,6 +15354,10 @@ export type Database = {
         Returns: string
       }
       nextval_subscription_invoice_number: { Args: never; Returns: number }
+      resolve_property_owner_uuid: {
+        Args: { _property_id: string }
+        Returns: string
+      }
       rol_origin_code: {
         Args: {
           _booking_channel: string
