@@ -502,6 +502,12 @@ Deno.serve(async (req) => {
         data: {
           statements: built.map((b) => ({ ...b.statement, line_count: b.lines.length })),
           skipped_claimed: entries.length - usable.length,
+          pending_clearance_count: pendingClearance.length,
+          pending_clearance_amount: round2(
+            pendingClearance.reduce((sum, e) => sum + num(e.gross), 0),
+          ),
+          clearance_hours: CLEARANCE_HOURS,
+
         },
       });
     }
