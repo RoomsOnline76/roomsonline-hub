@@ -257,6 +257,7 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
           archivedAt: p.ru_archived_at,
           lastPushAt: lastPush.get(p.id) ?? null,
           monthlyCostEur: 0,
+          isTrading: p.is_trading === true && p.is_sandbox !== true,
         } satisfies ChannelPropertyRow;
       });
 
