@@ -99,7 +99,14 @@ const AUTO_VARIABLE_GROUPS: { label: string; keys: string[] }[] = [
   },
   {
     label: "Payments",
-    keys: ["payment_facilitator_fee", "payment_facilitator_clause", "byo_gateway_fee", "byo_gateway_clause"],
+    keys: [
+      "payment_model_label",
+      "payment_facilitator_fee",
+      "payment_facilitator_clause",
+      "byo_gateway_fee",
+      "byo_gateway_clause",
+      "reservation_only_clause",
+    ],
   },
   {
     label: "Sales rep / referral",
