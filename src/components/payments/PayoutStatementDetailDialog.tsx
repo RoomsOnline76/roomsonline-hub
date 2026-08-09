@@ -211,9 +211,10 @@ export function PayoutStatementDetailDialog({
                 <h3 className="text-sm font-semibold tracking-wide mb-2">C · NET PAYABLE</h3>
 
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Amount held by ROL</span>
-                  <span>{money(detail.amount_held)}</span>
+                  <span className="text-muted-foreground">Gross received by ROL</span>
+                  <span>{money(grossReceivedByRol(detail))}</span>
                 </div>
+
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Less invoice total</span>
                   <span>-{money(detail.invoice_total)}</span>
