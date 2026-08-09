@@ -310,13 +310,18 @@ Deno.serve(async (req) => {
       bump(h.property_id, h.daily_rate, h.max_guests, true);
     });
 
-    // ── Shared-resolver parity (additive, non-breaking) ────────────────────
-    // The legacy 4-tier aggregate above still produces the served value for
-    // every property in `legacy` mode. For properties flipped to `unified`
-    // the shared resolver's starting rate is served instead. Either way the
-    // comparison is recorded so drift is visible before anything is flipped.
+    // ── Shared resolver is the served source of truth ──────────────────────
+    // The legacy 4-tier aggregate above only ever sees rack/base rates, so it
+    // misses prices authored in ROL'OS Rate Plans (season rates). The shared
+    // resolver prices every property with the full hierarchy and now produces
+    // the served `starting_rate`; the legacy figure is kept as an emergency
+    // fallback (resolver prices nothing) and as the drift comparison written to
+    // rolos_rate_resolution_audit.
+    // Kill switch: `rate_resolution_mode = 'legacy_only'` pins a property back
+    // to the legacy aggregate.
     const resolutionModes = await getRateResolutionModes(supabase, propertyIds);
     const unifiedStartingRate: Record<string, number> = {};
+    const resolvedTiers: Record<string, string | null> = {};
     const parityWindowFrom = new Date().toISOString().slice(0, 10);
     const parityWindowTo = addDays(parityWindowFrom, PARITY_WINDOW_DAYS - 1);
 
@@ -327,6 +332,7 @@ Deno.serve(async (req) => {
       const resolver = await createRateResolver(supabase, pid, {
         amenities,
         window: { from: parityWindowFrom, to: parityWindowTo },
+        audience: "direct",
       });
       let best: number | null = null;
       let bestTier: string | null = null;
@@ -346,53 +352,45 @@ Deno.serve(async (req) => {
       (properties || []).map((p: any) => [p.id, p]),
     );
 
-    // Inline only for properties that have actually been flipped.
-    const unifiedIds = propertyIds.filter((id: string) => resolutionModes[id] === "unified");
-    for (const pid of unifiedIds.slice(0, PARITY_MAX_PROPERTIES)) {
-      try {
-        const { rate } = await resolveStartingRate(pid, propsByIdForParity.get(pid)?.amenities ?? null);
-        if (rate !== null) unifiedStartingRate[pid] = rate;
-      } catch (e) {
-        console.warn(`[booking-portfolio-api] unified resolve failed for ${pid}:`, (e as Error).message);
-      }
-    }
-
-    // Shadow-compare the legacy properties in the background so listing latency
-    // is untouched. Never awaited, never allowed to fail the request.
-    const shadowIds = propertyIds
-      .filter((id: string) => resolutionModes[id] !== "unified")
-      .slice(0, PARITY_MAX_PROPERTIES);
-    if (shadowIds.length > 0) {
-      const shadowTask = (async () => {
-        const rows: ParityRow[] = [];
-        for (const pid of shadowIds) {
-          try {
-            const { rate, tier } = await resolveStartingRate(
-              pid,
-              propsByIdForParity.get(pid)?.amenities ?? null,
-            );
-            const legacy = agg[pid] && agg[pid].minRate !== Infinity ? agg[pid].minRate : null;
-            rows.push({
-              property_id: pid,
-              stay_date: parityWindowFrom,
-              resolved_rate: rate,
-              resolved_tier: tier,
-              legacy_rate: legacy,
-              legacy_tier: "portfolio_legacy_min",
-              notes: { window_days: PARITY_WINDOW_DAYS, metric: "starting_rate" },
-            });
-          } catch (e) {
-            console.warn(`[booking-portfolio-api] parity resolve failed for ${pid}:`, (e as Error).message);
-          }
+    const resolverIds = propertyIds.filter(
+      (id: string) => resolutionModes[id] !== "legacy_only",
+    );
+    await Promise.all(
+      resolverIds.slice(0, PARITY_MAX_PROPERTIES).map(async (pid: string) => {
+        try {
+          const { rate, tier } = await resolveStartingRate(
+            pid,
+            propsByIdForParity.get(pid)?.amenities ?? null,
+          );
+          if (rate !== null) unifiedStartingRate[pid] = rate;
+          resolvedTiers[pid] = tier;
+        } catch (e) {
+          console.warn(`[booking-portfolio-api] resolve failed for ${pid}:`, (e as Error).message);
         }
-        await logRateParity(supabase, "booking-portfolio-api", rows);
-      })();
+      }),
+    );
+
+    // Record resolver-vs-legacy drift in the background so it stays observable.
+    const parityRows: ParityRow[] = resolverIds
+      .slice(0, PARITY_MAX_PROPERTIES)
+      .map((pid: string) => ({
+        property_id: pid,
+        stay_date: parityWindowFrom,
+        resolved_rate: unifiedStartingRate[pid] ?? null,
+        resolved_tier: resolvedTiers[pid] ?? null,
+        legacy_rate: agg[pid] && agg[pid].minRate !== Infinity ? agg[pid].minRate : null,
+        legacy_tier: "portfolio_legacy_min",
+        notes: { window_days: PARITY_WINDOW_DAYS, metric: "starting_rate", served: "resolver" },
+      }));
+    if (parityRows.length > 0) {
+      const shadowTask = logRateParity(supabase, "booking-portfolio-api", parityRows);
       try {
         (globalThis as any).EdgeRuntime?.waitUntil?.(shadowTask);
       } catch {
         /* runtime without waitUntil: let it settle on its own */
       }
     }
+
 
     // Pool of room-level images per property (fallback when property has none)
     const roomImagesByProp: Record<string, string[]> = {};

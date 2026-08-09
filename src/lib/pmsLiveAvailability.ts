@@ -49,11 +49,10 @@ export async function fetchLiveRates(
 
   const empty: LivePropertyRates = { propertyId, rooms: [], lowestRate: null, fetched: true };
 
-  // Only attempt live fetch for PMS-backed properties
-  if (!externalSystem || externalSystem === "manual" || externalSystem === "roomsonline") {
-    rateCache.set(cacheKey, { data: empty, ts: Date.now() });
-    return empty;
-  }
+  // Native ROL'OS properties resolve through the orchestrator too — their real
+  // prices live in ROL'OS Rate Plans, so skipping them here left guest-facing
+  // cards on the listing fallback (rack) rate.
+
 
   try {
     const { data, error } = await supabase.functions.invoke("booking-orchestrator-api", {
