@@ -97,8 +97,7 @@ async function propertyIdsFor(supabase: any, scope: string, entityId: string): P
 }
 
 async function monthlyFee(supabase: any, cfg: any, scope: string, entityId: string): Promise<number> {
-  if (Number(cfg?.subscription_fee_monthly) > 0) return Number(cfg.subscription_fee_monthly);
-  let tiers: Tier[] | null = Array.isArray(cfg?.tier_pricing_json) ? cfg.tier_pricing_json : null;
+  let tiers: any[] | null = Array.isArray(cfg?.tier_pricing_json) ? cfg.tier_pricing_json : null;
   if (!tiers?.length) {
     const { data } = await supabase
       .from("billing_global_defaults")
@@ -116,14 +115,21 @@ async function monthlyFee(supabase: any, cfg: any, scope: string, entityId: stri
       .in("property_id", ids);
     rooms = count || 0;
   }
-  const addOns =
-    (Number(cfg?.white_label_monthly_fee) || 0) +
-    (Number(cfg?.branding_addon_monthly_fee) || 0) +
-    (Number(cfg?.pricelabs_monthly_fee) || 0) +
-    (Number(cfg?.byo_gateway_monthly_fee) || 0) +
-    (cfg?.channel_manager_enabled ? (Number(cfg?.channel_manager_per_unit_fee) || 0) * rooms : 0);
-  return feeFromTiers(tiers, rooms) + addOns;
+  // The operational payment switch on the property backs up the config when the
+  // config has no explicit payment model (single-property scopes only).
+  let property: any = null;
+  if (ids.length === 1) {
+    const { data } = await supabase
+      .from("properties")
+      .select("payment_mode, allow_custom_payment_provider")
+      .eq("id", ids[0])
+      .maybeSingle();
+    property = data ?? null;
+  }
+  // Same formula as the on-screen "Estimated client cost" breakdown.
+  return computeExpectedBilling(cfg, { units: rooms, rooms, tiers: tiers as any, property }).monthly;
 }
+
 
 function paidStartFor(cfg: any): string | null {
   const freeDays = cfg?.free_period_days ?? DEFAULT_FREE_PERIOD_DAYS;
