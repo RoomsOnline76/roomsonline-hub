@@ -172,6 +172,8 @@ export function PropertyAcquisitionTracker() {
       twoMonthsAgoAdded,
       momGrowth,
       totalProperties,
+      tradingProperties,
+      staleProperties,
       connectedToPMS,
       connectionRate: totalProperties > 0 ? (connectedToPMS / totalProperties) * 100 : 0,
       avgPerMonth,
