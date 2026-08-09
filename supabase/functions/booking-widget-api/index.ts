@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { addDays, createRateResolver } from "../_shared/rateResolution.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -48,6 +49,30 @@ Deno.serve(async (req) => {
       .eq("property_id", property.id)
       .eq("is_active", true)
       .order("name");
+    // Resolver-backed nightly rate per unit (same hierarchy as checkout), so the
+    // widget never quotes the placeholder unit daily_rate.
+    const rateFrom = url.searchParams.get("check_in") || new Date().toISOString().slice(0, 10);
+    const rateTo = url.searchParams.get("check_out")
+      ? addDays(url.searchParams.get("check_out")!, -1)
+      : addDays(rateFrom, 29);
+    const resolvedUnitRates: Record<string, number> = {};
+    try {
+      const resolver = await createRateResolver(supabase, property.id, {
+        window: { from: rateFrom, to: rateTo },
+        audience: "direct",
+      });
+      for (const unit of resolver.units) {
+        let best: number | null = null;
+        for (const day of resolver.resolveDays(unit, rateFrom, rateTo)) {
+          if (!Number.isFinite(day.price) || day.price <= 0) continue;
+          if (best === null || day.price < best) best = day.price;
+        }
+        if (best !== null) resolvedUnitRates[unit.id] = best;
+      }
+    } catch (e) {
+      console.warn("[booking-widget-api] rate resolver failed:", (e as Error).message);
+    }
+
 
     // Fetch integration config to check if widget is enabled
     const { data: config } = await supabase
@@ -100,7 +125,7 @@ Deno.serve(async (req) => {
       rooms: (rooms || []).map((r: any) => ({
         id: r.id,
         name: r.name,
-        daily_rate: r.daily_rate,
+        daily_rate: resolvedUnitRates[r.id] ?? r.daily_rate,
         max_guests: r.max_guests,
         thumbnail_url: r.thumbnail_url,
       })),

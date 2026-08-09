@@ -1,6 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { safeParseResponse, AvailabilityResponseSchema } from "../_shared/validate.ts";
 import { canonicalPricingModel, priceTypeForModel } from "../_shared/ratePricing.ts";
+import { addDays as addDaysIso, createRateResolver, type DayRate } from "../_shared/rateResolution.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -236,11 +237,30 @@ async function resolveRolosRates(
   embedPricingModel?: string,
   embedLinkedRolosId?: string,
 ) {
-  const { data: hfRooms } = await supabase
+  const { data: hfRoomRows } = await supabase
     .from("hostfully_room_types")
     .select("id, name, linked_rolos_id, daily_rate, max_guests, is_active")
     .eq("property_id", propertyId)
     .eq("is_active", true);
+
+  // Native ROL'OS properties whose unit mirror has no active rows still have
+  // sellable ROL'OS room types with Rate Plan prices — use those as the units.
+  let hfRooms: any[] = (hfRoomRows || []) as any[];
+  if (hfRooms.length === 0) {
+    const { data: nativeRooms } = await supabase
+      .from("rolos_room_types")
+      .select("id, name, max_occupancy")
+      .eq("property_id", propertyId)
+      .eq("is_active", true);
+    hfRooms = ((nativeRooms || []) as any[]).map((r) => ({
+      id: r.id,
+      name: r.name,
+      linked_rolos_id: r.id,
+      daily_rate: null,
+      max_guests: r.max_occupancy ?? null,
+      is_active: true,
+    }));
+  }
 
   const rolosIds = (hfRooms || []).filter((r: any) => r.linked_rolos_id).map((r: any) => r.linked_rolos_id);
   const ratePlanMap: Record<string, any> = {};
@@ -390,6 +410,20 @@ async function resolveRolosRates(
     return null;
   }
 
+  // ── Shared rate resolver (single source of truth for native ROL'OS pricing).
+  // Tier order: daily override → rate-plan season rate → calendar season →
+  // relational season → rack rate → unit daily rate. See _shared/rateResolution.ts.
+  let resolver: Awaited<ReturnType<typeof createRateResolver>> | null = null;
+  try {
+    resolver = await createRateResolver(supabase, propertyId, {
+      amenities,
+      window: { from: startDate, to: endDate },
+      audience: "direct",
+    });
+  } catch (e) {
+    console.warn("[orchestrator] rate resolver unavailable, using calendar fallback:", e);
+  }
+
   const syntheticRoomTypes = (hfRooms || []).map((room: any) => {
     const rolosPlan = room.linked_rolos_id ? ratePlanMap[room.linked_rolos_id] : null;
     const fallbackRate = rolosPlan?.base_rate ?? (room.daily_rate ? Number(room.daily_rate) : 0);
@@ -404,6 +438,24 @@ async function resolveRolosRates(
     const lookupKeys = [overviewId, amenityIdFromName, room.linked_rolos_id, rolosName, room.name].filter(Boolean) as string[];
     const preferredPlanId = rolosPlan?.rate_plan_id;
 
+    // Resolver prices for this unit, keyed by night. `endDate` is the checkout
+    // date (exclusive), so the resolver window ends the night before.
+    const resolvedByDate = new Map<string, DayRate>();
+    if (resolver) {
+      const lastNight = addDaysIso(endDate, -1);
+      if (lastNight >= startDate) {
+        for (const day of resolver.resolveDays(
+          { id: room.id, name: room.name, linked_rolos_id: room.linked_rolos_id },
+          startDate,
+          lastNight,
+        )) {
+          resolvedByDate.set(day.date, day);
+        }
+      }
+    }
+    // An embed rate override must not be overwritten by the rack tier.
+    const hasEmbedOverride = Boolean(embedRate) && rolosPlan?.base_rate === embedRate;
+
     const dailyRates: any[] = [];
     const availArr: any[] = [];
     const cur = new Date(startDate);
@@ -412,10 +464,18 @@ async function resolveRolosRates(
     while (cur < end) {
       const ds = cur.toISOString().split("T")[0];
       const isClosed = closedSet?.has(ds) ?? false;
-      const seasonalRate = !isClosed
-        ? resolveSeasonalRoomAmount(ds, lookupKeys, preferredPlanId)
-        : null;
-      const effectiveRate = seasonalRate ?? fallbackRate;
+      let resolvedRate: number | null = null;
+      if (!isClosed) {
+        const day = resolvedByDate.get(ds);
+        if (day && Number(day.price) > 0) {
+          const isSeasonalTier = day.source !== "rack_rate" && day.source !== "unit_daily_rate";
+          if (isSeasonalTier || !hasEmbedOverride) resolvedRate = Number(day.price);
+        }
+        if (resolvedRate === null) {
+          resolvedRate = resolveSeasonalRoomAmount(ds, lookupKeys, preferredPlanId);
+        }
+      }
+      const effectiveRate = resolvedRate ?? fallbackRate;
       const nightly = isClosed ? 0 : effectiveRate;
       // Per-person models must publish occupancy amounts, otherwise checkout
       // (which reads adult_amounts for PER_PERSON) resolves the stay to zero.

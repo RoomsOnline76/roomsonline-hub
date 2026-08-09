@@ -310,33 +310,24 @@ export default function EmbedPortfolio() {
 
       if (!props) { setProperties([]); setLoading(false); return; }
 
-      // Tiered rate resolver (matches booking-portfolio-api):
-      // 1) rolos_rate_prices  2) rolos_rate_plans.base_rate
-      // 3) rolos_room_types.default_rate  4) hostfully_room_types.daily_rate
-      const [rrt, plans, seasons, prices, hfRooms] = await Promise.all([
+      // Room counts / occupancy only. Prices are NOT scanned in the browser —
+      // the legacy min-rate scan only ever found placeholder rack rates, so the
+      // starting rate comes from the resolver (portfolio API or live ARI).
+      const [rrt, plans, hfRooms] = await Promise.all([
         supabase.from("rolos_room_types" as any).select("property_id, default_rate, max_occupancy, images").eq("is_active", true).in("property_id", propertyIds),
         supabase.from("rolos_rate_plans" as any).select("id, property_id, base_rate").eq("is_active", true).in("property_id", propertyIds),
-        supabase.from("rolos_rate_seasons" as any).select("id, rate_plan_id"),
-        supabase.from("rolos_rate_prices" as any).select("season_id, base_rate"),
         supabase.from("hostfully_room_types").select("property_id, daily_rate, max_guests, images").eq("is_active", true).in("property_id", propertyIds),
       ]);
-      const planToProp: Record<string, string> = {};
-      ((plans.data as any[]) || []).forEach((p) => { planToProp[p.id] = p.property_id; });
-      const seasonToProp: Record<string, string> = {};
-      ((seasons.data as any[]) || []).forEach((s) => { const pid = planToProp[s.rate_plan_id]; if (pid) seasonToProp[s.id] = pid; });
 
       const roomsByProp: Record<string, { count: number; minRate: number; maxGuests: number }> = {};
-      const bump = (pid: string, rate: number | null | undefined, guests: number | null | undefined, addCount: boolean) => {
+      const bump = (pid: string, guests: number | null | undefined, addCount: boolean) => {
         if (!roomsByProp[pid]) roomsByProp[pid] = { count: 0, minRate: Infinity, maxGuests: 0 };
-        if (typeof rate === "number" && rate > 0 && rate < roomsByProp[pid].minRate) roomsByProp[pid].minRate = rate;
         if (typeof guests === "number" && guests > roomsByProp[pid].maxGuests) roomsByProp[pid].maxGuests = guests;
         if (addCount) roomsByProp[pid].count++;
       };
-      ((prices.data as any[]) || []).forEach((pr) => { const pid = seasonToProp[pr.season_id]; if (pid) bump(pid, pr.base_rate, null, false); });
-      ((plans.data as any[]) || []).forEach((p) => bump(p.property_id, p.base_rate, null, false));
       const nativeRT = new Set<string>();
-      ((rrt.data as any[]) || []).forEach((r) => { nativeRT.add(r.property_id); bump(r.property_id, r.default_rate, r.max_occupancy, true); });
-      ((hfRooms.data as any[]) || []).forEach((r) => { if (!nativeRT.has(r.property_id)) bump(r.property_id, r.daily_rate, r.max_guests, true); });
+      ((rrt.data as any[]) || []).forEach((r) => { nativeRT.add(r.property_id); bump(r.property_id, r.max_occupancy, true); });
+      ((hfRooms.data as any[]) || []).forEach((r) => { if (!nativeRT.has(r.property_id)) bump(r.property_id, r.max_guests, true); });
 
       // Room-image pool per property (fallback for missing property hero image)
       const roomImgsByProp: Record<string, string[]> = {};
@@ -419,15 +410,14 @@ export default function EmbedPortfolio() {
     fetchData();
   }, [portfolioSlug]);
 
-  // Background live ARI resolution for PMS-backed properties
+  // Background live ARI resolution — every property, native ROL'OS included
   useEffect(() => {
     if (properties.length === 0) return;
-    const pmsProperties = properties.filter(p => p.external_system && p.external_system !== "manual" && p.external_system !== "roomsonline");
-    if (pmsProperties.length === 0) return;
 
     const resolve = async () => {
-      const batch = pmsProperties.map(p => ({ id: p.id, external_system: p.external_system || null }));
+      const batch = properties.map(p => ({ id: p.id, external_system: p.external_system || null }));
       const results = await fetchLiveRatesBatch(batch);
+      
       
       setProperties(prev => prev.map(p => {
         const live = results[p.id];

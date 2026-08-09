@@ -218,18 +218,37 @@ export async function createRateResolver(
     amen.season_rates && typeof amen.season_rates === "object" ? amen.season_rates : {};
   const seasons = normalizeSeasons(amen);
 
-  const { data: hfRooms } = await supabase
+  const { data: hfAllRooms } = await supabase
     .from("hostfully_room_types")
-    .select("id, name, linked_rolos_id, daily_rate")
+    .select("id, name, linked_rolos_id, daily_rate, is_active")
     .eq("property_id", propertyId);
+
+  // Only sellable units may set a price. When a native ROL'OS property has no
+  // active mirror rows at all, fall back to its own active room types so its
+  // Rate Plans still price the property.
+  let hfRooms = ((hfAllRooms ?? []) as any[]).filter((r) => r.is_active !== false);
+  if (hfRooms.length === 0) {
+    const { data: nativeRooms } = await supabase
+      .from("rolos_room_types")
+      .select("id, name")
+      .eq("property_id", propertyId)
+      .eq("is_active", true);
+    hfRooms = ((nativeRooms ?? []) as any[]).map((r) => ({
+      id: r.id,
+      name: r.name,
+      linked_rolos_id: r.id,
+      daily_rate: null,
+    }));
+  }
 
   const unitDailyRates: Record<string, number> = {};
   const rolosIds: string[] = [];
-  for (const r of (hfRooms ?? []) as any[]) {
+  for (const r of hfRooms as any[]) {
     const daily = Number(r.daily_rate);
     if (Number.isFinite(daily) && daily > 0) unitDailyRates[r.id] = daily;
     if (r.linked_rolos_id) rolosIds.push(String(r.linked_rolos_id));
   }
+
 
   const rackRates: Record<string, RackRate> = {};
   const closedDates: Record<string, Set<string>> = {};
