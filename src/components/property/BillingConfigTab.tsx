@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Loader2, Save, ChevronDown, ExternalLink, Lock, ShieldCheck, Layers, Building2 } from "lucide-react";
 import { useBillingConfig, BillingConfig } from "@/hooks/useBillingConfig";
+import { resolvePaymentModel, type PaymentMode } from "@/lib/paymentMode";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Link } from "react-router-dom";
 import { useBillingDefaults, BillingDefault, presetLabel } from "@/hooks/useBillingDefaults";
