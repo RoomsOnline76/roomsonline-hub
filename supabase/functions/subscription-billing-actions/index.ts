@@ -76,18 +76,6 @@ function json(body: unknown, status = 200) {
   });
 }
 
-type Tier = { min_rooms: number; max_rooms: number | null; monthly_fee: number };
-
-function feeFromTiers(tiers: Tier[] | null, rooms: number): number {
-  if (!tiers?.length) return 0;
-  const sorted = [...tiers].sort((a, b) => a.min_rooms - b.min_rooms);
-  for (const t of sorted) {
-    const max = t.max_rooms == null ? Infinity : t.max_rooms;
-    if (rooms >= t.min_rooms && rooms <= max) return Number(t.monthly_fee) || 0;
-  }
-  return Number(sorted[sorted.length - 1].monthly_fee) || 0;
-}
-
 async function propertyIdsFor(supabase: any, scope: string, entityId: string): Promise<string[]> {
   if (scope === "property") return [entityId];
   const { data } = await supabase
@@ -664,7 +652,12 @@ Deno.serve(async (req) => {
       const logRow: any = {
         owner_id: ownerId,
         changed_by: user?.id ?? null,
-        change_type: planChange && deltaBilled > 0 ? "both" : planChange ? "subscription_model" : "setup_delta",
+        change_type:
+          (planChange || feeChanged) && deltaBilled > 0
+            ? "both"
+            : planChange || feeChanged
+            ? "subscription_model"
+            : "setup_delta",
         before_snapshot: before,
         after_snapshot: cfg,
         setup_delta: deltaBilled,
