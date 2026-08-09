@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useBillingConfig } from "@/hooks/useBillingConfig";
 import { usePropertyReferrals } from "@/hooks/useRepCommissions";
 import { resolvePropertyTier, isTierStrategy } from "@/lib/billingTierResolver";
+import { resolveSetupSettlement, setupKeyFromLabel } from "@/lib/setupSettlement";
 import {
   Loader2,
   Receipt,
@@ -159,6 +160,24 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
     enabled: !!propertyId,
   });
 
+  // Once-off (setup) fees are settled through once-off subscription invoices on
+  // whichever entity owns the billing config — portfolio for members, property
+  // otherwise. Used to mark the setup lines below as paid / still due.
+  const { data: onceOffInvoices } = useQuery({
+    queryKey: ["admin-overview-once-off-invoices", propertyId, scope.source, scope.portfolioId],
+    queryFn: async () => {
+      const q = supabase
+        .from("subscription_invoices")
+        .select("status, amount, paid_at, line_items, invoice_number")
+        .eq("invoice_kind", "once_off");
+      const { data } = scope.source === "portfolio" && scope.portfolioId
+        ? await q.eq("portfolio_id", scope.portfolioId)
+        : await q.eq("property_id", propertyId);
+      return (data || []) as { status: string | null; amount: number | null; paid_at: string | null; line_items: unknown }[];
+    },
+    enabled: !!propertyId,
+  });
+
 
   if (billingLoading || propLoading) {
     return (
@@ -278,6 +297,15 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
   const setupTotal = costLines.filter((l) => l.once).reduce((s, l) => s + l.amount, 0);
   const fmt = (n: number) => `R ${n.toLocaleString("en-ZA", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 
+  // Reconcile the contracted once-off fees against what has actually been paid.
+  const settlement = resolveSetupSettlement(
+    costLines.filter((l) => l.once).map((l) => ({ key: setupKeyFromLabel(l.label), amount: l.amount })),
+    onceOffInvoices,
+  );
+  const paidOn = settlement.lastPaidAt
+    ? new Date(settlement.lastPaidAt).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })
+    : null;
+
   return (
     <div className="space-y-3">
       {/* Estimated client cost */}
@@ -306,7 +334,25 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
             </div>
             <div className="text-right">
               <div className="text-xs text-muted-foreground">Once-off setup</div>
-              <div className="text-lg font-semibold">{fmt(setupTotal)}</div>
+              <div className="flex items-center justify-end gap-2">
+                <div className="text-lg font-semibold">
+                  {fmt(settlement.reopened ? settlement.outstanding : setupTotal)}
+                </div>
+                {settlement.fullySettled && (
+                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0">Paid</Badge>
+                )}
+                {settlement.reopened && (
+                  <Badge variant="outline" className="text-[10px] px-1.5 py-0">Balance due</Badge>
+                )}
+              </div>
+              {settlement.fullySettled && paidOn && (
+                <div className="text-[11px] text-muted-foreground">Paid {paidOn}</div>
+              )}
+              {settlement.reopened && (
+                <div className="text-[11px] text-muted-foreground">
+                  {fmt(settlement.paidTotal)} of {fmt(settlement.contractedTotal)} already paid
+                </div>
+              )}
             </div>
           </div>
           {costLines.length === 0 ? (
@@ -320,11 +366,28 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
                   <span className="text-muted-foreground">
                     {l.label}
                     {l.once && <Badge variant="outline" className="ml-2 text-[10px] px-1 py-0">once</Badge>}
+                    {l.once && (() => {
+                      const st = settlement.byKey[setupKeyFromLabel(l.label)]?.state;
+                      if (st === "paid") {
+                        return <Badge variant="secondary" className="ml-1 text-[10px] px-1 py-0">paid</Badge>;
+                      }
+                      if (st === "partial") {
+                        return <Badge variant="outline" className="ml-1 text-[10px] px-1 py-0">part paid</Badge>;
+                      }
+                      return settlement.paidTotal > 0 ? (
+                        <Badge variant="outline" className="ml-1 text-[10px] px-1 py-0">due</Badge>
+                      ) : null;
+                    })()}
                   </span>
                   <span className="font-mono">{fmt(l.amount)}</span>
                 </div>
               ))}
             </div>
+          )}
+          {settlement.reopened && (
+            <p className="text-[11px] text-muted-foreground mt-2">
+              Setup fees changed after payment — a balance of {fmt(settlement.outstanding)} is invoiced separately.
+            </p>
           )}
           <p className="text-[11px] text-muted-foreground mt-2">
             Strategy: <span className="font-medium">{strategyLabel}</span>
