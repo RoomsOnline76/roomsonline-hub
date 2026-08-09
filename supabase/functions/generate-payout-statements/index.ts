@@ -215,13 +215,26 @@ Deno.serve(async (req) => {
       if (l.booking_id) claimedBooking.add(l.booking_id);
     });
 
+    // Gateway settlement lag: guest money only lands in the ROL bank account roughly
+    // 48 hours after payment, so anything younger than that cannot be paid out yet.
+    const CLEARANCE_HOURS = 48;
+    const clearanceCutoff = Date.now() - CLEARANCE_HOURS * 3600 * 1000;
+    const isCleared = (e: BookingEntry): boolean => {
+      const t = e.txDate ? new Date(String(e.txDate)).getTime() : NaN;
+      if (!Number.isFinite(t)) return true;
+      return t <= clearanceCutoff;
+    };
+
     // Own-gateway (BYO) money never reached ROL — it is invoiced separately, not settled here.
-    const usable = entries.filter(
+    const eligible = entries.filter(
       (e) =>
         e.settlement === "rol" &&
         !(e.txId && claimedTx.has(e.txId)) &&
         !claimedBooking.has(String(e.booking.id)),
     );
+    const pendingClearance = eligible.filter((e) => !isCleared(e));
+    const usable = eligible.filter(isCleared);
+
 
 
     const propertyIds = Array.from(new Set(usable.map((e) => e.propertyId)));
@@ -489,6 +502,12 @@ Deno.serve(async (req) => {
         data: {
           statements: built.map((b) => ({ ...b.statement, line_count: b.lines.length })),
           skipped_claimed: entries.length - usable.length,
+          pending_clearance_count: pendingClearance.length,
+          pending_clearance_amount: round2(
+            pendingClearance.reduce((sum, e) => sum + num(e.gross), 0),
+          ),
+          clearance_hours: CLEARANCE_HOURS,
+
         },
       });
     }
@@ -536,7 +555,18 @@ Deno.serve(async (req) => {
       created.push(inserted);
     }
 
-    return json({ success: true, data: { statements: created } });
+    return json({
+      success: true,
+      data: {
+        statements: created,
+        pending_clearance_count: pendingClearance.length,
+        pending_clearance_amount: round2(
+          pendingClearance.reduce((sum, e) => sum + num(e.gross), 0),
+        ),
+        clearance_hours: CLEARANCE_HOURS,
+      },
+    });
+
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("[payout-statements] failed:", message);

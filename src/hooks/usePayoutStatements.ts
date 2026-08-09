@@ -179,10 +179,22 @@ export function usePayoutStatements(period: PayoutPeriodRange) {
         action: "generate",
         period_start: start,
         period_end: end,
-      })) as { statements?: unknown[] };
+      })) as {
+        statements?: unknown[];
+        pending_clearance_count?: number;
+        pending_clearance_amount?: number;
+        clearance_hours?: number;
+      };
       const count = result?.statements?.length ?? 0;
       toast.success(count ? `${count} statement${count === 1 ? "" : "s"} prepared` : "Nothing to statement for this period");
+      const held = result?.pending_clearance_count ?? 0;
+      if (held > 0) {
+        toast.info(
+          `${held} payment${held === 1 ? "" : "s"} held back — funds clear ${result?.clearance_hours ?? 48}h after payment`,
+        );
+      }
       await Promise.all([loadStatements(), loadUnassigned()]);
+
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Statement run failed");
     } finally {
