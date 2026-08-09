@@ -30,7 +30,7 @@ export function PropertyAcquisitionTracker() {
     queryFn: async () => {
       const { data } = await supabase
         .from("properties")
-        .select("id, name, owner_email, owner_name, property_type, bedrooms, max_guests, external_system, created_at, is_active")
+        .select("id, name, owner_email, owner_name, property_type, bedrooms, max_guests, external_system, created_at, is_active, is_trading, is_sandbox")
         .eq("is_active", true);
       return data || [];
     },
@@ -115,6 +115,10 @@ export function PropertyAcquisitionTracker() {
     }).length;
     
     const totalProperties = properties.length;
+    // Pipeline view is the one place stale inventory stays visible, so we surface
+    // trading vs stale side by side instead of hiding the non-trading rows.
+    const tradingProperties = properties.filter((p: any) => p.is_trading === true && p.is_sandbox !== true).length;
+    const staleProperties = properties.filter((p: any) => p.is_trading !== true && p.is_sandbox !== true).length;
     const connectedToPMS = properties.filter(p => p.external_system && p.external_system !== 'none').length;
     const momGrowth = lastMonthAdded > 0 ? ((thisMonthAdded - lastMonthAdded) / lastMonthAdded) * 100 : (thisMonthAdded > 0 ? 100 : 0);
     
@@ -168,6 +172,8 @@ export function PropertyAcquisitionTracker() {
       twoMonthsAgoAdded,
       momGrowth,
       totalProperties,
+      tradingProperties,
+      staleProperties,
       connectedToPMS,
       connectionRate: totalProperties > 0 ? (connectedToPMS / totalProperties) * 100 : 0,
       avgPerMonth,
@@ -194,7 +200,7 @@ export function PropertyAcquisitionTracker() {
             <Network className="h-4 w-4 text-muted-foreground" />
             <span className="text-sm font-medium">Property Acquisition & PMS Distribution</span>
             <span className="text-xs text-muted-foreground">
-              {pmsStats.totalProperties} total · {pmsStats.connectedToPMS} connected ({pmsStats.connectionRate.toFixed(0)}%)
+              {pmsStats.tradingProperties} trading · {pmsStats.staleProperties} stale · {pmsStats.totalProperties} total · {pmsStats.connectedToPMS} connected ({pmsStats.connectionRate.toFixed(0)}%)
             </span>
           </div>
           <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", pmsExpanded && "rotate-180")} />

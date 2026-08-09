@@ -58,6 +58,7 @@ const PropertyOverview = () => {
   const [searchPropertyType, setSearchPropertyType] = useState("");
   const [isTogglingShow, setIsTogglingShow] = useState<string | null>(null);
   const [showSandboxProperties, setShowSandboxProperties] = useState(true);
+  const [tradingFilter, setTradingFilter] = useState<"all" | "trading" | "stale">("all");
 
   // Sort state
   const [sortColumn, setSortColumn] = useState<SortColumn>(null);
@@ -276,8 +277,12 @@ const PropertyOverview = () => {
   const isSandboxProperty = (property: any): boolean => {
     const name = property.name || "";
     const metadata = property.external_metadata as any;
-    return name.startsWith("[SANDBOX]") || metadata?.is_sandbox === true || property.is_test_property === true;
+    return property.is_sandbox === true || name.startsWith("[SANDBOX]") || metadata?.is_sandbox === true || property.is_test_property === true;
   };
+
+  // Trading = counted in dashboards and metrics. Everything else is stale inventory.
+  const isTradingProperty = (property: any): boolean =>
+    property.is_trading === true && !isSandboxProperty(property);
 
   // Filter and sort active properties
   const activeProperties = useMemo(() => {
@@ -287,6 +292,14 @@ const PropertyOverview = () => {
     if (!showSandboxProperties) {
       filtered = filtered.filter(p => !isSandboxProperty(p));
     }
+
+    // Trading / stale inventory filter chip
+    if (tradingFilter === "trading") {
+      filtered = filtered.filter(p => isTradingProperty(p));
+    } else if (tradingFilter === "stale") {
+      filtered = filtered.filter(p => !isTradingProperty(p) && !isSandboxProperty(p));
+    }
+
 
     // Apply search filters
     if (searchName) {
@@ -359,12 +372,23 @@ const PropertyOverview = () => {
     }
 
     return filtered;
-  }, [allProperties, searchName, searchPms, searchHero, searchRol, searchShow, searchPropertyType, sortColumn, sortDirection, showSandboxProperties]);
+  }, [allProperties, searchName, searchPms, searchHero, searchRol, searchShow, searchPropertyType, sortColumn, sortDirection, showSandboxProperties, tradingFilter]);
 
   // Count sandbox properties for display
   const sandboxCount = useMemo(() => {
     return (allProperties || []).filter(p => p.is_active && isSandboxProperty(p)).length;
   }, [allProperties]);
+
+  // Trading vs stale inventory counts for the header chips
+  const tradingCount = useMemo(
+    () => (allProperties || []).filter(p => p.is_active && isTradingProperty(p)).length,
+    [allProperties],
+  );
+  const staleCount = useMemo(
+    () => (allProperties || []).filter(p => p.is_active && !isTradingProperty(p) && !isSandboxProperty(p)).length,
+    [allProperties],
+  );
+
 
   // Handle toggle show on website with quality gate check
   const handleToggleShowOnWebsite = async (propertyId: string, show: boolean) => {
@@ -566,6 +590,24 @@ const PropertyOverview = () => {
                     <CardDescription className="text-xs">— Manage your active properties</CardDescription>
                   </div>
                   <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-1">
+                      {([
+                        { key: "all", label: "All" },
+                        { key: "trading", label: `Trading (${tradingCount})` },
+                        { key: "stale", label: `Stale (${staleCount})` },
+                      ] as const).map((chip) => (
+                        <Button
+                          key={chip.key}
+                          size="sm"
+                          variant={tradingFilter === chip.key ? "default" : "outline"}
+                          className="h-6 px-2 text-[11px]"
+                          onClick={() => setTradingFilter(chip.key)}
+                        >
+                          {chip.label}
+                        </Button>
+                      ))}
+                    </div>
+
                     {sandboxCount > 0 && (
                       <div className="flex items-center gap-2">
                         <Switch
@@ -840,7 +882,13 @@ const PropertyOverview = () => {
                                   TEST
                                 </Badge>
                               )}
+                              {!isSandboxProperty(property) && !isTradingProperty(property) && (
+                                <Badge variant="outline" className="h-4 px-1 text-[9px] text-muted-foreground">
+                                  STALE
+                                </Badge>
+                              )}
                               <span>{property.name?.replace(/^\[SANDBOX\]\s*/, '')}</span>
+
                             </div>
                           </TableCell>
                           <TableCell className="py-1 text-xs">

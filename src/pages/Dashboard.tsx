@@ -112,12 +112,16 @@ const Dashboard = () => {
     enabled: !!user,
   });
 
-  // Fetch active properties with PMS data for distribution tracking
+  // Fetch trading properties with PMS data for distribution tracking. Only
+  // properties flagged as trading (and not sandbox) may drive counts, occupancy
+  // denominators, ADR and RevPAR — stale inventory would flatten every metric.
   const { data: properties = [] } = useQuery({
     queryKey: ["dashboard-properties", isAdmin, profile?.email],
     queryFn: async () => {
-      let query = supabase.from("properties").select("id, name, owner_email, owner_name, property_type, bedrooms, max_guests, external_system, created_at, is_active")
-        .eq("is_active", true);
+      let query = supabase.from("properties").select("id, name, owner_email, owner_name, property_type, bedrooms, max_guests, external_system, created_at, is_active, is_trading, is_sandbox")
+        .eq("is_active", true)
+        .eq("is_trading", true)
+        .eq("is_sandbox", false);
       if (!isAdmin && profile?.email) {
         query = query.eq("owner_email", profile.email);
       }
