@@ -12,6 +12,7 @@ import autoTable from "jspdf-autotable";
 import {
   bookingLines,
   propertySubtotals,
+  grossReceivedByRol,
   fmtMoney,
   periodLabel,
   type PayoutStatementDetail,
@@ -219,6 +220,15 @@ export function buildPayoutStatementPdf(
   doc.setFontSize(16);
   doc.setTextColor(...PINK);
   doc.text(money(statement.net_payable), pageW - M - 12, y + 6, { align: "right" });
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+  doc.setTextColor(...MUTED);
+  doc.text(
+    `Gross received by ROL ${money(grossReceivedByRol(statement))} less invoice ${money(statement.invoice_total)}`,
+    M + 12,
+    y + 16,
+  );
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8);

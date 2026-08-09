@@ -206,14 +206,25 @@ export function propertySubtotals(lines: PayoutStatementLine[]): PropertySubtota
 }
 
 /**
+ * Gross guest money ROL actually received in the period (before commission and
+ * processing fees are recovered on the ROL invoice). Older statements stored a
+ * net figure in `amount_held`, so fall back to reconstructing the gross.
+ */
+export function grossReceivedByRol(s: PayoutStatement): number {
+  if (s.rol_gross > 0) return round2(s.rol_gross);
+  return round2(s.amount_held + s.rol_commission + s.transaction_fees);
+}
+
+/**
  * The invoice total must always equal what the payout deducted — this is the
  * balance check the UI shows so an admin can trust the document.
  */
 export function statementBalances(s: PayoutStatement): boolean {
-  const expected = round2(s.amount_held - s.invoice_total - s.opening_balance);
+  const expected = round2(grossReceivedByRol(s) - s.invoice_total - s.opening_balance);
   const actual = round2(s.net_payable - s.carry_forward);
   return Math.abs(expected - actual) < 0.02;
 }
+
 
 export interface VatSettings {
   vat_enabled: boolean;

@@ -430,7 +430,9 @@ Deno.serve(async (req) => {
       const recurringFees = 0;
       const openingBalance = 0;
 
-      const amountHeld = round2(rolGross - rolCommission - txFees);
+      // ROL receives the full guest payment; commission and the processing fee are
+      // recovered on the ROL charges invoice below, not netted off up front.
+      const amountHeld = round2(rolGross);
       const invoiceSubtotalRaw = round2(rolCommission + txFees);
       const invoiceSubtotal = vatEnabled
         ? round2(invoiceSubtotalRaw / (1 + vatRate / 100))
@@ -438,9 +440,8 @@ Deno.serve(async (req) => {
       const invoiceVat = vatEnabled ? round2(invoiceSubtotalRaw - invoiceSubtotal) : 0;
       const invoiceTotal = invoiceSubtotalRaw;
 
-      // Commission and the processing fee are already withheld from the money we hold,
-      // so the full held amount is releasable — nothing can carry forward.
-      const netPayable = Math.max(0, amountHeld);
+      // Net payable = gross received less the ROL charges invoice.
+      const netPayable = Math.max(0, round2(amountHeld - invoiceTotal - openingBalance));
       const carryForward = 0;
 
 
@@ -603,7 +604,10 @@ async function finalise(supabase: any, body: Json, userId: string): Promise<Resp
 
   if (statement.payout_mode === "split" && propertyIds.length > 0) {
     // Deductions come off the largest property first so the totals still reconcile.
-    const deduction = round2(statement.amount_held - statement.net_payable);
+    const totalNetLines = round2(
+      Array.from(netByProperty.values()).reduce((sum, p) => sum + num(p.net), 0),
+    );
+    const deduction = Math.max(0, round2(totalNetLines - num(statement.net_payable)));
     const ordered = propertyIds
       .map((pid) => ({ pid, ...netByProperty.get(pid)! }))
       .sort((a, b) => b.net - a.net);

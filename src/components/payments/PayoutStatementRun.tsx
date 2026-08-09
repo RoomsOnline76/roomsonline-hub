@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/table";
 import { format } from "date-fns";
 import { usePayoutStatements, type PayoutPeriodRange } from "@/hooks/usePayoutStatements";
-import { fmtMoney, periodLabel, STATUS_LABELS } from "@/lib/payoutStatement";
+import { fmtMoney, grossReceivedByRol, periodLabel, STATUS_LABELS } from "@/lib/payoutStatement";
 import { PayoutStatementDetailDialog } from "./PayoutStatementDetailDialog";
 import { UnassignedPaymentsPanel } from "./UnassignedPaymentsPanel";
 
@@ -138,7 +138,7 @@ export function PayoutStatementRun() {
                     <TableHead>Settlement group</TableHead>
                     <TableHead>Reference</TableHead>
                     <TableHead className="text-right">Gross</TableHead>
-                    <TableHead className="text-right">Held</TableHead>
+                    <TableHead className="text-right">Received</TableHead>
                     <TableHead className="text-right">ROL invoice</TableHead>
                     <TableHead className="text-right">Net payable</TableHead>
                     <TableHead>Status</TableHead>
@@ -163,7 +163,7 @@ export function PayoutStatementRun() {
                       </TableCell>
                       <TableCell className="font-mono text-xs">{s.statement_reference || "—"}</TableCell>
                       <TableCell className="text-right text-sm">{fmtMoney(s.gross_amount, s.currency)}</TableCell>
-                      <TableCell className="text-right text-sm">{fmtMoney(s.amount_held, s.currency)}</TableCell>
+                      <TableCell className="text-right text-sm">{fmtMoney(grossReceivedByRol(s), s.currency)}</TableCell>
                       <TableCell className="text-right text-sm">{fmtMoney(s.invoice_total, s.currency)}</TableCell>
                       <TableCell className="text-right text-sm font-semibold">
                         {fmtMoney(s.net_payable, s.currency)}
