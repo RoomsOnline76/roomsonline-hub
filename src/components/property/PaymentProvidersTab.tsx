@@ -51,24 +51,34 @@ export function PaymentProvidersTab({
     setSaving(true);
     const { error } = await supabase
       .from("properties")
-      .update({ allow_custom_payment_provider: next })
+      .update({
+        allow_custom_payment_provider: next,
+        payment_mode: next ? "byo" : "rol",
+      } as any)
       .eq("id", propertyId);
 
-    // Keep billing config in sync: facilitator is the inverse of custom provider
-    const { error: billingErr } = await supabase
-      .from("property_billing_configs")
-      .upsert(
-        { property_id: propertyId, payment_facilitator_enabled: !next },
-        { onConflict: "property_id" }
-      );
-
-    setSaving(false);
-    if (error || billingErr) {
-      toast.error("Failed to update payment provider access", {
-        description: (error || billingErr)?.message,
-      });
+    if (error) {
+      setSaving(false);
+      toast.error("Failed to update payment provider access", { description: error.message });
       return;
     }
+
+    // Billing must go through the billing engine (never a direct write): it
+    // writes to the effective config (portfolio-wide where applicable), bills
+    // only the new balance, schedules a subscription plan change when the
+    // monthly fee moves, and notifies the owner + admin.
+    try {
+      await upsert.mutateAsync({
+        property_id: propertyId,
+        payment_facilitator_enabled: !next,
+        payment_model: next ? "byo" : "rol",
+      } as any);
+    } catch {
+      setSaving(false);
+      return; // upsert surfaces its own error toast
+    }
+
+    setSaving(false);
     toast.success(
       next
         ? "Custom payment provider enabled — facilitator fee disabled"
@@ -77,6 +87,7 @@ export function PaymentProvidersTab({
     queryClient.invalidateQueries({ queryKey: ["property-allow-custom-payment", propertyId] });
     queryClient.invalidateQueries({ queryKey: ["billing-config", propertyId] });
   };
+
 
   if (!propertyId) {
     return (
