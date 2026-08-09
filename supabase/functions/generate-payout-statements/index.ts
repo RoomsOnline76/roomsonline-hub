@@ -555,7 +555,18 @@ Deno.serve(async (req) => {
       created.push(inserted);
     }
 
-    return json({ success: true, data: { statements: created } });
+    return json({
+      success: true,
+      data: {
+        statements: created,
+        pending_clearance_count: pendingClearance.length,
+        pending_clearance_amount: round2(
+          pendingClearance.reduce((sum, e) => sum + num(e.gross), 0),
+        ),
+        clearance_hours: CLEARANCE_HOURS,
+      },
+    });
+
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("[payout-statements] failed:", message);
