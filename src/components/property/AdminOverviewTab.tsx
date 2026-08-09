@@ -1,4 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
+import {
+  detectSubscriptionDrift,
+  driftMessage,
+  type DriftInvoiceLike,
+} from "@/lib/subscriptionDrift";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -179,6 +184,24 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
   });
 
 
+  // Paid subscription invoices tell us what the payment gateway is actually
+  // collecting each month, so a changed billing config can be flagged as drift.
+  const { data: paidSubInvoices } = useQuery({
+    queryKey: ["admin-overview-sub-invoices", propertyId, scope.source, scope.portfolioId],
+    queryFn: async () => {
+      const q = supabase
+        .from("subscription_invoices")
+        .select("status, amount, paid_at, created_at, invoice_kind")
+        .eq("status", "paid")
+        .neq("invoice_kind", "once_off");
+      const { data } = scope.source === "portfolio" && scope.portfolioId
+        ? await q.eq("portfolio_id", scope.portfolioId)
+        : await q.eq("property_id", propertyId);
+      return (data || []) as DriftInvoiceLike[];
+    },
+    enabled: !!propertyId,
+  });
+
   if (billingLoading || propLoading) {
     return (
       <div className="flex items-center justify-center p-8">
@@ -302,6 +325,12 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
     costLines.filter((l) => l.once).map((l) => ({ key: setupKeyFromLabel(l.label), amount: l.amount })),
     onceOffInvoices,
   );
+  const drift = detectSubscriptionDrift({
+    contractedMonthlyFee: monthlyTotal,
+    invoices: paidSubInvoices,
+    pendingMonthlyFee: (config as any)?.pending_monthly_fee ?? null,
+  });
+
   const paidOn = settlement.lastPaidAt
     ? new Date(settlement.lastPaidAt).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })
     : null;
@@ -387,6 +416,17 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
           {settlement.reopened && (
             <p className="text-[11px] text-muted-foreground mt-2">
               Setup fees changed after payment — a balance of {fmt(settlement.outstanding)} is invoiced separately.
+            </p>
+          )}
+          {drift.drifting && (
+            <p className="mt-2 flex items-start gap-1.5 rounded-md bg-destructive/10 p-2 text-[11px] text-destructive">
+              <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" />
+              <span>
+                <strong>Subscription drift.</strong> {driftMessage(drift, fmt)}{" "}
+                {drift.scheduled
+                  ? "A plan change is already scheduled for the new amount."
+                  : "Cancel the current subscription and schedule the new plan from the ROL Account page so the correct amount is collected."}
+              </span>
             </p>
           )}
           <p className="text-[11px] text-muted-foreground mt-2">
