@@ -358,24 +358,15 @@ Deno.serve(async (req) => {
         // alone leaves the listings live at the channel manager.
         for (const u of rows) {
           if (!u.rentalsunited_property_id) continue;
-          const { data: ruRes, error: ruErr } = await admin.functions.invoke("rentalsunited-api", {
-            body: {
-              action: "set_property_status",
-              property_id: p.id,
-              ru_property_id: u.rentalsunited_property_id,
-              metadata: { is_active: !archive, is_archived: archive },
-            },
+          const failure = await pushListingStatus(admin, {
+            propertyId: p.id,
+            ruPropertyId: u.rentalsunited_property_id,
+            archive,
+            ownerId: ruOwnerId,
           });
-          if (ruErr || (ruRes && (ruRes as { success?: boolean }).success === false)) {
-            ruUnitFailures.push(
-              `${u.rentalsunited_property_id}: ${
-                ruErr?.message ||
-                (ruRes as { error?: string } | null)?.error ||
-                "rejected"
-              }`,
-            );
-          }
+          if (failure) ruUnitFailures.push(`${u.rentalsunited_property_id}: ${failure}`);
         }
+
 
         if (ruUnitFailures.length > 0) {
           status = "ru_failed";
