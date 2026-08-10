@@ -166,6 +166,7 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
     subAccounts: 0,
     subAccountProperties: 0,
     pushEnabledProperties: 0,
+    pushEnabledOutsideAccounts: 0,
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
