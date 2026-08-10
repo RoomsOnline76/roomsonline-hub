@@ -23,7 +23,6 @@ import { RuCurrencyPanel } from "@/components/integrations/RuCurrencyPanel";
 import { RuBuildingsPanel } from "@/components/integrations/RuBuildingsPanel";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { RuCertificationConsole } from "@/components/integrations/RuCertificationConsole";
 import { RuErrorHandlingTab } from "@/components/integrations/RuErrorHandlingTab";
 import { RuCalendarVerifyPanel } from "@/components/integrations/RuCalendarVerifyPanel";
 
