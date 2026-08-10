@@ -185,24 +185,21 @@ Deno.serve(async (req) => {
       let unitDetail: string | undefined;
 
       if (unit.rentalsunited_property_id) {
-        const { data: ruRes, error: ruErr } = await admin.functions.invoke("rentalsunited-api", {
-          body: {
-            action: "set_property_status",
-            property_id: unit.property_id,
-            ru_property_id: unit.rentalsunited_property_id,
-            metadata: { is_active: !unitArchive, is_archived: unitArchive },
-          },
+        const ownerId = await resolveRuOwnerId(admin, unit.property_id);
+        const failure = await pushListingStatus(admin, {
+          propertyId: unit.property_id,
+          ruPropertyId: unit.rentalsunited_property_id,
+          archive: unitArchive,
+          ownerId,
         });
-        if (ruErr || (ruRes && (ruRes as { success?: boolean }).success === false)) {
+        if (failure) {
           unitStatus = "ru_failed";
-          unitDetail =
-            ruErr?.message ||
-            (ruRes as { error?: string } | null)?.error ||
-            "Rentals United rejected the status change";
+          unitDetail = failure;
         }
       } else {
         unitDetail = "No Rentals United listing yet — local flag only";
       }
+
 
       const { error: flagErr } = await admin
         .from("hostfully_room_types")
