@@ -973,6 +973,9 @@ function buildUnitPayload(
   const checkInFrom = houseRules.check_in_from || unit.check_in_time || '14:00';
   const checkInTo = houseRules.check_in_to || '22:00';
   const checkOutUntil = houseRules.check_out_to || unit.check_out_time || '10:00';
+  // Report when the times being pushed are our fallbacks rather than authored values.
+  const checkInTimesAreDefault =
+    !(houseRules.check_in_from || unit.check_in_time) || !(houseRules.check_out_to || unit.check_out_time);
 
   const banking = (amenities as any)?.banking || {};
   const depositPercent = toFiniteNumber(banking.deposit_percentage ?? banking.prepayment_percentage);
