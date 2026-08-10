@@ -9,7 +9,9 @@ import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { GripVertical, Plus, Trash2, Phone, Mail, Clock, Globe, ShieldCheck, Users } from "lucide-react";
+import CopyToPortfolioDialog from "@/components/property/CopyToPortfolioDialog";
+import CopyFromPortfolioDialog from "@/components/property/CopyFromPortfolioDialog";
+import { GripVertical, Plus, Trash2, Phone, Mail, Clock, Globe, ShieldCheck, Users, Copy, Download } from "lucide-react";
 
 const ROLES = [
   { value: "reception", label: "Reception / Front desk", icon: Phone },
