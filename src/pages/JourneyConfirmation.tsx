@@ -33,6 +33,9 @@ export default function JourneyConfirmation() {
 
   const stays = (itinerary?.stays || []) as unknown as ItineraryStay[];
   const isConfirmed = itinerary?.status === "confirmed";
+  /** Readable journey reference (ROL-TRIP-0014); each stay keeps its own booking reference. */
+  const journeyReference = (itinerary as { rol_reference?: string | null } | undefined)?.rol_reference || null;
+
 
   useEffect(() => {
     if (autoDownload && itinerary && isConfirmed && !isGeneratingPdf && !autoDownloadTriggered.current) {
@@ -135,8 +138,16 @@ export default function JourneyConfirmation() {
               ? `We've sent a confirmation email to ${itinerary.guest_email}. Your adventure awaits!`
               : "Some bookings may require attention. Please check the details below."}
           </p>
+
+          {journeyReference && (
+            <div className="mt-6 inline-flex flex-col items-center rounded-xl border border-border/60 bg-card px-5 py-3">
+              <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Journey reference</span>
+              <span className="font-mono text-lg font-semibold tracking-tight">{journeyReference}</span>
+            </div>
+          )}
         </div>
       </div>
+
 
       <main className="container max-w-3xl py-12 px-4">
         {/* Timeline */}

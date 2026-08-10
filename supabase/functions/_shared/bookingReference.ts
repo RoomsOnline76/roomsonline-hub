@@ -1,7 +1,8 @@
 /**
- * ROL booking reference helpers for edge functions.
+ * ROL reference helpers for edge functions.
  *
- * Format: ROL-<ORIGIN>-<KIND>-<PROP>-<NNNNN>
+ * Format: ROL-<PROP>-<NNNN> (e.g. ROL-JON-1042); journeys use ROL-TRIP-<NNNN>.
+ * The legacy long form ROL-<ORIGIN>-<KIND>-<PROP>-<NNNNN>
  * References are minted by the `assign_rol_booking_reference` trigger on insert, so
  * ingest paths never need to build one. These helpers are for reading/formatting:
  * statements, e-mails, invoices and API payloads.
@@ -60,12 +61,14 @@ export function kindForOrigin(origin: RolOriginCode): RolReferenceKind {
 /** Reference to quote to guests, owners and on statements. */
 export function displayBookingReference(booking: {
   rol_reference?: string | null;
+  rol_reference_legacy?: string | null;
   external_reservation_id?: string | null;
   id?: string | null;
 }): string {
   return booking.rol_reference
+    || booking.rol_reference_legacy
     || booking.external_reservation_id
-    || (booking.id ? booking.id.slice(0, 8).toUpperCase() : '—');
+    || '—';
 }
 
 /**
@@ -74,6 +77,7 @@ export function displayBookingReference(booking: {
  */
 export function reconciliationReference(booking: {
   rol_reference?: string | null;
+  rol_reference_legacy?: string | null;
   external_reservation_id?: string | null;
   id?: string | null;
 }): string {

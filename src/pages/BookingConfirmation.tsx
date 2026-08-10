@@ -174,9 +174,10 @@ const BookingConfirmation = () => {
   // Standardised ROL reference leads; the channel's own reference is shown beside it.
   const displayRef =
     (booking as { rol_reference?: string | null }).rol_reference ||
+    (booking as { rol_reference_legacy?: string | null }).rol_reference_legacy ||
     externalRef ||
     booking.external_reservation_id ||
-    bookingId?.slice(0, 8).toUpperCase();
+    "—";
   const channelRef =
     booking.external_reservation_id && booking.external_reservation_id !== displayRef
       ? booking.external_reservation_id

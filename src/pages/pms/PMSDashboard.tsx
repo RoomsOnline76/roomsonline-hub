@@ -85,6 +85,7 @@ import {
 
 } from "lucide-react";
 import { toast } from "sonner";
+import { displayBookingReference } from "@/lib/bookingReference";
 
 // ──────────── SA Public Holidays ────────────
 const SA_PUBLIC_HOLIDAYS: { [year: number]: { [date: string]: string } } = {
@@ -3307,7 +3308,7 @@ function BookingDetail({
           )}
         </SheetTitle>
         <SheetDescription className="flex items-center justify-between">
-          <span>Booking #{b.id.slice(0, 8)}</span>
+          <span>Booking {displayBookingReference(b)}</span>
           <Badge variant={STATUS_BADGE_VARIANT[b.status] || "secondary"} className="capitalize">{b.status.replace("_", " ")}</Badge>
         </SheetDescription>
       </SheetHeader>

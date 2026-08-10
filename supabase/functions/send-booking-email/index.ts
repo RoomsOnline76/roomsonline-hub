@@ -37,6 +37,17 @@ function formatDate(dateString: string): string {
   });
 }
 
+/**
+ * Guest-facing reference: the compact ROL code (ROL-JON-1042), then the legacy long
+ * code, then the channel's own reference. Never the internal record id.
+ */
+function guestReference(booking: any): string {
+  return booking?.rol_reference
+    || booking?.rol_reference_legacy
+    || booking?.external_reservation_id
+    || "—";
+}
+
 // Calculate nights
 function calculateNights(checkIn: string, checkOut: string): number {
   const start = new Date(checkIn);
@@ -48,7 +59,7 @@ function calculateNights(checkIn: string, checkOut: string): number {
 function replaceTemplateVariables(template: string, booking: any, property: any): string {
   const nights = calculateNights(booking.check_in_date, booking.check_out_date);
   const totalGuests = (booking.adults || 0) + (booking.teens || 0) + (booking.children || 0) + (booking.infants || 0);
-  const bookingRef = booking.external_reservation_id || booking.id.substring(0, 8).toUpperCase();
+  const bookingRef = guestReference(booking);
   
   // Get room/rate type names from booking
   const roomTypeName = booking.rooms?.[0]?.roomTypeName || booking.room_type_id || "Standard Room";
@@ -415,7 +426,7 @@ function generateReservationPaymentBlock(booking: any, property: any, accentColo
   const balance = Math.max(0, Math.round((total - dueNow) * 100) / 100);
   const dueDate = booking.deposit_due_date ? formatDate(booking.deposit_due_date) : null;
   const cancellation = resolveCancellationText(booking, property);
-  const reference = booking.rol_reference || booking.external_reservation_id || String(booking.id).substring(0, 8).toUpperCase();
+  const reference = guestReference(booking);
 
   const bankRows: Array<[string, unknown]> = banking
     ? [
@@ -572,7 +583,7 @@ function generateSuccessEmail(booking: any, property: any, syncWarning?: string)
             <td style="padding: 0 40px;">
               <div style="background-color: #f8f9fa; border-radius: 8px; padding: 20px; text-align: center; margin-bottom: 20px;">
                 <p style="margin: 0 0 5px; color: #666; font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">Booking Reference</p>
-                <p style="margin: 0; color: #333; font-size: 20px; font-weight: 600; font-family: monospace;">${booking.external_reservation_id || booking.id.substring(0, 8).toUpperCase()}</p>
+                <p style="margin: 0; color: #333; font-size: 20px; font-weight: 600; font-family: monospace;">${guestReference(booking)}</p>
               </div>
             </td>
           </tr>
@@ -830,7 +841,7 @@ function generatePropertyNotificationEmail(booking: any, property: any): string 
   const accentColor = brand.accentColor;
   const nights = calculateNights(booking.check_in_date, booking.check_out_date);
   const totalGuests = (booking.adults || 0) + (booking.teens || 0) + (booking.children || 0) + (booking.infants || 0);
-  const bookingRef = booking.external_reservation_id || booking.id.substring(0, 8).toUpperCase();
+  const bookingRef = guestReference(booking);
   
   // Build room info
   let roomInfo = "";
@@ -1042,7 +1053,7 @@ function generatePropertyNotificationEmail(booking: any, property: any): string 
 function generateAdminAlertEmail(booking: any, property: any, errorMessage?: string): string {
   const nights = calculateNights(booking.check_in_date, booking.check_out_date);
   const totalGuests = (booking.adults || 0) + (booking.teens || 0) + (booking.children || 0) + (booking.infants || 0);
-  const bookingRef = booking.external_reservation_id || booking.id.substring(0, 8).toUpperCase();
+  const bookingRef = guestReference(booking);
   const dashboardUrl = "https://roomsonline-hub.lovable.app/dashboard/bookings";
 
   return `
@@ -1347,7 +1358,7 @@ Deno.serve(async (req) => {
       
       const identity = await resolvePropertySender(supabaseClient, property.id);
       const adminFromEmail = identity.from || platformSender();
-      const bookingRef = booking.external_reservation_id || booking.id.substring(0, 8).toUpperCase();
+      const bookingRef = guestReference(booking);
 
       const adminEmailHtml = appendContactFooterHtml(
         generateAdminAlertEmail(booking, property, error_message),
@@ -1396,7 +1407,7 @@ Deno.serve(async (req) => {
       
       const identity = await resolvePropertySender(supabaseClient, property.id);
       const notifyFromEmail = identity.from || platformSender();
-      const bookingRef = booking.external_reservation_id || booking.id.substring(0, 8).toUpperCase();
+      const bookingRef = guestReference(booking);
 
       // Use recipient_email from request body, or fall back to property owner_email
       const ownerEmail = recipient_email || property.owner_email;
@@ -1564,7 +1575,7 @@ Deno.serve(async (req) => {
       html = generateFailureEmail(booking, property, error_message);
     }
 
-    const bookingRef = booking.external_reservation_id || booking.id.substring(0, 8).toUpperCase();
+    const bookingRef = guestReference(booking);
     const subject =
       status === "success"
         ? `Booking Confirmed #${bookingRef} - ${property.name}`

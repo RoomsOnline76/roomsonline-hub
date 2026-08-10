@@ -81,6 +81,7 @@ interface Booking {
   external_reservation_id: string | null;
   /** Standardised ROL booking reference (ROL-<origin>-<kind>-<prop>-<seq>). */
   rol_reference?: string | null;
+  rol_reference_legacy?: string | null;
   rol_ref_origin?: string | null;
   rol_ref_kind?: string | null;
   created_at: string | null;
@@ -575,7 +576,7 @@ const Bookings = () => {
         const itineraryRef = (booking.ai_metadata as any)?.itinerary_id?.substring(0, 8)?.toLowerCase() || "";
         
         return (
-          matchesReferenceSearch(booking.rol_reference, term) ||
+          matchesReferenceSearch([booking.rol_reference, booking.rol_reference_legacy], term) ||
           booking.guest_name.toLowerCase().includes(term) ||
           booking.guest_email.toLowerCase().includes(term) ||
           booking.property_name?.toLowerCase().includes(term) ||
@@ -1023,7 +1024,7 @@ const Bookings = () => {
                                 <span className="flex flex-col leading-tight min-w-0">
                                   <span
                                     className="font-mono text-[11px] text-foreground truncate"
-                                    title={describeRolReference(booking.rol_reference) || undefined}
+                                    title={describeRolReference(booking.rol_reference, booking) || undefined}
                                   >
                                     {displayBookingReference(booking)}
                                   </span>
