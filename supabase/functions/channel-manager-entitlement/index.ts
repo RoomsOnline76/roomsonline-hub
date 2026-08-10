@@ -273,6 +273,9 @@ Deno.serve(async (req) => {
               status: unitStatus,
               units_changed: 1,
               detail: unitDetail,
+              ari_push_error: unitAri,
+              ari_push_retryable: unitAriRetryable,
+
             },
           ],
         }),
