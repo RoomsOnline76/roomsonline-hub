@@ -59,11 +59,14 @@ export interface RuCreatorMapping {
   ruChannelId: string | null;
 }
 
-/** RU status ids: 1 Confirmed · 2 Cancelled · 4 Request · 6 Approved · 7 Rejected · 8 Expired. */
+/**
+ * RU status ids: 1 Confirmed · 2 Cancelled · 3/5 Modified · 4 Request · 6 Approved · 7 Rejected · 8 Expired.
+ * Delegates to the shared envelope/status classifier so the RLNM handler, the poll and the
+ * certification runner can never disagree about what a status id means.
+ */
 export function classifyRuStatus(statusId: string | null): 'confirmed' | 'cancelled' | 'request' {
-  if (statusId === '2' || statusId === '7' || statusId === '8') return 'cancelled';
-  if (statusId === '1' || statusId === '6') return 'confirmed';
-  return 'request';
+  const kind = classifyRuNotification('', statusId);
+  return kind === 'modified' ? 'confirmed' : kind;
 }
 
 /**
