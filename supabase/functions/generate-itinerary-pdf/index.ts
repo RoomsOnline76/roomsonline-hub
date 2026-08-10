@@ -1994,13 +1994,13 @@ Deno.serve(async (req) => {
       });
     }
 
-    // 3. Generate surprise voucher (always for Phase 3)
-    const voucherPromise = generateSurpriseVoucher(
+    // 3. Resolve a real voucher (only if the property actually loaded one)
+    const voucherPromise = resolveRealVoucher(
       supabase,
       itinerary_id,
-      propertyNames
+      (properties || []).map((p: any) => p.id).filter(Boolean)
     ).catch(err => {
-      console.error("[PDF] Voucher generation failed:", err);
+      console.error("[PDF] Voucher resolution failed:", err);
       return null;
     });
 
