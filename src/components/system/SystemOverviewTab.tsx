@@ -14,7 +14,29 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 type AdapterStatus = "healthy" | "degraded" | "error";
-type PipelineStatus = "running" | "idle" | "error";
+type PipelineStatus = "running" | "healthy" | "overdue" | "idle" | "error";
+
+/**
+ * Pipelines are graded against the cadence they are actually scheduled at, not
+ * a flat "ran in the last hour" window — otherwise a 6-hourly cron looks Idle
+ * for five hours out of every six, and an event-driven pipeline (an email that
+ * only fires when a booking happens) looks Idle forever.
+ *
+ * `intervalMs: null` = event-driven, no schedule, never graded as overdue.
+ */
+const PIPELINE_CADENCE: Record<string, { intervalMs: number | null; label: string }> = {
+  prices_verification: { intervalMs: 6 * 60 * 60 * 1000, label: "scheduled · every 6 h" },
+  availability_verification: { intervalMs: 6 * 60 * 60 * 1000, label: "scheduled · every 6 h" },
+  ru_lead_lifecycle: { intervalMs: 30 * 60 * 1000, label: "scheduled · every 30 min" },
+  ru_reservations_poll: { intervalMs: 30 * 60 * 1000, label: "scheduled · every 30 min" },
+  content_sync: { intervalMs: 7 * 24 * 60 * 60 * 1000, label: "scheduled · weekly" },
+  reviews_sync: { intervalMs: 24 * 60 * 60 * 1000, label: "scheduled · daily" },
+  email_send: { intervalMs: null, label: "event-driven" },
+  property_notification_email: { intervalMs: null, label: "event-driven" },
+  payment_itn: { intervalMs: null, label: "event-driven" },
+  booking_push: { intervalMs: null, label: "event-driven" },
+};
+
 
 interface PmsAdapter {
   name: string;
