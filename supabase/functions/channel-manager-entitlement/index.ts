@@ -75,6 +75,66 @@ async function sendReactivationNotice(payload: {
   }
 }
 
+/**
+ * RU listings for white-label properties live on a sub-user account. Calling
+ * Push_SetPropertiesStatus_RQ with master credentials returns Status 0 plus a
+ * warning ("Property with given ID does not exist") and changes nothing, so the
+ * OwnerID must be resolved and passed through.
+ */
+async function resolveRuOwnerId(
+  admin: ReturnType<typeof createClient>,
+  propertyId: string,
+): Promise<string | null> {
+  const { data: direct } = await admin
+    .from("ru_owner_accounts")
+    .select("ru_owner_id")
+    .eq("property_id", propertyId)
+    .not("ru_owner_id", "is", null)
+    .maybeSingle();
+  if (direct?.ru_owner_id) return String(direct.ru_owner_id);
+
+  const { data: members } = await admin
+    .from("property_portfolio_members")
+    .select("portfolio_id")
+    .eq("property_id", propertyId);
+  const portfolioIds = (members || []).map((m: { portfolio_id: string }) => m.portfolio_id);
+  if (portfolioIds.length === 0) return null;
+
+  const { data: viaPortfolio } = await admin
+    .from("ru_owner_accounts")
+    .select("ru_owner_id")
+    .in("portfolio_id", portfolioIds)
+    .not("ru_owner_id", "is", null)
+    .limit(1)
+    .maybeSingle();
+  return viaPortfolio?.ru_owner_id ? String(viaPortfolio.ru_owner_id) : null;
+}
+
+/** Push one listing's active/archived state to RU and report a real failure. */
+async function pushListingStatus(
+  admin: ReturnType<typeof createClient>,
+  args: { propertyId: string; ruPropertyId: string; archive: boolean; ownerId: string | null },
+): Promise<string | null> {
+  const { data: ruRes, error: ruErr } = await admin.functions.invoke("rentalsunited-api", {
+    body: {
+      action: "set_property_status",
+      property_id: args.propertyId,
+      ru_property_id: args.ruPropertyId,
+      ...(args.ownerId ? { owner_id: args.ownerId } : {}),
+      metadata: { is_active: !args.archive, is_archived: args.archive },
+    },
+  });
+  if (ruErr) return ruErr.message;
+  const res = (ruRes || {}) as { success?: boolean; error?: string; raw_xml?: string };
+  if (res.success === false) return res.error || "Rentals United rejected the status change";
+  // RU reports per-listing rejections as warnings inside a Status 0 envelope.
+  const warning = res.raw_xml?.match(/<Warning[^>]*>([^<]+)<\/Warning>/)?.[1];
+  if (warning) return `Rentals United warning: ${warning}`;
+  return null;
+}
+
+
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -125,24 +185,21 @@ Deno.serve(async (req) => {
       let unitDetail: string | undefined;
 
       if (unit.rentalsunited_property_id) {
-        const { data: ruRes, error: ruErr } = await admin.functions.invoke("rentalsunited-api", {
-          body: {
-            action: "set_property_status",
-            property_id: unit.property_id,
-            ru_property_id: unit.rentalsunited_property_id,
-            metadata: { is_active: !unitArchive, is_archived: unitArchive },
-          },
+        const ownerId = await resolveRuOwnerId(admin, unit.property_id);
+        const failure = await pushListingStatus(admin, {
+          propertyId: unit.property_id,
+          ruPropertyId: unit.rentalsunited_property_id,
+          archive: unitArchive,
+          ownerId,
         });
-        if (ruErr || (ruRes && (ruRes as { success?: boolean }).success === false)) {
+        if (failure) {
           unitStatus = "ru_failed";
-          unitDetail =
-            ruErr?.message ||
-            (ruRes as { error?: string } | null)?.error ||
-            "Rentals United rejected the status change";
+          unitDetail = failure;
         }
       } else {
         unitDetail = "No Rentals United listing yet — local flag only";
       }
+
 
       const { error: flagErr } = await admin
         .from("hostfully_room_types")
@@ -244,33 +301,24 @@ Deno.serve(async (req) => {
       let detail: string | undefined;
       let status: "updated" | "skipped" | "ru_failed" = "updated";
 
+      const ruOwnerId = await resolveRuOwnerId(admin, p.id);
+
       if (p.rentalsunited_property_id) {
-        // Push the archive / re-activate call to Rentals United.
-        const { data: ruRes, error: ruErr } = await admin.functions.invoke(
-          "rentalsunited-api",
-          {
-            body: {
-              action: "set_property_status",
-              property_id: p.id,
-              ru_property_id: p.rentalsunited_property_id,
-              // The rentalsunited-api handler reads these flags from `metadata`.
-              metadata: {
-                is_active: !archive,
-                is_archived: archive,
-              },
-            },
-          }
-        );
-        if (ruErr || (ruRes && (ruRes as { success?: boolean }).success === false)) {
+        const failure = await pushListingStatus(admin, {
+          propertyId: p.id,
+          ruPropertyId: p.rentalsunited_property_id,
+          archive,
+          ownerId: ruOwnerId,
+        });
+        if (failure) {
           status = "ru_failed";
-          detail =
-            ruErr?.message ||
-            (ruRes as { error?: string } | null)?.error ||
-            "Rentals United rejected the status change";
+          detail = failure;
         }
       } else {
-        detail = "No Rentals United listing yet — local flag only";
+        detail = "Building has no Rentals United listing of its own — unit listings pushed individually";
       }
+
+
 
       const { error: updErr } = await admin
         .from("properties")
@@ -302,12 +350,37 @@ Deno.serve(async (req) => {
           rentalsunited_property_id: string | null;
         }>;
         listingCount = rows.length;
-        const toChange = rows.filter((u) => (u.is_active !== false) === archive).map((u) => u.id);
+        const toChange = rows.filter((u) => (u.is_active !== false) === archive);
+        const ruUnitFailures: string[] = [];
+
+        // Multi-unit buildings hold their RU listing ids on the units, so the
+        // archive/re-activate must be pushed per unit — flipping the local flag
+        // alone leaves the listings live at the channel manager.
+        for (const u of rows) {
+          if (!u.rentalsunited_property_id) continue;
+          const failure = await pushListingStatus(admin, {
+            propertyId: p.id,
+            ruPropertyId: u.rentalsunited_property_id,
+            archive,
+            ownerId: ruOwnerId,
+          });
+          if (failure) ruUnitFailures.push(`${u.rentalsunited_property_id}: ${failure}`);
+        }
+
+
+        if (ruUnitFailures.length > 0) {
+          status = "ru_failed";
+          detail = `${detail ? `${detail}; ` : ""}unit listing push failed → ${ruUnitFailures.join("; ")}`;
+        }
+
         if (toChange.length > 0) {
           const { error: unitErr } = await admin
             .from("hostfully_room_types")
             .update({ is_active: !archive })
-            .in("id", toChange);
+            .in(
+              "id",
+              toChange.map((u) => u.id),
+            );
           if (unitErr) {
             detail = `${detail ? `${detail}; ` : ""}unit update failed: ${unitErr.message}`;
           } else {
@@ -315,6 +388,7 @@ Deno.serve(async (req) => {
           }
         }
       }
+
 
       // ── Audit trail for the cost monitor ─────────────────────────────
       await admin.from("ru_archive_events").insert({
