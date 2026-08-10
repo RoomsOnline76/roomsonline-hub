@@ -53,6 +53,7 @@ export function ChannelCostSummary({ data }: Props) {
     subAccounts,
     subAccountProperties,
     pushEnabledProperties,
+    pushEnabledOutsideAccounts,
   } = data;
 
   const [params] = useSearchParams();
