@@ -52,10 +52,8 @@ export default function AdminChannelMonitor() {
   );
 
 
-  const handleConfirm = useCallback(
-    async (reason: string) => {
-      if (!target) return;
-      const { row, mode } = target;
+  const runPropertyToggle = useCallback(
+    async (row: ChannelPropertyRow, mode: "archive" | "reactivate", reason?: string) => {
       setBusyId(row.id);
       try {
         const { data: res, error } = await supabase.functions.invoke("channel-manager-entitlement", {
@@ -69,6 +67,7 @@ export default function AdminChannelMonitor() {
             reason: reason || undefined,
           },
         });
+
 
         if (error) throw new Error(error.message);
         const failed = (res as { failed?: number } | null)?.failed ?? 0;
