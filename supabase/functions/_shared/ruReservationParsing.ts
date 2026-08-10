@@ -217,3 +217,56 @@ export async function applyRuAvailabilityBlock(
     console.error(`${logPrefix} Availability sync error:`, e);
   }
 }
+
+/**
+ * Single source of truth for RLNM envelope + status mapping.
+ *
+ * Rentals United delivers reservation notifications under several envelope names, and the
+ * numeric `StatusID` is not always present (cancellation envelopes often omit it). Envelope
+ * name wins, then explicit tags, then the numeric status:
+ *
+ *  - `LNM_PutConfirmedReservation_RQ`                → confirmed
+ *  - `LNM_PutConfirmedReservationMod(ification)_RQ`  → modified (same write path as confirmed)
+ *  - `LNM_PutCancelation_RQ` / `LNM_PutCancellation` → cancelled
+ *  - `LNM_PutUnconfirmedReservation_RQ` / request / lead envelopes → request (3-day hold)
+ *
+ * Numeric StatusID map: 1/6 confirmed, 3/5 modified, 2/4/7/8 cancelled, anything else a request.
+ */
+export type RuNotificationKind = 'confirmed' | 'modified' | 'cancelled' | 'request';
+
+export function classifyRuNotification(xml: string, statusId: string | null): RuNotificationKind {
+  const lower = (xml || '').toLowerCase();
+
+  // Envelope name / explicit cancellation flags first — cancellations must never fall
+  // through to the "request" default, which would re-open a hold on cancelled nights.
+  if (
+    lower.includes('putcancel') ||
+    lower.includes('cancelation_rq') ||
+    lower.includes('cancellation_rq') ||
+    lower.includes('<iscancel>true</iscancel>') ||
+    lower.includes('<iscancelled>true</iscancelled>') ||
+    lower.includes('<iscanceled>true</iscanceled>')
+  ) {
+    return 'cancelled';
+  }
+  if (lower.includes('reservationmod') || lower.includes('reservationmodification') || lower.includes('<ismodification>true</ismodification>')) {
+    return 'modified';
+  }
+  if (
+    lower.includes('putunconfirmedreservation') ||
+    lower.includes('putrequestreservation') ||
+    lower.includes('unconfirmed') ||
+    lower.includes('putlead') ||
+    lower.includes('<islead>true</islead>')
+  ) {
+    return 'request';
+  }
+  if (lower.includes('putconfirmedreservation')) {
+    return statusId && ['2', '4', '7', '8'].includes(statusId) ? 'cancelled' : 'confirmed';
+  }
+
+  if (statusId && ['2', '4', '7', '8'].includes(statusId)) return 'cancelled';
+  if (statusId && ['1', '6'].includes(statusId)) return 'confirmed';
+  if (statusId && ['3', '5'].includes(statusId)) return 'modified';
+  return 'request';
+}
