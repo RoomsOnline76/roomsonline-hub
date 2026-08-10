@@ -1,4 +1,5 @@
-import { useCallback, useMemo, useState } from "react";
+import { Suspense, lazy, useCallback, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -7,18 +8,48 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useChannelCostMonitor, type ChannelPropertyRow, type ChannelUnitRow } from "@/hooks/useChannelCostMonitor";
 import { ChannelCostSummary } from "@/components/admin/channel-monitor/ChannelCostSummary";
 import { ChannelBillingSchedule } from "@/components/admin/channel-monitor/ChannelBillingSchedule";
 import { ChannelPropertyTable } from "@/components/admin/channel-monitor/ChannelPropertyTable";
 import { ChannelArchiveLog } from "@/components/admin/channel-monitor/ChannelArchiveLog";
 import { ArchivePropertyDialog } from "@/components/admin/channel-monitor/ArchivePropertyDialog";
+import { ChannelRuStatusStrip } from "@/components/admin/channel-monitor/ChannelRuStatusStrip";
+
+// Heavy panels only load when their tab is opened, keeping the default cost view fast.
+const PortfolioRuAccountsTab = lazy(() =>
+  import("@/components/portfolio/PortfolioRuAccountsTab").then((m) => ({ default: m.PortfolioRuAccountsTab })),
+);
+const ChannelCertificationTab = lazy(() =>
+  import("@/components/admin/channel-monitor/ChannelCertificationTab").then((m) => ({
+    default: m.ChannelCertificationTab,
+  })),
+);
+
+type TabKey = "cost" | "accounts" | "cert";
+const TAB_KEYS: TabKey[] = ["cost", "accounts", "cert"];
 
 export default function AdminChannelMonitor() {
   const data = useChannelCostMonitor();
+  const [params, setParams] = useSearchParams();
   const [target, setTarget] = useState<{ row: ChannelPropertyRow; mode: "archive" | "reactivate" } | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [busyUnitId, setBusyUnitId] = useState<string | null>(null);
+
+  const rawTab = params.get("tab") as TabKey | null;
+  const tab: TabKey = rawTab && TAB_KEYS.includes(rawTab) ? rawTab : "cost";
+
+  // Tab lives in the URL so health reports, the RU wizard and certification logs can deep-link.
+  const setTab = useCallback(
+    (next: string) => {
+      const nextParams = new URLSearchParams(params);
+      if (next === "cost") nextParams.delete("tab");
+      else nextParams.set("tab", next);
+      setParams(nextParams, { replace: true });
+    },
+    [params, setParams],
+  );
 
   const handleToggleUnit = useCallback(
     async (row: ChannelPropertyRow, unit: ChannelUnitRow, activate: boolean) => {
@@ -134,8 +165,8 @@ export default function AdminChannelMonitor() {
     <AppLayout>
       <div className="container mx-auto space-y-4 px-4 py-6">
         <PageHeader
-          title="Channel Manager Cost Monitor"
-          subtitle="Forecast distribution spend against the period minimums and archive listings you are not selling."
+          title="Channel Manager — Cost, Accounts & Certification"
+          subtitle="One console for distribution spend, sub-accounts and certification: everything needed to onboard and stay compliant."
           actions={
             <Button variant="outline" size="sm" onClick={() => void data.refresh()} disabled={data.loading}>
               <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${data.loading ? "animate-spin" : ""}`} />
@@ -150,32 +181,55 @@ export default function AdminChannelMonitor() {
           </Card>
         )}
 
-        {data.loading && data.properties.length === 0 ? (
-          <div className="space-y-3">
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              {[0, 1, 2, 3].map((i) => (
-                <Skeleton key={i} className="h-24 w-full" />
-              ))}
-            </div>
-            <Skeleton className="h-64 w-full" />
-          </div>
-        ) : (
-          <>
-            <ChannelCostSummary data={data} />
-            <ChannelBillingSchedule schedule={data.schedule} currentMonth={currentMonth} fx={data.fx} />
-            <ChannelPropertyTable
-              rows={data.properties}
-              fx={data.fx}
-              busyPropertyId={busyId}
-              busyUnitId={busyUnitId}
-              onToggleUnit={handleToggleUnit}
-              onArchive={(row) => setTarget({ row, mode: "archive" })}
-              onReactivate={(row) => void runPropertyToggle(row, "reactivate")}
+        <ChannelRuStatusStrip data={data} onNavigate={(t) => setTab(t)} />
 
-            />
-            <ChannelArchiveLog events={data.events} />
-          </>
-        )}
+        <Tabs value={tab} onValueChange={setTab} className="space-y-4">
+          <TabsList>
+            <TabsTrigger value="cost">Cost &amp; listings</TabsTrigger>
+            <TabsTrigger value="accounts">Accounts</TabsTrigger>
+            <TabsTrigger value="cert">Certification</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="cost" className="space-y-4">
+            {data.loading && data.properties.length === 0 ? (
+              <div className="space-y-3">
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  {[0, 1, 2, 3].map((i) => (
+                    <Skeleton key={i} className="h-24 w-full" />
+                  ))}
+                </div>
+                <Skeleton className="h-64 w-full" />
+              </div>
+            ) : (
+              <>
+                <ChannelCostSummary data={data} />
+                <ChannelBillingSchedule schedule={data.schedule} currentMonth={currentMonth} fx={data.fx} />
+                <ChannelPropertyTable
+                  rows={data.properties}
+                  fx={data.fx}
+                  busyPropertyId={busyId}
+                  busyUnitId={busyUnitId}
+                  onToggleUnit={handleToggleUnit}
+                  onArchive={(row) => setTarget({ row, mode: "archive" })}
+                  onReactivate={(row) => void runPropertyToggle(row, "reactivate")}
+                />
+                <ChannelArchiveLog events={data.events} />
+              </>
+            )}
+          </TabsContent>
+
+          <TabsContent value="accounts">
+            <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+              <PortfolioRuAccountsTab />
+            </Suspense>
+          </TabsContent>
+
+          <TabsContent value="cert">
+            <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+              <ChannelCertificationTab />
+            </Suspense>
+          </TabsContent>
+        </Tabs>
       </div>
 
       <ArchivePropertyDialog

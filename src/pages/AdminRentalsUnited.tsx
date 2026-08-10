@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { format, subDays } from "date-fns";
+import { Link } from "react-router-dom";
+
 import { RefreshCw, CheckCircle2, XCircle, Filter, Plus, Check, ChevronsUpDown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { isRolosPms } from "@/lib/pmsIdentity";
@@ -21,7 +23,6 @@ import { RuCurrencyPanel } from "@/components/integrations/RuCurrencyPanel";
 import { RuBuildingsPanel } from "@/components/integrations/RuBuildingsPanel";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { RuCertificationConsole } from "@/components/integrations/RuCertificationConsole";
 import { RuErrorHandlingTab } from "@/components/integrations/RuErrorHandlingTab";
 import { RuCalendarVerifyPanel } from "@/components/integrations/RuCalendarVerifyPanel";
 
@@ -311,8 +312,22 @@ export default function AdminRentalsUnited() {
         </TabsContent>
 
         <TabsContent value="cert">
-          <RuCertificationConsole properties={properties} />
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Certification moved</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm text-muted-foreground">
+              <p>
+                Certification, compliance runs and the channel sub-accounts now live in one console
+                together with listing cost and activation, so a run and its fix are on the same page.
+              </p>
+              <Button asChild size="sm">
+                <Link to="/admin/channel-monitor?tab=cert">Open the certification console</Link>
+              </Button>
+            </CardContent>
+          </Card>
         </TabsContent>
+
 
 
 

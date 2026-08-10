@@ -791,10 +791,11 @@ export function PortfolioRuAccountsTab() {
           className="max-w-sm text-sm"
         />
         <Button asChild size="sm" variant="outline" className="gap-1.5">
-          <RouterLink to="/admin/integrations/rentals-united">
+          <RouterLink to="/admin/channel-monitor?tab=cert">
             Certification console <ChevronRight className="h-4 w-4" />
           </RouterLink>
         </Button>
+
       </div>
 
       {filtered.length === 0 ? (
