@@ -296,24 +296,32 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
         owner_email: string | null;
       }>;
       const membersRows = (membersRes.data || []) as Array<{ property_id: string; portfolio_id: string }>;
+      // Trading scope: sandbox/parked records must not inflate channel counters.
+      const isTradingProp = (p: PropertyRecord) => p.is_trading === true && p.is_sandbox !== true;
+      const tradingProps = allProps.filter(isTradingProp);
+      const tradingIds = new Set(tradingProps.map((p) => p.id));
+
       const subAccountPropertyIds = new Set<string>();
       for (const acc of accounts) {
         if (acc.portfolio_id) {
           membersRows
-            .filter((m) => m.portfolio_id === acc.portfolio_id)
+            .filter((m) => m.portfolio_id === acc.portfolio_id && tradingIds.has(m.property_id))
             .forEach((m) => subAccountPropertyIds.add(m.property_id));
         } else if (acc.property_id) {
-          subAccountPropertyIds.add(acc.property_id);
+          if (tradingIds.has(acc.property_id)) subAccountPropertyIds.add(acc.property_id);
         } else if (acc.owner_email) {
-          allProps
+          tradingProps
             .filter((p) => (p.owner_email || "").toLowerCase() === acc.owner_email!.toLowerCase())
             .forEach((p) => subAccountPropertyIds.add(p.id));
         }
       }
+
+      const pushEnabled = tradingProps.filter((p) => p.ru_push_enabled === true);
       setAccountFootprint({
         subAccounts: accounts.length,
         subAccountProperties: subAccountPropertyIds.size,
-        pushEnabledProperties: allProps.filter((p) => p.ru_push_enabled === true).length,
+        pushEnabledProperties: pushEnabled.filter((p) => subAccountPropertyIds.has(p.id)).length,
+        pushEnabledOutsideAccounts: pushEnabled.filter((p) => !subAccountPropertyIds.has(p.id)).length,
       });
 
     } catch (e) {
