@@ -506,10 +506,13 @@ function buildValidation(payload: Record<string, any>): Record<string, unknown> 
   }
   const imageIssues: { url: string; reason: string }[] = (payload.image_issues || []) as { url: string; reason: string }[];
 
-  // Beds: RU requires beds to cover at least 50% of CanSleepMax.
-  const totalBeds = rooms.reduce((sum, r) =>
-    sum + (r.amenities || []).filter((a: any) => RU_BED_AMENITY_IDS.includes(Number(a.id)))
-      .reduce((s: number, a: any) => s + (a.count || 1), 0), 0);
+  // Beds: RU measures coverage in SLEEPING PLACES against CanSleepMax, so a double
+  // bed counts as 2 people. 2 doubles + 2 singles = 6 sleeping places (4 beds).
+  const bedEntries = rooms.flatMap((r) =>
+    (r.amenities || []).filter((a: any) => RU_BED_AMENITY_IDS.includes(Number(a.id))));
+  const totalBeds = bedEntries.reduce((s: number, a: any) => s + (a.count || 1), 0);
+  const totalBedCapacity = bedEntries.reduce(
+    (s: number, a: any) => s + sleepsForBedId(Number(a.id)) * (a.count || 1), 0);
 
   const roomsWithAmenities = rooms.filter(r => (r.room_id || 0) > 0 && (r.amenities || []).length > 0).length;
 
