@@ -10,6 +10,9 @@ import { ItineraryProvider } from "@/contexts/ItineraryContext";
 import { BehavioralMemoryProvider } from "@/contexts/BehavioralMemoryContext";
 import { RecaptchaProvider } from "@/components/RecaptchaProvider";
 import { ProtectedRoute } from "./components/ProtectedRoute";
+import { GuestHostLanding } from "./components/GuestHostLanding";
+import { isGuestBookingHost } from "./lib/guestDomain";
+
 import { AdminRouteLayout } from "./components/layout/AdminRouteLayout";
 import { DevRouteLayout } from "./components/layout/DevRouteLayout";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -271,10 +274,13 @@ const App = () => (
                                 ? <Navigate to="/" replace />
                                 : isSurveyDomain
                                   ? <ProjectDiscoverySurvey />
-                                  : <Navigate to="/dashboard/reports" replace />
+                                  : isGuestBookingHost()
+                                    ? <GuestHostLanding />
+                                    : <Navigate to="/dashboard/reports" replace />
                             }
                           />
                         )}
+
 
 
                         {/* ═══ Public routes ══════════════════════════════ */}
@@ -430,7 +436,7 @@ const App = () => (
                         <Route path="/compare-property-management-systems" element={<Navigate to="/how-our-booking-engine-works" replace />} />
 
                         {/* ═══ Catch-all ═════════════════════════════════ */}
-                        <Route path="*" element={isConnectDomain ? <Navigate to="/" replace /> : <NotFound />} />
+                        <Route path="*" element={isConnectDomain ? <Navigate to="/" replace /> : isGuestBookingHost() ? <GuestHostLanding /> : <NotFound />} />
                       </Routes>
                       )}
                     </Suspense>

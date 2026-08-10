@@ -15,6 +15,9 @@ import { RecaptchaOverlay } from "@/components/RecaptchaOverlay";
 import { useAutoRecaptcha, useRecaptcha, useRecaptchaSiteKey } from "@/hooks/useRecaptcha";
 import { getRecaptchaMode } from "@/lib/recaptchaMode";
 import rolLogo from "@/assets/rol-logo.png";
+import { isGuestBookingHost } from "@/lib/guestDomain";
+import { GuestHostLanding } from "@/components/GuestHostLanding";
+
 
 function AuthContent() {
   const navigate = useNavigate();
@@ -759,6 +762,13 @@ function AuthContent() {
 // Wrapper that checks if reCAPTCHA is available
 export default function Auth() {
   const { data: siteKey, isLoading } = useRecaptchaSiteKey();
+
+  // Public guest booking hosts never show the staff sign-in screen.
+  if (isGuestBookingHost()) {
+    return <GuestHostLanding />;
+  }
+
+
 
   if (isLoading) {
     return (
