@@ -315,15 +315,34 @@ Deno.serve(async (req) => {
     ).trim();
     let exchangeError: string | null = null;
 
+    // Certification logging. These are OAuth/token endpoints, not XML exchanges: the bodies carry
+    // partner credentials and live tokens, so only the outcome metadata is retained.
+    const logExchange = async (action: string, startedAt: number, error: string | null) =>
+      logRuExchange(admin, {
+        action,
+        parent_action: 'ru-whitelabel-token',
+        property_id: account.property_id ?? null,
+        ru_owner_id: ownerId,
+        success: !error,
+        elapsed_ms: Date.now() - startedAt,
+        error_message: error,
+        status_message: error ? null : 'token issued (bodies withheld — credential material)',
+      });
+
     if (subUserName) {
+      const masterStartedAt = Date.now();
       const master = await getMasterToken();
+      await logExchange('WL_MasterToken', masterStartedAt, 'error' in master ? master.error : null);
       if ('error' in master) {
         exchangeError = master.error;
       } else {
+        const mintStartedAt = Date.now();
         const minted = await mintSubUserPair(master.token, subUserName, ownerId);
+        await logExchange('WL_SubUserClientToken', mintStartedAt, 'error' in minted ? minted.error : null);
         if ('error' in minted) {
           exchangeError = minted.error;
         } else {
+
           const expiry = new Date(Date.now() + minted.ttl * 1000).toISOString();
           await admin
             .from('ru_owner_accounts')
