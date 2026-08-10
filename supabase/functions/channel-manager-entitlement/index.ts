@@ -394,22 +394,33 @@ Deno.serve(async (req) => {
 
       // ── Re-activation must resync availability + rates at the channel ──
       // Listings come back live with whatever ARI RU last held, so push a fresh
-      // ARI refresh immediately instead of waiting for the daily cron.
+      // ARI refresh immediately instead of waiting for the daily cron. The activation itself has
+      // already succeeded at this point, so a partial/transient ARI outcome is reported as a
+      // retryable warning — never as a failed reactivation.
       let ariPush: string | null = null;
+      let ariRetryable = false;
       if (!archive && status !== "ru_failed") {
         try {
           const { data: ariRes, error: ariErr } = await admin.functions.invoke("push-property-to-ru", {
             body: { property_id: p.id, action: "refresh_ari", trigger: "channel_monitor_reactivation" },
           });
-          if (ariErr) ariPush = ariErr.message;
-          else if ((ariRes as { success?: boolean } | null)?.success === false) {
-            ariPush = "ARI refresh reported a failure";
+          const res = ariRes as { success?: boolean; error?: { code?: string; message?: string } } | null;
+          if (ariErr) {
+            ariPush = ariErr.message;
+            ariRetryable = true;
+          } else if (res?.success === false) {
+            ariPush = res.error?.message ?? "ARI refresh reported a failure";
+            ariRetryable = res.error?.code === "RU_UPSTREAM_UNAVAILABLE";
           }
         } catch (e) {
           ariPush = e instanceof Error ? e.message : "ARI refresh failed";
+          ariRetryable = true;
         }
-        if (ariPush) detail = `${detail ? `${detail}; ` : ""}ARI re-push failed: ${ariPush}`;
+        if (ariPush) {
+          detail = `${detail ? `${detail}; ` : ""}${ariRetryable ? "ARI re-push will retry" : "ARI re-push failed"}: ${ariPush}`;
+        }
       }
+
 
 
 
@@ -436,7 +447,9 @@ Deno.serve(async (req) => {
         units_changed: unitsChanged,
         listings: listingCount,
         ari_push_error: ariPush,
+        ari_push_retryable: ariRetryable,
         detail,
+
       });
 
     }
