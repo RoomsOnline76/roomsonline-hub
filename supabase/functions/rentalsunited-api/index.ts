@@ -1570,6 +1570,7 @@ const CHILD_AUTH_STRICT_ACTIONS = new Set([
   // Pulling a sub-user's reservations on master credentials silently returns OUR bookings,
   // which would look like "no reservations" for the white-label account.
   'list_reservations',
+  'get_reservation_by_id',
   'get_leads',
   'reject_request',
   'cancel_reservation',
