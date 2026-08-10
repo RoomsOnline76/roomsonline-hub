@@ -52,16 +52,26 @@ const BookingConfirmation = () => {
     queryKey: ["booking-confirmation", bookingId],
     queryFn: async () => {
       if (!bookingId) throw new Error("No booking ID provided");
+      // Signed-in staff/owners read directly; guests are anonymous and blocked by
+      // row-level security, so fall back to the public confirmation lookup.
       const { data, error } = await supabase
         .from("bookings")
         .select(`*, properties!bookings_property_id_fkey (name, city, country, slug, brand_override_enabled, brand_logo_url)`)
         .eq("id", bookingId)
-        .single();
-      if (error) throw error;
-      return data;
+        .maybeSingle();
+      if (data) return data;
+
+      const { data: fnData, error: fnError } = await supabase.functions.invoke(
+        "booking-confirmation-lookup",
+        { body: { booking_id: bookingId } },
+      );
+      if (fnData?.booking) return fnData.booking;
+      throw fnError || error || new Error("Booking not found");
     },
     enabled: !!bookingId,
+    retry: 1,
   });
+
 
   // Post booking-complete to parent iframe when on an integration
   useEffect(() => {
