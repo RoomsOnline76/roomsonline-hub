@@ -1,8 +1,10 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import {
+  classifyRuNotification,
   extractAllBlocks,
   parseRuReservation,
   resolveRuUnit,
+  type RuNotificationKind,
 } from '../_shared/ruReservationParsing.ts';
 import { ingestRuReservation, refreshRuReservationById } from '../_shared/ruReservationIngest.ts';
 
@@ -29,20 +31,18 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-type NotificationKind = 'reservation_confirmed' | 'reservation_cancelled' | 'reservation_request';
+type NotificationEvent =
+  | 'reservation_confirmed'
+  | 'reservation_modified'
+  | 'reservation_cancelled'
+  | 'reservation_request';
 
-/** Classify from the RU envelope name first, then the reservation status id. */
-function classify(rawXml: string, statusId: string | null): NotificationKind {
-  const lower = rawXml.toLowerCase();
-  if (lower.includes('putcancel') || lower.includes('<iscancel>true</iscancel>') || statusId === '4') {
-    return 'reservation_cancelled';
-  }
-  if (lower.includes('unconfirmed') || lower.includes('lead') || lower.includes('<islead>true</islead>')) {
-    return 'reservation_request';
-  }
-  if (statusId === '1' || statusId === '2') return 'reservation_confirmed';
-  return 'reservation_confirmed';
-}
+const EVENT_BY_KIND: Record<RuNotificationKind, NotificationEvent> = {
+  confirmed: 'reservation_confirmed',
+  modified: 'reservation_modified',
+  cancelled: 'reservation_cancelled',
+  request: 'reservation_request',
+};
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -67,20 +67,30 @@ Deno.serve(async (req) => {
       return ok();
     }
 
+    // Keep each block's own XML: a multi-reservation envelope can mix confirmations and
+    // cancellations, so classification has to happen per block (falling back to the envelope).
     const blocks = extractAllBlocks(rawXml, 'Reservation');
-    const parsedBlocks = (blocks.length ? blocks : [rawXml]).map((b) => parseRuReservation(b));
+    const parsedBlocks = (blocks.length ? blocks : [rawXml]).map((b) => ({
+      raw: b,
+      parsed: parseRuReservation(b),
+    }));
 
     let needsReconcile = false;
 
-    for (const r of parsedBlocks) {
-      const kind = classify(rawXml, r.statusId);
+    for (const { raw, parsed: r } of parsedBlocks) {
+      // Envelope name wins over the numeric status; the block only refines it.
+      const envelopeKind = classifyRuNotification(rawXml, null);
+      const blockKind = classifyRuNotification(raw, r.statusId);
+      const kind: RuNotificationKind =
+        envelopeKind === 'cancelled' || envelopeKind === 'modified' ? envelopeKind : blockKind;
+      const eventType = EVENT_BY_KIND[kind];
       const unit = await resolveRuUnit(supabase, r.ruPropertyId);
       const propertyId = unit.propertyId;
 
       const { data: notification } = await supabase
         .from('ru_notifications')
         .insert({
-          event_type: kind,
+          event_type: eventType,
           ru_reservation_id: r.ruReservationId,
           ru_property_id: r.ruPropertyId,
           property_id: propertyId,
@@ -98,7 +108,8 @@ Deno.serve(async (req) => {
           const refreshed = await refreshRuReservationById(supabase, r.ruReservationId, {
             propertyId,
             logPrefix: '[ru-reservation-handler][detail]',
-            forceRequest: kind === 'reservation_request',
+            forceRequest: kind === 'request',
+            kind,
           });
           if (refreshed.outcome !== 'failed' && refreshed.outcome !== 'unmatched') {
             if (notificationId) {
@@ -118,7 +129,8 @@ Deno.serve(async (req) => {
       const result = await ingestRuReservation(supabase, r, {
         source: 'rlnm',
         logPrefix: '[ru-reservation-handler]',
-        forceRequest: kind === 'reservation_request',
+        forceRequest: kind === 'request',
+        kind,
         unit,
       });
 
