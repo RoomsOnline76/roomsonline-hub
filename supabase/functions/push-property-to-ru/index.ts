@@ -3608,6 +3608,7 @@ Deno.serve(async (req) => {
               images_meet_cert_size: everyFlag('images_meet_cert_size'),
               images_meeting_cert_size: units.reduce((s, u) => s + Number((u.validation as any).images_meeting_cert_size || 0), 0),
               images_size_unverified: units.reduce((s, u) => s + Number((u.validation as any).images_size_unverified || 0), 0),
+              images_measured_count: units.reduce((s, u) => s + Number((u.validation as any).images_measured_count || 0), 0),
               smallest_image_width: (() => {
                 const vals = units.map(u => Number((u.validation as any).smallest_image_width)).filter(n => Number.isFinite(n));
                 return vals.length ? Math.min(...vals) : null;
