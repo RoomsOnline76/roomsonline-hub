@@ -204,3 +204,6 @@ verify_jwt = false
 
 [functions.pricelabs-api]
 verify_jwt = false
+
+[functions.booking-confirmation-lookup]
+verify_jwt = false
