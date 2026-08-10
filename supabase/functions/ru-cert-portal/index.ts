@@ -1218,6 +1218,18 @@ Deno.serve(async (req) => {
         const failedAvailabilityIds = unitProbes.filter((probe) => !probe.availability_ok).map((probe) => probe.ru_property_id);
         const failedPriceIds = unitProbes.filter((probe) => !probe.prices_ok).map((probe) => probe.ru_property_id);
 
+        // MinStay + "3 consecutive bookable, priced days" — scored on the weakest unit so a
+        // single unsellable unit cannot pass behind a healthy sibling.
+        const worstWindow = unitProbes.reduce<RuBookableWindow | null>((worst, probe) => {
+          const w = probe.bookable_window;
+          if (!worst) return w;
+          if (w.longest_run < worst.longest_run) return w;
+          if (!w.min_stay_set && worst.min_stay_set) return w;
+          return worst;
+        }, null);
+        if (worstWindow) extraChecks.push(...bookableWindowChecks(worstWindow));
+
+
         extraChecks.push({
           key: "ari_availability",
           group: "Availability 365d",
