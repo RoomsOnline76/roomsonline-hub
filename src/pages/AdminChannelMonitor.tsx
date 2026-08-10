@@ -26,9 +26,12 @@ const ChannelCertificationTab = lazy(() =>
     default: m.ChannelCertificationTab,
   })),
 );
+const RuReservationsPanel = lazy(() =>
+  import("@/components/integrations/RuReservationsPanel").then((m) => ({ default: m.RuReservationsPanel })),
+);
 
-type TabKey = "cost" | "accounts" | "cert";
-const TAB_KEYS: TabKey[] = ["cost", "accounts", "cert"];
+type TabKey = "cost" | "accounts" | "cert" | "reservations";
+const TAB_KEYS: TabKey[] = ["cost", "accounts", "cert", "reservations"];
 
 export default function AdminChannelMonitor() {
   const data = useChannelCostMonitor();
