@@ -1998,7 +1998,7 @@ Deno.serve(async (req) => {
     const voucherPromise = resolveRealVoucher(
       supabase,
       itinerary_id,
-      (properties || []).map((p: any) => p.id).filter(Boolean)
+      propertyIds as string[]
     ).catch(err => {
       console.error("[PDF] Voucher resolution failed:", err);
       return null;
