@@ -7,7 +7,7 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent } from "@/components/ui/card";
-import { useChannelCostMonitor, type ChannelPropertyRow } from "@/hooks/useChannelCostMonitor";
+import { useChannelCostMonitor, type ChannelPropertyRow, type ChannelUnitRow } from "@/hooks/useChannelCostMonitor";
 import { ChannelCostSummary } from "@/components/admin/channel-monitor/ChannelCostSummary";
 import { ChannelBillingSchedule } from "@/components/admin/channel-monitor/ChannelBillingSchedule";
 import { ChannelPropertyTable } from "@/components/admin/channel-monitor/ChannelPropertyTable";
