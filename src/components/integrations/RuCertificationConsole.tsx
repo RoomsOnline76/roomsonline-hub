@@ -1368,6 +1368,66 @@ export function RuCertificationConsole({ properties }: { properties: PropertyLit
                       {r.gaps.map((g, i) => <li key={i}>{g}</li>)}
                     </ul>
                   )}
+                  {r.content_quality && r.content_quality.units.length > 0 && (
+                    <details className="mt-2 rounded-md border bg-muted/40 p-2">
+                      <summary className="cursor-pointer text-xs font-medium">
+                        Content-quality evidence ({r.content_quality.units.length} unit(s))
+                      </summary>
+                      <div className="mt-2 space-y-2">
+                        {r.content_quality.units.map((u, i) => (
+                          <div key={i} className="text-[11px] leading-relaxed">
+                            <p className="font-medium">{u.unit ?? `Unit ${i + 1}`}</p>
+                            <p className="text-muted-foreground">
+                              Name {u.name_clean === false ? `rejected (${u.name_issues.join(", ")})` : "clean"} ·
+                              {" "}Description {u.description_chars ?? 0} chars{u.description_meets_cert === false ? " (below 700)" : ""} ·
+                              {" "}Images {u.images_meeting_cert_size ?? 0}/{u.images_count ?? 0} ≥ 1024×768
+                              {u.smallest_image ? ` (smallest ${u.smallest_image})` : ""}
+                              {u.images_unmeasured ? ` · ${u.images_unmeasured} unmeasured` : ""} ·
+                              {" "}Main photo {u.has_main_image ? "yes" : "no"}
+                            </p>
+                            <p className="text-muted-foreground">
+                              Street {u.has_street ? "✓" : "✗"} · ZIP {u.has_zip_code ? "✓" : "✗"} ·
+                              {" "}DetailedLocationID {u.has_detailed_location_id ? "✓" : "✗"} ·
+                              {" "}Coordinates {u.has_coordinates ? "✓" : "✗"} · CanSleepMax {u.can_sleep_max ?? 0} ·
+                              {" "}Cancellation policy {u.has_cancellation_policies ? "✓" : "✗"} ·
+                              {" "}Payment method {u.has_payment_methods ? "✓" : "✗"}
+                            </p>
+                            <p className="text-muted-foreground">
+                              Check-in {u.check_in_from ?? "—"} / out {u.check_out_until ?? "—"} ·
+                              {" "}Bedrooms {u.bedrooms_with_beds ?? 0}/{u.bedroom_blocks ?? 0} with beds
+                              {u.beds_distributed === false ? " (not distributed)" : ""} ·
+                              {" "}Kitchen {u.has_kitchen ? "✓" : "✗"} · Bathroom {u.has_bathroom_room ? "✓" : "✗"} ·
+                              {" "}Sleeps {u.total_bed_capacity ?? 0} ·
+                              {" "}Arrival instructions {u.arrival_instructions_chars ?? 0} chars
+                            </p>
+                          </div>
+                        ))}
+                        {r.content_quality.bookable_window?.map((w) => (
+                          <p key={w.ru_property_id} className="text-[11px] text-muted-foreground">
+                            RU {w.ru_property_id}: longest bookable+priced run {w.longest_run ?? 0} day(s)
+                            {w.first_window ? ` from ${w.first_window}` : ""} · MinStay {w.min_stay_set ? "set" : "missing"} ·
+                            {" "}{w.open_days ?? 0} open day(s)
+                          </p>
+                        ))}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="gap-1.5"
+                          onClick={() => {
+                            const blob = new Blob([JSON.stringify(r.content_quality, null, 2)], { type: "application/json" });
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement("a");
+                            a.href = url;
+                            a.download = `ru-content-quality-${r.name.replace(/\W+/g, "-").toLowerCase()}.json`;
+                            a.click();
+                            URL.revokeObjectURL(url);
+                          }}
+                        >
+                          Download evidence (JSON)
+                        </Button>
+                      </div>
+                    </details>
+                  )}
                 </div>
               ))}
             </CardContent>
