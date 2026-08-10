@@ -1756,11 +1756,14 @@ async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRo
 
         if (reservedDates.size > 0 && retryEntries.length > 0) {
           console.log(`[pushARI] Retrying availability without ${reservedDates.size} reserved day(s) for RU ${ruPropertyId}`);
-          const { data: retryResult, error: retryErr } = await supabase.functions.invoke('rentalsunited-api', {
-            body: { action: 'push_availability', ru_property_id: ruPropertyId, availability: retryEntries, ...childAuth },
-          });
-          availOk = !retryErr && retryResult?.success === true;
-          availErrorMessage = retryErr?.message || retryResult?.error?.message || availErrorMessage;
+          const retryAttempt = await invokeRuWithRetry(
+            supabase,
+            { action: 'push_availability', ru_property_id: ruPropertyId, availability: retryEntries, ...childAuth },
+            { label: `push_availability(reserved-split) ${ruPropertyId}` },
+          );
+          result.availability_attempts = (result.availability_attempts ?? 0) + retryAttempt.attempts;
+          availOk = retryAttempt.ok;
+          availErrorMessage = retryAttempt.message || availErrorMessage;
           if (availOk) {
             availEntries.length = 0;
             availEntries.push(...retryEntries);
