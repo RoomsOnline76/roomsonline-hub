@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Calendar, MapPin, Users, CheckCircle, AlertTriangle, Shield } from "lucide-react";
 import { SmartCancelModal } from "@/components/guest/SmartCancelModal";
+import { GuestPartnerPerks } from "@/components/guest/GuestPartnerPerks";
 import { format } from "date-fns";
 import { displayBookingReference } from "@/lib/bookingReference";
 
@@ -33,6 +34,7 @@ interface BookingDetails {
 }
 
 interface PropertyInfo {
+  id?: string;
   name: string;
   slug: string;
   city: string;
@@ -314,6 +316,13 @@ const GuestPortal: React.FC = () => {
             )}
           </CardContent>
         </Card>
+
+        {/* Partner perks — surprise reveal once paid */}
+        <GuestPartnerPerks
+          propertyId={property.id}
+          nights={nights}
+          revealed={booking.payment_status === "paid" || booking.status === "confirmed"}
+        />
 
         {/* Cancellation policy */}
         {cancellationPolicy && booking.status !== "cancelled" && (
