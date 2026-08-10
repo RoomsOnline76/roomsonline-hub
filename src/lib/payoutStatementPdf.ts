@@ -13,6 +13,7 @@ import {
   bookingLines,
   propertySubtotals,
   grossReceivedByRol,
+  round2,
   fmtMoney,
   periodLabel,
   type PayoutStatementDetail,
