@@ -3,10 +3,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
-import { AlertCircle, CheckCircle2, Loader2, PlugZap, RefreshCw, Repeat } from "lucide-react";
+import { AlertCircle, CheckCircle2, Loader2, PlugZap, RefreshCw, Repeat, Search } from "lucide-react";
 
 /**
  * Rentals United reservation ingestion diagnostics.
