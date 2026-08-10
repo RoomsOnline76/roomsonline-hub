@@ -627,7 +627,13 @@ function buildValidation(payload: Record<string, any>): Record<string, unknown> 
     check_in_times_are_default: payload.check_in_times_are_default === true,
     // Photos (certification dimensions).
     images_meeting_cert_size: certSized,
-    images_meet_cert_size: images.length > 0 && certSized === images.length && unverified === 0,
+    images_measured_count: Math.max(0, images.length - unverified),
+    // Certification size is judged on the photos we could MEASURE. An unreadable URL
+    // (CORS / hotlink protection) must not hard-block onboarding — it is reported by the
+    // advisory "dimensions measured" check instead. Only a set where nothing at all could
+    // be measured stays blocking, because then the rule genuinely cannot be verified.
+    images_meet_cert_size:
+      images.length > 0 && images.length - unverified > 0 && certSized === images.length - unverified,
     smallest_image_width: smallestWidth,
     smallest_image_height: smallestHeight,
     has_main_image: images.some((i) => i.is_main),
