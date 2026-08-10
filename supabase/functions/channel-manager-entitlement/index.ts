@@ -303,12 +303,46 @@ Deno.serve(async (req) => {
           rentalsunited_property_id: string | null;
         }>;
         listingCount = rows.length;
-        const toChange = rows.filter((u) => (u.is_active !== false) === archive).map((u) => u.id);
+        const toChange = rows.filter((u) => (u.is_active !== false) === archive);
+        const ruUnitFailures: string[] = [];
+
+        // Multi-unit buildings hold their RU listing ids on the units, so the
+        // archive/re-activate must be pushed per unit — flipping the local flag
+        // alone leaves the listings live at the channel manager.
+        for (const u of rows) {
+          if (!u.rentalsunited_property_id) continue;
+          const { data: ruRes, error: ruErr } = await admin.functions.invoke("rentalsunited-api", {
+            body: {
+              action: "set_property_status",
+              property_id: p.id,
+              ru_property_id: u.rentalsunited_property_id,
+              metadata: { is_active: !archive, is_archived: archive },
+            },
+          });
+          if (ruErr || (ruRes && (ruRes as { success?: boolean }).success === false)) {
+            ruUnitFailures.push(
+              `${u.rentalsunited_property_id}: ${
+                ruErr?.message ||
+                (ruRes as { error?: string } | null)?.error ||
+                "rejected"
+              }`,
+            );
+          }
+        }
+
+        if (ruUnitFailures.length > 0) {
+          status = "ru_failed";
+          detail = `${detail ? `${detail}; ` : ""}unit listing push failed → ${ruUnitFailures.join("; ")}`;
+        }
+
         if (toChange.length > 0) {
           const { error: unitErr } = await admin
             .from("hostfully_room_types")
             .update({ is_active: !archive })
-            .in("id", toChange);
+            .in(
+              "id",
+              toChange.map((u) => u.id),
+            );
           if (unitErr) {
             detail = `${detail ? `${detail}; ` : ""}unit update failed: ${unitErr.message}`;
           } else {
@@ -316,6 +350,7 @@ Deno.serve(async (req) => {
           }
         }
       }
+
 
       // ── Audit trail for the cost monitor ─────────────────────────────
       await admin.from("ru_archive_events").insert({
