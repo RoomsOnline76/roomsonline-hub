@@ -447,10 +447,10 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
         validation.has_payment_methods === false && "No payment method configured",
         validation.has_cancellation_policies === false && "No cancellation policy configured",
         validation.beds_cover_half === false &&
-          `Beds (${validation.total_beds ?? 0}) cover less than 50% of max guests (${validation.max_guests ?? 0}) — Channel Manager minimum`,
+          `Beds sleep ${validation.total_bed_capacity ?? validation.total_beds ?? 0} of ${validation.max_guests ?? 0} max guests — Channel Manager minimum is 50%`,
         validation.beds_cover_half !== false &&
           validation.beds_meet_max_guests === false &&
-          `Beds (${validation.total_beds ?? 0}) do not cover every guest (${validation.max_guests ?? 0}) — recommended, not required`,
+          `Beds sleep ${validation.total_bed_capacity ?? validation.total_beds ?? 0} people but the unit takes ${validation.max_guests ?? 0} guests — recommended, not required`,
         validation.amenities_padded === true &&
           `${validation.amenities_padded_count ?? 0} amenity(ies) auto-filled to reach the Channel Manager's minimum of 10 — confirm or replace`,
         validation.payment_methods_is_default === true &&
