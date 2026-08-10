@@ -1823,6 +1823,11 @@ async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRo
   // Resolve changeover rules (per-day-of-week or default)
   const changeoverConfig = resolveChangeoverRules(unit, amenities);
 
+  // Nights sold on ROL'OS for this target — asserted against the channel read-back below.
+  let bookedNights = new Set<string>();
+
+
+
 
   {
     try {
