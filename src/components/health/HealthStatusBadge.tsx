@@ -30,6 +30,13 @@ export function HealthStatusBadge({ status, size = 'md', showLabel = true }: Hea
           textColor: 'text-red-700 dark:text-red-400',
           label: 'Failed',
         };
+      case 'unknown':
+        return {
+          color: 'bg-gray-400',
+          bgColor: 'bg-gray-400/10',
+          textColor: 'text-gray-600 dark:text-gray-400',
+          label: 'Not verified',
+        };
       default:
         return {
           color: 'bg-gray-400',

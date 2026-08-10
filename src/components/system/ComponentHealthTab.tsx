@@ -145,7 +145,10 @@ export function ComponentHealthTab() {
       const latencies = checks.filter(c => c.latency_ms).map(c => c.latency_ms);
       const avgLatency = latencies.length > 0 ? Math.round(latencies.reduce((a, b) => a + b, 0) / latencies.length) : 0;
       const lastCheck = checks[0];
-      const uptime = checks.length > 0 ? ((healthyChecks + degradedChecks) / checks.length) * 100 : 0;
+      // Unverifiable checks (e.g. browser-restricted API keys) are not outages — exclude them
+      // from the uptime denominator instead of counting them as downtime.
+      const gradedChecks = healthyChecks + degradedChecks + failedChecks;
+      const uptime = gradedChecks > 0 ? ((healthyChecks + degradedChecks) / gradedChecks) * 100 : 100;
 
       stats[comp.component_key] = {
         lastStatus: lastCheck?.status || 'unknown',

@@ -73,6 +73,10 @@ export function ComponentHealthCard({
   }));
 
   const lastError = recentChecks.find(c => c.status === 'failed');
+  /* Unverifiable checks (e.g. browser-restricted API keys) carry an explanation, not an error. */
+  const latestCheck = recentChecks[0];
+  const notVerifiedNote =
+    latestCheck && latestCheck.status === 'unknown' ? latestCheck.error_message : undefined;
 
   return (
     <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
@@ -192,6 +196,14 @@ export function ComponentHealthCard({
                 </Suspense>
               </div>
             </div>
+
+            {/* Not verifiable note */}
+            {notVerifiedNote && (
+              <div className="bg-muted/50 border border-border rounded-lg p-3">
+                <h4 className="text-sm font-medium mb-1">Monitoring note</h4>
+                <p className="text-sm text-muted-foreground">{notVerifiedNote}</p>
+              </div>
+            )}
 
             {/* Last Error */}
             {lastError && (
