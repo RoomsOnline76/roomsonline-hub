@@ -145,6 +145,32 @@ export function RuReservationsPanel({ properties }: { properties: PropertyOption
     }
   }, [mode, propertyId]);
 
+  const runDetail = useCallback(async () => {
+    const trimmed = detailId.trim();
+    if (!trimmed && !propertyId) return;
+    setDetailLoading(true);
+    setDetail(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
+        body: {
+          action: "reservation_detail_test",
+          ...(propertyId ? { property_id: propertyId } : {}),
+          ...(trimmed ? { reservation_id: trimmed } : {}),
+        },
+      });
+      if (error || !data?.success) throw new Error(error?.message || data?.error?.message || "Reservation lookup failed");
+      const res = data as ReservationDetailResult;
+      setDetail(res);
+      if (res.skipped) toast.info(res.reason ?? "Nothing to compare yet");
+      else if (res.passed) toast.success("Channel reservation matches the stored booking");
+      else toast.error(res.error ?? "Channel reservation does not match the stored booking");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Reservation lookup failed");
+    } finally {
+      setDetailLoading(false);
+    }
+  }, [detailId, propertyId]);
+
   const unmappedCount = useMemo(() => creators.filter((c) => !c.mapped).length, [creators]);
 
   return (
