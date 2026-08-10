@@ -78,9 +78,10 @@ Deno.serve(async (req) => {
     let needsReconcile = false;
 
     for (const { raw, parsed: r } of parsedBlocks) {
-      // Envelope name wins over the numeric status; the block only refines it.
+      // Envelope name wins over the numeric status; the block only refines it. A block with
+      // no StatusID inherits the envelope's kind instead of defaulting to "request".
       const envelopeKind = classifyRuNotification(rawXml, null);
-      const blockKind = classifyRuNotification(raw, r.statusId);
+      const blockKind = r.statusId ? classifyRuNotification(raw, r.statusId) : envelopeKind;
       const kind: RuNotificationKind =
         envelopeKind === 'cancelled' || envelopeKind === 'modified' ? envelopeKind : blockKind;
       const eventType = EVENT_BY_KIND[kind];
