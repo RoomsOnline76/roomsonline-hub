@@ -31,6 +31,7 @@ import {
 import { parseRuPriceSeasons } from '../_shared/ruPriceParsing.ts';
 import { parseRuAvailabilityDays } from '../_shared/ruAvailabilityParsing.ts';
 import { invokeRuWithRetry } from '../_shared/ruInvokeRetry.ts';
+import { summarizeRuExchanges } from '../_shared/ruApiLog.ts';
 import {
   decideRuCurrency,
   verifyAndRecordCurrency,
