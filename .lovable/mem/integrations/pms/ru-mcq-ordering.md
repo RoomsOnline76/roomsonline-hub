@@ -40,3 +40,11 @@ With the subscription confirmed by read-back, RU still answers
 5s settle). This is surfaced as `RU_MCQ_INTERNAL_ERROR` with the RU `ResponseID`, which is
 what RU support needs to trace it. Sample ResponseIDs: `db8b4854d9954803a2a632c870185ed3`,
 `7822e4d4ba674f3cb5a6365abdbd80a3`. Do not treat 17 as a ROLOS payload bug.
+
+## Deployment requirements (RU onboarding checklist)
+
+1. `PropertyMCQEligibilityCheck` is part of `DEFAULT_LNM_CHANGE_TYPES` and re-subscribed daily per account.
+2. `ru-lnm-handler` closes out `ru_mcq_orders` and stores structured `failing_points`.
+3. Ordering is per **listing** (never an OwnerID) via `_shared/ruMcq.ts` `resolveMcqTargets` + `resolveMcqChannelId`;
+   `push-property-to-ru` auto-orders once on first successful publish, and `order_mcq_all` (cert portal) sweeps every published listing before onboarding.
+4. Results surface twice: owners see failing data points in the property editor (`RuMcqPrompts`), account managers see the roll-up at Admin → Rentals United → **Content quality** (`RuMcqReportPanel`, cert-portal `mcq_report`).
