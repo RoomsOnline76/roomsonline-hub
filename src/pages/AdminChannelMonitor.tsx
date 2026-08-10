@@ -104,6 +104,12 @@ export default function AdminChannelMonitor() {
               rows={data.properties}
               fx={data.fx}
               busyPropertyId={busyId}
+              busyUnitId={busyUnitId}
+              onToggleUnit={handleToggleUnit}
+
+              rows={data.properties}
+              fx={data.fx}
+              busyPropertyId={busyId}
               onArchive={(row) => setTarget({ row, mode: "archive" })}
               onReactivate={(row) => setTarget({ row, mode: "reactivate" })}
             />
