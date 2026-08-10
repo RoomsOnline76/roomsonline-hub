@@ -1597,7 +1597,11 @@ interface AvailabilityVerification {
   checked: boolean;
   total_days: number;
   matches: number;
+  /** Nights sold on ROL'OS that the channel still reports as sellable. */
+  booked_days_checked?: number;
+  booked_days_open?: string[];
   mismatches: { date: string; field: 'min_stay' | 'changeover' | 'units'; requested: number; returned: number | null }[];
+
   error?: string;
 }
 
