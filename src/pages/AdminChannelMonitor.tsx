@@ -164,6 +164,12 @@ export default function AdminChannelMonitor() {
 
   const currentMonth = useMemo(() => data.forecast.month, [data.forecast.month]);
 
+  // Reservation diagnostics only make sense for properties the channel manager knows about.
+  const reservationProperties = useMemo(
+    () => data.properties.map((p) => ({ id: p.id, name: p.name })),
+    [data.properties],
+  );
+
   return (
     <AppLayout>
       <div className="container mx-auto space-y-4 px-4 py-6">
