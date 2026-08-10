@@ -620,7 +620,7 @@ Deno.serve(async (req) => {
     }
 
     // Shifted dates change both the old and new nights: refresh the RU window now.
-    await queueRuAriDelta(supabase, booking.property_id, "booking_modified");
+    await queueRuAriDelta(supabase, booking.property_id, "booking_modified", { force: true });
 
 
     // S10: Send modification email
