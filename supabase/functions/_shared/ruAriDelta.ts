@@ -62,13 +62,19 @@ export async function queueRuAriDelta(
   supabase: any,
   propertyId: string | null | undefined,
   trigger: string,
+  /**
+   * Bypass the debounce. Booking events MUST use this: if a cron refresh happened seconds
+   * before the booking, debouncing would drop the only push that closes the sold nights and
+   * the unit stays sellable at the channel until the next scheduled run.
+   */
+  options: { force?: boolean } = {},
 ): Promise<RuAriDeltaOutcome> {
   if (!propertyId) return { queued: false, reason: "no_property" };
   try {
     if (!(await isRuConnected(supabase, propertyId))) {
       return { queued: false, reason: "not_connected" };
     }
-    if (await recentlyPushed(supabase, propertyId)) {
+    if (!options.force && (await recentlyPushed(supabase, propertyId))) {
       console.log(`[ruAriDelta] Debounced ${trigger} delta for property ${propertyId}`);
       return { queued: false, reason: "debounced" };
     }
