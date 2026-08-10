@@ -483,6 +483,9 @@ export function usePropertyOnboarding(propertyId: string, initialOwnerEmail?: st
         const { error } = await supabase.from("properties").update(changesToSave).eq("id", propertyId);
         if (error) throw error;
 
+        // Static content changed in the PMS — push a delta to the Channel Manager.
+        void queueChannelContentSync(propertyId, "onboarding_save");
+
         setState(prev => {
           const newPropertyData = prev.propertyData ? { ...prev.propertyData, ...changesToSave } : null;
           
