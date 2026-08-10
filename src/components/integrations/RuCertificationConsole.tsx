@@ -1328,9 +1328,11 @@ export function RuCertificationConsole({ properties }: { properties: PropertyLit
               <div>
                 <CardTitle className="text-base">White-Label minimum inventory readiness</CardTitle>
                 <CardDescription>
-                  Name, ObjectTypeID, CanSleepMax, street/ZIP/geo, DetailedLocationID, size & floor, description,
-                  ≥10 images (1024×683+) with a main photo, ≥10 amenities, composition rooms, beds covering max guests,
-                  payment method, cancellation policy, plus live 365-day availability and pricing above zero.
+                  Name hygiene (no emoji / specials / ALL CAPS), ObjectTypeID, CanSleepMax, street/ZIP/geo,
+                  DetailedLocationID, description ≥ 700 characters, ≥10 images measured at 1024×768+ with a main photo,
+                  ≥10 amenities, composition with bedroom / kitchen / bathroom and beds distributed, arrival
+                  instructions, check-in / check-out times, payment method, cancellation policy, plus live 365-day
+                  availability with MinStay and ≥3 consecutive bookable days priced above zero.
                 </CardDescription>
               </div>
               <Button variant="outline" size="sm" onClick={loadReadiness} disabled={readinessLoading} className="gap-1.5">
