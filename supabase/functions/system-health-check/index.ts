@@ -435,16 +435,17 @@ async function checkGoogleMaps(_supabase: SupabaseClientType): Promise<HealthChe
       };
     }
 
-    // A referrer-restricted key is a configuration gap, not a Google outage: report it as
-    // degraded with an actionable message so it never shows as a red platform failure.
+    // A referrer-restricted key means we simply cannot verify Maps from the server — it is not
+    // an outage or a degradation of the service. Report it as "unknown" (not verifiable) so the
+    // dashboard never implies Google Maps is impaired when front-end maps are working fine.
     if (data.status === 'REQUEST_DENIED') {
       return {
         component_key: 'google_maps',
-        status: 'degraded',
+        status: 'unknown',
         latency_ms: latency,
         error_code: 'KEY_RESTRICTED',
         error_message:
-          'Maps key is HTTP-referrer restricted, so server-side geocoding cannot verify it. Add an unrestricted (IP/server) Maps key to enable full monitoring — front-end maps are unaffected.',
+          'Not verifiable from the server: the Maps key is HTTP-referrer restricted (correct for browser use). Front-end maps are unaffected. Add an unrestricted (IP/server) Maps key only if you want server-side monitoring.',
         response_data: { api_status: data.status, google_message: data.error_message ?? null },
       };
     }
