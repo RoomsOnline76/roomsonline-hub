@@ -1242,6 +1242,9 @@ function buildSinglePropertyPayload(property: PropertyRow, roomTypes: RoomTypeRo
     check_in_from: houseRules.check_in_from || primaryRoom?.check_in_time || '14:00',
     check_in_to: houseRules.check_in_to || '22:00',
     check_out_until: houseRules.check_out_to || primaryRoom?.check_out_time || '10:00',
+    check_in_times_are_default:
+      !(houseRules.check_in_from || primaryRoom?.check_in_time) ||
+      !(houseRules.check_out_to || primaryRoom?.check_out_time),
     check_in_place: 'at_the_apartment',
     unmapped_bed_labels: unmappedBedLabels,
   };
