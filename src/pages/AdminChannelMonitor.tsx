@@ -201,7 +201,9 @@ export default function AdminChannelMonitor() {
             <TabsTrigger value="accounts">Accounts</TabsTrigger>
             <TabsTrigger value="cert">Certification</TabsTrigger>
             <TabsTrigger value="reservations">Reservations</TabsTrigger>
+            <TabsTrigger value="diagnostics">Diagnostics</TabsTrigger>
           </TabsList>
+
 
           <TabsContent value="cost" className="space-y-4">
             {data.loading && data.properties.length === 0 ? (
