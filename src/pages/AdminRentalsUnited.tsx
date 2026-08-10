@@ -23,6 +23,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { RuCertificationConsole } from "@/components/integrations/RuCertificationConsole";
 import { RuErrorHandlingTab } from "@/components/integrations/RuErrorHandlingTab";
+import { RuCalendarVerifyPanel } from "@/components/integrations/RuCalendarVerifyPanel";
+
 import { RuOnboardingPipeline } from "@/components/integrations/RuOnboardingPipeline";
 import { RuSyncProgressTracker } from "@/components/integrations/RuSyncProgressTracker";
 import { RuLnmPanel } from "@/components/integrations/RuLnmPanel";
