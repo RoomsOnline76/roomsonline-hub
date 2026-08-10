@@ -24,6 +24,7 @@ import { COUNTRY_OPTIONS } from "@/lib/countries";
 import { ACCOMMODATION_LABEL_OPTIONS } from "@/lib/accommodationLabels";
 import { getPMSFieldClass, getPMSDisplayName, isFieldPopulatedByPMS } from "@/lib/pmsFieldConfig";
 import { isPMSFullyIntegrated, getPMSIntegrationLevel, getPMSIcon } from "@/hooks/usePMSSync";
+import { channelMandatoryClass, CHANNEL_MANDATORY_LEGEND } from "@/lib/channelMandatoryFields";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -539,7 +540,7 @@ export function GeneralTab(props: GeneralTabProps) {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <div className="flex flex-col gap-1">
                   <Label htmlFor="name" className="text-xs">Name *</Label>
-                  <Input id="name" value={formData.name} onChange={(e) => handleInputChange("name", e.target.value)} placeholder="Property name" required disabled={isFieldPopulatedByPMS("name", selectedPMS)} className={cn("h-7 text-xs", getPMSFieldClass("name", selectedPMS), isFieldPopulatedByPMS("name", selectedPMS) && "cursor-not-allowed")} />
+                  <Input id="name" value={formData.name} onChange={(e) => handleInputChange("name", e.target.value)} placeholder="Property name" required disabled={isFieldPopulatedByPMS("name", selectedPMS)} className={cn("h-7 text-xs", getPMSFieldClass("name", selectedPMS), channelMandatoryClass("name"), isFieldPopulatedByPMS("name", selectedPMS) && "cursor-not-allowed")} />
                 </div>
                 <div className="flex flex-col gap-1">
                   <Label htmlFor="property_type" className="text-xs flex items-center">Type *<ContextualHelp table="properties" field="property_type" /></Label>
@@ -717,7 +718,7 @@ export function GeneralTab(props: GeneralTabProps) {
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
                   <div className="flex flex-col gap-1">
                     <Label htmlFor="address" className="text-xs">Street *</Label>
-                    <Input id="address" value={formData.address} onChange={(e) => handleInputChange("address", e.target.value)} placeholder="Street address" required={!noStreetAddress} disabled={isFieldPopulatedByPMS("address", selectedPMS)} className={cn("h-7 text-xs", getPMSFieldClass("address", selectedPMS), isFieldPopulatedByPMS("address", selectedPMS) && "cursor-not-allowed")} />
+                    <Input id="address" value={formData.address} onChange={(e) => handleInputChange("address", e.target.value)} placeholder="Street address" required={!noStreetAddress} disabled={isFieldPopulatedByPMS("address", selectedPMS)} className={cn("h-7 text-xs", getPMSFieldClass("address", selectedPMS), channelMandatoryClass("address"), isFieldPopulatedByPMS("address", selectedPMS) && "cursor-not-allowed")} />
                   </div>
                   <div className="flex flex-col gap-1">
                     <Label htmlFor="suburb" className="text-xs">Suburb</Label>
@@ -725,7 +726,7 @@ export function GeneralTab(props: GeneralTabProps) {
                   </div>
                   <div className="flex flex-col gap-1">
                     <Label htmlFor="city" className="text-xs">City *</Label>
-                    <Input id="city" value={formData.city} onChange={(e) => handleInputChange("city", e.target.value)} placeholder="City" required={!noStreetAddress} disabled={isFieldPopulatedByPMS("city", selectedPMS)} className={cn("h-7 text-xs", getPMSFieldClass("city", selectedPMS), isFieldPopulatedByPMS("city", selectedPMS) && "cursor-not-allowed")} />
+                    <Input id="city" value={formData.city} onChange={(e) => handleInputChange("city", e.target.value)} placeholder="City" required={!noStreetAddress} disabled={isFieldPopulatedByPMS("city", selectedPMS)} className={cn("h-7 text-xs", getPMSFieldClass("city", selectedPMS), channelMandatoryClass("city"), isFieldPopulatedByPMS("city", selectedPMS) && "cursor-not-allowed")} />
                   </div>
                   <div className="flex flex-col gap-1" data-field="country">
                     <Label htmlFor="country" className="text-xs">Country *</Label>
@@ -747,7 +748,7 @@ export function GeneralTab(props: GeneralTabProps) {
                   </div>
                   <div className="flex flex-col gap-1">
                     <Label htmlFor="postal_code" className="text-xs">Code</Label>
-                    <Input id="postal_code" value={formData.postal_code} onChange={(e) => handleInputChange("postal_code", e.target.value)} placeholder="Postal code" disabled={isFieldPopulatedByPMS("postal_code", selectedPMS)} className={cn("h-7 text-xs", getPMSFieldClass("postal_code", selectedPMS), isFieldPopulatedByPMS("postal_code", selectedPMS) && "cursor-not-allowed")} />
+                    <Input id="postal_code" value={formData.postal_code} onChange={(e) => handleInputChange("postal_code", e.target.value)} placeholder="Postal code" disabled={isFieldPopulatedByPMS("postal_code", selectedPMS)} className={cn("h-7 text-xs", getPMSFieldClass("postal_code", selectedPMS), channelMandatoryClass("postal_code"), isFieldPopulatedByPMS("postal_code", selectedPMS) && "cursor-not-allowed")} />
                   </div>
                 </div>
               )}
@@ -755,11 +756,11 @@ export function GeneralTab(props: GeneralTabProps) {
                 <div className="flex flex-col gap-1">
 
                   <Label htmlFor="latitude_input" className="text-xs flex items-center gap-1"><MapPin className="h-3 w-3 text-primary" />Latitude</Label>
-                  <Input id="latitude_input" type="number" step="any" value={latitude ?? ""} onChange={(e) => { setLatitude(e.target.value ? parseFloat(e.target.value) : null); setIsDirty(true); }} placeholder="-34.0522" className="h-7 text-xs font-mono" />
+                  <Input id="latitude_input" type="number" step="any" value={latitude ?? ""} onChange={(e) => { setLatitude(e.target.value ? parseFloat(e.target.value) : null); setIsDirty(true); }} placeholder="-34.0522" className={cn("h-7 text-xs font-mono", channelMandatoryClass("latitude"))} />
                 </div>
                 <div className="flex flex-col gap-1">
                   <Label htmlFor="longitude_input" className="text-xs flex items-center gap-1"><MapPin className="h-3 w-3 text-primary" />Longitude</Label>
-                  <Input id="longitude_input" type="number" step="any" value={longitude ?? ""} onChange={(e) => { setLongitude(e.target.value ? parseFloat(e.target.value) : null); setIsDirty(true); }} placeholder="18.4241" className="h-7 text-xs font-mono" />
+                  <Input id="longitude_input" type="number" step="any" value={longitude ?? ""} onChange={(e) => { setLongitude(e.target.value ? parseFloat(e.target.value) : null); setIsDirty(true); }} placeholder="18.4241" className={cn("h-7 text-xs font-mono", channelMandatoryClass("longitude"))} />
                 </div>
                 <div className="flex flex-col gap-1 col-span-2">
                   <Label htmlFor="google_maps_link" className="text-xs">Google Maps Link {noStreetAddress && '*'}</Label>

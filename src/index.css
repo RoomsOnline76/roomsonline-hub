@@ -986,3 +986,17 @@ html.channels-force-light main .text-muted-foreground {
     overflow-wrap: anywhere;
   }
 }
+
+/* ── Channel-mandatory inputs ───────────────────────────────────────────────
+   Filled border + tinted surface marks a field the Channel Manager hard-blocks
+   on, so owners can see the requirement before running the onboarding wizard. */
+@layer components {
+  .channel-required {
+    border-width: 2px;
+    border-color: hsl(var(--primary));
+    background-color: hsl(var(--muted));
+  }
+  .channel-required:focus-visible {
+    border-color: hsl(var(--primary));
+  }
+}
