@@ -228,6 +228,18 @@ Deno.serve(async (req) => {
       `[ru-close-user] Push_ArchiveUser_RQ for OwnerID ${ownerId} as ${loginEmail || "child API key"} (auth=${authMode})`,
     );
 
+    // Certification requirement: durable request/response/ResponseID log for every RU exchange.
+    const logStartedAt = Date.now();
+    const logBase = {
+      action: "Push_ArchiveUser_RQ",
+      parent_action: "ru-close-user",
+      endpoint,
+      property_id: account?.property_id ?? null,
+      ru_owner_id: ownerId,
+      ru_user_id: account?.ru_user_id ?? null,
+      request_xml: compact,
+    };
+
     const ruRes = await fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "text/xml; charset=utf-8" },
@@ -235,6 +247,14 @@ Deno.serve(async (req) => {
     });
     if (!ruRes.ok) {
       const text = await ruRes.text();
+      await logRuExchange(admin, {
+        ...logBase,
+        response_xml: text,
+        http_status: ruRes.status,
+        success: false,
+        elapsed_ms: Date.now() - logStartedAt,
+        error_message: `RU returned HTTP ${ruRes.status}`,
+      });
       return json({
         success: false,
         error: {
@@ -246,9 +266,18 @@ Deno.serve(async (req) => {
 
     const responseXml = await ruRes.text();
     const status = extractStatusId(responseXml);
+    await logRuExchange(admin, {
+      ...logBase,
+      response_xml: responseXml,
+      http_status: ruRes.status,
+      success: status.id === "0",
+      elapsed_ms: Date.now() - logStartedAt,
+      error_message: status.id === "0" ? null : status.message,
+    });
     console.log(
       `[ru-close-user] RU response status=${status.id} message=${status.message} preview=${responseXml.slice(0, 400)}`,
     );
+
 
     if (status.id !== "0") {
       const isAuth = status.id === "-4" || /incorrect login or password/i.test(status.message);
