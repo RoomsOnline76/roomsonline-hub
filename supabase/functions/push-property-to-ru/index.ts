@@ -2067,12 +2067,35 @@ async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRo
         };
       }
 
-      const priceAttempt = await invokeRuWithRetry(
+      // Payload diagnostics: an oversized price batch is the usual cause of a transport-level
+      // invoke failure, so record the shape and chunk large batches instead of sending one blob.
+      const payloadBytes = JSON.stringify(outboundPrices).length;
+      result.prices_payload = { seasons: outboundPrices.length, bytes: payloadBytes };
+      console.log(`[pushARI] RU ${ruPropertyId}: price payload ${outboundPrices.length} seasons / ${payloadBytes} bytes`);
+
+      const PRICE_CHUNK = 150;
+      const priceChunks: typeof outboundPrices[] = [];
+      for (let i = 0; i < outboundPrices.length; i += PRICE_CHUNK) {
+        priceChunks.push(outboundPrices.slice(i, i + PRICE_CHUNK));
+      }
+      let priceAttempt = await invokeRuWithRetry(
         supabase,
-        { action: 'push_prices', ru_property_id: ruPropertyId, prices: outboundPrices, ...childAuth },
+        { action: 'push_prices', ru_property_id: ruPropertyId, prices: priceChunks[0] ?? outboundPrices, ...childAuth },
         { label: `push_prices ${ruPropertyId}` },
       );
       result.prices_attempts = priceAttempt.attempts;
+      for (let c = 1; c < priceChunks.length && priceAttempt.ok; c++) {
+        const next = await invokeRuWithRetry(
+          supabase,
+          { action: 'push_prices', ru_property_id: ruPropertyId, prices: priceChunks[c], ...childAuth },
+          { label: `push_prices ${ruPropertyId} chunk ${c + 1}` },
+        );
+        result.prices_attempts = (result.prices_attempts ?? 0) + next.attempts;
+        if (!next.ok) priceAttempt = next;
+      }
+      if (priceChunks.length > 1) result.prices_payload.chunks = priceChunks.length;
+
+
 
       if (!priceAttempt.ok) {
         // A transport-level failure ("failed to send a request", worker shutdown) can happen AFTER
