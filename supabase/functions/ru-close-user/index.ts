@@ -14,6 +14,7 @@
  * Locally: clears the portfolio/property RU bind (identity reset) when a matching row exists.
  */
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { logRuExchange } from "../_shared/ruApiLog.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
