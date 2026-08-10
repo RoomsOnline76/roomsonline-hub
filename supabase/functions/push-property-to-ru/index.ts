@@ -532,6 +532,28 @@ function buildValidation(payload: Record<string, any>): Record<string, unknown> 
 
   const roomsWithAmenities = rooms.filter(r => (r.room_id || 0) > 0 && (r.amenities || []).length > 0).length;
 
+  // Composition strictness: RU requires at least one bedroom block, a kitchen and a
+  // bathroom, and beds must be DISTRIBUTED across the bedrooms of a multi-bedroom unit
+  // (a single room holding every bed is rejected during content review).
+  const RU_BEDROOM_ROOM_IDS = [257, 372, 517];
+  const RU_KITCHEN_ROOM_IDS = [94, 101, 517];
+  const bedroomBlocks = rooms.filter((r) => RU_BEDROOM_ROOM_IDS.includes(Number(r.room_id)));
+  const bedroomsWithBeds = bedroomBlocks.filter((r) =>
+    (r.amenities || []).some((a: any) => RU_BED_AMENITY_IDS.includes(Number(a.id)) && (a.count || 1) > 0)).length;
+  const hasKitchenRoom = rooms.some((r) => RU_KITCHEN_ROOM_IDS.includes(Number(r.room_id)))
+    || (amenities || []).some((a: any) => [94, 101].includes(Number(a?.id)));
+  const hasBathroomRoom = rooms.some((r) => Number(r.room_id) === 81)
+    || (amenities || []).some((a: any) => Number(a?.id) === 81 && (a.count || 0) > 0);
+  const bedsDistributed = bedroomBlocks.length <= 1 ? bedroomsWithBeds >= Math.min(1, bedroomBlocks.length)
+    : bedroomsWithBeds >= 2;
+
+  const nameCheck = checkRuPropertyName(payload.name);
+  const descriptionText = (payload.descriptions?.[0]?.text || '').trim();
+  const arrivalText = String(payload.arrival_how_to_arrive || '').trim();
+  const timeRe = /^\d{1,2}:\d{2}$/;
+  const checkInFrom = String(payload.check_in_from || '').trim();
+  const checkOutUntil = String(payload.check_out_until || '').trim();
+
   return {
     images_count: images.length,
     images_rejected_count: imageIssues.length,
