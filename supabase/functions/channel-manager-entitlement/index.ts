@@ -103,12 +103,101 @@ Deno.serve(async (req) => {
     const actorEmail = userData.user.email ?? null;
 
     const raw = (await req.json().catch(() => null)) as Body | null;
-    if (!raw || (raw.scope !== "property" && raw.scope !== "portfolio")) {
-      return bad("scope must be 'property' or 'portfolio'");
+    if (!raw || (raw.scope !== "property" && raw.scope !== "portfolio" && raw.scope !== "unit")) {
+      return bad("scope must be 'property', 'portfolio' or 'unit'");
     }
     if (!raw.entity_id || typeof raw.enabled !== "boolean") {
       return bad("entity_id and enabled are required");
     }
+
+    // ── Single unit listing toggle (from the cost monitor unit rows) ───
+    if (raw.scope === "unit") {
+      const { data: unit, error: unitErr } = await admin
+        .from("hostfully_room_types")
+        .select("id, name, property_id, is_active, rentalsunited_property_id")
+        .eq("id", raw.entity_id)
+        .maybeSingle();
+      if (unitErr) return bad(unitErr.message, 500);
+      if (!unit) return bad("Unit not found", 404);
+
+      const unitArchive = !raw.enabled;
+      let unitStatus: "updated" | "ru_failed" = "updated";
+      let unitDetail: string | undefined;
+
+      if (unit.rentalsunited_property_id) {
+        const { data: ruRes, error: ruErr } = await admin.functions.invoke("rentalsunited-api", {
+          body: {
+            action: "set_property_status",
+            property_id: unit.property_id,
+            ru_property_id: unit.rentalsunited_property_id,
+            metadata: { is_active: !unitArchive, is_archived: unitArchive },
+          },
+        });
+        if (ruErr || (ruRes && (ruRes as { success?: boolean }).success === false)) {
+          unitStatus = "ru_failed";
+          unitDetail =
+            ruErr?.message ||
+            (ruRes as { error?: string } | null)?.error ||
+            "Rentals United rejected the status change";
+        }
+      } else {
+        unitDetail = "No Rentals United listing yet — local flag only";
+      }
+
+      const { error: flagErr } = await admin
+        .from("hostfully_room_types")
+        .update({ is_active: !unitArchive })
+        .eq("id", unit.id);
+      if (flagErr) {
+        unitStatus = "ru_failed";
+        unitDetail = flagErr.message;
+      }
+
+      // Re-activating a unit on an archived building must unlock the building.
+      if (!unitArchive) {
+        await admin
+          .from("properties")
+          .update({ ru_archived: false, ru_archived_at: null })
+          .eq("id", unit.property_id)
+          .eq("ru_archived", true);
+      }
+
+      await admin.from("ru_archive_events").insert({
+        property_id: unit.property_id,
+        property_name: unit.name,
+        direction: unitArchive ? "archived" : "reactivated",
+        unit_count: 1,
+        listing_count: unit.rentalsunited_property_id ? 1 : 0,
+        reason: raw.reason ?? null,
+        actor_user_id: userData.user.id,
+        actor_email: actorEmail,
+        ru_status: unitStatus,
+        detail: unitDetail ?? null,
+      });
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          archived: unitArchive,
+          affected: 1,
+          failed: unitStatus === "ru_failed" ? 1 : 0,
+          notification_error: null,
+          results: [
+            {
+              property_id: unit.property_id,
+              name: unit.name,
+              ru_property_id: unit.rentalsunited_property_id,
+              status: unitStatus,
+              units_changed: 1,
+              detail: unitDetail,
+            },
+          ],
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+
 
     // ── Resolve affected properties ───────────────────────────────────
     let propertyIds: string[] = [];
