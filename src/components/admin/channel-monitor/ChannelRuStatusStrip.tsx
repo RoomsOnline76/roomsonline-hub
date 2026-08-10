@@ -59,8 +59,9 @@ export function ChannelRuStatusStrip({ data, onNavigate }: Props) {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [accRes, runRes] = await Promise.all([
+    const [accRes, credRes, runRes] = await Promise.all([
       supabase.from("ru_owner_accounts").select("id, ru_owner_id, ru_api_access_key, ru_api_keys_verified_at"),
+      supabase.from("ru_api_credentials").select("ru_owner_id, access_key, verified_at"),
       supabase
         .from("ru_cert_runs")
         .select("id, suite, status, passed, failed, total, started_at, steps")
@@ -68,6 +69,7 @@ export function ChannelRuStatusStrip({ data, onNavigate }: Props) {
         .limit(12),
     ]);
     setAccounts((accRes.data ?? []) as AccountLite[]);
+    setCreds((credRes.data ?? []) as CredLite[]);
     setRuns((runRes.data ?? []) as CertRunLite[]);
     setLoading(false);
   }, []);
@@ -76,11 +78,22 @@ export function ChannelRuStatusStrip({ data, onNavigate }: Props) {
     void load();
   }, [load]);
 
+  // Sub-user keys are normally stored in the credentials table keyed by OwnerID; only
+  // older accounts carry them inline, so both sources count towards readiness.
   const keys = useMemo(() => {
-    const withKeys = accounts.filter((a) => !!a.ru_api_access_key);
-    const verified = withKeys.filter((a) => !!a.ru_api_keys_verified_at);
-    return { total: accounts.length, withKeys: withKeys.length, verified: verified.length };
-  }, [accounts]);
+    const credByOwner = new Map(creds.map((c) => [String(c.ru_owner_id ?? ""), c]));
+    let withKeys = 0;
+    let verified = 0;
+    for (const a of accounts) {
+      const cred = credByOwner.get(String(a.ru_owner_id ?? ""));
+      const hasKey = !!a.ru_api_access_key || !!cred?.access_key;
+      const isVerified = !!a.ru_api_keys_verified_at || !!cred?.verified_at;
+      if (hasKey) withKeys += 1;
+      if (hasKey && isVerified) verified += 1;
+    }
+    return { total: accounts.length, withKeys, verified };
+  }, [accounts, creds]);
+
 
   const latestRun = runs[0] ?? null;
   const problem = useMemo(() => (latestRun ? firstProblemStep(latestRun.steps) : null), [latestRun]);
