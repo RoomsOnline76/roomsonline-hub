@@ -1,16 +1,23 @@
 /**
- * ROL booking reference — single source of truth for the client.
+ * ROL reference numbers — single source of truth for the client.
  *
- * Format: ROL-<ORIGIN>-<KIND>-<PROP>-<NNNNN>
- *   ORIGIN  where the booking came from (WEB, WL, EMB, JNY, PMS, RU, HG, …)
- *   KIND    B = booking made inside the ROL ecosystem, R = reservation/lead received from outside
+ * Guest- and staff-facing format: ROL-<PROP>-<NNNN>   e.g. ROL-JON-1042
  *   PROP    3-character property code (properties.ref_code)
- *   NNNNN   per-property running number
+ *   NNNN    per-property running number (min. 4 digits)
  *
- * The reference is minted by the database (trigger on bookings insert) — this module
- * only formats, parses, labels and searches. Keep the origin map in sync with
- * `supabase/functions/_shared/bookingReference.ts` and `public.rol_origin_code()`.
+ * Journeys (multi-property itineraries): ROL-TRIP-<NNNN>  e.g. ROL-TRIP-0014
+ *
+ * Origin (embed, white-label, channel, front desk …) and kind (booking vs
+ * reservation) are stored on the row (`rol_ref_origin` / `rol_ref_kind`) and shown
+ * as a label beside the reference — they are no longer part of the number.
+ * The previous long form (ROL-EMB-B-TID-00005) is kept in `rol_reference_legacy`
+ * and still parses/searches so codes already sent to guests resolve.
+ *
+ * References are minted by the database (triggers on insert) — this module only
+ * formats, parses, labels and searches. Keep in sync with
+ * `supabase/functions/_shared/bookingReference.ts`.
  */
+
 
 export type RolOriginCode =
   | "WEB"
