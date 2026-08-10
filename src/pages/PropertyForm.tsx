@@ -40,6 +40,7 @@ import { RolosOnboardingWizard } from "@/components/onboarding/rolos/RolosOnboar
 import { PortfolioIdentityCopy } from "@/components/property/PortfolioIdentityCopy";
 import { PortfolioCommonsCard } from "@/components/property/PortfolioCommonsCard";
 import { runAutoShare } from "@/lib/portfolioCommons";
+import { queueChannelContentSync } from "@/lib/channelContentSync";
 import { HyperGuestSyncReflectionButton } from "@/components/property/HyperGuestSyncReflectionButton";
 import { HyperGuestPropertyLookup } from "@/components/property/HyperGuestPropertyLookup";
 import { GooglePlaceIdPastePopover } from "@/components/property/GooglePlaceIdPastePopover";
