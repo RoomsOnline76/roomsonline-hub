@@ -222,6 +222,16 @@ export function evaluateUnitChecks(
     v.beds_meet_max_guests !== false,
     `Beds sleep ${sleeps} people but the unit takes ${v.max_guests ?? 0} guests — not required by the Channel Manager, but improves channel quality`,
     "Rooms → Unit → Bed configuration", false);
+  // Certification composition strictness.
+  add("has_bedroom", "Rooms & beds", "At least 1 bedroom in the composition", v.has_bedroom !== false,
+    "No bedroom block is declared in the composition", "Rooms → Unit → Bedrooms");
+  add("has_kitchen", "Rooms & beds", "Kitchen declared", v.has_kitchen !== false,
+    "No kitchen is declared in the composition or amenities", "Rooms → Unit → Facilities → Kitchen");
+  add("has_bathroom_room", "Rooms & beds", "Bathroom declared", v.has_bathroom_room !== false,
+    "No bathroom is declared in the composition or amenities", "Rooms → Unit → Facilities → Bathrooms");
+  add("beds_distributed", "Rooms & beds", "Beds distributed between bedrooms", v.beds_distributed !== false,
+    `${v.bedrooms_with_beds ?? 0} of ${v.bedroom_blocks ?? 0} bedrooms carry beds — spread the bed configuration across the bedrooms`,
+    "Rooms → Unit → Bed configuration");
 
   // ── Photos ──
   add("meets_minimum_images", "Photos", `Photos (≥ ${RU_MIN_IMAGES})`, !!v.meets_minimum_images,
@@ -231,6 +241,17 @@ export function evaluateUnitChecks(
     v.images_meet_size !== false,
     `${(v.images_count ?? 0) - (v.images_meeting_size ?? 0)} photo(s) are smaller than ${RU_MIN_IMAGE_WIDTH}×${RU_MIN_IMAGE_HEIGHT}px`,
     "Property → Images — re-upload larger versions");
+  // Certification dimensions: every photo must MEASURE at least 1024×768.
+  add("images_meet_cert_size", "Photos", `Photos measured ≥ ${RU_CERT_MIN_IMAGE_WIDTH}×${RU_CERT_MIN_IMAGE_HEIGHT}px`,
+    v.images_meet_cert_size !== false,
+    `${Math.max(0, (v.images_count ?? 0) - (v.images_meeting_cert_size ?? 0))} photo(s) are below ${RU_CERT_MIN_IMAGE_WIDTH}×${RU_CERT_MIN_IMAGE_HEIGHT}px${
+      (v.smallest_image_width ?? null) != null ? ` (smallest measured ${v.smallest_image_width}×${v.smallest_image_height}px)` : ""
+    }`,
+    "Property → Images — re-upload larger versions");
+  add("images_size_measured", "Photos", "All photo dimensions measured",
+    (v.images_size_unverified ?? 0) === 0,
+    `${v.images_size_unverified ?? 0} photo(s) could not be measured — re-upload them so their size can be verified`,
+    "Property → Images", false);
   add("has_main_image", "Photos", "Main photo flagged", v.has_main_image !== false,
     "No photo is marked as the main image", "Property → Images → set the first image");
 
