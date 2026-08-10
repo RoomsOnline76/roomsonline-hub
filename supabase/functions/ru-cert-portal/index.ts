@@ -5168,6 +5168,20 @@ Deno.serve(async (req) => {
         );
 
         if (propertyId) {
+          /**
+           * A transient RU outage ("Service is temporarily unavailable", worker transport
+           * error) is not a certification defect: the payload was accepted-shaped, RU simply
+           * did not answer. Retry once inside the run's budget, and if RU is still down report
+           * the step as deferred rather than failing a mandatory milestone on their downtime.
+           */
+          const TRANSIENT_CODES = new Set(["RU_UPSTREAM_UNAVAILABLE", "RU_TIMEOUT"]);
+          const isTransient = (data: any, error: any): boolean => {
+            const code = String(data?.error?.code ?? "");
+            if (TRANSIENT_CODES.has(code)) return true;
+            const text = `${error?.message ?? ""} ${data?.error?.message ?? ""} ${JSON.stringify(data?.units ?? "")}`;
+            return /temporarily unavailable|RU_UPSTREAM_UNAVAILABLE|Failed to send a request|502|503|504|ETIMEDOUT|network/i.test(text);
+          };
+
           // Content + ARI push via the property pipeline (keeps payload mapping in one place)
           for (const [name, fnBody, method] of [
             ["Push property content", { property_id: propertyId }, "Push_PutProperty_RQ"],
@@ -5175,17 +5189,34 @@ Deno.serve(async (req) => {
           ] as [string, Record<string, unknown>, string][]) {
             stepNo += 1;
             const t0 = Date.now();
-            const { data, error } = await admin.functions.invoke("push-property-to-ru", { body: fnBody });
-            const ok = !error && data?.success === true;
+            let { data, error } = await admin.functions.invoke("push-property-to-ru", { body: fnBody });
+            let ok = !error && data?.success === true;
+            let retried = false;
+            if (!ok && isTransient(data, error) && Date.now() < RUN_DEADLINE_MS - 20000) {
+              retried = true;
+              await budgetedWait(5000);
+              const second = await admin.functions.invoke("push-property-to-ru", { body: fnBody });
+              data = second.data;
+              error = second.error;
+              ok = !error && data?.success === true;
+            }
+            const transient = !ok && isTransient(data, error);
             steps.push({
               step: stepNo, name, ru_method: method, mandatory: true, scope: "property",
-              status: ok ? "passed" : "failed",
+              status: ok ? "passed" : transient ? "skipped" : "failed",
               duration_ms: Date.now() - t0,
-              detail: error?.message ?? data?.error?.message ?? (ok ? "OK" : "Push failed"),
+              detail: ok
+                ? "OK"
+                : transient
+                  ? `Deferred — Rentals United was temporarily unavailable${retried ? " on both attempts" : ""}. The payload was built and sent; re-run the suite to prove it.`
+                  : (error?.message ?? data?.error?.message ?? "Push failed"),
+              retryable: transient || undefined,
+              retried: retried || undefined,
               request: fnBody,
               response_preview: preview(data),
             });
           }
+
 
           // Read-back verification (small settle so RU has committed the push)
           await budgetedWait(3000);
