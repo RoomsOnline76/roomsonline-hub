@@ -263,6 +263,12 @@ interface RequestBody {
   date_to?: string;
   test_mode?: boolean;
   metadata?: Record<string, unknown>;
+  // Durable exchange log correlation (see _shared/ruApiLog.ts)
+  trace_id?: string;
+  parent_action?: string;
+  unit_id?: string;
+  ru_user_id?: string | number;
+
   // Push payloads
   property?: RUPropertyPayload;
   availability?: RUAvailabilityEntry[];
