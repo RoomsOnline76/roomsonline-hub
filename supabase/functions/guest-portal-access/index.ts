@@ -279,6 +279,7 @@ Deno.serve(async (req) => {
             cancellation_reason: booking.cancellation_reason,
           },
           property: {
+            id: property?.id,
             name: property?.name,
             slug: property?.slug,
             city: property?.city,
