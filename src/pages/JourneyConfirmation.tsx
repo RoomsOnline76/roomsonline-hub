@@ -33,6 +33,9 @@ export default function JourneyConfirmation() {
 
   const stays = (itinerary?.stays || []) as unknown as ItineraryStay[];
   const isConfirmed = itinerary?.status === "confirmed";
+  /** Readable journey reference (ROL-TRIP-0014); each stay keeps its own booking reference. */
+  const journeyReference = (itinerary as { rol_reference?: string | null } | undefined)?.rol_reference || null;
+
 
   useEffect(() => {
     if (autoDownload && itinerary && isConfirmed && !isGeneratingPdf && !autoDownloadTriggered.current) {
