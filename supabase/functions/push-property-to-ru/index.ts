@@ -1444,6 +1444,83 @@ async function loadManualRestrictions(
   return { overrides, stats };
 }
 
+/**
+ * Nights that are sold on ROL'OS. Availability pushed to the channel is otherwise derived only
+ * from seasons + manual calendar rows, so a booking that failed to write its manual stop-sell
+ * rows would silently leave the unit sellable at the channel. Deriving the closed nights from
+ * confirmed/paid bookings makes the outbound payload correct on its own.
+ *
+ * Returns the set of blocked nights (check-in .. check-out - 1) for this unit, or for the whole
+ * property when pushing a building-level listing.
+ */
+async function loadBookingBlocks(
+  supabase: any,
+  propertyId: string,
+  windowFrom: string,
+  windowTo: string,
+  unitId: string | null,
+  unitName: string | null,
+): Promise<{ dates: Set<string>; stats: { bookings: number; nights: number; ranges: { from: string; to: string }[] } }> {
+  const dates = new Set<string>();
+  const ranges: { from: string; to: string }[] = [];
+  const stats = { bookings: 0, nights: 0, ranges };
+
+  const { data, error } = await supabase
+    .from('bookings')
+    .select('id, status, payment_status, room_type_id, rooms, check_in_date, check_out_date')
+    .eq('property_id', propertyId)
+    .lt('check_in_date', windowTo)
+    .gt('check_out_date', windowFrom)
+    .in('status', ['confirmed', 'checked_in', 'checked_out', 'completed', 'in_house']);
+
+  if (error || !Array.isArray(data)) return { dates, stats };
+
+  const wanted = unitName ? normalizeRoomLabel(unitName) : null;
+
+  for (const b of data as any[]) {
+    const stays: { from: string; to: string }[] = [];
+    const rooms = Array.isArray(b.rooms) ? b.rooms : [];
+
+    const matchesUnit = (roomTypeId?: string | null, roomTypeName?: string | null): boolean => {
+      if (!unitId && !wanted) return true; // property-level push: any sold room closes a unit
+      if (unitId && roomTypeId && String(roomTypeId) === unitId) return true;
+      if (wanted && roomTypeName && normalizeRoomLabel(String(roomTypeName)) === wanted) return true;
+      return false;
+    };
+
+    if (rooms.length > 0) {
+      for (const r of rooms) {
+        if (!matchesUnit(r?.roomTypeId ?? r?.room_type_id ?? null, r?.roomTypeName ?? r?.room_type_name ?? null)) continue;
+        const from = String(r?.checkIn ?? r?.check_in ?? b.check_in_date ?? '').slice(0, 10);
+        const to = String(r?.checkOut ?? r?.check_out ?? b.check_out_date ?? '').slice(0, 10);
+        if (from && to) stays.push({ from, to });
+      }
+    } else if (matchesUnit(b.room_type_id, null)) {
+      const from = String(b.check_in_date ?? '').slice(0, 10);
+      const to = String(b.check_out_date ?? '').slice(0, 10);
+      if (from && to) stays.push({ from, to });
+    }
+
+    if (stays.length === 0) continue;
+    stats.bookings += 1;
+
+    for (const stay of stays) {
+      ranges.push({ from: stay.from, to: stay.to });
+      // Nights are [check-in, check-out): the departure day is sellable again.
+      for (let d = new Date(stay.from + 'T00:00:00Z'); ; d.setUTCDate(d.getUTCDate() + 1)) {
+        const iso = d.toISOString().slice(0, 10);
+        if (iso >= stay.to) break;
+        if (iso < windowFrom || iso > windowTo) continue;
+        dates.add(iso);
+      }
+    }
+  }
+
+  stats.nights = dates.size;
+  return { dates, stats };
+}
+
+
 /** Overlay per-date manual overrides onto season-derived entries, then recompress ranges. */
 function applyManualOverrides(entries: AvailEntry[], overrides: Map<string, ManualDayOverride>): AvailEntry[] {
   if (overrides.size === 0) return entries;
