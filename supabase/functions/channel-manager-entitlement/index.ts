@@ -301,33 +301,23 @@ Deno.serve(async (req) => {
       let detail: string | undefined;
       let status: "updated" | "skipped" | "ru_failed" = "updated";
 
+      const ruOwnerId = await resolveRuOwnerId(admin, p.id);
+
       if (p.rentalsunited_property_id) {
-        // Push the archive / re-activate call to Rentals United.
-        const { data: ruRes, error: ruErr } = await admin.functions.invoke(
-          "rentalsunited-api",
-          {
-            body: {
-              action: "set_property_status",
-              property_id: p.id,
-              ru_property_id: p.rentalsunited_property_id,
-              // The rentalsunited-api handler reads these flags from `metadata`.
-              metadata: {
-                is_active: !archive,
-                is_archived: archive,
-              },
-            },
-          }
-        );
-        if (ruErr || (ruRes && (ruRes as { success?: boolean }).success === false)) {
+        const failure = await pushListingStatus(admin, {
+          propertyId: p.id,
+          ruPropertyId: p.rentalsunited_property_id,
+          archive,
+          ownerId: ruOwnerId,
+        });
+        if (failure) {
           status = "ru_failed";
-          detail =
-            ruErr?.message ||
-            (ruRes as { error?: string } | null)?.error ||
-            "Rentals United rejected the status change";
+          detail = failure;
         }
       } else {
         detail = "Building has no Rentals United listing of its own — unit listings pushed individually";
       }
+
 
 
       const { error: updErr } = await admin
