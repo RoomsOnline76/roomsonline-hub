@@ -364,7 +364,7 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
 
       const pushEnabled = tradingProps.filter((p) => p.ru_push_enabled === true);
       setAccountFootprint({
-        subAccounts: accounts.length,
+        subAccounts: ruAccounts.length,
         subAccountProperties: footprintSubAccountIds.size,
         subAccountPropertiesWithoutFootprint:
           subAccountPropertyIds.size - footprintSubAccountIds.size,
