@@ -1829,9 +1829,18 @@ async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRo
       let availEntries: AvailEntry[] = expandAvailability(allPeriods, unitUnits, changeoverConfig);
       // Manual dashboard restrictions win over season-derived values.
       const manual = await loadManualRestrictions(supabase, property.id, todayStr, oneYearStr, unit?.name ?? null, unitUnits);
+      // Sold nights close inventory even when the manual stop-sell rows are missing.
+      const sold = await loadBookingBlocks(supabase, property.id, todayStr, oneYearStr, unit?.id ?? null, unit?.name ?? null);
+      for (const day of sold.dates) {
+        const existing = manual.overrides.get(day) ?? {};
+        const remaining = unit ? 0 : Math.max(0, Math.min(existing.units ?? unitUnits, unitUnits) - 1);
+        manual.overrides.set(day, { ...existing, units: Math.min(existing.units ?? unitUnits, remaining) });
+      }
       availEntries = applyManualOverrides(availEntries, manual.overrides);
-      result.manual_restrictions = manual.stats;
-      console.log(`[pushARI] Pushing ${availEntries.length} availability entries (per-day rules: ${changeoverConfig.perDow ? 'yes' : 'no'}, default changeover: ${changeoverConfig.defaultCode}, manual override days: ${manual.stats.days})`);
+      result.manual_restrictions = { ...manual.stats, booked_nights: sold.stats.nights, booked_bookings: sold.stats.bookings };
+      bookedNights = sold.dates;
+      console.log(`[pushARI] Pushing ${availEntries.length} availability entries (per-day rules: ${changeoverConfig.perDow ? 'yes' : 'no'}, default changeover: ${changeoverConfig.defaultCode}, manual override days: ${manual.stats.days}, sold nights: ${sold.stats.nights})`);
+
       const availAttempt = await invokeRuWithRetry(
         supabase,
         { action: 'push_availability', ru_property_id: ruPropertyId, availability: availEntries, ...childAuth },
