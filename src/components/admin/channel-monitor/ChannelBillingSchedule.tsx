@@ -71,6 +71,9 @@ export function ChannelBillingSchedule({ schedule, currentMonth, fx }: Props) {
           </TableBody>
         </Table>
       </CardContent>
+        </CollapsibleContent>
+      </Collapsible>
     </Card>
+
   );
 }
