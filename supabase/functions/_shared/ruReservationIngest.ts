@@ -471,5 +471,6 @@ export async function refreshRuReservationById(
     source: 'rlnm',
     logPrefix: log,
     forceRequest: opts.forceRequest,
+    kind: opts.kind,
   });
 }
