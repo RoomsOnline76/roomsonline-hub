@@ -2254,6 +2254,33 @@ Deno.serve(async (req) => {
     }
 
 
+    // ── get_reservation_by_id (mandatory: reservation detail) ──
+    // Pull_GetReservationByID_RQ — one reservation, full detail. Parsed through the same
+    // shared parser the ingest path uses so callers get an identical shape.
+    if (action === 'get_reservation_by_id') {
+      const reservationId = typeof body.reservation_id === 'string' ? body.reservation_id.trim() : '';
+      if (!reservationId) return errorResponse('MISSING_PARAM', 'reservation_id is required');
+      const xml = buildGetReservationByIdXml(scopedCreds, reservationId);
+      const response = await callRentalsUnited(scopedCreds, xml);
+      const { ok, status } = handleRUStatus(response);
+      if (!ok) return ruErrorResponse(status);
+
+      const blocks = extractAllBlocks(response, 'Reservation');
+      const reservation = blocks.length ? parseRuReservation(blocks[0]) : null;
+      return jsonResponse({
+        success: true,
+        auth_mode: authMode,
+        reservation_id: reservationId,
+        found: !!reservation?.ruReservationId,
+        reservation,
+        raw_xml: response,
+      });
+    }
+
+
+
+
+
     // ── get_leads (optional) ──
     if (action === 'get_leads') {
       if (!date_from || !date_to) return errorResponse('MISSING_PARAM', 'date_from and date_to are required');
