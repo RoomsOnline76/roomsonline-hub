@@ -191,7 +191,7 @@ export function EmbedAvailabilityGrid({
                   </th>
                 );
               })}
-              {onBook && <th style={{ ...thStyle, width: "56px" }} />}
+              {onBook && !isNarrow && <th style={{ ...thStyle, width: "56px" }} />}
             </tr>
           </thead>
           <tbody>
