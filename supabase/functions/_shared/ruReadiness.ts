@@ -68,6 +68,28 @@ export interface RuUnitValidation {
   has_main_image?: boolean;
   has_street?: boolean;
   rooms_have_amenities?: boolean;
+  /** Certification content-quality fields. */
+  name_clean?: boolean;
+  name_issues?: string[];
+  name_issue_detail?: string | null;
+  description_meets_cert?: boolean;
+  images_meeting_cert_size?: number;
+  images_meet_cert_size?: boolean;
+  smallest_image_width?: number | null;
+  smallest_image_height?: number | null;
+  bedroom_blocks?: number;
+  bedrooms_with_beds?: number;
+  has_bedroom?: boolean;
+  has_kitchen?: boolean;
+  has_bathroom_room?: boolean;
+  beds_distributed?: boolean;
+  arrival_instructions_length?: number;
+  has_arrival_instructions?: boolean;
+  has_check_in_from?: boolean;
+  has_check_out_until?: boolean;
+  check_in_from?: string | null;
+  check_out_until?: string | null;
+  check_in_times_are_default?: boolean;
   [key: string]: unknown;
 }
 
