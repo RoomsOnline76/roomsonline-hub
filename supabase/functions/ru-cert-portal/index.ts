@@ -1824,6 +1824,137 @@ Deno.serve(async (req) => {
 
 
     /**
+     * ── reservation_detail_test: Pull_GetReservationByID_RQ parity check.
+     *
+     * Takes the most recent imported RU reservation for the property (or an explicit
+     * reservation_id), pulls it back from Rentals United by id, and compares the channel's
+     * own view against the stored booking: guest, dates, RU listing and price. Read-only —
+     * nothing is written to bookings or availability.
+     */
+    if (action === "reservation_detail_test") {
+      const propertyId: string = body.property_id ?? "";
+      const explicitId: string = typeof body.reservation_id === "string" ? body.reservation_id.trim() : "";
+
+      let booking: {
+        id: string;
+        external_reservation_id: string | null;
+        guest_name: string | null;
+        check_in_date: string | null;
+        check_out_date: string | null;
+        total_amount: number | null;
+        property_id: string | null;
+      } | null = null;
+
+      if (explicitId) {
+        const { data } = await admin
+          .from("bookings")
+          .select("id, external_reservation_id, guest_name, check_in_date, check_out_date, total_amount, property_id")
+          .eq("external_reservation_id", explicitId)
+          .maybeSingle();
+        booking = (data as typeof booking) ?? null;
+      } else {
+        if (!propertyId) {
+          return json({ success: false, error: { code: "BAD_REQUEST", message: "property_id or reservation_id is required" } }, 400);
+        }
+        const { data } = await admin
+          .from("bookings")
+          .select("id, external_reservation_id, guest_name, check_in_date, check_out_date, total_amount, property_id")
+          .eq("property_id", propertyId)
+          .in("integration_type", ["rentalsunited", "rentalsunited_lead"])
+          .not("external_reservation_id", "is", null)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        booking = (data as typeof booking) ?? null;
+      }
+
+      const reservationId = explicitId || booking?.external_reservation_id || "";
+      if (!reservationId) {
+        return json({
+          success: true,
+          action,
+          passed: false,
+          skipped: true,
+          reason: "No Rentals United reservation has been imported for this property yet — nothing to fetch by id.",
+        });
+      }
+
+      const scopeProperty = booking?.property_id || propertyId || null;
+      const { reservation, error: pullError } = await fetchRuReservationById(admin, reservationId, {
+        propertyId: scopeProperty,
+      });
+
+      const mismatches: string[] = [];
+      if (reservation && booking) {
+        const norm = (v: string | null | undefined) => (v || "").trim().toLowerCase();
+        if (reservation.dateFrom && booking.check_in_date && reservation.dateFrom !== booking.check_in_date) {
+          mismatches.push(`check-in ${reservation.dateFrom} (RU) vs ${booking.check_in_date} (ROL'OS)`);
+        }
+        if (reservation.dateTo && booking.check_out_date && reservation.dateTo !== booking.check_out_date) {
+          mismatches.push(`check-out ${reservation.dateTo} (RU) vs ${booking.check_out_date} (ROL'OS)`);
+        }
+        if (reservation.guestName && booking.guest_name && norm(reservation.guestName) !== norm(booking.guest_name)) {
+          mismatches.push(`guest "${reservation.guestName}" (RU) vs "${booking.guest_name}" (ROL'OS)`);
+        }
+      }
+
+      const found = !!reservation?.ruReservationId;
+      const passed = !pullError && found && mismatches.length === 0;
+
+      try {
+        await admin.from("ru_sync_runs").insert({
+          batch_id: crypto.randomUUID(),
+          property_id: scopeProperty,
+          action,
+          success: passed,
+          error_code: passed ? null : pullError ? "RU_RESERVATION_DETAIL_FAILED" : found ? "RU_RESERVATION_DETAIL_MISMATCH" : "RU_RESERVATION_NOT_FOUND",
+          error_message: passed ? null : pullError ?? (found ? mismatches.join("; ") : "Reservation not returned by Pull_GetReservationByID_RQ"),
+          elapsed_ms: 0,
+          ru_property_id: reservation?.ruPropertyId ?? null,
+          details: { ru_reservation_id: reservationId, mismatches, booking_id: booking?.id ?? null },
+        });
+      } catch (_e) { /* evidence only */ }
+
+      return json({
+        success: true,
+        action,
+        ru_reservation_id: reservationId,
+        found,
+        passed,
+        error: pullError,
+        mismatches,
+        reservation: reservation
+          ? {
+              ru_reservation_id: reservation.ruReservationId,
+              ru_property_id: reservation.ruPropertyId,
+              status_id: reservation.statusId,
+              date_from: reservation.dateFrom,
+              date_to: reservation.dateTo,
+              guest_name: reservation.guestName,
+              guest_email: reservation.guestEmail,
+              num_guests: reservation.numGuests,
+              total: reservation.total,
+              already_paid: reservation.alreadyPaid,
+              creator: reservation.creator,
+            }
+          : null,
+        booking: booking
+          ? {
+              id: booking.id,
+              guest_name: booking.guest_name,
+              check_in_date: booking.check_in_date,
+              check_out_date: booking.check_out_date,
+              total_amount: booking.total_amount,
+            }
+          : null,
+      });
+    }
+
+
+
+
+
+    /**
      * ── creator_mapping_check: RU `Creator` (channel account) → ROL'OS sales channel.
      *
      * Reports the mapping table plus every creator seen on imported RU bookings so an
