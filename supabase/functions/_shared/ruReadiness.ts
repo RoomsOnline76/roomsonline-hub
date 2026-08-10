@@ -340,3 +340,50 @@ export function mandatoryGaps(units: RuUnitInput[]): string[] {
   return summary.checks.filter((c) => c.mandatory && !c.passed)
     .map((c) => `${c.unit ? `${c.unit}: ` : ""}${c.detail ?? c.label}`);
 }
+
+/**
+ * Builds the MinStay / bookable-window checks from a live RU calendar probe
+ * (see findRuBookableWindow in ruContentQuality.ts).
+ */
+export function bookableWindowChecks(
+  window: {
+    ok: boolean;
+    start: string | null;
+    longest_run: number;
+    min_stay_set: boolean;
+    min_stay_days: number;
+    open_days: number;
+    unpriced_open_days: number;
+  },
+  unit?: string,
+): RuCheck[] {
+  return [
+    {
+      key: "bookable_window",
+      group: "Availability 365d",
+      label: `≥ ${RU_MIN_BOOKABLE_WINDOW} consecutive bookable days with a price`,
+      mandatory: true,
+      passed: window.ok,
+      unit,
+      fix_hint: "Rate Manager → Calendar (availability) and Rates",
+      ...(window.ok
+        ? {}
+        : {
+          detail: `Longest run of open, priced days is ${window.longest_run} (need ${RU_MIN_BOOKABLE_WINDOW}); ${window.open_days} open day(s), ${window.unpriced_open_days} of them unpriced`,
+        }),
+    },
+    {
+      key: "min_stay_set",
+      group: "Availability 365d",
+      label: "MinStay set on open days",
+      mandatory: true,
+      passed: window.min_stay_set,
+      unit,
+      fix_hint: "Rate Manager → Stay restrictions → Minimum stay",
+      ...(window.min_stay_set
+        ? {}
+        : { detail: `No MinStay value on any of the ${window.open_days} open day(s)` }),
+    },
+  ];
+}
+
