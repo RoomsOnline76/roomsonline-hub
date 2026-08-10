@@ -328,63 +328,68 @@ async function fetchWeatherForecast(
   }
 }
 
-// Generate surprise voucher
-async function generateSurpriseVoucher(
+/**
+ * Resolve a REAL, usable voucher for this journey.
+ * Never invents codes: it either reuses a voucher already issued for this
+ * itinerary (historic brochures) or surfaces an active promo code that the
+ * property/portfolio has actually loaded. Returns null when nothing qualifies,
+ * in which case the brochure omits the voucher block entirely.
+ */
+async function resolveRealVoucher(
   supabase: any,
   itineraryId: string,
-  propertyNames: string[]
-): Promise<{ code: string; description: string } | null> {
+  propertyIds: string[]
+): Promise<{ code: string; description: string; valid_until?: string | null } | null> {
   try {
-    // Check if voucher already exists for this itinerary
+    // 1. Historic voucher already issued for this itinerary — keep it working.
     const { data: existing } = await supabase
       .from("experience_vouchers")
-      .select("code, description")
+      .select("code, description, valid_until")
       .eq("itinerary_id", itineraryId)
-      .single();
-    
-    if (existing) {
-      console.log("[PDF] Existing voucher found:", existing.code);
+      .maybeSingle();
+
+    if (existing?.code) {
+      console.log("[PDF] Existing itinerary voucher:", existing.code);
       return existing;
     }
 
-    // Generate unique voucher code
-    const prefixes = ['SUNSET', 'SAFARI', 'AFRICA', 'JOURNEY', 'EXPLORE', 'WONDER'];
-    const prefix = prefixes[Math.floor(Math.random() * prefixes.length)];
-    const randomPart = Math.random().toString(36).substring(2, 6).toUpperCase();
-    const code = `${prefix}-${randomPart}`;
+    // 2. A real promo code loaded for one of the journey's properties (or global).
+    const today = new Date().toISOString().split("T")[0];
+    const { data: promos } = await supabase
+      .from("promo_codes")
+      .select("code, description, discount_type, discount_value, property_id, valid_from, valid_until, max_uses, current_uses")
+      .eq("is_active", true);
 
-    // Create voucher
-    const validUntil = new Date();
-    validUntil.setMonth(validUntil.getMonth() + 6); // Valid for 6 months
+    const usable = (promos || []).filter((p: any) => {
+      const scoped = p.property_id === null || propertyIds.includes(p.property_id);
+      if (!scoped) return false;
+      if (p.valid_from && today < p.valid_from) return false;
+      if (p.valid_until && today > p.valid_until) return false;
+      if (p.max_uses !== null && (p.current_uses || 0) >= p.max_uses) return false;
+      return true;
+    });
 
-    const descriptions = [
-      `25% off your next local experience at ${propertyNames[0] || 'any partner property'}`,
-      `Complimentary sunset drinks for two on your next visit`,
-      `25% discount on spa treatments or local tours`,
-      `A special gift awaits you at reception – mention this code!`,
-    ];
-    
-    const description = descriptions[Math.floor(Math.random() * descriptions.length)];
+    // Prefer property-specific over global.
+    const match =
+      usable.find((p: any) => p.property_id !== null) || usable[0];
 
-    const { error } = await supabase
-      .from("experience_vouchers")
-      .insert({
-        itinerary_id: itineraryId,
-        code,
-        discount_percent: 25,
-        description,
-        valid_until: validUntil.toISOString(),
-      });
-
-    if (error) {
-      console.error("[PDF] Error creating voucher:", error);
+    if (!match) {
+      console.log("[PDF] No real voucher available — omitting voucher block");
       return null;
     }
 
-    console.log("[PDF] Created surprise voucher:", code);
-    return { code, description };
+    const discountText =
+      match.discount_type === "percentage"
+        ? `${match.discount_value}% off your stay`
+        : `${match.discount_value} off your stay`;
+
+    return {
+      code: match.code,
+      description: match.description || discountText,
+      valid_until: match.valid_until,
+    };
   } catch (error) {
-    console.error("[PDF] Error in voucher generation:", error);
+    console.error("[PDF] Error resolving voucher:", error);
     return null;
   }
 }
