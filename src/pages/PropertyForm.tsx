@@ -2433,7 +2433,7 @@ export default function PropertyForm({
           );
           setPropToilets(
             (data as any).toilets === null || (data as any).toilets === undefined
-              ? null
+              ? 1
               : Number((data as any).toilets),
           );
           setSeparateKitchen(!!(data as any).separate_kitchen);
