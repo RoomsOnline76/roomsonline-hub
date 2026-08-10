@@ -115,6 +115,27 @@ const RU_BED = {
 const RU_BED_AMENITY_IDS: number[] = Object.values(RU_BED);
 const RU_DEFAULT_BED_ID = RU_BED.double;
 
+/**
+ * How many people each RU bed type sleeps. Coverage is measured in SLEEPING PLACES,
+ * not bed count: 2 doubles + 2 singles = 6 people, not 4 beds.
+ */
+const RU_BED_SLEEPS: Record<number, number> = {
+  [RU_BED.single]: 1,
+  [RU_BED.twinPair]: 2,
+  [RU_BED.double]: 2,
+  [RU_BED.queen]: 2,
+  [RU_BED.king]: 2,
+  [RU_BED.bunk]: 2,
+  [RU_BED.sofaBed]: 1,
+  [RU_BED.doubleSofaBed]: 2,
+  [RU_BED.pullOut]: 1,
+  [RU_BED.dayBed]: 1,
+  [RU_BED.wallBed]: 1,
+  [RU_BED.cot]: 0,
+  [RU_BED.extra]: 1,
+};
+const sleepsForBedId = (id: number): number => RU_BED_SLEEPS[id] ?? 1;
+
 const BED_AMENITY_MAP: Record<string, number> = {
   single: RU_BED.single,
   twin: RU_BED.twin,
