@@ -3707,34 +3707,12 @@ export default function PropertyForm({
         description: isEditMode ? "Property updated successfully" : "Property created successfully",
       });
 
-      // Auto-push to Rentals United if property has an RU ID
+      // Static content delta to the Channel Manager. Fires for unit-level listings too,
+      // respects paused pushes, and is a no-op when nothing the channel cares about changed.
       if (isEditMode && savedPropertyId) {
-        // Check if property has an RU ID, then fire-and-forget push
-        supabase
-          .from("properties")
-          .select("rentalsunited_property_id")
-          .eq("id", savedPropertyId)
-          .single()
-          .then(({ data: ruCheck }) => {
-            if (ruCheck?.rentalsunited_property_id) {
-              toast({
-                title: "Syncing to Channel Manager...",
-                description: "Property data is being pushed to the Channel Manager in the background.",
-              });
-              supabase.functions
-                .invoke("push-property-to-ru", {
-                  body: { property_id: savedPropertyId },
-                })
-                .then(({ data: ruResult, error: ruError }) => {
-                  if (ruError || !ruResult?.success) {
-                    console.warn("[RU Sync] Push failed:", ruError?.message || ruResult?.error?.message);
-                  } else {
-                    console.log("[RU Sync] Push succeeded:", ruResult.message);
-                  }
-                });
-            }
-          });
+        void queueChannelContentSync(savedPropertyId, "property_save");
       }
+
       // Stay on current page after save - don't navigate away for edits
     } catch (error) {
       if (error instanceof z.ZodError) {
