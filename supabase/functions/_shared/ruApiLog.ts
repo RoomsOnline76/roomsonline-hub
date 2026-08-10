@@ -87,7 +87,9 @@ export async function logRuExchange(supabase: any, entry: RuApiLogEntry): Promis
     const response_xml = redactRuXml(entry.response_xml);
     const status = extractStatus(entry.response_xml);
 
-    await supabase.from('ru_api_log').insert({
+    // supabase-js returns errors instead of throwing — surface them to the function console so a
+    // silent logging outage (missing grant, schema drift) can never hide behind an empty table.
+    const { error } = await supabase.from('ru_api_log').insert({
       trace_id: entry.trace_id ?? null,
       parent_action: entry.parent_action ?? null,
       action: extractRuVerb(entry.request_xml) ?? entry.action,
@@ -110,6 +112,7 @@ export async function logRuExchange(supabase: any, entry: RuApiLogEntry): Promis
       elapsed_ms: entry.elapsed_ms ?? null,
       error_message: entry.error_message ?? null,
     });
+    if (error) console.warn('[ruApiLog] insert rejected:', error.message, error.details ?? '');
   } catch (err) {
     console.warn('[ruApiLog] insert failed:', err instanceof Error ? err.message : err);
   }
