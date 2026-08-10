@@ -2342,7 +2342,21 @@ Deno.serve(async (req) => {
     const useBuilding = reqBody.use_building === true;
     /** Admin override: allows a live push even when mandatory WL checks fail. */
     const forcePush = reqBody.force === true;
+    /**
+     * Static content delta (Push_PutProperty_RQ only).
+     * RU requires static content to be re-pushed whenever it changes in the PMS, not just on
+     * the weekly cron. A delta must not re-push availability/prices/discounts as well: those
+     * have their own event-driven path (`refresh_ari`) and re-sending them burns the owner's
+     * sliding-minute write window for no reason.
+     */
+    const staticOnly = action === 'static_only';
+    /** ARI is pushed on every path except a static-content delta. */
+    const pushARIUnlessStatic: typeof pushARI = async (...args) =>
+      staticOnly ? {} as Record<string, any> : await pushARI(...args);
+    const pushDiscountsUnlessStatic: typeof pushDiscounts = async (...args) =>
+      staticOnly ? {} as Record<string, any> : await pushDiscounts(...args);
     const forceLocationIdRaw = reqBody.force_location_id;
+
 
     const forceLocationId = Number.isFinite(Number(forceLocationIdRaw)) && Number(forceLocationIdRaw) > 1
       ? Number(forceLocationIdRaw)
