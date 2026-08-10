@@ -452,7 +452,7 @@ Deno.serve(async (req) => {
       }
 
       // Newly blocked nights must reach RU immediately, not on the next cron tick.
-      await queueRuAriDelta(supabaseClient, property.id, "booking_confirmed");
+      await queueRuAriDelta(supabaseClient, property.id, "booking_confirmed", { force: true });
 
       
       // Send property owner notification email

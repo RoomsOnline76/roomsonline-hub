@@ -257,7 +257,7 @@ Deno.serve(async (req) => {
     }
 
     // Freed nights must reach RU immediately, not on the next cron tick.
-    await queueRuAriDelta(supabase, booking.property_id, "guest_cancelled");
+    await queueRuAriDelta(supabase, booking.property_id, "guest_cancelled", { force: true });
 
 
     // Mark token as used

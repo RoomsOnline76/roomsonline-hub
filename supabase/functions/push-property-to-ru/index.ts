@@ -1444,6 +1444,83 @@ async function loadManualRestrictions(
   return { overrides, stats };
 }
 
+/**
+ * Nights that are sold on ROL'OS. Availability pushed to the channel is otherwise derived only
+ * from seasons + manual calendar rows, so a booking that failed to write its manual stop-sell
+ * rows would silently leave the unit sellable at the channel. Deriving the closed nights from
+ * confirmed/paid bookings makes the outbound payload correct on its own.
+ *
+ * Returns the set of blocked nights (check-in .. check-out - 1) for this unit, or for the whole
+ * property when pushing a building-level listing.
+ */
+async function loadBookingBlocks(
+  supabase: any,
+  propertyId: string,
+  windowFrom: string,
+  windowTo: string,
+  unitId: string | null,
+  unitName: string | null,
+): Promise<{ dates: Set<string>; stats: { bookings: number; nights: number; ranges: { from: string; to: string }[] } }> {
+  const dates = new Set<string>();
+  const ranges: { from: string; to: string }[] = [];
+  const stats = { bookings: 0, nights: 0, ranges };
+
+  const { data, error } = await supabase
+    .from('bookings')
+    .select('id, status, payment_status, room_type_id, rooms, check_in_date, check_out_date')
+    .eq('property_id', propertyId)
+    .lt('check_in_date', windowTo)
+    .gt('check_out_date', windowFrom)
+    .in('status', ['confirmed', 'checked_in', 'checked_out', 'completed', 'in_house']);
+
+  if (error || !Array.isArray(data)) return { dates, stats };
+
+  const wanted = unitName ? normalizeRoomLabel(unitName) : null;
+
+  for (const b of data as any[]) {
+    const stays: { from: string; to: string }[] = [];
+    const rooms = Array.isArray(b.rooms) ? b.rooms : [];
+
+    const matchesUnit = (roomTypeId?: string | null, roomTypeName?: string | null): boolean => {
+      if (!unitId && !wanted) return true; // property-level push: any sold room closes a unit
+      if (unitId && roomTypeId && String(roomTypeId) === unitId) return true;
+      if (wanted && roomTypeName && normalizeRoomLabel(String(roomTypeName)) === wanted) return true;
+      return false;
+    };
+
+    if (rooms.length > 0) {
+      for (const r of rooms) {
+        if (!matchesUnit(r?.roomTypeId ?? r?.room_type_id ?? null, r?.roomTypeName ?? r?.room_type_name ?? null)) continue;
+        const from = String(r?.checkIn ?? r?.check_in ?? b.check_in_date ?? '').slice(0, 10);
+        const to = String(r?.checkOut ?? r?.check_out ?? b.check_out_date ?? '').slice(0, 10);
+        if (from && to) stays.push({ from, to });
+      }
+    } else if (matchesUnit(b.room_type_id, null)) {
+      const from = String(b.check_in_date ?? '').slice(0, 10);
+      const to = String(b.check_out_date ?? '').slice(0, 10);
+      if (from && to) stays.push({ from, to });
+    }
+
+    if (stays.length === 0) continue;
+    stats.bookings += 1;
+
+    for (const stay of stays) {
+      ranges.push({ from: stay.from, to: stay.to });
+      // Nights are [check-in, check-out): the departure day is sellable again.
+      for (let d = new Date(stay.from + 'T00:00:00Z'); ; d.setUTCDate(d.getUTCDate() + 1)) {
+        const iso = d.toISOString().slice(0, 10);
+        if (iso >= stay.to) break;
+        if (iso < windowFrom || iso > windowTo) continue;
+        dates.add(iso);
+      }
+    }
+  }
+
+  stats.nights = dates.size;
+  return { dates, stats };
+}
+
+
 /** Overlay per-date manual overrides onto season-derived entries, then recompress ranges. */
 function applyManualOverrides(entries: AvailEntry[], overrides: Map<string, ManualDayOverride>): AvailEntry[] {
   if (overrides.size === 0) return entries;
@@ -1520,7 +1597,11 @@ interface AvailabilityVerification {
   checked: boolean;
   total_days: number;
   matches: number;
+  /** Nights sold on ROL'OS that the channel still reports as sellable. */
+  booked_days_checked?: number;
+  booked_days_open?: string[];
   mismatches: { date: string; field: 'min_stay' | 'changeover' | 'units'; requested: number; returned: number | null }[];
+
   error?: string;
 }
 
@@ -1630,9 +1711,11 @@ async function verifyAvailability(
   windowFromRaw: string,
   windowTo: string,
   childAuth: Record<string, unknown> = {},
+  bookedNights: Set<string> = new Set<string>(),
 ): Promise<AvailabilityVerification> {
   const windowFrom = verificationStart(windowFromRaw);
-  const report: AvailabilityVerification = { checked: false, total_days: 0, matches: 0, mismatches: [] };
+  const report: AvailabilityVerification = { checked: false, total_days: 0, matches: 0, mismatches: [], booked_days_checked: 0, booked_days_open: [] };
+
   try {
     const { data, error } = await supabase.functions.invoke('rentalsunited-api', {
       body: { action: 'get_availability', ru_property_id: ruPropertyId, date_from: windowFrom, date_to: windowTo, ...childAuth },
@@ -1694,6 +1777,18 @@ async function verifyAvailability(
       }
       if (dayOk) report.matches++;
     }
+
+    // Sold nights are asserted explicitly: a 365/365 summary can hide a handful of nights that
+    // the channel still sells, which is exactly the failure guests double-book on.
+    for (const date of bookedNights) {
+      if (date < windowFrom || date > windowTo) continue;
+      report.booked_days_checked = (report.booked_days_checked ?? 0) + 1;
+      const got = returnedDays.get(date);
+      if (!got) continue; // outside the channel's returned window — nothing to assert
+      const closed = (got.reservations ?? 0) > 0 || (got.units ?? 0) === 0;
+      if (!closed) report.booked_days_open!.push(date);
+    }
+
   } catch (e) {
     report.error = e instanceof Error ? e.message : 'Unknown verification error';
   }
@@ -1746,15 +1841,29 @@ async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRo
   // Resolve changeover rules (per-day-of-week or default)
   const changeoverConfig = resolveChangeoverRules(unit, amenities);
 
+  // Nights sold on ROL'OS for this target — asserted against the channel read-back below.
+  let bookedNights = new Set<string>();
+
+
+
 
   {
     try {
       let availEntries: AvailEntry[] = expandAvailability(allPeriods, unitUnits, changeoverConfig);
       // Manual dashboard restrictions win over season-derived values.
       const manual = await loadManualRestrictions(supabase, property.id, todayStr, oneYearStr, unit?.name ?? null, unitUnits);
+      // Sold nights close inventory even when the manual stop-sell rows are missing.
+      const sold = await loadBookingBlocks(supabase, property.id, todayStr, oneYearStr, unit?.id ?? null, unit?.name ?? null);
+      for (const day of sold.dates) {
+        const existing = manual.overrides.get(day) ?? {};
+        const remaining = unit ? 0 : Math.max(0, Math.min(existing.units ?? unitUnits, unitUnits) - 1);
+        manual.overrides.set(day, { ...existing, units: Math.min(existing.units ?? unitUnits, remaining) });
+      }
       availEntries = applyManualOverrides(availEntries, manual.overrides);
-      result.manual_restrictions = manual.stats;
-      console.log(`[pushARI] Pushing ${availEntries.length} availability entries (per-day rules: ${changeoverConfig.perDow ? 'yes' : 'no'}, default changeover: ${changeoverConfig.defaultCode}, manual override days: ${manual.stats.days})`);
+      result.manual_restrictions = { ...manual.stats, booked_nights: sold.stats.nights, booked_bookings: sold.stats.bookings };
+      bookedNights = sold.dates;
+      console.log(`[pushARI] Pushing ${availEntries.length} availability entries (per-day rules: ${changeoverConfig.perDow ? 'yes' : 'no'}, default changeover: ${changeoverConfig.defaultCode}, manual override days: ${manual.stats.days}, sold nights: ${sold.stats.nights})`);
+
       const availAttempt = await invokeRuWithRetry(
         supabase,
         { action: 'push_availability', ru_property_id: ruPropertyId, availability: availEntries, ...childAuth },
@@ -1803,24 +1912,31 @@ async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRo
       } else {
         result.availability_pushed = true;
         // 6.2 + 6.3 — Verify
-        const verification = await verifyAvailability(supabase, ruPropertyId, availEntries, todayStr, oneYearStr, childAuth);
+        const verification = await verifyAvailability(supabase, ruPropertyId, availEntries, todayStr, oneYearStr, childAuth, bookedNights);
         result.availability_verification = verification;
-        console.log(`[pushARI] Verification: ${verification.matches}/${verification.total_days} days matched, ${verification.mismatches.length} mismatches${verification.error ? ` (error: ${verification.error})` : ''}`);
+        const openSold = verification.booked_days_open ?? [];
+        console.log(`[pushARI] Verification: ${verification.matches}/${verification.total_days} days matched, ${verification.mismatches.length} mismatches, sold nights still open: ${openSold.length}${verification.error ? ` (error: ${verification.error})` : ''}`);
+        if (openSold.length > 0) {
+          // The channel accepted the payload but still sells nights we have sold — treat as a
+          // failed refresh so the health report and the operator both see it.
+          result.availability_error = `RU_SOLD_NIGHTS_STILL_OPEN: ${openSold.length} sold night(s) still sellable at the channel (${openSold.slice(0, 5).join(', ')})`;
+        }
         try {
           await supabase.from('sync_logs').insert({
             property_id: property.id,
             external_system: 'rentals_united',
             sync_type: 'availability_verification',
-            status: verification.error ? 'error' : (verification.mismatches.length === 0 ? 'success' : 'partial'),
+            status: verification.error || openSold.length > 0 ? 'error' : (verification.mismatches.length === 0 ? 'success' : 'partial'),
             message: verification.error
               ? `Verification error: ${verification.error}`
-              : `${verification.matches}/${verification.total_days} days matched, ${verification.mismatches.length} mismatches`,
+              : `${verification.matches}/${verification.total_days} days matched, ${verification.mismatches.length} mismatches${openSold.length > 0 ? `, ${openSold.length} sold night(s) still open` : ''}`,
             request_data: { ru_property_id: ruPropertyId, unit_id: unit?.id ?? null, entries: availEntries.length, changeover_default: changeoverConfig.defaultCode, per_dow: changeoverConfig.perDow },
             response_data: { verification },
           });
         } catch (logErr) {
           console.warn(`[pushARI] Failed to persist verification log:`, logErr);
         }
+
       }
     } catch (e) { result.availability_error = e instanceof Error ? e.message : 'Unknown error'; }
   }
@@ -3007,7 +3123,87 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ success: false, error: { code: 'RU_CHILD_AUTH_REQUIRED', message: `No Rentals United API keys are stored for OwnerID ${ruOwnerId}. RU requires the sub-user's own AccessKey + SecretKey to create or update its building inventory — generate them in the RU dashboard (Security settings) and save them in Portfolios → RU accounts.` } }), { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
+    // ── READ-BACK ONLY (action: 'verify_calendar') ─────────────────────────
+    // Authoritative per-day view of what the channel actually holds for each live unit, read
+    // with the owning sub-user keys (master keys answer "Property does not exist"). Pushes
+    // nothing — this is the diagnostic that proves whether a sold night is closed at the channel.
+    if (action === 'verify_calendar') {
+      const from = typeof reqBody.date_from === 'string' ? reqBody.date_from : new Date().toISOString().slice(0, 10);
+      const to = typeof reqBody.date_to === 'string'
+        ? reqBody.date_to
+        : new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
+
+      const units: { label: string; ru_id: number; unit_id: string | null }[] = [];
+      for (const rt of activeRoomTypes) {
+        const ruId = parseInt(String(rt.rentalsunited_property_id ?? ''), 10);
+        if (ruId > 0) units.push({ label: rt.name, ru_id: ruId, unit_id: rt.id });
+      }
+      if (units.length === 0) {
+        const parentRuId = parseInt(String(property.rentalsunited_property_id ?? ''), 10);
+        if (parentRuId > 0) units.push({ label: property.name, ru_id: parentRuId, unit_id: null });
+      }
+      if (units.length === 0) {
+        return new Response(
+          JSON.stringify({ success: false, error: { code: 'RU_NOT_LISTED', message: 'No live channel listing for this property yet.' } }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
+
+      const wantedUnitId = typeof reqBody.unit_id === 'string' ? reqBody.unit_id : null;
+      const scoped = wantedUnitId ? units.filter((u) => u.unit_id === wantedUnitId) : units;
+
+      const report: Record<string, unknown>[] = [];
+      for (const u of scoped) {
+        const sold = await loadBookingBlocks(supabase, property.id, from, to, u.unit_id, u.label);
+        const { data: calData, error: calErr } = await supabase.functions.invoke('rentalsunited-api', {
+          body: { action: 'get_availability', ru_property_id: u.ru_id, date_from: from, date_to: to, ...childAuthPayload },
+        });
+        if (calErr || !calData?.success || !calData?.raw_xml) {
+          report.push({
+            unit: u.label,
+            unit_id: u.unit_id,
+            ru_property_id: u.ru_id,
+            error: calErr?.message || calData?.error?.message || 'No calendar returned',
+            sold_nights: [...sold.dates].sort(),
+          });
+          continue;
+        }
+        const days: Record<string, unknown>[] = [];
+        let openSold = 0;
+        for (const [date, day] of parseRuAvailabilityDays(String(calData.raw_xml))) {
+          const isSold = sold.dates.has(date);
+          const closed = (day.reservations ?? 0) > 0 || (day.units ?? 0) === 0;
+          if (isSold && !closed) openSold += 1;
+          days.push({
+            date,
+            units: day.units,
+            reservations: day.reservations,
+            min_stay: day.min_stay,
+            changeover: day.changeover,
+            sold_on_rolos: isSold,
+            channel_closed: closed,
+            conflict: isSold && !closed,
+          });
+        }
+        report.push({
+          unit: u.label,
+          unit_id: u.unit_id,
+          ru_property_id: u.ru_id,
+          window: { from, to },
+          sold_nights: [...sold.dates].sort(),
+          sold_nights_still_open: openSold,
+          days,
+        });
+      }
+
+      return new Response(
+        JSON.stringify({ success: true, property: { id: property.id, name: property.name }, window: { from, to }, units: report }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
+
     // ── ARI-ONLY REFRESH (action: 'refresh_ari') ───────────────────────────
+
     // Nightly/event-driven availability + pricing refresh for inventory that is ALREADY listed
     // at RU. It never calls Push_PutProperty_RQ, so the static-content gate does not apply
     // (that content is live at RU already) — a content shortfall must never stall ARI. Sub-user
