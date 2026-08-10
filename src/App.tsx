@@ -271,10 +271,13 @@ const App = () => (
                                 ? <Navigate to="/" replace />
                                 : isSurveyDomain
                                   ? <ProjectDiscoverySurvey />
-                                  : <Navigate to="/dashboard/reports" replace />
+                                  : isGuestBookingHost()
+                                    ? <GuestHostLanding />
+                                    : <Navigate to="/dashboard/reports" replace />
                             }
                           />
                         )}
+
 
 
                         {/* ═══ Public routes ══════════════════════════════ */}
