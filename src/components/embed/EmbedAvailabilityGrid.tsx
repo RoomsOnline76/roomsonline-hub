@@ -49,7 +49,21 @@ export function EmbedAvailabilityGrid({
 }: EmbedAvailabilityGridProps) {
   const [offset, setOffset] = useState(0);
   const [hover, setHover] = useState<HoverCell | null>(null);
+  // On narrow screens the trailing "Book" column scrolls out of view, so the
+  // action moves into the always-visible room-name cell instead.
+  const [isNarrow, setIsNarrow] = useState(
+    typeof window !== "undefined" ? window.matchMedia("(max-width: 640px)").matches : false,
+  );
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia("(max-width: 640px)");
+    const onChange = () => setIsNarrow(mq.matches);
+    onChange();
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
   const today = startOfDay(new Date());
+
 
   const dates = useMemo(() => {
     const base = addDays(new Date(startDate), offset);
