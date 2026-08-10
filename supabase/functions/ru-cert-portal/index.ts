@@ -1343,7 +1343,16 @@ Deno.serve(async (req) => {
             min_stay_set: probe.bookable_window?.min_stay_set ?? null,
             open_days: probe.bookable_window?.open_days ?? null,
           }))
-          : null,
+          : ((ari as Record<string, unknown> | null)?.local_window
+            ? [{
+              ru_property_id: null,
+              longest_run: (ari as any).local_window.longest_run ?? null,
+              first_window: (ari as any).local_window.start ?? null,
+              min_stay_set: (ari as any).local_window.min_stay_set ?? null,
+              open_days: (ari as any).local_window.open_days ?? null,
+              source: "local",
+            }]
+            : null),
       };
 
       return {
@@ -3508,7 +3517,16 @@ Deno.serve(async (req) => {
         }
       }
 
-      return json({ success: true, gate, readiness, last_mcq: mcq ?? null, sales_channel: salesChannel });
+      return json({
+        success: true,
+        gate,
+        readiness,
+        // Tells the wizard whether availability rules were judged on the live channel
+        // calendar or on the ROL'OS calendar (pre-publish).
+        availability_source: probeAri ? "channel" : "local",
+        last_mcq: mcq ?? null,
+        sales_channel: salesChannel,
+      });
     }
 
     // ── ensure_owner_account: Phase 1 sub-user (portfolio-first) ──

@@ -215,7 +215,8 @@ export async function evaluatePhases(
   if (opts.readinessUnknown) {
     p2Blockers.push("Readiness could not be scored — run the readiness scorecard.");
   } else if ((opts.readinessGaps ?? []).length > 0) {
-    for (const g of opts.readinessGaps!.slice(0, 12)) {
+    // Show EVERY mandatory gap — a truncated list made owners fix 12 items and get blocked again.
+    for (const g of opts.readinessGaps!) {
       if (typeof g === "string") {
         p2Blockers.push(g);
       } else {
