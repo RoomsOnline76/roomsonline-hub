@@ -760,6 +760,13 @@ function AuthContent() {
 export default function Auth() {
   const { data: siteKey, isLoading } = useRecaptchaSiteKey();
 
+  // Public guest booking hosts never show the staff sign-in screen.
+  if (isGuestBookingHost()) {
+    return <GuestHostLanding />;
+  }
+
+
+
   if (isLoading) {
     return (
       <PublicLayout>
