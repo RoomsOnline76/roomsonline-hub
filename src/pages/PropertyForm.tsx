@@ -791,7 +791,7 @@ export default function PropertyForm({
   // Property composition — mandatory for Rentals United / channel pushes
   const [propBedrooms, setPropBedrooms] = useState<number>(0);
   const [propBathrooms, setPropBathrooms] = useState<number | null>(null);
-  const [propToilets, setPropToilets] = useState<number | null>(null);
+  const [propToilets, setPropToilets] = useState<number | null>(1);
   const [separateKitchen, setSeparateKitchen] = useState(false);
   /** Accepted payment methods (RU PaymentMethods) — mandatory channel content. */
   const [paymentMethods, setPaymentMethods] = useState<string[]>([]);
