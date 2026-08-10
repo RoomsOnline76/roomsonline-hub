@@ -233,7 +233,27 @@ export default function PropertyContactDetails({ propertyId }: Props) {
             Only contacts marked <span className="font-medium text-foreground">Public</span> are exposed externally.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setCopyFromOpen(true)}
+            className="gap-1"
+          >
+            <Download className="h-3.5 w-3.5" />
+            Copy from portfolio
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setCopyToOpen(true)}
+            className="gap-1"
+          >
+            <Copy className="h-3.5 w-3.5" />
+            Copy to portfolio
+          </Button>
           <Button type="button" variant="outline" size="sm" onClick={addContact} className="gap-1">
             <Plus className="h-3.5 w-3.5" />
             Add contact
@@ -243,6 +263,24 @@ export default function PropertyContactDetails({ propertyId }: Props) {
           </Button>
         </div>
       </div>
+
+      <CopyToPortfolioDialog
+        open={copyToOpen}
+        onOpenChange={setCopyToOpen}
+        propertyId={propertyId}
+        itemLabel="these public contact details"
+        title="Copy contacts to portfolio"
+        description="Replace the public contact details on the selected properties with this property's contacts. Save any unsaved edits first."
+        onCopy={copyToPortfolio}
+      />
+      <CopyFromPortfolioDialog
+        open={copyFromOpen}
+        onOpenChange={setCopyFromOpen}
+        propertyId={propertyId}
+        title="Copy contacts from portfolio"
+        description="Replace this property's public contact details with those of another property in the portfolio."
+        onCopy={copyFromPortfolio}
+      />
 
       {contacts.length === 0 ? (
         <Card className="border-dashed">
