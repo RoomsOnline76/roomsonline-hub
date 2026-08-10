@@ -1,6 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import {
   mandatoryGaps,
+  localBookableWindowChecks,
   RU_MIN_AMENITIES,
   RU_MIN_IMAGES,
   RU_MIN_IMAGE_HEIGHT,
@@ -15,6 +16,7 @@ import {
   RU_MIN_ARRIVAL_INSTRUCTIONS,
 } from '../_shared/ruContentQuality.ts';
 import { evaluatePhases, phaseBlockedResponse, findOwnerAccount } from '../_shared/ruPhaseGate.ts';
+import { computeLocalBookableWindow } from '../_shared/ruLocalWindow.ts';
 import { resolveMcqChannelId } from '../_shared/ruMcq.ts';
 import { resolveRuAmenityIds } from '../_shared/ruAmenityMap.ts';
 import {
@@ -3171,6 +3173,15 @@ Deno.serve(async (req) => {
           }),
         );
         precomputedGaps = mandatoryGaps(scored);
+      }
+      // The bookable-window + MinStay rules are part of the same gate as the content rules,
+      // so the wizard and the live push cannot disagree about what "ready" means.
+      if (action !== 'refresh_ari') {
+        const localWindow = await computeLocalBookableWindow(supabase, property_id);
+        const windowGaps = localBookableWindowChecks(localWindow)
+          .filter((c) => c.mandatory && !c.passed)
+          .map((c) => c.detail ?? c.label);
+        precomputedGaps = [...precomputedGaps, ...windowGaps];
       }
     } catch (e) {
       console.warn('[push-property-to-ru] Readiness pre-scoring failed:', e instanceof Error ? e.message : e);
