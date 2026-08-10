@@ -119,3 +119,30 @@ export async function logRuExchange(supabase: any, entry: RuApiLogEntry): Promis
 export function newRuTraceId(): string {
   return crypto.randomUUID();
 }
+
+/**
+ * Support linkage for a sync run: the exchanges this run produced.
+ *
+ * `ru_sync_runs` records outcomes; this returns the ids + ResponseIDs of the raw exchanges behind
+ * them so run history in the console links straight to the evidence. Never throws.
+ */
+export async function summarizeRuExchanges(
+  supabase: any,
+  propertyId: string | null | undefined,
+  sinceIso: string,
+): Promise<Array<Record<string, unknown>>> {
+  if (!propertyId) return [];
+  try {
+    const { data } = await supabase
+      .from('ru_api_log')
+      .select('id, action, response_id, status_id, success, created_at')
+      .eq('property_id', propertyId)
+      .gte('created_at', sinceIso)
+      .order('created_at', { ascending: true })
+      .limit(200);
+    return data ?? [];
+  } catch (err) {
+    console.warn('[ruApiLog] summarize failed:', err instanceof Error ? err.message : err);
+    return [];
+  }
+}
