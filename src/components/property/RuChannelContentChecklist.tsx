@@ -27,6 +27,7 @@ export interface RuContentFlags {
   amenities_padded?: boolean;
   rooms_count?: number;
   total_beds?: number;
+  total_bed_capacity?: number;
   max_guests?: number;
   beds_meet_max_guests?: boolean;
   has_description?: boolean;

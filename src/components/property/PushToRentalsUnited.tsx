@@ -57,6 +57,7 @@ interface WlValidationFlags {
   amenities_padded?: boolean;
   amenities_padded_count?: number;
   total_beds?: number;
+  total_bed_capacity?: number;
   has_name?: boolean;
   has_object_type_id?: boolean;
   can_sleep_max_ok?: boolean;
