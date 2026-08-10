@@ -97,6 +97,9 @@ export function useReservationPolicies(propertyId: string | undefined) {
         },
         { onConflict: "property_id,policy_type" },
       );
+
+      // Cancellation terms are static content on the channel — push a delta on change.
+      void queueChannelContentSync(propertyId, "cancellation_policy_save");
     },
     [propertyId],
   );
