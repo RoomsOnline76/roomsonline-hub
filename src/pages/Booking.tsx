@@ -1756,6 +1756,14 @@ const Booking = () => {
 
   // Extend stay - navigate to portfolio overview (journey) or property page (standalone)
   const addRoom = () => {
+    const quotedTotal = totalCost || preSelectedTotalCost || (embedRate && checkIn && checkOut
+      ? embedRate * Math.max(differenceInDays(parseISO(checkOut), parseISO(checkIn)), 1)
+      : 0);
+    if (calculatingCost || quotedTotal <= 0) {
+      toast.info(calculatingCost ? "Still calculating your stay price…" : "A valid rate is required before adding this stay.");
+      return;
+    }
+
     // Ensure all existing rooms have their dates saved (use their custom dates or fall back to default)
     const roomsWithDates = rooms.map(room => ({
       ...room,
@@ -1792,7 +1800,7 @@ const Booking = () => {
     if (!alreadyInItinerary && property) {
       const numNights = checkIn && checkOut ? differenceInDays(parseISO(checkOut), parseISO(checkIn)) || 1 : 1;
       // Use preSelectedTotalCost or embed_rate as fallback when totalCost is 0 (Benson/ARI flows)
-      const effectiveTotal = totalCost || preSelectedTotalCost || (embedRate && numNights ? embedRate * numNights : 0) || 0;
+      const effectiveTotal = quotedTotal;
       const perRoomTotal = effectiveTotal / (roomsWithDates.length || 1);
       const roomSelections = roomsWithDates.map(r => ({
         room_type_id: r.roomTypeId || '',
@@ -2709,7 +2717,7 @@ const Booking = () => {
                   <Button variant="outline" size="sm" onClick={() => setShowJourneyAssistant(!showJourneyAssistant)} className="text-xs flex-1">
                     <Sparkles className="h-3 w-3 mr-1" /> {showJourneyAssistant ? "Hide journey builder" : "Extend your journey"}
                   </Button>
-                  <Button variant="outline" size="sm" onClick={addRoom} className="text-xs">
+                  <Button variant="outline" size="sm" onClick={addRoom} disabled={calculatingCost} className="text-xs">
                     <Plus className="h-3 w-3 mr-1" /> Browse properties
                   </Button>
                 </div>
@@ -2731,7 +2739,7 @@ const Booking = () => {
                 </AnimatePresence>
               </div>
             ) : (
-              <Button variant="outline" size="sm" onClick={addRoom} className="text-xs">
+              <Button variant="outline" size="sm" onClick={addRoom} disabled={calculatingCost} className="text-xs">
                 <Plus className="h-3 w-3 mr-1" /> Add another room
               </Button>
             )}
