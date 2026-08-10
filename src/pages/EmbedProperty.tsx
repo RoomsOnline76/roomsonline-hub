@@ -669,20 +669,39 @@ export default function EmbedProperty() {
     const room = roomTypes.find((r) => r.id === roomId);
     const rate = room?.daily_rate ? Number(room.daily_rate) : null;
     const rolosPlan = room?.linked_rolos_id ? ratePlanMap[room.linked_rolos_id] : null;
+    const finalCheckOut = overrideCheckOut || checkOut;
 
-    // Resolve rate: DB daily_rate → ROL'OS plan → PMS cache for check-in date
-    let effectiveRate = rate ?? rolosPlan?.base_rate ?? null;
-    if (!effectiveRate && pmsCacheMap[roomId]) {
-      const ciEntry = pmsCacheMap[roomId][checkIn];
-      const ciRate = typeof ciEntry === 'object' ? ciEntry?.rate : ciEntry;
-      if (ciRate && ciRate > 0) effectiveRate = ciRate;
+    // Use the same date-aware resolver as the visible availability grid. The
+    // previous handoff skipped season rates, so a room could display a valid
+    // ROL'OS rate and then enter a multi-stay checkout at R0.
+    const baseFallback = rate ?? rolosPlan?.base_rate ?? null;
+    const checkInCache = pmsCacheMap[roomId]?.[checkIn];
+    const checkInRate = checkInCache?.rate && checkInCache.rate > 0
+      ? checkInCache.rate
+      : resolveSeasonRate(roomId, roomName, checkIn, baseFallback);
+    let effectiveRate = checkInRate;
+
+    const stayDates = finalCheckOut > checkIn
+      ? eachDayOfInterval({ start: new Date(checkIn), end: addDays(new Date(finalCheckOut), -1) })
+      : [];
+    const nightlyRates = stayDates.map((date) => {
+      const dateKey = format(date, "yyyy-MM-dd");
+      const cachedRate = pmsCacheMap[roomId]?.[dateKey]?.rate;
+      if (cachedRate && cachedRate > 0) return cachedRate;
+      return resolveSeasonRate(roomId, roomName, dateKey, baseFallback);
+    });
+    const hasCompletePricing = nightlyRates.length > 0 && nightlyRates.every((nightlyRate) => nightlyRate != null && nightlyRate > 0);
+    const resolvedStayTotal = hasCompletePricing
+      ? nightlyRates.reduce((sum, nightlyRate) => sum + (nightlyRate ?? 0), 0)
+      : null;
+    if (resolvedStayTotal != null) {
+      effectiveRate = resolvedStayTotal / nightlyRates.length;
     }
     const pricingModel = rolosPlan?.pricing_model || null;
 
     // Notify parent of step change
     postToParent({ type: "rolos:step-change", step: "checkout", slug });
 
-    const finalCheckOut = overrideCheckOut || checkOut;
     const params = new URLSearchParams({
       roomTypeId: roomId,
       roomTypeName: roomName,
@@ -722,10 +741,10 @@ export default function EmbedProperty() {
 
     // Journey mode: add this stay to the itinerary and go to journey review
     if (journeyMode && property) {
-      const finalCheckOutDate = overrideCheckOut || checkOut;
+      const finalCheckOutDate = finalCheckOut;
       const numNights = differenceInCalendarDays(new Date(finalCheckOutDate), new Date(checkIn));
       const stayRate = effectiveRate || 0;
-      const stayTotal = stayRate * Math.max(numNights, 1);
+      const stayTotal = resolvedStayTotal ?? (stayRate * Math.max(numNights, 1));
 
       // Dedupe on the exact unit + dates: two different units of the same
       // property (or the same unit on different dates) are separate stays.
