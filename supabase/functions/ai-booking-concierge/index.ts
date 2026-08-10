@@ -744,11 +744,41 @@ function getMaxDelightsForTier(tier: DelightTier): number {
   }
 }
 
-function generateVoucherCode(city: string, tier: DelightTier): string {
-  const prefix = tier === 'platinum' ? 'VIP' : 'EXPLORE';
-  const cityCode = (city || 'AFR').substring(0, 3).toUpperCase();
-  const random = Date.now().toString(36).slice(-4).toUpperCase();
-  return `${prefix}-${cityCode}-${random}`;
+/**
+ * A real, currently usable promo code for this property — or null.
+ * Codes are NEVER invented: if the property has not loaded one, delights are
+ * delivered without a code.
+ */
+async function findRealVoucherCode(
+  supabase: any,
+  propertyId: string
+): Promise<{ code: string; description: string } | null> {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const { data: promos } = await supabase
+      .from('promo_codes')
+      .select('code, description, discount_type, discount_value, property_id, valid_from, valid_until, max_uses, current_uses')
+      .eq('is_active', true);
+
+    const usable = (promos || []).filter((p: any) => {
+      if (p.property_id !== null && p.property_id !== propertyId) return false;
+      if (p.valid_from && today < p.valid_from) return false;
+      if (p.valid_until && today > p.valid_until) return false;
+      if (p.max_uses !== null && (p.current_uses || 0) >= p.max_uses) return false;
+      return true;
+    });
+
+    const match = usable.find((p: any) => p.property_id !== null) || usable[0];
+    if (!match) return null;
+
+    const discountText = match.discount_type === 'percentage'
+      ? `${match.discount_value}% off`
+      : `${match.discount_value} off`;
+    return { code: match.code, description: match.description || discountText };
+  } catch (e) {
+    console.error('[Concierge] Voucher lookup error:', e);
+    return null;
+  }
 }
 
 async function generateValueBasedDelight(
@@ -773,17 +803,27 @@ async function generateValueBasedDelight(
         ? { type: 'amenity', description: `🌿 Local tip: Don't miss ${exp.title}! ${exp.why_locals_love_it || ''}` }
         : { type: 'amenity', description: `✨ Welcome to ${city}! You're in for a treat.` };
     }
+
+    // Silver and above may carry a code — but only a real one.
+    const realVoucher = await findRealVoucherCode(supabase, propertyId);
+
     if (tier === 'silver') {
       const exp = experiences?.find((e: any) => e.category === 'adventure') || experiences?.[0];
-      return { type: 'voucher', code: generateVoucherCode(city, tier), description: `🎁 Special offer: 15% off ${exp?.title || 'a local adventure'}!` };
+      return realVoucher
+        ? { type: 'voucher', code: realVoucher.code, description: `🎁 ${realVoucher.description} — applied at checkout.` }
+        : { type: 'amenity', description: `🌿 Local favourite: ${exp?.title || `plenty to explore around ${city}`}${exp?.why_locals_love_it ? ` — ${exp.why_locals_love_it}` : ''}` };
     }
     if (tier === 'gold') {
       const dining = findDiningExperience(experiences);
-      return { type: 'upgrade', code: generateVoucherCode(city, tier), description: dining ? `🌟 VIP: Complimentary experience at ${dining.title}!` : `🌟 VIP: Flagged for a room upgrade!` };
+      return realVoucher
+        ? { type: 'voucher', code: realVoucher.code, description: `🌟 ${realVoucher.description} — applied at checkout.` }
+        : { type: 'amenity', description: dining ? `🌟 Worth booking: ${dining.title} — I'll note your interest for the property.` : `🌟 I'll flag your stay with the property for a warm welcome.` };
     }
     if (tier === 'platinum') {
       const dining = findDiningExperience(experiences);
-      return { type: 'voucher', code: generateVoucherCode(city, tier), description: dining ? `✨ VIP: Complimentary dinner for two at ${dining.title}!` : `✨ VIP: Complimentary dinner for two at our partner restaurant!` };
+      return realVoucher
+        ? { type: 'voucher', code: realVoucher.code, description: `✨ ${realVoucher.description} — applied at checkout.` }
+        : { type: 'amenity', description: dining ? `✨ I'll let the property know you'd love a table at ${dining.title}.` : `✨ I'll flag your stay with the property so they can look after you.` };
     }
   } catch (e) {
     console.error('[Concierge] Delight error:', e);
