@@ -111,7 +111,8 @@ export function bookingOriginCode(booking: {
   booking_channel?: string | null;
 }): RolOriginCode {
   const parsed = parseRolReference(booking.rol_reference);
-  if (parsed) return parsed.origin;
+  if (parsed?.origin) return parsed.origin;
+
   const stored = (booking.rol_ref_origin || "").toUpperCase();
   if (ROL_ORIGIN_FILTER_OPTIONS.includes(stored as RolOriginCode)) return stored as RolOriginCode;
   return resolveOriginCode(booking.integration_type, booking.booking_channel);
