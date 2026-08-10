@@ -106,7 +106,7 @@ export function RoomManagerTab({
       roomSize: 0,
       floor: 0,
       bathrooms: 1,
-      toilets: null as number | null,
+      toilets: 1 as number | null,
       separateKitchen: false,
 
       maxPeople: 2,

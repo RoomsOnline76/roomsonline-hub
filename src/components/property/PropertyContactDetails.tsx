@@ -9,7 +9,9 @@ import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { GripVertical, Plus, Trash2, Phone, Mail, Clock, Globe, ShieldCheck, Users } from "lucide-react";
+import CopyToPortfolioDialog from "@/components/property/CopyToPortfolioDialog";
+import CopyFromPortfolioDialog from "@/components/property/CopyFromPortfolioDialog";
+import { GripVertical, Plus, Trash2, Phone, Mail, Clock, Globe, ShieldCheck, Users, Copy, Download } from "lucide-react";
 
 const ROLES = [
   { value: "reception", label: "Reception / Front desk", icon: Phone },
@@ -43,6 +45,8 @@ export default function PropertyContactDetails({ propertyId }: Props) {
   const [contacts, setContacts] = useState<PropertyContact[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [copyToOpen, setCopyToOpen] = useState(false);
+  const [copyFromOpen, setCopyFromOpen] = useState(false);
 
   useEffect(() => {
     if (!propertyId) return;
@@ -137,6 +141,84 @@ export default function PropertyContactDetails({ propertyId }: Props) {
     toast({ title: "Contacts saved", description: "Public contact details are now available via the API." });
   };
 
+  /** Replace the contact set on each selected sibling property with this property's contacts. */
+  const copyToPortfolio = async (targetIds: string[]) => {
+    if (!targetIds.length) return;
+    const payload = contacts.map((c, i) => ({
+      role: c.role,
+      name: c.name || null,
+      email: c.email || null,
+      phone: c.phone || null,
+      hours: c.hours || null,
+      is_public: c.is_public,
+      sort_order: i,
+    }));
+
+    const { error: delError } = await supabase
+      .from("property_contact_details")
+      .delete()
+      .in("property_id", targetIds);
+    if (delError) throw new Error(delError.message);
+
+    if (payload.length) {
+      const rows = targetIds.flatMap((pid) => payload.map((p) => ({ ...p, property_id: pid })));
+      const { error } = await supabase.from("property_contact_details").insert(rows);
+      if (error) throw new Error(error.message);
+    }
+
+    queryClient.invalidateQueries({ queryKey: ["property-readiness"] });
+    toast({
+      title: "Contacts copied",
+      description: `${payload.length} contact${payload.length === 1 ? "" : "s"} copied to ${targetIds.length} propert${targetIds.length === 1 ? "y" : "ies"}.`,
+    });
+  };
+
+  /** Pull the contact set from a sibling property into this one (saved immediately). */
+  const copyFromPortfolio = async (sourceId: string) => {
+    const { data, error } = await supabase
+      .from("property_contact_details")
+      .select("*")
+      .eq("property_id", sourceId)
+      .order("sort_order", { ascending: true });
+    if (error) throw new Error(error.message);
+
+    const source = (data as PropertyContact[]) || [];
+
+    const { error: delError } = await supabase
+      .from("property_contact_details")
+      .delete()
+      .eq("property_id", propertyId);
+    if (delError) throw new Error(delError.message);
+
+    let inserted: PropertyContact[] = [];
+    if (source.length) {
+      const rows = source.map((c, i) => ({
+        property_id: propertyId,
+        role: c.role,
+        name: c.name || null,
+        email: c.email || null,
+        phone: c.phone || null,
+        hours: c.hours || null,
+        is_public: c.is_public,
+        sort_order: i,
+      }));
+      const { data: newRows, error: insError } = await supabase
+        .from("property_contact_details")
+        .insert(rows)
+        .select("*")
+        .order("sort_order", { ascending: true });
+      if (insError) throw new Error(insError.message);
+      inserted = (newRows as PropertyContact[]) || [];
+    }
+
+    setContacts(inserted);
+    queryClient.invalidateQueries({ queryKey: ["property-readiness"] });
+    toast({
+      title: "Contacts copied in",
+      description: `${inserted.length} contact${inserted.length === 1 ? "" : "s"} pulled from the selected property.`,
+    });
+  };
+
   if (loading) {
     return <div className="p-6 text-sm text-muted-foreground">Loading contact details…</div>;
   }
@@ -151,7 +233,27 @@ export default function PropertyContactDetails({ propertyId }: Props) {
             Only contacts marked <span className="font-medium text-foreground">Public</span> are exposed externally.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setCopyFromOpen(true)}
+            className="gap-1"
+          >
+            <Download className="h-3.5 w-3.5" />
+            Copy from portfolio
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setCopyToOpen(true)}
+            className="gap-1"
+          >
+            <Copy className="h-3.5 w-3.5" />
+            Copy to portfolio
+          </Button>
           <Button type="button" variant="outline" size="sm" onClick={addContact} className="gap-1">
             <Plus className="h-3.5 w-3.5" />
             Add contact
@@ -161,6 +263,24 @@ export default function PropertyContactDetails({ propertyId }: Props) {
           </Button>
         </div>
       </div>
+
+      <CopyToPortfolioDialog
+        open={copyToOpen}
+        onOpenChange={setCopyToOpen}
+        propertyId={propertyId}
+        itemLabel="these public contact details"
+        title="Copy contacts to portfolio"
+        description="Replace the public contact details on the selected properties with this property's contacts. Save any unsaved edits first."
+        onCopy={copyToPortfolio}
+      />
+      <CopyFromPortfolioDialog
+        open={copyFromOpen}
+        onOpenChange={setCopyFromOpen}
+        propertyId={propertyId}
+        title="Copy contacts from portfolio"
+        description="Replace this property's public contact details with those of another property in the portfolio."
+        onCopy={copyFromPortfolio}
+      />
 
       {contacts.length === 0 ? (
         <Card className="border-dashed">
