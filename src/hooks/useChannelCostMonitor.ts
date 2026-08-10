@@ -252,7 +252,7 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
 
       // Map each property to its RU owner/sub-user credentials. Prefer a direct
       // property_id match, then a portfolio match, then an owner_email match.
-      const accounts = (accountsRes?.data || []) as Array<{
+      const ruAccounts = (accountsRes?.data || []) as Array<{
         portfolio_id: string | null;
         property_id: string | null;
         owner_email: string | null;
@@ -261,21 +261,21 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
       }>;
       const accountByProperty = new Map<string, { ownerId: string | null; subUserId: string | null }>();
       for (const p of relevant) {
-        const direct = accounts.find((a) => a.property_id === p.id);
+        const direct = ruAccounts.find((a) => a.property_id === p.id);
         if (direct) {
           accountByProperty.set(p.id, { ownerId: direct.ru_owner_id, subUserId: direct.ru_user_id });
           continue;
         }
         const portfolioId = (membersRes.data || []).find((m) => m.property_id === p.id)?.portfolio_id;
         const portfolioMatch = portfolioId
-          ? accounts.find((a) => a.portfolio_id === portfolioId)
+          ? ruAccounts.find((a) => a.portfolio_id === portfolioId)
           : undefined;
         if (portfolioMatch) {
           accountByProperty.set(p.id, { ownerId: portfolioMatch.ru_owner_id, subUserId: portfolioMatch.ru_user_id });
           continue;
         }
         const emailMatch = p.owner_email
-          ? accounts.find((a) => (a.owner_email || "").toLowerCase() === p.owner_email!.toLowerCase())
+          ? ruAccounts.find((a) => (a.owner_email || "").toLowerCase() === p.owner_email!.toLowerCase())
           : undefined;
         accountByProperty.set(p.id, {
           ownerId: emailMatch?.ru_owner_id ?? null,
