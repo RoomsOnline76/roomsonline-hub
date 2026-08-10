@@ -1198,8 +1198,10 @@ Deno.serve(async (req) => {
             }),
           ]);
           const avbXml: string = avbRes.data?.raw_xml ?? "";
-          const prices = parseRuPricePoints(priceRes.data?.raw_xml ?? "");
+          const priceXml: string = priceRes.data?.raw_xml ?? "";
+          const prices = parseRuPricePoints(priceXml);
           const openDays = countRuOpenDays(avbXml);
+          const bookableWindow = findRuBookableWindow(avbXml, priceXml);
           return {
             ru_property_id: ruId,
             open_days: openDays,
@@ -1207,6 +1209,7 @@ Deno.serve(async (req) => {
             availability_ok: !!avbRes.data?.success && openDays > 0,
             availability_error: avbRes.error?.message ?? avbRes.data?.error?.message ?? null,
             prices_ok: !!priceRes.data?.success && prices.length > 0 && prices.every((price) => price > 0),
+            bookable_window: bookableWindow as RuBookableWindow,
           };
         }));
         const hasAvailability = unitProbes.every((probe) => probe.availability_ok);
