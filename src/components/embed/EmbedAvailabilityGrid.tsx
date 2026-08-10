@@ -298,28 +298,18 @@ export function EmbedAvailabilityGrid({
                       </td>
                     );
                   })}
-                  {onBook && (
+                  {onBook && !isNarrow && (
                     <td style={{ ...tdStyle, textAlign: "center" }}>
                       <button
                         onClick={() => onBook(room.roomId, room.roomName)}
                         title={`Book ${room.roomName}`}
-                        style={{
-                          background: brandColor,
-                          color: fontColor,
-                          border: "none",
-                          borderRadius: "2px",
-                          padding: "7px 12px",
-                          cursor: "pointer",
-                          fontSize: "10px",
-                          fontWeight: 700,
-                          textTransform: "uppercase",
-                          letterSpacing: "0.05em",
-                        }}
+                        style={bookButtonStyle}
                       >
                         Book
                       </button>
                     </td>
                   )}
+
                 </tr>
               ))
             )}
