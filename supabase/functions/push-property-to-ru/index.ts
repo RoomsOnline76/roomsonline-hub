@@ -1711,9 +1711,11 @@ async function verifyAvailability(
   windowFromRaw: string,
   windowTo: string,
   childAuth: Record<string, unknown> = {},
+  bookedNights: Set<string> = new Set<string>(),
 ): Promise<AvailabilityVerification> {
   const windowFrom = verificationStart(windowFromRaw);
-  const report: AvailabilityVerification = { checked: false, total_days: 0, matches: 0, mismatches: [] };
+  const report: AvailabilityVerification = { checked: false, total_days: 0, matches: 0, mismatches: [], booked_days_checked: 0, booked_days_open: [] };
+
   try {
     const { data, error } = await supabase.functions.invoke('rentalsunited-api', {
       body: { action: 'get_availability', ru_property_id: ruPropertyId, date_from: windowFrom, date_to: windowTo, ...childAuth },
