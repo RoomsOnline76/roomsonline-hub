@@ -14,7 +14,29 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 type AdapterStatus = "healthy" | "degraded" | "error";
-type PipelineStatus = "running" | "idle" | "error";
+type PipelineStatus = "running" | "healthy" | "overdue" | "idle" | "error";
+
+/**
+ * Pipelines are graded against the cadence they are actually scheduled at, not
+ * a flat "ran in the last hour" window — otherwise a 6-hourly cron looks Idle
+ * for five hours out of every six, and an event-driven pipeline (an email that
+ * only fires when a booking happens) looks Idle forever.
+ *
+ * `intervalMs: null` = event-driven, no schedule, never graded as overdue.
+ */
+const PIPELINE_CADENCE: Record<string, { intervalMs: number | null; label: string }> = {
+  prices_verification: { intervalMs: 6 * 60 * 60 * 1000, label: "scheduled · every 6 h" },
+  availability_verification: { intervalMs: 6 * 60 * 60 * 1000, label: "scheduled · every 6 h" },
+  ru_lead_lifecycle: { intervalMs: 30 * 60 * 1000, label: "scheduled · every 30 min" },
+  ru_reservations_poll: { intervalMs: 30 * 60 * 1000, label: "scheduled · every 30 min" },
+  content_sync: { intervalMs: 7 * 24 * 60 * 60 * 1000, label: "scheduled · weekly" },
+  reviews_sync: { intervalMs: 24 * 60 * 60 * 1000, label: "scheduled · daily" },
+  email_send: { intervalMs: null, label: "event-driven" },
+  property_notification_email: { intervalMs: null, label: "event-driven" },
+  payment_itn: { intervalMs: null, label: "event-driven" },
+  booking_push: { intervalMs: null, label: "event-driven" },
+};
+
 
 interface PmsAdapter {
   name: string;
@@ -37,9 +59,12 @@ interface SyncPipeline {
   name: string;
   status: PipelineStatus;
   lastRun: string | null;
-  runs24h: number;
-  failures24h: number;
+  runs7d: number;
+  failures7d: number;
+  cadenceLabel: string;
+  lastError: string | null;
 }
+
 
 interface SystemStatus {
   pmsAdapters: PmsAdapter[];
@@ -139,7 +164,7 @@ export function SystemOverviewTab() {
           .limit(2000),
         supabase
           .from("sync_logs")
-          .select("sync_type, external_system, status, created_at")
+          .select("sync_type, external_system, status, message, created_at")
           .gte("created_at", new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
           .order("created_at", { ascending: false })
           .limit(500),
@@ -245,26 +270,70 @@ export function SystemOverviewTab() {
       const apiCalls24h = (apiLogs || []).length;
       const apiErrors24h = (apiLogs || []).filter((r: any) => (r.status_code ?? 200) >= 500).length;
 
-      // ── Sync pipelines (real, from sync_logs) ──────────────────────────────
-      const pipelineMap = new Map<string, { runs: number; failures: number; last: string | null; lastStatus: string }>();
-      (syncRows || []).forEach((row: any) => {
-        const key = titleise(row.sync_type || "sync") +
-          (row.external_system ? ` · ${titleise(row.external_system)}` : "");
-        if (!pipelineMap.has(key)) {
-          pipelineMap.set(key, { runs: 0, failures: 0, last: row.created_at, lastStatus: row.status });
+      // ── Sync pipelines (real, from sync_logs, graded on cadence) ───────────
+      const pipelineMap = new Map<
+        string,
+        {
+          key: string;
+          runs: number;
+          failures: number;
+          last: string | null;
+          lastStatus: string;
+          lastError: string | null;
         }
-        const entry = pipelineMap.get(key)!;
+      >();
+      (syncRows || []).forEach((row: any) => {
+        const name = titleise(row.sync_type || "sync") +
+          (row.external_system ? ` · ${titleise(row.external_system)}` : "");
+        if (!pipelineMap.has(name)) {
+          pipelineMap.set(name, {
+            key: row.sync_type || "sync",
+            runs: 0,
+            failures: 0,
+            last: row.created_at,
+            lastStatus: row.status,
+            lastError:
+              row.status === "error" || row.status === "failed" ? row.message ?? null : null,
+          });
+        }
+        const entry = pipelineMap.get(name)!;
         entry.runs += 1;
         if (row.status === "error" || row.status === "failed") entry.failures += 1;
       });
 
       const syncPipelines: SyncPipeline[] = Array.from(pipelineMap.entries())
         .map(([name, e]) => {
-          const recent = e.last ? Date.now() - new Date(e.last).getTime() < 60 * 60 * 1000 : false;
-          const status: PipelineStatus =
-            e.lastStatus === "error" || e.lastStatus === "failed" ? "error" : recent ? "running" : "idle";
-          return { name, status, lastRun: e.last, runs24h: e.runs, failures24h: e.failures };
+          const cadence = PIPELINE_CADENCE[e.key];
+          const age = e.last ? Date.now() - new Date(e.last).getTime() : null;
+          const failed = e.lastStatus === "error" || e.lastStatus === "failed";
+
+          let status: PipelineStatus;
+          if (failed) {
+            status = "error";
+          } else if (age !== null && age < 5 * 60 * 1000) {
+            status = "running";
+          } else if (!cadence) {
+            // Unknown pipeline: fall back to the old "ran in the last hour" read.
+            status = age !== null && age < 60 * 60 * 1000 ? "running" : "idle";
+          } else if (cadence.intervalMs === null) {
+            status = "idle"; // event-driven, nothing to be late for
+          } else if (age === null || age > cadence.intervalMs * 1.25) {
+            status = "overdue";
+          } else {
+            status = "healthy";
+          }
+
+          return {
+            name,
+            status,
+            lastRun: e.last,
+            runs7d: e.runs,
+            failures7d: e.failures,
+            cadenceLabel: cadence?.label ?? "unscheduled",
+            lastError: e.lastError,
+          };
         })
+
         .sort((a, b) => (b.lastRun || "").localeCompare(a.lastRun || ""))
         .slice(0, 6);
 
@@ -331,8 +400,10 @@ export function SystemOverviewTab() {
     switch (s) {
       case "healthy": case "active": case "running":
         return <CheckCircle className="h-4 w-4 text-emerald-500" />;
-      case "degraded": case "idle":
+      case "degraded": case "overdue":
         return <Clock className="h-4 w-4 text-amber-500" />;
+      case "idle":
+        return <Clock className="h-4 w-4 text-muted-foreground" />;
       case "error":
         return <AlertTriangle className="h-4 w-4 text-destructive" />;
       default:
@@ -348,8 +419,11 @@ export function SystemOverviewTab() {
         return <Badge className="bg-blue-500/10 text-blue-600 border-blue-500/20">Running</Badge>;
       case "degraded":
         return <Badge variant="secondary">Degraded</Badge>;
+      case "overdue":
+        return <Badge className="bg-amber-500/10 text-amber-600 border-amber-500/20">Overdue</Badge>;
       case "idle":
-        return <Badge variant="outline">Idle</Badge>;
+        return <Badge variant="outline" className="text-muted-foreground">Idle</Badge>;
+
       case "error":
         return <Badge variant="destructive">Error</Badge>;
       default:
@@ -551,19 +625,26 @@ export function SystemOverviewTab() {
             ) : (
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {status.syncPipelines.map((pipeline) => (
-                  <div key={pipeline.name} className="flex items-center justify-between gap-3 p-4 rounded-lg border">
-                    <div className="flex min-w-0 items-center gap-3">
+                  <div key={pipeline.name} className="flex items-start justify-between gap-3 p-4 rounded-lg border">
+                    <div className="flex min-w-0 items-start gap-3">
                       {getStatusIcon(pipeline.status)}
                       <div className="min-w-0">
                         <p className="font-medium truncate">{pipeline.name}</p>
                         <p className="text-xs text-muted-foreground">
-                          {pipeline.runs24h} runs · {pipeline.failures24h} failed · {formatWhen(pipeline.lastRun)}
+                          {pipeline.cadenceLabel} · last {formatWhen(pipeline.lastRun)}
                         </p>
+                        <p className="text-xs text-muted-foreground">
+                          {pipeline.runs7d} runs · {pipeline.failures7d} failed (7 d)
+                        </p>
+                        {pipeline.lastError && (
+                          <p className="mt-1 text-xs text-destructive line-clamp-2">{pipeline.lastError}</p>
+                        )}
                       </div>
                     </div>
                     {getStatusBadge(pipeline.status)}
                   </div>
                 ))}
+
               </div>
             )}
           </CardContent>
