@@ -433,8 +433,10 @@ Deno.serve(async (req) => {
         status,
         units_changed: unitsChanged,
         listings: listingCount,
+        ari_push_error: ariPush,
         detail,
       });
+
     }
 
     // Re-activation resumes billing — always tell dev + finance.
