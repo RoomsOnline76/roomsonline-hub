@@ -288,7 +288,9 @@ Deno.serve(async (req) => {
       status: "updated" | "skipped" | "ru_failed";
       units_changed?: number;
       listings?: number;
+      ari_push_error?: string | null;
       detail?: string;
+
     }> = [];
 
     for (const p of (props || []) as Array<{
