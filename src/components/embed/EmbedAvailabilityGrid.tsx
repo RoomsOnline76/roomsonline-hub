@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, type CSSProperties } from "react";
 import { format, addDays, eachDayOfInterval, isBefore, startOfDay } from "date-fns";
 
 interface RoomAvailability {
