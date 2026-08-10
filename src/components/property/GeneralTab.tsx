@@ -538,6 +538,7 @@ export function GeneralTab(props: GeneralTabProps) {
             </CardHeader>
             <CardContent className="py-2 px-4 space-y-3">
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <p className="col-span-full text-[11px] text-muted-foreground">{CHANNEL_MANDATORY_LEGEND}</p>
                 <div className="flex flex-col gap-1">
                   <Label htmlFor="name" className="text-xs">Name *</Label>
                   <Input id="name" value={formData.name} onChange={(e) => handleInputChange("name", e.target.value)} placeholder="Property name" required disabled={isFieldPopulatedByPMS("name", selectedPMS)} className={cn("h-7 text-xs", getPMSFieldClass("name", selectedPMS), channelMandatoryClass("name"), isFieldPopulatedByPMS("name", selectedPMS) && "cursor-not-allowed")} />
