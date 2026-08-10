@@ -1,6 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import {
   mandatoryGaps,
+  localBookableWindowChecks,
   RU_MIN_AMENITIES,
   RU_MIN_IMAGES,
   RU_MIN_IMAGE_HEIGHT,
@@ -15,6 +16,7 @@ import {
   RU_MIN_ARRIVAL_INSTRUCTIONS,
 } from '../_shared/ruContentQuality.ts';
 import { evaluatePhases, phaseBlockedResponse, findOwnerAccount } from '../_shared/ruPhaseGate.ts';
+import { computeLocalBookableWindow } from '../_shared/ruLocalWindow.ts';
 import { resolveMcqChannelId } from '../_shared/ruMcq.ts';
 import { resolveRuAmenityIds } from '../_shared/ruAmenityMap.ts';
 import {
@@ -627,7 +629,13 @@ function buildValidation(payload: Record<string, any>): Record<string, unknown> 
     check_in_times_are_default: payload.check_in_times_are_default === true,
     // Photos (certification dimensions).
     images_meeting_cert_size: certSized,
-    images_meet_cert_size: images.length > 0 && certSized === images.length && unverified === 0,
+    images_measured_count: Math.max(0, images.length - unverified),
+    // Certification size is judged on the photos we could MEASURE. An unreadable URL
+    // (CORS / hotlink protection) must not hard-block onboarding — it is reported by the
+    // advisory "dimensions measured" check instead. Only a set where nothing at all could
+    // be measured stays blocking, because then the rule genuinely cannot be verified.
+    images_meet_cert_size:
+      images.length > 0 && images.length - unverified > 0 && certSized === images.length - unverified,
     smallest_image_width: smallestWidth,
     smallest_image_height: smallestHeight,
     has_main_image: images.some((i) => i.is_main),
@@ -3166,6 +3174,15 @@ Deno.serve(async (req) => {
         );
         precomputedGaps = mandatoryGaps(scored);
       }
+      // The bookable-window + MinStay rules are part of the same gate as the content rules,
+      // so the wizard and the live push cannot disagree about what "ready" means.
+      if (action !== 'refresh_ari') {
+        const localWindow = await computeLocalBookableWindow(supabase, property_id);
+        const windowGaps = localBookableWindowChecks(localWindow)
+          .filter((c) => c.mandatory && !c.passed)
+          .map((c) => c.detail ?? c.label);
+        precomputedGaps = [...precomputedGaps, ...windowGaps];
+      }
     } catch (e) {
       console.warn('[push-property-to-ru] Readiness pre-scoring failed:', e instanceof Error ? e.message : e);
     }
@@ -3602,6 +3619,7 @@ Deno.serve(async (req) => {
               images_meet_cert_size: everyFlag('images_meet_cert_size'),
               images_meeting_cert_size: units.reduce((s, u) => s + Number((u.validation as any).images_meeting_cert_size || 0), 0),
               images_size_unverified: units.reduce((s, u) => s + Number((u.validation as any).images_size_unverified || 0), 0),
+              images_measured_count: units.reduce((s, u) => s + Number((u.validation as any).images_measured_count || 0), 0),
               smallest_image_width: (() => {
                 const vals = units.map(u => Number((u.validation as any).smallest_image_width)).filter(n => Number.isFinite(n));
                 return vals.length ? Math.min(...vals) : null;

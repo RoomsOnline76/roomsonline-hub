@@ -82,6 +82,7 @@ export interface RuUnitValidation {
   name_issue_detail?: string | null;
   description_meets_cert?: boolean;
   images_meeting_cert_size?: number;
+  images_measured_count?: number;
   images_meet_cert_size?: boolean;
   smallest_image_width?: number | null;
   smallest_image_height?: number | null;
@@ -244,7 +245,7 @@ export function evaluateUnitChecks(
   // Certification dimensions: every photo must MEASURE at least 1024×768.
   add("images_meet_cert_size", "Photos", `Photos measured ≥ ${RU_CERT_MIN_IMAGE_WIDTH}×${RU_CERT_MIN_IMAGE_HEIGHT}px`,
     v.images_meet_cert_size !== false,
-    `${Math.max(0, (v.images_count ?? 0) - (v.images_meeting_cert_size ?? 0))} photo(s) are below ${RU_CERT_MIN_IMAGE_WIDTH}×${RU_CERT_MIN_IMAGE_HEIGHT}px${
+    `${Math.max(0, (v.images_measured_count ?? v.images_count ?? 0) - (v.images_meeting_cert_size ?? 0))} measured photo(s) are below ${RU_CERT_MIN_IMAGE_WIDTH}×${RU_CERT_MIN_IMAGE_HEIGHT}px${
       (v.smallest_image_width ?? null) != null ? ` (smallest measured ${v.smallest_image_width}×${v.smallest_image_height}px)` : ""
     }`,
     "Property → Images — re-upload larger versions");
@@ -339,6 +340,52 @@ export function mandatoryGaps(units: RuUnitInput[]): string[] {
   const summary = summarizeReadiness(units);
   return summary.checks.filter((c) => c.mandatory && !c.passed)
     .map((c) => `${c.unit ? `${c.unit}: ` : ""}${c.detail ?? c.label}`);
+}
+
+/**
+ * Pre-publish equivalent of `bookableWindowChecks`, scored on ROL'OS data instead of the
+ * live channel calendar. Used by the onboarding wizard and the live push gate so both agree
+ * before the property exists at the channel.
+ */
+export function localBookableWindowChecks(
+  window: {
+    ok: boolean;
+    start: string | null;
+    longest_run: number;
+    min_stay_set: boolean;
+    open_days: number;
+    unpriced_open_days: number;
+  },
+  unit?: string,
+): RuCheck[] {
+  return [
+    {
+      key: "bookable_window",
+      group: "Availability 365d",
+      label: `≥ ${RU_MIN_BOOKABLE_WINDOW} consecutive bookable days with a price (ROL'OS calendar)`,
+      mandatory: true,
+      passed: window.ok,
+      unit,
+      fix_hint: "Rate Manager → Calendar (availability) and Rates",
+      ...(window.ok
+        ? { detail: `Longest sellable run is ${window.longest_run} day(s) from ${window.start ?? "today"}` }
+        : {
+          detail: `Longest run of open, priced days in ROL'OS is ${window.longest_run} (need ${RU_MIN_BOOKABLE_WINDOW}); ${window.open_days} open day(s), ${window.unpriced_open_days} of them unpriced`,
+        }),
+    },
+    {
+      key: "min_stay_set",
+      group: "Availability 365d",
+      label: "MinStay authored in ROL'OS",
+      mandatory: true,
+      passed: window.min_stay_set,
+      unit,
+      fix_hint: "Rate Manager → Stay restrictions → Minimum stay",
+      ...(window.min_stay_set
+        ? {}
+        : { detail: "No minimum stay is authored on the calendar, stay restrictions or active rate plans" }),
+    },
+  ];
 }
 
 /**

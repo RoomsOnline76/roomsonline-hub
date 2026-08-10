@@ -60,6 +60,34 @@ interface LastMcq {
   ru_status_id: string | null;
 }
 
+/** "Data being sent" evidence for phase 2, as measured by the readiness scorer. */
+interface UnitEvidence {
+  unit: string | null;
+  description_chars: number | null;
+  images_count: number | null;
+  images_meeting_cert_size: number | null;
+  images_unmeasured: number | null;
+  smallest_image: string | null;
+  can_sleep_max: number | null;
+  total_bed_capacity: number | null;
+  bedroom_blocks: number | null;
+  arrival_instructions_chars: number | null;
+}
+
+interface WindowEvidence {
+  longest_run: number | null;
+  first_window: string | null;
+  min_stay_set: boolean | null;
+  open_days: number | null;
+}
+
+interface Readiness {
+  unit_count?: number;
+  mandatory_total?: number;
+  mandatory_passed?: number;
+  content_quality?: { units?: UnitEvidence[]; bookable_window?: WindowEvidence[] | null };
+}
+
 interface SalesChannel {
   channel_id: number;
   company_name: string | null;
@@ -101,6 +129,8 @@ export function RuOnboardingPipeline({ propertyId, readOnly = false, standalone 
   const [gate, setGate] = useState<Gate | null>(null);
   const [lastMcq, setLastMcq] = useState<LastMcq | null>(null);
   const [salesChannel, setSalesChannel] = useState<SalesChannel | null>(null);
+  const [readiness, setReadiness] = useState<Readiness | null>(null);
+  const [availabilitySource, setAvailabilitySource] = useState<"channel" | "local">("local");
   const [resolvingChannel, setResolvingChannel] = useState(false);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState<PhaseKey | null>(null);
@@ -125,8 +155,11 @@ export function RuOnboardingPipeline({ propertyId, readOnly = false, standalone 
           : data?.error?.message ?? "Could not load the onboarding status",
       );
       setGate(null);
+      setReadiness(null);
     } else {
       setGate(data.gate as Gate);
+      setReadiness((data.readiness ?? null) as Readiness | null);
+      setAvailabilitySource(data.availability_source === "channel" ? "channel" : "local");
       setLastMcq((data.last_mcq ?? null) as LastMcq | null);
       setSalesChannel((data.sales_channel ?? null) as SalesChannel | null);
     }
@@ -400,6 +433,35 @@ export function RuOnboardingPipeline({ propertyId, readOnly = false, standalone 
                       Linked RU OwnerID: <span className="font-medium text-foreground">{String(phase.detail.ru_owner_id)}</span>
                       {phase.key === "p4_verify" && ` · Verification: ${phase.detail.verified === true ? "passed" : "pending"}`}
                     </p>
+                  )}
+                  {phase.key === "p2_readiness" && readiness && (
+                    <div className="mt-2 space-y-1 rounded-md border border-border bg-muted/40 p-2 text-xs text-muted-foreground">
+                      <p className="font-medium text-foreground">
+                        Data that will be sent
+                        {typeof readiness.mandatory_total === "number" && (
+                          <> · {readiness.mandatory_passed ?? 0}/{readiness.mandatory_total} mandatory checks passed</>
+                        )}
+                      </p>
+                      {(readiness.content_quality?.units ?? []).map((u, i) => (
+                        <p key={`ev-${i}`}>
+                          <span className="font-medium text-foreground">{u.unit || "Property"}</span>
+                          {`: description ${u.description_chars ?? 0} chars · ${u.images_count ?? 0} photo(s)`}
+                          {typeof u.images_meeting_cert_size === "number" &&
+                            ` (${u.images_meeting_cert_size} ≥ 1024×768${u.images_unmeasured ? `, ${u.images_unmeasured} unmeasured` : ""})`}
+                          {u.smallest_image ? ` · smallest ${u.smallest_image}` : ""}
+                          {` · sleeps ${u.can_sleep_max ?? 0} in ${u.bedroom_blocks ?? 0} bedroom(s), beds for ${u.total_bed_capacity ?? 0}`}
+                          {` · arrival instructions ${u.arrival_instructions_chars ?? 0} chars`}
+                        </p>
+                      ))}
+                      {(readiness.content_quality?.bookable_window ?? []).map((w, i) => (
+                        <p key={`win-${i}`}>
+                          {`Bookable window: ${w.longest_run ?? 0} consecutive priced day(s)`}
+                          {w.first_window ? ` from ${w.first_window}` : ""}
+                          {` · ${w.open_days ?? 0} open day(s) · MinStay ${w.min_stay_set ? "set" : "missing"}`}
+                          {` · measured on the ${availabilitySource === "channel" ? "Channel Manager calendar" : "ROL'OS calendar (pre-publish)"}`}
+                        </p>
+                      ))}
+                    </div>
                   )}
                   {phase.blockers.length > 0 && (
                     <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-destructive">

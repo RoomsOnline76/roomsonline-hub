@@ -11,7 +11,8 @@
 //   wl_readiness     → per-property White-Label minimum inventory report
 //   user_management  → status of RU sub-user management (parked)
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { summarizeReadiness, bookableWindowChecks, type RuCheck, type RuUnitInput } from "../_shared/ruReadiness.ts";
+import { summarizeReadiness, bookableWindowChecks, localBookableWindowChecks, type RuCheck, type RuUnitInput } from "../_shared/ruReadiness.ts";
+import { computeLocalBookableWindow } from "../_shared/ruLocalWindow.ts";
 import { findRuBookableWindow, type RuBookableWindow } from "../_shared/ruContentQuality.ts";
 import { evaluatePhases, findOwnerAccount, resolvePortfolioId } from "../_shared/ruPhaseGate.ts";
 import { createRateResolver, describeCoverage } from "../_shared/rateResolution.ts";
@@ -1268,11 +1269,17 @@ Deno.serve(async (req) => {
         // The wizard must not block on a verification that only becomes possible AFTER
         // the push. Judge readiness on the local ROL'OS data instead.
         const localPricingReady = localCoverage ? localCoverage.complete !== false : true;
+        // Pre-publish the channel calendar cannot be read, so the SAME two rules
+        // (3 consecutive priced days + MinStay) are scored on the ROL'OS calendar.
+        const localWindow = await computeLocalBookableWindow(admin, p.id);
+        extraChecks.push(...localBookableWindowChecks(localWindow));
         extraChecks.push({
           key: "ari_availability", group: "Availability 365d",
           label: "Availability ready to push for the next 365 days",
-          mandatory: false, passed: true,
-          detail: "Local calendar ready — verified on Rentals United after the first push",
+          mandatory: false, passed: localWindow.open_days > 0,
+          detail: localWindow.open_days > 0
+            ? `${localWindow.open_days} open day(s) in the local calendar — verified on Rentals United after the first push`
+            : "No open day in the local calendar for the next 180 days",
           fix_hint: "Rate Manager → Calendar / availability",
         });
         extraChecks.push({
@@ -1284,7 +1291,7 @@ Deno.serve(async (req) => {
             : `Local rate coverage incomplete${localCoverage ? ` — ${localCoverage.summary}` : ""}`,
           fix_hint: "Calendar seasons & rates (first), then Rate Manager → Rates rack rate",
         });
-        ari = { rate_coverage: localCoverage, pending_publish: true };
+        ari = { rate_coverage: localCoverage, pending_publish: true, local_window: localWindow };
       }
 
 
@@ -1336,7 +1343,16 @@ Deno.serve(async (req) => {
             min_stay_set: probe.bookable_window?.min_stay_set ?? null,
             open_days: probe.bookable_window?.open_days ?? null,
           }))
-          : null,
+          : ((ari as Record<string, unknown> | null)?.local_window
+            ? [{
+              ru_property_id: null,
+              longest_run: (ari as any).local_window.longest_run ?? null,
+              first_window: (ari as any).local_window.start ?? null,
+              min_stay_set: (ari as any).local_window.min_stay_set ?? null,
+              open_days: (ari as any).local_window.open_days ?? null,
+              source: "local",
+            }]
+            : null),
       };
 
       return {
@@ -3442,8 +3458,24 @@ Deno.serve(async (req) => {
       let readiness: Record<string, unknown> | null = null;
       let gaps: string[] = [];
       let readinessUnknown = false;
+      // Probe the live channel calendar as soon as the property (or any unit) exists at the
+      // channel — otherwise the wizard would pass Phase 2 on rules the certification
+      // console then fails. Before the first push the local calendar is scored instead.
+      let hasChannelListing = Number((prop as any).rentalsunited_property_id ?? 0) > 0;
+      if (!hasChannelListing) {
+        const { data: liveUnits } = await admin
+          .from("hostfully_room_types")
+          .select("rentalsunited_property_id")
+          .eq("property_id", propertyId)
+          .not("rentalsunited_property_id", "is", null)
+          .limit(1);
+        hasChannelListing = (liveUnits ?? []).some(
+          (u: { rentalsunited_property_id: unknown }) => Number(u.rentalsunited_property_id) > 0,
+        );
+      }
+      const probeAri = body.probe_ari === false ? false : body.probe_ari === true || hasChannelListing;
       try {
-        readiness = await scoreProperty(prop as any, { probe_ari: body.probe_ari === true }) as any;
+        readiness = await scoreProperty(prop as any, { probe_ari: probeAri }) as any;
         // Only mandatory failures may block a phase — optional quality advice must not.
         gaps = ((readiness as any)?.blocking_gaps ?? []) as string[];
       } catch (_e) {
@@ -3485,7 +3517,16 @@ Deno.serve(async (req) => {
         }
       }
 
-      return json({ success: true, gate, readiness, last_mcq: mcq ?? null, sales_channel: salesChannel });
+      return json({
+        success: true,
+        gate,
+        readiness,
+        // Tells the wizard whether availability rules were judged on the live channel
+        // calendar or on the ROL'OS calendar (pre-publish).
+        availability_source: probeAri ? "channel" : "local",
+        last_mcq: mcq ?? null,
+        sales_channel: salesChannel,
+      });
     }
 
     // ── ensure_owner_account: Phase 1 sub-user (portfolio-first) ──
