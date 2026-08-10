@@ -467,8 +467,11 @@ const RU_ENDPOINT_REGISTRY: {
     rolos_surface: "ru-lead-lifecycle cron (30 min)", rolos_stream: "Leads — hold release & auto-withdraw", rolos_wired: true, sync_actions: ["lead_lifecycle", "reject_request"], max_age_hours: 24, note: "3-day hold, 14-day arrival withdrawal" },
   { rolos_via_cert: true, key: "reservation_idempotency", area: "reservations", label: "Reservation idempotency / RLNM replay", ru_method: "Pull_ListReservations_RQ / RLNM (idempotency)", direction: "pull", mandatory: false, implemented: true,
     rolos_surface: "RU console → Reservations panel → Idempotency test", rolos_stream: "Certification evidence", rolos_wired: true, sync_actions: ["reservation_idempotency_test", "rlnm_replay_test"], note: "Shared ingest path: notification + poll produce one booking" },
+  { key: "reservation_detail", area: "reservations", label: "Reservation detail by ID", ru_method: "Pull_GetReservationByID_RQ", direction: "pull", mandatory: true, implemented: true,
+    rolos_surface: "RU console → Reservations panel → Fetch from channel", rolos_stream: "Bookings inbound — single reservation detail", rolos_wired: true, sync_actions: ["reservation_detail_test", "get_reservation_by_id"], note: "Single-reservation detail for certification tests and support cases; also used by RLNM to reconcile empty StayInfos" },
   { rolos_via_cert: true, key: "creator_mapping", area: "reservations", label: "Channel creator mapping", ru_method: "Reservation Creator → sales channel", direction: "pull", mandatory: false, implemented: true,
     rolos_surface: "RU console → Reservations panel → Creator mapping", rolos_stream: "Bookings inbound — channel attribution", rolos_wired: true, sync_actions: ["creator_mapping_check", "pull_reservations"], note: "Maps the RU Creator account to a ROL'OS sales channel" },
+
 
   // ── lifecycle ──
   { key: "cancel", area: "lifecycle", label: "Cancel reservation", ru_method: "Push_CancelReservation_RQ", direction: "push", mandatory: true, implemented: true,
