@@ -209,7 +209,7 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
           .from("billing_global_defaults")
           .select("channel_manager_per_unit_fee, sort_order")
           .order("sort_order", { ascending: true }),
-        supabase.from("ru_owner_accounts").select("id, portfolio_id, property_id, owner_email"),
+        supabase.from("ru_owner_accounts").select("id, portfolio_id, property_id, owner_email, ru_owner_id, ru_user_id"),
       ]);
 
 
