@@ -36,7 +36,7 @@ Workbook status vocabulary: `to be certified`, `planned to implement`, `partiall
 | --- | --- | --- |
 | Dictionary methods cached and mapped | XML dictionaries | partially — amenities, locations, composition rooms cached |
 | Countries/regions/cities cached | `Pull_ListLocations_RQ` | to be certified (`list_locations`) |
-| Delta property push on change | `Push_PutProperty_RQ` | to be certified |
+| Delta property push on change | `Push_PutProperty_RQ` | implemented — `ru-static-delta` + `_shared/ruStaticDelta.ts` fingerprint static content and push `action: 'static_only'` from every PMS save path (property save, onboarding autosave, cancellation policy save) |
 | Full property push weekly | `Push_PutProperty_RQ` | to be certified (`cron-push-all-properties-to-ru`) |
 | Availability/changeover/min-stay push on event | `Push_PutAvbUnits_RQ` | open |
 | Availability push every 24h | `Push_PutAvbUnits_RQ` | open (`cron-refresh-ru-ari`) |
