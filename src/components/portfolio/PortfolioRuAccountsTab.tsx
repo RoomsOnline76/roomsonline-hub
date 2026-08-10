@@ -611,6 +611,27 @@ export function PortfolioRuAccountsTab() {
     },
   });
 
+  // Properties carrying a channel-manager listing (building-level or unit-level).
+  const { data: channelFootprint = [] } = useQuery({
+    queryKey: ["ru-channel-footprint"],
+    queryFn: async () => {
+      const [propRes, unitRes] = await Promise.all([
+        supabase.from("properties").select("id").not("rentalsunited_property_id", "is", null),
+        supabase
+          .from("hostfully_room_types")
+          .select("property_id")
+          .not("rentalsunited_property_id", "is", null),
+      ]);
+      const ids = new Set<string>();
+      ((propRes.data || []) as { id: string }[]).forEach((r) => ids.add(r.id));
+      ((unitRes.data || []) as { property_id: string | null }[]).forEach((r) => {
+        if (r.property_id) ids.add(r.property_id);
+      });
+      return Array.from(ids);
+    },
+  });
+  const channelFootprintIds = useMemo(() => new Set(channelFootprint), [channelFootprint]);
+
   const propById = useMemo(() => new Map(properties.map((p) => [p.id, p])), [properties]);
   const portfolioById = useMemo(() => new Map(portfolios.map((p) => [p.id, p])), [portfolios]);
 
