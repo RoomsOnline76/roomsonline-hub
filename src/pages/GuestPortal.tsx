@@ -9,9 +9,13 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, Calendar, MapPin, Users, CheckCircle, AlertTriangle, Shield } from "lucide-react";
 import { SmartCancelModal } from "@/components/guest/SmartCancelModal";
 import { format } from "date-fns";
+import { displayBookingReference } from "@/lib/bookingReference";
 
 interface BookingDetails {
   id: string;
+  rol_reference?: string | null;
+  rol_reference_legacy?: string | null;
+  external_reservation_id?: string | null;
   guest_name: string;
   guest_email_masked: string;
   check_in_date: string;
@@ -252,7 +256,7 @@ const GuestPortal: React.FC = () => {
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">Reference</p>
-                <p className="font-mono text-xs">{booking.id.substring(0, 8).toUpperCase()}</p>
+                <p className="font-mono text-xs">{displayBookingReference(booking)}</p>
               </div>
             </div>
 

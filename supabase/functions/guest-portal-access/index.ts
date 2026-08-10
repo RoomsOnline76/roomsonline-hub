@@ -210,7 +210,7 @@ Deno.serve(async (req) => {
       // Fetch booking details
       const { data: booking, error: bookingError } = await supabase
         .from("bookings")
-        .select("id, guest_name, guest_email, check_in_date, check_out_date, status, total_price, rooms, special_requests, adults, children, infants, teens, payment_status, cancellation_reason, property_id, property:properties!bookings_property_id_fkey(id, name, slug, city, country, brand_primary_color, brand_secondary_color, brand_font_color, brand_logo_url, brand_override_enabled, is_rol_property, experience_engine_enabled)")
+        .select("id, rol_reference, rol_reference_legacy, external_reservation_id, guest_name, guest_email, check_in_date, check_out_date, status, total_price, rooms, special_requests, adults, children, infants, teens, payment_status, cancellation_reason, property_id, property:properties!bookings_property_id_fkey(id, name, slug, city, country, brand_primary_color, brand_secondary_color, brand_font_color, brand_logo_url, brand_override_enabled, is_rol_property, experience_engine_enabled)")
         .eq("id", tokenRow.booking_id)
         .single();
 

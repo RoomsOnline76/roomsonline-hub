@@ -175,7 +175,7 @@ function generateItineraryEmail(itinerary: any, stays: Stay[], brand: ReturnType
             <td style="padding: 20px 40px;">
               <div style="background-color: #f8f9fa; border-radius: 8px; padding: 20px; text-align: center;">
                 <p style="margin: 0 0 5px; color: #666; font-size: 11px; text-transform: uppercase; letter-spacing: 1px;">Journey Reference</p>
-                <p style="margin: 0; color: ${brand.fontColor}; font-size: 22px; font-weight: 600; font-family: monospace;">${itinerary.id.substring(0, 8).toUpperCase()}</p>
+                <p style="margin: 0; color: ${brand.fontColor}; font-size: 22px; font-weight: 600; font-family: monospace;">${itinerary.rol_reference || itinerary.id.substring(0, 8).toUpperCase()}</p>
               </div>
             </td>
           </tr>
@@ -439,7 +439,7 @@ Deno.serve(async (req) => {
     if (brochureHtml) {
       emailPayload.attachments = [
         {
-          filename: `Journey-Brochure-${itinerary.id.substring(0, 8).toUpperCase()}.html`,
+          filename: `Journey-Brochure-${itinerary.rol_reference || itinerary.id.substring(0, 8).toUpperCase()}.html`,
           content: btoa(unescape(encodeURIComponent(brochureHtml))),
           content_type: "text/html",
         },

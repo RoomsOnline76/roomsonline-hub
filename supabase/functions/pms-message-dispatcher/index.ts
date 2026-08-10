@@ -52,7 +52,7 @@ function buildPlaceholderMap(reservation: any, guest: any, property: any): Recor
     check_in: reservation?.check_in_date || "",
     check_out: reservation?.check_out_date || "",
     reservation_id: reservation?.id || "",
-    confirmation_number: reservation?.confirmation_number || reservation?.id?.slice(0, 8)?.toUpperCase() || "",
+    confirmation_number: reservation?.rol_reference || reservation?.confirmation_number || reservation?.rol_reference_legacy || reservation?.external_reservation_id || "",
     total_amount: reservation?.total_amount ? Number(reservation.total_amount).toFixed(2) : "0.00",
     nights: reservation?.check_in_date && reservation?.check_out_date
       ? String(Math.ceil((new Date(reservation.check_out_date).getTime() - new Date(reservation.check_in_date).getTime()) / 86400000))
