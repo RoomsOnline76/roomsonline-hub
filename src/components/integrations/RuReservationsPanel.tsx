@@ -210,6 +210,103 @@ export function RuReservationsPanel({ properties }: { properties: PropertyOption
       </Card>
 
       <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Search className="h-4 w-4 text-primary" />
+            Reservation detail by ID
+          </CardTitle>
+          <CardDescription>
+            Pulls a single reservation straight from the channel (Pull_GetReservationByID_RQ) and compares
+            it with the stored booking. Read-only — nothing is written. Leave the ID blank to check the most
+            recent channel reservation for the selected property.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-end">
+            <div className="flex-1 space-y-1">
+              <span className="text-xs text-muted-foreground">Channel reservation ID (optional)</span>
+              <Input
+                value={detailId}
+                onChange={(e) => setDetailId(e.target.value)}
+                placeholder="e.g. 88123456"
+              />
+            </div>
+            <Button variant="outline" onClick={runDetail} disabled={detailLoading || (!propertyId && !detailId.trim())}>
+              {detailLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+              Fetch from channel
+            </Button>
+          </div>
+
+          {detail && (
+            <div className="space-y-3 rounded-md border p-3">
+              <div className="flex flex-wrap items-center gap-2">
+                {detail.skipped ? (
+                  <Badge variant="outline">Nothing to compare</Badge>
+                ) : detail.passed ? (
+                  <Badge className="gap-1"><CheckCircle2 className="h-3 w-3" /> Matches</Badge>
+                ) : (
+                  <Badge variant="destructive" className="gap-1"><AlertCircle className="h-3 w-3" /> Mismatch</Badge>
+                )}
+                <span className="text-xs text-muted-foreground">
+                  {detail.reason ?? detail.error ?? `Reservation ${detail.ru_reservation_id}`}
+                </span>
+              </div>
+
+              {detail.reservation && (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Field</TableHead>
+                      <TableHead>Channel</TableHead>
+                      <TableHead>ROL'OS</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    <TableRow>
+                      <TableCell>Guest</TableCell>
+                      <TableCell>{detail.reservation.guest_name ?? "—"}</TableCell>
+                      <TableCell>{detail.booking?.guest_name ?? "—"}</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell>Check-in</TableCell>
+                      <TableCell>{detail.reservation.date_from ?? "—"}</TableCell>
+                      <TableCell>{detail.booking?.check_in_date ?? "—"}</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell>Check-out</TableCell>
+                      <TableCell>{detail.reservation.date_to ?? "—"}</TableCell>
+                      <TableCell>{detail.booking?.check_out_date ?? "—"}</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell>Total</TableCell>
+                      <TableCell>{detail.reservation.total ?? "—"}</TableCell>
+                      <TableCell>{detail.booking?.total_amount ?? "—"}</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell>Channel listing / creator</TableCell>
+                      <TableCell>
+                        {detail.reservation.ru_property_id ?? "—"}
+                        {detail.reservation.creator ? ` · ${detail.reservation.creator}` : ""}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground text-xs">—</TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              )}
+
+              {detail.mismatches?.length > 0 && (
+                <ul className="list-disc pl-5 text-xs text-muted-foreground">
+                  {detail.mismatches.map((m) => <li key={m}>{m}</li>)}
+                </ul>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+
+
+      <Card>
         <CardHeader className="pb-3 flex flex-row items-start justify-between gap-3">
           <div>
             <CardTitle className="text-base">Channel creator mapping</CardTitle>
