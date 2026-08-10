@@ -1729,11 +1729,15 @@ async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRo
       availEntries = applyManualOverrides(availEntries, manual.overrides);
       result.manual_restrictions = manual.stats;
       console.log(`[pushARI] Pushing ${availEntries.length} availability entries (per-day rules: ${changeoverConfig.perDow ? 'yes' : 'no'}, default changeover: ${changeoverConfig.defaultCode}, manual override days: ${manual.stats.days})`);
-      const { data: availResult, error: availErr } = await supabase.functions.invoke('rentalsunited-api', {
-        body: { action: 'push_availability', ru_property_id: ruPropertyId, availability: availEntries, ...childAuth },
-      });
-      let availOk = !availErr && availResult?.success === true;
-      let availErrorMessage = availErr?.message || availResult?.error?.message || 'Unknown error';
+      const availAttempt = await invokeRuWithRetry(
+        supabase,
+        { action: 'push_availability', ru_property_id: ruPropertyId, availability: availEntries, ...childAuth },
+        { label: `push_availability ${ruPropertyId}` },
+      );
+      result.availability_attempts = availAttempt.attempts;
+      let availOk = availAttempt.ok;
+      let availErrorMessage = availAttempt.message || 'Unknown error';
+      if (!availOk && availAttempt.httpStatus) result.availability_http_status = availAttempt.httpStatus;
 
       // RU rejects the whole batch when any day it holds a confirmed reservation for would be
       // re-opened. Drop exactly those days (they are correctly booked out) and push the rest.
