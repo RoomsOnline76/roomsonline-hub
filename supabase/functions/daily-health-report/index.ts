@@ -438,6 +438,8 @@ function generateEmailHtml(
     <div style="background-color:${overallStatusColor}12;border-bottom:2px solid ${overallStatusColor};padding:12px 20px;">
       <strong style="color:${overallStatusColor};font-size:15px;">${getStatusEmoji(effectiveStatus)} ${overallStatusLabel}</strong>
       <span style="color:#6b7280;font-size:13px;"> · uptime ${uptimePercentage.toFixed(1)}% · components failing ${failedCount}/${totalComponents}${ruWl ? ` · pipelines failing ${failingPipelines.length}/${ruWl.actions.length} · channel success ${ruWl.success_rate.toFixed(1)}%` : ''}</span>
+    </div>
+
 
     ${criticalIssuesSection}
 
