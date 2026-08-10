@@ -1799,7 +1799,7 @@ async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRo
   const amenities = (property.amenities || {}) as Record<string, any>;
   const seasons = amenities.seasons as any[] | undefined;
   const seasonRates = amenities.season_rates as Record<string, any> | undefined;
-  const result: { availability_reserved_days?: number; availability_pushed?: boolean; prices_pushed?: boolean; availability_error?: string; prices_error?: string; availability_attempts?: number; prices_attempts?: number; availability_http_status?: number; prices_http_status?: number; availability_verification?: AvailabilityVerification; prices_verification?: PriceVerification; price_coverage?: Record<string, any>; availability_coverage?: Record<string, any>; manual_restrictions?: Record<string, any>; currency?: Record<string, any> } = {};
+  const result: { availability_reserved_days?: number; availability_pushed?: boolean; prices_pushed?: boolean; availability_error?: string; prices_error?: string; availability_attempts?: number; prices_attempts?: number; prices_payload?: { seasons: number; bytes: number; chunks?: number }; availability_http_status?: number; prices_http_status?: number; availability_verification?: AvailabilityVerification; prices_verification?: PriceVerification; price_coverage?: Record<string, any>; availability_coverage?: Record<string, any>; manual_restrictions?: Record<string, any>; currency?: Record<string, any> } = {};
 
   const today = new Date();
   const todayStr = today.toISOString().slice(0, 10);
@@ -2067,16 +2067,58 @@ async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRo
         };
       }
 
-      const priceAttempt = await invokeRuWithRetry(
+      // Payload diagnostics: an oversized price batch is the usual cause of a transport-level
+      // invoke failure, so record the shape and chunk large batches instead of sending one blob.
+      const payloadBytes = JSON.stringify(outboundPrices).length;
+      result.prices_payload = { seasons: outboundPrices.length, bytes: payloadBytes };
+      console.log(`[pushARI] RU ${ruPropertyId}: price payload ${outboundPrices.length} seasons / ${payloadBytes} bytes`);
+
+      const PRICE_CHUNK = 150;
+      const priceChunks: typeof outboundPrices[] = [];
+      for (let i = 0; i < outboundPrices.length; i += PRICE_CHUNK) {
+        priceChunks.push(outboundPrices.slice(i, i + PRICE_CHUNK));
+      }
+      let priceAttempt = await invokeRuWithRetry(
         supabase,
-        { action: 'push_prices', ru_property_id: ruPropertyId, prices: outboundPrices, ...childAuth },
+        { action: 'push_prices', ru_property_id: ruPropertyId, prices: priceChunks[0] ?? outboundPrices, ...childAuth },
         { label: `push_prices ${ruPropertyId}` },
       );
       result.prices_attempts = priceAttempt.attempts;
+      for (let c = 1; c < priceChunks.length && priceAttempt.ok; c++) {
+        const next = await invokeRuWithRetry(
+          supabase,
+          { action: 'push_prices', ru_property_id: ruPropertyId, prices: priceChunks[c], ...childAuth },
+          { label: `push_prices ${ruPropertyId} chunk ${c + 1}` },
+        );
+        result.prices_attempts = (result.prices_attempts ?? 0) + next.attempts;
+        if (!next.ok) priceAttempt = next;
+      }
+      if (priceChunks.length > 1) result.prices_payload.chunks = priceChunks.length;
+
+
 
       if (!priceAttempt.ok) {
-        result.prices_error = priceAttempt.message || 'Unknown error';
-        if (priceAttempt.httpStatus) result.prices_http_status = priceAttempt.httpStatus;
+        // A transport-level failure ("failed to send a request", worker shutdown) can happen AFTER
+        // the channel already accepted the push. Read the calendar back before declaring failure so
+        // a runtime hiccup does not report a false negative.
+        const transport = !priceAttempt.httpStatus || priceAttempt.httpStatus >= 500;
+        let recovered = false;
+        if (transport) {
+          try {
+            const check = await verifyPrices(supabase, ruPropertyId, outboundPrices, todayStr, oneYearStr, childAuth);
+            if (!check.error && check.mismatches.length === 0 && check.missing_dates.length === 0 && check.matches > 0) {
+              recovered = true;
+              result.prices_pushed = true;
+              result.prices_verification = check;
+              console.log(`[pushARI] RU ${ruPropertyId}: prices confirmed at the channel despite transport error — treating as pushed`);
+            }
+          } catch (_e) { /* fall through to the reported failure */ }
+        }
+        if (!recovered) {
+          result.prices_error = priceAttempt.message || 'Unknown error';
+          if (priceAttempt.httpStatus) result.prices_http_status = priceAttempt.httpStatus;
+        }
+
       } else {
         result.prices_pushed = true;
         // 7.2 — Verify prices post-push
@@ -3267,17 +3309,46 @@ Deno.serve(async (req) => {
         if (targets.length > 1) await new Promise((res) => setTimeout(res, 1000));
       }
 
+      // Transport-only failures ("Failed to send a request to the Edge Function", worker
+      // shutdown/boot) happen when a long multi-unit batch exhausts the invoked worker. They are
+      // not data defects, so give those targets one more pass after a cool-down before calling the
+      // refresh incomplete.
+      const isTransport = (r: Record<string, any>) => {
+        if (r.stale_listing) return false;
+        const status = r.prices_http_status ?? r.availability_http_status ?? null;
+        if (typeof status === 'number') return status >= 500;
+        const m = `${r.availability_error ?? ''} ${r.prices_error ?? ''}`.toLowerCase();
+        return /failed to send a request|worker|boot|timeout|timed out|shutdown|network|fetch failed|connection/.test(m);
+      };
+      const retryIdx = ariResults
+        .map((r, i) => ({ r, i }))
+        .filter(({ r }) => (r.availability_pushed !== true || r.availability_error || r.prices_error) && isTransport(r))
+        .map(({ i }) => i);
+      if (retryIdx.length > 0) {
+        await new Promise((res) => setTimeout(res, 4000));
+        for (const i of retryIdx) {
+          const t = targets[i];
+          console.warn(`[push-property-to-ru] Transport failure on "${t.label}" — second pass`);
+          const r2 = await pushARI(supabase, t.ru_id, property as PropertyRow, t.units, t.unit, childAuthPayload, currencyDecision);
+          if (r2.availability_pushed === true && !r2.availability_error && !r2.prices_error) {
+            ariResults[i] = { target: t.label, ru_property_id: t.ru_id, stale_listing: false, second_pass: true, ...r2 };
+          } else {
+            ariResults[i] = { ...ariResults[i], second_pass: true, second_pass_error: r2.availability_error || r2.prices_error || 'retry failed' };
+          }
+          if (retryIdx.length > 1) await new Promise((res) => setTimeout(res, 1500));
+        }
+      }
+
       const allOk = ariResults.every((r) => r.availability_pushed === true && !r.availability_error && !r.prices_error);
       const staleCount = ariResults.filter((r) => r.stale_listing).length;
       const failedTargets = ariResults.filter((r) => r.availability_pushed !== true || r.availability_error || r.prices_error);
       const failedCount = failedTargets.length;
       const allStale = !allOk && staleCount > 0 && staleCount === failedCount;
-      // After retries, a 5xx from the channel API is an upstream outage, not a data defect — code
-      // it distinctly so the health report can separate flaky upstream from real push failures.
-      const upstreamOnly = !allOk && !allStale && failedTargets.every((r) => {
-        const status = r.prices_http_status ?? r.availability_http_status ?? null;
-        return typeof status === 'number' && status >= 500;
-      });
+      // After retries, a 5xx or transport-level failure from the channel API is an upstream/runtime
+      // hiccup, not a data defect — code it distinctly so the health report and the channel monitor
+      // can separate a flaky upstream from a real push failure.
+      const upstreamOnly = !allOk && !allStale && failedTargets.every(isTransport);
+
       const errorCode = allOk
         ? null
         : allStale
