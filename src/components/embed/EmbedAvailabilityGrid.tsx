@@ -204,12 +204,30 @@ export function EmbedAvailabilityGrid({
             ) : (
               rooms.map((room) => (
                 <tr key={room.roomId}>
-                  <td style={{ ...tdStyle, textAlign: "left" }}>
+                  <td
+                    style={{
+                      ...tdStyle,
+                      textAlign: "left",
+                      ...(isNarrow
+                        ? { position: "sticky" as const, left: 0, background: "#fff", zIndex: 2 }
+                        : {}),
+                    }}
+                  >
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px" }}>
                       <span style={{ fontSize: "14px", color: brandColor, fontWeight: 500 }}>{room.roomName}</span>
                       <OccupancyIcons count={room.maxGuests || room.maxAdults || 2} />
                     </div>
+                    {onBook && isNarrow && (
+                      <button
+                        onClick={() => onBook(room.roomId, room.roomName)}
+                        title={`Book ${room.roomName}`}
+                        style={{ ...bookButtonStyle, marginTop: "8px", width: "100%" }}
+                      >
+                        Book
+                      </button>
+                    )}
                   </td>
+
                   {dates.map((d) => {
                     const key = format(d, "yyyy-MM-dd");
                     const rate = room.ratesByDate[key];
