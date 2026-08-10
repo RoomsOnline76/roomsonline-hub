@@ -539,10 +539,12 @@ function buildValidation(payload: Record<string, any>): Record<string, unknown> 
       rooms.length > 0 && rooms.every((r) => (r.amenities || []).length >= RU_MIN_AMENITIES),
 
     total_beds: totalBeds,
-    // RU White-Label minimum: beds must cover >= 50% of CanSleepMax.
-    beds_cover_half: totalBeds >= Math.ceil(Math.max(1, maxGuests) * RU_BED_COVERAGE),
-    // Advisory only (not an RU requirement): full 1-bed-per-guest coverage.
-    beds_meet_max_guests: totalBeds >= Math.max(1, maxGuests),
+    // Sleeping places implied by the bed configuration (a double sleeps 2).
+    total_bed_capacity: totalBedCapacity,
+    // RU White-Label minimum: sleeping places must cover >= 50% of CanSleepMax.
+    beds_cover_half: totalBedCapacity >= Math.ceil(Math.max(1, maxGuests) * RU_BED_COVERAGE),
+    // Advisory only: sleeping places cover every guest.
+    beds_meet_max_guests: totalBedCapacity >= Math.max(1, maxGuests),
     max_guests: maxGuests,
     // Composition: RU treats bathrooms and toilets as mandatory.
     has_bathrooms: (amenities || []).some((a: any) => a?.id === 81 && (a.count || 0) > 0),
