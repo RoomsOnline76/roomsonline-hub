@@ -1004,6 +1004,7 @@ export type Database = {
           rol_ref_kind: string | null
           rol_ref_origin: string | null
           rol_reference: string | null
+          rol_reference_legacy: string | null
           rolos_check_in_time: string | null
           rolos_check_out_time: string | null
           rolos_folio_id: string | null
@@ -1094,6 +1095,7 @@ export type Database = {
           rol_ref_kind?: string | null
           rol_ref_origin?: string | null
           rol_reference?: string | null
+          rol_reference_legacy?: string | null
           rolos_check_in_time?: string | null
           rolos_check_out_time?: string | null
           rolos_folio_id?: string | null
@@ -1184,6 +1186,7 @@ export type Database = {
           rol_ref_kind?: string | null
           rol_ref_origin?: string | null
           rol_reference?: string | null
+          rol_reference_legacy?: string | null
           rolos_check_in_time?: string | null
           rolos_check_out_time?: string | null
           rolos_folio_id?: string | null
@@ -2648,6 +2651,7 @@ export type Database = {
           guest_name: string | null
           guest_phone: string | null
           id: string
+          rol_reference: string | null
           session_id: string | null
           special_requests: string | null
           status: string
@@ -2668,6 +2672,7 @@ export type Database = {
           guest_name?: string | null
           guest_phone?: string | null
           id?: string
+          rol_reference?: string | null
           session_id?: string | null
           special_requests?: string | null
           status?: string
@@ -2688,6 +2693,7 @@ export type Database = {
           guest_name?: string | null
           guest_phone?: string | null
           id?: string
+          rol_reference?: string | null
           session_id?: string | null
           special_requests?: string | null
           status?: string
@@ -2781,6 +2787,27 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      itinerary_reference_counters: {
+        Row: {
+          created_at: string
+          last_seq: number
+          scope: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          last_seq?: number
+          scope: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          last_seq?: number
+          scope?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       journals: {
         Row: {
@@ -15230,6 +15257,10 @@ export type Database = {
       }
       encrypt_sensitive_text: { Args: { plaintext: string }; Returns: string }
       encrypt_system_password: { Args: { plaintext: string }; Returns: string }
+      format_rol_booking_reference: {
+        Args: { _code: string; _seq: number }
+        Returns: string
+      }
       generate_journal_slug: {
         Args: { journal_id: string; journal_title: string }
         Returns: string
@@ -15353,6 +15384,7 @@ export type Database = {
         Args: { _doc: string; _party_code: string; _period: string }
         Returns: string
       }
+      next_rol_itinerary_reference: { Args: never; Returns: string }
       nextval_subscription_invoice_number: { Args: never; Returns: number }
       resolve_property_owner_uuid: {
         Args: { _property_id: string }
