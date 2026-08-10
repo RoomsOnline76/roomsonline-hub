@@ -115,6 +115,27 @@ const RU_BED = {
 const RU_BED_AMENITY_IDS: number[] = Object.values(RU_BED);
 const RU_DEFAULT_BED_ID = RU_BED.double;
 
+/**
+ * How many people each RU bed type sleeps. Coverage is measured in SLEEPING PLACES,
+ * not bed count: 2 doubles + 2 singles = 6 people, not 4 beds.
+ */
+const RU_BED_SLEEPS: Record<number, number> = {
+  [RU_BED.single]: 1,
+  [RU_BED.twinPair]: 2,
+  [RU_BED.double]: 2,
+  [RU_BED.queen]: 2,
+  [RU_BED.king]: 2,
+  [RU_BED.bunk]: 2,
+  [RU_BED.sofaBed]: 1,
+  [RU_BED.doubleSofaBed]: 2,
+  [RU_BED.pullOut]: 1,
+  [RU_BED.dayBed]: 1,
+  [RU_BED.wallBed]: 1,
+  [RU_BED.cot]: 0,
+  [RU_BED.extra]: 1,
+};
+const sleepsForBedId = (id: number): number => RU_BED_SLEEPS[id] ?? 1;
+
 const BED_AMENITY_MAP: Record<string, number> = {
   single: RU_BED.single,
   twin: RU_BED.twin,
@@ -485,10 +506,13 @@ function buildValidation(payload: Record<string, any>): Record<string, unknown> 
   }
   const imageIssues: { url: string; reason: string }[] = (payload.image_issues || []) as { url: string; reason: string }[];
 
-  // Beds: RU requires beds to cover at least 50% of CanSleepMax.
-  const totalBeds = rooms.reduce((sum, r) =>
-    sum + (r.amenities || []).filter((a: any) => RU_BED_AMENITY_IDS.includes(Number(a.id)))
-      .reduce((s: number, a: any) => s + (a.count || 1), 0), 0);
+  // Beds: RU measures coverage in SLEEPING PLACES against CanSleepMax, so a double
+  // bed counts as 2 people. 2 doubles + 2 singles = 6 sleeping places (4 beds).
+  const bedEntries = rooms.flatMap((r) =>
+    (r.amenities || []).filter((a: any) => RU_BED_AMENITY_IDS.includes(Number(a.id))));
+  const totalBeds = bedEntries.reduce((s: number, a: any) => s + (a.count || 1), 0);
+  const totalBedCapacity = bedEntries.reduce(
+    (s: number, a: any) => s + sleepsForBedId(Number(a.id)) * (a.count || 1), 0);
 
   const roomsWithAmenities = rooms.filter(r => (r.room_id || 0) > 0 && (r.amenities || []).length > 0).length;
 
@@ -515,10 +539,12 @@ function buildValidation(payload: Record<string, any>): Record<string, unknown> 
       rooms.length > 0 && rooms.every((r) => (r.amenities || []).length >= RU_MIN_AMENITIES),
 
     total_beds: totalBeds,
-    // RU White-Label minimum: beds must cover >= 50% of CanSleepMax.
-    beds_cover_half: totalBeds >= Math.ceil(Math.max(1, maxGuests) * RU_BED_COVERAGE),
-    // Advisory only (not an RU requirement): full 1-bed-per-guest coverage.
-    beds_meet_max_guests: totalBeds >= Math.max(1, maxGuests),
+    // Sleeping places implied by the bed configuration (a double sleeps 2).
+    total_bed_capacity: totalBedCapacity,
+    // RU White-Label minimum: sleeping places must cover >= 50% of CanSleepMax.
+    beds_cover_half: totalBedCapacity >= Math.ceil(Math.max(1, maxGuests) * RU_BED_COVERAGE),
+    // Advisory only: sleeping places cover every guest.
+    beds_meet_max_guests: totalBedCapacity >= Math.max(1, maxGuests),
     max_guests: maxGuests,
     // Composition: RU treats bathrooms and toilets as mandatory.
     has_bathrooms: (amenities || []).some((a: any) => a?.id === 81 && (a.count || 0) > 0),

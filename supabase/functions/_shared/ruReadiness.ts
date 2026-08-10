@@ -55,6 +55,7 @@ export interface RuUnitValidation {
   beds_meet_max_guests?: boolean;
   beds_cover_half?: boolean;
   total_beds?: number;
+  total_bed_capacity?: number;
   has_name?: boolean;
   has_object_type_id?: boolean;
   can_sleep_max_ok?: boolean;
@@ -160,15 +161,16 @@ export function evaluateUnitChecks(
   // it produced a permanent false "amenities < 10" gap on fully-completed units.
 
 
-  // RU White-Label minimum: beds must cover >= 50% of CanSleepMax. This is the only
-  // mandatory bed rule; 1-bed-per-guest is a quality warning, never a blocker.
-  add("beds_cover_half", "Rooms & beds", `Beds cover ≥ ${Math.round(RU_BED_COVERAGE * 100)}% of max guests`,
+  // RU White-Label minimum: sleeping places must cover >= 50% of CanSleepMax. Coverage
+  // is measured in people, not beds (a double sleeps 2). Full coverage is advisory.
+  const sleeps = v.total_bed_capacity ?? v.total_beds ?? 0;
+  add("beds_cover_half", "Rooms & beds", `Sleeping places cover ≥ ${Math.round(RU_BED_COVERAGE * 100)}% of max guests`,
     v.beds_cover_half !== false,
-    `Beds (${v.total_beds ?? 0}) cover less than half of max guests (${v.max_guests ?? 0}) — the Channel Manager requires ${Math.round(RU_BED_COVERAGE * 100)}%`,
+    `Beds sleep ${sleeps} of ${v.max_guests ?? 0} max guests — the Channel Manager requires ${Math.round(RU_BED_COVERAGE * 100)}%`,
     "Rooms → Unit → Bed configuration");
-  add("beds_meet_max_guests", "Rooms & beds", "Beds cover 100% of max guests (recommended)",
+  add("beds_meet_max_guests", "Rooms & beds", "Sleeping places cover 100% of max guests (recommended)",
     v.beds_meet_max_guests !== false,
-    `Beds (${v.total_beds ?? 0}) do not cover every guest (${v.max_guests ?? 0}) — not required by the Channel Manager, but improves channel quality`,
+    `Beds sleep ${sleeps} people but the unit takes ${v.max_guests ?? 0} guests — not required by the Channel Manager, but improves channel quality`,
     "Rooms → Unit → Bed configuration", false);
 
   // ── Photos ──
