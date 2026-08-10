@@ -1777,6 +1777,18 @@ async function verifyAvailability(
       }
       if (dayOk) report.matches++;
     }
+
+    // Sold nights are asserted explicitly: a 365/365 summary can hide a handful of nights that
+    // the channel still sells, which is exactly the failure guests double-book on.
+    for (const date of bookedNights) {
+      if (date < windowFrom || date > windowTo) continue;
+      report.booked_days_checked = (report.booked_days_checked ?? 0) + 1;
+      const got = returnedDays.get(date);
+      if (!got) continue; // outside the channel's returned window — nothing to assert
+      const closed = (got.reservations ?? 0) > 0 || (got.units ?? 0) === 0;
+      if (!closed) report.booked_days_open!.push(date);
+    }
+
   } catch (e) {
     report.error = e instanceof Error ? e.message : 'Unknown verification error';
   }
