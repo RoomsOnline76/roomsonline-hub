@@ -191,6 +191,7 @@ export default function AdminChannelMonitor() {
             <TabsTrigger value="cost">Cost &amp; listings</TabsTrigger>
             <TabsTrigger value="accounts">Accounts</TabsTrigger>
             <TabsTrigger value="cert">Certification</TabsTrigger>
+            <TabsTrigger value="reservations">Reservations</TabsTrigger>
           </TabsList>
 
           <TabsContent value="cost" className="space-y-4">
