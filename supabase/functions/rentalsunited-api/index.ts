@@ -543,6 +543,22 @@ ${statusXml}
 }
 
 
+/**
+ * `Pull_GetReservationByID_RQ` — full detail for one RU reservation.
+ *
+ * Required by certification's reservation-detail tests and by support cases where an
+ * operator needs the channel's own view of a single booking without pulling a whole
+ * date window. Must be called with the sub-user's credentials: a white-label account's
+ * reservation is invisible to the master account.
+ */
+function buildGetReservationByIdXml(creds: RUCredentials, reservationId: string): string {
+  return `<?xml version="1.0" encoding="utf-8"?>
+<Pull_GetReservationByID_RQ>
+  ${buildAuthXml(creds)}
+  <ReservationID>${escapeXml(reservationId)}</ReservationID>
+</Pull_GetReservationByID_RQ>`;
+}
+
 function buildGetLeadsXml(creds: RUCredentials, dateFrom: string, dateTo: string): string {
   return `<?xml version="1.0" encoding="utf-8"?>
 <Pull_GetLeads_RQ>
@@ -551,6 +567,7 @@ function buildGetLeadsXml(creds: RUCredentials, dateFrom: string, dateTo: string
   <DateTo>${normalizeRUDateTime(dateTo, true)}</DateTo>
 </Pull_GetLeads_RQ>`;
 }
+
 
 /**
  * Decline / withdraw an unconfirmed RU request. `Push_RejectRequest_RQ` is RU's preferred
