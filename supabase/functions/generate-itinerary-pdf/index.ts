@@ -566,8 +566,10 @@ interface BrochureEnhancements {
   poem: string | null;
   weather: WeatherDay[];
   voucher: { code: string; description: string } | null;
+  partnerOffersHTML?: string;
   destinationElaboration?: string; // NEW: Tiered destination content
 }
+
 
 // ============================================================================
 // DELIGHT ENGINE - Tiered Destination Sections
