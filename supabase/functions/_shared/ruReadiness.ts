@@ -7,6 +7,14 @@
 // The input is the `validation` object returned by push-property-to-ru's
 // dry run (per unit for multi-unit properties).
 
+import {
+  RU_CERT_MIN_DESCRIPTION,
+  RU_CERT_MIN_IMAGE_HEIGHT,
+  RU_CERT_MIN_IMAGE_WIDTH,
+  RU_MIN_ARRIVAL_INSTRUCTIONS,
+  RU_MIN_BOOKABLE_WINDOW,
+} from "./ruContentQuality.ts";
+
 export type RuCheckGroup =
   | "Content"
   | "Rooms & beds"
