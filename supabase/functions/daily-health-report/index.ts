@@ -21,7 +21,13 @@ async function generateAIDigest(
   failedCount: number,
   totalComponents: number,
   criticalIssues: Array<{ component: string; message: string }>,
-  bookingStats: { total: number; confirmed: number; pending: number; failed: number }
+  bookingStats: { total: number; confirmed: number; pending: number; failed: number },
+  channelHealth: {
+    success_rate: number;
+    failing: Array<{ action: string; success_rate: number; failed: number; last_run: string | null }>;
+    recovered: Array<{ action: string; last_failure_at: string | null }>;
+    top_errors: Array<{ code: string; count: number; sample: string }>;
+  } | null,
 ): Promise<AIDigest | null> {
   const apiKey = Deno.env.get('LOVABLE_API_KEY');
   if (!apiKey) {
@@ -37,6 +43,12 @@ Uptime: ${uptimePercentage.toFixed(1)}%
 Failed Components: ${failedCount}/${totalComponents}
 Critical Issues: ${criticalIssues.length > 0 ? criticalIssues.map(i => `${i.component}: ${i.message}`).join('; ') : 'None'}
 Bookings (24h): ${bookingStats.total} total, ${bookingStats.confirmed} confirmed, ${bookingStats.pending} pending, ${bookingStats.failed} failed
+${channelHealth ? `Channel/distribution pipelines (24h): overall success ${channelHealth.success_rate.toFixed(1)}%
+Currently failing pipelines: ${channelHealth.failing.length > 0 ? channelHealth.failing.map(a => `${a.action} (${a.success_rate.toFixed(0)}% success, ${a.failed} failures, last run ${a.last_run || 'unknown'})`).join('; ') : 'None'}
+Recovered since last failure: ${channelHealth.recovered.length > 0 ? channelHealth.recovered.map(a => `${a.action} (last failed ${a.last_failure_at || 'unknown'})`).join('; ') : 'None'}
+Top channel errors: ${channelHealth.top_errors.length > 0 ? channelHealth.top_errors.map(e => `${e.code} ×${e.count} — ${e.sample}`).join('; ') : 'None'}` : 'Channel/distribution pipelines: no data in window'}
+
+Rules: never report all-clear while a pipeline above is listed as currently failing. Distinguish a currently failing pipeline from one that has recovered. Treat repeated upstream 5xx errors as a third-party outage, not a code defect.
 
 Respond with exactly this JSON format:
 {
