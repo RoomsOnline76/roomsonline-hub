@@ -75,6 +75,20 @@ export function EmbedAvailabilityGrid({
   const isHighlighted = (key: string) =>
     !!highlightRange && key >= highlightRange.from && key < highlightRange.to;
 
+  const bookButtonStyle: React.CSSProperties = {
+    background: brandColor,
+    color: fontColor,
+    border: "none",
+    borderRadius: "2px",
+    padding: "7px 12px",
+    cursor: "pointer",
+    fontSize: "10px",
+    fontWeight: 700,
+    textTransform: "uppercase",
+    letterSpacing: "0.05em",
+  };
+
+
   return (
     <div style={{ width: "100%", background: "#fff", padding: "4px 0 10px" }}>
       {highlightRange && (
