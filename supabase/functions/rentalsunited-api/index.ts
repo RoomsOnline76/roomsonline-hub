@@ -15,6 +15,30 @@ import {
 } from '../_shared/ruLnm.ts';
 import { extractAllBlocks, parseRuReservation } from '../_shared/ruReservationParsing.ts';
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { AsyncLocalStorage } from 'node:async_hooks';
+import { logRuExchange, newRuTraceId, type RuApiLogContext } from '../_shared/ruApiLog.ts';
+
+/**
+ * Request-scoped logging context for the durable RU exchange log.
+ *
+ * `AsyncLocalStorage` keeps the context correct when the isolate serves concurrent requests, so
+ * `callRentalsUnited()` can stay a two-argument helper across its ~40 call sites.
+ */
+const ruLogContext = new AsyncLocalStorage<RuApiLogContext>();
+
+let logClient: ReturnType<typeof createClient> | null = null;
+
+/** Service-role client used only to write `ru_api_log` (staff-read-only table). */
+function getLogClient() {
+  if (!logClient) {
+    logClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+    );
+  }
+  return logClient;
+}
+
 
 
 /**
@@ -239,6 +263,12 @@ interface RequestBody {
   date_to?: string;
   test_mode?: boolean;
   metadata?: Record<string, unknown>;
+  // Durable exchange log correlation (see _shared/ruApiLog.ts)
+  trace_id?: string;
+  parent_action?: string;
+  unit_id?: string;
+  ru_user_id?: string | number;
+
   // Push payloads
   property?: RUPropertyPayload;
   availability?: RUAvailabilityEntry[];
@@ -354,17 +384,47 @@ async function callRentalsUnited(creds: RUCredentials, xmlBody: string): Promise
   const compactRequestXml = compactXml(xmlBody);
   console.log(`[rentalsunited-api] Compact XML first 500: "${previewXml(sanitizeXmlForLogs(compactRequestXml), 500)}"`);
 
-  const response = await fetch(creds.endpoint, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/xml; charset=utf-8' },
-    body: compactRequestXml,
-  });
+  // Certification requirement: the full request, the full response and RU's ResponseID must be
+  // retrievable for >= 30 days. This is the single choke point for every outbound RU call, so the
+  // exchange is persisted here — including HTTP-level failures, which used to throw unrecorded.
+  const context = ruLogContext.getStore();
+  const startedAt = Date.now();
+  let httpStatus: number | null = null;
+  let responseText: string | null = null;
+  let errorMessage: string | null = null;
 
-  if (!response.ok) {
-    throw new Error(`RU API returned HTTP ${response.status}: ${await response.text()}`);
+  try {
+    const response = await fetch(creds.endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/xml; charset=utf-8' },
+      body: compactRequestXml,
+    });
+
+    httpStatus = response.status;
+    responseText = await response.text();
+
+    if (!response.ok) {
+      errorMessage = `RU API returned HTTP ${response.status}`;
+      throw new Error(`RU API returned HTTP ${response.status}: ${responseText}`);
+    }
+
+    return responseText;
+  } catch (err) {
+    errorMessage = errorMessage ?? (err instanceof Error ? err.message : String(err));
+    throw err;
+  } finally {
+    await logRuExchange(getLogClient(), {
+      ...(context ?? {}),
+      action: context?.parent_action ?? 'ru_api_call',
+      endpoint: creds.endpoint,
+      request_xml: compactRequestXml,
+      response_xml: responseText,
+      http_status: httpStatus,
+      success: !errorMessage,
+      elapsed_ms: Date.now() - startedAt,
+      error_message: errorMessage,
+    });
   }
-
-  return await response.text();
 }
 
 // ── Credential Loader ────────────────────────────────────────
@@ -1912,7 +1972,20 @@ Deno.serve(async (req) => {
     const body: RequestBody = await req.json();
     const { action, ru_property_id, date_from, date_to, test_mode, metadata } = body;
 
+    // Bind the durable-log context for this request. `enterWith` scopes it to the current async
+    // execution, so concurrent invocations in the same isolate never share context.
+    ruLogContext.enterWith({
+      trace_id: body.trace_id ?? newRuTraceId(),
+      parent_action: body.parent_action ?? `rentalsunited-api:${action}`,
+      property_id: body.property_id ?? body.property_uuid ?? null,
+      unit_id: body.unit_id ?? null,
+      ru_property_id: ru_property_id ?? null,
+      ru_owner_id: body.owner_id ?? null,
+      ru_user_id: body.ru_user_id ?? null,
+    });
+
     console.log(`[rentalsunited-api] Action: ${action}, test_mode: ${test_mode}`);
+
 
     const creds = await loadCredentials();
 

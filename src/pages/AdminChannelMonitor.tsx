@@ -29,9 +29,12 @@ const ChannelCertificationTab = lazy(() =>
 const RuReservationsPanel = lazy(() =>
   import("@/components/integrations/RuReservationsPanel").then((m) => ({ default: m.RuReservationsPanel })),
 );
+const RuApiLogPanel = lazy(() =>
+  import("@/components/admin/channel-monitor/RuApiLogPanel").then((m) => ({ default: m.RuApiLogPanel })),
+);
 
-type TabKey = "cost" | "accounts" | "cert" | "reservations";
-const TAB_KEYS: TabKey[] = ["cost", "accounts", "cert", "reservations"];
+type TabKey = "cost" | "accounts" | "cert" | "reservations" | "diagnostics";
+const TAB_KEYS: TabKey[] = ["cost", "accounts", "cert", "reservations", "diagnostics"];
 
 export default function AdminChannelMonitor() {
   const data = useChannelCostMonitor();
@@ -198,7 +201,9 @@ export default function AdminChannelMonitor() {
             <TabsTrigger value="accounts">Accounts</TabsTrigger>
             <TabsTrigger value="cert">Certification</TabsTrigger>
             <TabsTrigger value="reservations">Reservations</TabsTrigger>
+            <TabsTrigger value="diagnostics">Diagnostics</TabsTrigger>
           </TabsList>
+
 
           <TabsContent value="cost" className="space-y-4">
             {data.loading && data.properties.length === 0 ? (
@@ -246,7 +251,15 @@ export default function AdminChannelMonitor() {
               <RuReservationsPanel properties={reservationProperties} />
             </Suspense>
           </TabsContent>
+
+          {/* Durable request/response/ResponseID log — the evidence trail for support escalations. */}
+          <TabsContent value="diagnostics">
+            <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+              <RuApiLogPanel properties={reservationProperties} />
+            </Suspense>
+          </TabsContent>
         </Tabs>
+
       </div>
 
       <ArchivePropertyDialog

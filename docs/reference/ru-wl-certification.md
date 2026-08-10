@@ -47,7 +47,7 @@ Workbook status vocabulary: `to be certified`, `planned to implement`, `partiall
 | Discounts pushed every 24h | same | to be certified |
 | Reservation pull at least daily | `Pull_ListReservations_RQ` | to be certified (`cron-pull-ru-reservations`, 30 min) |
 | RLNM handler URLs registered | `LNM_PutHandlerUrl_RQ` | to be certified (`ru-reservation-handler`, `ru-lnm-handler`) |
-| 30-day request/response logging incl. ResponseID | — | open — verify `ru_sync_runs` retention covers request/response/ResponseID |
+| 30-day request/response logging incl. ResponseID | `ru_api_log` (written by `callRentalsUnited` in `rentalsunited-api`, plus `ru-close-user` and `ru-whitelabel-token`) | **implemented** — every exchange stores the full request XML (credentials redacted), the full response, the `ResponseID`, status/HTTP codes and duration. Retention is 90 days via `expires_at` (30-day minimum comfortably met), pruned nightly by `cron-prune-ru-api-log`. Support staff retrieve an exchange by ResponseID at **/admin/channel-monitor → Diagnostics**, and export a request/response bundle per exchange. `ru_sync_runs.details.exchange_log` links each push run to its raw exchanges; inbound RLNM payloads remain in `ru_notifications.raw_xml`. |
 
 ## 3. Content quality (MCQ validators)
 

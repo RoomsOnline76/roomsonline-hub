@@ -13092,6 +13092,109 @@ export type Database = {
         }
         Relationships: []
       }
+      ru_api_log: {
+        Row: {
+          action: string
+          created_at: string
+          direction: string
+          elapsed_ms: number | null
+          endpoint: string | null
+          error_message: string | null
+          expires_at: string
+          http_status: number | null
+          id: string
+          parent_action: string | null
+          property_id: string | null
+          request_bytes: number | null
+          request_xml: string | null
+          response_bytes: number | null
+          response_id: string | null
+          response_xml: string | null
+          ru_owner_id: string | null
+          ru_property_id: string | null
+          ru_user_id: string | null
+          status_id: string | null
+          status_message: string | null
+          success: boolean
+          trace_id: string | null
+          unit_id: string | null
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          direction?: string
+          elapsed_ms?: number | null
+          endpoint?: string | null
+          error_message?: string | null
+          expires_at?: string
+          http_status?: number | null
+          id?: string
+          parent_action?: string | null
+          property_id?: string | null
+          request_bytes?: number | null
+          request_xml?: string | null
+          response_bytes?: number | null
+          response_id?: string | null
+          response_xml?: string | null
+          ru_owner_id?: string | null
+          ru_property_id?: string | null
+          ru_user_id?: string | null
+          status_id?: string | null
+          status_message?: string | null
+          success?: boolean
+          trace_id?: string | null
+          unit_id?: string | null
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          direction?: string
+          elapsed_ms?: number | null
+          endpoint?: string | null
+          error_message?: string | null
+          expires_at?: string
+          http_status?: number | null
+          id?: string
+          parent_action?: string | null
+          property_id?: string | null
+          request_bytes?: number | null
+          request_xml?: string | null
+          response_bytes?: number | null
+          response_id?: string | null
+          response_xml?: string | null
+          ru_owner_id?: string | null
+          ru_property_id?: string | null
+          ru_user_id?: string | null
+          status_id?: string | null
+          status_message?: string | null
+          success?: boolean
+          trace_id?: string | null
+          unit_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ru_api_log_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "ru_api_log_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ru_api_log_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ru_archive_events: {
         Row: {
           actor_email: string | null
