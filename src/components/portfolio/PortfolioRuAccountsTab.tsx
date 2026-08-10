@@ -759,7 +759,7 @@ export function PortfolioRuAccountsTab() {
         {[
           { value: accounts.length, label: "RU sub-accounts", focus: "accounts" },
           {
-            value: rows.reduce((sum, r) => sum + r.linked.length, 0),
+            value: footprintLinkedIds.size,
             label: "Properties under sub-accounts",
             focus: "sub-account-properties",
           },
