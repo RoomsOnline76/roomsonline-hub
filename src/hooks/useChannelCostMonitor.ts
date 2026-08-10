@@ -79,8 +79,10 @@ export interface ChannelCostMonitorData {
   effectiveRateEur: number | null;
   /** Channel-manager sub-accounts configured for the platform. */
   subAccounts: number;
-  /** Distinct properties sitting under a channel-manager sub-account. */
+  /** Sub-account properties that actually carry a channel-manager footprint. */
   subAccountProperties: number;
+  /** Sub-account properties with nothing on the channel manager yet. */
+  subAccountPropertiesWithoutFootprint: number;
   /** Trading properties inside the sub-account footprint with channel pushing on. */
   pushEnabledProperties: number;
   /** Trading properties pushing without any linked sub-account. */
