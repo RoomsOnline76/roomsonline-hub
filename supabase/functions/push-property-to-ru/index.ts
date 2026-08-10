@@ -1127,6 +1127,7 @@ function buildUnitPayload(
     check_in_from: checkInFrom,
     check_in_to: checkInTo,
     check_out_until: checkOutUntil,
+    check_in_times_are_default: checkInTimesAreDefault,
     check_in_place: 'at_the_apartment',
     building_id: buildingId,
     object_type_id: undefined as number | undefined, // populated by orchestrator after push_building
