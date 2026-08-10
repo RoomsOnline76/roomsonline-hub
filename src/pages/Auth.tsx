@@ -15,6 +15,9 @@ import { RecaptchaOverlay } from "@/components/RecaptchaOverlay";
 import { useAutoRecaptcha, useRecaptcha, useRecaptchaSiteKey } from "@/hooks/useRecaptcha";
 import { getRecaptchaMode } from "@/lib/recaptchaMode";
 import rolLogo from "@/assets/rol-logo.png";
+import { isGuestBookingHost } from "@/lib/guestDomain";
+import { GuestHostLanding } from "@/components/GuestHostLanding";
+
 
 function AuthContent() {
   const navigate = useNavigate();
