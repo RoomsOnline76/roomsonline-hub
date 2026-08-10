@@ -14,7 +14,7 @@ const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 const NOTIFY_RECIPIENTS = ["dev@roomsonline.co.za", "carike@roomsonline.co.za"];
 
 interface Body {
-  scope: "property" | "portfolio";
+  scope: "property" | "portfolio" | "unit";
   entity_id: string;
   enabled: boolean;
   /** Free-text audit note captured in the confirmation dialog. */
