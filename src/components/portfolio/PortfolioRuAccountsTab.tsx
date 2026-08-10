@@ -611,6 +611,27 @@ export function PortfolioRuAccountsTab() {
     },
   });
 
+  // Properties carrying a channel-manager listing (building-level or unit-level).
+  const { data: channelFootprint = [] } = useQuery({
+    queryKey: ["ru-channel-footprint"],
+    queryFn: async () => {
+      const [propRes, unitRes] = await Promise.all([
+        supabase.from("properties").select("id").not("rentalsunited_property_id", "is", null),
+        supabase
+          .from("hostfully_room_types")
+          .select("property_id")
+          .not("rentalsunited_property_id", "is", null),
+      ]);
+      const ids = new Set<string>();
+      ((propRes.data || []) as { id: string }[]).forEach((r) => ids.add(r.id));
+      ((unitRes.data || []) as { property_id: string | null }[]).forEach((r) => {
+        if (r.property_id) ids.add(r.property_id);
+      });
+      return Array.from(ids);
+    },
+  });
+  const channelFootprintIds = useMemo(() => new Set(channelFootprint), [channelFootprint]);
+
   const propById = useMemo(() => new Map(properties.map((p) => [p.id, p])), [properties]);
   const portfolioById = useMemo(() => new Map(portfolios.map((p) => [p.id, p])), [portfolios]);
 
@@ -707,6 +728,11 @@ export function PortfolioRuAccountsTab() {
     () => new Set(rows.flatMap((r) => r.linked.map((p) => p.id))),
     [rows]
   );
+  // Properties with nothing on the channel manager must not pad these counters.
+  const footprintLinkedIds = useMemo(
+    () => new Set([...linkedPropertyIds].filter((id) => channelFootprintIds.has(id))),
+    [linkedPropertyIds, channelFootprintIds]
+  );
   const totalPushEnabled = useMemo(
     () =>
       properties.filter(
@@ -714,9 +740,9 @@ export function PortfolioRuAccountsTab() {
           p.ru_push_enabled &&
           p.is_trading === true &&
           p.is_sandbox !== true &&
-          linkedPropertyIds.has(p.id)
+          footprintLinkedIds.has(p.id)
       ).length,
-    [properties, linkedPropertyIds]
+    [properties, footprintLinkedIds]
   );
 
   if (isLoading) {
@@ -733,7 +759,7 @@ export function PortfolioRuAccountsTab() {
         {[
           { value: accounts.length, label: "RU sub-accounts", focus: "accounts" },
           {
-            value: rows.reduce((sum, r) => sum + r.linked.length, 0),
+            value: footprintLinkedIds.size,
             label: "Properties under sub-accounts",
             focus: "sub-account-properties",
           },

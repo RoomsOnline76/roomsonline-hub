@@ -79,8 +79,10 @@ export interface ChannelCostMonitorData {
   effectiveRateEur: number | null;
   /** Channel-manager sub-accounts configured for the platform. */
   subAccounts: number;
-  /** Distinct properties sitting under a channel-manager sub-account. */
+  /** Sub-account properties that actually carry a channel-manager footprint. */
   subAccountProperties: number;
+  /** Sub-account properties with nothing on the channel manager yet. */
+  subAccountPropertiesWithoutFootprint: number;
   /** Trading properties inside the sub-account footprint with channel pushing on. */
   pushEnabledProperties: number;
   /** Trading properties pushing without any linked sub-account. */
@@ -165,6 +167,7 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
   const [accountFootprint, setAccountFootprint] = useState({
     subAccounts: 0,
     subAccountProperties: 0,
+    subAccountPropertiesWithoutFootprint: 0,
     pushEnabledProperties: 0,
     pushEnabledOutsideAccounts: 0,
   });
@@ -316,12 +319,22 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
         }
       }
 
+      // Only properties with an actual channel footprint belong in these counters —
+      // portfolio siblings with nothing on the channel manager would otherwise pad
+      // the denominator and make a healthy account look half-connected.
+      const footprintIds = new Set(relevant.map((p) => p.id));
+      const footprintSubAccountIds = new Set(
+        [...subAccountPropertyIds].filter((id) => footprintIds.has(id)),
+      );
+
       const pushEnabled = tradingProps.filter((p) => p.ru_push_enabled === true);
       setAccountFootprint({
         subAccounts: accounts.length,
-        subAccountProperties: subAccountPropertyIds.size,
-        pushEnabledProperties: pushEnabled.filter((p) => subAccountPropertyIds.has(p.id)).length,
-        pushEnabledOutsideAccounts: pushEnabled.filter((p) => !subAccountPropertyIds.has(p.id)).length,
+        subAccountProperties: footprintSubAccountIds.size,
+        subAccountPropertiesWithoutFootprint:
+          subAccountPropertyIds.size - footprintSubAccountIds.size,
+        pushEnabledProperties: pushEnabled.filter((p) => footprintSubAccountIds.has(p.id)).length,
+        pushEnabledOutsideAccounts: pushEnabled.filter((p) => !footprintSubAccountIds.has(p.id)).length,
       });
 
     } catch (e) {
