@@ -167,6 +167,7 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
   const [accountFootprint, setAccountFootprint] = useState({
     subAccounts: 0,
     subAccountProperties: 0,
+    subAccountPropertiesWithoutFootprint: 0,
     pushEnabledProperties: 0,
     pushEnabledOutsideAccounts: 0,
   });
