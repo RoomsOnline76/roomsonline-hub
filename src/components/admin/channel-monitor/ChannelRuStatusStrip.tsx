@@ -26,6 +26,13 @@ interface AccountLite {
   ru_api_keys_verified_at: string | null;
 }
 
+interface CredLite {
+  ru_owner_id: string | number | null;
+  access_key: string | null;
+  verified_at: string | null;
+}
+
+
 /** Names the first step in a run that did not pass, so the operator sees the blocker directly. */
 const firstProblemStep = (steps: unknown): { name: string; status: string } | null => {
   if (!Array.isArray(steps)) return null;
