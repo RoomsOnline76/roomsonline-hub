@@ -55,6 +55,7 @@ export interface RuUnitValidation {
   beds_meet_max_guests?: boolean;
   beds_cover_half?: boolean;
   total_beds?: number;
+  total_bed_capacity?: number;
   has_name?: boolean;
   has_object_type_id?: boolean;
   can_sleep_max_ok?: boolean;
