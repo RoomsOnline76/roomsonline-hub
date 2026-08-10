@@ -59,9 +59,12 @@ interface SyncPipeline {
   name: string;
   status: PipelineStatus;
   lastRun: string | null;
-  runs24h: number;
-  failures24h: number;
+  runs7d: number;
+  failures7d: number;
+  cadenceLabel: string;
+  lastError: string | null;
 }
+
 
 interface SystemStatus {
   pmsAdapters: PmsAdapter[];
