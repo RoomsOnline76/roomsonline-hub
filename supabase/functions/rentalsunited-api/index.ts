@@ -15,6 +15,30 @@ import {
 } from '../_shared/ruLnm.ts';
 import { extractAllBlocks, parseRuReservation } from '../_shared/ruReservationParsing.ts';
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { AsyncLocalStorage } from 'node:async_hooks';
+import { logRuExchange, newRuTraceId, type RuApiLogContext } from '../_shared/ruApiLog.ts';
+
+/**
+ * Request-scoped logging context for the durable RU exchange log.
+ *
+ * `AsyncLocalStorage` keeps the context correct when the isolate serves concurrent requests, so
+ * `callRentalsUnited()` can stay a two-argument helper across its ~40 call sites.
+ */
+const ruLogContext = new AsyncLocalStorage<RuApiLogContext>();
+
+let logClient: ReturnType<typeof createClient> | null = null;
+
+/** Service-role client used only to write `ru_api_log` (staff-read-only table). */
+function getLogClient() {
+  if (!logClient) {
+    logClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+    );
+  }
+  return logClient;
+}
+
 
 
 /**
