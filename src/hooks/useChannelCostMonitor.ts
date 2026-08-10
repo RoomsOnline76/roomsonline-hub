@@ -340,7 +340,7 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
       const tradingIds = new Set(tradingProps.map((p) => p.id));
 
       const subAccountPropertyIds = new Set<string>();
-      for (const acc of accounts) {
+      for (const acc of ruAccounts) {
         if (acc.portfolio_id) {
           membersRows
             .filter((m) => m.portfolio_id === acc.portfolio_id && tradingIds.has(m.property_id))
