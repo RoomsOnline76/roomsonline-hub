@@ -205,7 +205,11 @@ export async function ingestRuReservation(
   }
   base.propertyId = propertyId;
 
-  const kind = opts.forceRequest ? 'request' : classifyRuStatus(r.statusId);
+  // Modifications take the confirmed write path (the record is updated in place).
+  const resolvedKind: RuNotificationKind = opts.forceRequest
+    ? 'request'
+    : (opts.kind ?? classifyRuNotification('', r.statusId));
+  const kind = resolvedKind === 'modified' ? 'confirmed' : resolvedKind;
   const existing = await findExistingBooking(supabase, r.ruReservationId);
   base.deduped = Boolean(existing);
 
