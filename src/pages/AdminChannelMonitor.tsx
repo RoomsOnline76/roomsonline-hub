@@ -170,7 +170,8 @@ export default function AdminChannelMonitor() {
               busyUnitId={busyUnitId}
               onToggleUnit={handleToggleUnit}
               onArchive={(row) => setTarget({ row, mode: "archive" })}
-              onReactivate={(row) => setTarget({ row, mode: "reactivate" })}
+              onReactivate={(row) => void runPropertyToggle(row, "reactivate")}
+
             />
             <ChannelArchiveLog events={data.events} />
           </>
