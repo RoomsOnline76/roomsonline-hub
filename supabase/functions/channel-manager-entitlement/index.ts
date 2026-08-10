@@ -210,13 +210,38 @@ Deno.serve(async (req) => {
         unitDetail = flagErr.message;
       }
 
-      // Re-activating a unit on an archived building must unlock the building.
+      // Activation is one act: unlock the building, resume pushes and resync ARI.
+      let unitAri: string | null = null;
+      let unitAriRetryable = false;
       if (!unitArchive) {
         await admin
           .from("properties")
-          .update({ ru_archived: false, ru_archived_at: null })
-          .eq("id", unit.property_id)
-          .eq("ru_archived", true);
+          .update({ ru_archived: false, ru_archived_at: null, ru_push_enabled: true })
+          .eq("id", unit.property_id);
+
+        if (unitStatus !== "ru_failed") {
+          try {
+            const { data: ariRes, error: ariErr } = await admin.functions.invoke("push-property-to-ru", {
+              body: { property_id: unit.property_id, action: "refresh_ari", trigger: "channel_monitor_unit_activation" },
+            });
+            const res = ariRes as { success?: boolean; error?: { code?: string; message?: string } } | null;
+            if (ariErr) {
+              unitAri = ariErr.message;
+              unitAriRetryable = true;
+            } else if (res?.success === false) {
+              unitAri = res.error?.message ?? "ARI refresh reported a failure";
+              unitAriRetryable = res.error?.code === "RU_UPSTREAM_UNAVAILABLE";
+            }
+          } catch (e) {
+            unitAri = e instanceof Error ? e.message : "ARI refresh failed";
+            unitAriRetryable = true;
+          }
+          if (unitAri) {
+            unitDetail = `${unitDetail ? `${unitDetail}; ` : ""}${
+              unitAriRetryable ? "ARI re-push will retry" : "ARI re-push failed"
+            }: ${unitAri}`;
+          }
+        }
       }
 
       await admin.from("ru_archive_events").insert({
@@ -231,6 +256,7 @@ Deno.serve(async (req) => {
         ru_status: unitStatus,
         detail: unitDetail ?? null,
       });
+
 
       return new Response(
         JSON.stringify({
@@ -247,6 +273,9 @@ Deno.serve(async (req) => {
               status: unitStatus,
               units_changed: 1,
               detail: unitDetail,
+              ari_push_error: unitAri,
+              ari_push_retryable: unitAriRetryable,
+
             },
           ],
         }),

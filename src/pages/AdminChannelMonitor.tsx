@@ -52,10 +52,8 @@ export default function AdminChannelMonitor() {
   );
 
 
-  const handleConfirm = useCallback(
-    async (reason: string) => {
-      if (!target) return;
-      const { row, mode } = target;
+  const runPropertyToggle = useCallback(
+    async (row: ChannelPropertyRow, mode: "archive" | "reactivate", reason?: string) => {
       setBusyId(row.id);
       try {
         const { data: res, error } = await supabase.functions.invoke("channel-manager-entitlement", {
@@ -69,6 +67,7 @@ export default function AdminChannelMonitor() {
             reason: reason || undefined,
           },
         });
+
 
         if (error) throw new Error(error.message);
         const failed = (res as { failed?: number } | null)?.failed ?? 0;
@@ -116,8 +115,18 @@ export default function AdminChannelMonitor() {
         setBusyId(null);
       }
     },
-    [target, data],
+    [data],
   );
+
+  // Archiving asks for a reason (it stops selling); activation is a single click.
+  const handleConfirm = useCallback(
+    async (reason: string) => {
+      if (!target) return;
+      await runPropertyToggle(target.row, target.mode, reason);
+    },
+    [target, runPropertyToggle],
+  );
+
 
   const currentMonth = useMemo(() => data.forecast.month, [data.forecast.month]);
 
@@ -161,7 +170,8 @@ export default function AdminChannelMonitor() {
               busyUnitId={busyUnitId}
               onToggleUnit={handleToggleUnit}
               onArchive={(row) => setTarget({ row, mode: "archive" })}
-              onReactivate={(row) => setTarget({ row, mode: "reactivate" })}
+              onReactivate={(row) => void runPropertyToggle(row, "reactivate")}
+
             />
             <ChannelArchiveLog events={data.events} />
           </>
