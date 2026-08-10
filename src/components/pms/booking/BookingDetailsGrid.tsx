@@ -14,6 +14,7 @@ import { ViewRatesDialog } from "./ViewRatesDialog";
 import { useCrmAccounts, useCrmScopeForProperty, type CrmAccount } from "@/hooks/useCrmAccounts";
 import { BookerSegmentationFields, type BookerSegmentationValue } from "@/components/pms/crm/BookerSegmentationFields";
 import { resolveRuSourceChannel, ChannelLogo } from "@/lib/ruChannelDisplay";
+import { displayBookingReference } from "@/lib/bookingReference";
 
 
 export interface BookingDetailsGridBooking {
@@ -511,7 +512,7 @@ export function BookingDetailsGrid({
               })()}
             </div>
           </div>
-          <div className="flex justify-between"><span className="text-muted-foreground">Reference</span><span>#{booking.id.slice(0, 8)}</span></div>
+          <div className="flex justify-between"><span className="text-muted-foreground">Reference</span><span className="font-mono">{displayBookingReference(booking as never)}</span></div>
         </div>
 
         <div>
