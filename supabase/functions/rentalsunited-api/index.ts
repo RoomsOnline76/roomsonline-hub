@@ -1531,6 +1531,7 @@ const CHILD_SCOPED_ACTIONS = new Set([
   // Reservation / lead pulls are account-scoped: a white-label sub-user's bookings do NOT
   // appear in the master account's Pull_ListReservations_RQ response.
   'list_reservations',
+  'get_reservation_by_id',
   'get_leads',
   'reject_request',
   'cancel_reservation',
