@@ -3047,14 +3047,28 @@ Deno.serve(async (req) => {
 
       const allOk = ariResults.every((r) => r.availability_pushed === true && !r.availability_error && !r.prices_error);
       const staleCount = ariResults.filter((r) => r.stale_listing).length;
-      const failedCount = ariResults.filter((r) => r.availability_pushed !== true || r.availability_error || r.prices_error).length;
+      const failedTargets = ariResults.filter((r) => r.availability_pushed !== true || r.availability_error || r.prices_error);
+      const failedCount = failedTargets.length;
       const allStale = !allOk && staleCount > 0 && staleCount === failedCount;
-      const errorCode = allOk ? null : allStale ? 'RU_LISTING_STALE' : 'RU_ARI_REFRESH_INCOMPLETE';
+      // After retries, a 5xx from the channel API is an upstream outage, not a data defect — code
+      // it distinctly so the health report can separate flaky upstream from real push failures.
+      const upstreamOnly = !allOk && !allStale && failedTargets.every((r) => {
+        const status = r.prices_http_status ?? r.availability_http_status ?? null;
+        return typeof status === 'number' && status >= 500;
+      });
+      const errorCode = allOk
+        ? null
+        : allStale
+          ? 'RU_LISTING_STALE'
+          : upstreamOnly
+            ? 'RU_UPSTREAM_UNAVAILABLE'
+            : 'RU_ARI_REFRESH_INCOMPLETE';
+      const totalAttempts = ariResults.reduce((sum, r) => sum + (r.availability_attempts ?? 0) + (r.prices_attempts ?? 0), 0);
       const errorMessage = allOk
         ? null
         : allStale
           ? `${staleCount} listing(s) no longer exist at the Channel Manager — the stale mapping was cleared, run a full push to re-list.`
-          : ariResults.map((r) => r.availability_error || r.prices_error).filter(Boolean).join('; ');
+          : `${failedCount}/${ariResults.length} target(s) failed after retries: ${ariResults.map((r) => r.availability_error || r.prices_error).filter(Boolean).join('; ')}`;
       try {
         await supabase.from('ru_sync_runs').insert({
           batch_id: crypto.randomUUID(),
