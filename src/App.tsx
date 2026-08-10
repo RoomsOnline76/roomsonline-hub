@@ -10,6 +10,9 @@ import { ItineraryProvider } from "@/contexts/ItineraryContext";
 import { BehavioralMemoryProvider } from "@/contexts/BehavioralMemoryContext";
 import { RecaptchaProvider } from "@/components/RecaptchaProvider";
 import { ProtectedRoute } from "./components/ProtectedRoute";
+import { GuestHostLanding } from "./components/GuestHostLanding";
+import { isGuestBookingHost } from "./lib/guestDomain";
+
 import { AdminRouteLayout } from "./components/layout/AdminRouteLayout";
 import { DevRouteLayout } from "./components/layout/DevRouteLayout";
 import { Skeleton } from "@/components/ui/skeleton";
