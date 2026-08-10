@@ -259,11 +259,22 @@ function generateEmailHtml(
   devTasks: DevTask[],
   ruWl: RuWlMetrics | null
 ): string {
-  const overallStatusColor = getStatusColor(overallStatus);
-  const overallStatusLabel = overallStatus === 'healthy'
+  // A failing sync pipeline is a real outage even when every component probe is green — the
+  // headline must never read "All Systems Operational" while the channel strip says "Failing".
+  const failingPipelines = (ruWl?.actions ?? []).filter(a => a.current_ok === false);
+  const pipelineFailing = failingPipelines.length > 0;
+  const effectiveStatus = overallStatus === 'failed'
+    ? 'failed'
+    : pipelineFailing || overallStatus === 'degraded'
+      ? 'degraded'
+      : overallStatus;
+  const overallStatusColor = getStatusColor(effectiveStatus);
+  const overallStatusLabel = effectiveStatus === 'healthy'
     ? 'All Systems Operational'
-    : overallStatus === 'degraded'
-      ? 'Some Issues Detected'
+    : effectiveStatus === 'degraded'
+      ? pipelineFailing
+        ? `Degraded — ${failingPipelines.map(a => a.action).join(', ')} failing`
+        : 'Some Issues Detected'
       : 'Critical Issues';
 
   const card = 'background-color:#ffffff;border:1px solid #e5e7eb;border-radius:8px;';
