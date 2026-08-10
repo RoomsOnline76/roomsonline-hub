@@ -400,8 +400,10 @@ export function SystemOverviewTab() {
     switch (s) {
       case "healthy": case "active": case "running":
         return <CheckCircle className="h-4 w-4 text-emerald-500" />;
-      case "degraded": case "idle":
+      case "degraded": case "overdue":
         return <Clock className="h-4 w-4 text-amber-500" />;
+      case "idle":
+        return <Clock className="h-4 w-4 text-muted-foreground" />;
       case "error":
         return <AlertTriangle className="h-4 w-4 text-destructive" />;
       default:
@@ -417,8 +419,11 @@ export function SystemOverviewTab() {
         return <Badge className="bg-blue-500/10 text-blue-600 border-blue-500/20">Running</Badge>;
       case "degraded":
         return <Badge variant="secondary">Degraded</Badge>;
+      case "overdue":
+        return <Badge className="bg-amber-500/10 text-amber-600 border-amber-500/20">Overdue</Badge>;
       case "idle":
-        return <Badge variant="outline">Idle</Badge>;
+        return <Badge variant="outline" className="text-muted-foreground">Idle</Badge>;
+
       case "error":
         return <Badge variant="destructive">Error</Badge>;
       default:
