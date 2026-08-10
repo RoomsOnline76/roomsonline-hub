@@ -194,9 +194,29 @@ export function ChannelPropertyTable({ rows, fx, busyPropertyId, onArchive, onRe
                                   >
                                     {u.isActive ? "Billing" : "Inactive"}
                                   </Badge>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-6 px-1.5 text-[10px]"
+                                    disabled={busyUnitId === u.id}
+                                    onClick={() => onToggleUnit(row, u, !u.isActive)}
+                                  >
+                                    {u.isActive ? (
+                                      <>
+                                        <Archive className="mr-1 h-3 w-3" />
+                                        Deactivate
+                                      </>
+                                    ) : (
+                                      <>
+                                        <RotateCcw className="mr-1 h-3 w-3" />
+                                        Re-activate
+                                      </>
+                                    )}
+                                  </Button>
                                 </span>
                               </div>
                             ))}
+
                           </div>
                         )}
                         {row.archivedAt && (
