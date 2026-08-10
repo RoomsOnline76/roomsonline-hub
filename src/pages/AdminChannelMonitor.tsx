@@ -115,8 +115,18 @@ export default function AdminChannelMonitor() {
         setBusyId(null);
       }
     },
-    [target, data],
+    [data],
   );
+
+  // Archiving asks for a reason (it stops selling); activation is a single click.
+  const handleConfirm = useCallback(
+    async (reason: string) => {
+      if (!target) return;
+      await runPropertyToggle(target.row, target.mode, reason);
+    },
+    [target, runPropertyToggle],
+  );
+
 
   const currentMonth = useMemo(() => data.forecast.month, [data.forecast.month]);
 
