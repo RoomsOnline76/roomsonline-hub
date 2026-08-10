@@ -715,26 +715,31 @@ export function PortfolioRuAccountsTab() {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <Card>
-          <CardContent className="py-4">
-            <div className="text-2xl font-semibold">{accounts.length}</div>
-            <p className="text-xs text-muted-foreground">RU sub-accounts</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="py-4">
-            <div className="text-2xl font-semibold">
-              {rows.reduce((sum, r) => sum + r.linked.length, 0)}
-            </div>
-            <p className="text-xs text-muted-foreground">Properties under sub-accounts</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="py-4">
-            <div className="text-2xl font-semibold">{totalPushEnabled}</div>
-            <p className="text-xs text-muted-foreground">RU push enabled</p>
-          </CardContent>
-        </Card>
+        {[
+          { value: accounts.length, label: "RU sub-accounts", focus: "accounts" },
+          {
+            value: rows.reduce((sum, r) => sum + r.linked.length, 0),
+            label: "Properties under sub-accounts",
+            focus: "sub-account-properties",
+          },
+          { value: totalPushEnabled, label: "RU push enabled", focus: "push-enabled" },
+        ].map((card) => (
+          <RouterLink
+            key={card.focus}
+            to={`/admin/channel-monitor?focus=${card.focus}`}
+            className="block focus-visible:outline-none"
+          >
+            <Card className="transition-colors hover:border-primary">
+              <CardContent className="py-4">
+                <div className="text-2xl font-semibold">{card.value}</div>
+                <p className="text-xs text-muted-foreground">{card.label}</p>
+                <p className="mt-1 flex items-center gap-1 text-[10px] text-primary">
+                  Channel cost monitor <ChevronRight className="h-3 w-3" />
+                </p>
+              </CardContent>
+            </Card>
+          </RouterLink>
+        ))}
       </div>
 
       <div className="flex items-center justify-between gap-3 flex-wrap">
