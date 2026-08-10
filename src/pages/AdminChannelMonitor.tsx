@@ -233,6 +233,13 @@ export default function AdminChannelMonitor() {
               <ChannelCertificationTab />
             </Suspense>
           </TabsContent>
+
+          {/* Reservation ingest diagnostics + Pull_GetReservationByID lookup live in the same console. */}
+          <TabsContent value="reservations">
+            <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+              <RuReservationsPanel properties={reservationProperties} />
+            </Suspense>
+          </TabsContent>
         </Tabs>
       </div>
 
