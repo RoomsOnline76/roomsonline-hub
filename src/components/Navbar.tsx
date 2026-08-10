@@ -43,8 +43,9 @@ export const Navbar = () => {
                                  window.location.hostname === "book.sleepinafrica.roomsonline.co.za" ||
                                  window.location.hostname.includes("lovable.app") ||
                                  window.location.hostname === "localhost";
-  const isBookDomain = window.location.hostname === "book.sleepinafrica.roomsonline.co.za";
+  const isBookDomain = window.location.hostname === "book.sleepinafrica.roomsonline.co.za" || isGuestBookingHost();
   const isBookPage = isBookDomain || location.pathname === "/book" || location.pathname.startsWith("/book/");
+
   
   // Hide navbar completely on the public booking domain
   if (isBookDomain) {
