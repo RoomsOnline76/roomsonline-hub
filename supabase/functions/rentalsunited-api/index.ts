@@ -354,17 +354,47 @@ async function callRentalsUnited(creds: RUCredentials, xmlBody: string): Promise
   const compactRequestXml = compactXml(xmlBody);
   console.log(`[rentalsunited-api] Compact XML first 500: "${previewXml(sanitizeXmlForLogs(compactRequestXml), 500)}"`);
 
-  const response = await fetch(creds.endpoint, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/xml; charset=utf-8' },
-    body: compactRequestXml,
-  });
+  // Certification requirement: the full request, the full response and RU's ResponseID must be
+  // retrievable for >= 30 days. This is the single choke point for every outbound RU call, so the
+  // exchange is persisted here — including HTTP-level failures, which used to throw unrecorded.
+  const context = ruLogContext.getStore();
+  const startedAt = Date.now();
+  let httpStatus: number | null = null;
+  let responseText: string | null = null;
+  let errorMessage: string | null = null;
 
-  if (!response.ok) {
-    throw new Error(`RU API returned HTTP ${response.status}: ${await response.text()}`);
+  try {
+    const response = await fetch(creds.endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/xml; charset=utf-8' },
+      body: compactRequestXml,
+    });
+
+    httpStatus = response.status;
+    responseText = await response.text();
+
+    if (!response.ok) {
+      errorMessage = `RU API returned HTTP ${response.status}`;
+      throw new Error(`RU API returned HTTP ${response.status}: ${responseText}`);
+    }
+
+    return responseText;
+  } catch (err) {
+    errorMessage = errorMessage ?? (err instanceof Error ? err.message : String(err));
+    throw err;
+  } finally {
+    await logRuExchange(getLogClient(), {
+      ...(context ?? {}),
+      action: context?.parent_action ?? 'ru_api_call',
+      endpoint: creds.endpoint,
+      request_xml: compactRequestXml,
+      response_xml: responseText,
+      http_status: httpStatus,
+      success: !errorMessage,
+      elapsed_ms: Date.now() - startedAt,
+      error_message: errorMessage,
+    });
   }
-
-  return await response.text();
 }
 
 // ── Credential Loader ────────────────────────────────────────
