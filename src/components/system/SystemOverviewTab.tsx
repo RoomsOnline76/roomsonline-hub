@@ -270,26 +270,70 @@ export function SystemOverviewTab() {
       const apiCalls24h = (apiLogs || []).length;
       const apiErrors24h = (apiLogs || []).filter((r: any) => (r.status_code ?? 200) >= 500).length;
 
-      // ── Sync pipelines (real, from sync_logs) ──────────────────────────────
-      const pipelineMap = new Map<string, { runs: number; failures: number; last: string | null; lastStatus: string }>();
-      (syncRows || []).forEach((row: any) => {
-        const key = titleise(row.sync_type || "sync") +
-          (row.external_system ? ` · ${titleise(row.external_system)}` : "");
-        if (!pipelineMap.has(key)) {
-          pipelineMap.set(key, { runs: 0, failures: 0, last: row.created_at, lastStatus: row.status });
+      // ── Sync pipelines (real, from sync_logs, graded on cadence) ───────────
+      const pipelineMap = new Map<
+        string,
+        {
+          key: string;
+          runs: number;
+          failures: number;
+          last: string | null;
+          lastStatus: string;
+          lastError: string | null;
         }
-        const entry = pipelineMap.get(key)!;
+      >();
+      (syncRows || []).forEach((row: any) => {
+        const name = titleise(row.sync_type || "sync") +
+          (row.external_system ? ` · ${titleise(row.external_system)}` : "");
+        if (!pipelineMap.has(name)) {
+          pipelineMap.set(name, {
+            key: row.sync_type || "sync",
+            runs: 0,
+            failures: 0,
+            last: row.created_at,
+            lastStatus: row.status,
+            lastError:
+              row.status === "error" || row.status === "failed" ? row.message ?? null : null,
+          });
+        }
+        const entry = pipelineMap.get(name)!;
         entry.runs += 1;
         if (row.status === "error" || row.status === "failed") entry.failures += 1;
       });
 
       const syncPipelines: SyncPipeline[] = Array.from(pipelineMap.entries())
         .map(([name, e]) => {
-          const recent = e.last ? Date.now() - new Date(e.last).getTime() < 60 * 60 * 1000 : false;
-          const status: PipelineStatus =
-            e.lastStatus === "error" || e.lastStatus === "failed" ? "error" : recent ? "running" : "idle";
-          return { name, status, lastRun: e.last, runs24h: e.runs, failures24h: e.failures };
+          const cadence = PIPELINE_CADENCE[e.key];
+          const age = e.last ? Date.now() - new Date(e.last).getTime() : null;
+          const failed = e.lastStatus === "error" || e.lastStatus === "failed";
+
+          let status: PipelineStatus;
+          if (failed) {
+            status = "error";
+          } else if (age !== null && age < 5 * 60 * 1000) {
+            status = "running";
+          } else if (!cadence) {
+            // Unknown pipeline: fall back to the old "ran in the last hour" read.
+            status = age !== null && age < 60 * 60 * 1000 ? "running" : "idle";
+          } else if (cadence.intervalMs === null) {
+            status = "idle"; // event-driven, nothing to be late for
+          } else if (age === null || age > cadence.intervalMs * 1.25) {
+            status = "overdue";
+          } else {
+            status = "healthy";
+          }
+
+          return {
+            name,
+            status,
+            lastRun: e.last,
+            runs7d: e.runs,
+            failures7d: e.failures,
+            cadenceLabel: cadence?.label ?? "unscheduled",
+            lastError: e.lastError,
+          };
         })
+
         .sort((a, b) => (b.lastRun || "").localeCompare(a.lastRun || ""))
         .slice(0, 6);
 
