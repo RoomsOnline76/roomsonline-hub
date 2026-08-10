@@ -351,7 +351,24 @@ export function PartnerOffersTab({ propertyId }: { propertyId: string }) {
         </Table>
       )}
 
+      <CopyToPortfolioDialog
+        open={copyAll || !!copyId}
+        onOpenChange={(o) => {
+          if (!o) {
+            setCopyAll(false);
+            setCopyId(null);
+          }
+        }}
+        propertyId={propertyId}
+        itemLabel={copyAll ? `${offers.length} partner offers` : (copyRows[0]?.title ?? "this offer")}
+        title="Copy partner offers to portfolio"
+        onCopy={async (ids) => {
+          await copyToProperties(copyRows, ids);
+        }}
+      />
+
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle className="text-sm">
