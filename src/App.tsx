@@ -436,7 +436,7 @@ const App = () => (
                         <Route path="/compare-property-management-systems" element={<Navigate to="/how-our-booking-engine-works" replace />} />
 
                         {/* ═══ Catch-all ═════════════════════════════════ */}
-                        <Route path="*" element={isConnectDomain ? <Navigate to="/" replace /> : <NotFound />} />
+                        <Route path="*" element={isConnectDomain ? <Navigate to="/" replace /> : isGuestBookingHost() ? <GuestHostLanding /> : <NotFound />} />
                       </Routes>
                       )}
                     </Suspense>
