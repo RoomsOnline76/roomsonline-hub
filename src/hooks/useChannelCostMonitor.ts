@@ -250,6 +250,39 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
         );
       });
 
+      // Map each property to its RU owner/sub-user credentials. Prefer a direct
+      // property_id match, then a portfolio match, then an owner_email match.
+      const accounts = (accountsRes?.data || []) as Array<{
+        portfolio_id: string | null;
+        property_id: string | null;
+        owner_email: string | null;
+        ru_owner_id: string | null;
+        ru_user_id: string | null;
+      }>;
+      const accountByProperty = new Map<string, { ownerId: string | null; subUserId: string | null }>();
+      for (const p of relevant) {
+        const direct = accounts.find((a) => a.property_id === p.id);
+        if (direct) {
+          accountByProperty.set(p.id, { ownerId: direct.ru_owner_id, subUserId: direct.ru_user_id });
+          continue;
+        }
+        const portfolioId = (membersRes.data || []).find((m) => m.property_id === p.id)?.portfolio_id;
+        const portfolioMatch = portfolioId
+          ? accounts.find((a) => a.portfolio_id === portfolioId)
+          : undefined;
+        if (portfolioMatch) {
+          accountByProperty.set(p.id, { ownerId: portfolioMatch.ru_owner_id, subUserId: portfolioMatch.ru_user_id });
+          continue;
+        }
+        const emailMatch = p.owner_email
+          ? accounts.find((a) => (a.owner_email || "").toLowerCase() === p.owner_email!.toLowerCase())
+          : undefined;
+        accountByProperty.set(p.id, {
+          ownerId: emailMatch?.ru_owner_id ?? null,
+          subUserId: emailMatch?.ru_user_id ?? null,
+        });
+      }
+
       const draft = relevant.map((p) => {
         const units = (unitsByProperty.get(p.id) || []).filter((u) => !!u.rentalsunited_property_id);
         const archived = !!p.ru_archived || p.is_active === false;
@@ -262,6 +295,7 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
               ? 0
               : 1;
         const state: ChannelSyncState = archived ? "archived" : p.ru_push_enabled ? "live" : "paused";
+        const creds = accountByProperty.get(p.id) ?? { ownerId: null, subUserId: null };
 
         return {
           id: p.id,
@@ -281,6 +315,8 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
           lastPushAt: lastPush.get(p.id) ?? null,
           monthlyCostEur: 0,
           isTrading: p.is_trading === true && p.is_sandbox !== true,
+          ownerId: creds.ownerId,
+          subUserId: creds.subUserId,
         } satisfies ChannelPropertyRow;
       });
 
