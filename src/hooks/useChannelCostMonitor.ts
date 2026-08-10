@@ -333,11 +333,6 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
       setRolPerListingZar(perUnit != null ? Number(perUnit) : null);
 
       // Sub-account footprint — mirrors the Portfolio Management → Rentals United counters.
-      const accounts = (accountsRes?.data || []) as Array<{
-        portfolio_id: string | null;
-        property_id: string | null;
-        owner_email: string | null;
-      }>;
       const membersRows = (membersRes.data || []) as Array<{ property_id: string; portfolio_id: string }>;
       // Trading scope: sandbox/parked records must not inflate channel counters.
       const isTradingProp = (p: PropertyRecord) => p.is_trading === true && p.is_sandbox !== true;
