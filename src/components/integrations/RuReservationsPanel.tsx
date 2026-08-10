@@ -62,11 +62,41 @@ interface MappingRow {
   is_active: boolean;
 }
 
+interface ReservationDetailResult {
+  passed: boolean;
+  skipped?: boolean;
+  reason?: string | null;
+  error?: string | null;
+  ru_reservation_id: string;
+  mismatches: string[];
+  reservation: {
+    ru_reservation_id: string | null;
+    ru_property_id: string | null;
+    date_from: string | null;
+    date_to: string | null;
+    guest_name: string | null;
+    total: number | null;
+    creator: string | null;
+  } | null;
+  booking: {
+    guest_name: string | null;
+    check_in_date: string | null;
+    check_out_date: string | null;
+    total_amount: number | null;
+  } | null;
+}
+
 export function RuReservationsPanel({ properties }: { properties: PropertyOption[] }) {
   const [propertyId, setPropertyId] = useState<string>("");
   const [mode, setMode] = useState<"reservation_idempotency_test" | "rlnm_replay_test">("reservation_idempotency_test");
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<IdempotencyResult | null>(null);
+
+  const [detailId, setDetailId] = useState("");
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detail, setDetail] = useState<ReservationDetailResult | null>(null);
+
+
 
   const [loadingCreators, setLoadingCreators] = useState(false);
   const [creators, setCreators] = useState<CreatorRow[]>([]);
