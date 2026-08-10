@@ -145,17 +145,37 @@ export function evaluateUnitChecks(
   // ── Content ──
   add("has_name", "Content", "Property / unit name", !!v.has_name,
     "Name is missing or shorter than 3 characters", "Property → General → Name");
+  // Certification name hygiene: no emoji, no rejected special characters, not ALL CAPS.
+  add("name_clean", "Content", "Name passes channel naming rules", v.name_clean !== false,
+    `Name rejected: ${v.name_issue_detail ?? "contains emoji, special characters or ALL CAPS"}`,
+    "Property → General → Name");
   add("has_object_type_id", "Content", "Property type (ObjectTypeID)", !!v.has_object_type_id,
     "No property type selected", "Property → General → Property type");
   add("can_sleep_max_ok", "Content", "Max guests ≥ 1", !!v.can_sleep_max_ok,
     "CanSleepMax must be at least 1", "Rooms → Unit → Max guests");
   add("has_description", "Content", "Description present", v.has_description !== false,
     "Description is missing", "Property → Description");
-  // RU specifies no minimum description length — richer copy simply converts better.
   add("description_meets_recommended", "Content", "Description ≥ 100 characters (recommended)",
     v.description_meets_recommended !== false,
     `Description is only ${v.description_length ?? 0} characters — 100+ is recommended for channel quality`,
     "Property → Description", false);
+  // Certification gate: the channel content review requires 700+ characters.
+  add("description_meets_cert", "Content", `Description ≥ ${RU_CERT_MIN_DESCRIPTION} characters`,
+    v.description_meets_cert !== false,
+    `Description is ${v.description_length ?? 0} characters — the channel content review requires ${RU_CERT_MIN_DESCRIPTION}`,
+    "Property → Description");
+  add("has_check_in_from", "Content", "Check-in from time", v.has_check_in_from !== false,
+    "Check-in time is not set", "Property → House rules → Check-in");
+  add("has_check_out_until", "Content", "Check-out until time", v.has_check_out_until !== false,
+    "Check-out time is not set", "Property → House rules → Check-out");
+  add("check_in_times_authored", "Content", "Check-in / out times are authored (not defaults)",
+    v.check_in_times_are_default !== true,
+    `Sending the default ${v.check_in_from ?? "14:00"} / ${v.check_out_until ?? "10:00"} — confirm the real times`,
+    "Property → House rules → Check-in / Check-out", false);
+  add("has_arrival_instructions", "Content", "Arrival instructions populated",
+    v.has_arrival_instructions !== false,
+    `Arrival instructions are ${v.arrival_instructions_length ?? 0} characters — at least ${RU_MIN_ARRIVAL_INSTRUCTIONS} are required`,
+    "Property → House rules → Check-in instructions");
   // Space / floor are advisory: RU accepts an estimate, but we report when the
   // value being sent is our default rather than real property data.
   add("has_space", "Content", "Property size (Space)", !!v.has_space && v.space_is_default !== true,
