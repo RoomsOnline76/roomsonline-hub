@@ -1781,9 +1781,14 @@ const Booking = () => {
     sessionStorage.setItem(`booking_state_${property?.id}`, JSON.stringify(bookingState));
 
     // Persist current booking as a stay in the itinerary context (prevents loss on navigation)
+    const currentRoomIds = roomsWithDates.map(r => r.roomTypeId || '').filter(Boolean);
     const alreadyInItinerary = stays.some(
-      s => s.property_id === property?.id && s.dates.check_in === checkIn && s.dates.check_out === checkOut
+      s => s.property_id === property?.id &&
+        s.dates.check_in === checkIn &&
+        s.dates.check_out === checkOut &&
+        (currentRoomIds.length === 0 || s.rooms.some(r => currentRoomIds.includes(r.room_type_id)))
     );
+
     if (!alreadyInItinerary && property) {
       const numNights = checkIn && checkOut ? differenceInDays(parseISO(checkOut), parseISO(checkIn)) || 1 : 1;
       // Use preSelectedTotalCost or embed_rate as fallback when totalCost is 0 (Benson/ARI flows)
