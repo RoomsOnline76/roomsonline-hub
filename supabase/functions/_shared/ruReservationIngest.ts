@@ -445,7 +445,14 @@ export async function resolveRuOwnerIdForProperty(supabase: Db, propertyId: stri
 export async function refreshRuReservationById(
   supabase: Db,
   reservationId: string,
-  opts: { propertyId?: string | null; ownerId?: string | null; logPrefix?: string; forceRequest?: boolean } = {},
+  opts: {
+    propertyId?: string | null;
+    ownerId?: string | null;
+    logPrefix?: string;
+    forceRequest?: boolean;
+    /** Kind carried over from the RLNM envelope (cancel/modify envelopes lack a status id). */
+    kind?: RuNotificationKind;
+  } = {},
 ): Promise<RuIngestResult> {
   const log = opts.logPrefix || '[ru-ingest]';
   const { reservation, error } = await fetchRuReservationById(supabase, reservationId, opts);
