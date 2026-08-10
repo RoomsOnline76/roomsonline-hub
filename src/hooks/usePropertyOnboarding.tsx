@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { queueChannelContentSync } from "@/lib/channelContentSync";
 import { useToast } from "@/hooks/use-toast";
 import { 
   SCORE_WEIGHTS, 
@@ -482,6 +483,9 @@ export function usePropertyOnboarding(propertyId: string, initialOwnerEmail?: st
       try {
         const { error } = await supabase.from("properties").update(changesToSave).eq("id", propertyId);
         if (error) throw error;
+
+        // Static content changed in the PMS — push a delta to the Channel Manager.
+        void queueChannelContentSync(propertyId, "onboarding_save");
 
         setState(prev => {
           const newPropertyData = prev.propertyData ? { ...prev.propertyData, ...changesToSave } : null;

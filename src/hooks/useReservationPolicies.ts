@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { ManualCancellationRule } from "@/lib/cancellationPolicy";
 import { toLegacyAmenitiesShape, toHumanSummary } from "@/lib/cancellationPolicy";
+import { queueChannelContentSync } from "@/lib/channelContentSync";
 
 export interface ReservationPolicy {
   id: string;
@@ -97,6 +98,9 @@ export function useReservationPolicies(propertyId: string | undefined) {
         },
         { onConflict: "property_id,policy_type" },
       );
+
+      // Cancellation terms are static content on the channel — push a delta on change.
+      void queueChannelContentSync(propertyId, "cancellation_policy_save");
     },
     [propertyId],
   );
