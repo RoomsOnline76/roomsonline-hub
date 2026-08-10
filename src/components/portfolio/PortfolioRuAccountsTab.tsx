@@ -68,6 +68,8 @@ interface PropRow {
   city: string | null;
   ru_push_enabled: boolean | null;
   ru_archived?: boolean | null;
+  is_trading?: boolean | null;
+  is_sandbox?: boolean | null;
 }
 
 /**
@@ -602,7 +604,7 @@ export function PortfolioRuAccountsTab() {
     queryFn: async () => {
       const { data } = await supabase
         .from("properties")
-        .select("id, name, owner_email, city, ru_push_enabled, ru_archived")
+        .select("id, name, owner_email, city, ru_push_enabled, ru_archived, is_trading, is_sandbox")
         .eq("is_active", true)
         .order("name");
       return (data || []) as PropRow[];
@@ -699,9 +701,22 @@ export function PortfolioRuAccountsTab() {
     );
   }, [rows, search]);
 
+  // Scoped to the sub-account footprint and trading properties only, so this
+  // counter matches the Channel Cost Monitor card it links to.
+  const linkedPropertyIds = useMemo(
+    () => new Set(rows.flatMap((r) => r.linked.map((p) => p.id))),
+    [rows]
+  );
   const totalPushEnabled = useMemo(
-    () => properties.filter((p) => p.ru_push_enabled).length,
-    [properties]
+    () =>
+      properties.filter(
+        (p) =>
+          p.ru_push_enabled &&
+          p.is_trading === true &&
+          p.is_sandbox !== true &&
+          linkedPropertyIds.has(p.id)
+      ).length,
+    [properties, linkedPropertyIds]
   );
 
   if (isLoading) {
