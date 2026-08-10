@@ -197,6 +197,14 @@ export function ComponentHealthCard({
               </div>
             </div>
 
+            {/* Not verifiable note */}
+            {notVerifiedNote && (
+              <div className="bg-muted/50 border border-border rounded-lg p-3">
+                <h4 className="text-sm font-medium mb-1">Monitoring note</h4>
+                <p className="text-sm text-muted-foreground">{notVerifiedNote}</p>
+              </div>
+            )}
+
             {/* Last Error */}
             {lastError && (
               <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3">
