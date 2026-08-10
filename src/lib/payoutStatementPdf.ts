@@ -13,6 +13,7 @@ import {
   bookingLines,
   propertySubtotals,
   grossReceivedByRol,
+  round2,
   fmtMoney,
   periodLabel,
   type PayoutStatementDetail,
@@ -118,7 +119,7 @@ export function buildPayoutStatementPdf(
       "",
       money(statement.rol_commission),
       money(statement.transaction_fees),
-      money(statement.amount_held),
+      money(round2(bookings.reduce((sum, l) => sum + (Number(l.net_amount) || 0), 0))),
     ]],
     footStyles: { fillColor: [255, 255, 255], textColor: INK, fontStyle: "bold" },
   });
