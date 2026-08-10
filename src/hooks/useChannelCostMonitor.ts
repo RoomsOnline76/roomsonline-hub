@@ -77,6 +77,12 @@ export interface ChannelCostMonitorData {
   rolRevenueZar: number | null;
   /** Effective per-listing cost at the current tier, in EUR (null below the tier floor). */
   effectiveRateEur: number | null;
+  /** Channel-manager sub-accounts configured for the platform. */
+  subAccounts: number;
+  /** Distinct properties sitting under a channel-manager sub-account. */
+  subAccountProperties: number;
+  /** Properties with channel pushing switched on. */
+  pushEnabledProperties: number;
 }
 
 
@@ -90,6 +96,7 @@ interface PropertyRecord {
   ru_archived: boolean | null;
   ru_archived_at: string | null;
   rentalsunited_property_id: string | null;
+  owner_email?: string | null;
 }
 
 interface UnitRecord {
@@ -153,6 +160,11 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
   const [events, setEvents] = useState<ArchiveEventRow[]>([]);
   const [fx, setFx] = useState<FxRate | null>(null);
   const [rolPerListingZar, setRolPerListingZar] = useState<number | null>(null);
+  const [accountFootprint, setAccountFootprint] = useState({
+    subAccounts: 0,
+    subAccountProperties: 0,
+    pushEnabledProperties: 0,
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -161,11 +173,11 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
     setLoading(true);
     setError(null);
     try {
-      const [propsRes, unitsRes, membersRes, portfoliosRes, runsRes, eventsRes, fxRate, defaultsRes] =
+      const [propsRes, unitsRes, membersRes, portfoliosRes, runsRes, eventsRes, fxRate, defaultsRes, accountsRes] =
         await Promise.all([
         supabase
           .from("properties")
-          .select("id, name, is_active, is_trading, is_sandbox, ru_push_enabled, ru_archived, ru_archived_at, rentalsunited_property_id"),
+          .select("id, name, is_active, is_trading, is_sandbox, ru_push_enabled, ru_archived, ru_archived_at, rentalsunited_property_id, owner_email"),
         supabase
           .from("hostfully_room_types")
           .select("id, property_id, name, is_active, rentalsunited_property_id"),
@@ -187,6 +199,7 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
           .from("billing_global_defaults")
           .select("channel_manager_per_unit_fee, sort_order")
           .order("sort_order", { ascending: true }),
+        supabase.from("ru_owner_accounts").select("id, portfolio_id, property_id, owner_email"),
       ]);
 
 
@@ -273,6 +286,33 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
       const perUnit = defaultsRows.find((r) => (r.channel_manager_per_unit_fee ?? 0) > 0)?.channel_manager_per_unit_fee;
       setRolPerListingZar(perUnit != null ? Number(perUnit) : null);
 
+      // Sub-account footprint — mirrors the Portfolio Management → Rentals United counters.
+      const accounts = (accountsRes?.data || []) as Array<{
+        portfolio_id: string | null;
+        property_id: string | null;
+        owner_email: string | null;
+      }>;
+      const membersRows = (membersRes.data || []) as Array<{ property_id: string; portfolio_id: string }>;
+      const subAccountPropertyIds = new Set<string>();
+      for (const acc of accounts) {
+        if (acc.portfolio_id) {
+          membersRows
+            .filter((m) => m.portfolio_id === acc.portfolio_id)
+            .forEach((m) => subAccountPropertyIds.add(m.property_id));
+        } else if (acc.property_id) {
+          subAccountPropertyIds.add(acc.property_id);
+        } else if (acc.owner_email) {
+          allProps
+            .filter((p) => (p.owner_email || "").toLowerCase() === acc.owner_email!.toLowerCase())
+            .forEach((p) => subAccountPropertyIds.add(p.id));
+        }
+      }
+      setAccountFootprint({
+        subAccounts: accounts.length,
+        subAccountProperties: subAccountPropertyIds.size,
+        pushEnabledProperties: allProps.filter((p) => p.ru_push_enabled === true).length,
+      });
+
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load channel cost data");
     } finally {
@@ -325,6 +365,7 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
     fx,
     rolPerListingZar,
     rolRevenueZar,
+    ...accountFootprint,
     ...derived,
   };
 
