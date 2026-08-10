@@ -21,9 +21,11 @@ import { loadCurrencyState, revertAmount } from './ruCurrency.ts';
 import {
   applyRuAvailabilityBlock,
   buildRuChannelNotes,
+  classifyRuNotification,
   resolveRuUnit,
   type ParsedRuReservation,
   type ResolvedRuUnit,
+  type RuNotificationKind,
 } from './ruReservationParsing.ts';
 
 // deno-lint-ignore no-explicit-any
@@ -59,11 +61,14 @@ export interface RuCreatorMapping {
   ruChannelId: string | null;
 }
 
-/** RU status ids: 1 Confirmed · 2 Cancelled · 4 Request · 6 Approved · 7 Rejected · 8 Expired. */
+/**
+ * RU status ids: 1 Confirmed · 2 Cancelled · 3/5 Modified · 4 Request · 6 Approved · 7 Rejected · 8 Expired.
+ * Delegates to the shared envelope/status classifier so the RLNM handler, the poll and the
+ * certification runner can never disagree about what a status id means.
+ */
 export function classifyRuStatus(statusId: string | null): 'confirmed' | 'cancelled' | 'request' {
-  if (statusId === '2' || statusId === '7' || statusId === '8') return 'cancelled';
-  if (statusId === '1' || statusId === '6') return 'confirmed';
-  return 'request';
+  const kind = classifyRuNotification('', statusId);
+  return kind === 'modified' ? 'confirmed' : kind;
 }
 
 /**
@@ -159,6 +164,12 @@ export interface RuIngestOptions {
   source: 'rlnm' | 'poll' | 'cert';
   /** Treat the record as an unconfirmed lead regardless of status id (leads endpoint). */
   forceRequest?: boolean;
+  /**
+   * Kind resolved from the RLNM envelope (envelope name beats status id). When supplied it
+   * wins over the numeric status, so a cancellation envelope without a StatusID still
+   * cancels instead of re-opening a hold.
+   */
+  kind?: RuNotificationKind;
   /** Pre-resolved unit, when the caller already looked it up. */
   unit?: ResolvedRuUnit;
   /** Skip availability writes (certification dry runs). */
@@ -194,7 +205,11 @@ export async function ingestRuReservation(
   }
   base.propertyId = propertyId;
 
-  const kind = opts.forceRequest ? 'request' : classifyRuStatus(r.statusId);
+  // Modifications take the confirmed write path (the record is updated in place).
+  const resolvedKind: RuNotificationKind = opts.forceRequest
+    ? 'request'
+    : (opts.kind ?? classifyRuNotification('', r.statusId));
+  const kind = resolvedKind === 'modified' ? 'confirmed' : resolvedKind;
   const existing = await findExistingBooking(supabase, r.ruReservationId);
   base.deduped = Boolean(existing);
 
@@ -430,7 +445,14 @@ export async function resolveRuOwnerIdForProperty(supabase: Db, propertyId: stri
 export async function refreshRuReservationById(
   supabase: Db,
   reservationId: string,
-  opts: { propertyId?: string | null; ownerId?: string | null; logPrefix?: string; forceRequest?: boolean } = {},
+  opts: {
+    propertyId?: string | null;
+    ownerId?: string | null;
+    logPrefix?: string;
+    forceRequest?: boolean;
+    /** Kind carried over from the RLNM envelope (cancel/modify envelopes lack a status id). */
+    kind?: RuNotificationKind;
+  } = {},
 ): Promise<RuIngestResult> {
   const log = opts.logPrefix || '[ru-ingest]';
   const { reservation, error } = await fetchRuReservationById(supabase, reservationId, opts);
@@ -449,5 +471,6 @@ export async function refreshRuReservationById(
     source: 'rlnm',
     logPrefix: log,
     forceRequest: opts.forceRequest,
+    kind: opts.kind,
   });
 }
