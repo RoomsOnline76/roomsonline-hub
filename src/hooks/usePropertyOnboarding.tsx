@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { queueChannelContentSync } from "@/lib/channelContentSync";
 import { useToast } from "@/hooks/use-toast";
 import { 
   SCORE_WEIGHTS, 
