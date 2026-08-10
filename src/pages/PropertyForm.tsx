@@ -32,6 +32,8 @@ import type { WebsiteSyncSuggestion } from "@/components/property/WebsiteSyncMod
 
 import { CompanyInformationCard, type RuCompanyProfile } from "@/components/property/CompanyInformationCard";
 import { PropertyRuOwnerPanel } from "@/components/property/PropertyRuOwnerPanel";
+import { RuMcqPrompts } from "@/components/property/RuMcqPrompts";
+
 import { RolosOnboardingWizard } from "@/components/onboarding/rolos/RolosOnboardingWizard";
 
 
@@ -5477,6 +5479,10 @@ export default function PropertyForm({
                   />
 
                 )}
+
+                {/* Content quality review outcomes the owner can act on */}
+                {isEditMode && propertyId && <RuMcqPrompts propertyId={propertyId} />}
+
 
                 {/* Company Information — contract variables + banking + Rentals United profile */}
 

@@ -15,6 +15,7 @@
  */
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { KNOWN_LNM_CHANGE_TYPE_IDS } from '../_shared/ruLnm.ts';
+import { parseMcqFailingPoints } from '../_shared/ruMcq.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -128,11 +129,14 @@ Deno.serve(async (req) => {
                   change_id: changeId,
                   success: passed,
                   result: resultText,
+                  // Owner-facing prompts: the failing data points, split out of the free text.
+                  failing_points: passed ? [] : parseMcqFailingPoints(resultText),
                   received_at: new Date().toISOString(),
                 },
               }),
               updated_at: new Date().toISOString(),
             })
+
             .eq('id', order.id);
         }
 

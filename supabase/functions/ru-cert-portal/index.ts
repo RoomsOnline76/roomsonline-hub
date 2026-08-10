@@ -18,6 +18,7 @@ import { parseRuPricePoints, parseRuPriceSeasons } from "../_shared/ruPriceParsi
 
 import { countRuOpenDays, parseRuAvailabilityDays } from "../_shared/ruAvailabilityParsing.ts";
 import { DEFAULT_LNM_CHANGE_TYPES, diffLnmSubscriptions, parseLnmSubscriptions } from "../_shared/ruLnm.ts";
+import { classifyMcqOrder, parseMcqFailingPoints, resolveMcqChannelId, resolveMcqTargets } from "../_shared/ruMcq.ts";
 import {
   RU_EMPLOYEE_RANGES,
   RU_PROPERTY_RANGES,
@@ -4204,36 +4205,20 @@ Deno.serve(async (req) => {
       }
 
       /**
-       * MCQ is ordered per RU *listing*. A multi-unit property has no property-level
-       * PropertyID — each unit is its own RU listing — so resolve the unit-level IDs and
-       * order a check for every one of them. Pacing: RU tolerates ~1 write per sliding
-       * minute, so units are ordered sequentially through the paced `call` helper budget.
+       * MCQ is ordered per RU *listing*. Target resolution is centralised in
+       * `resolveMcqTargets`, which refuses an OwnerID or an unmapped listing ID — the two
+       * causes of the historical RU status 56 / 219 failures.
        */
-      const targets: Array<{ ru_property_id: string; label: string }> = [];
-      if (body.ru_property_id) {
-        targets.push({ ru_property_id: String(body.ru_property_id), label: prop.name ?? "Property" });
-      } else if (prop.rentalsunited_property_id) {
-        targets.push({ ru_property_id: String(prop.rentalsunited_property_id), label: prop.name ?? "Property" });
-      } else {
-        const { data: units } = await admin
-          .from("hostfully_room_types")
-          .select("name, rentalsunited_property_id")
-          .eq("property_id", propertyId)
-          .not("rentalsunited_property_id", "is", null);
-        for (const u of units ?? []) {
-          if (u.rentalsunited_property_id) {
-            targets.push({ ru_property_id: String(u.rentalsunited_property_id), label: u.name ?? "Unit" });
-          }
-        }
-      }
-
-      if (targets.length === 0) {
+      const { targets, error: targetError } = await resolveMcqTargets(
+        admin,
+        propertyId,
+        prop as { name?: string | null; rentalsunited_property_id?: string | number | null },
+        body.ru_property_id ?? null,
+      );
+      if (targetError || targets.length === 0) {
         return json({
           success: false,
-          error: {
-            code: "NO_RU_PROPERTY",
-            message: "No Rentals United PropertyID stored for this property or any of its units — push the inventory to Rentals United first, then use “Fetch RU IDs”.",
-          },
+          error: targetError ?? { code: "NO_RU_PROPERTY", message: "No listing to check." },
         }, 422);
       }
 
@@ -4242,8 +4227,14 @@ Deno.serve(async (req) => {
       const { account: mcqOwnerAccount } = await findOwnerAccount(admin, propertyId, null, null);
       const mcqOwnerId = Number(mcqOwnerAccount?.ru_owner_id ?? 0);
       const mcqScope = mcqOwnerId > 0 ? { owner_id: mcqOwnerId } : {};
-      // ChannelID is mandatory in the RU CM_LNM_* schema; allow an explicit override.
-      const mcqChannel = body.channel_id ? { channel_id: body.channel_id } : {};
+      // ChannelID is mandatory in the RU CM_LNM_* schema — resolve (and store) it up front
+      // instead of letting RU answer 219 for a stale value.
+      const mcqChannelResolved = await resolveMcqChannelId(admin, propertyId, body.channel_id ?? null);
+      if (!mcqChannelResolved.channel_id) {
+        return json({ success: false, error: mcqChannelResolved.error }, 422);
+      }
+      const mcqChannel = { channel_id: mcqChannelResolved.channel_id };
+
 
       const mcqResults: Array<{
         ru_property_id: string;
@@ -4311,6 +4302,167 @@ Deno.serve(async (req) => {
         results: mcqResults,
       });
     }
+
+    /**
+     * ── order_mcq_all: order the content quality check for EVERY published listing.
+     * Run before channel onboarding so no property is onboarded without a check.
+     * Batched: `limit` listings per invocation, `remaining` tells the caller to continue.
+     */
+    if (action === "order_mcq_all") {
+      const limit = Math.min(Math.max(Number(body.limit ?? 12), 1), 25);
+      const skip = Math.max(Number(body.skip ?? 0), 0);
+
+      const { data: props } = await admin
+        .from("properties")
+        .select("id, name, owner_email, is_active, is_sandbox, rentalsunited_property_id")
+        .eq("is_active", true)
+        .neq("is_sandbox", true)
+        .order("name");
+
+      type BulkTarget = { property_id: string; property_name: string; ru_property_id: string; label: string };
+      const queue: BulkTarget[] = [];
+      for (const p of (props ?? []) as Array<{ id: string; name?: string | null; rentalsunited_property_id?: string | null }>) {
+        const { targets } = await resolveMcqTargets(admin, p.id, p, null);
+        for (const t of targets) {
+          queue.push({ property_id: p.id, property_name: p.name ?? "Property", ru_property_id: t.ru_property_id, label: t.label });
+        }
+      }
+
+      const slice = queue.slice(skip, skip + limit);
+      const results: Array<Record<string, unknown>> = [];
+      for (const target of slice) {
+        const { account } = await findOwnerAccount(admin, target.property_id, null, null);
+        const ownerId = Number((account as { ru_owner_id?: unknown } | null)?.ru_owner_id ?? 0);
+        const channel = await resolveMcqChannelId(admin, target.property_id, null);
+        if (!channel.channel_id) {
+          results.push({ ...target, ok: false, error: channel.error?.message, code: channel.error?.code });
+          continue;
+        }
+        const { data: result, error: fnErr } = await admin.functions.invoke("rentalsunited-api", {
+          body: {
+            action: "order_mcq",
+            ru_property_id: target.ru_property_id,
+            property_id: target.property_id,
+            channel_id: channel.channel_id,
+            ...(ownerId > 0 ? { owner_id: ownerId } : {}),
+          },
+        });
+        const ok = !fnErr && (result as { success?: boolean } | null)?.success === true;
+        await admin.from("ru_mcq_orders").insert({
+          property_id: target.property_id,
+          ru_property_id: target.ru_property_id,
+          ordered_by: user.id,
+          status: ok ? "ordered" : "failed",
+          ru_status_id: (result as any)?.ru_status_id ?? (result as any)?.error?.ru_status_id ?? null,
+          response_preview: preview(result ?? fnErr?.message, 3000),
+        });
+        await admin.from("ru_sync_runs").insert({
+          batch_id: crypto.randomUUID(),
+          action: "order_mcq",
+          property_id: target.property_id,
+          ru_property_id: target.ru_property_id,
+          success: ok,
+          error_code: ok ? null : ((result as any)?.error?.code ?? "RU_MCQ_FAILED"),
+          error_message: ok ? null : (fnErr?.message ?? (result as any)?.error?.message ?? "Quality check order rejected"),
+          elapsed_ms: 0,
+          details: { scope: "order_mcq_all", ru_owner_id: ownerId || null, channel_id: channel.channel_id },
+        });
+        results.push({
+          ...target,
+          ok,
+          error: ok ? null : (fnErr?.message ?? (result as any)?.error?.message ?? null),
+          code: ok ? null : ((result as any)?.error?.code ?? null),
+        });
+        // RU tolerates roughly one write per method per sliding minute; pace the loop.
+        await new Promise((r) => setTimeout(r, 1500));
+      }
+
+      return json({
+        success: true,
+        total_listings: queue.length,
+        ordered_count: results.filter((r) => r.ok).length,
+        failed_count: results.filter((r) => !r.ok).length,
+        processed: slice.length,
+        next_skip: skip + slice.length,
+        remaining: Math.max(queue.length - (skip + slice.length), 0),
+        results,
+      });
+    }
+
+    /**
+     * ── mcq_report: aggregated content-quality report for account managers.
+     * One row per listing (newest order wins) plus roll-up counters.
+     */
+    if (action === "mcq_report") {
+      const { data: props } = await admin
+        .from("properties")
+        .select("id, name, is_active, is_sandbox, rentalsunited_property_id")
+        .eq("is_active", true)
+        .neq("is_sandbox", true)
+        .order("name");
+
+      const { data: orders } = await admin
+        .from("ru_mcq_orders")
+        .select("id, property_id, ru_property_id, status, ru_status_id, ordered_at, response_preview")
+        .order("ordered_at", { ascending: false })
+        .limit(500);
+
+      const newestByListing = new Map<string, any>();
+      for (const o of (orders ?? []) as any[]) {
+        const key = String(o.ru_property_id);
+        if (!newestByListing.has(key)) newestByListing.set(key, o);
+      }
+
+      const rows: Array<Record<string, unknown>> = [];
+      for (const p of (props ?? []) as Array<{ id: string; name?: string | null; rentalsunited_property_id?: string | null }>) {
+        const { targets } = await resolveMcqTargets(admin, p.id, p, null);
+        const { account } = await findOwnerAccount(admin, p.id, null, null);
+        const ownerId = (account as { ru_owner_id?: unknown } | null)?.ru_owner_id ?? null;
+        for (const t of targets) {
+          const order = newestByListing.get(t.ru_property_id) ?? null;
+          const outcome = classifyMcqOrder(order);
+          let failingPoints: string[] = [];
+          let ruResponseId: string | null = null;
+          const raw = String(order?.response_preview ?? "");
+          if (raw) {
+            ruResponseId = /<ResponseID>([^<]+)</i.exec(raw)?.[1] ?? null;
+            try {
+              const parsed = JSON.parse(raw);
+              const note = parsed?.mcq_notification;
+              failingPoints = Array.isArray(note?.failing_points)
+                ? note.failing_points
+                : parseMcqFailingPoints(note?.result ?? null);
+            } catch { /* non-JSON preview — no structured points */ }
+          }
+          rows.push({
+            property_id: p.id,
+            property_name: p.name ?? "Property",
+            listing_label: t.label,
+            ru_property_id: t.ru_property_id,
+            ru_owner_id: ownerId,
+            outcome,
+            status: order?.status ?? null,
+            ru_status_id: order?.ru_status_id ?? null,
+            ordered_at: order?.ordered_at ?? null,
+            ru_response_id: ruResponseId,
+            failing_points: failingPoints,
+          });
+        }
+      }
+
+      const counts = rows.reduce(
+        (acc: Record<string, number>, r) => {
+          const k = String(r.outcome);
+          acc[k] = (acc[k] ?? 0) + 1;
+          return acc;
+        },
+        { passed: 0, failed: 0, pending: 0, blocked_upstream: 0, never_ordered: 0 } as Record<string, number>,
+      );
+
+      return json({ success: true, counts, total: rows.length, rows });
+    }
+
+
 
     // ── run_suite ──
     if (action === "run_suite") {
