@@ -73,6 +73,9 @@ export default function AdminChannelMonitor() {
         if (error) throw new Error(error.message);
         const failed = (res as { failed?: number } | null)?.failed ?? 0;
         const noticeError = (res as { notification_error?: string | null } | null)?.notification_error;
+        const ariError = (res as { results?: Array<{ ari_push_error?: string | null }> } | null)?.results?.find(
+          (r) => r.ari_push_error,
+        )?.ari_push_error;
 
         if (failed > 0) {
           toast.warning(
@@ -81,11 +84,19 @@ export default function AdminChannelMonitor() {
               : "Re-activated locally, but the channel manager rejected the status change.",
           );
         } else {
-          toast.success(mode === "archive" ? `${row.name} archived` : `${row.name} re-activated`);
+          toast.success(
+            mode === "archive"
+              ? `${row.name} archived`
+              : `${row.name} re-activated — availability and rates re-pushed`,
+          );
+        }
+        if (mode === "reactivate" && ariError) {
+          toast.warning(`Rates and availability re-push failed: ${ariError}`);
         }
         if (mode === "reactivate" && noticeError) {
           toast.warning(`Re-activation notice not sent: ${noticeError}`);
         }
+
 
         setTarget(null);
         await data.refresh();
