@@ -221,7 +221,10 @@ export async function generateDestinationDelight(
       };
     }
 
-    // SILVER: Experience voucher with destination context
+    // Silver and above may carry a code — but only a real, redeemable one.
+    const realVoucher = await findRealVoucherCode(supabase, propertyId);
+
+    // SILVER: Experience highlight, with a real offer code when one exists
     if (tier === 'silver') {
       const adventure = experiences?.find((e: LocalExperience) => e.category === 'adventure');
       const activity = experiences?.find((e: LocalExperience) => 
@@ -230,10 +233,12 @@ export async function generateDestinationDelight(
       const experience = adventure || activity;
 
       return {
-        type: 'experience',
-        icon: '🎁',
-        message: `I've arranged something special – 15% off ${experience?.title || 'a local adventure'}!`,
-        code: generateVoucherCode(actualCity, tier),
+        type: realVoucher ? 'experience' : 'tip',
+        icon: realVoucher ? '🎁' : '🌿',
+        message: realVoucher
+          ? `I've arranged something special – ${realVoucher.description}, applied at checkout.`
+          : `A local favourite while you're here: ${experience?.title || `plenty to explore around ${actualCity}`}.`,
+        ...(realVoucher ? { code: realVoucher.code } : {}),
         destinationContext: experience?.why_locals_love_it || 
           `${actualCity} is known for its ${experience?.category || 'natural beauty'}.`,
         tier,
@@ -247,12 +252,14 @@ export async function generateDestinationDelight(
       const premium = dining || wellness;
 
       return {
-        type: 'upgrade',
+        type: realVoucher ? 'voucher' : 'upgrade',
         icon: '🌟',
-        message: premium 
-          ? `VIP upgrade: Complimentary experience at ${premium.title}!`
-          : `VIP treatment: I've flagged your booking for a room upgrade!`,
-        code: generateVoucherCode(actualCity, tier),
+        message: realVoucher
+          ? `VIP treatment: ${realVoucher.description}, applied at checkout.`
+          : premium
+            ? `VIP touch: I'll let the property know you'd love ${premium.title}.`
+            : `VIP treatment: I've flagged your booking for a warm welcome.`,
+        ...(realVoucher ? { code: realVoucher.code } : {}),
         destinationContext: premium?.why_locals_love_it || 
           `Enjoy the finest ${actualCity} has to offer.`,
         tier,
@@ -264,12 +271,14 @@ export async function generateDestinationDelight(
       const dining = findDiningExperience(experiences);
       
       return {
-        type: 'voucher',
+        type: realVoucher ? 'voucher' : 'upgrade',
         icon: '✨',
-        message: dining
-          ? `VIP treatment awaits – complimentary dinner for two at ${dining.title}!`
-          : `VIP treatment awaits – complimentary dinner for two at our partner restaurant!`,
-        code: generateVoucherCode(actualCity, tier),
+        message: realVoucher
+          ? `VIP treatment awaits – ${realVoucher.description}, applied at checkout.`
+          : dining
+            ? `VIP treatment awaits – I'll let the property know you'd love a table at ${dining.title}.`
+            : `VIP treatment awaits – I've flagged your stay so the property can look after you.`,
+        ...(realVoucher ? { code: realVoucher.code } : {}),
         destinationContext: dining?.why_locals_love_it || 
           `A signature ${actualCity} dining experience curated just for you.`,
         tier,
