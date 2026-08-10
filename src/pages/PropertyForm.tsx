@@ -9,6 +9,7 @@ import { RequirementLegend } from "@/components/property/RequirementLegend";
    the operator actually opens that section. Keeps the editor's initial
    chunk to the General tab. */
 const PromoCodesTab = lazy(() => import("@/components/property/PromoCodesTab").then((m) => ({ default: m.PromoCodesTab })));
+const PartnerOffersTab = lazy(() => import("@/components/property/PartnerOffersTab").then((m) => ({ default: m.PartnerOffersTab })));
 const BillingConfigTab = lazy(() => import("@/components/property/BillingConfigTab").then((m) => ({ default: m.BillingConfigTab })));
 const AdminOverviewTab = lazy(() => import("@/components/property/AdminOverviewTab").then((m) => ({ default: m.AdminOverviewTab })));
 const ROLSpecTab = lazy(() => import("@/components/property/ROLSpecTab").then((m) => ({ default: m.ROLSpecTab })));
@@ -6682,6 +6683,9 @@ export default function PropertyForm({
                     <TabsTrigger value="vouchers" className="text-xs h-6">
                       Vouchers
                     </TabsTrigger>
+                    <TabsTrigger value="partner-offers" className="text-xs h-6">
+                      Partner offers
+                    </TabsTrigger>
                   </TabsList>
                 </Tabs>
               </CardHeader>
@@ -6926,6 +6930,10 @@ export default function PropertyForm({
                 )}
 
                 {specialsCategory === "vouchers" && propertyId && <PromoCodesTab propertyId={propertyId} />}
+
+                {specialsCategory === "partner-offers" && propertyId && (
+                  <PartnerOffersTab propertyId={propertyId} />
+                )}
               </CardContent>
             </Card>
           </TabsContent>

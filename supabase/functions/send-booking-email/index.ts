@@ -3,6 +3,7 @@ import { Resend } from "npm:resend@4";
 import { z } from "npm:zod@3.23.8";
 import { resolvePropertySender, platformSender } from "../_shared/email-sender.ts";
 import { appendContactFooterHtml } from "../_shared/email-footer.ts";
+import { fetchQualifyingPartnerOffers, renderPartnerOffersHTML } from "../_shared/partner-offers.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -1573,6 +1574,28 @@ Deno.serve(async (req) => {
     } else {
       // Failure emails always use default template
       html = generateFailureEmail(booking, property, error_message);
+    }
+
+    // Partner / affiliate perks — surprise reveal, only once the stay is paid/confirmed
+    if (status === "success" && (booking.payment_status === "paid" || booking.status === "confirmed")) {
+      const perkNights = calculateNights(booking.check_in_date, booking.check_out_date);
+      const partnerOffers = await fetchQualifyingPartnerOffers(
+        supabaseClient,
+        [property.id],
+        perkNights,
+      );
+      const perksHtml = renderPartnerOffersHTML(partnerOffers, {
+        accent: resolveBranding(property).accentColor,
+      });
+      if (perksHtml) {
+        const block = `
+          <table role="presentation" style="max-width: 600px; width: 100%; margin: 0 auto; border-collapse: collapse;">
+            <tr><td style="padding: 0 40px 20px;">${perksHtml}</td></tr>
+          </table>
+        </body>`;
+        html = html.includes('</body>') ? html.replace('</body>', block) : html + perksHtml;
+      }
+      console.log(`[Email] Partner perks attached: ${partnerOffers.length}`);
     }
 
     const bookingRef = guestReference(booking);

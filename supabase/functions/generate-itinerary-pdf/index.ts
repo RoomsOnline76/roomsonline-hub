@@ -1,6 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { findDiningExperience } from "../_shared/delight-engine.ts";
 import { AI_MODELS } from "../_shared/aiModels.ts";
+import { fetchQualifyingPartnerOffers, renderPartnerOffersHTML } from "../_shared/partner-offers.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -566,8 +567,10 @@ interface BrochureEnhancements {
   poem: string | null;
   weather: WeatherDay[];
   voucher: { code: string; description: string } | null;
+  partnerOffersHTML?: string;
   destinationElaboration?: string; // NEW: Tiered destination content
 }
+
 
 // ============================================================================
 // DELIGHT ENGINE - Tiered Destination Sections
@@ -1784,6 +1787,9 @@ function generateBrochureHTML(
   <!-- Surprise Voucher -->
   ${generateVoucherHTML(enhancements.voucher)}
   
+  <!-- Partner / affiliate perks -->
+  ${enhancements.partnerOffersHTML || ''}
+  
   <!-- Guest Information -->
   <div class="guest-info">
     <h3>Guest Information</h3>
@@ -2004,14 +2010,26 @@ Deno.serve(async (req) => {
       return null;
     });
 
+    // 3b. Partner / affiliate perks loaded by the properties (revealed post-payment)
+    const totalNights = enrichedStays.reduce((sum, s) => sum + (s.nights || 0), 0);
+    const partnerOffersPromise = fetchQualifyingPartnerOffers(
+      supabase,
+      propertyIds as string[],
+      totalNights,
+    ).catch(err => {
+      console.error("[PDF] Partner offer lookup failed:", err);
+      return [];
+    });
+
     // Wait for all enhancements (with timeout for poem)
-    const [poem, weather, voucher] = await Promise.all([
+    const [poem, weather, voucher, partnerOffers] = await Promise.all([
       Promise.race([
         poemPromise,
         new Promise<null>(resolve => setTimeout(() => resolve(null), 5000))
       ]),
       weatherPromise,
       voucherPromise,
+      partnerOffersPromise,
     ]);
 
     // Collect all experiences from all properties for tiered content
@@ -2030,10 +2048,11 @@ Deno.serve(async (req) => {
       poem,
       weather,
       voucher,
+      partnerOffersHTML: renderPartnerOffersHTML(partnerOffers),
       destinationElaboration: destinationElaborationHTML,
     };
 
-    console.log(`[PDF] Enhancements: poem=${!!poem}, weather=${weather.length}d, voucher=${voucher?.code || 'none'}, destinationTier=${calculateDelightTier(itinerary.total_price || 0)}`);
+    console.log(`[PDF] Enhancements: poem=${!!poem}, weather=${weather.length}d, voucher=${voucher?.code || 'none'}, partnerOffers=${partnerOffers.length}, destinationTier=${calculateDelightTier(itinerary.total_price || 0)}`);
 
     // Generate HTML brochure with tone-adaptive content and enhancements
     const html = generateBrochureHTML(itinerary, enrichedStays, tone, enhancements);

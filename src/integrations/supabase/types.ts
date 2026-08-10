@@ -6313,6 +6313,91 @@ export type Database = {
           },
         ]
       }
+      property_partner_offers: {
+        Row: {
+          created_at: string
+          current_redemptions: number
+          description: string | null
+          id: string
+          image_url: string | null
+          is_active: boolean
+          max_redemptions: number | null
+          min_nights: number | null
+          partner_contact: string | null
+          partner_name: string
+          partner_url: string | null
+          property_id: string
+          redemption_code: string | null
+          redemption_instructions: string | null
+          title: string
+          updated_at: string
+          valid_from: string | null
+          valid_until: string | null
+        }
+        Insert: {
+          created_at?: string
+          current_redemptions?: number
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          max_redemptions?: number | null
+          min_nights?: number | null
+          partner_contact?: string | null
+          partner_name: string
+          partner_url?: string | null
+          property_id: string
+          redemption_code?: string | null
+          redemption_instructions?: string | null
+          title: string
+          updated_at?: string
+          valid_from?: string | null
+          valid_until?: string | null
+        }
+        Update: {
+          created_at?: string
+          current_redemptions?: number
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          max_redemptions?: number | null
+          min_nights?: number | null
+          partner_contact?: string | null
+          partner_name?: string
+          partner_url?: string | null
+          property_id?: string
+          redemption_code?: string | null
+          redemption_instructions?: string | null
+          title?: string
+          updated_at?: string
+          valid_from?: string | null
+          valid_until?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "property_partner_offers_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "property_partner_offers_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_partner_offers_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       property_payout_statement_lines: {
         Row: {
           booking_id: string | null
