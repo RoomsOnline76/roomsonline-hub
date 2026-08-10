@@ -3602,8 +3602,14 @@ Deno.serve(async (req) => {
               images_meet_cert_size: everyFlag('images_meet_cert_size'),
               images_meeting_cert_size: units.reduce((s, u) => s + Number((u.validation as any).images_meeting_cert_size || 0), 0),
               images_size_unverified: units.reduce((s, u) => s + Number((u.validation as any).images_size_unverified || 0), 0),
-              smallest_image_width: Math.min(...units.map(u => Number((u.validation as any).smallest_image_width ?? Infinity))),
-              smallest_image_height: Math.min(...units.map(u => Number((u.validation as any).smallest_image_height ?? Infinity))),
+              smallest_image_width: (() => {
+                const vals = units.map(u => Number((u.validation as any).smallest_image_width)).filter(n => Number.isFinite(n));
+                return vals.length ? Math.min(...vals) : null;
+              })(),
+              smallest_image_height: (() => {
+                const vals = units.map(u => Number((u.validation as any).smallest_image_height)).filter(n => Number.isFinite(n));
+                return vals.length ? Math.min(...vals) : null;
+              })(),
               has_bedroom: everyFlag('has_bedroom'),
               has_kitchen: everyFlag('has_kitchen'),
               has_bathroom_room: everyFlag('has_bathroom_room'),
