@@ -1912,24 +1912,31 @@ async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRo
       } else {
         result.availability_pushed = true;
         // 6.2 + 6.3 — Verify
-        const verification = await verifyAvailability(supabase, ruPropertyId, availEntries, todayStr, oneYearStr, childAuth);
+        const verification = await verifyAvailability(supabase, ruPropertyId, availEntries, todayStr, oneYearStr, childAuth, bookedNights);
         result.availability_verification = verification;
-        console.log(`[pushARI] Verification: ${verification.matches}/${verification.total_days} days matched, ${verification.mismatches.length} mismatches${verification.error ? ` (error: ${verification.error})` : ''}`);
+        const openSold = verification.booked_days_open ?? [];
+        console.log(`[pushARI] Verification: ${verification.matches}/${verification.total_days} days matched, ${verification.mismatches.length} mismatches, sold nights still open: ${openSold.length}${verification.error ? ` (error: ${verification.error})` : ''}`);
+        if (openSold.length > 0) {
+          // The channel accepted the payload but still sells nights we have sold — treat as a
+          // failed refresh so the health report and the operator both see it.
+          result.availability_error = `RU_SOLD_NIGHTS_STILL_OPEN: ${openSold.length} sold night(s) still sellable at the channel (${openSold.slice(0, 5).join(', ')})`;
+        }
         try {
           await supabase.from('sync_logs').insert({
             property_id: property.id,
             external_system: 'rentals_united',
             sync_type: 'availability_verification',
-            status: verification.error ? 'error' : (verification.mismatches.length === 0 ? 'success' : 'partial'),
+            status: verification.error || openSold.length > 0 ? 'error' : (verification.mismatches.length === 0 ? 'success' : 'partial'),
             message: verification.error
               ? `Verification error: ${verification.error}`
-              : `${verification.matches}/${verification.total_days} days matched, ${verification.mismatches.length} mismatches`,
+              : `${verification.matches}/${verification.total_days} days matched, ${verification.mismatches.length} mismatches${openSold.length > 0 ? `, ${openSold.length} sold night(s) still open` : ''}`,
             request_data: { ru_property_id: ruPropertyId, unit_id: unit?.id ?? null, entries: availEntries.length, changeover_default: changeoverConfig.defaultCode, per_dow: changeoverConfig.perDow },
             response_data: { verification },
           });
         } catch (logErr) {
           console.warn(`[pushARI] Failed to persist verification log:`, logErr);
         }
+
       }
     } catch (e) { result.availability_error = e instanceof Error ? e.message : 'Unknown error'; }
   }
