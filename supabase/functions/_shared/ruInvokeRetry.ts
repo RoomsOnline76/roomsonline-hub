@@ -35,7 +35,9 @@ function isTransient(httpStatus: number | null, message: string | null): boolean
     m.includes('worker') ||
     m.includes('network') ||
     m.includes('fetch failed') ||
+    m.includes('failed to send a request') ||
     m.includes('connection')
+
   );
 }
 
