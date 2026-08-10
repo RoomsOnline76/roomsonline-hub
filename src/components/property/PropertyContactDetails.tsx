@@ -45,6 +45,8 @@ export default function PropertyContactDetails({ propertyId }: Props) {
   const [contacts, setContacts] = useState<PropertyContact[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [copyToOpen, setCopyToOpen] = useState(false);
+  const [copyFromOpen, setCopyFromOpen] = useState(false);
 
   useEffect(() => {
     if (!propertyId) return;
