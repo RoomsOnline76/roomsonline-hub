@@ -620,19 +620,26 @@ export function SystemOverviewTab() {
             ) : (
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {status.syncPipelines.map((pipeline) => (
-                  <div key={pipeline.name} className="flex items-center justify-between gap-3 p-4 rounded-lg border">
-                    <div className="flex min-w-0 items-center gap-3">
+                  <div key={pipeline.name} className="flex items-start justify-between gap-3 p-4 rounded-lg border">
+                    <div className="flex min-w-0 items-start gap-3">
                       {getStatusIcon(pipeline.status)}
                       <div className="min-w-0">
                         <p className="font-medium truncate">{pipeline.name}</p>
                         <p className="text-xs text-muted-foreground">
-                          {pipeline.runs24h} runs · {pipeline.failures24h} failed · {formatWhen(pipeline.lastRun)}
+                          {pipeline.cadenceLabel} · last {formatWhen(pipeline.lastRun)}
                         </p>
+                        <p className="text-xs text-muted-foreground">
+                          {pipeline.runs7d} runs · {pipeline.failures7d} failed (7 d)
+                        </p>
+                        {pipeline.lastError && (
+                          <p className="mt-1 text-xs text-destructive line-clamp-2">{pipeline.lastError}</p>
+                        )}
                       </div>
                     </div>
                     {getStatusBadge(pipeline.status)}
                   </div>
                 ))}
+
               </div>
             )}
           </CardContent>
