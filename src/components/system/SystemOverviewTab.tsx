@@ -164,7 +164,7 @@ export function SystemOverviewTab() {
           .limit(2000),
         supabase
           .from("sync_logs")
-          .select("sync_type, external_system, status, created_at")
+          .select("sync_type, external_system, status, message, created_at")
           .gte("created_at", new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
           .order("created_at", { ascending: false })
           .limit(500),
