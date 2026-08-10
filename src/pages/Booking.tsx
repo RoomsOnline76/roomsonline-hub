@@ -2698,7 +2698,7 @@ const Booking = () => {
               );
             })}
 
-            {isPortfolioEmbed && portfolioSlug ? (
+            {portfolioSlug ? (
               <div className="space-y-2 w-full">
                 <div className="flex gap-2">
                   <Button variant="outline" size="sm" onClick={() => setShowJourneyAssistant(!showJourneyAssistant)} className="text-xs flex-1">
