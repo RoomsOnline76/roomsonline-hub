@@ -3128,7 +3128,7 @@ Deno.serve(async (req) => {
     // with the owning sub-user keys (master keys answer "Property does not exist"). Pushes
     // nothing — this is the diagnostic that proves whether a sold night is closed at the channel.
     if (action === 'verify_calendar') {
-      const from = typeof reqBody.date_from === 'string' ? body.date_from : new Date().toISOString().slice(0, 10);
+      const from = typeof reqBody.date_from === 'string' ? reqBody.date_from : new Date().toISOString().slice(0, 10);
       const to = typeof reqBody.date_to === 'string'
         ? reqBody.date_to
         : new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
@@ -3149,7 +3149,7 @@ Deno.serve(async (req) => {
         );
       }
 
-      const wantedUnitId = typeof reqBody.unit_id === 'string' ? body.unit_id : null;
+      const wantedUnitId = typeof reqBody.unit_id === 'string' ? reqBody.unit_id : null;
       const scoped = wantedUnitId ? units.filter((u) => u.unit_id === wantedUnitId) : units;
 
       const report: Record<string, unknown>[] = [];
