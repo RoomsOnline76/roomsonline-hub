@@ -288,7 +288,9 @@ Deno.serve(async (req) => {
       status: "updated" | "skipped" | "ru_failed";
       units_changed?: number;
       listings?: number;
+      ari_push_error?: string | null;
       detail?: string;
+
     }> = [];
 
     for (const p of (props || []) as Array<{
@@ -390,6 +392,27 @@ Deno.serve(async (req) => {
         }
       }
 
+      // ── Re-activation must resync availability + rates at the channel ──
+      // Listings come back live with whatever ARI RU last held, so push a fresh
+      // ARI refresh immediately instead of waiting for the daily cron.
+      let ariPush: string | null = null;
+      if (!archive && status !== "ru_failed") {
+        try {
+          const { data: ariRes, error: ariErr } = await admin.functions.invoke("push-property-to-ru", {
+            body: { property_id: p.id, action: "refresh_ari", trigger: "channel_monitor_reactivation" },
+          });
+          if (ariErr) ariPush = ariErr.message;
+          else if ((ariRes as { success?: boolean } | null)?.success === false) {
+            ariPush = "ARI refresh reported a failure";
+          }
+        } catch (e) {
+          ariPush = e instanceof Error ? e.message : "ARI refresh failed";
+        }
+        if (ariPush) detail = `${detail ? `${detail}; ` : ""}ARI re-push failed: ${ariPush}`;
+      }
+
+
+
 
       // ── Audit trail for the cost monitor ─────────────────────────────
       await admin.from("ru_archive_events").insert({
@@ -412,8 +435,10 @@ Deno.serve(async (req) => {
         status,
         units_changed: unitsChanged,
         listings: listingCount,
+        ari_push_error: ariPush,
         detail,
       });
+
     }
 
     // Re-activation resumes billing — always tell dev + finance.
