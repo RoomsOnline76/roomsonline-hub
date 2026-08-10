@@ -96,7 +96,7 @@ add the field to the property form, the onboarding wizard and the channels wizar
 
 | RU method | Requirement | Status |
 | --- | --- | --- |
-| `LNM_PutConfirmedReservation_RQ` | Collect bookings in real time | implemented — `ru-reservation-handler` |
+| `LNM_PutConfirmedReservation_RQ` | Collect bookings in real time | verified — `ru-reservation-handler`; envelope + status mapping centralised in `classifyRuNotification` (confirm / modify / cancel / request), per-block classification for mixed envelopes, cancellations never fall through to a hold |
 | `Pull_ListReservations_RQ` | Bookings for our properties, up to 7 days back | implemented — `list_reservations` + 30-min poll |
 | `Pull_GetReservationByID_RQ` | Specific booking detail by RU Reservation ID | **implemented 2026-08-10** — `get_reservation_by_id`, RLNM id-level reconcile, cert `reservation_detail_test`, support lookup in the RU Reservations panel |
 | Reservation creation test | New reservation lands in our system | covered by `reservation_idempotency_test` |
