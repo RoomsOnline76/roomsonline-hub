@@ -119,17 +119,44 @@ export function canDeliverDelight(
 }
 
 // ============================================================================
-// CODE GENERATION
+// REAL VOUCHER RESOLUTION
 // ============================================================================
 
 /**
- * Generate a unique voucher code with destination prefix
+ * Look up a REAL, currently usable promo code for a property (or a global one).
+ * Codes are never invented — returns null when the property has not loaded one,
+ * in which case delights are delivered without a code.
  */
-export function generateVoucherCode(city: string, tier: DelightTier): string {
-  const prefix = tier === 'platinum' ? 'VIP' : 'EXPLORE';
-  const cityCode = (city || 'AFR').substring(0, 3).toUpperCase();
-  const random = Date.now().toString(36).slice(-4).toUpperCase();
-  return `${prefix}-${cityCode}-${random}`;
+export async function findRealVoucherCode(
+  supabase: any,
+  propertyId: string
+): Promise<{ code: string; description: string } | null> {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const { data: promos } = await supabase
+      .from('promo_codes')
+      .select('code, description, discount_type, discount_value, property_id, valid_from, valid_until, max_uses, current_uses')
+      .eq('is_active', true);
+
+    const usable = (promos || []).filter((p: any) => {
+      if (p.property_id !== null && p.property_id !== propertyId) return false;
+      if (p.valid_from && today < p.valid_from) return false;
+      if (p.valid_until && today > p.valid_until) return false;
+      if (p.max_uses !== null && (p.current_uses || 0) >= p.max_uses) return false;
+      return true;
+    });
+
+    const match = usable.find((p: any) => p.property_id !== null) || usable[0];
+    if (!match) return null;
+
+    const discountText = match.discount_type === 'percentage'
+      ? `${match.discount_value}% off`
+      : `${match.discount_value} off`;
+    return { code: match.code, description: match.description || discountText };
+  } catch (error) {
+    console.error('[DelightEngine] Voucher lookup error:', error);
+    return null;
+  }
 }
 
 // ============================================================================
