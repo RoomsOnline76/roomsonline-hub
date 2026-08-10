@@ -127,6 +127,44 @@ interface ReadinessRow {
     availability_ok: boolean;
     prices_ok: boolean;
   } | null;
+  content_quality?: {
+    checked_at: string;
+    units: Array<{
+      unit: string | null;
+      name_clean: boolean | null;
+      name_issues: string[];
+      description_chars: number | null;
+      description_meets_cert: boolean | null;
+      images_count: number | null;
+      images_meeting_cert_size: number | null;
+      images_unmeasured: number | null;
+      smallest_image: string | null;
+      has_main_image: boolean | null;
+      has_street: boolean | null;
+      has_zip_code: boolean | null;
+      has_detailed_location_id: boolean | null;
+      has_coordinates: boolean | null;
+      can_sleep_max: number | null;
+      has_cancellation_policies: boolean | null;
+      has_payment_methods: boolean | null;
+      check_in_from: string | null;
+      check_out_until: string | null;
+      bedroom_blocks: number | null;
+      bedrooms_with_beds: number | null;
+      has_kitchen: boolean | null;
+      has_bathroom_room: boolean | null;
+      beds_distributed: boolean | null;
+      total_bed_capacity: number | null;
+      arrival_instructions_chars: number | null;
+    }>;
+    bookable_window?: Array<{
+      ru_property_id: number;
+      longest_run: number | null;
+      first_window: string | null;
+      min_stay_set: boolean | null;
+      open_days: number | null;
+    }> | null;
+  } | null;
 }
 
 interface DiscountRow {
