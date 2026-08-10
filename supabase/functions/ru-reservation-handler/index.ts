@@ -4,7 +4,7 @@ import {
   parseRuReservation,
   resolveRuUnit,
 } from '../_shared/ruReservationParsing.ts';
-import { ingestRuReservation } from '../_shared/ruReservationIngest.ts';
+import { ingestRuReservation, refreshRuReservationById } from '../_shared/ruReservationIngest.ts';
 
 /**
  * RU Reservation Live Notification Mechanism (RLNM) Handler
@@ -91,14 +91,29 @@ Deno.serve(async (req) => {
         .maybeSingle();
       const notificationId = notification?.id as string | undefined;
 
-      // RU sometimes notifies with an empty <StayInfos /> — nothing to write yet.
+      // RU sometimes notifies with an empty <StayInfos /> — pull that one reservation by id
+      // (Pull_GetReservationByID_RQ) instead of reconciling the whole account window.
       if (!propertyId || !r.dateFrom || !r.dateTo) {
+        if (r.ruReservationId) {
+          const refreshed = await refreshRuReservationById(supabase, r.ruReservationId, {
+            propertyId,
+            logPrefix: '[ru-reservation-handler][detail]',
+            forceRequest: kind === 'reservation_request',
+          });
+          if (refreshed.outcome !== 'failed' && refreshed.outcome !== 'unmatched') {
+            if (notificationId) {
+              await supabase.from('ru_notifications').update({ processed: true }).eq('id', notificationId);
+            }
+            continue;
+          }
+        }
         console.warn(
-          `[ru-reservation-handler] Incomplete notification (reservation ${r.ruReservationId}, RU property ${r.ruPropertyId || 'none'}) — queued for reconciliation pull`,
+          `[ru-reservation-handler] Incomplete notification (reservation ${r.ruReservationId}, RU property ${r.ruPropertyId || 'none'}) — detail pull unavailable, queued for reconciliation pull`,
         );
         needsReconcile = true;
         continue;
       }
+
 
       const result = await ingestRuReservation(supabase, r, {
         source: 'rlnm',

@@ -358,3 +358,96 @@ export async function ingestRuReservation(
   }
   return { ...base, outcome, bookingId };
 }
+
+/**
+ * ── Single-reservation detail pull (`Pull_GetReservationByID_RQ`).
+ *
+ * RU sometimes sends an RLNM envelope with an empty `<StayInfos />` — it only says
+ * "reservation X changed". Pulling that one reservation by id is far cheaper (and far
+ * more precise) than reconciling the whole account window, and it is the method RU
+ * certification exercises for reservation-detail and support cases.
+ */
+export async function fetchRuReservationById(
+  supabase: Db,
+  reservationId: string,
+  opts: { propertyId?: string | null; ownerId?: string | null } = {},
+): Promise<{ reservation: ParsedRuReservation | null; rawXml: string | null; error: string | null }> {
+  const ownerId = opts.ownerId ?? (opts.propertyId ? await resolveRuOwnerIdForProperty(supabase, opts.propertyId) : null);
+  const { data, error } = await supabase.functions.invoke('rentalsunited-api', {
+    body: {
+      action: 'get_reservation_by_id',
+      reservation_id: reservationId,
+      ...(opts.propertyId ? { property_id: opts.propertyId } : {}),
+      ...(ownerId ? { owner_id: ownerId } : {}),
+    },
+  });
+  if (error) return { reservation: null, rawXml: null, error: error.message };
+  const res = (data || {}) as {
+    success?: boolean;
+    error?: string | { message?: string };
+    reservation?: ParsedRuReservation | null;
+    raw_xml?: string;
+  };
+  if (res.success === false) {
+    const msg = typeof res.error === 'string' ? res.error : res.error?.message;
+    return { reservation: null, rawXml: res.raw_xml ?? null, error: msg || 'Rentals United rejected the reservation lookup' };
+  }
+  return { reservation: res.reservation ?? null, rawXml: res.raw_xml ?? null, error: null };
+}
+
+/** Sub-user OwnerID for a property — direct link first, then its portfolio's account. */
+export async function resolveRuOwnerIdForProperty(supabase: Db, propertyId: string): Promise<string | null> {
+  const { data: direct } = await supabase
+    .from('ru_owner_accounts')
+    .select('ru_owner_id')
+    .eq('property_id', propertyId)
+    .not('ru_owner_id', 'is', null)
+    .limit(1)
+    .maybeSingle();
+  if (direct?.ru_owner_id) return String(direct.ru_owner_id);
+
+  const { data: members } = await supabase
+    .from('property_portfolio_members')
+    .select('portfolio_id')
+    .eq('property_id', propertyId);
+  const portfolioIds = (members || []).map((m: { portfolio_id: string }) => m.portfolio_id);
+  if (portfolioIds.length === 0) return null;
+
+  const { data: viaPortfolio } = await supabase
+    .from('ru_owner_accounts')
+    .select('ru_owner_id')
+    .in('portfolio_id', portfolioIds)
+    .not('ru_owner_id', 'is', null)
+    .limit(1)
+    .maybeSingle();
+  return viaPortfolio?.ru_owner_id ? String(viaPortfolio.ru_owner_id) : null;
+}
+
+/**
+ * Refresh one RU reservation from the channel and ingest it.
+ * Used by the RLNM handler when the notification carries no stay data.
+ */
+export async function refreshRuReservationById(
+  supabase: Db,
+  reservationId: string,
+  opts: { propertyId?: string | null; ownerId?: string | null; logPrefix?: string; forceRequest?: boolean } = {},
+): Promise<RuIngestResult> {
+  const log = opts.logPrefix || '[ru-ingest]';
+  const { reservation, error } = await fetchRuReservationById(supabase, reservationId, opts);
+  if (error || !reservation?.ruReservationId) {
+    console.warn(`${log} Detail pull for reservation ${reservationId} failed: ${error ?? 'not found'}`);
+    return {
+      outcome: 'failed',
+      bookingId: null,
+      propertyId: null,
+      deduped: false,
+      channelLabel: null,
+      error: error ?? 'Reservation not found in Rentals United',
+    };
+  }
+  return await ingestRuReservation(supabase, reservation, {
+    source: 'rlnm',
+    logPrefix: log,
+    forceRequest: opts.forceRequest,
+  });
+}

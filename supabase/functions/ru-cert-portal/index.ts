@@ -37,7 +37,7 @@ import {
   type RuDiscountLadder,
 } from "../_shared/ruDiscounts.ts";
 import { parseRuReservation } from "../_shared/ruReservationParsing.ts";
-import { ingestRuReservation, resolveRuChannelCreator } from "../_shared/ruReservationIngest.ts";
+import { fetchRuReservationById, ingestRuReservation, resolveRuChannelCreator } from "../_shared/ruReservationIngest.ts";
 
 
 
@@ -467,8 +467,11 @@ const RU_ENDPOINT_REGISTRY: {
     rolos_surface: "ru-lead-lifecycle cron (30 min)", rolos_stream: "Leads — hold release & auto-withdraw", rolos_wired: true, sync_actions: ["lead_lifecycle", "reject_request"], max_age_hours: 24, note: "3-day hold, 14-day arrival withdrawal" },
   { rolos_via_cert: true, key: "reservation_idempotency", area: "reservations", label: "Reservation idempotency / RLNM replay", ru_method: "Pull_ListReservations_RQ / RLNM (idempotency)", direction: "pull", mandatory: false, implemented: true,
     rolos_surface: "RU console → Reservations panel → Idempotency test", rolos_stream: "Certification evidence", rolos_wired: true, sync_actions: ["reservation_idempotency_test", "rlnm_replay_test"], note: "Shared ingest path: notification + poll produce one booking" },
+  { key: "reservation_detail", area: "reservations", label: "Reservation detail by ID", ru_method: "Pull_GetReservationByID_RQ", direction: "pull", mandatory: true, implemented: true,
+    rolos_surface: "RU console → Reservations panel → Fetch from channel", rolos_stream: "Bookings inbound — single reservation detail", rolos_wired: true, sync_actions: ["reservation_detail_test", "get_reservation_by_id"], note: "Single-reservation detail for certification tests and support cases; also used by RLNM to reconcile empty StayInfos" },
   { rolos_via_cert: true, key: "creator_mapping", area: "reservations", label: "Channel creator mapping", ru_method: "Reservation Creator → sales channel", direction: "pull", mandatory: false, implemented: true,
     rolos_surface: "RU console → Reservations panel → Creator mapping", rolos_stream: "Bookings inbound — channel attribution", rolos_wired: true, sync_actions: ["creator_mapping_check", "pull_reservations"], note: "Maps the RU Creator account to a ROL'OS sales channel" },
+
 
   // ── lifecycle ──
   { key: "cancel", area: "lifecycle", label: "Cancel reservation", ru_method: "Push_CancelReservation_RQ", direction: "push", mandatory: true, implemented: true,
@@ -540,6 +543,7 @@ const MILESTONE_SYNC_ACTIONS: Record<string, string[]> = {
   "Reservation Creator → sales channel": ["creator_mapping_check", "pull_reservations"],
 
   "Pull_ListReservations_RQ": ["pull_reservations"],
+  "Pull_GetReservationByID_RQ": ["reservation_detail_test", "get_reservation_by_id"],
   "Pull_GetLeads_RQ": ["lead_lifecycle", "pull_reservations"],
   "Push_PutProperty_RQ": ["inventory_push", "weekly_content_refresh"],
   "Push_PutAvbUnits_RQ": ["refresh_ari", "availability_playground", "duplicate_range_test"],
@@ -1817,6 +1821,137 @@ Deno.serve(async (req) => {
         passed,
       });
     }
+
+
+    /**
+     * ── reservation_detail_test: Pull_GetReservationByID_RQ parity check.
+     *
+     * Takes the most recent imported RU reservation for the property (or an explicit
+     * reservation_id), pulls it back from Rentals United by id, and compares the channel's
+     * own view against the stored booking: guest, dates, RU listing and price. Read-only —
+     * nothing is written to bookings or availability.
+     */
+    if (action === "reservation_detail_test") {
+      const propertyId: string = body.property_id ?? "";
+      const explicitId: string = typeof body.reservation_id === "string" ? body.reservation_id.trim() : "";
+
+      let booking: {
+        id: string;
+        external_reservation_id: string | null;
+        guest_name: string | null;
+        check_in_date: string | null;
+        check_out_date: string | null;
+        total_amount: number | null;
+        property_id: string | null;
+      } | null = null;
+
+      if (explicitId) {
+        const { data } = await admin
+          .from("bookings")
+          .select("id, external_reservation_id, guest_name, check_in_date, check_out_date, total_amount, property_id")
+          .eq("external_reservation_id", explicitId)
+          .maybeSingle();
+        booking = (data as typeof booking) ?? null;
+      } else {
+        if (!propertyId) {
+          return json({ success: false, error: { code: "BAD_REQUEST", message: "property_id or reservation_id is required" } }, 400);
+        }
+        const { data } = await admin
+          .from("bookings")
+          .select("id, external_reservation_id, guest_name, check_in_date, check_out_date, total_amount, property_id")
+          .eq("property_id", propertyId)
+          .in("integration_type", ["rentalsunited", "rentalsunited_lead"])
+          .not("external_reservation_id", "is", null)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        booking = (data as typeof booking) ?? null;
+      }
+
+      const reservationId = explicitId || booking?.external_reservation_id || "";
+      if (!reservationId) {
+        return json({
+          success: true,
+          action,
+          passed: false,
+          skipped: true,
+          reason: "No Rentals United reservation has been imported for this property yet — nothing to fetch by id.",
+        });
+      }
+
+      const scopeProperty = booking?.property_id || propertyId || null;
+      const { reservation, error: pullError } = await fetchRuReservationById(admin, reservationId, {
+        propertyId: scopeProperty,
+      });
+
+      const mismatches: string[] = [];
+      if (reservation && booking) {
+        const norm = (v: string | null | undefined) => (v || "").trim().toLowerCase();
+        if (reservation.dateFrom && booking.check_in_date && reservation.dateFrom !== booking.check_in_date) {
+          mismatches.push(`check-in ${reservation.dateFrom} (RU) vs ${booking.check_in_date} (ROL'OS)`);
+        }
+        if (reservation.dateTo && booking.check_out_date && reservation.dateTo !== booking.check_out_date) {
+          mismatches.push(`check-out ${reservation.dateTo} (RU) vs ${booking.check_out_date} (ROL'OS)`);
+        }
+        if (reservation.guestName && booking.guest_name && norm(reservation.guestName) !== norm(booking.guest_name)) {
+          mismatches.push(`guest "${reservation.guestName}" (RU) vs "${booking.guest_name}" (ROL'OS)`);
+        }
+      }
+
+      const found = !!reservation?.ruReservationId;
+      const passed = !pullError && found && mismatches.length === 0;
+
+      try {
+        await admin.from("ru_sync_runs").insert({
+          batch_id: crypto.randomUUID(),
+          property_id: scopeProperty,
+          action,
+          success: passed,
+          error_code: passed ? null : pullError ? "RU_RESERVATION_DETAIL_FAILED" : found ? "RU_RESERVATION_DETAIL_MISMATCH" : "RU_RESERVATION_NOT_FOUND",
+          error_message: passed ? null : pullError ?? (found ? mismatches.join("; ") : "Reservation not returned by Pull_GetReservationByID_RQ"),
+          elapsed_ms: 0,
+          ru_property_id: reservation?.ruPropertyId ?? null,
+          details: { ru_reservation_id: reservationId, mismatches, booking_id: booking?.id ?? null },
+        });
+      } catch (_e) { /* evidence only */ }
+
+      return json({
+        success: true,
+        action,
+        ru_reservation_id: reservationId,
+        found,
+        passed,
+        error: pullError,
+        mismatches,
+        reservation: reservation
+          ? {
+              ru_reservation_id: reservation.ruReservationId,
+              ru_property_id: reservation.ruPropertyId,
+              status_id: reservation.statusId,
+              date_from: reservation.dateFrom,
+              date_to: reservation.dateTo,
+              guest_name: reservation.guestName,
+              guest_email: reservation.guestEmail,
+              num_guests: reservation.numGuests,
+              total: reservation.total,
+              already_paid: reservation.alreadyPaid,
+              creator: reservation.creator,
+            }
+          : null,
+        booking: booking
+          ? {
+              id: booking.id,
+              guest_name: booking.guest_name,
+              check_in_date: booking.check_in_date,
+              check_out_date: booking.check_out_date,
+              total_amount: booking.total_amount,
+            }
+          : null,
+      });
+    }
+
+
+
 
 
     /**

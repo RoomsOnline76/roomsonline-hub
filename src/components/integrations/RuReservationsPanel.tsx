@@ -3,10 +3,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
-import { AlertCircle, CheckCircle2, Loader2, PlugZap, RefreshCw, Repeat } from "lucide-react";
+import { AlertCircle, CheckCircle2, Loader2, PlugZap, RefreshCw, Repeat, Search } from "lucide-react";
 
 /**
  * Rentals United reservation ingestion diagnostics.
@@ -61,11 +62,41 @@ interface MappingRow {
   is_active: boolean;
 }
 
+interface ReservationDetailResult {
+  passed: boolean;
+  skipped?: boolean;
+  reason?: string | null;
+  error?: string | null;
+  ru_reservation_id: string;
+  mismatches: string[];
+  reservation: {
+    ru_reservation_id: string | null;
+    ru_property_id: string | null;
+    date_from: string | null;
+    date_to: string | null;
+    guest_name: string | null;
+    total: number | null;
+    creator: string | null;
+  } | null;
+  booking: {
+    guest_name: string | null;
+    check_in_date: string | null;
+    check_out_date: string | null;
+    total_amount: number | null;
+  } | null;
+}
+
 export function RuReservationsPanel({ properties }: { properties: PropertyOption[] }) {
   const [propertyId, setPropertyId] = useState<string>("");
   const [mode, setMode] = useState<"reservation_idempotency_test" | "rlnm_replay_test">("reservation_idempotency_test");
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<IdempotencyResult | null>(null);
+
+  const [detailId, setDetailId] = useState("");
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detail, setDetail] = useState<ReservationDetailResult | null>(null);
+
+
 
   const [loadingCreators, setLoadingCreators] = useState(false);
   const [creators, setCreators] = useState<CreatorRow[]>([]);
@@ -113,6 +144,32 @@ export function RuReservationsPanel({ properties }: { properties: PropertyOption
       setRunning(false);
     }
   }, [mode, propertyId]);
+
+  const runDetail = useCallback(async () => {
+    const trimmed = detailId.trim();
+    if (!trimmed && !propertyId) return;
+    setDetailLoading(true);
+    setDetail(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
+        body: {
+          action: "reservation_detail_test",
+          ...(propertyId ? { property_id: propertyId } : {}),
+          ...(trimmed ? { reservation_id: trimmed } : {}),
+        },
+      });
+      if (error || !data?.success) throw new Error(error?.message || data?.error?.message || "Reservation lookup failed");
+      const res = data as ReservationDetailResult;
+      setDetail(res);
+      if (res.skipped) toast.info(res.reason ?? "Nothing to compare yet");
+      else if (res.passed) toast.success("Channel reservation matches the stored booking");
+      else toast.error(res.error ?? "Channel reservation does not match the stored booking");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Reservation lookup failed");
+    } finally {
+      setDetailLoading(false);
+    }
+  }, [detailId, propertyId]);
 
   const unmappedCount = useMemo(() => creators.filter((c) => !c.mapped).length, [creators]);
 
@@ -208,6 +265,103 @@ export function RuReservationsPanel({ properties }: { properties: PropertyOption
           )}
         </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Search className="h-4 w-4 text-primary" />
+            Reservation detail by ID
+          </CardTitle>
+          <CardDescription>
+            Pulls a single reservation straight from the channel (Pull_GetReservationByID_RQ) and compares
+            it with the stored booking. Read-only — nothing is written. Leave the ID blank to check the most
+            recent channel reservation for the selected property.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-end">
+            <div className="flex-1 space-y-1">
+              <span className="text-xs text-muted-foreground">Channel reservation ID (optional)</span>
+              <Input
+                value={detailId}
+                onChange={(e) => setDetailId(e.target.value)}
+                placeholder="e.g. 88123456"
+              />
+            </div>
+            <Button variant="outline" onClick={runDetail} disabled={detailLoading || (!propertyId && !detailId.trim())}>
+              {detailLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+              Fetch from channel
+            </Button>
+          </div>
+
+          {detail && (
+            <div className="space-y-3 rounded-md border p-3">
+              <div className="flex flex-wrap items-center gap-2">
+                {detail.skipped ? (
+                  <Badge variant="outline">Nothing to compare</Badge>
+                ) : detail.passed ? (
+                  <Badge className="gap-1"><CheckCircle2 className="h-3 w-3" /> Matches</Badge>
+                ) : (
+                  <Badge variant="destructive" className="gap-1"><AlertCircle className="h-3 w-3" /> Mismatch</Badge>
+                )}
+                <span className="text-xs text-muted-foreground">
+                  {detail.reason ?? detail.error ?? `Reservation ${detail.ru_reservation_id}`}
+                </span>
+              </div>
+
+              {detail.reservation && (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Field</TableHead>
+                      <TableHead>Channel</TableHead>
+                      <TableHead>ROL'OS</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    <TableRow>
+                      <TableCell>Guest</TableCell>
+                      <TableCell>{detail.reservation.guest_name ?? "—"}</TableCell>
+                      <TableCell>{detail.booking?.guest_name ?? "—"}</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell>Check-in</TableCell>
+                      <TableCell>{detail.reservation.date_from ?? "—"}</TableCell>
+                      <TableCell>{detail.booking?.check_in_date ?? "—"}</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell>Check-out</TableCell>
+                      <TableCell>{detail.reservation.date_to ?? "—"}</TableCell>
+                      <TableCell>{detail.booking?.check_out_date ?? "—"}</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell>Total</TableCell>
+                      <TableCell>{detail.reservation.total ?? "—"}</TableCell>
+                      <TableCell>{detail.booking?.total_amount ?? "—"}</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell>Channel listing / creator</TableCell>
+                      <TableCell>
+                        {detail.reservation.ru_property_id ?? "—"}
+                        {detail.reservation.creator ? ` · ${detail.reservation.creator}` : ""}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground text-xs">—</TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              )}
+
+              {detail.mismatches?.length > 0 && (
+                <ul className="list-disc pl-5 text-xs text-muted-foreground">
+                  {detail.mismatches.map((m) => <li key={m}>{m}</li>)}
+                </ul>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+
 
       <Card>
         <CardHeader className="pb-3 flex flex-row items-start justify-between gap-3">

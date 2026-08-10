@@ -13,6 +13,7 @@ import {
   parseLnmChangeTypes,
   parseLnmSubscriptions,
 } from '../_shared/ruLnm.ts';
+import { extractAllBlocks, parseRuReservation } from '../_shared/ruReservationParsing.ts';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
 
@@ -543,6 +544,22 @@ ${statusXml}
 }
 
 
+/**
+ * `Pull_GetReservationByID_RQ` — full detail for one RU reservation.
+ *
+ * Required by certification's reservation-detail tests and by support cases where an
+ * operator needs the channel's own view of a single booking without pulling a whole
+ * date window. Must be called with the sub-user's credentials: a white-label account's
+ * reservation is invisible to the master account.
+ */
+function buildGetReservationByIdXml(creds: RUCredentials, reservationId: string): string {
+  return `<?xml version="1.0" encoding="utf-8"?>
+<Pull_GetReservationByID_RQ>
+  ${buildAuthXml(creds)}
+  <ReservationID>${escapeXml(reservationId)}</ReservationID>
+</Pull_GetReservationByID_RQ>`;
+}
+
 function buildGetLeadsXml(creds: RUCredentials, dateFrom: string, dateTo: string): string {
   return `<?xml version="1.0" encoding="utf-8"?>
 <Pull_GetLeads_RQ>
@@ -551,6 +568,7 @@ function buildGetLeadsXml(creds: RUCredentials, dateFrom: string, dateTo: string
   <DateTo>${normalizeRUDateTime(dateTo, true)}</DateTo>
 </Pull_GetLeads_RQ>`;
 }
+
 
 /**
  * Decline / withdraw an unconfirmed RU request. `Push_RejectRequest_RQ` is RU's preferred
@@ -1514,6 +1532,7 @@ const CHILD_SCOPED_ACTIONS = new Set([
   // Reservation / lead pulls are account-scoped: a white-label sub-user's bookings do NOT
   // appear in the master account's Pull_ListReservations_RQ response.
   'list_reservations',
+  'get_reservation_by_id',
   'get_leads',
   'reject_request',
   'cancel_reservation',
@@ -1552,6 +1571,7 @@ const CHILD_AUTH_STRICT_ACTIONS = new Set([
   // Pulling a sub-user's reservations on master credentials silently returns OUR bookings,
   // which would look like "no reservations" for the white-label account.
   'list_reservations',
+  'get_reservation_by_id',
   'get_leads',
   'reject_request',
   'cancel_reservation',
@@ -2233,6 +2253,33 @@ Deno.serve(async (req) => {
       if (!ok) return ruErrorResponse(status);
       return jsonResponse({ success: true, auth_mode: authMode, statuses: requestedStatuses, raw_xml: response });
     }
+
+
+    // ── get_reservation_by_id (mandatory: reservation detail) ──
+    // Pull_GetReservationByID_RQ — one reservation, full detail. Parsed through the same
+    // shared parser the ingest path uses so callers get an identical shape.
+    if (action === 'get_reservation_by_id') {
+      const reservationId = typeof body.reservation_id === 'string' ? body.reservation_id.trim() : '';
+      if (!reservationId) return errorResponse('MISSING_PARAM', 'reservation_id is required');
+      const xml = buildGetReservationByIdXml(scopedCreds, reservationId);
+      const response = await callRentalsUnited(scopedCreds, xml);
+      const { ok, status } = handleRUStatus(response);
+      if (!ok) return ruErrorResponse(status);
+
+      const blocks = extractAllBlocks(response, 'Reservation');
+      const reservation = blocks.length ? parseRuReservation(blocks[0]) : null;
+      return jsonResponse({
+        success: true,
+        auth_mode: authMode,
+        reservation_id: reservationId,
+        found: !!reservation?.ruReservationId,
+        reservation,
+        raw_xml: response,
+      });
+    }
+
+
+
 
 
     // ── get_leads (optional) ──
