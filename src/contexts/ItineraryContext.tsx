@@ -131,6 +131,20 @@ function calculateNights(checkIn: string, checkOut: string): number {
   return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 }
 
+// Journey flows navigate with `window.location.href` right after mutating the
+// basket. React state updates (and the persist effect) do not flush before the
+// unload, so every mutation writes the stays to sessionStorage synchronously.
+function persistStaysNow(stays: ItineraryStay[]): void {
+  try {
+    const raw = sessionStorage.getItem(STORAGE_KEY);
+    const existing = raw ? JSON.parse(raw) : {};
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ ...existing, stays }));
+  } catch (e) {
+    console.error('Failed to persist itinerary stays:', e);
+  }
+}
+
+
 interface ItineraryProviderProps {
   children: ReactNode;
 }
