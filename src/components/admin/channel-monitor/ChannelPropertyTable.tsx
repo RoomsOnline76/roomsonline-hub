@@ -7,15 +7,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { formatEur, formatZar } from "@/lib/channelBillingForecast";
-import type { ChannelPropertyRow, ChannelSyncState, FxRate } from "@/hooks/useChannelCostMonitor";
+import type { ChannelPropertyRow, ChannelSyncState, ChannelUnitRow, FxRate } from "@/hooks/useChannelCostMonitor";
 import { cn } from "@/lib/utils";
 
 interface Props {
   rows: ChannelPropertyRow[];
   fx: FxRate | null;
   busyPropertyId: string | null;
+  busyUnitId?: string | null;
   onArchive: (row: ChannelPropertyRow) => void;
   onReactivate: (row: ChannelPropertyRow) => void;
+  onToggleUnit: (row: ChannelPropertyRow, unit: ChannelUnitRow, activate: boolean) => void;
+
 }
 
 const STATE_LABELS: Record<ChannelSyncState, string> = {
@@ -24,7 +27,7 @@ const STATE_LABELS: Record<ChannelSyncState, string> = {
   archived: "Archived",
 };
 
-export function ChannelPropertyTable({ rows, fx, busyPropertyId, onArchive, onReactivate }: Props) {
+export function ChannelPropertyTable({ rows, fx, busyPropertyId, busyUnitId, onArchive, onReactivate, onToggleUnit }: Props) {
   const [search, setSearch] = useState("");
   const [stateFilter, setStateFilter] = useState<"all" | ChannelSyncState>("all");
   const [portfolioFilter, setPortfolioFilter] = useState<string>("all");
@@ -194,9 +197,29 @@ export function ChannelPropertyTable({ rows, fx, busyPropertyId, onArchive, onRe
                                   >
                                     {u.isActive ? "Billing" : "Inactive"}
                                   </Badge>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-6 px-1.5 text-[10px]"
+                                    disabled={busyUnitId === u.id}
+                                    onClick={() => onToggleUnit(row, u, !u.isActive)}
+                                  >
+                                    {u.isActive ? (
+                                      <>
+                                        <Archive className="mr-1 h-3 w-3" />
+                                        Deactivate
+                                      </>
+                                    ) : (
+                                      <>
+                                        <RotateCcw className="mr-1 h-3 w-3" />
+                                        Re-activate
+                                      </>
+                                    )}
+                                  </Button>
                                 </span>
                               </div>
                             ))}
+
                           </div>
                         )}
                         {row.archivedAt && (

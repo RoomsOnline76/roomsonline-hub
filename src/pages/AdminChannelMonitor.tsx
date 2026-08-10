@@ -7,7 +7,7 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent } from "@/components/ui/card";
-import { useChannelCostMonitor, type ChannelPropertyRow } from "@/hooks/useChannelCostMonitor";
+import { useChannelCostMonitor, type ChannelPropertyRow, type ChannelUnitRow } from "@/hooks/useChannelCostMonitor";
 import { ChannelCostSummary } from "@/components/admin/channel-monitor/ChannelCostSummary";
 import { ChannelBillingSchedule } from "@/components/admin/channel-monitor/ChannelBillingSchedule";
 import { ChannelPropertyTable } from "@/components/admin/channel-monitor/ChannelPropertyTable";
@@ -18,6 +18,39 @@ export default function AdminChannelMonitor() {
   const data = useChannelCostMonitor();
   const [target, setTarget] = useState<{ row: ChannelPropertyRow; mode: "archive" | "reactivate" } | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [busyUnitId, setBusyUnitId] = useState<string | null>(null);
+
+  const handleToggleUnit = useCallback(
+    async (row: ChannelPropertyRow, unit: ChannelUnitRow, activate: boolean) => {
+      setBusyUnitId(unit.id);
+      try {
+        const { data: res, error } = await supabase.functions.invoke("channel-manager-entitlement", {
+          body: {
+            scope: "unit",
+            entity_id: unit.id,
+            enabled: activate,
+            notify: false,
+          },
+        });
+        if (error) throw new Error(error.message);
+        const failed = (res as { failed?: number } | null)?.failed ?? 0;
+        if (failed > 0) {
+          toast.warning(
+            `${unit.name} updated locally, but the channel manager rejected the status change.`,
+          );
+        } else {
+          toast.success(`${unit.name} ${activate ? "re-activated" : "deactivated"}`);
+        }
+        await data.refresh();
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Action failed");
+      } finally {
+        setBusyUnitId(null);
+      }
+    },
+    [data],
+  );
+
 
   const handleConfirm = useCallback(
     async (reason: string) => {
@@ -104,6 +137,8 @@ export default function AdminChannelMonitor() {
               rows={data.properties}
               fx={data.fx}
               busyPropertyId={busyId}
+              busyUnitId={busyUnitId}
+              onToggleUnit={handleToggleUnit}
               onArchive={(row) => setTarget({ row, mode: "archive" })}
               onReactivate={(row) => setTarget({ row, mode: "reactivate" })}
             />
