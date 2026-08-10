@@ -2351,10 +2351,11 @@ Deno.serve(async (req) => {
      */
     const staticOnly = action === 'static_only';
     /** ARI is pushed on every path except a static-content delta. */
-    const pushARIUnlessStatic: typeof pushARI = async (...args) =>
-      staticOnly ? {} as Record<string, any> : await pushARI(...args);
-    const pushDiscountsUnlessStatic: typeof pushDiscounts = async (...args) =>
-      staticOnly ? {} as Record<string, any> : await pushDiscounts(...args);
+    const pushARIUnlessStatic = async (...args: Parameters<typeof pushARI>): Promise<Record<string, any>> =>
+      staticOnly ? {} : await pushARI(...args);
+    const pushDiscountsUnlessStatic = async (...args: Parameters<typeof pushDiscounts>): Promise<Record<string, any>> =>
+      staticOnly ? {} : await pushDiscounts(...args);
+
     const forceLocationIdRaw = reqBody.force_location_id;
 
 
