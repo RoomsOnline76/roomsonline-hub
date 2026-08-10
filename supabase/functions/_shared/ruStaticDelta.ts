@@ -74,6 +74,8 @@ const UNIT_STATIC_COLUMNS = [
   'latitude',
   'longitude',
   'property_type',
+  'ru_image_tags',
+  'check_in_instructions',
   'rentalsunited_property_id',
   'is_active',
 ] as const;
