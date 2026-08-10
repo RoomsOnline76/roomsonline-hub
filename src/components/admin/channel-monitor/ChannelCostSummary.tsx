@@ -1,3 +1,4 @@
+import { useSearchParams } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatEur, formatZar } from "@/lib/channelBillingForecast";
@@ -14,15 +15,17 @@ function Stat({
   hint,
   accent,
   danger,
+  highlight,
 }: {
   label: string;
   value: string;
   hint?: string;
   accent?: boolean;
   danger?: boolean;
+  highlight?: boolean;
 }) {
   return (
-    <Card className={cn(accent && "border-primary")}>
+    <Card className={cn(accent && "border-primary", highlight && "border-primary ring-2 ring-primary/40")}>
       <CardContent className="p-4">
         <p className="text-[11px] uppercase tracking-wider text-muted-foreground">{label}</p>
         <p className={cn(
@@ -47,7 +50,13 @@ export function ChannelCostSummary({ data }: Props) {
     rolPerListingZar,
     rolRevenueZar,
     effectiveRateEur,
+    subAccounts,
+    subAccountProperties,
+    pushEnabledProperties,
   } = data;
+
+  const [params] = useSearchParams();
+  const focus = params.get("focus");
 
   const toZar = (eur: number) => (fx ? formatZar(eur * fx.eurToZar) : null);
   const costZar = fx ? forecast.billableEur * fx.eurToZar : null;
@@ -112,6 +121,18 @@ export function ChannelCostSummary({ data }: Props) {
                 ? `${formatZar(marginPerListing)} per listing spread`
                 : "Needs FX rate and default fee"
           }
+        />
+        <Stat
+          highlight={focus === "sub-account-properties"}
+          label="Properties under sub-accounts"
+          value={String(subAccountProperties)}
+          hint={`${subAccounts} channel sub-account${subAccounts === 1 ? "" : "s"}`}
+        />
+        <Stat
+          highlight={focus === "push-enabled"}
+          label="Push enabled"
+          value={String(pushEnabledProperties)}
+          hint="Properties actively sending rates & availability"
         />
         <Stat
           label="Properties syncing"
