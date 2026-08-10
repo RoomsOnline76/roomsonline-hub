@@ -61,6 +61,8 @@ interface Props {
  */
 export function ChannelRuStatusStrip({ data, onNavigate }: Props) {
   const [accounts, setAccounts] = useState<AccountLite[]>([]);
+  const [creds, setCreds] = useState<CredLite[]>([]);
+
   const [runs, setRuns] = useState<CertRunLite[]>([]);
   const [loading, setLoading] = useState(true);
 
