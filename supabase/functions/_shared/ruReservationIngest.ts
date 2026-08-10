@@ -164,6 +164,12 @@ export interface RuIngestOptions {
   source: 'rlnm' | 'poll' | 'cert';
   /** Treat the record as an unconfirmed lead regardless of status id (leads endpoint). */
   forceRequest?: boolean;
+  /**
+   * Kind resolved from the RLNM envelope (envelope name beats status id). When supplied it
+   * wins over the numeric status, so a cancellation envelope without a StatusID still
+   * cancels instead of re-opening a hold.
+   */
+  kind?: RuNotificationKind;
   /** Pre-resolved unit, when the caller already looked it up. */
   unit?: ResolvedRuUnit;
   /** Skip availability writes (certification dry runs). */
