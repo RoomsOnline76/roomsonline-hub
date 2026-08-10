@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { ManualCancellationRule } from "@/lib/cancellationPolicy";
 import { toLegacyAmenitiesShape, toHumanSummary } from "@/lib/cancellationPolicy";
+import { queueChannelContentSync } from "@/lib/channelContentSync";
 
 export interface ReservationPolicy {
   id: string;
