@@ -1966,7 +1966,20 @@ Deno.serve(async (req) => {
     const body: RequestBody = await req.json();
     const { action, ru_property_id, date_from, date_to, test_mode, metadata } = body;
 
+    // Bind the durable-log context for this request. `enterWith` scopes it to the current async
+    // execution, so concurrent invocations in the same isolate never share context.
+    ruLogContext.enterWith({
+      trace_id: body.trace_id ?? newRuTraceId(),
+      parent_action: body.parent_action ?? `rentalsunited-api:${action}`,
+      property_id: body.property_id ?? body.property_uuid ?? null,
+      unit_id: body.unit_id ?? null,
+      ru_property_id: ru_property_id ?? null,
+      ru_owner_id: body.owner_id ?? null,
+      ru_user_id: body.ru_user_id ?? null,
+    });
+
     console.log(`[rentalsunited-api] Action: ${action}, test_mode: ${test_mode}`);
+
 
     const creds = await loadCredentials();
 
