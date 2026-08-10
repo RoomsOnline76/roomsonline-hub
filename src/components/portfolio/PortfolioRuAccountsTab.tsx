@@ -707,6 +707,11 @@ export function PortfolioRuAccountsTab() {
     () => new Set(rows.flatMap((r) => r.linked.map((p) => p.id))),
     [rows]
   );
+  // Properties with nothing on the channel manager must not pad these counters.
+  const footprintLinkedIds = useMemo(
+    () => new Set([...linkedPropertyIds].filter((id) => channelFootprintIds.has(id))),
+    [linkedPropertyIds, channelFootprintIds]
+  );
   const totalPushEnabled = useMemo(
     () =>
       properties.filter(
@@ -714,9 +719,9 @@ export function PortfolioRuAccountsTab() {
           p.ru_push_enabled &&
           p.is_trading === true &&
           p.is_sandbox !== true &&
-          linkedPropertyIds.has(p.id)
+          footprintLinkedIds.has(p.id)
       ).length,
-    [properties, linkedPropertyIds]
+    [properties, footprintLinkedIds]
   );
 
   if (isLoading) {
