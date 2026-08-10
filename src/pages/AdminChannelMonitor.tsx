@@ -251,7 +251,15 @@ export default function AdminChannelMonitor() {
               <RuReservationsPanel properties={reservationProperties} />
             </Suspense>
           </TabsContent>
+
+          {/* Durable request/response/ResponseID log — the evidence trail for support escalations. */}
+          <TabsContent value="diagnostics">
+            <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+              <RuApiLogPanel properties={reservationProperties} />
+            </Suspense>
+          </TabsContent>
         </Tabs>
+
       </div>
 
       <ArchivePropertyDialog
