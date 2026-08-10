@@ -131,9 +131,14 @@ export function ChannelCostSummary({ data }: Props) {
         <Stat
           highlight={focus === "push-enabled"}
           label="Push enabled"
-          value={String(pushEnabledProperties)}
-          hint="Properties actively sending rates & availability"
+          value={`${pushEnabledProperties} of ${subAccountProperties}`}
+          hint={
+            pushEnabledOutsideAccounts > 0
+              ? `Sub-account properties sending rates & availability · ${pushEnabledOutsideAccounts} pushing outside any sub-account`
+              : "Sub-account properties sending rates & availability"
+          }
         />
+
         <Stat
           label="Properties syncing"
           value={String(activeProperties)}
