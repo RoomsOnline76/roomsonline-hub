@@ -14,8 +14,11 @@ interface Props {
   rows: ChannelPropertyRow[];
   fx: FxRate | null;
   busyPropertyId: string | null;
+  busyUnitId?: string | null;
   onArchive: (row: ChannelPropertyRow) => void;
   onReactivate: (row: ChannelPropertyRow) => void;
+  onToggleUnit: (row: ChannelPropertyRow, unit: ChannelUnitRow, activate: boolean) => void;
+
 }
 
 const STATE_LABELS: Record<ChannelSyncState, string> = {
