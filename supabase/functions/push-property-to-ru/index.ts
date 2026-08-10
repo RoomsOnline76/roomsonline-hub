@@ -500,18 +500,25 @@ function buildValidation(payload: Record<string, any>): Record<string, unknown> 
   const amenities: unknown[] = payload.amenities || [];
   const maxGuests = payload.can_sleep_max || 0;
 
-  // Photos: count + pixel size (images without stored dimensions are treated as
-  // unverified rather than failures, but are reported so they can be checked).
+  // Photos: count + pixel size. Certification requires every photo to MEASURE at
+  // least 1024x768 — an image whose dimensions could not be read is reported as
+  // unverified (advisory) and never counted as meeting the certification size.
   let sized = 0;
   let unverified = 0;
+  let certSized = 0;
+  let smallestWidth: number | null = null;
+  let smallestHeight: number | null = null;
   for (const img of images) {
     if (img.width == null || img.height == null) {
       unverified += 1;
-      // Only a probed-and-reachable image may pass without measurable dimensions.
+      // Only a probed-and-reachable image may pass the legacy (upload-rule) size check.
       if (img.verified) sized += 1;
       continue;
     }
+    smallestWidth = smallestWidth == null ? img.width : Math.min(smallestWidth, img.width);
+    smallestHeight = smallestHeight == null ? img.height : Math.min(smallestHeight, img.height);
     if (img.width >= RU_MIN_IMAGE_WIDTH && img.height >= RU_MIN_IMAGE_HEIGHT) sized += 1;
+    if (img.width >= RU_CERT_MIN_IMAGE_WIDTH && img.height >= RU_CERT_MIN_IMAGE_HEIGHT) certSized += 1;
   }
   const imageIssues: { url: string; reason: string }[] = (payload.image_issues || []) as { url: string; reason: string }[];
 
