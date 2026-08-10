@@ -19,7 +19,8 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Copy } from "lucide-react";
+import { CopyToPortfolioDialog } from "./CopyToPortfolioDialog";
 import { toast } from "sonner";
 
 interface PromoCode {
@@ -66,6 +67,8 @@ export function PromoCodesTab({ propertyId }: { propertyId: string }) {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
+  const [copyId, setCopyId] = useState<string | null>(null);
+  const [copyAll, setCopyAll] = useState(false);
 
   const { data: codes = [], isLoading } = useQuery({
     queryKey: ["promo_codes", propertyId],
@@ -147,6 +150,46 @@ export function PromoCodesTab({ propertyId }: { propertyId: string }) {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  /** Clone the given vouchers onto sibling properties (update-in-place on code match). */
+  const copyToProperties = async (rows: PromoCode[], targetIds: string[]) => {
+    for (const targetId of targetIds) {
+      const { data: existing, error: readErr } = await supabase
+        .from("promo_codes")
+        .select("id, code")
+        .eq("property_id", targetId);
+      if (readErr) throw readErr;
+      const byCode = new Map((existing || []).map((e) => [e.code, e.id]));
+
+      for (const c of rows) {
+        const payload = {
+          code: c.code,
+          property_id: targetId,
+          discount_type: c.discount_type,
+          discount_value: c.discount_value,
+          description: c.description,
+          valid_from: c.valid_from,
+          valid_until: c.valid_until,
+          max_uses: c.max_uses,
+          is_active: c.is_active ?? true,
+          conditions: (c.conditions ?? {}) as unknown as import("@/integrations/supabase/types").Json,
+        };
+        const existingId = byCode.get(c.code);
+        if (existingId) {
+          const { error } = await supabase.from("promo_codes").update(payload).eq("id", existingId);
+          if (error) throw error;
+        } else {
+          const { error } = await supabase.from("promo_codes").insert([payload]);
+          if (error) throw error;
+        }
+      }
+    }
+    toast.success(
+      `${rows.length} voucher${rows.length === 1 ? "" : "s"} copied to ${targetIds.length} propert${targetIds.length === 1 ? "y" : "ies"}`,
+    );
+  };
+
+  const copyRows = copyAll ? codes : codes.filter((c) => c.id === copyId);
+
   const openEdit = (c: PromoCode) => {
     const cond = (c.conditions || {}) as Record<string, unknown>;
     setForm({
@@ -174,9 +217,24 @@ export function PromoCodesTab({ propertyId }: { propertyId: string }) {
     <div className="space-y-3">
       <div className="flex justify-between items-center">
         <h3 className="text-xs font-semibold text-muted-foreground uppercase">Voucher Codes</h3>
-        <Button size="sm" className="h-7 text-xs" onClick={openNew}>
-          <Plus className="h-3 w-3 mr-1" /> Add Voucher
-        </Button>
+        <div className="flex items-center gap-1">
+          {codes.length > 0 && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs"
+              onClick={() => {
+                setCopyAll(true);
+                setCopyId(null);
+              }}
+            >
+              <Copy className="h-3 w-3 mr-1" /> Copy all to portfolio
+            </Button>
+          )}
+          <Button size="sm" className="h-7 text-xs" onClick={openNew}>
+            <Plus className="h-3 w-3 mr-1" /> Add Voucher
+          </Button>
+        </div>
       </div>
 
       {isLoading ? (
@@ -222,6 +280,18 @@ export function PromoCodesTab({ propertyId }: { propertyId: string }) {
                     <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => openEdit(c)}>
                       <Pencil className="h-3 w-3" />
                     </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 w-6 p-0"
+                      title="Copy to portfolio"
+                      onClick={() => {
+                        setCopyAll(false);
+                        setCopyId(c.id);
+                      }}
+                    >
+                      <Copy className="h-3 w-3" />
+                    </Button>
                     <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-destructive" onClick={() => setDeleteId(c.id)}>
                       <Trash2 className="h-3 w-3" />
                     </Button>
@@ -232,6 +302,23 @@ export function PromoCodesTab({ propertyId }: { propertyId: string }) {
           </TableBody>
         </Table>
       )}
+
+      {/* Copy to portfolio */}
+      <CopyToPortfolioDialog
+        open={copyAll || !!copyId}
+        onOpenChange={(o) => {
+          if (!o) {
+            setCopyAll(false);
+            setCopyId(null);
+          }
+        }}
+        propertyId={propertyId}
+        itemLabel={copyAll ? `${codes.length} vouchers` : (copyRows[0]?.code ?? "this voucher")}
+        title="Copy vouchers to portfolio"
+        onCopy={async (ids) => {
+          await copyToProperties(copyRows, ids);
+        }}
+      />
 
       {/* Add/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

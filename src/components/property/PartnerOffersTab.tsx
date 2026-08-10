@@ -17,7 +17,8 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Plus, Pencil, Trash2, Gift } from "lucide-react";
+import { Plus, Pencil, Trash2, Gift, Copy } from "lucide-react";
+import { CopyToPortfolioDialog } from "./CopyToPortfolioDialog";
 import { toast } from "sonner";
 
 interface PartnerOffer {
@@ -74,6 +75,8 @@ export function PartnerOffersTab({ propertyId }: { propertyId: string }) {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
+  const [copyId, setCopyId] = useState<string | null>(null);
+  const [copyAll, setCopyAll] = useState(false);
 
   const queryKey = useMemo(() => ["property_partner_offers", propertyId], [propertyId]);
 
@@ -158,6 +161,62 @@ export function PartnerOffersTab({ propertyId }: { propertyId: string }) {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  /** Clone offers onto sibling properties; same partner + title is updated, not duplicated. */
+  const copyToProperties = useCallback(
+    async (rows: PartnerOffer[], targetIds: string[]) => {
+      for (const targetId of targetIds) {
+        const { data: existing, error: readErr } = await supabase
+          .from("property_partner_offers")
+          .select("id, partner_name, title")
+          .eq("property_id", targetId);
+        if (readErr) throw readErr;
+        const key = (p: string, t: string) => `${p.toLowerCase()}|${t.toLowerCase()}`;
+        const byKey = new Map(
+          (existing || []).map((e) => [key(e.partner_name, e.title), e.id]),
+        );
+
+        for (const o of rows) {
+          const payload = {
+            property_id: targetId,
+            partner_name: o.partner_name,
+            title: o.title,
+            description: o.description,
+            redemption_instructions: o.redemption_instructions,
+            redemption_code: o.redemption_code,
+            partner_url: o.partner_url,
+            partner_contact: o.partner_contact,
+            image_url: o.image_url,
+            valid_from: o.valid_from,
+            valid_until: o.valid_until,
+            max_redemptions: o.max_redemptions,
+            min_nights: o.min_nights,
+            is_active: o.is_active ?? true,
+          };
+          const existingId = byKey.get(key(o.partner_name, o.title));
+          if (existingId) {
+            const { error } = await supabase
+              .from("property_partner_offers")
+              .update(payload)
+              .eq("id", existingId);
+            if (error) throw error;
+          } else {
+            const { error } = await supabase.from("property_partner_offers").insert([payload]);
+            if (error) throw error;
+          }
+        }
+      }
+      toast.success(
+        `${rows.length} offer${rows.length === 1 ? "" : "s"} copied to ${targetIds.length} propert${targetIds.length === 1 ? "y" : "ies"}`,
+      );
+    },
+    [],
+  );
+
+  const copyRows = useMemo(
+    () => (copyAll ? offers : offers.filter((o) => o.id === copyId)),
+    [copyAll, copyId, offers],
+  );
+
   const openEdit = useCallback((o: PartnerOffer) => {
     setForm({
       partner_name: o.partner_name,
@@ -187,9 +246,24 @@ export function PartnerOffersTab({ propertyId }: { propertyId: string }) {
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <h3 className="text-xs font-semibold uppercase text-muted-foreground">Partner / affiliate offers</h3>
-        <Button size="sm" className="h-7 text-xs" onClick={openNew}>
-          <Plus className="mr-1 h-3 w-3" /> Add offer
-        </Button>
+        <div className="flex items-center gap-1">
+          {offers.length > 0 && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs"
+              onClick={() => {
+                setCopyAll(true);
+                setCopyId(null);
+              }}
+            >
+              <Copy className="mr-1 h-3 w-3" /> Copy all to portfolio
+            </Button>
+          )}
+          <Button size="sm" className="h-7 text-xs" onClick={openNew}>
+            <Plus className="mr-1 h-3 w-3" /> Add offer
+          </Button>
+        </div>
       </div>
 
       <Alert className="py-2">
@@ -252,6 +326,18 @@ export function PartnerOffersTab({ propertyId }: { propertyId: string }) {
                     <Button
                       size="sm"
                       variant="ghost"
+                      className="h-6 w-6 p-0"
+                      title="Copy to portfolio"
+                      onClick={() => {
+                        setCopyAll(false);
+                        setCopyId(o.id);
+                      }}
+                    >
+                      <Copy className="h-3 w-3" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
                       className="h-6 w-6 p-0 text-destructive"
                       onClick={() => setDeleteId(o.id)}
                     >
@@ -265,7 +351,24 @@ export function PartnerOffersTab({ propertyId }: { propertyId: string }) {
         </Table>
       )}
 
+      <CopyToPortfolioDialog
+        open={copyAll || !!copyId}
+        onOpenChange={(o) => {
+          if (!o) {
+            setCopyAll(false);
+            setCopyId(null);
+          }
+        }}
+        propertyId={propertyId}
+        itemLabel={copyAll ? `${offers.length} partner offers` : (copyRows[0]?.title ?? "this offer")}
+        title="Copy partner offers to portfolio"
+        onCopy={async (ids) => {
+          await copyToProperties(copyRows, ids);
+        }}
+      />
+
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle className="text-sm">
