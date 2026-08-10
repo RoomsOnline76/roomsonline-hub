@@ -1925,12 +1925,16 @@ async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRo
         };
       }
 
-      const { data: priceResult, error: priceErr } = await supabase.functions.invoke('rentalsunited-api', {
-        body: { action: 'push_prices', ru_property_id: ruPropertyId, prices: outboundPrices, ...childAuth },
-      });
+      const priceAttempt = await invokeRuWithRetry(
+        supabase,
+        { action: 'push_prices', ru_property_id: ruPropertyId, prices: outboundPrices, ...childAuth },
+        { label: `push_prices ${ruPropertyId}` },
+      );
+      result.prices_attempts = priceAttempt.attempts;
 
-      if (priceErr || !priceResult?.success) {
-        result.prices_error = priceErr?.message || priceResult?.error?.message || 'Unknown error';
+      if (!priceAttempt.ok) {
+        result.prices_error = priceAttempt.message || 'Unknown error';
+        if (priceAttempt.httpStatus) result.prices_http_status = priceAttempt.httpStatus;
       } else {
         result.prices_pushed = true;
         // 7.2 — Verify prices post-push
