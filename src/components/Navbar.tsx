@@ -23,6 +23,8 @@ import { pmsIntegrationStatus, getCompletedMilestoneCount, getTotalMilestoneCoun
 import { ProfileModal } from "@/components/ProfileModal";
 import { useBookOpenNewTab } from "@/hooks/useFeatureFlags";
 import rolLogo from "@/assets/rol-logo.png";
+import { isGuestBookingHost } from "@/lib/guestDomain";
+
 
 interface HealthIssue {
   system: string;
