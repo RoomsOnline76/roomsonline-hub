@@ -249,28 +249,51 @@ export async function evaluatePhases(
   // otherwise a fully pushed multi-unit property never leaves phase 3.
   const { data: unitRuRows } = await admin
     .from("hostfully_room_types")
-    .select("rentalsunited_property_id")
-    .eq("property_id", property.id)
-    .not("rentalsunited_property_id", "is", null);
-  const unitRuIds = (unitRuRows ?? [])
-    .map((r: { rentalsunited_property_id: string | number | null }) => Number(r.rentalsunited_property_id))
-    .filter((n: number) => Number.isFinite(n) && n > 0);
+    .select("id, name, is_active, rentalsunited_property_id")
+    .eq("property_id", property.id);
+  const activeUnits = (unitRuRows ?? []).filter(
+    (r: { is_active: boolean | null }) => r.is_active !== false,
+  ) as { id: string; name: string | null; rentalsunited_property_id: string | number | null }[];
+  const pushedUnits = activeUnits.filter((r) => {
+    const n = Number(r.rentalsunited_property_id);
+    return Number.isFinite(n) && n > 0;
+  });
+  const unitRuIds = pushedUnits.map((r) => Number(r.rentalsunited_property_id));
+  const missingUnits = activeUnits.filter((r) => !pushedUnits.includes(r));
+  // Every active unit is live at the channel — that IS a complete inventory push, even when the
+  // run row was flagged failed by a transient per-unit transport error on an earlier attempt.
+  const fullUnitCoverage = activeUnits.length > 0 && missingUnits.length === 0;
 
   const p3Blockers: string[] = [];
-  if (
-    !property.rentalsunited_property_id &&
-    !property.rentalsunited_building_id &&
-    unitRuIds.length === 0
-  ) {
-    p3Blockers.push("Property has not been pushed to Rentals United yet (no RU PropertyID/BuildingID stored).");
+  const nothingPushed =
+    !property.rentalsunited_property_id && !property.rentalsunited_building_id && unitRuIds.length === 0;
+  if (nothingPushed) {
+    p3Blockers.push('Not published to Rentals United yet — run "Push to Rentals United".');
+  } else if (!lastGoodPush && !fullUnitCoverage) {
+    if (lastInventoryRun?.success && !sameOwner(lastInventoryRun)) {
+      p3Blockers.push("The latest inventory push belongs to a different RU OwnerID; re-push under the linked sub-user.");
+    } else {
+      // Name what Rentals United rejected. This is a channel-side result, never a statement
+      // about local rate/availability completeness (that is phase 2 / readiness).
+      const failedUnits = Array.isArray((lastInventoryRun?.details as { units?: unknown })?.units)
+        ? ((lastInventoryRun!.details as { units: { name?: string; success?: boolean; error?: string }[] }).units)
+            .filter((u) => u?.success === false)
+        : [];
+      const detail = failedUnits.length
+        ? failedUnits
+            .slice(0, 4)
+            .map((u) => `${u.name ?? "unit"} — ${u.error ?? "rejected by Rentals United"}`)
+            .join("; ")
+        : missingUnits
+            .slice(0, 4)
+            .map((u) => u.name ?? "unit")
+            .join(", ");
+      p3Blockers.push(
+        `Rentals United has not accepted the full inventory yet: ${missingUnits.length} of ${activeUnits.length} unit(s) are not live at the channel${detail ? ` (${detail})` : ""}. Re-run the push — local rates and availability are scored separately in phase 2.`,
+      );
+    }
   }
-  if (!lastGoodPush) {
-    p3Blockers.push(
-      lastInventoryRun?.success && !sameOwner(lastInventoryRun)
-        ? "The latest inventory push belongs to a different RU OwnerID; re-push under the linked sub-user."
-        : "A complete property, availability, and price push has not succeeded for the linked RU sub-user.",
-    );
-  }
+
 
 
   // ── Phase 4 ──
