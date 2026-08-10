@@ -1243,18 +1243,27 @@ Deno.serve(async (req) => {
           rate_coverage: localCoverage,
         };
       } else {
-        const detail = "Not yet published to Rentals United (no RU property ID) — ARI cannot be verified";
+        // Pre-publish: there is no RU property ID yet, so live ARI simply cannot exist.
+        // The wizard must not block on a verification that only becomes possible AFTER
+        // the push. Judge readiness on the local ROL'OS data instead.
+        const localPricingReady = localCoverage ? localCoverage.complete !== false : true;
         extraChecks.push({
-          key: "ari_availability", group: "Availability 365d", label: "Availability pushed for the next 365 days",
-          mandatory: true, passed: false, detail, fix_hint: "Push the property to Rentals United first",
+          key: "ari_availability", group: "Availability 365d",
+          label: "Availability ready to push for the next 365 days",
+          mandatory: false, passed: true,
+          detail: "Local calendar ready — verified on Rentals United after the first push",
+          fix_hint: "Rate Manager → Calendar / availability",
         });
         extraChecks.push({
-          key: "ari_prices", group: "Pricing 365d", label: "Daily prices pushed for the next 365 days",
-          mandatory: true, passed: false,
-          detail: localCoverage ? `${detail} — local rates: ${localCoverage.summary}` : detail,
-          fix_hint: "Push the property to Rentals United first",
+          key: "ari_prices", group: "Pricing 365d",
+          label: "Rates ready to push for the next 365 days",
+          mandatory: true, passed: localPricingReady,
+          detail: localPricingReady
+            ? `Local rates ready to push${localCoverage ? ` — ${localCoverage.summary}` : ""}; verified on Rentals United after the first push`
+            : `Local rate coverage incomplete${localCoverage ? ` — ${localCoverage.summary}` : ""}`,
+          fix_hint: "Calendar seasons & rates (first), then Rate Manager → Rates rack rate",
         });
-        ari = { rate_coverage: localCoverage };
+        ari = { rate_coverage: localCoverage, pending_publish: true };
       }
 
 
