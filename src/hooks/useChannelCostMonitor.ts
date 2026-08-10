@@ -35,6 +35,10 @@ export interface ChannelPropertyRow {
   monthlyCostEur: number;
   /** Counts in dashboards/metrics: staff-flagged trading and not sandbox. */
   isTrading: boolean;
+  /** RU owner account id (OwnerID) linked to this property. */
+  ownerId: string | null;
+  /** RU sub-user account id (UserID) linked to this property. */
+  subUserId: string | null;
 }
 
 export interface ArchiveEventRow {
@@ -205,7 +209,7 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
           .from("billing_global_defaults")
           .select("channel_manager_per_unit_fee, sort_order")
           .order("sort_order", { ascending: true }),
-        supabase.from("ru_owner_accounts").select("id, portfolio_id, property_id, owner_email"),
+        supabase.from("ru_owner_accounts").select("id, portfolio_id, property_id, owner_email, ru_owner_id, ru_user_id"),
       ]);
 
 
@@ -246,6 +250,39 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
         );
       });
 
+      // Map each property to its RU owner/sub-user credentials. Prefer a direct
+      // property_id match, then a portfolio match, then an owner_email match.
+      const ruAccounts = (accountsRes?.data || []) as Array<{
+        portfolio_id: string | null;
+        property_id: string | null;
+        owner_email: string | null;
+        ru_owner_id: string | null;
+        ru_user_id: string | null;
+      }>;
+      const accountByProperty = new Map<string, { ownerId: string | null; subUserId: string | null }>();
+      for (const p of relevant) {
+        const direct = ruAccounts.find((a) => a.property_id === p.id);
+        if (direct) {
+          accountByProperty.set(p.id, { ownerId: direct.ru_owner_id, subUserId: direct.ru_user_id });
+          continue;
+        }
+        const portfolioId = (membersRes.data || []).find((m) => m.property_id === p.id)?.portfolio_id;
+        const portfolioMatch = portfolioId
+          ? ruAccounts.find((a) => a.portfolio_id === portfolioId)
+          : undefined;
+        if (portfolioMatch) {
+          accountByProperty.set(p.id, { ownerId: portfolioMatch.ru_owner_id, subUserId: portfolioMatch.ru_user_id });
+          continue;
+        }
+        const emailMatch = p.owner_email
+          ? ruAccounts.find((a) => (a.owner_email || "").toLowerCase() === p.owner_email!.toLowerCase())
+          : undefined;
+        accountByProperty.set(p.id, {
+          ownerId: emailMatch?.ru_owner_id ?? null,
+          subUserId: emailMatch?.ru_user_id ?? null,
+        });
+      }
+
       const draft = relevant.map((p) => {
         const units = (unitsByProperty.get(p.id) || []).filter((u) => !!u.rentalsunited_property_id);
         const archived = !!p.ru_archived || p.is_active === false;
@@ -258,6 +295,7 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
               ? 0
               : 1;
         const state: ChannelSyncState = archived ? "archived" : p.ru_push_enabled ? "live" : "paused";
+        const creds = accountByProperty.get(p.id) ?? { ownerId: null, subUserId: null };
 
         return {
           id: p.id,
@@ -277,6 +315,8 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
           lastPushAt: lastPush.get(p.id) ?? null,
           monthlyCostEur: 0,
           isTrading: p.is_trading === true && p.is_sandbox !== true,
+          ownerId: creds.ownerId,
+          subUserId: creds.subUserId,
         } satisfies ChannelPropertyRow;
       });
 
@@ -293,11 +333,6 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
       setRolPerListingZar(perUnit != null ? Number(perUnit) : null);
 
       // Sub-account footprint — mirrors the Portfolio Management → Rentals United counters.
-      const accounts = (accountsRes?.data || []) as Array<{
-        portfolio_id: string | null;
-        property_id: string | null;
-        owner_email: string | null;
-      }>;
       const membersRows = (membersRes.data || []) as Array<{ property_id: string; portfolio_id: string }>;
       // Trading scope: sandbox/parked records must not inflate channel counters.
       const isTradingProp = (p: PropertyRecord) => p.is_trading === true && p.is_sandbox !== true;
@@ -305,7 +340,7 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
       const tradingIds = new Set(tradingProps.map((p) => p.id));
 
       const subAccountPropertyIds = new Set<string>();
-      for (const acc of accounts) {
+      for (const acc of ruAccounts) {
         if (acc.portfolio_id) {
           membersRows
             .filter((m) => m.portfolio_id === acc.portfolio_id && tradingIds.has(m.property_id))
@@ -329,7 +364,7 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
 
       const pushEnabled = tradingProps.filter((p) => p.ru_push_enabled === true);
       setAccountFootprint({
-        subAccounts: accounts.length,
+        subAccounts: ruAccounts.length,
         subAccountProperties: footprintSubAccountIds.size,
         subAccountPropertiesWithoutFootprint:
           subAccountPropertyIds.size - footprintSubAccountIds.size,

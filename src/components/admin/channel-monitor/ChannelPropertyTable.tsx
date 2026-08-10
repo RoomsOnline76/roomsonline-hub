@@ -137,7 +137,24 @@ export function ChannelPropertyTable({ rows, fx, busyPropertyId, busyUnitId, onA
                         {open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
                       </Button>
                     </TableCell>
-                    <TableCell className="font-medium">{row.name}</TableCell>
+                    <TableCell>
+                      <div className="font-medium">{row.name}</div>
+                      <div className="mt-0.5 flex flex-wrap gap-x-3 text-[10px] text-muted-foreground">
+                        {row.ownerId && (
+                          <span className="font-mono" title="RU Owner ID">
+                            Owner: {row.ownerId}
+                          </span>
+                        )}
+                        {row.subUserId && (
+                          <span className="font-mono" title="RU Sub-user ID">
+                            Sub: {row.subUserId}
+                          </span>
+                        )}
+                        {!row.ownerId && !row.subUserId && (
+                          <span className="italic">No RU account linked</span>
+                        )}
+                      </div>
+                    </TableCell>
                     <TableCell className="text-muted-foreground">{row.portfolioName || "—"}</TableCell>
                     <TableCell>
                       <Badge
