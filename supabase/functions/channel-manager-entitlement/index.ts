@@ -269,8 +269,9 @@ Deno.serve(async (req) => {
             "Rentals United rejected the status change";
         }
       } else {
-        detail = "No Rentals United listing yet — local flag only";
+        detail = "Building has no Rentals United listing of its own — unit listings pushed individually";
       }
+
 
       const { error: updErr } = await admin
         .from("properties")
