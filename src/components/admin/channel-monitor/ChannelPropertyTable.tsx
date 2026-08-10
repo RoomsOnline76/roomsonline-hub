@@ -166,6 +166,17 @@ export function ChannelPropertyTable({ rows, fx, busyPropertyId, busyUnitId, onA
                           <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
                           Re-activate
                         </Button>
+                      ) : row.state === "paused" ? (
+                        <div className="flex justify-end gap-1.5">
+                          <Button size="sm" variant="outline" disabled={busy} onClick={() => onReactivate(row)}>
+                            <Play className="mr-1.5 h-3.5 w-3.5" />
+                            Resume pushes
+                          </Button>
+                          <Button size="sm" variant="ghost" disabled={busy} onClick={() => onArchive(row)}>
+                            <Archive className="mr-1.5 h-3.5 w-3.5" />
+                            Archive
+                          </Button>
+                        </div>
                       ) : (
                         <Button size="sm" variant="outline" disabled={busy} onClick={() => onArchive(row)}>
                           <Archive className="mr-1.5 h-3.5 w-3.5" />
@@ -173,6 +184,7 @@ export function ChannelPropertyTable({ rows, fx, busyPropertyId, busyUnitId, onA
                         </Button>
                       )}
                     </TableCell>
+
                   </TableRow>
 
                   {open && (
