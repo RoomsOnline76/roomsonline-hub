@@ -2329,6 +2329,9 @@ Deno.serve(async (req) => {
   const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
   const supabase = createClient(supabaseUrl, supabaseKey);
 
+  /** Start of this run — bounds the exchange-log linkage written to ru_sync_runs. */
+  const runStartedAtIso = new Date().toISOString();
+
   try {
     const reqBody = await req.json();
     const { property_id, dry_run, subscribe_rlnm, standalone_units, only_unit_ids, action } = reqBody;
