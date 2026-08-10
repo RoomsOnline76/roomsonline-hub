@@ -3081,6 +3081,9 @@ Deno.serve(async (req) => {
             ru_owner_id: ruOwnerId,
             trigger: typeof reqBody.trigger === 'string' ? reqBody.trigger : 'manual',
             stale_listings: staleCount,
+            failed_targets: failedCount,
+            total_attempts: totalAttempts,
+            upstream_only: upstreamOnly,
             targets: ariResults,
           },
         });
