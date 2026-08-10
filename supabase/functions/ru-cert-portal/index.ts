@@ -543,6 +543,7 @@ const MILESTONE_SYNC_ACTIONS: Record<string, string[]> = {
   "Reservation Creator → sales channel": ["creator_mapping_check", "pull_reservations"],
 
   "Pull_ListReservations_RQ": ["pull_reservations"],
+  "Pull_GetReservationByID_RQ": ["reservation_detail_test", "get_reservation_by_id"],
   "Pull_GetLeads_RQ": ["lead_lifecycle", "pull_reservations"],
   "Push_PutProperty_RQ": ["inventory_push", "weekly_content_refresh"],
   "Push_PutAvbUnits_RQ": ["refresh_ari", "availability_playground", "duplicate_range_test"],
