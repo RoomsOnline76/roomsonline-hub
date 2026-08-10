@@ -727,9 +727,15 @@ export default function EmbedProperty() {
       const stayRate = effectiveRate || 0;
       const stayTotal = stayRate * Math.max(numNights, 1);
 
+      // Dedupe on the exact unit + dates: two different units of the same
+      // property (or the same unit on different dates) are separate stays.
       const alreadyInItinerary = stays.some(
-        s => s.property_id === property.id && s.dates.check_in === checkIn && s.dates.check_out === finalCheckOutDate
+        s => s.property_id === property.id &&
+          s.dates.check_in === checkIn &&
+          s.dates.check_out === finalCheckOutDate &&
+          s.rooms.some(r => r.room_type_id === roomId)
       );
+
       if (!alreadyInItinerary) {
         const portfolioSlugParam = searchParams.get("portfolio_slug");
         addStay({
