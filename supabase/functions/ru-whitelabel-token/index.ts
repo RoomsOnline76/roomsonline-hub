@@ -26,6 +26,7 @@
  *   clear_tokens { property_id | ru_owner_id }        (admin only)
  */
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { logRuExchange } from '../_shared/ruApiLog.ts';
 import { findOwnerAccount } from '../_shared/ruPhaseGate.ts';
 
 const corsHeaders = {
