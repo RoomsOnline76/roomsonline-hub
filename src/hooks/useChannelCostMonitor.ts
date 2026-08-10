@@ -81,8 +81,10 @@ export interface ChannelCostMonitorData {
   subAccounts: number;
   /** Distinct properties sitting under a channel-manager sub-account. */
   subAccountProperties: number;
-  /** Properties with channel pushing switched on. */
+  /** Trading properties inside the sub-account footprint with channel pushing on. */
   pushEnabledProperties: number;
+  /** Trading properties pushing without any linked sub-account. */
+  pushEnabledOutsideAccounts: number;
 }
 
 
