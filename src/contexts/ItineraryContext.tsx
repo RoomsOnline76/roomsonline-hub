@@ -192,8 +192,14 @@ export function ItineraryProvider({ children }: ItineraryProviderProps) {
     }
   }, []);
 
-  // Persist to sessionStorage on changes
+  // Persist to sessionStorage on changes (skipped until the stored basket has
+  // been hydrated, so an early flush can never wipe an existing journey).
+  const hydratedRef = useRef(false);
   useEffect(() => {
+    if (!hydratedRef.current) {
+      hydratedRef.current = true;
+      return;
+    }
     try {
       const data = {
         stays,
@@ -220,7 +226,11 @@ export function ItineraryProvider({ children }: ItineraryProviderProps) {
       id: generateId(),
       nights: calculateNights(stay.dates.check_in, stay.dates.check_out)
     };
-    setStays(prev => [...prev, newStay]);
+    setStays(prev => {
+      const next = [...prev, newStay];
+      persistStaysNow(next);
+      return next;
+    });
   }, []);
 
   const addMultipleStays = useCallback((newStays: Omit<ItineraryStay, 'id'>[]) => {
@@ -229,24 +239,37 @@ export function ItineraryProvider({ children }: ItineraryProviderProps) {
       id: generateId(),
       nights: calculateNights(stay.dates.check_in, stay.dates.check_out)
     }));
-    setStays(prev => [...prev, ...staysWithIds]);
+    setStays(prev => {
+      const next = [...prev, ...staysWithIds];
+      persistStaysNow(next);
+      return next;
+    });
   }, []);
 
   const updateStay = useCallback((stayId: string, updates: Partial<ItineraryStay>) => {
-    setStays(prev => prev.map(stay => {
-      if (stay.id !== stayId) return stay;
-      const updated = { ...stay, ...updates };
-      // Recalculate nights if dates changed
-      if (updates.dates) {
-        updated.nights = calculateNights(updates.dates.check_in, updates.dates.check_out);
-      }
-      return updated;
-    }));
+    setStays(prev => {
+      const next = prev.map(stay => {
+        if (stay.id !== stayId) return stay;
+        const updated = { ...stay, ...updates };
+        // Recalculate nights if dates changed
+        if (updates.dates) {
+          updated.nights = calculateNights(updates.dates.check_in, updates.dates.check_out);
+        }
+        return updated;
+      });
+      persistStaysNow(next);
+      return next;
+    });
   }, []);
 
   const removeStay = useCallback((stayId: string) => {
-    setStays(prev => prev.filter(stay => stay.id !== stayId));
+    setStays(prev => {
+      const next = prev.filter(stay => stay.id !== stayId);
+      persistStaysNow(next);
+      return next;
+    });
   }, []);
+
 
   const reorderStays = useCallback((fromIndex: number, toIndex: number) => {
     setStays(prev => {
