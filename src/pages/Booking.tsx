@@ -1819,8 +1819,10 @@ const Booking = () => {
       });
     }
 
-    // Portfolio embed: route to portfolio overview for journey building
-    if (isPortfolioEmbed && portfolioSlug) {
+    // Property belongs to a portfolio: send the guest to the portfolio overview so
+    // they can pick a different house/unit. Sending them back to the same property
+    // page just re-showed the house they had already booked.
+    if (portfolioSlug) {
       const params = new URLSearchParams({
         journey_mode: 'true',
         current_property_id: property?.id || '',
