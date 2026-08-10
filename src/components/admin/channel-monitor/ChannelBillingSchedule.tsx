@@ -1,4 +1,7 @@
+import { useState } from "react";
+import { ChevronDown } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { formatEur, formatZar, type ForecastResult } from "@/lib/channelBillingForecast";
@@ -12,17 +15,26 @@ interface Props {
 }
 
 export function ChannelBillingSchedule({ schedule, currentMonth, fx }: Props) {
+  const [open, setOpen] = useState(false);
   return (
     <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-semibold">
-          Commitment schedule
-          <span className="ml-2 text-xs font-normal text-muted-foreground">
-            projected at today&apos;s listing count
-          </span>
-        </CardTitle>
-      </CardHeader>
+      <Collapsible open={open} onOpenChange={setOpen}>
+        <CollapsibleTrigger asChild>
+          <CardHeader className="pb-2 cursor-pointer select-none flex-row items-center justify-between gap-2">
+            <CardTitle className="text-sm font-semibold">
+              Commitment schedule
+              <span className="ml-2 text-xs font-normal text-muted-foreground">
+                projected at today&apos;s listing count
+              </span>
+            </CardTitle>
+            <ChevronDown
+              className={cn("h-4 w-4 text-muted-foreground transition-transform", open && "rotate-180")}
+            />
+          </CardHeader>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
       <CardContent className="p-0">
+
         <Table>
           <TableHeader>
             <TableRow>
