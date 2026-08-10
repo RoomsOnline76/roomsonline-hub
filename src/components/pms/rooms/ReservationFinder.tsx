@@ -55,7 +55,7 @@ export function ReservationFinder({ bookings, rooms, propertyNames, onSelectBook
       .filter((booking) => {
         const roomLabels = (booking.rolos_room_ids || []).map((id) => roomLabelById.get(id) || "").join(" ");
         // ROL reference matches on partial input too ("00142", "jon-003", "rol-wl").
-        if (matchesReferenceSearch(booking.rol_reference, term)) return true;
+        if (matchesReferenceSearch([booking.rol_reference, booking.rol_reference_legacy], term)) return true;
         const haystack = [
           booking.guest_name,
           booking.guest_email,

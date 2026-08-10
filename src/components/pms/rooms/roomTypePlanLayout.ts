@@ -9,6 +9,8 @@ export interface RoomsBooking extends CalendarBookingRow {
   rolos_room_ids: string[] | null;
   /** Standardised ROL booking reference, e.g. ROL-WEB-B-DAS-00142. */
   rol_reference?: string | null;
+  /** Previous long-form reference, kept so older codes still resolve in search. */
+  rol_reference_legacy?: string | null;
   /** The channel/PMS's own reservation id, kept for reconciliation. */
   external_reservation_id?: string | null;
 }
