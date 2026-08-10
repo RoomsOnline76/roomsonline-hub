@@ -123,6 +123,25 @@ Deno.serve(async (req) => {
       results.push({ property_id: prop.id, name: prop.name, success, skipped, error: errMsg || undefined });
 
 
+      // A single flaky upstream call is very different from a pipeline that has been broken for
+      // several cycles — count how many consecutive cron runs this property has now failed.
+      let consecutiveFailures = 0;
+      if (!success && !skipped) {
+        const { data: history } = await supabase
+          .from('ru_sync_runs')
+          .select('success, created_at, details')
+          .eq('action', 'refresh_ari')
+          .eq('property_id', prop.id)
+          .order('created_at', { ascending: false })
+          .limit(6);
+        consecutiveFailures = 1;
+        for (const row of (history ?? []) as { success: boolean; details?: Record<string, unknown> | null }[]) {
+          if ((row.details as any)?.scope !== 'daily_ari') continue;
+          if (row.success === false) consecutiveFailures += 1;
+          else break;
+        }
+      }
+
       // Log to ru_sync_runs (non-blocking). Skips are recorded but not counted as failures.
       await supabase.from('ru_sync_runs').insert({
         batch_id: batchId,
@@ -133,7 +152,12 @@ Deno.serve(async (req) => {
         error_code: errCode,
         error_message: errMsg,
         elapsed_ms: elapsed,
-        details: { scope: 'daily_ari', skipped },
+        details: {
+          scope: 'daily_ari',
+          skipped,
+          consecutive_failures: consecutiveFailures,
+          escalate: consecutiveFailures >= 3,
+        },
       }).then(() => {}, (e) => console.warn('[cron-refresh-ru-ari] log insert failed', e));
 
       // Small delay between pushes to avoid rate limits

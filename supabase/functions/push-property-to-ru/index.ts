@@ -29,6 +29,7 @@ import {
 
 import { parseRuPriceSeasons } from '../_shared/ruPriceParsing.ts';
 import { parseRuAvailabilityDays } from '../_shared/ruAvailabilityParsing.ts';
+import { invokeRuWithRetry } from '../_shared/ruInvokeRetry.ts';
 import {
   decideRuCurrency,
   verifyAndRecordCurrency,
@@ -1677,7 +1678,7 @@ async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRo
   const amenities = (property.amenities || {}) as Record<string, any>;
   const seasons = amenities.seasons as any[] | undefined;
   const seasonRates = amenities.season_rates as Record<string, any> | undefined;
-  const result: { availability_reserved_days?: number; availability_pushed?: boolean; prices_pushed?: boolean; availability_error?: string; prices_error?: string; availability_verification?: AvailabilityVerification; prices_verification?: PriceVerification; price_coverage?: Record<string, any>; availability_coverage?: Record<string, any>; manual_restrictions?: Record<string, any>; currency?: Record<string, any> } = {};
+  const result: { availability_reserved_days?: number; availability_pushed?: boolean; prices_pushed?: boolean; availability_error?: string; prices_error?: string; availability_attempts?: number; prices_attempts?: number; availability_http_status?: number; prices_http_status?: number; availability_verification?: AvailabilityVerification; prices_verification?: PriceVerification; price_coverage?: Record<string, any>; availability_coverage?: Record<string, any>; manual_restrictions?: Record<string, any>; currency?: Record<string, any> } = {};
 
   const today = new Date();
   const todayStr = today.toISOString().slice(0, 10);
@@ -1728,11 +1729,15 @@ async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRo
       availEntries = applyManualOverrides(availEntries, manual.overrides);
       result.manual_restrictions = manual.stats;
       console.log(`[pushARI] Pushing ${availEntries.length} availability entries (per-day rules: ${changeoverConfig.perDow ? 'yes' : 'no'}, default changeover: ${changeoverConfig.defaultCode}, manual override days: ${manual.stats.days})`);
-      const { data: availResult, error: availErr } = await supabase.functions.invoke('rentalsunited-api', {
-        body: { action: 'push_availability', ru_property_id: ruPropertyId, availability: availEntries, ...childAuth },
-      });
-      let availOk = !availErr && availResult?.success === true;
-      let availErrorMessage = availErr?.message || availResult?.error?.message || 'Unknown error';
+      const availAttempt = await invokeRuWithRetry(
+        supabase,
+        { action: 'push_availability', ru_property_id: ruPropertyId, availability: availEntries, ...childAuth },
+        { label: `push_availability ${ruPropertyId}` },
+      );
+      result.availability_attempts = availAttempt.attempts;
+      let availOk = availAttempt.ok;
+      let availErrorMessage = availAttempt.message || 'Unknown error';
+      if (!availOk && availAttempt.httpStatus) result.availability_http_status = availAttempt.httpStatus;
 
       // RU rejects the whole batch when any day it holds a confirmed reservation for would be
       // re-opened. Drop exactly those days (they are correctly booked out) and push the rest.
@@ -1751,11 +1756,14 @@ async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRo
 
         if (reservedDates.size > 0 && retryEntries.length > 0) {
           console.log(`[pushARI] Retrying availability without ${reservedDates.size} reserved day(s) for RU ${ruPropertyId}`);
-          const { data: retryResult, error: retryErr } = await supabase.functions.invoke('rentalsunited-api', {
-            body: { action: 'push_availability', ru_property_id: ruPropertyId, availability: retryEntries, ...childAuth },
-          });
-          availOk = !retryErr && retryResult?.success === true;
-          availErrorMessage = retryErr?.message || retryResult?.error?.message || availErrorMessage;
+          const retryAttempt = await invokeRuWithRetry(
+            supabase,
+            { action: 'push_availability', ru_property_id: ruPropertyId, availability: retryEntries, ...childAuth },
+            { label: `push_availability(reserved-split) ${ruPropertyId}` },
+          );
+          result.availability_attempts = (result.availability_attempts ?? 0) + retryAttempt.attempts;
+          availOk = retryAttempt.ok;
+          availErrorMessage = retryAttempt.message || availErrorMessage;
           if (availOk) {
             availEntries.length = 0;
             availEntries.push(...retryEntries);
@@ -1917,12 +1925,16 @@ async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRo
         };
       }
 
-      const { data: priceResult, error: priceErr } = await supabase.functions.invoke('rentalsunited-api', {
-        body: { action: 'push_prices', ru_property_id: ruPropertyId, prices: outboundPrices, ...childAuth },
-      });
+      const priceAttempt = await invokeRuWithRetry(
+        supabase,
+        { action: 'push_prices', ru_property_id: ruPropertyId, prices: outboundPrices, ...childAuth },
+        { label: `push_prices ${ruPropertyId}` },
+      );
+      result.prices_attempts = priceAttempt.attempts;
 
-      if (priceErr || !priceResult?.success) {
-        result.prices_error = priceErr?.message || priceResult?.error?.message || 'Unknown error';
+      if (!priceAttempt.ok) {
+        result.prices_error = priceAttempt.message || 'Unknown error';
+        if (priceAttempt.httpStatus) result.prices_http_status = priceAttempt.httpStatus;
       } else {
         result.prices_pushed = true;
         // 7.2 — Verify prices post-push
@@ -3035,14 +3047,28 @@ Deno.serve(async (req) => {
 
       const allOk = ariResults.every((r) => r.availability_pushed === true && !r.availability_error && !r.prices_error);
       const staleCount = ariResults.filter((r) => r.stale_listing).length;
-      const failedCount = ariResults.filter((r) => r.availability_pushed !== true || r.availability_error || r.prices_error).length;
+      const failedTargets = ariResults.filter((r) => r.availability_pushed !== true || r.availability_error || r.prices_error);
+      const failedCount = failedTargets.length;
       const allStale = !allOk && staleCount > 0 && staleCount === failedCount;
-      const errorCode = allOk ? null : allStale ? 'RU_LISTING_STALE' : 'RU_ARI_REFRESH_INCOMPLETE';
+      // After retries, a 5xx from the channel API is an upstream outage, not a data defect — code
+      // it distinctly so the health report can separate flaky upstream from real push failures.
+      const upstreamOnly = !allOk && !allStale && failedTargets.every((r) => {
+        const status = r.prices_http_status ?? r.availability_http_status ?? null;
+        return typeof status === 'number' && status >= 500;
+      });
+      const errorCode = allOk
+        ? null
+        : allStale
+          ? 'RU_LISTING_STALE'
+          : upstreamOnly
+            ? 'RU_UPSTREAM_UNAVAILABLE'
+            : 'RU_ARI_REFRESH_INCOMPLETE';
+      const totalAttempts = ariResults.reduce((sum, r) => sum + (r.availability_attempts ?? 0) + (r.prices_attempts ?? 0), 0);
       const errorMessage = allOk
         ? null
         : allStale
           ? `${staleCount} listing(s) no longer exist at the Channel Manager — the stale mapping was cleared, run a full push to re-list.`
-          : ariResults.map((r) => r.availability_error || r.prices_error).filter(Boolean).join('; ');
+          : `${failedCount}/${ariResults.length} target(s) failed after retries: ${ariResults.map((r) => r.availability_error || r.prices_error).filter(Boolean).join('; ')}`;
       try {
         await supabase.from('ru_sync_runs').insert({
           batch_id: crypto.randomUUID(),
@@ -3055,6 +3081,9 @@ Deno.serve(async (req) => {
             ru_owner_id: ruOwnerId,
             trigger: typeof reqBody.trigger === 'string' ? reqBody.trigger : 'manual',
             stale_listings: staleCount,
+            failed_targets: failedCount,
+            total_attempts: totalAttempts,
+            upstream_only: upstreamOnly,
             targets: ariResults,
           },
         });

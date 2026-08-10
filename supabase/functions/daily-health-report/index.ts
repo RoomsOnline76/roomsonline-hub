@@ -21,7 +21,13 @@ async function generateAIDigest(
   failedCount: number,
   totalComponents: number,
   criticalIssues: Array<{ component: string; message: string }>,
-  bookingStats: { total: number; confirmed: number; pending: number; failed: number }
+  bookingStats: { total: number; confirmed: number; pending: number; failed: number },
+  channelHealth: {
+    success_rate: number;
+    failing: Array<{ action: string; success_rate: number; failed: number; last_run: string | null }>;
+    recovered: Array<{ action: string; last_failure_at: string | null }>;
+    top_errors: Array<{ code: string; count: number; sample: string }>;
+  } | null,
 ): Promise<AIDigest | null> {
   const apiKey = Deno.env.get('LOVABLE_API_KEY');
   if (!apiKey) {
@@ -37,6 +43,12 @@ Uptime: ${uptimePercentage.toFixed(1)}%
 Failed Components: ${failedCount}/${totalComponents}
 Critical Issues: ${criticalIssues.length > 0 ? criticalIssues.map(i => `${i.component}: ${i.message}`).join('; ') : 'None'}
 Bookings (24h): ${bookingStats.total} total, ${bookingStats.confirmed} confirmed, ${bookingStats.pending} pending, ${bookingStats.failed} failed
+${channelHealth ? `Channel/distribution pipelines (24h): overall success ${channelHealth.success_rate.toFixed(1)}%
+Currently failing pipelines: ${channelHealth.failing.length > 0 ? channelHealth.failing.map(a => `${a.action} (${a.success_rate.toFixed(0)}% success, ${a.failed} failures, last run ${a.last_run || 'unknown'})`).join('; ') : 'None'}
+Recovered since last failure: ${channelHealth.recovered.length > 0 ? channelHealth.recovered.map(a => `${a.action} (last failed ${a.last_failure_at || 'unknown'})`).join('; ') : 'None'}
+Top channel errors: ${channelHealth.top_errors.length > 0 ? channelHealth.top_errors.map(e => `${e.code} ×${e.count} — ${e.sample}`).join('; ') : 'None'}` : 'Channel/distribution pipelines: no data in window'}
+
+Rules: never report all-clear while a pipeline above is listed as currently failing. Distinguish a currently failing pipeline from one that has recovered. Treat repeated upstream 5xx errors as a third-party outage, not a code defect.
 
 Respond with exactly this JSON format:
 {
@@ -259,11 +271,22 @@ function generateEmailHtml(
   devTasks: DevTask[],
   ruWl: RuWlMetrics | null
 ): string {
-  const overallStatusColor = getStatusColor(overallStatus);
-  const overallStatusLabel = overallStatus === 'healthy'
+  // A failing sync pipeline is a real outage even when every component probe is green — the
+  // headline must never read "All Systems Operational" while the channel strip says "Failing".
+  const failingPipelines = (ruWl?.actions ?? []).filter(a => a.current_ok === false);
+  const pipelineFailing = failingPipelines.length > 0;
+  const effectiveStatus = overallStatus === 'failed'
+    ? 'failed'
+    : pipelineFailing || overallStatus === 'degraded'
+      ? 'degraded'
+      : overallStatus;
+  const overallStatusColor = getStatusColor(effectiveStatus);
+  const overallStatusLabel = effectiveStatus === 'healthy'
     ? 'All Systems Operational'
-    : overallStatus === 'degraded'
-      ? 'Some Issues Detected'
+    : effectiveStatus === 'degraded'
+      ? pipelineFailing
+        ? `Degraded — ${failingPipelines.map(a => a.action).join(', ')} failing`
+        : 'Some Issues Detected'
       : 'Critical Issues';
 
   const card = 'background-color:#ffffff;border:1px solid #e5e7eb;border-radius:8px;';
@@ -425,9 +448,10 @@ function generateEmailHtml(
 
     <!-- Status strip -->
     <div style="background-color:${overallStatusColor}12;border-bottom:2px solid ${overallStatusColor};padding:12px 20px;">
-      <strong style="color:${overallStatusColor};font-size:15px;">${getStatusEmoji(overallStatus)} ${overallStatusLabel}</strong>
-      <span style="color:#6b7280;font-size:13px;"> · uptime ${uptimePercentage.toFixed(1)}% · failing ${failedCount}/${totalComponents}${ruWl ? ` · channel success ${ruWl.success_rate.toFixed(1)}% (now ${ruWl.current_ok === null ? 'no data' : ruWl.current_ok ? 'OK' : 'failing'})` : ''}</span>
+      <strong style="color:${overallStatusColor};font-size:15px;">${getStatusEmoji(effectiveStatus)} ${overallStatusLabel}</strong>
+      <span style="color:#6b7280;font-size:13px;"> · uptime ${uptimePercentage.toFixed(1)}% · components failing ${failedCount}/${totalComponents}${ruWl ? ` · pipelines failing ${failingPipelines.length}/${ruWl.actions.length} · channel success ${ruWl.success_rate.toFixed(1)}%` : ''}</span>
     </div>
+
 
     ${criticalIssuesSection}
 
@@ -897,7 +921,19 @@ Deno.serve(async (req) => {
       failedCount,
       totalComponents,
       criticalIssues,
-      bookingStats
+      bookingStats,
+      ruWl
+        ? {
+            success_rate: ruWl.success_rate,
+            failing: ruWl.actions
+              .filter(a => a.current_ok === false)
+              .map(a => ({ action: a.action, success_rate: a.success_rate, failed: a.failed, last_run: a.last_run })),
+            recovered: ruWl.actions
+              .filter(a => a.recovered)
+              .map(a => ({ action: a.action, last_failure_at: a.last_failure_at })),
+            top_errors: ruWl.top_errors,
+          }
+        : null,
     );
 
     // Generate email
