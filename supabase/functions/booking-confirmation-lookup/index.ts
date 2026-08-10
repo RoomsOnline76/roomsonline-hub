@@ -15,7 +15,7 @@ const bodySchema = z.object({
 const SELECT = `
   id, rol_reference, external_reservation_id, status, payment_status, payment_reference,
   check_in_date, check_out_date, adults, children, teens, infants, rooms,
-  guest_name, guest_email, total_price, currency, origin_property_id, origin_portfolio_id,
+  guest_name, guest_email, total_price, origin_property_id, origin_portfolio_id,
   properties!bookings_property_id_fkey (name, city, country, slug, brand_override_enabled, brand_logo_url)
 `;
 
