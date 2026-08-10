@@ -127,11 +127,11 @@ function buildRows(v: RuContentFlags): Row[] {
       detail: `${v.rooms_count ?? 0} rooms`,
     },
     {
-      label: "Beds cover max guests",
+      label: "Sleeping places cover max guests",
       field: "CompositionRoomAmenities/Amenities",
       where: "Rooms → Beds",
       state: v.beds_meet_max_guests === false ? "default" : "ok",
-      detail: `${v.total_beds ?? 0} beds / ${v.max_guests ?? 0} guests`,
+      detail: `sleeps ${v.total_bed_capacity ?? v.total_beds ?? 0} / ${v.max_guests ?? 0} guests`,
     },
     {
       label: "Description",
