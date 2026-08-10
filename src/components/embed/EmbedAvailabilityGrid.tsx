@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, type CSSProperties } from "react";
 import { format, addDays, eachDayOfInterval, isBefore, startOfDay } from "date-fns";
 
 interface RoomAvailability {
@@ -49,7 +49,21 @@ export function EmbedAvailabilityGrid({
 }: EmbedAvailabilityGridProps) {
   const [offset, setOffset] = useState(0);
   const [hover, setHover] = useState<HoverCell | null>(null);
+  // On narrow screens the trailing "Book" column scrolls out of view, so the
+  // action moves into the always-visible room-name cell instead.
+  const [isNarrow, setIsNarrow] = useState(
+    typeof window !== "undefined" ? window.matchMedia("(max-width: 640px)").matches : false,
+  );
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia("(max-width: 640px)");
+    const onChange = () => setIsNarrow(mq.matches);
+    onChange();
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
   const today = startOfDay(new Date());
+
 
   const dates = useMemo(() => {
     const base = addDays(new Date(startDate), offset);
@@ -60,6 +74,20 @@ export function EmbedAvailabilityGrid({
 
   const isHighlighted = (key: string) =>
     !!highlightRange && key >= highlightRange.from && key < highlightRange.to;
+
+  const bookButtonStyle: CSSProperties = {
+    background: brandColor,
+    color: fontColor,
+    border: "none",
+    borderRadius: "2px",
+    padding: "7px 12px",
+    cursor: "pointer",
+    fontSize: "10px",
+    fontWeight: 700,
+    textTransform: "uppercase",
+    letterSpacing: "0.05em",
+  };
+
 
   return (
     <div style={{ width: "100%", background: "#fff", padding: "4px 0 10px" }}>
@@ -177,7 +205,7 @@ export function EmbedAvailabilityGrid({
                   </th>
                 );
               })}
-              {onBook && <th style={{ ...thStyle, width: "56px" }} />}
+              {onBook && !isNarrow && <th style={{ ...thStyle, width: "56px" }} />}
             </tr>
           </thead>
           <tbody>
@@ -190,12 +218,30 @@ export function EmbedAvailabilityGrid({
             ) : (
               rooms.map((room) => (
                 <tr key={room.roomId}>
-                  <td style={{ ...tdStyle, textAlign: "left" }}>
+                  <td
+                    style={{
+                      ...tdStyle,
+                      textAlign: "left",
+                      ...(isNarrow
+                        ? { position: "sticky" as const, left: 0, background: "#fff", zIndex: 2 }
+                        : {}),
+                    }}
+                  >
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px" }}>
                       <span style={{ fontSize: "14px", color: brandColor, fontWeight: 500 }}>{room.roomName}</span>
                       <OccupancyIcons count={room.maxGuests || room.maxAdults || 2} />
                     </div>
+                    {onBook && isNarrow && (
+                      <button
+                        onClick={() => onBook(room.roomId, room.roomName)}
+                        title={`Book ${room.roomName}`}
+                        style={{ ...bookButtonStyle, marginTop: "8px", width: "100%" }}
+                      >
+                        Book
+                      </button>
+                    )}
                   </td>
+
                   {dates.map((d) => {
                     const key = format(d, "yyyy-MM-dd");
                     const rate = room.ratesByDate[key];
@@ -266,28 +312,18 @@ export function EmbedAvailabilityGrid({
                       </td>
                     );
                   })}
-                  {onBook && (
+                  {onBook && !isNarrow && (
                     <td style={{ ...tdStyle, textAlign: "center" }}>
                       <button
                         onClick={() => onBook(room.roomId, room.roomName)}
                         title={`Book ${room.roomName}`}
-                        style={{
-                          background: brandColor,
-                          color: fontColor,
-                          border: "none",
-                          borderRadius: "2px",
-                          padding: "7px 12px",
-                          cursor: "pointer",
-                          fontSize: "10px",
-                          fontWeight: 700,
-                          textTransform: "uppercase",
-                          letterSpacing: "0.05em",
-                        }}
+                        style={bookButtonStyle}
                       >
                         Book
                       </button>
                     </td>
                   )}
+
                 </tr>
               ))
             )}
