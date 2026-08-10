@@ -4096,6 +4096,7 @@ Deno.serve(async (req) => {
       && !pushExtras.prices_verification?.error
       && (pushExtras.prices_verification?.mismatches?.length ?? 0) === 0
       && (pushExtras.prices_verification?.missing_dates?.length ?? 0) === 0;
+    const exchangeLog = await summarizeRuExchanges(supabase, property_id, runStartedAtIso);
     await supabase.from('ru_sync_runs').insert({
       batch_id: crypto.randomUUID(),
       property_id,
@@ -4104,8 +4105,16 @@ Deno.serve(async (req) => {
       success: inventorySuccess,
       error_code: inventorySuccess ? null : 'RU_INVENTORY_INCOMPLETE',
       error_message: inventorySuccess ? null : String(pushExtras.availability_error || pushExtras.prices_error || 'Inventory push incomplete'),
-      details: { ru_owner_id: ruOwnerId, owner_scope: phaseGate.owner_scope, verified: inventoryVerified, ari: pushExtras },
+      details: {
+        ru_owner_id: ruOwnerId,
+        owner_scope: phaseGate.owner_scope,
+        verified: inventoryVerified,
+        ari: pushExtras,
+        // Links this run to the durable request/response log kept for support cases.
+        exchange_log: exchangeLog,
+      },
     });
+
 
     /**
      * Content quality check on first publish: onboarding must never start without one.
