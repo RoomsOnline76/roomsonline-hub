@@ -517,9 +517,13 @@ function generatePoemHTML(poem: string | null): string {
   `;
 }
 
-function generateVoucherHTML(voucher: { code: string; description: string } | null): string {
+function generateVoucherHTML(voucher: { code: string; description: string; valid_until?: string | null } | null): string {
   if (!voucher) return '';
-  
+
+  const validity = voucher.valid_until
+    ? `Valid until ${new Date(voucher.valid_until).toLocaleDateString('en-ZA', { day: 'numeric', month: 'long', year: 'numeric' })}.`
+    : '';
+
   return `
     <div class="voucher-section">
       <div class="voucher-card">
@@ -532,7 +536,7 @@ function generateVoucherHTML(voucher: { code: string; description: string } | nu
           <span class="voucher-label">Your Code:</span>
           <span class="voucher-code">${voucher.code}</span>
         </div>
-        <p class="voucher-terms">Valid for 6 months. Present this code at reception.</p>
+        <p class="voucher-terms">${validity} Apply this code at checkout or present it at reception.</p>
       </div>
     </div>
   `;
