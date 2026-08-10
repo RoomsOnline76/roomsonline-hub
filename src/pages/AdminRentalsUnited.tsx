@@ -269,12 +269,14 @@ export default function AdminRentalsUnited() {
           )}
         </TabsContent>
 
-        <TabsContent value="errors">
+        <TabsContent value="errors" className="space-y-4">
+          <RuCalendarVerifyPanel properties={enabledProperties} />
           <RuErrorHandlingTab
             runs={runs}
             propertyNameById={new Map(properties.map((p) => [p.id, p.name]))}
           />
         </TabsContent>
+
 
         <TabsContent value="buildings">
           <RuBuildingsPanel />
