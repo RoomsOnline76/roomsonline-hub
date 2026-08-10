@@ -26,9 +26,12 @@ const ChannelCertificationTab = lazy(() =>
     default: m.ChannelCertificationTab,
   })),
 );
+const RuReservationsPanel = lazy(() =>
+  import("@/components/integrations/RuReservationsPanel").then((m) => ({ default: m.RuReservationsPanel })),
+);
 
-type TabKey = "cost" | "accounts" | "cert";
-const TAB_KEYS: TabKey[] = ["cost", "accounts", "cert"];
+type TabKey = "cost" | "accounts" | "cert" | "reservations";
+const TAB_KEYS: TabKey[] = ["cost", "accounts", "cert", "reservations"];
 
 export default function AdminChannelMonitor() {
   const data = useChannelCostMonitor();
@@ -161,6 +164,12 @@ export default function AdminChannelMonitor() {
 
   const currentMonth = useMemo(() => data.forecast.month, [data.forecast.month]);
 
+  // Reservation diagnostics only make sense for properties the channel manager knows about.
+  const reservationProperties = useMemo(
+    () => data.properties.map((p) => ({ id: p.id, name: p.name })),
+    [data.properties],
+  );
+
   return (
     <AppLayout>
       <div className="container mx-auto space-y-4 px-4 py-6">
@@ -188,6 +197,7 @@ export default function AdminChannelMonitor() {
             <TabsTrigger value="cost">Cost &amp; listings</TabsTrigger>
             <TabsTrigger value="accounts">Accounts</TabsTrigger>
             <TabsTrigger value="cert">Certification</TabsTrigger>
+            <TabsTrigger value="reservations">Reservations</TabsTrigger>
           </TabsList>
 
           <TabsContent value="cost" className="space-y-4">
@@ -227,6 +237,13 @@ export default function AdminChannelMonitor() {
           <TabsContent value="cert">
             <Suspense fallback={<Skeleton className="h-64 w-full" />}>
               <ChannelCertificationTab />
+            </Suspense>
+          </TabsContent>
+
+          {/* Reservation ingest diagnostics + Pull_GetReservationByID lookup live in the same console. */}
+          <TabsContent value="reservations">
+            <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+              <RuReservationsPanel properties={reservationProperties} />
             </Suspense>
           </TabsContent>
         </Tabs>
