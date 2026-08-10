@@ -319,12 +319,22 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
         }
       }
 
+      // Only properties with an actual channel footprint belong in these counters —
+      // portfolio siblings with nothing on the channel manager would otherwise pad
+      // the denominator and make a healthy account look half-connected.
+      const footprintIds = new Set(relevant.map((p) => p.id));
+      const footprintSubAccountIds = new Set(
+        [...subAccountPropertyIds].filter((id) => footprintIds.has(id)),
+      );
+
       const pushEnabled = tradingProps.filter((p) => p.ru_push_enabled === true);
       setAccountFootprint({
         subAccounts: accounts.length,
-        subAccountProperties: subAccountPropertyIds.size,
-        pushEnabledProperties: pushEnabled.filter((p) => subAccountPropertyIds.has(p.id)).length,
-        pushEnabledOutsideAccounts: pushEnabled.filter((p) => !subAccountPropertyIds.has(p.id)).length,
+        subAccountProperties: footprintSubAccountIds.size,
+        subAccountPropertiesWithoutFootprint:
+          subAccountPropertyIds.size - footprintSubAccountIds.size,
+        pushEnabledProperties: pushEnabled.filter((p) => footprintSubAccountIds.has(p.id)).length,
+        pushEnabledOutsideAccounts: pushEnabled.filter((p) => !footprintSubAccountIds.has(p.id)).length,
       });
 
     } catch (e) {
