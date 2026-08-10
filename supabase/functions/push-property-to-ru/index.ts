@@ -1799,7 +1799,7 @@ async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRo
   const amenities = (property.amenities || {}) as Record<string, any>;
   const seasons = amenities.seasons as any[] | undefined;
   const seasonRates = amenities.season_rates as Record<string, any> | undefined;
-  const result: { availability_reserved_days?: number; availability_pushed?: boolean; prices_pushed?: boolean; availability_error?: string; prices_error?: string; availability_attempts?: number; prices_attempts?: number; availability_http_status?: number; prices_http_status?: number; availability_verification?: AvailabilityVerification; prices_verification?: PriceVerification; price_coverage?: Record<string, any>; availability_coverage?: Record<string, any>; manual_restrictions?: Record<string, any>; currency?: Record<string, any> } = {};
+  const result: { availability_reserved_days?: number; availability_pushed?: boolean; prices_pushed?: boolean; availability_error?: string; prices_error?: string; availability_attempts?: number; prices_attempts?: number; prices_payload?: { seasons: number; bytes: number; chunks?: number }; availability_http_status?: number; prices_http_status?: number; availability_verification?: AvailabilityVerification; prices_verification?: PriceVerification; price_coverage?: Record<string, any>; availability_coverage?: Record<string, any>; manual_restrictions?: Record<string, any>; currency?: Record<string, any> } = {};
 
   const today = new Date();
   const todayStr = today.toISOString().slice(0, 10);
