@@ -8,6 +8,7 @@ import {
   RU_BED_COVERAGE,
 } from '../_shared/ruReadiness.ts';
 import { evaluatePhases, phaseBlockedResponse, findOwnerAccount } from '../_shared/ruPhaseGate.ts';
+import { resolveMcqChannelId } from '../_shared/ruMcq.ts';
 import { resolveRuAmenityIds } from '../_shared/ruAmenityMap.ts';
 import {
   normalizeRuImageTagMap,
@@ -4087,6 +4088,46 @@ Deno.serve(async (req) => {
       error_message: inventorySuccess ? null : String(pushExtras.availability_error || pushExtras.prices_error || 'Inventory push incomplete'),
       details: { ru_owner_id: ruOwnerId, owner_scope: phaseGate.owner_scope, verified: inventoryVerified, ari: pushExtras },
     });
+
+    /**
+     * Content quality check on first publish: onboarding must never start without one.
+     * Best-effort — a rejection here never fails the push.
+     */
+    if (inventorySuccess && finalRuId > 0) {
+      try {
+        const { data: priorOrder } = await supabase
+          .from('ru_mcq_orders')
+          .select('id')
+          .eq('ru_property_id', String(finalRuId))
+          .limit(1)
+          .maybeSingle();
+        if (!priorOrder) {
+          const channel = await resolveMcqChannelId(supabase, property_id, null);
+          if (channel.channel_id) {
+            const { data: mcqResult, error: mcqErr } = await supabase.functions.invoke('rentalsunited-api', {
+              body: {
+                action: 'order_mcq',
+                ru_property_id: finalRuId,
+                property_id,
+                channel_id: channel.channel_id,
+                ...(ruOwnerId ? { owner_id: ruOwnerId } : {}),
+              },
+            });
+            const mcqOk = !mcqErr && (mcqResult as { success?: boolean } | null)?.success === true;
+            await supabase.from('ru_mcq_orders').insert({
+              property_id,
+              ru_property_id: String(finalRuId),
+              status: mcqOk ? 'ordered' : 'failed',
+              ru_status_id: (mcqResult as any)?.ru_status_id ?? (mcqResult as any)?.error?.ru_status_id ?? null,
+              response_preview: JSON.stringify(mcqResult ?? { error: mcqErr?.message }).slice(0, 3000),
+            });
+          }
+        }
+      } catch (mcqCatch) {
+        console.warn('[push-property-to-ru] MCQ auto-order skipped', mcqCatch);
+      }
+    }
+
 
     return new Response(
       JSON.stringify({ success: inventorySuccess, ...(!inventorySuccess ? { error: { code: 'RU_INVENTORY_INCOMPLETE', message: 'Property content was sent, but availability or prices did not complete' } } : {}), property_id, rentalsunited_property_id: ruPropertyId, message: inventorySuccess ? `Property "${property.name}" and inventory pushed to Rentals United successfully` : `Property "${property.name}" content pushed; inventory incomplete`, ...pushExtras }),

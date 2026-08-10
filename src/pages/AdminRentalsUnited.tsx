@@ -28,6 +28,8 @@ import { RuCalendarVerifyPanel } from "@/components/integrations/RuCalendarVerif
 import { RuOnboardingPipeline } from "@/components/integrations/RuOnboardingPipeline";
 import { RuSyncProgressTracker } from "@/components/integrations/RuSyncProgressTracker";
 import { RuLnmPanel } from "@/components/integrations/RuLnmPanel";
+import { RuMcqReportPanel } from "@/components/integrations/RuMcqReportPanel";
+
 import { RuCoverageTab } from "@/components/integrations/RuCoverageTab";
 import { RuReservationsPanel } from "@/components/integrations/RuReservationsPanel";
 
@@ -232,6 +234,8 @@ export default function AdminRentalsUnited() {
           <TabsTrigger value="errors">Error handling</TabsTrigger>
           <TabsTrigger value="currency">Currency</TabsTrigger>
           <TabsTrigger value="lnm">Live notifications</TabsTrigger>
+          <TabsTrigger value="mcq">Content quality</TabsTrigger>
+
           <TabsTrigger value="reservations">Reservations</TabsTrigger>
           <TabsTrigger value="coverage">Coverage</TabsTrigger>
           <TabsTrigger value="cert">Certification &amp; compliance</TabsTrigger>
@@ -292,6 +296,11 @@ export default function AdminRentalsUnited() {
         <TabsContent value="lnm">
           <RuLnmPanel />
         </TabsContent>
+
+        <TabsContent value="mcq">
+          <RuMcqReportPanel />
+        </TabsContent>
+
 
         <TabsContent value="reservations">
           <RuReservationsPanel properties={enabledProperties} />
