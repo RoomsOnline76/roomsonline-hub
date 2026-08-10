@@ -3123,7 +3123,87 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ success: false, error: { code: 'RU_CHILD_AUTH_REQUIRED', message: `No Rentals United API keys are stored for OwnerID ${ruOwnerId}. RU requires the sub-user's own AccessKey + SecretKey to create or update its building inventory — generate them in the RU dashboard (Security settings) and save them in Portfolios → RU accounts.` } }), { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
+    // ── READ-BACK ONLY (action: 'verify_calendar') ─────────────────────────
+    // Authoritative per-day view of what the channel actually holds for each live unit, read
+    // with the owning sub-user keys (master keys answer "Property does not exist"). Pushes
+    // nothing — this is the diagnostic that proves whether a sold night is closed at the channel.
+    if (action === 'verify_calendar') {
+      const from = typeof body.date_from === 'string' ? body.date_from : new Date().toISOString().slice(0, 10);
+      const to = typeof body.date_to === 'string'
+        ? body.date_to
+        : new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
+
+      const units: { label: string; ru_id: number; unit_id: string | null }[] = [];
+      for (const rt of activeRoomTypes) {
+        const ruId = parseInt(String(rt.rentalsunited_property_id ?? ''), 10);
+        if (ruId > 0) units.push({ label: rt.name, ru_id: ruId, unit_id: rt.id });
+      }
+      if (units.length === 0) {
+        const parentRuId = parseInt(String(property.rentalsunited_property_id ?? ''), 10);
+        if (parentRuId > 0) units.push({ label: property.name, ru_id: parentRuId, unit_id: null });
+      }
+      if (units.length === 0) {
+        return new Response(
+          JSON.stringify({ success: false, error: { code: 'RU_NOT_LISTED', message: 'No live channel listing for this property yet.' } }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
+
+      const wantedUnitId = typeof body.unit_id === 'string' ? body.unit_id : null;
+      const scoped = wantedUnitId ? units.filter((u) => u.unit_id === wantedUnitId) : units;
+
+      const report: Record<string, unknown>[] = [];
+      for (const u of scoped) {
+        const sold = await loadBookingBlocks(supabase, property.id, from, to, u.unit_id, u.label);
+        const { data: calData, error: calErr } = await supabase.functions.invoke('rentalsunited-api', {
+          body: { action: 'get_availability', ru_property_id: u.ru_id, date_from: from, date_to: to, ...childAuthPayload },
+        });
+        if (calErr || !calData?.success || !calData?.raw_xml) {
+          report.push({
+            unit: u.label,
+            unit_id: u.unit_id,
+            ru_property_id: u.ru_id,
+            error: calErr?.message || calData?.error?.message || 'No calendar returned',
+            sold_nights: [...sold.dates].sort(),
+          });
+          continue;
+        }
+        const days: Record<string, unknown>[] = [];
+        let openSold = 0;
+        for (const [date, day] of parseRuAvailabilityDays(String(calData.raw_xml))) {
+          const isSold = sold.dates.has(date);
+          const closed = (day.reservations ?? 0) > 0 || (day.units ?? 0) === 0;
+          if (isSold && !closed) openSold += 1;
+          days.push({
+            date,
+            units: day.units,
+            reservations: day.reservations,
+            min_stay: day.min_stay,
+            changeover: day.changeover,
+            sold_on_rolos: isSold,
+            channel_closed: closed,
+            conflict: isSold && !closed,
+          });
+        }
+        report.push({
+          unit: u.label,
+          unit_id: u.unit_id,
+          ru_property_id: u.ru_id,
+          window: { from, to },
+          sold_nights: [...sold.dates].sort(),
+          sold_nights_still_open: openSold,
+          days,
+        });
+      }
+
+      return new Response(
+        JSON.stringify({ success: true, property: { id: property.id, name: property.name }, window: { from, to }, units: report }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
+
     // ── ARI-ONLY REFRESH (action: 'refresh_ari') ───────────────────────────
+
     // Nightly/event-driven availability + pricing refresh for inventory that is ALREADY listed
     // at RU. It never calls Push_PutProperty_RQ, so the static-content gate does not apply
     // (that content is live at RU already) — a content shortfall must never stall ARI. Sub-user
