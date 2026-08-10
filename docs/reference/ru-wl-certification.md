@@ -49,10 +49,24 @@ Workbook status vocabulary: `to be certified`, `planned to implement`, `partiall
 | RLNM handler URLs registered | `LNM_PutHandlerUrl_RQ` | to be certified (`ru-reservation-handler`, `ru-lnm-handler`) |
 | 30-day request/response logging incl. ResponseID | `ru_api_log` (written by `callRentalsUnited` in `rentalsunited-api`, plus `ru-close-user` and `ru-whitelabel-token`) | **implemented** — every exchange stores the full request XML (credentials redacted), the full response, the `ResponseID`, status/HTTP codes and duration. Retention is 90 days via `expires_at` (30-day minimum comfortably met), pruned nightly by `cron-prune-ru-api-log`. Support staff retrieve an exchange by ResponseID at **/admin/channel-monitor → Diagnostics**, and export a request/response bundle per exchange. `ru_sync_runs.details.exchange_log` links each push run to its raw exchanges; inbound RLNM payloads remain in `ru_notifications.raw_xml`. |
 
-## 3. Content quality (MCQ validators)
+## 3. Content quality (MCQ validators) — implemented
 
-All validators are scored by the readiness model (`usePropertyReadiness`) and the RU MCQ order
-(`order_mcq`, `RuMcqReportPanel`). Remaining certification items:
+Status: **implemented**. Every validator below is now enforced in the live push
+(`push-property-to-ru` → `buildValidation`, helpers in `_shared/ruContentQuality.ts`), scored as a
+mandatory readiness check (`_shared/ruReadiness.ts`) and published as certification evidence by
+`ru-cert-portal` (`wl_readiness` → `content_quality`), viewable and downloadable as JSON from
+Channel monitor → Certification → Readiness.
+
+Enforcement notes:
+- Name hygiene rejects emoji, RU-rejected special characters and ALL-CAPS names.
+- Description gate is 700 characters (100 remains an advisory warning).
+- Images must **measure** >= 1024x768; unmeasurable images never count as passing.
+- Composition requires >= 1 bedroom, kitchen and bathroom, with beds distributed across bedrooms
+  of multi-bedroom units.
+- `>= 3 consecutive available priced days` and `MinStay set` are derived from the live RU calendar
+  and price pull (`findRuBookableWindow`), scored on the weakest unit.
+
+
 
 | Validator | API path |
 | --- | --- |
