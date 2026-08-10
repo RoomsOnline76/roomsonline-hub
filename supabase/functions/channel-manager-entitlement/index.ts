@@ -75,6 +75,66 @@ async function sendReactivationNotice(payload: {
   }
 }
 
+/**
+ * RU listings for white-label properties live on a sub-user account. Calling
+ * Push_SetPropertiesStatus_RQ with master credentials returns Status 0 plus a
+ * warning ("Property with given ID does not exist") and changes nothing, so the
+ * OwnerID must be resolved and passed through.
+ */
+async function resolveRuOwnerId(
+  admin: ReturnType<typeof createClient>,
+  propertyId: string,
+): Promise<string | null> {
+  const { data: direct } = await admin
+    .from("ru_owner_accounts")
+    .select("ru_owner_id")
+    .eq("property_id", propertyId)
+    .not("ru_owner_id", "is", null)
+    .maybeSingle();
+  if (direct?.ru_owner_id) return String(direct.ru_owner_id);
+
+  const { data: members } = await admin
+    .from("property_portfolio_members")
+    .select("portfolio_id")
+    .eq("property_id", propertyId);
+  const portfolioIds = (members || []).map((m: { portfolio_id: string }) => m.portfolio_id);
+  if (portfolioIds.length === 0) return null;
+
+  const { data: viaPortfolio } = await admin
+    .from("ru_owner_accounts")
+    .select("ru_owner_id")
+    .in("portfolio_id", portfolioIds)
+    .not("ru_owner_id", "is", null)
+    .limit(1)
+    .maybeSingle();
+  return viaPortfolio?.ru_owner_id ? String(viaPortfolio.ru_owner_id) : null;
+}
+
+/** Push one listing's active/archived state to RU and report a real failure. */
+async function pushListingStatus(
+  admin: ReturnType<typeof createClient>,
+  args: { propertyId: string; ruPropertyId: string; archive: boolean; ownerId: string | null },
+): Promise<string | null> {
+  const { data: ruRes, error: ruErr } = await admin.functions.invoke("rentalsunited-api", {
+    body: {
+      action: "set_property_status",
+      property_id: args.propertyId,
+      ru_property_id: args.ruPropertyId,
+      ...(args.ownerId ? { owner_id: args.ownerId } : {}),
+      metadata: { is_active: !args.archive, is_archived: args.archive },
+    },
+  });
+  if (ruErr) return ruErr.message;
+  const res = (ruRes || {}) as { success?: boolean; error?: string; raw_xml?: string };
+  if (res.success === false) return res.error || "Rentals United rejected the status change";
+  // RU reports per-listing rejections as warnings inside a Status 0 envelope.
+  const warning = res.raw_xml?.match(/<Warning[^>]*>([^<]+)<\/Warning>/)?.[1];
+  if (warning) return `Rentals United warning: ${warning}`;
+  return null;
+}
+
+
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
