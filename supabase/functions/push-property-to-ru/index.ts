@@ -7,6 +7,13 @@ import {
   RU_MIN_IMAGE_WIDTH,
   RU_BED_COVERAGE,
 } from '../_shared/ruReadiness.ts';
+import {
+  checkRuPropertyName,
+  RU_CERT_MIN_DESCRIPTION,
+  RU_CERT_MIN_IMAGE_HEIGHT,
+  RU_CERT_MIN_IMAGE_WIDTH,
+  RU_MIN_ARRIVAL_INSTRUCTIONS,
+} from '../_shared/ruContentQuality.ts';
 import { evaluatePhases, phaseBlockedResponse, findOwnerAccount } from '../_shared/ruPhaseGate.ts';
 import { resolveMcqChannelId } from '../_shared/ruMcq.ts';
 import { resolveRuAmenityIds } from '../_shared/ruAmenityMap.ts';
@@ -493,18 +500,25 @@ function buildValidation(payload: Record<string, any>): Record<string, unknown> 
   const amenities: unknown[] = payload.amenities || [];
   const maxGuests = payload.can_sleep_max || 0;
 
-  // Photos: count + pixel size (images without stored dimensions are treated as
-  // unverified rather than failures, but are reported so they can be checked).
+  // Photos: count + pixel size. Certification requires every photo to MEASURE at
+  // least 1024x768 — an image whose dimensions could not be read is reported as
+  // unverified (advisory) and never counted as meeting the certification size.
   let sized = 0;
   let unverified = 0;
+  let certSized = 0;
+  let smallestWidth: number | null = null;
+  let smallestHeight: number | null = null;
   for (const img of images) {
     if (img.width == null || img.height == null) {
       unverified += 1;
-      // Only a probed-and-reachable image may pass without measurable dimensions.
+      // Only a probed-and-reachable image may pass the legacy (upload-rule) size check.
       if (img.verified) sized += 1;
       continue;
     }
+    smallestWidth = smallestWidth == null ? img.width : Math.min(smallestWidth, img.width);
+    smallestHeight = smallestHeight == null ? img.height : Math.min(smallestHeight, img.height);
     if (img.width >= RU_MIN_IMAGE_WIDTH && img.height >= RU_MIN_IMAGE_HEIGHT) sized += 1;
+    if (img.width >= RU_CERT_MIN_IMAGE_WIDTH && img.height >= RU_CERT_MIN_IMAGE_HEIGHT) certSized += 1;
   }
   const imageIssues: { url: string; reason: string }[] = (payload.image_issues || []) as { url: string; reason: string }[];
 
@@ -517,6 +531,28 @@ function buildValidation(payload: Record<string, any>): Record<string, unknown> 
     (s: number, a: any) => s + sleepsForBedId(Number(a.id)) * (a.count || 1), 0);
 
   const roomsWithAmenities = rooms.filter(r => (r.room_id || 0) > 0 && (r.amenities || []).length > 0).length;
+
+  // Composition strictness: RU requires at least one bedroom block, a kitchen and a
+  // bathroom, and beds must be DISTRIBUTED across the bedrooms of a multi-bedroom unit
+  // (a single room holding every bed is rejected during content review).
+  const RU_BEDROOM_ROOM_IDS = [257, 372, 517];
+  const RU_KITCHEN_ROOM_IDS = [94, 101, 517];
+  const bedroomBlocks = rooms.filter((r) => RU_BEDROOM_ROOM_IDS.includes(Number(r.room_id)));
+  const bedroomsWithBeds = bedroomBlocks.filter((r) =>
+    (r.amenities || []).some((a: any) => RU_BED_AMENITY_IDS.includes(Number(a.id)) && (a.count || 1) > 0)).length;
+  const hasKitchenRoom = rooms.some((r) => RU_KITCHEN_ROOM_IDS.includes(Number(r.room_id)))
+    || (amenities || []).some((a: any) => [94, 101].includes(Number(a?.id)));
+  const hasBathroomRoom = rooms.some((r) => Number(r.room_id) === 81)
+    || (amenities || []).some((a: any) => Number(a?.id) === 81 && (a.count || 0) > 0);
+  const bedsDistributed = bedroomBlocks.length <= 1 ? bedroomsWithBeds >= Math.min(1, bedroomBlocks.length)
+    : bedroomsWithBeds >= 2;
+
+  const nameCheck = checkRuPropertyName(payload.name);
+  const descriptionText = (payload.descriptions?.[0]?.text || '').trim();
+  const arrivalText = String(payload.arrival_how_to_arrive || '').trim();
+  const timeRe = /^\d{1,2}:\d{2}$/;
+  const checkInFrom = String(payload.check_in_from || '').trim();
+  const checkOutUntil = String(payload.check_out_until || '').trim();
 
   return {
     images_count: images.length,
@@ -563,12 +599,37 @@ function buildValidation(payload: Record<string, any>): Record<string, unknown> 
     has_cancellation_policies: (payload.cancellation_policies || []).length >= 1,
     cancellation_policies_is_default: payload.cancellation_policies_is_default === true,
     has_name: !!(payload.name && String(payload.name).trim().length >= 3),
+    // Certification name hygiene: no emoji, no rejected specials, not ALL CAPS.
+    name_clean: nameCheck.clean,
+    name_issues: nameCheck.reasons,
+    name_issue_detail: nameCheck.detail,
     has_object_type_id: ((payload.object_type_id ?? payload.property_type_id) || 0) > 0,
     can_sleep_max_ok: maxGuests >= 1,
-    // RU has no hard description length: presence is mandatory, 100+ chars is advisory.
-    description_length: (payload.descriptions?.[0]?.text || '').trim().length,
-    has_description: ((payload.descriptions?.[0]?.text || '').trim().length) > 0,
-    description_meets_recommended: ((payload.descriptions?.[0]?.text || '').trim().length) >= 100,
+    // Presence is mandatory, 100+ chars advisory, 700+ chars required for certification.
+    description_length: descriptionText.length,
+    has_description: descriptionText.length > 0,
+    description_meets_recommended: descriptionText.length >= 100,
+    description_meets_cert: descriptionText.length >= RU_CERT_MIN_DESCRIPTION,
+    // Composition strictness (certification).
+    bedroom_blocks: bedroomBlocks.length,
+    bedrooms_with_beds: bedroomsWithBeds,
+    has_bedroom: bedroomBlocks.length >= 1,
+    has_kitchen: hasKitchenRoom,
+    has_bathroom_room: hasBathroomRoom,
+    beds_distributed: bedsDistributed,
+    // Arrival & stay times.
+    arrival_instructions_length: arrivalText.length,
+    has_arrival_instructions: arrivalText.length >= RU_MIN_ARRIVAL_INSTRUCTIONS,
+    has_check_in_from: timeRe.test(checkInFrom),
+    has_check_out_until: timeRe.test(checkOutUntil),
+    check_in_from: checkInFrom || null,
+    check_out_until: checkOutUntil || null,
+    check_in_times_are_default: payload.check_in_times_are_default === true,
+    // Photos (certification dimensions).
+    images_meeting_cert_size: certSized,
+    images_meet_cert_size: images.length > 0 && certSized === images.length && unverified === 0,
+    smallest_image_width: smallestWidth,
+    smallest_image_height: smallestHeight,
     has_main_image: images.some((i) => i.is_main),
     has_street: !!(payload.street && String(payload.street).trim().length > 2),
   };
@@ -912,6 +973,9 @@ function buildUnitPayload(
   const checkInFrom = houseRules.check_in_from || unit.check_in_time || '14:00';
   const checkInTo = houseRules.check_in_to || '22:00';
   const checkOutUntil = houseRules.check_out_to || unit.check_out_time || '10:00';
+  // Report when the times being pushed are our fallbacks rather than authored values.
+  const checkInTimesAreDefault =
+    !(houseRules.check_in_from || unit.check_in_time) || !(houseRules.check_out_to || unit.check_out_time);
 
   const banking = (amenities as any)?.banking || {};
   const depositPercent = toFiniteNumber(banking.deposit_percentage ?? banking.prepayment_percentage);
@@ -1063,6 +1127,7 @@ function buildUnitPayload(
     check_in_from: checkInFrom,
     check_in_to: checkInTo,
     check_out_until: checkOutUntil,
+    check_in_times_are_default: checkInTimesAreDefault,
     check_in_place: 'at_the_apartment',
     building_id: buildingId,
     object_type_id: undefined as number | undefined, // populated by orchestrator after push_building
@@ -1177,6 +1242,9 @@ function buildSinglePropertyPayload(property: PropertyRow, roomTypes: RoomTypeRo
     check_in_from: houseRules.check_in_from || primaryRoom?.check_in_time || '14:00',
     check_in_to: houseRules.check_in_to || '22:00',
     check_out_until: houseRules.check_out_to || primaryRoom?.check_out_time || '10:00',
+    check_in_times_are_default:
+      !(houseRules.check_in_from || primaryRoom?.check_in_time) ||
+      !(houseRules.check_out_to || primaryRoom?.check_out_time),
     check_in_place: 'at_the_apartment',
     unmapped_bed_labels: unmappedBedLabels,
   };
@@ -3526,6 +3594,35 @@ Deno.serve(async (req) => {
               description_length: Math.min(...units.map(u => Number((u.validation as any).description_length || 0))),
               has_main_image: everyFlag('has_main_image'),
               has_street: everyFlag('has_street'),
+              // Certification content-quality aggregate (weakest unit wins).
+              name_clean: everyFlag('name_clean'),
+              name_issues: Array.from(new Set(units.flatMap(u => ((u.validation as any).name_issues || []) as string[]))),
+              name_issue_detail: units.map(u => (u.validation as any).name_issue_detail).filter(Boolean).join('; ') || null,
+              description_meets_cert: everyFlag('description_meets_cert'),
+              images_meet_cert_size: everyFlag('images_meet_cert_size'),
+              images_meeting_cert_size: units.reduce((s, u) => s + Number((u.validation as any).images_meeting_cert_size || 0), 0),
+              images_size_unverified: units.reduce((s, u) => s + Number((u.validation as any).images_size_unverified || 0), 0),
+              smallest_image_width: (() => {
+                const vals = units.map(u => Number((u.validation as any).smallest_image_width)).filter(n => Number.isFinite(n));
+                return vals.length ? Math.min(...vals) : null;
+              })(),
+              smallest_image_height: (() => {
+                const vals = units.map(u => Number((u.validation as any).smallest_image_height)).filter(n => Number.isFinite(n));
+                return vals.length ? Math.min(...vals) : null;
+              })(),
+              has_bedroom: everyFlag('has_bedroom'),
+              has_kitchen: everyFlag('has_kitchen'),
+              has_bathroom_room: everyFlag('has_bathroom_room'),
+              beds_distributed: everyFlag('beds_distributed'),
+              bedroom_blocks: units.reduce((s, u) => s + Number((u.validation as any).bedroom_blocks || 0), 0),
+              bedrooms_with_beds: units.reduce((s, u) => s + Number((u.validation as any).bedrooms_with_beds || 0), 0),
+              has_arrival_instructions: everyFlag('has_arrival_instructions'),
+              arrival_instructions_length: Math.min(...units.map(u => Number((u.validation as any).arrival_instructions_length || 0))),
+              has_check_in_from: everyFlag('has_check_in_from'),
+              has_check_out_until: everyFlag('has_check_out_until'),
+              check_in_times_are_default: units.some(u => (u.validation as any).check_in_times_are_default === true),
+              check_in_from: (units[0]?.validation as any)?.check_in_from ?? null,
+              check_out_until: (units[0]?.validation as any)?.check_out_until ?? null,
             },
           }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

@@ -127,6 +127,44 @@ interface ReadinessRow {
     availability_ok: boolean;
     prices_ok: boolean;
   } | null;
+  content_quality?: {
+    checked_at: string;
+    units: Array<{
+      unit: string | null;
+      name_clean: boolean | null;
+      name_issues: string[];
+      description_chars: number | null;
+      description_meets_cert: boolean | null;
+      images_count: number | null;
+      images_meeting_cert_size: number | null;
+      images_unmeasured: number | null;
+      smallest_image: string | null;
+      has_main_image: boolean | null;
+      has_street: boolean | null;
+      has_zip_code: boolean | null;
+      has_detailed_location_id: boolean | null;
+      has_coordinates: boolean | null;
+      can_sleep_max: number | null;
+      has_cancellation_policies: boolean | null;
+      has_payment_methods: boolean | null;
+      check_in_from: string | null;
+      check_out_until: string | null;
+      bedroom_blocks: number | null;
+      bedrooms_with_beds: number | null;
+      has_kitchen: boolean | null;
+      has_bathroom_room: boolean | null;
+      beds_distributed: boolean | null;
+      total_bed_capacity: number | null;
+      arrival_instructions_chars: number | null;
+    }>;
+    bookable_window?: Array<{
+      ru_property_id: number;
+      longest_run: number | null;
+      first_window: string | null;
+      min_stay_set: boolean | null;
+      open_days: number | null;
+    }> | null;
+  } | null;
 }
 
 interface DiscountRow {
@@ -1290,9 +1328,11 @@ export function RuCertificationConsole({ properties }: { properties: PropertyLit
               <div>
                 <CardTitle className="text-base">White-Label minimum inventory readiness</CardTitle>
                 <CardDescription>
-                  Name, ObjectTypeID, CanSleepMax, street/ZIP/geo, DetailedLocationID, size & floor, description,
-                  ≥10 images (1024×683+) with a main photo, ≥10 amenities, composition rooms, beds covering max guests,
-                  payment method, cancellation policy, plus live 365-day availability and pricing above zero.
+                  Name hygiene (no emoji / specials / ALL CAPS), ObjectTypeID, CanSleepMax, street/ZIP/geo,
+                  DetailedLocationID, description ≥ 700 characters, ≥10 images measured at 1024×768+ with a main photo,
+                  ≥10 amenities, composition with bedroom / kitchen / bathroom and beds distributed, arrival
+                  instructions, check-in / check-out times, payment method, cancellation policy, plus live 365-day
+                  availability with MinStay and ≥3 consecutive bookable days priced above zero.
                 </CardDescription>
               </div>
               <Button variant="outline" size="sm" onClick={loadReadiness} disabled={readinessLoading} className="gap-1.5">
@@ -1329,6 +1369,66 @@ export function RuCertificationConsole({ properties }: { properties: PropertyLit
                     <ul className="mt-2 space-y-0.5 text-xs text-muted-foreground list-disc list-inside">
                       {r.gaps.map((g, i) => <li key={i}>{g}</li>)}
                     </ul>
+                  )}
+                  {r.content_quality && r.content_quality.units.length > 0 && (
+                    <details className="mt-2 rounded-md border bg-muted/40 p-2">
+                      <summary className="cursor-pointer text-xs font-medium">
+                        Content-quality evidence ({r.content_quality.units.length} unit(s))
+                      </summary>
+                      <div className="mt-2 space-y-2">
+                        {r.content_quality.units.map((u, i) => (
+                          <div key={i} className="text-[11px] leading-relaxed">
+                            <p className="font-medium">{u.unit ?? `Unit ${i + 1}`}</p>
+                            <p className="text-muted-foreground">
+                              Name {u.name_clean === false ? `rejected (${u.name_issues.join(", ")})` : "clean"} ·
+                              {" "}Description {u.description_chars ?? 0} chars{u.description_meets_cert === false ? " (below 700)" : ""} ·
+                              {" "}Images {u.images_meeting_cert_size ?? 0}/{u.images_count ?? 0} ≥ 1024×768
+                              {u.smallest_image ? ` (smallest ${u.smallest_image})` : ""}
+                              {u.images_unmeasured ? ` · ${u.images_unmeasured} unmeasured` : ""} ·
+                              {" "}Main photo {u.has_main_image ? "yes" : "no"}
+                            </p>
+                            <p className="text-muted-foreground">
+                              Street {u.has_street ? "✓" : "✗"} · ZIP {u.has_zip_code ? "✓" : "✗"} ·
+                              {" "}DetailedLocationID {u.has_detailed_location_id ? "✓" : "✗"} ·
+                              {" "}Coordinates {u.has_coordinates ? "✓" : "✗"} · CanSleepMax {u.can_sleep_max ?? 0} ·
+                              {" "}Cancellation policy {u.has_cancellation_policies ? "✓" : "✗"} ·
+                              {" "}Payment method {u.has_payment_methods ? "✓" : "✗"}
+                            </p>
+                            <p className="text-muted-foreground">
+                              Check-in {u.check_in_from ?? "—"} / out {u.check_out_until ?? "—"} ·
+                              {" "}Bedrooms {u.bedrooms_with_beds ?? 0}/{u.bedroom_blocks ?? 0} with beds
+                              {u.beds_distributed === false ? " (not distributed)" : ""} ·
+                              {" "}Kitchen {u.has_kitchen ? "✓" : "✗"} · Bathroom {u.has_bathroom_room ? "✓" : "✗"} ·
+                              {" "}Sleeps {u.total_bed_capacity ?? 0} ·
+                              {" "}Arrival instructions {u.arrival_instructions_chars ?? 0} chars
+                            </p>
+                          </div>
+                        ))}
+                        {r.content_quality.bookable_window?.map((w) => (
+                          <p key={w.ru_property_id} className="text-[11px] text-muted-foreground">
+                            RU {w.ru_property_id}: longest bookable+priced run {w.longest_run ?? 0} day(s)
+                            {w.first_window ? ` from ${w.first_window}` : ""} · MinStay {w.min_stay_set ? "set" : "missing"} ·
+                            {" "}{w.open_days ?? 0} open day(s)
+                          </p>
+                        ))}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="gap-1.5"
+                          onClick={() => {
+                            const blob = new Blob([JSON.stringify(r.content_quality, null, 2)], { type: "application/json" });
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement("a");
+                            a.href = url;
+                            a.download = `ru-content-quality-${r.name.replace(/\W+/g, "-").toLowerCase()}.json`;
+                            a.click();
+                            URL.revokeObjectURL(url);
+                          }}
+                        >
+                          Download evidence (JSON)
+                        </Button>
+                      </div>
+                    </details>
                   )}
                 </div>
               ))}

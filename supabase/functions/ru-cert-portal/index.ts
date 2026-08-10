@@ -11,7 +11,8 @@
 //   wl_readiness     → per-property White-Label minimum inventory report
 //   user_management  → status of RU sub-user management (parked)
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { summarizeReadiness, type RuCheck, type RuUnitInput } from "../_shared/ruReadiness.ts";
+import { summarizeReadiness, bookableWindowChecks, type RuCheck, type RuUnitInput } from "../_shared/ruReadiness.ts";
+import { findRuBookableWindow, type RuBookableWindow } from "../_shared/ruContentQuality.ts";
 import { evaluatePhases, findOwnerAccount, resolvePortfolioId } from "../_shared/ruPhaseGate.ts";
 import { createRateResolver, describeCoverage } from "../_shared/rateResolution.ts";
 import { parseRuPricePoints, parseRuPriceSeasons } from "../_shared/ruPriceParsing.ts";
@@ -1197,8 +1198,10 @@ Deno.serve(async (req) => {
             }),
           ]);
           const avbXml: string = avbRes.data?.raw_xml ?? "";
-          const prices = parseRuPricePoints(priceRes.data?.raw_xml ?? "");
+          const priceXml: string = priceRes.data?.raw_xml ?? "";
+          const prices = parseRuPricePoints(priceXml);
           const openDays = countRuOpenDays(avbXml);
+          const bookableWindow = findRuBookableWindow(avbXml, priceXml);
           return {
             ru_property_id: ruId,
             open_days: openDays,
@@ -1206,6 +1209,7 @@ Deno.serve(async (req) => {
             availability_ok: !!avbRes.data?.success && openDays > 0,
             availability_error: avbRes.error?.message ?? avbRes.data?.error?.message ?? null,
             prices_ok: !!priceRes.data?.success && prices.length > 0 && prices.every((price) => price > 0),
+            bookable_window: bookableWindow as RuBookableWindow,
           };
         }));
         const hasAvailability = unitProbes.every((probe) => probe.availability_ok);
@@ -1213,6 +1217,18 @@ Deno.serve(async (req) => {
         const pricingReady = livePricesVerified || localCoverage?.complete === true;
         const failedAvailabilityIds = unitProbes.filter((probe) => !probe.availability_ok).map((probe) => probe.ru_property_id);
         const failedPriceIds = unitProbes.filter((probe) => !probe.prices_ok).map((probe) => probe.ru_property_id);
+
+        // MinStay + "3 consecutive bookable, priced days" — scored on the weakest unit so a
+        // single unsellable unit cannot pass behind a healthy sibling.
+        const worstWindow = unitProbes.reduce<RuBookableWindow | null>((worst, probe) => {
+          const w = probe.bookable_window;
+          if (!worst) return w;
+          if (w.longest_run < worst.longest_run) return w;
+          if (!w.min_stay_set && worst.min_stay_set) return w;
+          return worst;
+        }, null);
+        if (worstWindow) extraChecks.push(...bookableWindowChecks(worstWindow));
+
 
         extraChecks.push({
           key: "ari_availability",
@@ -1274,9 +1290,59 @@ Deno.serve(async (req) => {
 
       const summary = summarizeReadiness(units, extraChecks);
 
+      // ── Certification evidence: content-quality validators with observed values ──
+      const contentQuality = {
+        checked_at: new Date().toISOString(),
+        units: units.map((u) => {
+          const v = (u.validation ?? {}) as Record<string, unknown>;
+          const num = (k: string) => (typeof v[k] === "number" ? v[k] as number : null);
+          const bool = (k: string) => (typeof v[k] === "boolean" ? v[k] as boolean : null);
+          return {
+            unit: u.name ?? null,
+            name_clean: bool("name_clean"),
+            name_issues: (v.name_issues as string[] | undefined) ?? [],
+            description_chars: num("description_length"),
+            description_meets_cert: bool("description_meets_cert"),
+            images_count: num("images_count"),
+            images_meeting_cert_size: num("images_meeting_cert_size"),
+            images_unmeasured: num("images_size_unverified"),
+            smallest_image: num("smallest_image_width") != null
+              ? `${num("smallest_image_width")}x${num("smallest_image_height")}`
+              : null,
+            has_main_image: bool("has_main_image"),
+            has_street: bool("has_street"),
+            has_zip_code: bool("has_zip_code"),
+            has_detailed_location_id: bool("has_detailed_location_id"),
+            has_coordinates: bool("has_coordinates"),
+            can_sleep_max: num("max_guests"),
+            has_cancellation_policies: bool("has_cancellation_policies"),
+            has_payment_methods: bool("has_payment_methods"),
+            check_in_from: (v.check_in_from as string | null) ?? null,
+            check_out_until: (v.check_out_until as string | null) ?? null,
+            bedroom_blocks: num("bedroom_blocks"),
+            bedrooms_with_beds: num("bedrooms_with_beds"),
+            has_kitchen: bool("has_kitchen"),
+            has_bathroom_room: bool("has_bathroom_room"),
+            beds_distributed: bool("beds_distributed"),
+            total_bed_capacity: num("total_bed_capacity"),
+            arrival_instructions_chars: num("arrival_instructions_length"),
+          };
+        }),
+        bookable_window: (ari as Record<string, unknown> | null)?.units
+          ? (ari as any).units.map((probe: any) => ({
+            ru_property_id: probe.ru_property_id,
+            longest_run: probe.bookable_window?.longest_run ?? null,
+            first_window: probe.bookable_window?.start ?? null,
+            min_stay_set: probe.bookable_window?.min_stay_set ?? null,
+            open_days: probe.bookable_window?.open_days ?? null,
+          }))
+          : null,
+      };
+
       return {
         property_id: p.id,
         name: p.name,
+        content_quality: contentQuality,
         ru_property_id: p.rentalsunited_property_id ?? null,
         multi_unit: !!data?.multi_unit,
         unit_count: units.length,

@@ -7,6 +7,14 @@
 // The input is the `validation` object returned by push-property-to-ru's
 // dry run (per unit for multi-unit properties).
 
+import {
+  RU_CERT_MIN_DESCRIPTION,
+  RU_CERT_MIN_IMAGE_HEIGHT,
+  RU_CERT_MIN_IMAGE_WIDTH,
+  RU_MIN_ARRIVAL_INSTRUCTIONS,
+  RU_MIN_BOOKABLE_WINDOW,
+} from "./ruContentQuality.ts";
+
 export type RuCheckGroup =
   | "Content"
   | "Rooms & beds"
@@ -68,6 +76,28 @@ export interface RuUnitValidation {
   has_main_image?: boolean;
   has_street?: boolean;
   rooms_have_amenities?: boolean;
+  /** Certification content-quality fields. */
+  name_clean?: boolean;
+  name_issues?: string[];
+  name_issue_detail?: string | null;
+  description_meets_cert?: boolean;
+  images_meeting_cert_size?: number;
+  images_meet_cert_size?: boolean;
+  smallest_image_width?: number | null;
+  smallest_image_height?: number | null;
+  bedroom_blocks?: number;
+  bedrooms_with_beds?: number;
+  has_bedroom?: boolean;
+  has_kitchen?: boolean;
+  has_bathroom_room?: boolean;
+  beds_distributed?: boolean;
+  arrival_instructions_length?: number;
+  has_arrival_instructions?: boolean;
+  has_check_in_from?: boolean;
+  has_check_out_until?: boolean;
+  check_in_from?: string | null;
+  check_out_until?: string | null;
+  check_in_times_are_default?: boolean;
   [key: string]: unknown;
 }
 
@@ -123,17 +153,37 @@ export function evaluateUnitChecks(
   // ── Content ──
   add("has_name", "Content", "Property / unit name", !!v.has_name,
     "Name is missing or shorter than 3 characters", "Property → General → Name");
+  // Certification name hygiene: no emoji, no rejected special characters, not ALL CAPS.
+  add("name_clean", "Content", "Name passes channel naming rules", v.name_clean !== false,
+    `Name rejected: ${v.name_issue_detail ?? "contains emoji, special characters or ALL CAPS"}`,
+    "Property → General → Name");
   add("has_object_type_id", "Content", "Property type (ObjectTypeID)", !!v.has_object_type_id,
     "No property type selected", "Property → General → Property type");
   add("can_sleep_max_ok", "Content", "Max guests ≥ 1", !!v.can_sleep_max_ok,
     "CanSleepMax must be at least 1", "Rooms → Unit → Max guests");
   add("has_description", "Content", "Description present", v.has_description !== false,
     "Description is missing", "Property → Description");
-  // RU specifies no minimum description length — richer copy simply converts better.
   add("description_meets_recommended", "Content", "Description ≥ 100 characters (recommended)",
     v.description_meets_recommended !== false,
     `Description is only ${v.description_length ?? 0} characters — 100+ is recommended for channel quality`,
     "Property → Description", false);
+  // Certification gate: the channel content review requires 700+ characters.
+  add("description_meets_cert", "Content", `Description ≥ ${RU_CERT_MIN_DESCRIPTION} characters`,
+    v.description_meets_cert !== false,
+    `Description is ${v.description_length ?? 0} characters — the channel content review requires ${RU_CERT_MIN_DESCRIPTION}`,
+    "Property → Description");
+  add("has_check_in_from", "Content", "Check-in from time", v.has_check_in_from !== false,
+    "Check-in time is not set", "Property → House rules → Check-in");
+  add("has_check_out_until", "Content", "Check-out until time", v.has_check_out_until !== false,
+    "Check-out time is not set", "Property → House rules → Check-out");
+  add("check_in_times_authored", "Content", "Check-in / out times are authored (not defaults)",
+    v.check_in_times_are_default !== true,
+    `Sending the default ${v.check_in_from ?? "14:00"} / ${v.check_out_until ?? "10:00"} — confirm the real times`,
+    "Property → House rules → Check-in / Check-out", false);
+  add("has_arrival_instructions", "Content", "Arrival instructions populated",
+    v.has_arrival_instructions !== false,
+    `Arrival instructions are ${v.arrival_instructions_length ?? 0} characters — at least ${RU_MIN_ARRIVAL_INSTRUCTIONS} are required`,
+    "Property → House rules → Check-in instructions");
   // Space / floor are advisory: RU accepts an estimate, but we report when the
   // value being sent is our default rather than real property data.
   add("has_space", "Content", "Property size (Space)", !!v.has_space && v.space_is_default !== true,
@@ -172,6 +222,16 @@ export function evaluateUnitChecks(
     v.beds_meet_max_guests !== false,
     `Beds sleep ${sleeps} people but the unit takes ${v.max_guests ?? 0} guests — not required by the Channel Manager, but improves channel quality`,
     "Rooms → Unit → Bed configuration", false);
+  // Certification composition strictness.
+  add("has_bedroom", "Rooms & beds", "At least 1 bedroom in the composition", v.has_bedroom !== false,
+    "No bedroom block is declared in the composition", "Rooms → Unit → Bedrooms");
+  add("has_kitchen", "Rooms & beds", "Kitchen declared", v.has_kitchen !== false,
+    "No kitchen is declared in the composition or amenities", "Rooms → Unit → Facilities → Kitchen");
+  add("has_bathroom_room", "Rooms & beds", "Bathroom declared", v.has_bathroom_room !== false,
+    "No bathroom is declared in the composition or amenities", "Rooms → Unit → Facilities → Bathrooms");
+  add("beds_distributed", "Rooms & beds", "Beds distributed between bedrooms", v.beds_distributed !== false,
+    `${v.bedrooms_with_beds ?? 0} of ${v.bedroom_blocks ?? 0} bedrooms carry beds — spread the bed configuration across the bedrooms`,
+    "Rooms → Unit → Bed configuration");
 
   // ── Photos ──
   add("meets_minimum_images", "Photos", `Photos (≥ ${RU_MIN_IMAGES})`, !!v.meets_minimum_images,
@@ -181,6 +241,17 @@ export function evaluateUnitChecks(
     v.images_meet_size !== false,
     `${(v.images_count ?? 0) - (v.images_meeting_size ?? 0)} photo(s) are smaller than ${RU_MIN_IMAGE_WIDTH}×${RU_MIN_IMAGE_HEIGHT}px`,
     "Property → Images — re-upload larger versions");
+  // Certification dimensions: every photo must MEASURE at least 1024×768.
+  add("images_meet_cert_size", "Photos", `Photos measured ≥ ${RU_CERT_MIN_IMAGE_WIDTH}×${RU_CERT_MIN_IMAGE_HEIGHT}px`,
+    v.images_meet_cert_size !== false,
+    `${Math.max(0, (v.images_count ?? 0) - (v.images_meeting_cert_size ?? 0))} photo(s) are below ${RU_CERT_MIN_IMAGE_WIDTH}×${RU_CERT_MIN_IMAGE_HEIGHT}px${
+      (v.smallest_image_width ?? null) != null ? ` (smallest measured ${v.smallest_image_width}×${v.smallest_image_height}px)` : ""
+    }`,
+    "Property → Images — re-upload larger versions");
+  add("images_size_measured", "Photos", "All photo dimensions measured",
+    (v.images_size_unverified ?? 0) === 0,
+    `${v.images_size_unverified ?? 0} photo(s) could not be measured — re-upload them so their size can be verified`,
+    "Property → Images", false);
   add("has_main_image", "Photos", "Main photo flagged", v.has_main_image !== false,
     "No photo is marked as the main image", "Property → Images → set the first image");
 
@@ -269,3 +340,50 @@ export function mandatoryGaps(units: RuUnitInput[]): string[] {
   return summary.checks.filter((c) => c.mandatory && !c.passed)
     .map((c) => `${c.unit ? `${c.unit}: ` : ""}${c.detail ?? c.label}`);
 }
+
+/**
+ * Builds the MinStay / bookable-window checks from a live RU calendar probe
+ * (see findRuBookableWindow in ruContentQuality.ts).
+ */
+export function bookableWindowChecks(
+  window: {
+    ok: boolean;
+    start: string | null;
+    longest_run: number;
+    min_stay_set: boolean;
+    min_stay_days: number;
+    open_days: number;
+    unpriced_open_days: number;
+  },
+  unit?: string,
+): RuCheck[] {
+  return [
+    {
+      key: "bookable_window",
+      group: "Availability 365d",
+      label: `≥ ${RU_MIN_BOOKABLE_WINDOW} consecutive bookable days with a price`,
+      mandatory: true,
+      passed: window.ok,
+      unit,
+      fix_hint: "Rate Manager → Calendar (availability) and Rates",
+      ...(window.ok
+        ? {}
+        : {
+          detail: `Longest run of open, priced days is ${window.longest_run} (need ${RU_MIN_BOOKABLE_WINDOW}); ${window.open_days} open day(s), ${window.unpriced_open_days} of them unpriced`,
+        }),
+    },
+    {
+      key: "min_stay_set",
+      group: "Availability 365d",
+      label: "MinStay set on open days",
+      mandatory: true,
+      passed: window.min_stay_set,
+      unit,
+      fix_hint: "Rate Manager → Stay restrictions → Minimum stay",
+      ...(window.min_stay_set
+        ? {}
+        : { detail: `No MinStay value on any of the ${window.open_days} open day(s)` }),
+    },
+  ];
+}
+
