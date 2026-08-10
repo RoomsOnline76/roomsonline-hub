@@ -3279,9 +3279,18 @@ Deno.serve(async (req) => {
 
           console.log(`[push-property-to-ru] Pushing standalone unit "${unit.name}" (existing RU ID: ${existingUnitRuId}, object_type_id: ${unitPayload.object_type_id})`);
 
-          let { data: pushResult, error: pushErr } = await supabase.functions.invoke('rentalsunited-api', {
-            body: { action: 'push_property', ru_property_id: existingUnitRuId, property: unitPayload, ...childAuthPayload },
-          });
+          // Transport failures mid-batch (worker recycle / cold boot) used to kill the last
+          // units of a large multi-unit push — retry those, never business errors.
+          const firstAttempt = await invokeRuWithRetry(
+            supabase,
+            { action: 'push_property', ru_property_id: existingUnitRuId, property: unitPayload, ...childAuthPayload },
+            { label: `push_property ${unit.name}` },
+          );
+          let pushResult: any = firstAttempt.data;
+          let pushErr: { message: string } | null = firstAttempt.ok
+            ? null
+            : { message: firstAttempt.message || 'Unknown error' };
+
 
           // Stale RU ID recovery (see multi-unit flow): re-push as a create.
           const staleIdError = /property does not exist/i.test(
