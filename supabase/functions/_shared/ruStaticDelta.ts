@@ -179,11 +179,21 @@ export async function queueRuStaticDelta(
       if (previous.hash && previous.hash === contentHash) {
         return { queued: false, reason: 'unchanged', content_hash: contentHash };
       }
-      if (previous.at && Date.now() - previous.at < RU_STATIC_DELTA_DEBOUNCE_MS) {
-        console.log(`[ruStaticDelta] Debounced ${trigger} delta for property ${propertyId}`);
-        return { queued: false, reason: 'debounced', content_hash: contentHash };
+      // Content genuinely changed but the last push was very recent: wait out the window rather
+      // than dropping the delta, otherwise a burst of autosaves could strand the final change
+      // until the weekly full push.
+      const sinceLast = previous.at ? Date.now() - previous.at : Number.MAX_SAFE_INTEGER;
+      if (sinceLast < RU_STATIC_DELTA_DEBOUNCE_MS) {
+        console.log(`[ruStaticDelta] Holding ${trigger} delta for property ${propertyId}`);
+        await new Promise((resolve) => setTimeout(resolve, RU_STATIC_DELTA_DEBOUNCE_MS - sinceLast));
+        // Re-check: another concurrent save may have pushed this exact content while we waited.
+        const latest = await lastStaticRun(supabase, propertyId);
+        if (latest.hash && latest.hash === contentHash) {
+          return { queued: false, reason: 'unchanged', content_hash: contentHash };
+        }
       }
     }
+
 
     const startedAt = Date.now();
     let success = false;
