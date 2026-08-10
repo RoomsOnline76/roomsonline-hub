@@ -325,8 +325,9 @@ Deno.serve(async (req) => {
         .update({
           ru_archived: archive,
           ru_archived_at: archive ? new Date().toISOString() : null,
-          // Archiving must also stop any further ARI pushes.
-          ...(archive ? { ru_push_enabled: false } : {}),
+          // Archiving stops further ARI pushes; re-activating resumes them.
+          ru_push_enabled: !archive,
+
         })
         .eq("id", p.id);
       if (updErr) {
