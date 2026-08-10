@@ -9,7 +9,7 @@
 //
 // Keeping this in one place is what makes "Phase 2 passed" mean "the push will be accepted".
 
-import { createRateResolver, eachDate, addDays } from "./rateResolution.ts";
+import { createRateResolver, eachDate, addDays, type UnitRateContext } from "./rateResolution.ts";
 import { RU_MIN_BOOKABLE_WINDOW } from "./ruContentQuality.ts";
 
 export interface RuLocalWindow {
@@ -112,7 +112,9 @@ export async function computeLocalBookableWindow(
       window: { from, to },
       audience: "channels",
     });
-    const units = resolver.units.length > 0 ? resolver.units : [{ id: propertyId, name: null }];
+    const units: UnitRateContext[] = resolver.units.length > 0
+      ? resolver.units
+      : [{ id: propertyId, name: "" }];
     result.unit_count = units.length;
 
     const allDates = eachDate(from, to);
@@ -122,13 +124,12 @@ export async function computeLocalBookableWindow(
     let bestUnpriced = 0;
 
     for (const unit of units) {
-      const label = String((unit as { name?: string | null }).name ?? "").trim().toLowerCase();
+      const label = String(unit.name ?? "").trim().toLowerCase();
       const unitBlocked = blockedByUnit.get(label) ?? new Set<string>();
-      const dayRates = resolver.resolveDays(unit as never, from, to);
+      const dayRates = resolver.resolveDays(unit, from, to);
       const priced = new Map<string, number>();
-      for (const d of dayRates as { date: string; amount?: number | null; price?: number | null }[]) {
-        const amount = Number(d.amount ?? d.price ?? 0);
-        priced.set(String(d.date).slice(0, 10), amount);
+      for (const d of dayRates) {
+        priced.set(String(d.date).slice(0, 10), Number(d.price ?? 0));
       }
 
       let run = 0;
