@@ -68,6 +68,8 @@ interface PropRow {
   city: string | null;
   ru_push_enabled: boolean | null;
   ru_archived?: boolean | null;
+  is_trading?: boolean | null;
+  is_sandbox?: boolean | null;
 }
 
 /**
