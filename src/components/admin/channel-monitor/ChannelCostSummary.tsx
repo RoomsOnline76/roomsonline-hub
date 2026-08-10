@@ -127,7 +127,16 @@ export function ChannelCostSummary({ data }: Props) {
           highlight={focus === "sub-account-properties"}
           label="Properties under sub-accounts"
           value={String(subAccountProperties)}
-          hint={`${subAccounts} channel sub-account${subAccounts === 1 ? "" : "s"}`}
+          hint={[
+            `${subAccounts} channel sub-account${subAccounts === 1 ? "" : "s"}`,
+            data.subAccountPropertiesWithoutFootprint > 0
+              ? `${data.subAccountPropertiesWithoutFootprint} portfolio propert${
+                  data.subAccountPropertiesWithoutFootprint === 1 ? "y" : "ies"
+                } not on the channel manager`
+              : null,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
         />
         <Stat
           highlight={focus === "push-enabled"}
@@ -139,6 +148,7 @@ export function ChannelCostSummary({ data }: Props) {
               : "Sub-account properties sending rates & availability"
           }
         />
+
 
         <Stat
           label="Properties syncing"
