@@ -599,12 +599,37 @@ function buildValidation(payload: Record<string, any>): Record<string, unknown> 
     has_cancellation_policies: (payload.cancellation_policies || []).length >= 1,
     cancellation_policies_is_default: payload.cancellation_policies_is_default === true,
     has_name: !!(payload.name && String(payload.name).trim().length >= 3),
+    // Certification name hygiene: no emoji, no rejected specials, not ALL CAPS.
+    name_clean: nameCheck.clean,
+    name_issues: nameCheck.reasons,
+    name_issue_detail: nameCheck.detail,
     has_object_type_id: ((payload.object_type_id ?? payload.property_type_id) || 0) > 0,
     can_sleep_max_ok: maxGuests >= 1,
-    // RU has no hard description length: presence is mandatory, 100+ chars is advisory.
-    description_length: (payload.descriptions?.[0]?.text || '').trim().length,
-    has_description: ((payload.descriptions?.[0]?.text || '').trim().length) > 0,
-    description_meets_recommended: ((payload.descriptions?.[0]?.text || '').trim().length) >= 100,
+    // Presence is mandatory, 100+ chars advisory, 700+ chars required for certification.
+    description_length: descriptionText.length,
+    has_description: descriptionText.length > 0,
+    description_meets_recommended: descriptionText.length >= 100,
+    description_meets_cert: descriptionText.length >= RU_CERT_MIN_DESCRIPTION,
+    // Composition strictness (certification).
+    bedroom_blocks: bedroomBlocks.length,
+    bedrooms_with_beds: bedroomsWithBeds,
+    has_bedroom: bedroomBlocks.length >= 1,
+    has_kitchen: hasKitchenRoom,
+    has_bathroom_room: hasBathroomRoom,
+    beds_distributed: bedsDistributed,
+    // Arrival & stay times.
+    arrival_instructions_length: arrivalText.length,
+    has_arrival_instructions: arrivalText.length >= RU_MIN_ARRIVAL_INSTRUCTIONS,
+    has_check_in_from: timeRe.test(checkInFrom),
+    has_check_out_until: timeRe.test(checkOutUntil),
+    check_in_from: checkInFrom || null,
+    check_out_until: checkOutUntil || null,
+    check_in_times_are_default: payload.check_in_times_are_default === true,
+    // Photos (certification dimensions).
+    images_meeting_cert_size: certSized,
+    images_meet_cert_size: images.length > 0 && certSized === images.length && unverified === 0,
+    smallest_image_width: smallestWidth,
+    smallest_image_height: smallestHeight,
     has_main_image: images.some((i) => i.is_main),
     has_street: !!(payload.street && String(payload.street).trim().length > 2),
   };
