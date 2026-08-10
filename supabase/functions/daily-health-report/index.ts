@@ -921,7 +921,19 @@ Deno.serve(async (req) => {
       failedCount,
       totalComponents,
       criticalIssues,
-      bookingStats
+      bookingStats,
+      ruWl
+        ? {
+            success_rate: ruWl.success_rate,
+            failing: ruWl.actions
+              .filter(a => a.current_ok === false)
+              .map(a => ({ action: a.action, success_rate: a.success_rate, failed: a.failed, last_run: a.last_run })),
+            recovered: ruWl.actions
+              .filter(a => a.recovered)
+              .map(a => ({ action: a.action, last_failure_at: a.last_failure_at })),
+            top_errors: ruWl.top_errors,
+          }
+        : null,
     );
 
     // Generate email
