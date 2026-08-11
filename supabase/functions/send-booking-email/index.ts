@@ -208,32 +208,121 @@ function wrapCustomTemplate(customContent: string, property: any): string {
 // Helper: resolve branding for a property
 // ROL'OS properties (is_rol_property) get branded automatically when colours exist — no toggle needed.
 // Other properties require brand_override_enabled to be true.
-function resolveBranding(property: any): { accentColor: string; logoUrl: string; senderName: string; isBranded: boolean; secondaryColor: string; fontColor: string } {
+interface EmailBrand {
+  accentColor: string;
+  logoUrl: string;
+  senderName: string;
+  isBranded: boolean;
+  secondaryColor: string;
+  fontColor: string;
+  darkColor: string;
+  mutedColor: string;
+  pageBg: string;
+  headingFont: string;
+  bodyFont: string;
+}
+
+function resolveBranding(property: any): EmailBrand {
   const isRol = !!property.is_rol_property;
   const hasColors = !!property.brand_primary_color;
   const isBranded = isRol ? hasColors : (!!property.brand_override_enabled && hasColors);
+  const headingFont = (isBranded && property.brand_heading_font)
+    ? `'${property.brand_heading_font}', Georgia, 'Times New Roman', serif`
+    : `Georgia, 'Times New Roman', serif`;
   return {
     isBranded,
     accentColor: (isBranded && property.brand_primary_color) ? property.brand_primary_color : "#e91e8c",
     secondaryColor: (isBranded && property.brand_secondary_color) ? property.brand_secondary_color : "#ffffff",
-    fontColor: (isBranded && property.brand_font_color) ? property.brand_font_color : "#333333",
+    fontColor: (isBranded && property.brand_font_color) ? property.brand_font_color : "#2b2b33",
+    darkColor: (isBranded && property.brand_dark_bg_color) ? property.brand_dark_bg_color : "#1a1a2e",
+    mutedColor: (isBranded && property.brand_muted_text_color) ? property.brand_muted_text_color : "#6b6b78",
+    pageBg: (isBranded && property.brand_light_bg_color) ? property.brand_light_bg_color : "#f6f3ee",
     logoUrl: (isBranded && property.brand_logo_url) ? property.brand_logo_url : "https://book.sleepinafrica.roomsonline.co.za/images/rol-logo-email.png",
     senderName: isBranded ? property.name : "Sleep in Africa by RoomsOnline",
+    headingFont,
+    bodyFont: `-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif`,
   };
+}
+
+/** Escape user/property supplied text before it lands in the HTML email. */
+function esc(value: unknown): string {
+  return String(value ?? "").replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" } as Record<string, string>)[c]);
+}
+
+/** A branded content section: display-serif heading with a thin accent rule. */
+function section(brand: EmailBrand, title: string, inner: string, opts: { last?: boolean } = {}): string {
+  if (!inner) return "";
+  return `
+          <tr>
+            <td style="padding: 0 32px ${opts.last ? "8px" : "26px"};">
+              <div style="border-top: 1px solid #e7e1d8; padding-top: 22px;">
+                <p style="margin: 0 0 14px; font-family: ${brand.headingFont}; font-size: 12px; letter-spacing: 2.4px; text-transform: uppercase; color: ${brand.accentColor};">${esc(title)}</p>
+                ${inner}
+              </div>
+            </td>
+          </tr>`;
+}
+
+/** Two-column label/value rows used across the booking information blocks. */
+function kvRows(brand: EmailBrand, rows: Array<[string, string | null | undefined]>): string {
+  const visible = rows.filter(([, v]) => !!v && String(v).trim() !== "");
+  if (!visible.length) return "";
+  return `
+                <table role="presentation" width="100%" style="width: 100%; border-collapse: collapse;">
+                  ${visible
+                    .map(
+                      ([label, value]) => `
+                  <tr>
+                    <td style="padding: 7px 0; color: ${brand.mutedColor}; font-size: 14px; vertical-align: top;">${esc(label)}</td>
+                    <td style="padding: 7px 0; color: ${brand.fontColor}; font-size: 14px; font-weight: 600; text-align: right; vertical-align: top;">${value}</td>
+                  </tr>`,
+                    )
+                    .join("")}
+                </table>`;
+}
+
+/** A soft callout panel (payment, notes, warnings). */
+function panel(brand: EmailBrand, inner: string, tone: "accent" | "success" | "warn" | "quiet" = "quiet"): string {
+  const tones: Record<string, { bg: string; border: string }> = {
+    accent: { bg: "#fdf4f9", border: brand.accentColor },
+    success: { bg: "#f0fdf4", border: "#22c55e" },
+    warn: { bg: "#fffbeb", border: "#f59e0b" },
+    quiet: { bg: "#faf8f5", border: "#e7e1d8" },
+  };
+  const t = tones[tone];
+  return `<div style="background-color: ${t.bg}; border-left: 3px solid ${t.border}; border-radius: 4px; padding: 16px 18px;">${inner}</div>`;
+}
+
+/** Convert plain text (possibly newline separated) into a readable list/paragraphs. */
+function textToHtmlLines(brand: EmailBrand, text: string): string {
+  const lines = String(text)
+    .split(/\r?\n|(?<=\.)\s{2,}/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+  if (lines.length <= 1) {
+    return `<p style="margin: 0; color: ${brand.fontColor}; font-size: 14px; line-height: 1.65;">${esc(text.trim())}</p>`;
+  }
+  return `<ul style="margin: 0; padding-left: 18px; color: ${brand.fontColor}; font-size: 14px; line-height: 1.7;">${lines
+    .map((l) => `<li style="margin: 0 0 4px;">${esc(l.replace(/^[-•*]\s*/, ""))}</li>`)
+    .join("")}</ul>`;
 }
 
 // Helper: generate the email header row with logo
 function generateEmailHeader(brand: ReturnType<typeof resolveBranding>, property: any): string {
-  if (brand.isBranded) {
-    return `
+  const logo = brand.isBranded
+    ? `<img src="${esc(brand.logoUrl)}" alt="${esc(property.name)}" style="max-width: 190px; max-height: 74px; height: auto; display: block; margin: 0 auto 10px;" />`
+    : "";
+  const location = [property.city, property.country].filter(Boolean).join(", ");
+  return `
       <tr>
-        <td style="padding: 30px 40px 15px; text-align: center; background-color: ${brand.accentColor}; border-radius: 8px 8px 0 0;">
-          <img src="${brand.logoUrl}" alt="${property.name}" style="max-width: 200px; max-height: 80px; height: auto;" />
+        <td style="padding: 30px 32px 26px; text-align: center; background-color: ${brand.darkColor}; border-radius: 10px 10px 0 0;">
+          ${logo}
+          <p style="margin: 0; font-family: ${brand.headingFont}; font-size: 26px; line-height: 1.2; color: #ffffff; letter-spacing: 0.4px;">${esc(property.name || "")}</p>
+          ${location ? `<p style="margin: 8px 0 0; color: rgba(255,255,255,0.68); font-size: 12px; letter-spacing: 2px; text-transform: uppercase;">${esc(location)}</p>` : ""}
         </td>
       </tr>
     `;
-  }
-  return "";
 }
 
 // Helper: generate the email footer row
@@ -243,14 +332,13 @@ function generateEmailFooter(brand: ReturnType<typeof resolveBranding>, property
   if (isWhiteLabel) {
     const contactBits = [property.contact_phone || property.phone, property.contact_email || property.email]
       .filter(Boolean)
+      .map((v: string) => esc(v))
       .join(" · ");
     return `
       <tr>
-        <td style="padding: 20px 40px; background-color: #fafafa; border-radius: 0 0 8px 8px; text-align: center;">
-          <div style="border-top: 1px solid #e5e5e5; padding-top: 15px;">
-            <p style="margin: 0 0 6px; color: #333; font-size: 13px;"><strong>${property.name}</strong></p>
-            ${contactBits ? `<p style="margin: 0; color: #888; font-size: 11px;">${contactBits}</p>` : ""}
-          </div>
+        <td style="padding: 24px 32px 28px; background-color: #faf8f5; border-radius: 0 0 10px 10px; text-align: center;">
+          <p style="margin: 0 0 6px; font-family: ${brand.headingFont}; color: ${brand.fontColor}; font-size: 15px;">${esc(property.name)}</p>
+          ${contactBits ? `<p style="margin: 0; color: ${brand.mutedColor}; font-size: 12px;">${contactBits}</p>` : ""}
         </td>
       </tr>
     `;
@@ -259,10 +347,8 @@ function generateEmailFooter(brand: ReturnType<typeof resolveBranding>, property
     // ROL'OS-hosted branded property: subtle "Powered by" line only — no ROL logo, no "Kind regards"
     return `
       <tr>
-        <td style="padding: 20px 40px; background-color: #fafafa; border-radius: 0 0 8px 8px; text-align: center;">
-          <div style="border-top: 1px solid #e5e5e5; padding-top: 15px;">
-            <p style="margin: 0; color: #aaa; font-size: 11px;">Powered by <a href="https://roomsonline.co.za" style="color: #aaa; text-decoration: none;">RoomsOnline</a> · Rooms Done Right</p>
-          </div>
+        <td style="padding: 24px 32px 28px; background-color: #faf8f5; border-radius: 0 0 10px 10px; text-align: center;">
+          <p style="margin: 0; color: ${brand.mutedColor}; font-size: 11px;">Powered by <a href="https://roomsonline.co.za" style="color: ${brand.mutedColor}; text-decoration: none;">RoomsOnline</a> · Rooms Done Right</p>
         </td>
       </tr>
     `;
@@ -270,17 +356,17 @@ function generateEmailFooter(brand: ReturnType<typeof resolveBranding>, property
 
   return `
     <tr>
-      <td style="padding: 30px 40px; background-color: #fafafa; border-radius: 0 0 8px 8px; text-align: center;">
-        <p style="margin: 0 0 8px; font-family: Georgia, serif; font-style: italic; color: #666; font-size: 14px;">Sleep in Africa like never before</p>
-        <p style="margin: 0 0 20px; color: #666; font-size: 14px;">Kind regards</p>
-        <p style="margin: 0 0 15px; color: #333; font-size: 14px;">
-          Sleep in Africa by RoomsOnline on behalf of <strong>${property.name}</strong>
+      <td style="padding: 28px 32px; background-color: #faf8f5; border-radius: 0 0 10px 10px; text-align: center;">
+        <p style="margin: 0 0 10px; font-family: ${brand.headingFont}; font-style: italic; color: ${brand.mutedColor}; font-size: 15px;">Sleep in Africa like never before</p>
+        <p style="margin: 0 0 14px; color: ${brand.mutedColor}; font-size: 13px;">
+          Sleep in Africa by RoomsOnline on behalf of <strong style="color: ${brand.fontColor};">${esc(property.name)}</strong>
         </p>
-        <img src="https://book.sleepinafrica.roomsonline.co.za/images/rol-logo-email.png" alt="RoomsOnline" style="max-width: 180px; height: auto;" />
+        <img src="https://book.sleepinafrica.roomsonline.co.za/images/rol-logo-email.png" alt="RoomsOnline" style="max-width: 160px; height: auto;" />
       </td>
     </tr>
   `;
 }
+
 
 // Generate inline invoice breakdown from ai_metadata or fallback to simple total
 function generateInvoiceSection(booking: any, accentColor: string): string {
@@ -413,6 +499,7 @@ function resolveBankingBlock(property: any): Record<string, string | null> | nul
 function resolveCancellationText(booking: any, property: any): string | null {
   return (
     booking?.cancellation_policy_text ||
+    property?.__cancellation_text ||
     property?.amenities?.policies?.cancellation_policy ||
     property?.amenities?.house_rules?.cancellation_policy ||
     property?.cancellation_policy ||
@@ -420,139 +507,266 @@ function resolveCancellationText(booking: any, property: any): string | null {
   );
 }
 
-function generateReservationPaymentBlock(booking: any, property: any, accentColor: string): string {
+/** Property-facing contact set, hydrated by the handler from public contact rows. */
+interface PropertyContact {
+  hostName?: string | null;
+  phone?: string | null;
+  cell?: string | null;
+  email?: string | null;
+  website?: string | null;
+  address?: string | null;
+}
+
+function resolvePropertyContact(property: any): PropertyContact {
+  const c = property?.__contact || {};
+  const amenityContact = property?.amenities?.contact || {};
+  const addressParts = [
+    property?.address,
+    property?.city,
+    property?.postal_code,
+  ].filter(Boolean);
+  const website = property?.property_url || amenityContact.website || null;
+  return {
+    hostName: c.hostName || amenityContact.main_contact_name || property?.amenities?.key_representative || null,
+    phone: c.phone || amenityContact.telephone || property?.amenities?.telephone || null,
+    cell: c.cell || amenityContact.mobile_number || property?.amenities?.mobile_number || null,
+    email: c.email || amenityContact.email || amenityContact.contact_email || property?.owner_email || null,
+    website: website ? String(website) : null,
+    address: addressParts.length ? addressParts.join(", ") : null,
+  };
+}
+
+function mapsUrl(property: any): string | null {
+  const lat = Number(property?.latitude);
+  const lng = Number(property?.longitude);
+  if (Number.isFinite(lat) && Number.isFinite(lng) && (lat !== 0 || lng !== 0)) {
+    return `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+  }
+  const q = [property?.name, property?.address, property?.city, property?.country].filter(Boolean).join(", ");
+  return q ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}` : null;
+}
+
+/** Payment confirmed / deposit instructions panel — one block for every payment state. */
+function generatePaymentBlock(brand: EmailBrand, booking: any, property: any): string {
+  const currency = booking.currency || "ZAR";
+  if (booking.payment_status === "paid") {
+    return panel(
+      brand,
+      `
+        <p style="margin: 0 0 10px; font-family: ${brand.headingFont}; font-size: 16px; color: #166534;">Payment received — thank you</p>
+        ${kvRows(brand, [
+          ["Amount paid", esc(formatCurrency(Number(booking.total_price || 0), currency))],
+          ["Transaction reference", esc(booking.payment_reference || "—")],
+          ["Payment method", esc(booking.payment_method === "payfast" ? "PayFast" : booking.payment_method || "Card")],
+          ["Paid on", booking.paid_at ? esc(formatDate(booking.paid_at)) : null],
+        ])}
+      `,
+      "success",
+    );
+  }
+
   const banking = resolveBankingBlock(property);
   const total = Number(booking.total_price || 0);
   const dueNow = Number(booking.deposit_amount || 0) > 0 ? Number(booking.deposit_amount) : total;
   const balance = Math.max(0, Math.round((total - dueNow) * 100) / 100);
   const dueDate = booking.deposit_due_date ? formatDate(booking.deposit_due_date) : null;
-  const cancellation = resolveCancellationText(booking, property);
   const reference = guestReference(booking);
+  const contact = resolvePropertyContact(property);
+  const proofEmail = contact.email;
 
-  const bankRows: Array<[string, unknown]> = banking
+  const bankRows: Array<[string, string | null]> = banking
     ? [
-        ["Account holder", banking.account_holder],
-        ["Bank", banking.bank_name],
-        ["Account number", banking.account_number || banking.account_number_masked],
-        ["Account type", banking.account_type],
-        ["Branch code", banking.branch_code],
-        ["SWIFT / BIC", banking.swift_code],
+        ["Account holder", banking.account_holder ? esc(banking.account_holder) : null],
+        ["Bank", banking.bank_name ? esc(banking.bank_name) : null],
+        [
+          "Account number",
+          banking.account_number || banking.account_number_masked
+            ? esc(banking.account_number || banking.account_number_masked)
+            : null,
+        ],
+        ["Account type", banking.account_type ? esc(banking.account_type) : null],
+        ["Branch code", banking.branch_code ? esc(banking.branch_code) : null],
+        ["SWIFT / BIC", banking.swift_code ? esc(banking.swift_code) : null],
+        ["Payment reference", esc(reference)],
       ]
     : [];
 
   const bankHtml = banking
-    ? `
-      <table role="presentation" style="width: 100%; border-collapse: collapse; margin-top: 12px;">
-        ${bankRows
-          .filter(([, v]) => !!v)
-          .map(
-            ([label, value]) => `
-        <tr>
-          <td style="padding: 4px 0; color: #475569; font-size: 13px;">${label}</td>
-          <td style="padding: 4px 0; color: #0f172a; font-size: 13px; text-align: right; font-family: monospace;">${value}</td>
-        </tr>`,
-          )
-          .join("")}
-        <tr>
-          <td style="padding: 4px 0; color: #475569; font-size: 13px;">Payment reference</td>
-          <td style="padding: 4px 0; color: #0f172a; font-size: 13px; text-align: right; font-family: monospace;">${reference}</td>
-        </tr>
-      </table>`
-    : `<p style="margin: 10px 0 0; color: #475569; font-size: 13px;">${property?.name || "The property"} will send you their banking details shortly.</p>`;
+    ? kvRows(brand, bankRows)
+    : `<p style="margin: 10px 0 0; color: ${brand.mutedColor}; font-size: 13px;">${esc(property?.name || "The property")} will send you their banking details shortly.</p>`;
 
-  return `
-          <tr>
-            <td style="padding: 0 40px 20px;">
-              <div style="border: 1px solid ${accentColor}; border-radius: 8px; padding: 16px;">
-                <h3 style="margin: 0 0 6px; font-size: 16px; color: #0f172a;">Reservation held — payment made directly to the property</h3>
-                <p style="margin: 0; color: #475569; font-size: 13px; line-height: 1.5;">
-                  No online payment was taken. Please settle
-                  <strong>${formatCurrency(dueNow, booking.currency || "ZAR")}</strong>${dueDate ? ` by <strong>${dueDate}</strong>` : ""}
-                  by bank transfer to secure this reservation.${
-                    balance > 0.01
-                      ? ` The remaining balance of <strong>${formatCurrency(balance, booking.currency || "ZAR")}</strong> is payable ${booking.balance_due_date ? `by ${formatDate(booking.balance_due_date)}` : "before arrival"}.`
-                      : ""
-                  }
-                </p>
-                ${bankHtml}
-                ${
-                  cancellation
-                    ? `<p style="margin: 12px 0 0; color: #64748b; font-size: 12px; line-height: 1.5;"><strong>Cancellation policy:</strong> ${cancellation}</p>`
-                    : ""
-                }
-                <p style="margin: 8px 0 0; color: #64748b; font-size: 11px;">Please email your proof of payment to ${property?.email || property?.contact_email || "the property"}. Your reservation is held for 3 days pending payment.</p>
-              </div>
-            </td>
-          </tr>`;
+  return panel(
+    brand,
+    `
+      <p style="margin: 0 0 8px; font-family: ${brand.headingFont}; font-size: 16px; color: ${brand.fontColor};">Deposit instructions</p>
+      <p style="margin: 0; color: ${brand.fontColor}; font-size: 14px; line-height: 1.65;">
+        Please pay <strong>${esc(formatCurrency(dueNow, currency))}</strong>${dueDate ? ` by <strong>${esc(dueDate)}</strong>` : ""} into the following bank account to secure your booking.${
+          balance > 0.01
+            ? ` The remaining balance of <strong>${esc(formatCurrency(balance, currency))}</strong> is payable ${
+                booking.balance_due_date ? `by ${esc(formatDate(booking.balance_due_date))}` : "before arrival"
+              }.`
+            : ""
+        }
+      </p>
+      ${bankHtml}
+      ${
+        proofEmail
+          ? `<p style="margin: 12px 0 0; color: ${brand.mutedColor}; font-size: 12px;">Proof of payment email: <a href="mailto:${esc(proofEmail)}" style="color: ${brand.accentColor}; text-decoration: none;">${esc(proofEmail)}</a></p>`
+          : ""
+      }
+    `,
+    "accent",
+  );
 }
 
+/** Accommodation lines: room type, basis, occupancy, per-night rate and line total. */
+function generateAccommodationSection(brand: EmailBrand, booking: any): string {
+  const currency = booking.currency || "ZAR";
+  const meta = booking.ai_metadata || {};
+  const rooms: any[] = Array.isArray(booking.rooms) ? booking.rooms : [];
+  const breakdown: any[] = Array.isArray(meta.cost_breakdown) ? meta.cost_breakdown : [];
+
+  const lines: string[] = [];
+
+  const describeOccupancy = (r: any): string =>
+    [
+      `${r.numberOfAdults || 1} adult${(r.numberOfAdults || 1) > 1 ? "s" : ""}`,
+      r.numberOfTeens ? `${r.numberOfTeens} teen${r.numberOfTeens > 1 ? "s" : ""}` : "",
+      r.numberOfChildren ? `${r.numberOfChildren} child${r.numberOfChildren > 1 ? "ren" : ""}` : "",
+      r.numberOfInfants ? `${r.numberOfInfants} infant${r.numberOfInfants > 1 ? "s" : ""}` : "",
+    ]
+      .filter(Boolean)
+      .join(", ");
+
+  if (rooms.length > 0) {
+    rooms.forEach((room, i) => {
+      const checkIn = room.checkIn || booking.check_in_date;
+      const checkOut = room.checkOut || booking.check_out_date;
+      const nights = calculateNights(checkIn, checkOut);
+      const match = breakdown[i] || breakdown.find((b: any) => (b.description || "").includes(room.roomTypeName || "~~"));
+      const lineTotal = Number(match?.total ?? room.totalPrice ?? room.total ?? 0);
+      const perNight = nights > 0 && lineTotal > 0 ? lineTotal / nights : Number(room.pricePerNight || 0);
+      const basis = room.rateTypeName || room.mealPlan || match?.rate_plan_name || null;
+      lines.push(`
+                  <tr>
+                    <td style="padding: 10px 0; border-bottom: 1px solid #efe9e0;">
+                      <p style="margin: 0 0 3px; color: ${brand.fontColor}; font-size: 14px; font-weight: 600;">${esc(room.roomTypeName || "Room")}</p>
+                      <p style="margin: 0; color: ${brand.mutedColor}; font-size: 13px; line-height: 1.55;">
+                        ${basis ? `${esc(basis)} · ` : ""}${esc(describeOccupancy(room))}${perNight > 0 ? ` · ${esc(formatCurrency(perNight, currency))} per night` : ""}<br />
+                        ${esc(formatDate(checkIn))} – ${esc(formatDate(checkOut))} (${nights} night${nights > 1 ? "s" : ""})
+                      </p>
+                    </td>
+                    <td style="padding: 10px 0; border-bottom: 1px solid #efe9e0; text-align: right; vertical-align: top; color: ${brand.fontColor}; font-size: 14px; font-weight: 600; white-space: nowrap;">
+                      ${lineTotal > 0 ? esc(formatCurrency(lineTotal, currency)) : ""}
+                    </td>
+                  </tr>`);
+    });
+  } else if (breakdown.length > 0) {
+    for (const item of breakdown) {
+      lines.push(`
+                  <tr>
+                    <td style="padding: 10px 0; border-bottom: 1px solid #efe9e0; color: ${brand.fontColor}; font-size: 14px;">${esc(item.description || "Accommodation")}</td>
+                    <td style="padding: 10px 0; border-bottom: 1px solid #efe9e0; text-align: right; color: ${brand.fontColor}; font-size: 14px; font-weight: 600;">${esc(formatCurrency(Number(item.total || 0), currency))}</td>
+                  </tr>`);
+    }
+  }
+
+  if (!lines.length) return "";
+
+  return `
+                <table role="presentation" width="100%" style="width: 100%; border-collapse: collapse;">
+                  ${lines.join("")}
+                </table>`;
+}
+
+/** Property details block: host, address, contact channels and the map link. */
+function generatePropertyDetailsSection(brand: EmailBrand, property: any): string {
+  const c = resolvePropertyContact(property);
+  const maps = mapsUrl(property);
+  const rows: Array<[string, string | null]> = [
+    ["Address", c.address ? esc(c.address) : null],
+    ["Email", c.email ? `<a href="mailto:${esc(c.email)}" style="color: ${brand.accentColor}; text-decoration: none;">${esc(c.email)}</a>` : null],
+    [
+      "Website",
+      c.website
+        ? `<a href="${esc(c.website)}" style="color: ${brand.accentColor}; text-decoration: none;">${esc(String(c.website).replace(/^https?:\/\//, ""))}</a>`
+        : null,
+    ],
+    ["Cell", c.cell ? `<a href="tel:${esc(c.cell)}" style="color: ${brand.fontColor}; text-decoration: none;">${esc(c.cell)}</a>` : null],
+    ["Tel", c.phone ? `<a href="tel:${esc(c.phone)}" style="color: ${brand.fontColor}; text-decoration: none;">${esc(c.phone)}</a>` : null],
+  ];
+  const inner = kvRows(brand, rows);
+  if (!inner && !maps && !c.hostName) return "";
+  return `
+                ${c.hostName ? `<p style="margin: 0 0 12px; color: ${brand.fontColor}; font-size: 14px;">${esc(c.hostName)} will welcome you.</p>` : ""}
+                ${inner}
+                ${
+                  maps
+                    ? `<p style="margin: 14px 0 0;"><a href="${esc(maps)}" style="display: inline-block; border: 1px solid ${brand.accentColor}; color: ${brand.accentColor}; text-decoration: none; padding: 9px 18px; border-radius: 4px; font-size: 13px; letter-spacing: 0.4px;">View on Google Maps</a></p>`
+                    : ""
+                }`;
+}
+
+/** How to get here: directions copy plus coordinates. */
+function generateDirectionsSection(brand: EmailBrand, property: any): string {
+  const hr = property?.amenities?.house_rules || {};
+  const text = String(hr.directions || hr.check_in_instructions || property?.__arrival_instructions || "").trim();
+  const lat = Number(property?.latitude);
+  const lng = Number(property?.longitude);
+  const coords = Number.isFinite(lat) && Number.isFinite(lng) && (lat !== 0 || lng !== 0)
+    ? `<p style="margin: 0 0 10px; color: ${brand.mutedColor}; font-size: 13px;">Lat: ${lat} / Lng: ${lng}</p>`
+    : "";
+  if (!text && !coords) return "";
+  return `${coords}${text ? textToHtmlLines(brand, text) : ""}`;
+}
+
+/** Cancellation policy and other terms. */
+function generatePolicySections(brand: EmailBrand, booking: any, property: any): string {
+  const cancellation = resolveCancellationText(booking, property);
+  const hr = property?.amenities?.house_rules || {};
+  const termsBits: string[] = [];
+  if (hr.deposit_percentage) {
+    termsBits.push(
+      `${hr.deposit_percentage}% deposit confirms the booking${hr.deposit_days ? `, balance is due ${hr.deposit_days} days before arrival` : ""}.`,
+    );
+  }
+  if (hr.pets_allowed === false) termsBits.push("No pets allowed.");
+  if (hr.smoking_allowed === false) termsBits.push("No smoking in the building.");
+  if (hr.parties_allowed === false) termsBits.push("No parties or events.");
+  if (hr.children_policy) termsBits.push(String(hr.children_policy));
+  if (hr.fine_print) termsBits.push(String(hr.fine_print));
+
+  return `
+      ${section(brand, "Cancellation policy", cancellation ? textToHtmlLines(brand, cancellation) : "")}
+      ${section(brand, "Other terms and conditions", termsBits.length ? textToHtmlLines(brand, termsBits.join("\n")) : "")}`;
+}
 
 function generateSuccessEmail(booking: any, property: any, syncWarning?: string): string {
   const nights = calculateNights(booking.check_in_date, booking.check_out_date);
   const totalGuests = (booking.adults || 0) + (booking.teens || 0) + (booking.children || 0) + (booking.infants || 0);
   const brand = resolveBranding(property);
-  const accentColor = brand.accentColor;
+  const currency = booking.currency || "ZAR";
+  const contact = resolvePropertyContact(property);
+  const guestFirstName = (booking.guest_name || "").trim() || "Guest";
+  const queryPhone = contact.phone || contact.cell;
+  const total = Number(booking.total_price || 0);
+  const depositAmount = Number(booking.deposit_amount || 0);
 
-  // Build detailed rooms itinerary if multi-room with potential different dates
-  let roomsItinerary = "";
-  const hasRooms = booking.rooms && Array.isArray(booking.rooms) && booking.rooms.length > 0;
+  const bookingInfo = kvRows(brand, [
+    ["Arriving", esc(formatDate(booking.check_in_date))],
+    ["Leaving", esc(formatDate(booking.check_out_date))],
+    ["Staying", `${nights} night${nights > 1 ? "s" : ""}`],
+    ["Guests", `${totalGuests} guest${totalGuests > 1 ? "s" : ""}`],
+    ["Booking reference", `<span style="font-family: 'Courier New', monospace;">${esc(guestReference(booking))}</span>`],
+  ]);
 
-  if (hasRooms) {
-    roomsItinerary = booking.rooms
-      .map((room: any, index: number) => {
-        const roomCheckIn = room.checkIn || booking.check_in_date;
-        const roomCheckOut = room.checkOut || booking.check_out_date;
-        const roomNights = calculateNights(roomCheckIn, roomCheckOut);
-        const guestSummary = [
-          `${room.numberOfAdults || 1} Adult${(room.numberOfAdults || 1) > 1 ? "s" : ""}`,
-          room.numberOfTeens ? `${room.numberOfTeens} Teen${room.numberOfTeens > 1 ? "s" : ""}` : "",
-          room.numberOfChildren ? `${room.numberOfChildren} Child${room.numberOfChildren > 1 ? "ren" : ""}` : "",
-          room.numberOfInfants ? `${room.numberOfInfants} Infant${room.numberOfInfants > 1 ? "s" : ""}` : "",
-        ]
-          .filter(Boolean)
-          .join(", ");
-
-        return `
-        <tr>
-          <td colspan="2" style="padding: 12px 0; border-bottom: 1px solid #eee;">
-            <div style="background-color: #f8f9fa; border-radius: 6px; padding: 12px; border-left: 3px solid ${accentColor};">
-              <p style="margin: 0 0 6px; font-weight: 600; color: #333;">Room ${index + 1}: ${room.roomTypeName || "Standard Room"}</p>
-              <p style="margin: 0 0 4px; color: #666; font-size: 13px;">
-                <strong>Dates:</strong> ${formatDate(roomCheckIn)} – ${formatDate(roomCheckOut)} (${roomNights} night${roomNights > 1 ? "s" : ""})
-              </p>
-              <p style="margin: 0; color: #666; font-size: 13px;">
-                <strong>Guests:</strong> ${guestSummary}
-              </p>
-            </div>
-          </td>
-        </tr>
-      `;
-      })
-      .join("");
-  }
-
-  // Simple stay section for single room without custom dates
-  const simpleStaySection = `
-    <tr>
-      <td style="padding: 8px 0; color: #666;">Check-in</td>
-      <td style="padding: 8px 0; color: #333; font-weight: 500; text-align: right;">${formatDate(booking.check_in_date)}</td>
-    </tr>
-    <tr>
-      <td style="padding: 8px 0; color: #666;">Check-out</td>
-      <td style="padding: 8px 0; color: #333; font-weight: 500; text-align: right;">${formatDate(booking.check_out_date)}</td>
-    </tr>
-    <tr>
-      <td style="padding: 8px 0; color: #666;">Duration</td>
-      <td style="padding: 8px 0; color: #333; text-align: right;">${nights} night${nights > 1 ? "s" : ""}</td>
-    </tr>
-    <tr>
-      <td style="padding: 8px 0; color: #666;">Guests</td>
-      <td style="padding: 8px 0; color: #333; text-align: right;">${totalGuests} guest${totalGuests > 1 ? "s" : ""}</td>
-    </tr>
-  `;
-
-  // Choose between detailed itinerary or simple display
-  const stayContent = hasRooms && booking.rooms.length > 0 ? roomsItinerary : simpleStaySection;
+  const totals = kvRows(brand, [
+    ["Total amount", esc(formatCurrency(total, currency))],
+    depositAmount > 0 ? ["Deposit amount", esc(formatCurrency(depositAmount, currency))] : ["", null],
+    booking.payment_status === "paid"
+      ? ["Amount outstanding", esc(formatCurrency(0, currency))]
+      : ["", null],
+  ]);
 
   return `
 <!DOCTYPE html>
@@ -560,182 +774,72 @@ function generateSuccessEmail(booking: any, property: any, syncWarning?: string)
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Booking Confirmation</title>
+  <title>Booking confirmation with ${esc(property.name || "")}</title>
 </head>
-<body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f5f5f5;">
-  <table role="presentation" style="width: 100%; border-collapse: collapse;">
+<body style="margin: 0; padding: 0; font-family: ${brand.bodyFont}; background-color: ${brand.pageBg};">
+  <table role="presentation" width="100%" style="width: 100%; border-collapse: collapse; background-color: ${brand.pageBg};">
     <tr>
-      <td align="center" style="padding: 40px 20px;">
-        <table role="presentation" style="max-width: 600px; width: 100%; border-collapse: collapse; background-color: #ffffff; border-radius: 8px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
-          
+      <td align="center" style="padding: 32px 12px;">
+        <table role="presentation" width="600" style="max-width: 600px; width: 100%; border-collapse: collapse; background-color: #ffffff; border-radius: 10px; overflow: hidden;">
+
           ${generateEmailHeader(brand, property)}
 
-          <!-- Confirmation Icon -->
+          <!-- Greeting -->
           <tr>
-            <td style="padding: ${brand.isBranded ? '25px' : '40px'} 40px 20px; text-align: center;">
-              <div style="font-size: 32px; color: #22c55e; margin-bottom: 10px;">✓</div>
-              <h1 style="margin: 0; font-size: 24px; color: #333; font-weight: 600;">Booking Confirmed!</h1>
-              <p style="margin: 10px 0 0; color: #666; font-size: 14px;">Thank you for your booking</p>
-            </td>
-          </tr>
-
-          <!-- Reservation Reference -->
-          <tr>
-            <td style="padding: 0 40px;">
-              <div style="background-color: #f8f9fa; border-radius: 8px; padding: 20px; text-align: center; margin-bottom: 20px;">
-                <p style="margin: 0 0 5px; color: #666; font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">Booking Reference</p>
-                <p style="margin: 0; color: #333; font-size: 20px; font-weight: 600; font-family: monospace;">${guestReference(booking)}</p>
-              </div>
-            </td>
-          </tr>
-
-          <!-- Property Details -->
-          <tr>
-            <td style="padding: 0 40px 20px;">
-              <h2 style="margin: 0 0 15px; font-size: 18px; color: #333; border-bottom: 2px solid ${accentColor}; padding-bottom: 10px;">Property Details</h2>
-              <table role="presentation" style="width: 100%; border-collapse: collapse;">
-                <tr>
-                  <td style="padding: 8px 0; color: #666;">Property</td>
-                  <td style="padding: 8px 0; color: #333; font-weight: 500; text-align: right;">${property.name}</td>
-                </tr>
-                <tr>
-                  <td style="padding: 8px 0; color: #666;">Location</td>
-                  <td style="padding: 8px 0; color: #333; text-align: right;">${property.city}, ${property.country}</td>
-                </tr>
-                ${hasRooms ? `
-                <tr>
-                  <td style="padding: 8px 0; color: #666;">${booking.rooms.length > 1 ? "Units / Rooms booked" : "Unit / Room booked"}</td>
-                  <td style="padding: 8px 0; color: #333; font-weight: 600; text-align: right;">${booking.rooms
-                    .map((r: any) => r.roomTypeName || "Room")
-                    .join(", ")}</td>
-                </tr>` : ""}
-              </table>
-
-            </td>
-          </tr>
-
-          <!-- Stay Details / Itinerary -->
-          <tr>
-            <td style="padding: 0 40px 20px;">
-              <h2 style="margin: 0 0 15px; font-size: 18px; color: #333; border-bottom: 2px solid ${accentColor}; padding-bottom: 10px;">${hasRooms && booking.rooms.length > 1 ? "Itinerary" : "Stay Details"}</h2>
-              <table role="presentation" style="width: 100%; border-collapse: collapse;">
-                ${stayContent}
-              </table>
-            </td>
-          </tr>
-
-          <!-- Guest Details -->
-          <tr>
-            <td style="padding: 0 40px 20px;">
-              <h2 style="margin: 0 0 15px; font-size: 18px; color: #333; border-bottom: 2px solid ${accentColor}; padding-bottom: 10px;">Guest Information</h2>
-              <table role="presentation" style="width: 100%; border-collapse: collapse;">
-                <tr>
-                  <td style="padding: 8px 0; color: #666;">Name</td>
-                  <td style="padding: 8px 0; color: #333; font-weight: 500; text-align: right;">${booking.guest_name}</td>
-                </tr>
-                <tr>
-                  <td style="padding: 8px 0; color: #666;">Email</td>
-                  <td style="padding: 8px 0; color: #333; text-align: right;">${booking.guest_email}</td>
-                </tr>
+            <td style="padding: 30px 32px 22px;">
+              <p style="margin: 0 0 6px; font-family: ${brand.headingFont}; font-size: 22px; line-height: 1.3; color: ${brand.fontColor};">Thank you for booking with ${esc(property.name || "us")}</p>
+              <p style="margin: 0 0 4px; color: ${brand.fontColor}; font-size: 15px;">Dear ${esc(guestFirstName)}</p>
+              <p style="margin: 12px 0 0; color: ${brand.mutedColor}; font-size: 13px;">
                 ${
-                  booking.guest_phone
-                    ? `
-                <tr>
-                  <td style="padding: 8px 0; color: #666;">Phone</td>
-                  <td style="padding: 8px 0; color: #333; text-align: right;">${booking.guest_phone}</td>
-                </tr>
-                `
-                    : ""
+                  queryPhone
+                    ? `For queries please call: <a href="tel:${esc(queryPhone)}" style="color: ${brand.accentColor}; text-decoration: none;">${esc(queryPhone)}</a>`
+                    : booking.payment_status === "paid"
+                      ? "Your booking is confirmed and paid."
+                      : "Your booking has been received."
                 }
-              </table>
+              </p>
             </td>
           </tr>
 
-          <!-- Invoice / Pricing Breakdown -->
-          <tr>
-            <td style="padding: 0 40px 20px;">
-              <h2 style="margin: 0 0 15px; font-size: 18px; color: #333; border-bottom: 2px solid ${accentColor}; padding-bottom: 10px;">Invoice</h2>
-              ${generateInvoiceSection(booking, accentColor)}
-            </td>
-          </tr>
+          ${section(brand, "Booking information", bookingInfo)}
 
-          ${
-            booking.payment_status === "paid"
-              ? `
-          <!-- Payment Confirmation -->
-          <tr>
-            <td style="padding: 0 40px 20px;">
-              <div style="background-color: #dcfce7; border: 1px solid #22c55e; border-radius: 8px; padding: 15px;">
-                <h3 style="margin: 0 0 10px; font-size: 16px; color: #166534;">✓ Payment Confirmed</h3>
-                <table role="presentation" style="width: 100%; border-collapse: collapse;">
-                  <tr>
-                    <td style="padding: 4px 0; color: #166534; font-size: 13px;">Transaction Reference</td>
-                    <td style="padding: 4px 0; color: #166534; font-size: 13px; text-align: right; font-family: monospace;">${booking.payment_reference || "N/A"}</td>
-                  </tr>
-                  <tr>
-                    <td style="padding: 4px 0; color: #166534; font-size: 13px;">Payment Method</td>
-                    <td style="padding: 4px 0; color: #166534; font-size: 13px; text-align: right;">${booking.payment_method === "payfast" ? "PayFast" : booking.payment_method || "Card"}</td>
-                  </tr>
-                  <tr>
-                    <td style="padding: 4px 0; color: #166534; font-size: 13px;">Paid At</td>
-                    <td style="padding: 4px 0; color: #166534; font-size: 13px; text-align: right;">${booking.paid_at ? formatDate(booking.paid_at) : "N/A"}</td>
-                  </tr>
-                </table>
-                <p style="margin: 10px 0 0; color: #15803d; font-size: 11px;">Processed securely via PayFast</p>
-              </div>
-            </td>
-          </tr>
-          `
-              : isReservationOnlyBooking(booking, property)
-                ? generateReservationPaymentBlock(booking, property, accentColor)
-                : `
-          <!-- Payment Notice -->
-          <tr>
-            <td style="padding: 0 40px 20px;">
-              <div style="background-color: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 15px;">
-                <p style="margin: 0; color: #92400e; font-size: 13px; line-height: 1.5;">
-                  <strong>Payment Note:</strong> This reservation has not yet been paid. An invoice with deposit and settlement amounts will be issued by the property in due course.
-                </p>
-              </div>
-            </td>
-          </tr>
-          `
+          ${section(brand, "Accommodation", generateAccommodationSection(brand, booking))}
 
-          }
+          ${section(brand, "Invoice", generateInvoiceSection(booking, brand.accentColor) + totals)}
+
+          ${section(brand, booking.payment_status === "paid" ? "Payment" : "Payment", generatePaymentBlock(brand, booking, property))}
 
           ${
             booking.special_requests
-              ? `
-          <!-- Special Requests -->
-          <tr>
-            <td style="padding: 0 40px 20px;">
-              <h2 style="margin: 0 0 15px; font-size: 18px; color: #333; border-bottom: 2px solid ${accentColor}; padding-bottom: 10px;">Special Requests</h2>
-              <p style="margin: 0; color: #666; font-style: italic;">"${booking.special_requests}"</p>
-            </td>
-          </tr>
-          `
+              ? section(
+                  brand,
+                  "Booking notes",
+                  `<p style="margin: 0; color: ${brand.fontColor}; font-size: 14px; line-height: 1.65;">Special requests: ${esc(booking.special_requests)}</p>`,
+                )
               : ""
           }
+
+          ${section(brand, `${property.name ? property.name + " details" : "Property details"}`, generatePropertyDetailsSection(brand, property))}
+
+          ${section(brand, "How to get here", generateDirectionsSection(brand, property))}
+
+          ${generatePolicySections(brand, booking, property)}
 
           ${
             syncWarning
-              ? `
-          <!-- Sync Warning -->
-          <tr>
-            <td style="padding: 0 40px 20px;">
-              <div style="background-color: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 15px;">
-                <p style="margin: 0; color: #92400e; font-size: 13px; line-height: 1.5;">
-                  <strong>ℹ️ Note:</strong> ${syncWarning}
-                </p>
-              </div>
-            </td>
-          </tr>
-          `
+              ? section(brand, "Please note", panel(brand, `<p style="margin: 0; color: #92400e; font-size: 13px; line-height: 1.6;">${esc(syncWarning)}</p>`, "warn"))
               : ""
           }
 
+          <!-- Sign off -->
+          <tr>
+            <td style="padding: 6px 32px 28px; text-align: center;">
+              <p style="margin: 0; font-family: ${brand.headingFont}; font-size: 20px; color: ${brand.accentColor};">Enjoy your stay!</p>
+            </td>
+          </tr>
+
           ${generateEmailFooter(brand, property)}
-          
+
         </table>
       </td>
     </tr>
@@ -744,6 +848,7 @@ function generateSuccessEmail(booking: any, property: any, syncWarning?: string)
 </html>
   `;
 }
+
 
 // Generate failure email HTML
 function generateFailureEmail(booking: any, property: any, errorMessage?: string): string {
@@ -1282,6 +1387,27 @@ Deno.serve(async (req) => {
       } catch (e) {
         console.warn("[send-booking-email] Bank detail lookup failed:", e);
       }
+    }
+
+    // Public contact details for the branded "property details" block.
+    try {
+      const { data: contacts } = await supabaseClient
+        .from("property_contact_details")
+        .select("name, email, phone, role, is_public, sort_order")
+        .eq("property_id", property.id)
+        .eq("is_public", true)
+        .order("sort_order", { ascending: true })
+        .limit(5);
+      if (Array.isArray(contacts) && contacts.length) {
+        (property as any).__contact = {
+          hostName: contacts.find((c: any) => c.name)?.name || null,
+          email: contacts.find((c: any) => c.email)?.email || null,
+          phone: contacts.find((c: any) => c.phone)?.phone || null,
+          cell: null,
+        };
+      }
+    } catch (e) {
+      console.warn("[send-booking-email] Contact lookup failed:", e);
     }
 
     // Guest-facing emails must always name the unit/room that was booked.
