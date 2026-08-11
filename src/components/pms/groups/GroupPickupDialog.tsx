@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { useQuery } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,7 +9,17 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useActivePackages } from "@/hooks/useActivePackages";
 import { callGroupsApi } from "@/lib/groupsApi";
+import { supabase } from "@/integrations/supabase/client";
 import type { GroupBlock } from "./GroupBlockGrid";
+
+interface UnitOption {
+  id: string;
+  label: string;
+  maxOccupancy: number | null;
+  status: string | null;
+  busy: boolean;
+}
+
 
 export interface RoomingLine {
   id: string;
