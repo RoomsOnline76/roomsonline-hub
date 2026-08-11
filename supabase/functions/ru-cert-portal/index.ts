@@ -1320,6 +1320,18 @@ Deno.serve(async (req) => {
         ari = { rate_coverage: localCoverage, pending_publish: true, local_window: localWindow };
       }
 
+      // Currency verification is a wizard gate too — the Currency panel is no longer the
+      // only place it is visible, so a property cannot clear onboarding unverified.
+      {
+        const { data: currencyState } = await admin
+          .from("ru_currency_state")
+          .select("published_currency_iso, ru_reported_currency_iso, verified_at")
+          .eq("property_id", p.id)
+          .maybeSingle();
+        extraChecks.push(...currencyVerificationChecks(currencyState ?? null, {
+          published: !(ari as { pending_publish?: boolean } | null)?.pending_publish,
+        }));
+      }
 
       const summary = summarizeReadiness(units, extraChecks);
 
