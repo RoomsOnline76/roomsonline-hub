@@ -59,13 +59,14 @@ export function isRouteAllowedForScopedAdmin(pathname: string): boolean {
  * Narrow a Supabase query to the scoped property ids. No-op for unrestricted
  * admins (empty id list), so callers can apply it unconditionally.
  */
-export function applyAdminScope<T extends { in: (column: string, values: readonly string[]) => T }>(
-  query: T,
-  column: string,
-  scopedPropertyIds: string[],
-): T {
+export function applyAdminScope<T>(query: T, column: string, scopedPropertyIds: string[]): T {
   if (!scopedPropertyIds.length) return query;
-  return query.in(column, scopedPropertyIds);
+  // Cast through a minimal shape: keeping the builder generic here makes
+  // TypeScript re-instantiate Supabase's deep query types at every call site.
+  const filterable = query as unknown as {
+    in: (column: string, values: readonly string[]) => unknown;
+  };
+  return filterable.in(column, scopedPropertyIds) as T;
 }
 
 /** Filter an already-fetched list of property-like rows to the scope. */
