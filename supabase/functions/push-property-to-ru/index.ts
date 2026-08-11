@@ -462,12 +462,21 @@ async function probeRuImage(url: string): Promise<RuImageProbe> {
     if (contentType && !/^image\//i.test(contentType)) {
       return { url, ok: false, reason: `URL is not an image (content-type ${contentType})` };
     }
-    const dims = readPixelDimensions(buf);
+    let dims = readPixelDimensions(buf);
+    if (!dims) {
+      // The first 64KB did not carry the size header (large EXIF blocks, AVIF with a
+      // late `meta` box). Retry with a bigger window before calling it unmeasurable.
+      try {
+        const wide = await fetch(url, { headers: { Range: 'bytes=0-1048575' } });
+        if (wide.ok || wide.status === 206) dims = readPixelDimensions(new Uint8Array(await wide.arrayBuffer()));
+      } catch { /* keep the unmeasured result */ }
+    }
     if (!dims) {
       // Reachable and served as an image, but the header block we read did not carry
       // dimensions. Accept it and report that the size could not be measured.
       return { url, ok: true, width: null, height: null, reason: 'reachable — pixel size could not be measured' };
     }
+
     if (dims.width < RU_MIN_IMAGE_WIDTH || dims.height < RU_MIN_IMAGE_HEIGHT) {
       return { url, ok: false, width: dims.width, height: dims.height, reason: `${dims.width}x${dims.height}px is below Rentals United's ${RU_MIN_IMAGE_WIDTH}x${RU_MIN_IMAGE_HEIGHT}px minimum` };
     }
