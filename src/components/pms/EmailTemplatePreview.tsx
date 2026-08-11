@@ -29,6 +29,12 @@ const MOCK_DATA: Record<string, string> = {
   "{{total_price}}": "R 4,500.00",
   "{{nights}}": "3 nights",
   "{{reservation_reference}}": "BK-A1B2C3",
+  "{{room_names}}": "ANEMOON",
+  "{{unit_name}}": "ANEMOON",
+  "{{room_type_name}}": "ANEMOON",
+  "{{rooms_booked}}":
+    '<ul style="margin:0;padding-left:18px;"><li style="margin:0 0 8px;"><strong>ANEMOON</strong><br/><span style="color:#666;font-size:13px;">Self-catering · 2 adults · 15 January 2026 – 18 January 2026 (3 nights)</span></li></ul>',
+
 };
 
 export function EmailTemplatePreview({
