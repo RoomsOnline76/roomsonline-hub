@@ -495,7 +495,8 @@ const RU_ENDPOINT_REGISTRY: {
   { rolos_via_cert: true, key: "lnm_duplicate", area: "notifications", label: "LNM duplicate-subscription test", ru_method: "Push_PutLiveNotificationMechanismSubscriptions_RQ (idempotency)", direction: "push", mandatory: false, implemented: true,
     rolos_surface: "Live notifications panel → Duplicate test", rolos_stream: "Certification evidence", rolos_wired: true, sync_actions: ["lnm_duplicate_test"], note: "Subscribes twice, proves RU holds one record" },
   { key: "lnm_inbound", area: "notifications", label: "Inbound notification handler", ru_method: "LNM notification (inbound)", direction: "webhook", mandatory: true, implemented: true,
-    rolos_surface: "ru-lnm-handler → MCQ orders / refresh", rolos_stream: "Inbound webhooks", rolos_wired: true, sync_actions: ["LNM_Notification"], note: "Routes PropertyMCQEligibilityCheck" },
+    rolos_surface: "ru-lnm-handler → MCQ orders + corrective re-pull", rolos_stream: "Inbound webhooks", rolos_wired: true, sync_actions: ["LNM_Notification", "lnm_repull"], note: "Routes PropertyMCQEligibilityCheck; ARI/static change types trigger an immediate corrective read-back" },
+
   { key: "sales_channels", area: "notifications", label: "List sales channels", ru_method: "Pull_ListSalesChannels_RQ", direction: "pull", mandatory: true, implemented: true,
     rolos_surface: "RU console → Phase 4 channel ID", rolos_stream: "Onboarding P4 — channel readiness", rolos_wired: true, sync_actions: ["resolve_sales_channel", "list_sales_channels"], max_age_hours: 720, note: "Resolves LekkeSlaap ChannelID for MCQ" },
   { rolos_via_cert: true, informational: true, max_age_hours: 168, key: "mcq", area: "notifications", label: "Order content quality check", ru_method: "CM_LNM_OrderMinimumContentQualityCheck_RQ", direction: "push", mandatory: false, implemented: true,
