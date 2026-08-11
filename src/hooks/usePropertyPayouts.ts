@@ -82,6 +82,30 @@ const EXCLUDED_BOOKING_STATUSES = ['cancelled', 'canceled', 'refunded', 'no_show
 // Booking-level paid markers used when no gateway transaction exists.
 const PAID_BOOKING_STATUSES = ALL_REVENUE_PAYMENT_STATUSES;
 
+/**
+ * Processed refunds are money returned to the guest — they must come off the
+ * gross before commission and payout are computed. Refunds still awaiting
+ * approval/execution are reported so the funds can be withheld.
+ */
+async function loadRefundsByBooking(bookingIds: string[]) {
+  const processed: Record<string, number> = {};
+  const held: Record<string, number> = {};
+  if (bookingIds.length === 0) return { processed, held };
+  const { data } = await supabase
+    .from('rolos_refunds')
+    .select('booking_id, amount, status')
+    .in('booking_id', bookingIds);
+  (data || []).forEach((r: any) => {
+    if (!r.booking_id) return;
+    const amount = Number(r.amount) || 0;
+    const status = String(r.status || '').toLowerCase();
+    if (status === 'processed') processed[r.booking_id] = (processed[r.booking_id] || 0) + amount;
+    else if (status === 'pending' || status === 'approved') held[r.booking_id] = (held[r.booking_id] || 0) + amount;
+  });
+  return { processed, held };
+}
+
+
 
 const BOOKING_ORIGIN_FIELDS =
   'id, property_id, guest_name, check_in_date, check_out_date, total_price, status, payment_status, payment_method, payment_reference, integration_type, booking_channel, source_url, calculated_commission, commission_rate_applied, commission_type';
@@ -310,6 +334,15 @@ export function usePropertyPayouts(period?: PayoutPeriod | string) {
         bookingGross[b.id] = { booking: b, gross, source: 'booking', settlement: 'rol' };
       });
 
+      // Net processed refunds off the gross, and drop bookings fully refunded.
+      const refundMaps = await loadRefundsByBooking(Object.keys(bookingGross));
+      Object.entries(bookingGross).forEach(([bookingId, entry]) => {
+        const refunded = refundMaps.processed[bookingId] || 0;
+        if (refunded <= 0) return;
+        entry.gross = Math.max(0, entry.gross - refunded);
+        if (entry.gross <= 0.01) delete bookingGross[bookingId];
+      });
+
       const propertyIds = Array.from(
         new Set(Object.values(bookingGross).map((b) => b.booking.properties.id as string)),
       );
@@ -530,6 +563,14 @@ export function usePropertyPayouts(period?: PayoutPeriod | string) {
       const gross = Number(b.total_price) || 0;
       if (gross <= 0) return;
       grouped[b.id] = { booking: b, gross, source: 'booking', settlement: 'rol' };
+    });
+
+    const propertyRefunds = await loadRefundsByBooking(Object.keys(grouped));
+    Object.entries(grouped).forEach(([bookingId, entry]) => {
+      const refunded = propertyRefunds.processed[bookingId] || 0;
+      if (refunded <= 0) return;
+      entry.gross = Math.max(0, entry.gross - refunded);
+      if (entry.gross <= 0.01) delete grouped[bookingId];
     });
 
     const [scopes, terms, byoProperties, globalsRes] = await Promise.all([

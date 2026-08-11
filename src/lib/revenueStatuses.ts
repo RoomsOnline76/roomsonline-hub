@@ -14,7 +14,22 @@ export const REVENUE_PAYMENT_STATUSES = [
 ] as const;
 
 /** Statuses where only part of the money has arrived but the booking still counts. */
-export const PARTIAL_PAYMENT_STATUSES = ["partially_paid", "deposit_paid"] as const;
+export const PARTIAL_PAYMENT_STATUSES = [
+  "partially_paid",
+  "deposit_paid",
+  // A partially refunded stay still holds net revenue — the processed refund is
+  // netted off separately by the payout/commission maths.
+  "partially_refunded",
+] as const;
+
+/** Money that has been (fully or partly) returned to the guest. */
+export const REFUNDED_PAYMENT_STATUSES = ["refunded", "partially_refunded"] as const;
+
+export function isRefundedPaymentStatus(paymentStatus?: string | null): boolean {
+  return (REFUNDED_PAYMENT_STATUSES as readonly string[]).includes(
+    (paymentStatus || "").toLowerCase()
+  );
+}
 
 /** Everything that should be treated as revenue-bearing. */
 export const ALL_REVENUE_PAYMENT_STATUSES: string[] = [

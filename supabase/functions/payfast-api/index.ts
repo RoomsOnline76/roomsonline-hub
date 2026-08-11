@@ -316,6 +316,149 @@ function generateSignature(data: Record<string, string>, passphrase?: string): s
   return hash;
 }
 
+// ── PayFast merchant (Refunds) API ─────────────────────────────────────────────
+// Docs: https://developers.payfast.co.za/api  — every request is signed with an
+// MD5 of the ALPHABETICALLY sorted header + body params plus the passphrase.
+// Refund permission must be enabled on the merchant account by PayFast support;
+// when it is not, the API answers 401/403 and we fall back to manual settlement.
+const PAYFAST_API_BASE = "https://api.payfast.co.za";
+
+interface PayfastApiCreds {
+  merchantId: string;
+  passphrase: string;
+  isSandbox: boolean;
+}
+
+function payfastApiSignature(params: Record<string, string>, passphrase: string): string {
+  const sorted = Object.keys(params)
+    .filter((k) => params[k] !== undefined && params[k] !== null && params[k] !== "")
+    .sort();
+  const parts = sorted.map((k) => `${k}=${pfUrlencode(params[k])}`);
+  if (passphrase) parts.push(`passphrase=${pfUrlencode(passphrase)}`);
+  return md5Hash(parts.join("&"));
+}
+
+/** PayFast expects `yyyy-mm-ddThh:mm:ss+02:00` (SAST). */
+function payfastTimestamp(): string {
+  const now = new Date(Date.now() + 2 * 60 * 60 * 1000);
+  return `${now.toISOString().slice(0, 19)}+02:00`;
+}
+
+async function payfastApiRequest(
+  method: "GET" | "POST",
+  path: string,
+  bodyParams: Record<string, string>,
+  creds: PayfastApiCreds,
+): Promise<{ status: number; body: string }> {
+  const headerParams: Record<string, string> = {
+    "merchant-id": creds.merchantId,
+    version: "v1",
+    timestamp: payfastTimestamp(),
+  };
+  const signature = payfastApiSignature({ ...headerParams, ...bodyParams }, creds.passphrase);
+
+  const url = `${PAYFAST_API_BASE}${path}${creds.isSandbox ? "?testing=true" : ""}`;
+  const init: RequestInit = {
+    method,
+    headers: {
+      ...headerParams,
+      signature,
+      Accept: "application/json",
+      ...(method === "POST" ? { "Content-Type": "application/x-www-form-urlencoded" } : {}),
+    },
+  };
+  if (method === "POST") {
+    init.body = new URLSearchParams(bodyParams).toString();
+  }
+
+  const res = await fetch(url, init);
+  const text = await res.text();
+  console.log(`[PayFast] merchant API ${method} ${path} -> ${res.status}`);
+  return { status: res.status, body: text };
+}
+
+function isPermissionProblem(status: number, body: string): boolean {
+  const lowered = body.toLowerCase();
+  return (
+    status === 401 ||
+    status === 403 ||
+    lowered.includes("not authoris") ||
+    lowered.includes("not authoriz") ||
+    lowered.includes("permission") ||
+    lowered.includes("merchant does not have")
+  );
+}
+
+async function payfastRefundAvailable(
+  pfPaymentId: string,
+  creds: PayfastApiCreds,
+): Promise<{ ok: boolean; available: number | null; error?: string }> {
+  try {
+    const { status, body } = await payfastApiRequest(
+      "GET",
+      `/refunds/${encodeURIComponent(pfPaymentId)}/available`,
+      {},
+      creds,
+    );
+    if (status < 200 || status >= 300) {
+      return { ok: false, available: null, error: `PayFast ${status}: ${body.slice(0, 300)}` };
+    }
+    let available: number | null = null;
+    try {
+      const json = JSON.parse(body);
+      const cents = json?.data?.response ?? json?.data ?? json?.response;
+      if (typeof cents === "number") available = cents / 100;
+    } catch { /* non-JSON body */ }
+    return { ok: true, available };
+  } catch (e) {
+    return { ok: false, available: null, error: e instanceof Error ? e.message : "Request failed" };
+  }
+}
+
+async function payfastRefund(
+  pfPaymentId: string,
+  amount: number,
+  reason: string,
+  creds: PayfastApiCreds,
+  merchantReference?: string,
+): Promise<{ ok: boolean; refundId?: string; error?: string; permissionProblem?: boolean; raw?: unknown }> {
+  try {
+    const bodyParams: Record<string, string> = {
+      amount: String(Math.round(amount * 100)), // PayFast expects cents
+      reason: reason.slice(0, 255),
+    };
+    if (merchantReference) bodyParams["merchant-reference"] = merchantReference.slice(0, 100);
+
+    const { status, body } = await payfastApiRequest(
+      "POST",
+      `/refunds/${encodeURIComponent(pfPaymentId)}`,
+      bodyParams,
+      creds,
+    );
+
+    let parsed: unknown = null;
+    try { parsed = JSON.parse(body); } catch { /* keep raw text */ }
+
+    if (status < 200 || status >= 300) {
+      return {
+        ok: false,
+        error: `PayFast ${status}: ${body.slice(0, 300)}`,
+        permissionProblem: isPermissionProblem(status, body),
+        raw: parsed ?? body.slice(0, 500),
+      };
+    }
+
+    const data = (parsed as { data?: Record<string, unknown> } | null)?.data ?? {};
+    const refundId =
+      (data as any)?.id ?? (data as any)?.refund_id ?? (data as any)?.response ?? null;
+    return { ok: true, refundId: refundId ? String(refundId) : undefined, raw: parsed ?? body.slice(0, 500) };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Request failed" };
+  }
+}
+
+
+
 // ITN-specific param string builder - uses ORIGINAL POST ORDER (as received from PayFast)
 // CRITICAL: The PHP code iterates through $_POST in the order received and BREAKS at 'signature'
 // This is NOT alphabetical - it's the exact order PayFast sends the fields
@@ -1625,7 +1768,111 @@ Deno.serve(async (req) => {
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
-    
+
+    // ── REFUND CAPABILITY CHECK ─────────────────────────────────────────────
+    // Confirms the merchant account can execute API refunds before the UI
+    // advertises gateway refunds. When a pf_payment_id is supplied we ask
+    // PayFast for the amount still available to refund on that payment.
+    if (action === "refund_capability_check") {
+      const propertyId = typeof body?.property_id === "string" ? body.property_id : null;
+      const pfPaymentId = typeof body?.pf_payment_id === "string" ? body.pf_payment_id : null;
+      const creds = await resolvePayfastCredentials(supabase, propertyId);
+
+      if (!creds.merchantId || !creds.passphrase) {
+        return new Response(
+          JSON.stringify({
+            success: true,
+            capable: false,
+            reason: !creds.passphrase
+              ? "A merchant passphrase is required for API refunds"
+              : "PayFast merchant account not configured",
+            credential_source: creds.source,
+            merchant_id_masked: maskId(creds.merchantId),
+          }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      if (!pfPaymentId) {
+        return new Response(
+          JSON.stringify({
+            success: true,
+            capable: null,
+            reason: "Configuration present. Supply a PayFast payment id to probe refund permission.",
+            credential_source: creds.source,
+            merchant_id_masked: maskId(creds.merchantId),
+            is_sandbox: creds.isSandbox,
+          }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const probe = await payfastRefundAvailable(pfPaymentId, creds);
+      return new Response(
+        JSON.stringify({
+          success: true,
+          capable: probe.ok,
+          available_amount: probe.available,
+          reason: probe.ok ? null : probe.error,
+          credential_source: creds.source,
+          merchant_id_masked: maskId(creds.merchantId),
+          is_sandbox: creds.isSandbox,
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ── REFUND ──────────────────────────────────────────────────────────────
+    // Server-side only. Called by refunds-api after an approval is recorded.
+    if (action === "refund") {
+      const RefundSchema = z.object({
+        action: z.literal("refund"),
+        pf_payment_id: z.string().min(1).max(64),
+        amount: z.number().positive(),
+        reason: z.string().min(1).max(255),
+        property_id: z.string().uuid().optional(),
+        merchant_reference: z.string().max(100).optional(),
+      });
+      const parsed = RefundSchema.safeParse(body);
+      if (!parsed.success) {
+        return new Response(
+          JSON.stringify({ success: false, error: parsed.error.flatten().fieldErrors }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      const creds = await resolvePayfastCredentials(supabase, parsed.data.property_id ?? null);
+      if (!creds.merchantId || !creds.passphrase) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: "PayFast API refunds require a merchant id and passphrase on this account",
+            manual_settlement_required: true,
+          }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const result = await payfastRefund(
+        parsed.data.pf_payment_id,
+        parsed.data.amount,
+        parsed.data.reason,
+        creds,
+        parsed.data.merchant_reference,
+      );
+
+      return new Response(
+        JSON.stringify({
+          success: result.ok,
+          gateway_refund_id: result.refundId ?? null,
+          error: result.ok ? null : result.error,
+          manual_settlement_required: !result.ok && result.permissionProblem === true,
+          raw: result.raw ?? null,
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+
     return new Response(
       JSON.stringify({ success: false, error: "Unknown action" }),
       { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
