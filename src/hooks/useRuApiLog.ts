@@ -69,52 +69,74 @@ export function useRuApiLog(filters: RuApiLogFilters) {
   const [rows, setRows] = useState<RuApiLogRow[]>([]);
   const [actions, setActions] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [totalCount, setTotalCount] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const requestSeq = useRef(0);
 
-  const load = useCallback(async () => {
-    const seq = ++requestSeq.current;
-    setLoading(true);
-    setError(null);
-    try {
-      let query = supabase
-        .from("ru_api_log")
-        .select(LIST_COLUMNS)
-        .order("created_at", { ascending: false })
-        .limit(PAGE_SIZE);
-
+  /** Applies the active filters to a query builder so list and count stay in sync. */
+  const applyFilters = useCallback(
+    (query: any) => {
       // A ResponseID lookup is a support escalation: it must never be narrowed by the other filters.
       const responseId = filters.responseId.trim();
-      if (responseId) {
-        query = query.ilike("response_id", `%${responseId}%`);
-      } else {
-        if (filters.propertyId !== "all") query = query.eq("property_id", filters.propertyId);
-        if (filters.action !== "all") query = query.eq("action", filters.action);
-        if (filters.outcome !== "all") query = query.eq("success", filters.outcome === "success");
-        if (filters.days > 0) {
-          const since = new Date(Date.now() - filters.days * 86_400_000).toISOString();
-          query = query.gte("created_at", since);
+      if (responseId) return query.ilike("response_id", `%${responseId}%`);
+      if (filters.propertyId !== "all") query = query.eq("property_id", filters.propertyId);
+      if (filters.action !== "all") query = query.eq("action", filters.action);
+      if (filters.outcome !== "all") query = query.eq("success", filters.outcome === "success");
+      if (filters.days > 0) {
+        const since = new Date(Date.now() - filters.days * 86_400_000).toISOString();
+        query = query.gte("created_at", since);
+      }
+      return query;
+    },
+    [filters.propertyId, filters.action, filters.outcome, filters.responseId, filters.days],
+  );
+
+  /** Fetches one page; `offset > 0` appends so the operator can walk the whole retained window. */
+  const fetchPage = useCallback(
+    async (offset: number) => {
+      const seq = ++requestSeq.current;
+      if (offset === 0) setLoading(true);
+      else setLoadingMore(true);
+      setError(null);
+      try {
+        const query = applyFilters(
+          supabase
+            .from("ru_api_log")
+            .select(LIST_COLUMNS, { count: offset === 0 ? "exact" : undefined })
+            .order("created_at", { ascending: false })
+            .range(offset, offset + PAGE_SIZE - 1),
+        );
+
+        const { data, error: queryError, count } = await query;
+        if (queryError) throw queryError;
+        if (seq !== requestSeq.current) return;
+
+        const list = (data ?? []) as RuApiLogRow[];
+        setRows((prev) => (offset === 0 ? list : [...prev, ...list]));
+        if (offset === 0 && typeof count === "number") setTotalCount(count);
+        setHasMore(list.length === PAGE_SIZE);
+        setActions((prev) => {
+          const merged = new Set([...prev, ...list.map((r) => r.action).filter(Boolean)]);
+          return Array.from(merged).sort();
+        });
+      } catch (err) {
+        if (seq !== requestSeq.current) return;
+        setError(err instanceof Error ? err.message : "Could not load the exchange log");
+        if (offset === 0) setRows([]);
+      } finally {
+        if (seq === requestSeq.current) {
+          setLoading(false);
+          setLoadingMore(false);
         }
       }
+    },
+    [applyFilters],
+  );
 
-      const { data, error: queryError } = await query;
-      if (queryError) throw queryError;
-      if (seq !== requestSeq.current) return;
+  const load = useCallback(() => fetchPage(0), [fetchPage]);
 
-      const list = (data ?? []) as RuApiLogRow[];
-      setRows(list);
-      setActions((prev) => {
-        const merged = new Set([...prev, ...list.map((r) => r.action).filter(Boolean)]);
-        return Array.from(merged).sort();
-      });
-    } catch (err) {
-      if (seq !== requestSeq.current) return;
-      setError(err instanceof Error ? err.message : "Could not load the exchange log");
-      setRows([]);
-    } finally {
-      if (seq === requestSeq.current) setLoading(false);
-    }
-  }, [filters.propertyId, filters.action, filters.outcome, filters.responseId, filters.days]);
 
   useEffect(() => {
     void load();
