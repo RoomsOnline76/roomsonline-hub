@@ -7100,6 +7100,8 @@ export default function PropertyForm({
 
               propertyId={propertyId}
               propertySlug={propertySlug}
+              propertyWebsiteUrl={formData.property_url || undefined}
+
               routeId={id}
               roomTypes={roomTypes}
               setRoomTypes={setRoomTypes}

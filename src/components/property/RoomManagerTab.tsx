@@ -42,7 +42,9 @@ import AiAmenityDialog from "@/components/property/AiAmenityDialog";
 export interface RoomManagerTabProps {
   propertyId: string | null;
   propertySlug: string;
+  propertyWebsiteUrl?: string | null;
   routeId: string | undefined; // useParams().id
+
   roomTypes: any[];
   setRoomTypes: React.Dispatch<React.SetStateAction<any[]>>;
   selectedRoomType: string;
@@ -74,6 +76,8 @@ function ensureArray(value: any): string[] {
 export function RoomManagerTab({
   propertyId,
   propertySlug,
+  propertyWebsiteUrl,
+
   routeId,
   roomTypes,
   setRoomTypes,
@@ -1241,6 +1245,8 @@ export function RoomManagerTab({
                 open={aiUnitAmenityOpen}
                 onOpenChange={setAiUnitAmenityOpen}
                 propertyId={propertyId}
+                websiteUrl={propertyWebsiteUrl || undefined}
+
                 unitScope={{
                   unitId: String(selectedRoomType),
                   unitName: roomTypes.find((r) => r.id === selectedRoomType)?.name || "this unit",
