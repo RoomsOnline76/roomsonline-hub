@@ -57,7 +57,9 @@ export function RuApiLogPanel({ properties }: RuApiLogPanelProps) {
   const [detail, setDetail] = useState<RuApiLogDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
-  const { rows, actions, stats, loading, error, refresh, loadDetail } = useRuApiLog(filters);
+  const { rows, actions, stats, loading, loadingMore, hasMore, error, refresh, loadMore, loadDetail } =
+    useRuApiLog(filters);
+
 
   const propertyNames = useMemo(
     () => new Map(properties.map((p) => [p.id, p.name])),
@@ -300,7 +302,11 @@ export function RuApiLogPanel({ properties }: RuApiLogPanelProps) {
           </div>
 
           <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
-            <span>{stats.total} exchanges{stats.truncated ? " (most recent 100)" : ""}</span>
+            <span>
+              {stats.total} exchanges loaded
+              {stats.totalCount != null ? ` of ${stats.totalCount} in window` : ""}
+            </span>
+
             <span>{stats.failures} failed</span>
             <span>{stats.withResponseId} with ResponseID</span>
             <span>avg {stats.avgMs} ms</span>
@@ -372,8 +378,16 @@ export function RuApiLogPanel({ properties }: RuApiLogPanelProps) {
                   ))}
                 </tbody>
               </table>
+              {hasMore && (
+                <div className="flex justify-center border-t p-3">
+                  <Button variant="outline" size="sm" onClick={loadMore} disabled={loadingMore}>
+                    {loadingMore ? "Loading…" : "Load older exchanges"}
+                  </Button>
+                </div>
+              )}
             </ScrollArea>
           )}
+
         </CardContent>
       </Card>
 
