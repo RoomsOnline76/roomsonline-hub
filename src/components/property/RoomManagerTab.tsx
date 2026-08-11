@@ -76,6 +76,8 @@ function ensureArray(value: any): string[] {
 export function RoomManagerTab({
   propertyId,
   propertySlug,
+  propertyWebsiteUrl,
+
   routeId,
   roomTypes,
   setRoomTypes,
