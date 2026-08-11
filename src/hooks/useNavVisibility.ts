@@ -2,7 +2,9 @@ import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { hasMinRole, type UserRole } from "@/lib/permissions";
+import { SCOPED_ADMIN_NAV_ITEM_IDS, SCOPED_ADMIN_NAV_SECTION_IDS } from "@/lib/adminScope";
 import type { NavItem, NavSection } from "@/config/navigation";
+
 
 /**
  * Single source of truth for which navigation sections and items a user may see.
