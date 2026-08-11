@@ -25,7 +25,6 @@ export const SCOPED_ADMIN_NAV_SECTION_IDS = new Set<string>([
   "administration",
   "insights",
   "workspace",
-  "pms",
 ]);
 
 /**

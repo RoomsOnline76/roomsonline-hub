@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import {
   guestHostPath,
@@ -7,6 +7,7 @@ import {
   resolveGuestHostTarget,
   resolveGuestHostTargetSync,
 } from "@/lib/guestDomain";
+import { SCOPED_ADMIN_HOME, isRouteAllowedForScopedAdmin } from "@/lib/adminScope";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -16,8 +17,10 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ children, requireAdmin = false, requireDev = false, requireDevOrFearless = false }: ProtectedRouteProps) {
-  const { user, loading, isAdmin, isDev, isFearlessLeader } = useAuth();
+  const { user, loading, isAdmin, isDev, isFearlessLeader, isScopedAdmin } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const scopeBlocked = isScopedAdmin && !isRouteAllowedForScopedAdmin(location.pathname);
 
   useEffect(() => {
     if (!loading) {
@@ -43,9 +46,13 @@ export function ProtectedRoute({ children, requireAdmin = false, requireDev = fa
         navigate("/");
       } else if (requireDevOrFearless && !isDev && !isFearlessLeader) {
         navigate("/");
+      } else if (scopeBlocked) {
+        // Scoped admins (certification auditors) are confined to an allow-list
+        // of surfaces; everything else bounces to their dashboard.
+        navigate(SCOPED_ADMIN_HOME, { replace: true });
       }
     }
-  }, [user, loading, isAdmin, isDev, isFearlessLeader, requireAdmin, requireDev, requireDevOrFearless, navigate]);
+  }, [user, loading, isAdmin, isDev, isFearlessLeader, requireAdmin, requireDev, requireDevOrFearless, scopeBlocked, navigate]);
 
 
   if (loading) {
@@ -56,7 +63,7 @@ export function ProtectedRoute({ children, requireAdmin = false, requireDev = fa
     );
   }
 
-  if (!user || (requireAdmin && !isAdmin) || (requireDev && !isDev && !isFearlessLeader) || (requireDevOrFearless && !isDev && !isFearlessLeader)) {
+  if (!user || scopeBlocked || (requireAdmin && !isAdmin) || (requireDev && !isDev && !isFearlessLeader) || (requireDevOrFearless && !isDev && !isFearlessLeader)) {
     return null;
   }
 
