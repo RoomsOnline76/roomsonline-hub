@@ -112,7 +112,9 @@ interface InvoiceExtras {
   paymentMode?: string | null;
   banking?: Record<string, unknown> | null;
   paymentReference?: string | null;
-}
+  /** Property VAT position, resolved from brand config / property setup. */
+  vat?: { registered: boolean; rate: number; number: string | null; exempt_total?: number } | null;
+
 
 function generateInvoiceHTML(
   invoice: any,
