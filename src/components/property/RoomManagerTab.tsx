@@ -33,8 +33,10 @@ import { TagInput } from "@/components/TagInput";
 import { HostfullyRoomDetails } from "@/components/pms/HostfullyRoomDetails";
 import { ACCOMMODATION_LABEL_OPTIONS, ACCOMMODATION_TYPES, type AccommodationLabelKey } from "@/lib/accommodationLabels";
 import {
-  Home, Plus, Minus, X, Copy, Cloud, Upload, Heart, Trash2, RefreshCw, Info, DollarSign,
+  Home, Plus, Minus, X, Copy, Cloud, Upload, Heart, Trash2, RefreshCw, Info, DollarSign, Sparkles,
 } from "lucide-react";
+import AiAmenityDialog from "@/components/property/AiAmenityDialog";
+
 
 // ─── Props ──────────────────────────────────────────────────────────────────
 export interface RoomManagerTabProps {
@@ -91,6 +93,8 @@ export function RoomManagerTab({
   const navigate = useNavigate();
   const { toast } = useToast();
   const [isRoomImageUploading, setIsRoomImageUploading] = useState(false);
+  const [aiUnitAmenityOpen, setAiUnitAmenityOpen] = useState(false);
+
   const roomImageAudit = useImageDimensionAudit(
     (roomTypes.find((r) => r.id === selectedRoomType)?.images || []) as string[],
   );
@@ -1205,10 +1209,47 @@ export function RoomManagerTab({
                 </div>
               );
             })()}
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                <Info className="h-3 w-3" />
+                Channel amenities first — this unit's selection is pushed to the Channel Manager and OTAs
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs shrink-0"
+                disabled={!propertyId || !selectedRoomType}
+                title={
+                  propertyId
+                    ? "Let TOBI review the property website, photos and ROLOS data to propose amenities for this unit"
+                    : "Save the property first"
+                }
+                onClick={() => setAiUnitAmenityOpen(true)}
+              >
+                <Sparkles className="h-3 w-3 mr-1" />
+                TOBI amenity check
+              </Button>
+            </div>
             <RUAmenityPicker
               value={ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.amenities) as string[]}
               onChange={(next) => updateRoomTypeField(selectedRoomType, "amenities", next)}
             />
+
+            {propertyId && selectedRoomType && (
+              <AiAmenityDialog
+                open={aiUnitAmenityOpen}
+                onOpenChange={setAiUnitAmenityOpen}
+                propertyId={propertyId}
+                unitScope={{
+                  unitId: String(selectedRoomType),
+                  unitName: roomTypes.find((r) => r.id === selectedRoomType)?.name || "this unit",
+                  current: ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.amenities) as string[],
+                  onApply: (next) => updateRoomTypeField(selectedRoomType, "amenities", next),
+                }}
+              />
+            )}
+
 
             {(() => {
               const legacy = ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.facilities) as string[];

@@ -52,10 +52,22 @@ interface AiAmenityDialogProps {
   propertyId: string;
   websiteUrl?: string;
   /** Current property-level facility tokens/labels. */
-  currentPropertyFacilities: string[];
+  currentPropertyFacilities?: string[];
   /** Called with the merged property facility list when the user accepts. */
-  onApplyProperty: (next: string[]) => void;
+  onApplyProperty?: (next: string[]) => void;
+  /**
+   * Single-unit mode: the dialog only reviews this room/unit and hands the merged
+   * amenity list back to the form (no direct database write), so the Rooms tab
+   * behaves exactly like the property facilities check.
+   */
+  unitScope?: {
+    unitId: string;
+    unitName: string;
+    current: string[];
+    onApply: (next: string[]) => void;
+  };
 }
+
 
 const EvidenceBadge = ({ evidence }: { evidence?: string }) =>
   evidence === "image" ? (
@@ -78,6 +90,7 @@ export default function AiAmenityDialog({
   websiteUrl,
   currentPropertyFacilities,
   onApplyProperty,
+  unitScope,
 }: AiAmenityDialogProps) {
   const [loading, setLoading] = useState(false);
   const [applying, setApplying] = useState(false);
@@ -85,14 +98,38 @@ export default function AiAmenityDialog({
   const [selectedProperty, setSelectedProperty] = useState<Set<number>>(new Set());
   const [selectedUnits, setSelectedUnits] = useState<Record<string, Set<number>>>({});
 
+  const propertyFacilities = useMemo(() => currentPropertyFacilities ?? [], [currentPropertyFacilities]);
+
   const existingPropertyIds = useMemo(
     () =>
       new Set(
-        currentPropertyFacilities
+        propertyFacilities
           .map((token) => ruTokenId(token))
           .filter((id): id is number => id !== null),
       ),
-    [currentPropertyFacilities],
+    [propertyFacilities],
+  );
+
+  /** In single-unit mode only that unit's block is shown and applied. */
+  const scopedUnits = useMemo(() => {
+    if (!result) return [];
+    if (!unitScope) return result.units;
+    const match =
+      result.units.find((u) => String(u.unit_id) === String(unitScope.unitId)) ??
+      result.units.find(
+        (u) => u.unit_name?.trim().toLowerCase() === unitScope.unitName?.trim().toLowerCase(),
+      );
+    return match ? [match] : [];
+  }, [result, unitScope]);
+
+  const existingUnitIds = useMemo(
+    () =>
+      new Set(
+        (unitScope?.current ?? [])
+          .map((token) => ruTokenId(token))
+          .filter((id): id is number => id !== null),
+      ),
+    [unitScope?.current],
   );
 
   const runCheck = useCallback(async () => {
@@ -108,17 +145,24 @@ export default function AiAmenityDialog({
 
       setResult(payload);
       setSelectedProperty(
-        new Set(
-          payload.property
-            .filter((s) => s.confidence !== "low" && !existingPropertyIds.has(s.id))
-            .map((s) => s.id),
-        ),
+        unitScope
+          ? new Set()
+          : new Set(
+              payload.property
+                .filter((s) => s.confidence !== "low" && !existingPropertyIds.has(s.id))
+                .map((s) => s.id),
+            ),
       );
       setSelectedUnits(
         Object.fromEntries(
           payload.units.map((u) => [
             u.unit_id,
-            new Set(u.amenities.filter((a) => a.confidence !== "low").map((a) => a.id)),
+            new Set(
+              u.amenities
+                .filter((a) => a.confidence !== "low")
+                .filter((a) => !(unitScope && existingUnitIds.has(a.id)))
+                .map((a) => a.id),
+            ),
           ]),
         ),
       );
@@ -127,7 +171,8 @@ export default function AiAmenityDialog({
     } finally {
       setLoading(false);
     }
-  }, [propertyId, websiteUrl, existingPropertyIds]);
+  }, [propertyId, websiteUrl, existingPropertyIds, existingUnitIds, unitScope]);
+
 
   const toggleProperty = (id: number) =>
     setSelectedProperty((prev) => {
@@ -143,21 +188,35 @@ export default function AiAmenityDialog({
       return { ...prev, [unitId]: next };
     });
 
-  const totalSelected =
-    selectedProperty.size +
-    Object.values(selectedUnits).reduce((sum, set) => sum + set.size, 0);
+  const totalSelected = unitScope
+    ? (selectedUnits[scopedUnits[0]?.unit_id ?? ""]?.size ?? 0)
+    : selectedProperty.size +
+      Object.values(selectedUnits).reduce((sum, set) => sum + set.size, 0);
 
   const applyAll = async () => {
     if (!result) return;
     setApplying(true);
     try {
+      // Single-unit mode: hand the merged list back to the form, nothing else.
+      if (unitScope) {
+        const unitId = scopedUnits[0]?.unit_id;
+        const picks = [...(selectedUnits[unitId ?? ""] ?? [])].filter((id) => !existingUnitIds.has(id));
+        if (picks.length > 0) unitScope.onApply([...unitScope.current, ...picks.map((id) => ruToken(id))]);
+        toast.success(
+          `Applied ${picks.length} amenit${picks.length === 1 ? "y" : "ies"} to ${unitScope.unitName}. Save the property to persist.`,
+        );
+        onOpenChange(false);
+        setResult(null);
+        return;
+      }
+
       // Property-level facilities — merge tokens, keep everything already chosen.
       if (selectedProperty.size > 0) {
-        const merged = [...currentPropertyFacilities];
+        const merged = [...propertyFacilities];
         selectedProperty.forEach((id) => {
           if (!existingPropertyIds.has(id)) merged.push(ruToken(id));
         });
-        onApplyProperty(merged);
+        onApplyProperty?.(merged);
       }
 
       // Unit-level amenities — write straight to the room types.
@@ -193,6 +252,7 @@ export default function AiAmenityDialog({
 
       toast.success(
         `Applied ${totalSelected} amenit${totalSelected === 1 ? "y" : "ies"}. Save the property to persist facility changes.`,
+
       );
       onOpenChange(false);
       setResult(null);
@@ -209,12 +269,14 @@ export default function AiAmenityDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-base">
             <Sparkles className="h-4 w-4 text-primary" />
-            TOBI amenity &amp; facility check
+            {unitScope ? `TOBI amenity check — ${unitScope.unitName}` : "TOBI amenity & facility check"}
           </DialogTitle>
           <DialogDescription className="text-xs">
-            TOBI reviews the property website, the property photos and the ROLOS record for this property and its units, then
-            proposes matching channel amenities. Nothing is saved until you approve the selection.
+            {unitScope
+              ? `TOBI reviews the property website, the photos and the ROLOS record for ${unitScope.unitName}, then proposes matching channel amenities for this unit. Nothing is saved until you approve the selection.`
+              : "TOBI reviews the property website, the property photos and the ROLOS record for this property and its units, then proposes matching channel amenities. Nothing is saved until you approve the selection."}
           </DialogDescription>
+
         </DialogHeader>
 
         {!result && (
@@ -261,7 +323,7 @@ export default function AiAmenityDialog({
 
             <ScrollArea className="h-[420px] pr-3">
               <div className="space-y-4">
-                <div>
+                <div className={unitScope ? "hidden" : undefined}>
                   <h4 className="text-xs font-semibold mb-2">
                     Property amenities &amp; facilities ({result.property.length})
                   </h4>
@@ -306,19 +368,28 @@ export default function AiAmenityDialog({
                   </div>
                 </div>
 
-                {result.units.map((unit) => (
+                {unitScope && scopedUnits.length === 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    TOBI had no amenity suggestions for {unitScope.unitName}.
+                  </p>
+                )}
+
+                {scopedUnits.map((unit) => (
                   <div key={unit.unit_id}>
-                    <Separator className="mb-3" />
+                    {!unitScope && <Separator className="mb-3" />}
                     <h4 className="text-xs font-semibold mb-2">
                       {unit.unit_name} ({unit.amenities.length})
                     </h4>
                     <div className="space-y-1.5">
-                      {unit.amenities.map((a) => (
+                      {unit.amenities.map((a) => {
+                        const already = !!unitScope && existingUnitIds.has(a.id);
+                        return (
                         <div key={`${unit.unit_id}-${a.id}`} className="flex items-start gap-2">
                           <Checkbox
                             id={`unit-${unit.unit_id}-${a.id}`}
                             className="h-3.5 w-3.5 mt-0.5"
                             checked={selectedUnits[unit.unit_id]?.has(a.id) ?? false}
+                            disabled={already}
                             onCheckedChange={() => toggleUnit(unit.unit_id, a.id)}
                           />
                           <Label
@@ -329,17 +400,25 @@ export default function AiAmenityDialog({
                             <span className="ml-2 text-[10px] text-muted-foreground">{a.reason}</span>
                           </Label>
                           <EvidenceBadge evidence={a.evidence} />
-                          <Badge
-                            variant="outline"
-                            className={`text-[10px] ${confidenceTone(a.confidence)}`}
-                          >
-                            {a.confidence}
-                          </Badge>
+                          {already ? (
+                            <Badge variant="outline" className="text-[10px] gap-1">
+                              <Check className="h-2.5 w-2.5" /> selected
+                            </Badge>
+                          ) : (
+                            <Badge
+                              variant="outline"
+                              className={`text-[10px] ${confidenceTone(a.confidence)}`}
+                            >
+                              {a.confidence}
+                            </Badge>
+                          )}
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 ))}
+
               </div>
             </ScrollArea>
           </div>
