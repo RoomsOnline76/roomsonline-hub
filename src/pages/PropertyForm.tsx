@@ -64,6 +64,8 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { validateImageDimensions, getValidationErrorMessage } from "@/lib/imageValidation";
+import { useImageDimensionAudit } from "@/hooks/useImageDimensionAudit";
+import { ImageQualityMarker } from "@/components/property/ImageQualityMarker";
 import { z } from "zod";
 import { getRoomUrl } from "@/lib/config";
 import { parseBedConfiguration, BED_TYPES, BedEntry } from "@/lib/bedConfig";
