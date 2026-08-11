@@ -677,26 +677,43 @@ Deno.serve(async (req) => {
           return sum + (vatableSubtotal * Number(rule.rate) / 100);
         }, 0);
 
-        // If no explicit tax rules but property has VAT enabled, apply VAT
-        if (taxTotal === 0) {
-          const { data: brandCfg } = await supabase
-            .from("rolos_brand_config")
-            .select("is_vat_registered, vat_rate, vat_number")
-            .eq("property_id", invPropId)
-            .maybeSingle();
-          const { data: propData } = await supabase
-            .from("properties")
-            .select("amenities")
-            .eq("id", invPropId)
-            .single();
-          const propAmenities = (propData?.amenities as any) || {};
-          const hasVat = brandCfg?.is_vat_registered || !!propAmenities?.vat_number;
-          if (hasVat) {
-            const vatRate = brandCfg?.vat_rate ?? 15;
-            // VAT is inclusive on vatable amount only
-            taxTotal = vatableSubtotal - (vatableSubtotal / (1 + vatRate / 100));
-          }
+        // VAT registration is a property-level fact: brand config flag, or a VAT
+        // number captured in property setup. It drives both the maths below and
+        // the wording on the guest-facing document (tax invoice vs invoice).
+        const { data: brandCfgVat } = await supabase
+          .from("rolos_brand_config")
+          .select("is_vat_registered, vat_rate, vat_number")
+          .eq("property_id", invPropId)
+          .maybeSingle();
+        const { data: propVatData } = await supabase
+          .from("properties")
+          .select("amenities")
+          .eq("id", invPropId)
+          .maybeSingle();
+        const propVatNumber = (() => {
+          const a = (propVatData?.amenities as any) || {};
+          const v = a?.vat_number;
+          return typeof v === "string" && v.trim() ? v.trim() : null;
+        })();
+        const vatNumberResolved = (brandCfgVat?.vat_number && String(brandCfgVat.vat_number).trim())
+          ? String(brandCfgVat.vat_number).trim()
+          : propVatNumber;
+        const vatRegistered = !!brandCfgVat?.is_vat_registered || !!vatNumberResolved;
+        const vatRateResolved = Number(brandCfgVat?.vat_rate ?? 15);
+
+        // If no explicit tax rules but the property is VAT registered, derive the
+        // VAT already contained in the (VAT-inclusive) charges.
+        if (taxTotal === 0 && vatRegistered) {
+          taxTotal = vatableSubtotal - (vatableSubtotal / (1 + vatRateResolved / 100));
         }
+
+        const vatSummary = {
+          registered: vatRegistered,
+          rate: vatRateResolved,
+          number: vatNumberResolved,
+          exempt_total: Math.round(refundableTotal * 100) / 100,
+        };
+
 
         // ---------------------------------------------------------------------
         // Billing party resolution.
