@@ -238,7 +238,7 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
   // is the same row scoped to WL/domain fields.
   const c: any = config || {};
   const units = unitCount ?? 0;
-  const costLines: { label: string; amount: number; once?: boolean }[] = [];
+  const costLines: { label: string; amount: number; once?: boolean; variable?: string }[] = [];
   const push = (label: string, amount: number | null | undefined, once = false) => {
     const n = Number(amount ?? 0);
     if (n > 0) costLines.push({ label, amount: n, once });
