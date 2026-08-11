@@ -243,16 +243,25 @@ export function evaluateUnitChecks(
     `${(v.images_count ?? 0) - (v.images_meeting_size ?? 0)} photo(s) are smaller than ${RU_MIN_IMAGE_WIDTH}×${RU_MIN_IMAGE_HEIGHT}px`,
     "Property → Images — re-upload larger versions");
   // Certification dimensions: every photo must MEASURE at least 1024×768.
+  const measuredCount = v.images_measured_count ?? v.images_count ?? 0;
+  const belowCert = Math.max(0, measuredCount - (v.images_meeting_cert_size ?? 0));
   add("images_meet_cert_size", "Photos", `Photos measured ≥ ${RU_CERT_MIN_IMAGE_WIDTH}×${RU_CERT_MIN_IMAGE_HEIGHT}px`,
     v.images_meet_cert_size !== false,
-    `${Math.max(0, (v.images_measured_count ?? v.images_count ?? 0) - (v.images_meeting_cert_size ?? 0))} measured photo(s) are below ${RU_CERT_MIN_IMAGE_WIDTH}×${RU_CERT_MIN_IMAGE_HEIGHT}px${
-      (v.smallest_image_width ?? null) != null ? ` (smallest measured ${v.smallest_image_width}×${v.smallest_image_height}px)` : ""
-    }`,
+    measuredCount === 0
+      ? `None of the ${v.images_count ?? 0} photo(s) could be measured, so the ${RU_CERT_MIN_IMAGE_WIDTH}×${RU_CERT_MIN_IMAGE_HEIGHT}px rule cannot be verified — re-upload them as JPG or PNG`
+      : `${belowCert} measured photo(s) are below ${RU_CERT_MIN_IMAGE_WIDTH}×${RU_CERT_MIN_IMAGE_HEIGHT}px${
+        (v.smallest_image_width ?? null) != null ? ` (smallest measured ${v.smallest_image_width}×${v.smallest_image_height}px)` : ""
+      }`,
     "Property → Images — re-upload larger versions");
   add("images_size_measured", "Photos", "All photo dimensions measured",
     (v.images_size_unverified ?? 0) === 0,
-    `${v.images_size_unverified ?? 0} photo(s) could not be measured — re-upload them so their size can be verified`,
+    `${v.images_size_unverified ?? 0} of ${v.images_count ?? 0} photo(s) sent for this unit could not be measured — re-upload them as JPG or PNG so their size can be verified${
+      (v.images_inherited_count ?? 0) > 0
+        ? ` (${v.images_inherited_count} of the ${v.images_count ?? 0} come from the property gallery because the unit has fewer than ${RU_MIN_IMAGES} of its own)`
+        : ""
+    }`,
     "Property → Images", false);
+
   add("has_main_image", "Photos", "Main photo flagged", v.has_main_image !== false,
     "No photo is marked as the main image", "Property → Images → set the first image");
 
