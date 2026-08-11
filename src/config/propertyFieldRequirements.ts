@@ -216,7 +216,7 @@ export const PROPERTY_FIELD_REQUIREMENTS: FieldRequirement[] = [
     tier: "mandatory",
     section: "images",
     target: ['[data-field="images"]', "#property-images"],
-    hint: "Upload 3 or more images (min 1024×683).",
+    hint: "Upload 3 or more images (min 1024×768).",
     isSatisfied: (s) => imageList(s).length >= 3,
   },
   {
