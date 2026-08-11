@@ -141,6 +141,68 @@ Deno.serve(async (req) => {
         }
 
       }
+
+      /**
+       * ARI + static change notifications carry no values — they are a signal to re-read.
+       * Acknowledging them without acting leaves ROL'OS out of sync until the next cron,
+       * so each type triggers an immediate corrective read-back (or a static delta check),
+       * logged as `lnm_repull` so the live-notification area shows real usage.
+       */
+      const ARI_TYPES = new Set(['PropertyAvailability', 'PropertyPrice', 'PropertyMinStay', 'PropertyChangeover']);
+      if ((ARI_TYPES.has(changeType) || changeType === 'PropertyStaticDetails') && ruPropertyId) {
+        const startedAt = Date.now();
+        let ok = false;
+        let repullError: string | null = null;
+        const repulled: string[] = [];
+        try {
+          if (changeType === 'PropertyStaticDetails') {
+            // Static change at RU: re-assert our content so the channel matches the PMS.
+            const { data, error } = await admin.functions.invoke('push-property-to-ru', {
+              body: { property_id: propertyUuid, action: 'static_only', trigger: 'lnm_static_change' },
+            });
+            if (!propertyUuid) throw new Error('Unmapped RU property — cannot re-push static content');
+            if (error) throw error;
+            ok = data?.success !== false;
+            repulled.push('Push_PutProperty_RQ (differential)');
+          } else {
+            const from = new Date();
+            const to = new Date(from.getTime() + 365 * 86400000);
+            const iso = (d: Date) => d.toISOString().slice(0, 10);
+            const dateFrom = String(payload.DateFrom ?? payload.date_from ?? iso(from));
+            const dateTo = String(payload.DateTo ?? payload.date_to ?? iso(to));
+            for (const apiAction of ['get_availability', 'get_prices'] as const) {
+              const { data, error } = await admin.functions.invoke('rentalsunited-api', {
+                body: { action: apiAction, ru_property_id: Number(ruPropertyId), date_from: dateFrom, date_to: dateTo },
+              });
+              if (error) throw error;
+              if (data?.success === false) throw new Error(data?.error?.message ?? `${apiAction} failed`);
+              repulled.push(apiAction === 'get_availability'
+                ? 'Pull_ListPropertyAvailabilityCalendar_RQ'
+                : 'Pull_ListPropertyPrices_RQ');
+            }
+            ok = true;
+          }
+        } catch (err) {
+          repullError = err instanceof Error ? err.message : String(err);
+        }
+
+        await admin.from('ru_sync_runs').insert({
+          batch_id: crypto.randomUUID(),
+          action: 'lnm_repull',
+          success: ok,
+          error_message: repullError,
+          elapsed_ms: Date.now() - startedAt,
+          property_id: propertyUuid,
+          ru_property_id: ruPropertyId,
+          details: {
+            scope: 'lnm_corrective_repull',
+            change_id: changeId,
+            change_type: changeType,
+            ru_methods: repulled,
+          },
+        });
+      }
+
     } catch (err) {
       console.error('[ru-lnm-handler] log failed', err);
     }
