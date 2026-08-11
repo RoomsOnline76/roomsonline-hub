@@ -799,8 +799,27 @@ Deno.serve(async (req) => {
           ? Math.round((total - commissionAmount) * 100) / 100
           : null;
 
-        const prefix = documentKind === "pro_forma" ? "PF" : "INV";
-        const invoiceNumber = `${prefix}-${Date.now().toString(36).toUpperCase()}`;
+        // ROL numbering strategy: ROL-<DOC>-<PARTY>-<YYYYMM>-<NNN>
+        const docCode = documentKind === "pro_forma" ? "PFI" : "TXI";
+        const period = new Date().toISOString().slice(0, 7).replace("-", "");
+        let invoiceNumber = "";
+        try {
+          const { data: partyCode } = await supabase.rpc("rol_party_code", {
+            _property_id: invPropId,
+            _portfolio_id: null,
+          });
+          const { data: ref } = await supabase.rpc("next_rol_document_reference", {
+            _doc: docCode,
+            _party_code: partyCode || "GEN",
+            _period: period,
+          });
+          invoiceNumber = String(ref || "");
+        } catch (_e) {
+          invoiceNumber = "";
+        }
+        if (!invoiceNumber) {
+          invoiceNumber = `ROL-${docCode}-GEN-${period}-${Date.now().toString(36).toUpperCase().slice(-4)}`;
+        }
 
         // Only one live document of each kind per booking — supersede the previous one
         if (invBookingId) {
