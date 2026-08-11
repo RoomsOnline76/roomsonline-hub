@@ -20,6 +20,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { validateImageDimensions, getValidationErrorMessage } from "@/lib/imageValidation";
+import { useImageDimensionAudit } from "@/hooks/useImageDimensionAudit";
+import { ImageQualityMarker } from "@/components/property/ImageQualityMarker";
 import RuImageTagPicker from "@/components/property/RuImageTagPicker";
 import { normalizeRuImageTagMap } from "@/lib/ruImageTags";
 
@@ -89,6 +91,9 @@ export function RoomManagerTab({
   const navigate = useNavigate();
   const { toast } = useToast();
   const [isRoomImageUploading, setIsRoomImageUploading] = useState(false);
+  const roomImageAudit = useImageDimensionAudit(
+    (roomTypes.find((r) => r.id === selectedRoomType)?.images || []) as string[],
+  );
 
   // ── Room CRUD ────────────────────────────────────────────────────────────
   const addRoomType = () => {
@@ -1294,6 +1299,7 @@ export function RoomManagerTab({
                 <div key={index} className="space-y-1">
                   <div className="relative aspect-video rounded-lg overflow-hidden border border-border group">
                     <img src={imageUrl} alt={`Room ${index + 1}`} className="w-full h-full object-cover" />
+                    <ImageQualityMarker entry={roomImageAudit.results[imageUrl]} />
                     {index === 0 ? (
                       <div className="absolute top-2 left-2 bg-primary rounded-full p-1.5" title="Primary room image">
                         <Heart className="h-3 w-3 text-white fill-white" />

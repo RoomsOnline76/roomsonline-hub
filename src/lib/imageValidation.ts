@@ -1,5 +1,9 @@
 export const MIN_IMAGE_WIDTH = 1024;
-export const MIN_IMAGE_HEIGHT = 683;
+/**
+ * Channel (Rentals United) certification minimum — uploads must clear the
+ * strictest distribution requirement so the onboarding Media check can pass.
+ */
+export const MIN_IMAGE_HEIGHT = 768;
 
 export interface ImageDimensionResult {
   valid: boolean;
@@ -7,12 +11,12 @@ export interface ImageDimensionResult {
   height: number;
 }
 
-export function validateImageDimensions(file: File): Promise<ImageDimensionResult> {
+function measure(src: string, revoke?: () => void): Promise<ImageDimensionResult> {
   return new Promise((resolve) => {
-    const url = URL.createObjectURL(file);
     const img = new Image();
+    img.crossOrigin = "anonymous";
     img.onload = () => {
-      URL.revokeObjectURL(url);
+      revoke?.();
       resolve({
         valid: img.naturalWidth >= MIN_IMAGE_WIDTH && img.naturalHeight >= MIN_IMAGE_HEIGHT,
         width: img.naturalWidth,
@@ -20,13 +24,24 @@ export function validateImageDimensions(file: File): Promise<ImageDimensionResul
       });
     };
     img.onerror = () => {
-      URL.revokeObjectURL(url);
+      revoke?.();
       resolve({ valid: false, width: 0, height: 0 });
     };
-    img.src = url;
+    img.src = src;
   });
 }
 
+export function validateImageDimensions(file: File): Promise<ImageDimensionResult> {
+  const url = URL.createObjectURL(file);
+  return measure(url, () => URL.revokeObjectURL(url));
+}
+
+/** Measures an already-stored image by URL (used to flag legacy uploads). */
+export function measureImageUrl(url: string): Promise<ImageDimensionResult> {
+  return measure(url);
+}
+
 export function getValidationErrorMessage(fileName: string, width: number, height: number): string {
-  return `${fileName} is ${width}×${height}px. Minimum required: ${MIN_IMAGE_WIDTH}×${MIN_IMAGE_HEIGHT}px.`;
+  const measured = width && height ? `${width}×${height}px` : "an unreadable size";
+  return `${fileName} is ${measured}. Minimum required: ${MIN_IMAGE_WIDTH}×${MIN_IMAGE_HEIGHT}px.`;
 }

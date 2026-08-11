@@ -140,7 +140,7 @@ function buildRows(v: RuContentFlags): Row[] {
       state: state(v.has_description),
     },
     {
-      label: "Photos (10+ at 1024×683, one main)",
+      label: "Photos (10+ at 1024×768, one main)",
       field: "Property/Images",
       where: "Images",
       state:

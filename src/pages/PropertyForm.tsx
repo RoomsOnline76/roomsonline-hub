@@ -64,6 +64,8 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { validateImageDimensions, getValidationErrorMessage } from "@/lib/imageValidation";
+import { useImageDimensionAudit } from "@/hooks/useImageDimensionAudit";
+import { ImageQualityMarker } from "@/components/property/ImageQualityMarker";
 import { z } from "zod";
 import { getRoomUrl } from "@/lib/config";
 import { parseBedConfiguration, BED_TYPES, BedEntry } from "@/lib/bedConfig";
@@ -806,6 +808,7 @@ export default function PropertyForm({
     { forfeit: "100", type: "% of Total", days: "30" },
   ]);
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
+  const propertyImageAudit = useImageDimensionAudit(uploadedImages);
   /** Rentals United photo tags, keyed by image URL: { "<url>": [4, 83] } */
   const [imageTags, setImageTags] = useState<RuImageTagMap>({});
 
@@ -6166,6 +6169,8 @@ export default function PropertyForm({
                         <div key={index} className="space-y-1">
                           <div className="relative aspect-square rounded-md overflow-hidden border border-border group">
                             <img src={imageUrl} alt={`Property ${index + 1}`} className="w-full h-full object-cover" />
+                            <ImageQualityMarker entry={propertyImageAudit.results[imageUrl]} />
+
                             {/* Primary badge or set as primary button */}
                             {index === 0 ? (
                               <div className="absolute top-1 left-1 bg-primary rounded-full p-1" title="Primary image">
