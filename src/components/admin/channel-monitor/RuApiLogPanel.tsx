@@ -302,7 +302,11 @@ export function RuApiLogPanel({ properties }: RuApiLogPanelProps) {
           </div>
 
           <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
-            <span>{stats.total} exchanges{stats.truncated ? " (most recent 100)" : ""}</span>
+            <span>
+              {stats.total} exchanges loaded
+              {stats.totalCount != null ? ` of ${stats.totalCount} in window` : ""}
+            </span>
+
             <span>{stats.failures} failed</span>
             <span>{stats.withResponseId} with ResponseID</span>
             <span>avg {stats.avgMs} ms</span>
