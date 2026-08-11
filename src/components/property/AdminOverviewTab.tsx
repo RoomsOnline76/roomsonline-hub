@@ -238,7 +238,7 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
   // is the same row scoped to WL/domain fields.
   const c: any = config || {};
   const units = unitCount ?? 0;
-  const costLines: { label: string; amount: number; once?: boolean }[] = [];
+  const costLines: { label: string; amount: number; once?: boolean; variable?: string }[] = [];
   const push = (label: string, amount: number | null | undefined, once = false) => {
     const n = Number(amount ?? 0);
     if (n > 0) costLines.push({ label, amount: n, once });
@@ -315,6 +315,18 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
 
   // BYO payment gateway monthly add-on (only when owner uses their own provider)
   if (customProvider) push("BYO payment gateway add-on", c.byo_gateway_monthly_fee);
+
+  // ROL payment facilitator surcharge — per-booking, variable. Always surfaced
+  // as a line item when ROL processes payments so the client cost picture is
+  // complete (it never adds to the fixed monthly / setup totals).
+  if (facilitator) {
+    const surcharge = Number(c.transaction_fee_percentage ?? 0);
+    costLines.push({
+      label: "ROL payment facilitator surcharge",
+      amount: 0,
+      variable: surcharge > 0 ? `${surcharge}% / booking` : "rate not set",
+    });
+  }
 
 
   const monthlyTotal = costLines.filter((l) => !l.once).reduce((s, l) => s + l.amount, 0);
@@ -409,8 +421,11 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
                       ) : null;
                     })()}
                   </span>
-                  <span className="font-mono">{fmt(l.amount)}</span>
+                  <span className={l.variable ? "font-mono text-muted-foreground" : "font-mono"}>
+                    {l.variable ?? fmt(l.amount)}
+                  </span>
                 </div>
+
               ))}
             </div>
           )}
