@@ -226,6 +226,7 @@ export default function RoomingListTable({
             <TableHeader>
               <TableRow>
                 <TableHead>Guest</TableHead>
+                <TableHead>Unit</TableHead>
                 <TableHead>Dates</TableHead>
                 <TableHead>Status</TableHead>
                 {!readOnly && <TableHead className="w-24" />}
