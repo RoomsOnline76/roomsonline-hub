@@ -526,9 +526,10 @@ const RU_ENDPOINT_REGISTRY: {
 
 // Refresh cadences mandated by RU (hours)
 const CADENCE_RULES = [
-  { key: "PutProperty", label: "Property content refresh", ru_method: "Push_PutProperty_RQ", max_age_hours: 168, actions: ["weekly_content_refresh", "PutProperty", "push_property"] },
+  { key: "PutProperty", label: "Property content refresh", ru_method: "Push_PutProperty_RQ", max_age_hours: 168, actions: ["weekly_content_refresh", "PutProperty", "push_property", "static_delta", "inventory_push"] },
   { key: "PutAvbUnits", label: "Availability refresh", ru_method: "Push_PutAvbUnits_RQ", max_age_hours: 24, actions: ["refresh_ari", "PutAvbUnits", "push_availability", "availability_playground", "duplicate_range_test"] },
   { key: "PutPrices", label: "Pricing refresh", ru_method: "Push_PutPrices_RQ", max_age_hours: 24, actions: ["refresh_ari", "PutPrices", "push_prices", "pricing_playground", "pricing_duplicate_test"] },
+  { key: "PutDiscounts", label: "Discount ladder refresh", ru_method: "Push_PutLongStayDiscounts_RQ / Push_PutLastMinuteDiscounts_RQ", max_age_hours: 24, actions: ["refresh_discounts", "push_discounts", "push_long_stay", "push_last_minute", "inventory_push"] },
   { key: "ListReservations", label: "Reservation pull", ru_method: "Pull_ListReservations_RQ", max_age_hours: 1, actions: ["pull_reservations", "ListReservations"] },
   { key: "PutHandlerUrl", label: "RLNM handler subscription", ru_method: "LNM_PutHandlerUrl_RQ", max_age_hours: 24, actions: ["weekly_content_refresh", "PutHandlerUrl", "RLNM"] },
   { key: "PutLnmSubscriptions", label: "LNM subscriptions (content + ARI)", ru_method: "Push_PutLiveNotificationMechanismSubscriptions_RQ", max_age_hours: 24, actions: ["PutLnmSubscriptions", "LNM", "lnm_duplicate_test"] },
@@ -540,9 +541,12 @@ const CADENCE_RULES = [
 const EXPECTED_JOBS = [
   { jobname: "ru-content-weekly", schedule: "0 2 * * 1", fn: "cron-push-all-properties-to-ru", label: "Weekly property content push" },
   { jobname: "ru-ari-refresh", schedule: "0 */6 * * *", fn: "cron-refresh-ru-ari", label: "ARI refresh (every 6h)" },
+  { jobname: "ru-discounts-daily", schedule: "0 4 * * *", fn: "cron-refresh-ru-discounts", label: "Discount ladder push (daily)" },
   { jobname: "ru-reservations-poll", schedule: "*/30 * * * *", fn: "cron-pull-ru-reservations", label: "Reservation poll (every 30 min)" },
   { jobname: "ru-rlnm-daily", schedule: "0 1 * * *", fn: "cron-ru-rlnm-refresh", label: "RLNM + LNM subscriptions re-subscribe (daily)" },
+  { jobname: "prune-ru-api-log-daily", schedule: "17 3 * * *", fn: "cron-prune-ru-api-log", label: "XML log retention prune (daily, 90-day window)" },
 ];
+
 
 const RUNNABLE_JOBS = new Set(EXPECTED_JOBS.map((j) => j.fn));
 
