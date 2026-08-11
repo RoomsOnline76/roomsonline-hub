@@ -152,7 +152,10 @@ export const MESSAGE_PLACEHOLDERS = [
   { key: "confirmation_number", label: "Confirmation Number" },
   { key: "total_amount", label: "Total Amount" },
   { key: "nights", label: "Number of Nights" },
+  { key: "room_names", label: "Reserved Unit(s) / Room(s)" },
+  { key: "rooms_booked", label: "Accommodation Block (detailed)" },
 ];
+
 
 export const TRIGGER_EVENTS = [
   { value: "booking_confirmed", label: "Booking Confirmed" },

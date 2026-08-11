@@ -63,8 +63,36 @@ function replaceTemplateVariables(template: string, booking: any, property: any)
   const bookingRef = guestReference(booking);
   
   // Get room/rate type names from booking
-  const roomTypeName = booking.rooms?.[0]?.roomTypeName || booking.room_type_id || "Standard Room";
-  const rateTypeName = booking.rooms?.[0]?.rateTypeName || booking.rate_type_id || "Standard Rate";
+  const bookedRooms: any[] = Array.isArray(booking.rooms) ? booking.rooms : [];
+  const roomTypeName = bookedRooms[0]?.roomTypeName || booking.room_type_id || "Standard Room";
+  const rateTypeName = bookedRooms[0]?.rateTypeName || booking.rate_type_id || "Standard Rate";
+
+  // Human list of every unit/room reserved, e.g. "ANEMOON, SWARTMOSSEL"
+  const roomNames = bookedRooms.length
+    ? bookedRooms.map((r: any) => r.roomTypeName || r.roomName || "Room").join(", ")
+    : roomTypeName;
+
+  // Ready-made HTML block describing each reserved unit (dates, basis, occupancy)
+  const roomsBookedHtml = (bookedRooms.length ? bookedRooms : [{ roomTypeName }])
+    .map((r: any) => {
+      const rCheckIn = r.checkIn || booking.check_in_date;
+      const rCheckOut = r.checkOut || booking.check_out_date;
+      const rNights = calculateNights(rCheckIn, rCheckOut);
+      const occ = [
+        r.numberOfAdults ? `${r.numberOfAdults} adult${r.numberOfAdults > 1 ? "s" : ""}` : "",
+        r.numberOfTeens ? `${r.numberOfTeens} teen${r.numberOfTeens > 1 ? "s" : ""}` : "",
+        r.numberOfChildren ? `${r.numberOfChildren} child${r.numberOfChildren > 1 ? "ren" : ""}` : "",
+        r.numberOfInfants ? `${r.numberOfInfants} infant${r.numberOfInfants > 1 ? "s" : ""}` : "",
+      ].filter(Boolean).join(", ");
+      const meta = [
+        r.rateTypeName || r.mealPlan || "",
+        occ,
+        `${formatDate(rCheckIn)} – ${formatDate(rCheckOut)}${rNights > 0 ? ` (${rNights} night${rNights > 1 ? "s" : ""})` : ""}`,
+      ].filter(Boolean).join(" · ");
+      return `<li style="margin: 0 0 8px;"><strong>${r.roomTypeName || r.roomName || "Room"}</strong>${meta ? `<br/><span style="color:#666;font-size:13px;">${meta}</span>` : ""}</li>`;
+    })
+    .join("");
+
   
   // Build property location string
   const propertyLocation = [property.city, property.country].filter(Boolean).join(", ");
@@ -111,6 +139,10 @@ function replaceTemplateVariables(template: string, booking: any, property: any)
     
     // Room Details
     "{{room_type_name}}": roomTypeName,
+    "{{room_names}}": roomNames,
+    "{{unit_name}}": roomNames,
+    "{{rooms_booked}}": `<ul style="margin: 0; padding-left: 18px;">${roomsBookedHtml}</ul>`,
+
     "{{rate_type_name}}": rateTypeName,
     "{{adults}}": String(booking.adults || 0),
     "{{teens}}": String(booking.teens || 0),
