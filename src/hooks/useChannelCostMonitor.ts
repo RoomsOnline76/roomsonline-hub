@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { applyAdminScope } from "@/lib/adminScope";
+import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import {
   ForecastResult,
@@ -164,6 +166,7 @@ async function resolveEurToZar(): Promise<FxRate | null> {
 }
 
 export function useChannelCostMonitor(): ChannelCostMonitorData {
+  const { scopedPropertyIds } = useAuth();
   const [properties, setProperties] = useState<ChannelPropertyRow[]>([]);
   const [events, setEvents] = useState<ArchiveEventRow[]>([]);
   const [fx, setFx] = useState<FxRate | null>(null);
@@ -385,7 +388,8 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
     } finally {
       setLoading(false);
     }
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scopedPropertyIds.join(",")]);
 
   useEffect(() => {
     void load();

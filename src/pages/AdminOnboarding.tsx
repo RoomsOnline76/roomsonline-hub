@@ -1,5 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { applyAdminScope } from "@/lib/adminScope";
+import { useAuth } from "@/hooks/useAuth";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -279,6 +281,7 @@ const StatusBadge = ({ status, isNightsBridge }: { status: OnboardingStatus; isN
 
 export default function AdminOnboarding() {
   const navigate = useNavigate();
+  const { scopedPropertyIds } = useAuth();
   const [propertyRows, setPropertyRows] = useState<PropertyOnboardingRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -299,7 +302,8 @@ export default function AdminOnboarding() {
 
   useEffect(() => {
     loadData();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scopedPropertyIds.join(",")]);
 
   const loadData = async () => {
     try {
