@@ -436,7 +436,10 @@ const RU_ENDPOINT_REGISTRY: {
 
   // ── content ──
   { key: "push_property", area: "content", label: "Push property content", ru_method: "Push_PutProperty_RQ", direction: "push", mandatory: true, implemented: true,
-    rolos_surface: "Edit property → push to RU / weekly cron", rolos_stream: "Onboarding P3 — content publish", rolos_wired: true, sync_actions: ["inventory_push", "weekly_content_refresh"], max_age_hours: 168, note: "Create + update, photos, amenities, composition" },
+    rolos_surface: "Edit property → push to RU / delta on change / weekly cron", rolos_stream: "Onboarding P3 — content publish", rolos_wired: true, sync_actions: ["inventory_push", "weekly_content_refresh", "static_delta"], max_age_hours: 168, note: "Create + update, photos, amenities, composition. Also pushed as a differential whenever static content changes in the PMS (logged as static_delta)" },
+  { key: "static_delta", area: "content", label: "Static content delta on change", ru_method: "Push_PutProperty_RQ (differential)", direction: "push", mandatory: true, implemented: true,
+    rolos_surface: "Edit property → save (SHA-256 content fingerprint)", rolos_stream: "Content — event-driven delta", rolos_wired: true, sync_actions: ["static_delta"], note: "Event-driven: fires only when the fingerprint of the pushed content changes, so RU never waits for the weekly cron" },
+
   { rolos_via_cert: true, key: "get_property", area: "content", label: "Get property content (read-back)", ru_method: "Pull_GetProperty_RQ", direction: "pull", mandatory: true, implemented: true,
     cert_methods: ["Pull_ListCompositionRooms_RQ"],
     rolos_surface: "RU console → readiness / verification", rolos_stream: "Onboarding P3 — publish verification", rolos_wired: true, sync_actions: ["verify_property", "property_readiness"], note: "Read-back verification" },
