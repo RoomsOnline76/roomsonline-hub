@@ -134,8 +134,13 @@ function generateInvoiceHTML(
       .join(", ");
   const amenities = property?.amenities || {};
   const amenityVatNumber = plain(amenities?.vat_number);
-  const vatNumber = plain(branding?.vat_number) || amenityVatNumber;
-  const isVatRegistered = !!branding?.is_vat_registered || !!amenityVatNumber;
+  const vatNumber = plain(extras.vat?.number) || plain(branding?.vat_number) || amenityVatNumber;
+  const isVatRegistered = extras.vat
+    ? !!extras.vat.registered
+    : (!!branding?.is_vat_registered || !!amenityVatNumber);
+  const vatRate = Number(extras.vat?.rate ?? branding?.vat_rate ?? 15);
+  const vatExemptTotal = Number(extras.vat?.exempt_total || 0);
+
   const logoUrl = plain(property?.brand_logo_url);
   const currency = plain(invoice.currency) || "ZAR";
   const money = (n: number) => `${currency} ${Number(n || 0).toFixed(2)}`;
