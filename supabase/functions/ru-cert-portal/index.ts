@@ -504,8 +504,20 @@ const RU_ENDPOINT_REGISTRY: {
   { rolos_via_cert: true, informational: true, max_age_hours: 168, key: "mcq_duplicate", area: "notifications", label: "MCQ duplicate-order test", ru_method: "CM_LNM_OrderMinimumContentQualityCheck_RQ (idempotency)", direction: "push", mandatory: false, implemented: true,
     rolos_surface: "Live notifications panel → Duplicate test", rolos_stream: "Certification evidence", rolos_wired: true, sync_actions: ["mcq_duplicate_test"], note: "Orders twice; no usable channel response in this account — blocked upstream, excluded from the score" },
 
+  // ── dictionaries / helpers (informational: implemented adapter surface, not scored) ──
+  { rolos_via_cert: true, informational: true, key: "amenities_dictionary", area: "content", label: "Amenity dictionary", ru_method: "Pull_ListAmenities_RQ", direction: "pull", mandatory: false, implemented: true,
+    rolos_surface: "Edit property → amenity mapping (ru_amenities cache)", rolos_stream: "Reference data", rolos_wired: true, sync_actions: ["list_amenities", "refresh_amenities"], note: "Dictionary read — populates the RU amenity register" },
+  { rolos_via_cert: true, informational: true, key: "composition_dictionary", area: "content", label: "Composition room dictionary", ru_method: "Pull_ListCompositionRooms_RQ", direction: "pull", mandatory: false, implemented: true,
+    rolos_surface: "Edit property → composition builder", rolos_stream: "Reference data", rolos_wired: true, sync_actions: ["list_composition_rooms"], note: "Dictionary read — bedroom / bathroom / kitchen type IDs" },
+  { rolos_via_cert: true, informational: true, key: "location_lookup", area: "account", label: "Location lookup helpers", ru_method: "Pull_GetLocationByCoordinates_RQ / Pull_ListLocationsBySearchString_RQ", direction: "pull", mandatory: false, implemented: true,
+    rolos_surface: "Edit property → address resolution", rolos_stream: "Onboarding P2 — address mapping", rolos_wired: true, sync_actions: ["get_location_by_coordinates", "get_location_by_name"], note: "Resolves the RU LocationID from coordinates or a city name" },
+  { rolos_via_cert: true, informational: true, key: "cities_currencies", area: "account", label: "Cities + currencies register", ru_method: "Pull_ListCitiesProps_RQ", direction: "pull", mandatory: false, implemented: true,
+    rolos_surface: "RU console → Currency panel (register refresh)", rolos_stream: "Reference data", rolos_wired: true, sync_actions: ["list_cities_and_currencies"], note: "Not enabled by the channel for this account — implemented and exercised, response is not usable" },
+  { rolos_via_cert: true, informational: true, key: "property_status", area: "content", label: "Set listing status (archive / restore)", ru_method: "Push_PutPropertyStatus_RQ", direction: "push", mandatory: false, implemented: true,
+    rolos_surface: "Channel monitor → activate / deactivate listing", rolos_stream: "Lifecycle — archive & reactivate", rolos_wired: true, sync_actions: ["set_property_status", "archive_property", "reactivate_property"], note: "Used by the archive / one-click reactivation flow" },
 
 ];
+
 
 
 // Refresh cadences mandated by RU (hours)
