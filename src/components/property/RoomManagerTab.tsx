@@ -1245,6 +1245,8 @@ export function RoomManagerTab({
                 open={aiUnitAmenityOpen}
                 onOpenChange={setAiUnitAmenityOpen}
                 propertyId={propertyId}
+                websiteUrl={propertyWebsiteUrl || undefined}
+
                 unitScope={{
                   unitId: String(selectedRoomType),
                   unitName: roomTypes.find((r) => r.id === selectedRoomType)?.name || "this unit",
