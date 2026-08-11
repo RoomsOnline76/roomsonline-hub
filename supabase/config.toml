@@ -207,3 +207,31 @@ verify_jwt = false
 
 [functions.booking-confirmation-lookup]
 verify_jwt = false
+
+# ── Rentals United certification cadences ─────────────────────
+# RU White-Label certification requires availability/price refresh at least
+# every 24h, discounts every 24h, reservation pulls at least daily, a weekly
+# full static content push, and >= 30-day request/response log retention.
+[functions.cron-refresh-ru-ari]
+verify_jwt = false
+schedule = "20 2 * * *"
+
+[functions.cron-refresh-ru-discounts]
+verify_jwt = false
+schedule = "40 2 * * *"
+
+[functions.cron-pull-ru-reservations]
+verify_jwt = false
+schedule = "*/30 * * * *"
+
+[functions.cron-push-all-properties-to-ru]
+verify_jwt = false
+schedule = "10 1 * * 1"
+
+[functions.cron-ru-rlnm-refresh]
+verify_jwt = false
+schedule = "0 4 * * *"
+
+[functions.cron-prune-ru-api-log]
+verify_jwt = false
+schedule = "30 3 * * *"
