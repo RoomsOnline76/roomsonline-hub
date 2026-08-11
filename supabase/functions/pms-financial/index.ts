@@ -384,7 +384,7 @@ function generateInvoiceHTML(
 
         <tr><td style="padding:28px 32px 8px;">
 
-          ${isProForma ? `<p style="margin:0 0 22px;padding:12px 14px;background:#fffbeb;border-left:3px solid #f59e0b;border-radius:4px;font-size:12px;color:#92400e;">This is a <strong>pro forma invoice</strong> — a quotation of charges for your upcoming stay. It is not a tax invoice and cannot be used for VAT purposes. A final invoice will be issued after your stay.</p>` : ""}
+          ${isProForma ? `<p style="margin:0 0 22px;padding:12px 14px;background:#fffbeb;border-left:3px solid #f59e0b;border-radius:4px;font-size:12px;color:#92400e;">This is a <strong>pro forma invoice</strong> — a quotation of the charges for your upcoming stay, issued for payment purposes. It is <strong>not a tax invoice</strong>${isVatRegistered ? " and may not be used to claim input VAT" : ""}.${isVatRegistered ? ` Amounts shown include VAT at ${vatRate.toFixed(vatRate % 1 === 0 ? 0 : 2)}%; a valid tax invoice will be issued once your stay is complete.` : " A final invoice will be issued after your stay."}</p>` : ""}
 
           ${sectionBlock(`Invoiced to${billToKindLabel ? ` &middot; ${billToKindLabel}` : ""}`, kvRows([
             ["Name", invoice.invoice_to],
