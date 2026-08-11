@@ -157,11 +157,12 @@ Deno.serve(async (req) => {
         try {
           if (changeType === 'PropertyStaticDetails') {
             // Static change at RU: re-assert our content so the channel matches the PMS.
+            if (!propertyUuid) throw new Error('Unmapped RU property — cannot re-push static content');
             const { data, error } = await admin.functions.invoke('push-property-to-ru', {
               body: { property_id: propertyUuid, action: 'static_only', trigger: 'lnm_static_change' },
             });
-            if (!propertyUuid) throw new Error('Unmapped RU property — cannot re-push static content');
             if (error) throw error;
+
             ok = data?.success !== false;
             repulled.push('Push_PutProperty_RQ (differential)');
           } else {
