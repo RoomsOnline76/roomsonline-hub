@@ -608,6 +608,7 @@ function buildValidation(payload: Record<string, any>): Record<string, unknown> 
     unmapped_bed_labels: payload.unmapped_bed_labels ?? [],
     images_meeting_size: sized,
     images_size_unverified: unverified,
+    images_inherited_count: Number(payload.images_inherited_count || 0),
     images_meet_size: images.length > 0 && sized === images.length,
     meets_minimum_images: images.length >= RU_MIN_IMAGES,
     amenities_count: amenities.length,
