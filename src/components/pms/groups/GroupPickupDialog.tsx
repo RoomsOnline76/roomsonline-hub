@@ -213,6 +213,29 @@ export default function GroupPickupDialog({
             </div>
           </div>
           <div className="space-y-1.5">
+            <Label>Unit / Room</Label>
+            <Select value={roomId} onValueChange={setRoomId}>
+              <SelectTrigger>
+                <SelectValue placeholder={unitsLoading ? "Loading units…" : "Assign later"} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="auto">Assign later (room type only)</SelectItem>
+                {units.map((u) => (
+                  <SelectItem key={u.id} value={u.id} disabled={u.busy}>
+                    {u.label}
+                    {u.maxOccupancy ? ` · sleeps ${u.maxOccupancy}` : ""}
+                    {u.busy ? " · occupied" : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              {units.length
+                ? `${freeUnits.length} of ${units.length} unit${units.length === 1 ? "" : "s"} free for these dates.`
+                : "No named units configured for this room type — the booking will hold the room type only."}
+            </p>
+          </div>
+          <div className="space-y-1.5">
             <Label>Room Preference</Label>
             <Input
               placeholder="e.g. ground floor, twin beds"
@@ -220,6 +243,7 @@ export default function GroupPickupDialog({
               onChange={(e) => setForm((f) => ({ ...f, room_preference: e.target.value }))}
             />
           </div>
+
           <div className="space-y-1.5">
             <Label>Package (optional)</Label>
             <Select value={packageId} onValueChange={setPackageId}>
