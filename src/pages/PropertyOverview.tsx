@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import { validateImageDimensions, getValidationErrorMessage } from "@/lib/imageValidation";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { applyAdminScope } from "@/lib/adminScope";
 import { getPropertyUrl } from "@/lib/config";
 import { ExternalSourceBadge } from "@/components/pms/ExternalSourceBadge";
 import { getPMSSystemByKey } from "@/lib/pmsSystemsConfig";
@@ -45,7 +46,7 @@ type SortColumn = "name" | "external_system" | "hero_listing" | "has_images" | "
 
 const PropertyOverview = () => {
   const navigate = useNavigate();
-  const { user, isAdmin, isDev, isFearlessLeader } = useAuth();
+  const { user, isAdmin, isDev, isFearlessLeader, scopedPropertyIds } = useAuth();
   const { openNewTab: homeIconOpenNewTab } = useHomeIconOpenNewTab();
   const [propertyToDelete, setPropertyToDelete] = useState<{ id: string; name: string } | null>(null);
 
@@ -68,7 +69,7 @@ const PropertyOverview = () => {
 
   const { loading: authLoading } = useAuth();
   const { data: allProperties, isLoading, refetch } = useQuery({
-    queryKey: ["properties", user?.id, isAdmin],
+    queryKey: ["properties", user?.id, isAdmin, scopedPropertyIds.join(",")],
     queryFn: async () => {
       const { data: profile } = await supabase
         .from("profiles")
@@ -85,6 +86,8 @@ const PropertyOverview = () => {
       if (!isAdmin && profile?.email) {
         query = query.eq("owner_email", profile.email);
       }
+
+      query = applyAdminScope(query, "id", scopedPropertyIds);
 
       const { data: propertiesData, error: propertiesError } = await query;
       

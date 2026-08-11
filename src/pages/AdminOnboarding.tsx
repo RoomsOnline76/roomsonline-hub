@@ -1,5 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { applyAdminScope } from "@/lib/adminScope";
+import { useAuth } from "@/hooks/useAuth";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -279,6 +281,7 @@ const StatusBadge = ({ status, isNightsBridge }: { status: OnboardingStatus; isN
 
 export default function AdminOnboarding() {
   const navigate = useNavigate();
+  const { scopedPropertyIds } = useAuth();
   const [propertyRows, setPropertyRows] = useState<PropertyOnboardingRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -299,14 +302,15 @@ export default function AdminOnboarding() {
 
   useEffect(() => {
     loadData();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scopedPropertyIds.join(",")]);
 
   const loadData = async () => {
     try {
       setLoading(true);
 
       // Load only ACTIVE properties (non-deleted, is_active = true)
-      const { data: propData, error: propError } = await supabase
+      const propQuery = supabase
         .from("properties")
         .select(`
           id, name, owner_email, listing_status, show_on_website, is_active,
@@ -319,6 +323,12 @@ export default function AdminOnboarding() {
         .is("permanently_deleted_at", null)
         .eq("is_active", true)
         .order("created_at", { ascending: false });
+
+      const { data: propData, error: propError } = await applyAdminScope(
+        propQuery,
+        "id",
+        scopedPropertyIds,
+      );
 
       if (propError) throw propError;
 

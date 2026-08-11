@@ -146,10 +146,32 @@ export function useAuth() {
   const isAdmin = roles.includes("admin") || isDev || isFearlessLeader;
   const isSalesRep = roles.includes("sales_rep");
 
+  // Scoped admins are admins confined to specific properties. The scope rows
+  // are readable by their own owner, so a plain table read is enough.
+  const { data: scopeRows } = useQuery({
+    queryKey: ["admin-scope", userId],
+    enabled: !!userId && isAdmin,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("scoped_admin_properties")
+        .select("property_id")
+        .eq("user_id", userId as string);
+      if (error) throw error;
+      return (data ?? []).map((r) => r.property_id as string);
+    },
+    staleTime: 1000 * 60 * 10,
+    gcTime: 1000 * 60 * 30,
+    refetchOnWindowFocus: false,
+  });
+
+  const scopedPropertyIds = useMemo(() => scopeRows ?? [], [scopeRows]);
+  const isScopedAdmin = scopedPropertyIds.length > 0;
+
   const userRole: UserRole = useMemo(
     () => computeUserRole(isDev, isFearlessLeader, isAdmin, isSalesRep),
     [isDev, isFearlessLeader, isAdmin, isSalesRep],
   );
+
 
   // Never block first paint on a possibly cold edge function: once we have a
   // cached context (or no session at all) the shell can render immediately and
@@ -194,6 +216,9 @@ export function useAuth() {
     isDev,
     isFearlessLeader,
     isSalesRep,
+    isScopedAdmin,
+    scopedPropertyIds,
+
     salesRepId: context?.sales_rep_id ?? null,
     profile: context?.profile ?? null,
     userRole,

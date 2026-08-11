@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { applyAdminScope } from "@/lib/adminScope";
+import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import {
   ForecastResult,
@@ -164,6 +166,7 @@ async function resolveEurToZar(): Promise<FxRate | null> {
 }
 
 export function useChannelCostMonitor(): ChannelCostMonitorData {
+  const { scopedPropertyIds } = useAuth();
   const [properties, setProperties] = useState<ChannelPropertyRow[]>([]);
   const [events, setEvents] = useState<ArchiveEventRow[]>([]);
   const [fx, setFx] = useState<FxRate | null>(null);
@@ -185,12 +188,20 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
     try {
       const [propsRes, unitsRes, membersRes, portfoliosRes, runsRes, eventsRes, fxRate, defaultsRes, accountsRes] =
         await Promise.all([
-        supabase
-          .from("properties")
-          .select("id, name, is_active, is_trading, is_sandbox, ru_push_enabled, ru_archived, ru_archived_at, rentalsunited_property_id, owner_email"),
-        supabase
-          .from("hostfully_room_types")
-          .select("id, property_id, name, is_active, rentalsunited_property_id"),
+        applyAdminScope(
+          supabase
+            .from("properties")
+            .select("id, name, is_active, is_trading, is_sandbox, ru_push_enabled, ru_archived, ru_archived_at, rentalsunited_property_id, owner_email"),
+          "id",
+          scopedPropertyIds,
+        ),
+        applyAdminScope(
+          supabase
+            .from("hostfully_room_types")
+            .select("id, property_id, name, is_active, rentalsunited_property_id"),
+          "property_id",
+          scopedPropertyIds,
+        ),
         supabase.from("property_portfolio_members").select("property_id, portfolio_id"),
         supabase.from("property_portfolios").select("id, name"),
         supabase
@@ -377,7 +388,8 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
     } finally {
       setLoading(false);
     }
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scopedPropertyIds.join(",")]);
 
   useEffect(() => {
     void load();

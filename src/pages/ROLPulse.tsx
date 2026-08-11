@@ -5,7 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Navigate } from "react-router-dom";
 
 const ROLPulse = () => {
-  const { isDev, isFearlessLeader, loading } = useAuth();
+  const { isDev, isFearlessLeader, isScopedAdmin, loading } = useAuth();
 
   // Wait for auth to resolve before checking permissions
   if (loading) {
@@ -18,10 +18,12 @@ const ROLPulse = () => {
     );
   }
 
-  // Only dev/fearless_leader can access - admins excluded
-  if (!isDev && !isFearlessLeader) {
+  // dev/fearless_leader, plus scoped admins whose allow-list includes Revenue
+  // Pulse (their data is already narrowed to their properties by RLS).
+  if (!isDev && !isFearlessLeader && !isScopedAdmin) {
     return <Navigate to="/dashboard/reports" replace />;
   }
+
 
   return (
     <AppLayout>
