@@ -6169,6 +6169,8 @@ export default function PropertyForm({
                         <div key={index} className="space-y-1">
                           <div className="relative aspect-square rounded-md overflow-hidden border border-border group">
                             <img src={imageUrl} alt={`Property ${index + 1}`} className="w-full h-full object-cover" />
+                            <ImageQualityMarker entry={propertyImageAudit.results[imageUrl]} />
+
                             {/* Primary badge or set as primary button */}
                             {index === 0 ? (
                               <div className="absolute top-1 left-1 bg-primary rounded-full p-1" title="Primary image">
