@@ -52,10 +52,22 @@ interface AiAmenityDialogProps {
   propertyId: string;
   websiteUrl?: string;
   /** Current property-level facility tokens/labels. */
-  currentPropertyFacilities: string[];
+  currentPropertyFacilities?: string[];
   /** Called with the merged property facility list when the user accepts. */
-  onApplyProperty: (next: string[]) => void;
+  onApplyProperty?: (next: string[]) => void;
+  /**
+   * Single-unit mode: the dialog only reviews this room/unit and hands the merged
+   * amenity list back to the form (no direct database write), so the Rooms tab
+   * behaves exactly like the property facilities check.
+   */
+  unitScope?: {
+    unitId: string;
+    unitName: string;
+    current: string[];
+    onApply: (next: string[]) => void;
+  };
 }
+
 
 const EvidenceBadge = ({ evidence }: { evidence?: string }) =>
   evidence === "image" ? (
