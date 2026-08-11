@@ -1389,6 +1389,27 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Public contact details for the branded "property details" block.
+    try {
+      const { data: contacts } = await supabaseClient
+        .from("property_contact_details")
+        .select("contact_name, email, phone, mobile, role, is_public, sort_order")
+        .eq("property_id", property.id)
+        .eq("is_public", true)
+        .order("sort_order", { ascending: true })
+        .limit(5);
+      if (Array.isArray(contacts) && contacts.length) {
+        (property as any).__contact = {
+          hostName: contacts.find((c: any) => c.contact_name)?.contact_name || null,
+          email: contacts.find((c: any) => c.email)?.email || null,
+          phone: contacts.find((c: any) => c.phone)?.phone || null,
+          cell: contacts.find((c: any) => c.mobile)?.mobile || null,
+        };
+      }
+    } catch (e) {
+      console.warn("[send-booking-email] Contact lookup failed:", e);
+    }
+
     // Guest-facing emails must always name the unit/room that was booked.
     // Some booking paths (PMS/native, channel pushes) leave `bookings.rooms` empty and
     // only store `rolos_room_ids` / `room_type_id`, so hydrate a rooms array from those.
