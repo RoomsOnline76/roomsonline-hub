@@ -42,6 +42,8 @@ export interface RuUnitValidation {
   images_count?: number;
   images_meeting_size?: number;
   images_size_unverified?: number;
+  /** Photos borrowed from the property gallery because the unit has < RU_MIN_IMAGES of its own. */
+  images_inherited_count?: number;
   amenities_count?: number;
   rooms_count?: number;
   rooms_with_amenities?: number;
