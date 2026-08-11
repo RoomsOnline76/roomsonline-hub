@@ -245,6 +245,7 @@ const pickupSchema = z.object({
   adults: z.number().int().min(1).max(20).optional(),
   children: z.number().int().min(0).max(20).optional(),
   room_preference: z.string().max(200).nullable().optional(),
+  room_id: z.string().uuid().nullable().optional(),
   special_requests: z.string().max(2000).nullable().optional(),
   package_id: z.string().uuid().nullable().optional(),
 });
