@@ -29,6 +29,7 @@ export interface RoomingLine {
   arrival_date: string | null;
   departure_date: string | null;
   room_preference: string | null;
+  room_id?: string | null;
   special_requests: string | null;
   adults: number;
   children: number;
