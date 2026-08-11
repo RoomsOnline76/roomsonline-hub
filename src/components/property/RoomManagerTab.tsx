@@ -20,6 +20,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { validateImageDimensions, getValidationErrorMessage } from "@/lib/imageValidation";
+import { useImageDimensionAudit } from "@/hooks/useImageDimensionAudit";
+import { ImageQualityMarker } from "@/components/property/ImageQualityMarker";
 import RuImageTagPicker from "@/components/property/RuImageTagPicker";
 import { normalizeRuImageTagMap } from "@/lib/ruImageTags";
 
