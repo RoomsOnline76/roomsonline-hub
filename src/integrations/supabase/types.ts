@@ -5032,6 +5032,8 @@ export type Database = {
           property_url: string | null
           rate_resolution_mode: string
           ref_code: string | null
+          refund_auto_approve_cap: number
+          refund_auto_approve_enabled: boolean
           rentalsunited_building_id: string | null
           rentalsunited_property_id: string | null
           review_sentiment: Json | null
@@ -5139,6 +5141,8 @@ export type Database = {
           property_url?: string | null
           rate_resolution_mode?: string
           ref_code?: string | null
+          refund_auto_approve_cap?: number
+          refund_auto_approve_enabled?: boolean
           rentalsunited_building_id?: string | null
           rentalsunited_property_id?: string | null
           review_sentiment?: Json | null
@@ -5246,6 +5250,8 @@ export type Database = {
           property_url?: string | null
           rate_resolution_mode?: string
           ref_code?: string | null
+          refund_auto_approve_cap?: number
+          refund_auto_approve_enabled?: boolean
           rentalsunited_building_id?: string | null
           rentalsunited_property_id?: string | null
           review_sentiment?: Json | null
@@ -11838,44 +11844,100 @@ export type Database = {
       rolos_refunds: {
         Row: {
           amount: number
+          approved_at: string | null
           approved_by: string | null
+          booking_id: string | null
           created_at: string
+          entitled_amount: number | null
+          gateway: string | null
+          gateway_error: string | null
           gateway_refund_id: string | null
           id: string
-          payment_id: string
+          internal_notes: string | null
+          manual_settlement: boolean
+          payment_id: string | null
+          payment_transaction_id: string | null
+          pf_payment_id: string | null
           processed_at: string | null
           property_id: string
           reason: string
+          reason_category: string | null
+          rejected_by: string | null
+          rejected_reason: string | null
+          requested_amount: number | null
+          requested_by: string | null
           status: Database["public"]["Enums"]["refund_status"]
           updated_at: string
         }
         Insert: {
           amount: number
+          approved_at?: string | null
           approved_by?: string | null
+          booking_id?: string | null
           created_at?: string
+          entitled_amount?: number | null
+          gateway?: string | null
+          gateway_error?: string | null
           gateway_refund_id?: string | null
           id?: string
-          payment_id: string
+          internal_notes?: string | null
+          manual_settlement?: boolean
+          payment_id?: string | null
+          payment_transaction_id?: string | null
+          pf_payment_id?: string | null
           processed_at?: string | null
           property_id: string
           reason: string
+          reason_category?: string | null
+          rejected_by?: string | null
+          rejected_reason?: string | null
+          requested_amount?: number | null
+          requested_by?: string | null
           status?: Database["public"]["Enums"]["refund_status"]
           updated_at?: string
         }
         Update: {
           amount?: number
+          approved_at?: string | null
           approved_by?: string | null
+          booking_id?: string | null
           created_at?: string
+          entitled_amount?: number | null
+          gateway?: string | null
+          gateway_error?: string | null
           gateway_refund_id?: string | null
           id?: string
-          payment_id?: string
+          internal_notes?: string | null
+          manual_settlement?: boolean
+          payment_id?: string | null
+          payment_transaction_id?: string | null
+          pf_payment_id?: string | null
           processed_at?: string | null
           property_id?: string
           reason?: string
+          reason_category?: string | null
+          rejected_by?: string | null
+          rejected_reason?: string | null
+          requested_amount?: number | null
+          requested_by?: string | null
           status?: Database["public"]["Enums"]["refund_status"]
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "rolos_refunds_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_refunds_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings_decrypted"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "rolos_refunds_payment_id_fkey"
             columns: ["payment_id"]
@@ -15837,7 +15899,12 @@ export type Database = {
         | "demand"
         | "manual_override"
       referral_status: "pending" | "qualified" | "converted" | "churned"
-      refund_status: "pending" | "approved" | "processed" | "rejected"
+      refund_status:
+        | "pending"
+        | "approved"
+        | "processed"
+        | "rejected"
+        | "failed"
       rolos_reservation_status:
         | "pending"
         | "confirmed"
@@ -16132,7 +16199,7 @@ export const Constants = {
         "manual_override",
       ],
       referral_status: ["pending", "qualified", "converted", "churned"],
-      refund_status: ["pending", "approved", "processed", "rejected"],
+      refund_status: ["pending", "approved", "processed", "rejected", "failed"],
       rolos_reservation_status: [
         "pending",
         "confirmed",

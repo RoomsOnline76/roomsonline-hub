@@ -339,6 +339,63 @@ Deno.serve(async (req) => {
     await queueRuAriDelta(supabase, booking.property_id, "booking_cancelled", { force: true });
 
 
+    // S8b: Raise a refund request when the guest has actually paid, so the money
+    // returned is registered, approved and executed through the refund register
+    // rather than settled off-system.
+    if (!isPartialCancel) {
+      const paymentStatus = String(booking.payment_status || "").toLowerCase();
+      const alreadyRefunded = ["refunded", "partially_refunded"].includes(paymentStatus);
+      const hasFunds = ["paid", "settled", "completed", "partially_paid", "deposit_paid"].includes(
+        paymentStatus,
+      );
+      if (hasFunds && !alreadyRefunded) {
+        try {
+          const { data: existing } = await supabase
+            .from("rolos_refunds")
+            .select("id")
+            .eq("booking_id", booking_id)
+            .in("status", ["pending", "approved", "processed"])
+            .limit(1);
+          if (!existing || existing.length === 0) {
+            const res = await fetch(
+              `${Deno.env.get("SUPABASE_URL")}/functions/v1/refunds-api`,
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+                },
+                body: JSON.stringify({
+                  action: "request_refund",
+                  booking_id,
+                  // The policy entitlement is resolved inside refunds-api; the
+                  // request starts at the entitled amount where one exists.
+                  amount: Number(booking.total_price) || 0,
+                  reason: `Cancellation: ${reason}`.slice(0, 500),
+                  reason_category: updateData.cancellation_reason_category === "guest_request"
+                    ? "guest_request"
+                    : updateData.cancellation_reason_category === "channel_cancelled"
+                    ? "channel_cancelled"
+                    : updateData.cancellation_reason_category === "no_show"
+                    ? "no_show"
+                    : updateData.cancellation_reason_category === "date_change"
+                    ? "date_change"
+                    : updateData.cancellation_reason_category === "property_operator"
+                    ? "property_operator"
+                    : "other",
+                }),
+              },
+            );
+            if (!res.ok) {
+              console.error("[cancel-booking] refund request failed:", res.status, await res.text());
+            }
+          }
+        } catch (refundErr) {
+          console.error("[cancel-booking] refund registration failed (non-critical):", refundErr);
+        }
+      }
+    }
+
     // S9: Send cancellation email
     try {
       await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-booking-email`, {
