@@ -584,7 +584,7 @@ Deno.serve(async (req) => {
         if (invBookingId) {
           const { data: bk } = await supabase
             .from("bookings")
-            .select("id, guest_name, guest_email, check_in_date, check_out_date, total_price, status, property_id, company_account_id, agent_account_id, source_account_id, booking_channel, comm_channel, commission_rate_applied, calculated_commission, invoice_to_name, invoice_to_vat, invoice_to_address, deposit_amount, deposit_due_date, rol_reference, payment_status")
+            .select("id, guest_name, guest_email, guest_phone, check_in_date, check_out_date, total_price, status, property_id, company_account_id, agent_account_id, source_account_id, booking_channel, comm_channel, commission_rate_applied, calculated_commission, invoice_to_name, invoice_to_vat, invoice_to_address, deposit_amount, deposit_due_date, rol_reference, payment_status, payment_method, rooms, adults, teens, children, infants, special_requests, room_type_id")
             .eq("id", invBookingId)
             .maybeSingle();
 
