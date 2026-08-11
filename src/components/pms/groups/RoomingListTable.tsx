@@ -15,6 +15,7 @@ export interface RoomingRow extends RoomingLine {
   status: string;
   booking_id: string | null;
   room_type_id: string | null;
+  room?: { room_name: string | null; room_number: string | null } | null;
 }
 
 interface RoomingListTableProps {
