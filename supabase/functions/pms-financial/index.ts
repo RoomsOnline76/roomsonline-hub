@@ -449,6 +449,14 @@ function generateInvoiceHTML(
             </td></tr>
           </table>
 
+          <p style="margin:-8px 0 24px;font-size:11.5px;color:${t.muted};">${
+            isVatRegistered
+              ? `All amounts are quoted in ${esc(currency)} and include VAT at ${vatRate.toFixed(vatRate % 1 === 0 ? 0 : 2)}%${vatNumber ? `. VAT registration number ${esc(vatNumber)}` : ""}.${isProForma ? " VAT becomes claimable only on the tax invoice issued after departure." : " This document serves as a tax invoice for VAT purposes."}${vatExemptTotal > 0.009 ? " Refundable deposits are not consideration for a supply and carry no VAT." : ""}`
+              : `All amounts are quoted in ${esc(currency)}. ${esc(businessName)} is not registered for VAT, therefore no VAT is charged on this document.`
+          }</p>
+
+
+
           ${sectionBlock("Payments received", allPayments.length
             ? `<table style="width:100%;border-collapse:collapse;">${paymentRows}</table>`
             : `<p style="margin:0;font-size:13px;color:${t.muted};">No payments received to date.</p>`)}
