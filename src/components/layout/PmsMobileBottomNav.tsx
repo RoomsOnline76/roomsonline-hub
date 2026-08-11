@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { hasMinRole } from "@/lib/permissions";
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 import { usePmsStaffRole } from "@/hooks/usePmsStaffRole";
+import { VersionBadge } from "./VersionBadge";
 import { getVisibleModules } from "@/lib/pmsPermissions";
 import { pmsNavGroups, type NavItem } from "./PMSSidebar";
 import {
@@ -167,6 +168,8 @@ export function PmsMobileBottomNav() {
                 <LogOut className="h-5 w-5" />
                 Sign out
               </button>
+
+              <VersionBadge />
             </div>
           </SheetContent>
         </Sheet>

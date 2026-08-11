@@ -22,6 +22,7 @@ import { useHelp } from "@/contexts/HelpContext";
 import { ProfileModal } from "@/components/ProfileModal";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { RoleIndicator } from "./RoleIndicator";
+import { VersionBadge } from "./VersionBadge";
 import { navigationConfig, type NavItem, type NavSection } from "@/config/navigation";
 import { useNavVisibility } from "@/hooks/useNavVisibility";
 import { hasMinRole, type UserRole } from "@/lib/permissions";
@@ -396,6 +397,11 @@ export function AppSidebar() {
             </Tooltip>
           </div>
         )}
+      </div>
+
+      {/* Version / build stamp */}
+      <div className="px-3 pb-3">
+        <VersionBadge collapsed={collapsed} />
       </div>
 
       <ProfileModal 

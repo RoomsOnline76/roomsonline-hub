@@ -36,6 +36,7 @@ import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 import { usePmsHousekeepingCounts } from "@/hooks/usePmsHousekeepingCounts";
 import { getVisibleModules, type PmsModule } from "@/lib/pmsPermissions";
 import { PoweredByRolOS } from "@/components/pms/PoweredByRolOS";
+import { VersionBadge } from "@/components/layout/VersionBadge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Check } from "lucide-react";
@@ -324,6 +325,8 @@ export function PMSSidebar() {
         )}
 
         <PoweredByRolOS className="pb-2" />
+
+        <VersionBadge collapsed={collapsed} />
 
         {/* Collapse toggle */}
         <button
