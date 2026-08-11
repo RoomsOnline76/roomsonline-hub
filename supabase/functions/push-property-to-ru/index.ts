@@ -1716,11 +1716,14 @@ async function verifyPrices(
 
   const report: PriceVerification = { checked: false, total_seasons: requested.length, matches: 0, mismatches: [], missing_dates: [] };
   try {
-    const { data, error } = await supabase.functions.invoke('rentalsunited-api', {
-      body: { action: 'get_prices', ru_property_id: ruPropertyId, date_from: windowFrom, date_to: windowTo, ...childAuth },
-    });
-    if (error || !data?.success || !data?.raw_xml) {
-      report.error = error?.message || data?.error?.message || 'No XML returned';
+    const attempt = await invokeRuWithRetry(
+      supabase,
+      { action: 'get_prices', ru_property_id: ruPropertyId, date_from: windowFrom, date_to: windowTo, ...childAuth },
+      { label: `get_prices ${ruPropertyId}` },
+    );
+    const data = attempt.data;
+    if (!attempt.ok || !data?.raw_xml) {
+      report.error = attempt.message || 'No XML returned';
       return report;
     }
     const xml = String(data.raw_xml);
@@ -1795,11 +1798,14 @@ async function verifyAvailability(
   const report: AvailabilityVerification = { checked: false, total_days: 0, matches: 0, mismatches: [], booked_days_checked: 0, booked_days_open: [] };
 
   try {
-    const { data, error } = await supabase.functions.invoke('rentalsunited-api', {
-      body: { action: 'get_availability', ru_property_id: ruPropertyId, date_from: windowFrom, date_to: windowTo, ...childAuth },
-    });
-    if (error || !data?.success || !data?.raw_xml) {
-      report.error = error?.message || data?.error?.message || 'No XML returned';
+    const attempt = await invokeRuWithRetry(
+      supabase,
+      { action: 'get_availability', ru_property_id: ruPropertyId, date_from: windowFrom, date_to: windowTo, ...childAuth },
+      { label: `get_availability ${ruPropertyId}` },
+    );
+    const data = attempt.data;
+    if (!attempt.ok || !data?.raw_xml) {
+      report.error = attempt.message || 'No XML returned';
       return report;
     }
     // Build expected per-day map from requested ranges, clamped to the read-back window.
@@ -3942,9 +3948,17 @@ Deno.serve(async (req) => {
 
         console.log(`[push-property-to-ru] Step 2: Pushing unit "${unit.name}" (existing RU ID: ${existingUnitRuId}, building: ${buildingId}, object_type_id: ${objTypeId})`);
 
-        let { data: pushResult, error: pushErr } = await supabase.functions.invoke('rentalsunited-api', {
-          body: { action: 'push_property', ru_property_id: existingUnitRuId, property: unitPayload, ...childAuthPayload },
-        });
+        // Transport-level invoke failures ("Failed to send a request to the Edge Function",
+        // worker cold-boot) used to fail a whole unit push on the first hiccup — retry those.
+        const unitAttempt = await invokeRuWithRetry(
+          supabase,
+          { action: 'push_property', ru_property_id: existingUnitRuId, property: unitPayload, ...childAuthPayload },
+          { label: `push_property unit ${unit.name}` },
+        );
+        let pushResult: any = unitAttempt.data;
+        let pushErr: { message: string } | null = unitAttempt.ok
+          ? null
+          : { message: unitAttempt.message || 'Unknown error' };
 
         // Stale RU ID recovery: a stored unit ID can point at a property that no longer
         // exists under this owner (account recreated / unit deleted in RU). RU answers
