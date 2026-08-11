@@ -269,12 +269,14 @@ export default function AiAmenityDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-base">
             <Sparkles className="h-4 w-4 text-primary" />
-            TOBI amenity &amp; facility check
+            {unitScope ? `TOBI amenity check — ${unitScope.unitName}` : "TOBI amenity & facility check"}
           </DialogTitle>
           <DialogDescription className="text-xs">
-            TOBI reviews the property website, the property photos and the ROLOS record for this property and its units, then
-            proposes matching channel amenities. Nothing is saved until you approve the selection.
+            {unitScope
+              ? `TOBI reviews the property website, the photos and the ROLOS record for ${unitScope.unitName}, then proposes matching channel amenities for this unit. Nothing is saved until you approve the selection.`
+              : "TOBI reviews the property website, the property photos and the ROLOS record for this property and its units, then proposes matching channel amenities. Nothing is saved until you approve the selection."}
           </DialogDescription>
+
         </DialogHeader>
 
         {!result && (
