@@ -368,7 +368,7 @@ function generateInvoiceHTML(
                   ${logoUrl ? `<img src="${esc(logoUrl)}" alt="${esc(businessName)}" style="max-height:56px;max-width:190px;display:block;margin-bottom:8px;" />` : ""}
                   <div style="font-family:${t.headingFont};font-size:24px;color:#ffffff;letter-spacing:0.4px;">${esc(businessName)}</div>
                   ${businessAddress ? `<div style="margin-top:6px;font-size:12px;color:rgba(255,255,255,0.7);">${esc(businessAddress)}</div>` : ""}
-                  ${isVatRegistered && vatNumber && !isProForma ? `<div style="margin-top:4px;font-size:12px;color:rgba(255,255,255,0.7);">VAT No: ${esc(vatNumber)}</div>` : ""}
+                  ${isVatRegistered && vatNumber ? `<div style="margin-top:4px;font-size:12px;color:rgba(255,255,255,0.7);">VAT registration No: ${esc(vatNumber)}</div>` : ""}
                 </td>
                 <td style="vertical-align:top;text-align:right;">
                   <div style="font-family:${t.headingFont};font-size:16px;letter-spacing:2.4px;text-transform:uppercase;color:${t.accent};">${docTitle}</div>
