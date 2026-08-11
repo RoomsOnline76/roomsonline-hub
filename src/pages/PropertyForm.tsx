@@ -808,6 +808,7 @@ export default function PropertyForm({
     { forfeit: "100", type: "% of Total", days: "30" },
   ]);
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
+  const propertyImageAudit = useImageDimensionAudit(uploadedImages);
   /** Rentals United photo tags, keyed by image URL: { "<url>": [4, 83] } */
   const [imageTags, setImageTags] = useState<RuImageTagMap>({});
 
