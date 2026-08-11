@@ -15758,6 +15758,10 @@ export type Database = {
         Args: { _property_id: string; _room_type_id: string }
         Returns: number
       }
+      scoped_admin_can_access_portfolio: {
+        Args: { _portfolio_id: string; _user_id: string }
+        Returns: boolean
+      }
       search_audit_logs: {
         Args: {
           date_from?: string
