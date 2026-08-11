@@ -153,14 +153,17 @@ export function useRuApiLog(filters: RuApiLogFilters) {
     return (data as RuApiLogDetail | null) ?? null;
   }, []);
 
+  const loadMore = useCallback(() => fetchPage(rows.length), [fetchPage, rows.length]);
+
   const stats = useMemo(() => {
     const failures = rows.filter((r) => !r.success).length;
     const withResponseId = rows.filter((r) => !!r.response_id).length;
     const avgMs = rows.length
       ? Math.round(rows.reduce((sum, r) => sum + (r.elapsed_ms ?? 0), 0) / rows.length)
       : 0;
-    return { total: rows.length, failures, withResponseId, avgMs, truncated: rows.length >= PAGE_SIZE };
-  }, [rows]);
+    return { total: rows.length, failures, withResponseId, avgMs, truncated: hasMore, totalCount };
+  }, [rows, hasMore, totalCount]);
 
-  return { rows, actions, stats, loading, error, refresh: load, loadDetail };
+  return { rows, actions, stats, loading, loadingMore, hasMore, error, refresh: load, loadMore, loadDetail };
+
 }
