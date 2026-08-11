@@ -11,7 +11,7 @@
 //   wl_readiness     → per-property White-Label minimum inventory report
 //   user_management  → status of RU sub-user management (parked)
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { summarizeReadiness, bookableWindowChecks, localBookableWindowChecks, type RuCheck, type RuUnitInput } from "../_shared/ruReadiness.ts";
+import { summarizeReadiness, bookableWindowChecks, localBookableWindowChecks, currencyVerificationChecks, type RuCheck, type RuUnitInput } from "../_shared/ruReadiness.ts";
 import { computeLocalBookableWindow } from "../_shared/ruLocalWindow.ts";
 import { findRuBookableWindow, type RuBookableWindow } from "../_shared/ruContentQuality.ts";
 import { evaluatePhases, findOwnerAccount, resolvePortfolioId } from "../_shared/ruPhaseGate.ts";
@@ -436,7 +436,10 @@ const RU_ENDPOINT_REGISTRY: {
 
   // ── content ──
   { key: "push_property", area: "content", label: "Push property content", ru_method: "Push_PutProperty_RQ", direction: "push", mandatory: true, implemented: true,
-    rolos_surface: "Edit property → push to RU / weekly cron", rolos_stream: "Onboarding P3 — content publish", rolos_wired: true, sync_actions: ["inventory_push", "weekly_content_refresh"], max_age_hours: 168, note: "Create + update, photos, amenities, composition" },
+    rolos_surface: "Edit property → push to RU / delta on change / weekly cron", rolos_stream: "Onboarding P3 — content publish", rolos_wired: true, sync_actions: ["inventory_push", "weekly_content_refresh", "static_delta"], max_age_hours: 168, note: "Create + update, photos, amenities, composition. Also pushed as a differential whenever static content changes in the PMS (logged as static_delta)" },
+  { key: "static_delta", area: "content", label: "Static content delta on change", ru_method: "Push_PutProperty_RQ (differential)", direction: "push", mandatory: true, implemented: true,
+    rolos_surface: "Edit property → save (SHA-256 content fingerprint)", rolos_stream: "Content — event-driven delta", rolos_wired: true, sync_actions: ["static_delta"], note: "Event-driven: fires only when the fingerprint of the pushed content changes, so RU never waits for the weekly cron" },
+
   { rolos_via_cert: true, key: "get_property", area: "content", label: "Get property content (read-back)", ru_method: "Pull_GetProperty_RQ", direction: "pull", mandatory: true, implemented: true,
     cert_methods: ["Pull_ListCompositionRooms_RQ"],
     rolos_surface: "RU console → readiness / verification", rolos_stream: "Onboarding P3 — publish verification", rolos_wired: true, sync_actions: ["verify_property", "property_readiness"], note: "Read-back verification" },
@@ -455,10 +458,11 @@ const RU_ENDPOINT_REGISTRY: {
     rolos_surface: "RU console → ARI read-back", rolos_stream: "Onboarding P4 — ARI verification", rolos_wired: true, sync_actions: ["verify_availability"], note: "CalDay/Units parsing" },
   { rolos_via_cert: true, key: "get_prices", area: "ari", label: "Get prices (365d)", ru_method: "Pull_ListPropertyPrices_RQ", direction: "pull", mandatory: true, implemented: true,
     rolos_surface: "RU console → ARI read-back", rolos_stream: "Onboarding P4 — ARI verification", rolos_wired: true, sync_actions: ["verify_prices"], note: "" },
-  { rolos_via_cert: true, key: "long_stay", area: "ari", label: "Long-stay discounts", ru_method: "Push_PutLongStayDiscounts_RQ", direction: "push", mandatory: false, implemented: true,
-    rolos_surface: "RU console → Discounts ladder", rolos_stream: "Specials / discount ladder", rolos_wired: true, sync_actions: ["push_long_stay"], note: "Optional but recommended" },
-  { rolos_via_cert: true, key: "last_minute", area: "ari", label: "Last-minute discounts", ru_method: "Push_PutLastMinuteDiscounts_RQ", direction: "push", mandatory: false, implemented: true,
-    rolos_surface: "RU console → Discounts ladder", rolos_stream: "Specials / discount ladder", rolos_wired: true, sync_actions: ["push_last_minute"], note: "Optional but recommended" },
+  { key: "long_stay", area: "ari", label: "Long-stay discounts", ru_method: "Push_PutLongStayDiscounts_RQ", direction: "push", mandatory: false, implemented: true, max_age_hours: 24,
+    rolos_surface: "Discount ladder save (event) + daily discount cron", rolos_stream: "Specials / discount ladder", rolos_wired: true, sync_actions: ["push_long_stay", "push_discounts", "refresh_discounts", "inventory_push"], note: "Pushed on change and re-pushed daily" },
+  { key: "last_minute", area: "ari", label: "Last-minute discounts", ru_method: "Push_PutLastMinuteDiscounts_RQ", direction: "push", mandatory: false, implemented: true, max_age_hours: 24,
+    rolos_surface: "Discount ladder save (event) + daily discount cron", rolos_stream: "Specials / discount ladder", rolos_wired: true, sync_actions: ["push_last_minute", "push_discounts", "refresh_discounts", "inventory_push"], note: "Pushed on change and re-pushed daily" },
+
 
   // ── reservations ──
   { key: "reservations", area: "reservations", label: "Pull reservations", ru_method: "Pull_ListReservations_RQ", direction: "pull", mandatory: true, implemented: true,
@@ -495,7 +499,8 @@ const RU_ENDPOINT_REGISTRY: {
   { rolos_via_cert: true, key: "lnm_duplicate", area: "notifications", label: "LNM duplicate-subscription test", ru_method: "Push_PutLiveNotificationMechanismSubscriptions_RQ (idempotency)", direction: "push", mandatory: false, implemented: true,
     rolos_surface: "Live notifications panel → Duplicate test", rolos_stream: "Certification evidence", rolos_wired: true, sync_actions: ["lnm_duplicate_test"], note: "Subscribes twice, proves RU holds one record" },
   { key: "lnm_inbound", area: "notifications", label: "Inbound notification handler", ru_method: "LNM notification (inbound)", direction: "webhook", mandatory: true, implemented: true,
-    rolos_surface: "ru-lnm-handler → MCQ orders / refresh", rolos_stream: "Inbound webhooks", rolos_wired: true, sync_actions: ["LNM_Notification"], note: "Routes PropertyMCQEligibilityCheck" },
+    rolos_surface: "ru-lnm-handler → MCQ orders + corrective re-pull", rolos_stream: "Inbound webhooks", rolos_wired: true, sync_actions: ["LNM_Notification", "lnm_repull"], note: "Routes PropertyMCQEligibilityCheck; ARI/static change types trigger an immediate corrective read-back" },
+
   { key: "sales_channels", area: "notifications", label: "List sales channels", ru_method: "Pull_ListSalesChannels_RQ", direction: "pull", mandatory: true, implemented: true,
     rolos_surface: "RU console → Phase 4 channel ID", rolos_stream: "Onboarding P4 — channel readiness", rolos_wired: true, sync_actions: ["resolve_sales_channel", "list_sales_channels"], max_age_hours: 720, note: "Resolves LekkeSlaap ChannelID for MCQ" },
   { rolos_via_cert: true, informational: true, max_age_hours: 168, key: "mcq", area: "notifications", label: "Order content quality check", ru_method: "CM_LNM_OrderMinimumContentQualityCheck_RQ", direction: "push", mandatory: false, implemented: true,
@@ -503,15 +508,28 @@ const RU_ENDPOINT_REGISTRY: {
   { rolos_via_cert: true, informational: true, max_age_hours: 168, key: "mcq_duplicate", area: "notifications", label: "MCQ duplicate-order test", ru_method: "CM_LNM_OrderMinimumContentQualityCheck_RQ (idempotency)", direction: "push", mandatory: false, implemented: true,
     rolos_surface: "Live notifications panel → Duplicate test", rolos_stream: "Certification evidence", rolos_wired: true, sync_actions: ["mcq_duplicate_test"], note: "Orders twice; no usable channel response in this account — blocked upstream, excluded from the score" },
 
+  // ── dictionaries / helpers (informational: implemented adapter surface, not scored) ──
+  { rolos_via_cert: true, informational: true, key: "amenities_dictionary", area: "content", label: "Amenity dictionary", ru_method: "Pull_ListAmenities_RQ", direction: "pull", mandatory: false, implemented: true,
+    rolos_surface: "Edit property → amenity mapping (ru_amenities cache)", rolos_stream: "Reference data", rolos_wired: true, sync_actions: ["list_amenities", "refresh_amenities"], note: "Dictionary read — populates the RU amenity register" },
+  { rolos_via_cert: true, informational: true, key: "composition_dictionary", area: "content", label: "Composition room dictionary", ru_method: "Pull_ListCompositionRooms_RQ", direction: "pull", mandatory: false, implemented: true,
+    rolos_surface: "Edit property → composition builder", rolos_stream: "Reference data", rolos_wired: true, sync_actions: ["list_composition_rooms"], note: "Dictionary read — bedroom / bathroom / kitchen type IDs" },
+  { rolos_via_cert: true, informational: true, key: "location_lookup", area: "account", label: "Location lookup helpers", ru_method: "Pull_GetLocationByCoordinates_RQ / Pull_ListLocationsBySearchString_RQ", direction: "pull", mandatory: false, implemented: true,
+    rolos_surface: "Edit property → address resolution", rolos_stream: "Onboarding P2 — address mapping", rolos_wired: true, sync_actions: ["get_location_by_coordinates", "get_location_by_name"], note: "Resolves the RU LocationID from coordinates or a city name" },
+  { rolos_via_cert: true, informational: true, key: "cities_currencies", area: "account", label: "Cities + currencies register", ru_method: "Pull_ListCitiesProps_RQ", direction: "pull", mandatory: false, implemented: true,
+    rolos_surface: "RU console → Currency panel (register refresh)", rolos_stream: "Reference data", rolos_wired: true, sync_actions: ["list_cities_and_currencies"], note: "Not enabled by the channel for this account — implemented and exercised, response is not usable" },
+  { rolos_via_cert: true, informational: true, key: "property_status", area: "content", label: "Set listing status (archive / restore)", ru_method: "Push_PutPropertyStatus_RQ", direction: "push", mandatory: false, implemented: true,
+    rolos_surface: "Channel monitor → activate / deactivate listing", rolos_stream: "Lifecycle — archive & reactivate", rolos_wired: true, sync_actions: ["set_property_status", "archive_property", "reactivate_property"], note: "Used by the archive / one-click reactivation flow" },
 
 ];
 
 
+
 // Refresh cadences mandated by RU (hours)
 const CADENCE_RULES = [
-  { key: "PutProperty", label: "Property content refresh", ru_method: "Push_PutProperty_RQ", max_age_hours: 168, actions: ["weekly_content_refresh", "PutProperty", "push_property"] },
+  { key: "PutProperty", label: "Property content refresh", ru_method: "Push_PutProperty_RQ", max_age_hours: 168, actions: ["weekly_content_refresh", "PutProperty", "push_property", "static_delta", "inventory_push"] },
   { key: "PutAvbUnits", label: "Availability refresh", ru_method: "Push_PutAvbUnits_RQ", max_age_hours: 24, actions: ["refresh_ari", "PutAvbUnits", "push_availability", "availability_playground", "duplicate_range_test"] },
   { key: "PutPrices", label: "Pricing refresh", ru_method: "Push_PutPrices_RQ", max_age_hours: 24, actions: ["refresh_ari", "PutPrices", "push_prices", "pricing_playground", "pricing_duplicate_test"] },
+  { key: "PutDiscounts", label: "Discount ladder refresh", ru_method: "Push_PutLongStayDiscounts_RQ / Push_PutLastMinuteDiscounts_RQ", max_age_hours: 24, actions: ["refresh_discounts", "push_discounts", "push_long_stay", "push_last_minute", "inventory_push"] },
   { key: "ListReservations", label: "Reservation pull", ru_method: "Pull_ListReservations_RQ", max_age_hours: 1, actions: ["pull_reservations", "ListReservations"] },
   { key: "PutHandlerUrl", label: "RLNM handler subscription", ru_method: "LNM_PutHandlerUrl_RQ", max_age_hours: 24, actions: ["weekly_content_refresh", "PutHandlerUrl", "RLNM"] },
   { key: "PutLnmSubscriptions", label: "LNM subscriptions (content + ARI)", ru_method: "Push_PutLiveNotificationMechanismSubscriptions_RQ", max_age_hours: 24, actions: ["PutLnmSubscriptions", "LNM", "lnm_duplicate_test"] },
@@ -523,9 +541,12 @@ const CADENCE_RULES = [
 const EXPECTED_JOBS = [
   { jobname: "ru-content-weekly", schedule: "0 2 * * 1", fn: "cron-push-all-properties-to-ru", label: "Weekly property content push" },
   { jobname: "ru-ari-refresh", schedule: "0 */6 * * *", fn: "cron-refresh-ru-ari", label: "ARI refresh (every 6h)" },
+  { jobname: "ru-discounts-daily", schedule: "0 4 * * *", fn: "cron-refresh-ru-discounts", label: "Discount ladder push (daily)" },
   { jobname: "ru-reservations-poll", schedule: "*/30 * * * *", fn: "cron-pull-ru-reservations", label: "Reservation poll (every 30 min)" },
   { jobname: "ru-rlnm-daily", schedule: "0 1 * * *", fn: "cron-ru-rlnm-refresh", label: "RLNM + LNM subscriptions re-subscribe (daily)" },
+  { jobname: "prune-ru-api-log-daily", schedule: "17 3 * * *", fn: "cron-prune-ru-api-log", label: "XML log retention prune (daily, 90-day window)" },
 ];
+
 
 const RUNNABLE_JOBS = new Set(EXPECTED_JOBS.map((j) => j.fn));
 
@@ -547,10 +568,15 @@ const MILESTONE_SYNC_ACTIONS: Record<string, string[]> = {
   "Pull_ListReservations_RQ": ["pull_reservations"],
   "Pull_GetReservationByID_RQ": ["reservation_detail_test", "get_reservation_by_id"],
   "Pull_GetLeads_RQ": ["lead_lifecycle", "pull_reservations"],
-  "Push_PutProperty_RQ": ["inventory_push", "weekly_content_refresh"],
+  "Push_PutProperty_RQ": ["inventory_push", "weekly_content_refresh", "static_delta"],
+  "Push_PutProperty_RQ (differential)": ["static_delta"],
   "Push_PutAvbUnits_RQ": ["refresh_ari", "availability_playground", "duplicate_range_test"],
   "Push_PutPrices_RQ": ["refresh_ari", "pricing_playground", "pricing_duplicate_test"],
+  "Push_PutLongStayDiscounts_RQ": ["push_long_stay", "push_discounts", "refresh_discounts", "inventory_push"],
+  "Push_PutLastMinuteDiscounts_RQ": ["push_last_minute", "push_discounts", "refresh_discounts", "inventory_push"],
+  "LNM notification (inbound)": ["LNM_Notification", "lnm_repull"],
   "Pull_ListSalesChannels_RQ": ["resolve_sales_channel", "list_sales_channels"],
+
 };
 
 /** Cert runs are orchestrated in phases from the browser; a closed tab or a failed phase
@@ -1294,6 +1320,18 @@ Deno.serve(async (req) => {
         ari = { rate_coverage: localCoverage, pending_publish: true, local_window: localWindow };
       }
 
+      // Currency verification is a wizard gate too — the Currency panel is no longer the
+      // only place it is visible, so a property cannot clear onboarding unverified.
+      {
+        const { data: currencyState } = await admin
+          .from("ru_currency_state")
+          .select("published_currency_iso, ru_reported_currency_iso, verified_at")
+          .eq("property_id", p.id)
+          .maybeSingle();
+        extraChecks.push(...currencyVerificationChecks(currencyState ?? null, {
+          published: !(ari as { pending_publish?: boolean } | null)?.pending_publish,
+        }));
+      }
 
       const summary = summarizeReadiness(units, extraChecks);
 

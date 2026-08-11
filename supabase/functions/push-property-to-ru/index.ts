@@ -3459,14 +3459,25 @@ Deno.serve(async (req) => {
       // hiccup, not a data defect — code it distinctly so the health report and the channel monitor
       // can separate a flaky upstream from a real push failure.
       const upstreamOnly = !allOk && !allStale && failedTargets.every(isTransport);
+      /**
+       * A single target that lost its worker mid-batch must not sink the whole refresh: the
+       * other targets did reach the channel and their ARI is current. Report the run as a
+       * partial success (green with a warning) and keep the per-target errors in `details`;
+       * only a run where every target failed is a red run.
+       */
+      const allFailed = failedCount > 0 && failedCount === ariResults.length;
+      const partialTransient = !allOk && !allStale && !allFailed && failedTargets.every(isTransport);
+      const runOk = allOk || partialTransient;
 
       const errorCode = allOk
         ? null
         : allStale
           ? 'RU_LISTING_STALE'
-          : upstreamOnly
-            ? 'RU_UPSTREAM_UNAVAILABLE'
-            : 'RU_ARI_REFRESH_INCOMPLETE';
+          : partialTransient
+            ? 'RU_ARI_PARTIAL_TRANSIENT'
+            : upstreamOnly
+              ? 'RU_UPSTREAM_UNAVAILABLE'
+              : 'RU_ARI_REFRESH_INCOMPLETE';
       const totalAttempts = ariResults.reduce((sum, r) => sum + (r.availability_attempts ?? 0) + (r.prices_attempts ?? 0), 0);
       const errorMessage = allOk
         ? null
@@ -3478,7 +3489,7 @@ Deno.serve(async (req) => {
           batch_id: crypto.randomUUID(),
           property_id,
           action: 'refresh_ari',
-          success: allOk,
+          success: runOk,
           error_code: errorCode,
           error_message: errorMessage,
           details: {
@@ -3486,8 +3497,10 @@ Deno.serve(async (req) => {
             trigger: typeof reqBody.trigger === 'string' ? reqBody.trigger : 'manual',
             stale_listings: staleCount,
             failed_targets: failedCount,
+            total_targets: ariResults.length,
             total_attempts: totalAttempts,
             upstream_only: upstreamOnly,
+            partial_transient: partialTransient,
             targets: ariResults,
           },
         });
@@ -3495,15 +3508,81 @@ Deno.serve(async (req) => {
 
       return new Response(
         JSON.stringify({
-          success: allOk,
+          success: runOk,
           action: 'refresh_ari',
           property_id,
+          partial: partialTransient,
           targets: ariResults,
-          ...(allOk ? {} : { error: { code: errorCode, message: errorMessage } }),
+          ...(allOk ? {} : { warning: errorMessage }),
+          ...(runOk ? {} : { error: { code: errorCode, message: errorMessage } }),
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
+
+    /**
+     * Discounts-only push (Push_PutLongStayDiscounts_RQ + Push_PutLastMinuteDiscounts_RQ).
+     * RU requires the discount ladder to be pushed on change AND at least daily; this is the
+     * path both the daily cron and the "save discount ladder" event use, so the cadence is
+     * evidenced in ru_sync_runs without re-sending static content or ARI.
+     */
+    if (action === 'discounts_only') {
+      const discountTargets: { ruId: number; roomTypeId?: string }[] = [];
+      if (isMultiUnit) {
+        for (const rt of activeRoomTypes) {
+          const ruId = parseInt(String(rt.rentalsunited_property_id ?? ''), 10);
+          if (ruId > 0) discountTargets.push({ ruId, roomTypeId: rt.id });
+        }
+      }
+      if (discountTargets.length === 0) {
+        const parentRuId = parseInt(String(property.rentalsunited_property_id ?? ''), 10);
+        if (parentRuId > 0) discountTargets.push({ ruId: parentRuId });
+      }
+
+      if (discountTargets.length === 0) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: {
+              code: 'RU_NOT_LISTED',
+              message: 'This property has no Channel Manager listing yet — run a full push before refreshing discounts.',
+            },
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
+
+      const discountResult = await pushDiscounts(supabase, property_id, discountTargets, childAuthPayload);
+      const discountsOk = (discountResult.discount_errors ?? []).length === 0;
+      try {
+        await supabase.from('ru_sync_runs').insert({
+          batch_id: crypto.randomUUID(),
+          property_id,
+          action: 'push_discounts',
+          success: discountsOk,
+          error_code: discountsOk ? null : 'RU_DISCOUNT_PUSH_FAILED',
+          error_message: discountsOk ? null : (discountResult.discount_errors ?? []).join('; '),
+          details: {
+            ru_owner_id: ruOwnerId,
+            trigger: typeof reqBody.trigger === 'string' ? reqBody.trigger : 'manual',
+            targets: discountTargets.map((t) => t.ruId),
+            ...discountResult,
+          },
+        });
+      } catch (_e) { /* evidence only */ }
+
+      return new Response(
+        JSON.stringify({
+          success: discountsOk,
+          action: 'discounts_only',
+          property_id,
+          ...discountResult,
+          ...(discountsOk ? {} : { error: { code: 'RU_DISCOUNT_PUSH_FAILED', message: (discountResult.discount_errors ?? []).join('; ') } }),
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
+
 
 
     if (!dry_run && !phaseGate.ready_for_push) {
