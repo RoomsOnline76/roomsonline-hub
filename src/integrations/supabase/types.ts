@@ -9601,6 +9601,7 @@ export type Database = {
           id: string
           package_id: string | null
           reservation_id: string | null
+          room_id: string | null
           room_preference: string | null
           room_type_id: string | null
           special_requests: string | null
@@ -9622,6 +9623,7 @@ export type Database = {
           id?: string
           package_id?: string | null
           reservation_id?: string | null
+          room_id?: string | null
           room_preference?: string | null
           room_type_id?: string | null
           special_requests?: string | null
@@ -9643,6 +9645,7 @@ export type Database = {
           id?: string
           package_id?: string | null
           reservation_id?: string | null
+          room_id?: string | null
           room_preference?: string | null
           room_type_id?: string | null
           special_requests?: string | null
@@ -9704,6 +9707,13 @@ export type Database = {
             columns: ["reservation_id"]
             isOneToOne: false
             referencedRelation: "rolos_reservations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_group_reservations_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_rooms"
             referencedColumns: ["id"]
           },
           {

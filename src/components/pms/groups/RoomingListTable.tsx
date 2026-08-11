@@ -15,6 +15,7 @@ export interface RoomingRow extends RoomingLine {
   status: string;
   booking_id: string | null;
   room_type_id: string | null;
+  room?: { room_name: string | null; room_number: string | null } | null;
 }
 
 interface RoomingListTableProps {
@@ -226,6 +227,7 @@ export default function RoomingListTable({
             <TableHeader>
               <TableRow>
                 <TableHead>Guest</TableHead>
+                <TableHead>Unit</TableHead>
                 <TableHead>Dates</TableHead>
                 <TableHead>Status</TableHead>
                 {!readOnly && <TableHead className="w-24" />}
@@ -241,6 +243,13 @@ export default function RoomingListTable({
                       <div className="font-medium">{r.guest_name || "—"}</div>
                       {r.guest_email && <div className="text-xs text-muted-foreground">{r.guest_email}</div>}
                       {r.room_preference && <div className="text-xs text-muted-foreground">Pref: {r.room_preference}</div>}
+                    </TableCell>
+                    <TableCell className="text-xs whitespace-nowrap">
+                      {r.room?.room_name || r.room?.room_number || (
+                        <span className="text-muted-foreground">
+                          {block?.room_type?.name ? `${block.room_type.name} · unassigned` : "Unassigned"}
+                        </span>
+                      )}
                     </TableCell>
                     <TableCell className="text-xs whitespace-nowrap">
                       {r.arrival_date && r.departure_date

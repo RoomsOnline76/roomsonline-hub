@@ -245,6 +245,7 @@ const pickupSchema = z.object({
   adults: z.number().int().min(1).max(20).optional(),
   children: z.number().int().min(0).max(20).optional(),
   room_preference: z.string().max(200).nullable().optional(),
+  room_id: z.string().uuid().nullable().optional(),
   special_requests: z.string().max(2000).nullable().optional(),
   package_id: z.string().uuid().nullable().optional(),
 });
@@ -395,6 +396,37 @@ Deno.serve(async (req) => {
         const nights = nightsBetween(arrival, departure);
         if (!nights.length) return json({ error: "Departure must be after arrival" }, 400);
 
+        // Optional hard assignment to a specific unit/room. It must belong to this
+        // property and block's room type, and must not already be occupied for the stay.
+        let assignedRoomId: string | null = null;
+        if (p.room_id) {
+          const { data: room } = await supabase
+            .from("rolos_rooms")
+            .select("id, room_name, room_number, room_type_id, property_id, status")
+            .eq("id", p.room_id)
+            .maybeSingle();
+          if (!room || room.property_id !== p.property_id) return json({ error: "Room not found for this property" }, 404);
+          if (room.room_type_id !== block.room_type_id) return json({ error: "That room is not part of the blocked room type" }, 400);
+          if (["out_of_order", "out_of_service", "maintenance"].includes(String(room.status || "").toLowerCase())) {
+            return json({ error: "That room is out of service" }, 409);
+          }
+          const { data: clashes } = await supabase
+            .from("rolos_booking_rooms")
+            .select("booking_id, booking:bookings!booking_id(check_in_date, check_out_date, status)")
+            .eq("room_id", p.room_id);
+          const occupied = (clashes || []).some((c: { booking: { check_in_date: string | null; check_out_date: string | null; status: string | null } | null }) => {
+            const b = c.booking;
+            if (!b || ["cancelled", "no_show"].includes(String(b.status || "").toLowerCase())) return false;
+            return !!b.check_in_date && !!b.check_out_date && b.check_in_date < departure && b.check_out_date > arrival;
+          });
+          if (occupied) {
+            const label = room.room_name || room.room_number || "That room";
+            return json({ error: `${label} is already occupied for those dates` }, 409);
+          }
+          assignedRoomId = room.id;
+        }
+
+
         let nightlyRate = Number(block.rate_override || 0);
         if (!nightlyRate) {
           const { data: rt } = await supabase
@@ -483,6 +515,7 @@ Deno.serve(async (req) => {
           const { error: roomErr } = await supabase.from("rolos_booking_rooms").insert({
             booking_id: booking.id,
             room_type_id: block.room_type_id,
+            room_id: assignedRoomId,
             rate_charged: totalPrice,
             nightly_rate: nightlyRate || null,
             adults: p.adults ?? 1,
@@ -497,6 +530,7 @@ Deno.serve(async (req) => {
             block_id: p.block_id,
             booking_id: booking.id,
             room_type_id: block.room_type_id,
+            room_id: assignedRoomId,
             guest_name: p.guest_name,
             guest_email: p.guest_email || null,
             guest_phone: p.guest_phone || null,
