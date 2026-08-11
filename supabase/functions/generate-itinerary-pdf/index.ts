@@ -179,7 +179,7 @@ interface LocalExperience {
 interface PropertyDetails {
   id: string;
   name: string;
-  main_image: string | null;
+  images: string[] | null;
   city: string | null;
   country: string | null;
   address: string | null;
@@ -1923,7 +1923,7 @@ Deno.serve(async (req) => {
     // Fetch property details including practical info and coordinates
     const { data: properties } = await supabase
       .from("properties")
-      .select("id, name, main_image, city, country, address, check_in_time, check_out_time, contact_phone, contact_email, latitude, longitude")
+      .select("id, name, images, city, country, address, check_in_time, check_out_time, contact_phone, contact_email, latitude, longitude")
       .in("id", propertyIds);
 
     const propertyMap = new Map(properties?.map(p => [p.id, p]) || []);
@@ -1958,7 +1958,7 @@ Deno.serve(async (req) => {
     // Enrich stays with property details and experiences
     const enrichedStays: EnrichedStay[] = stays.map(stay => ({
       ...stay,
-      propertyImage: propertyMap.get(stay.propertyId)?.main_image || stay.propertyImage,
+      propertyImage: (propertyMap.get(stay.propertyId)?.images?.[0] as string | undefined) || stay.propertyImage,
       city: stay.city || propertyMap.get(stay.propertyId)?.city,
       country: stay.country || propertyMap.get(stay.propertyId)?.country,
       experiences: experiencesMap.get(stay.propertyId) || [],
