@@ -372,8 +372,16 @@ export function RuApiLogPanel({ properties }: RuApiLogPanelProps) {
                   ))}
                 </tbody>
               </table>
+              {hasMore && (
+                <div className="flex justify-center border-t p-3">
+                  <Button variant="outline" size="sm" onClick={loadMore} disabled={loadingMore}>
+                    {loadingMore ? "Loading…" : "Load older exchanges"}
+                  </Button>
+                </div>
+              )}
             </ScrollArea>
           )}
+
         </CardContent>
       </Card>
 
