@@ -515,6 +515,7 @@ Deno.serve(async (req) => {
           const { error: roomErr } = await supabase.from("rolos_booking_rooms").insert({
             booking_id: booking.id,
             room_type_id: block.room_type_id,
+            room_id: assignedRoomId,
             rate_charged: totalPrice,
             nightly_rate: nightlyRate || null,
             adults: p.adults ?? 1,
