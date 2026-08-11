@@ -530,6 +530,7 @@ Deno.serve(async (req) => {
             block_id: p.block_id,
             booking_id: booking.id,
             room_type_id: block.room_type_id,
+            room_id: assignedRoomId,
             guest_name: p.guest_name,
             guest_email: p.guest_email || null,
             guest_phone: p.guest_phone || null,
