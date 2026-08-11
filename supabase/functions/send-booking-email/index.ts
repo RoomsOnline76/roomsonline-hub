@@ -139,6 +139,10 @@ function replaceTemplateVariables(template: string, booking: any, property: any)
     
     // Room Details
     "{{room_type_name}}": roomTypeName,
+    "{{room_names}}": roomNames,
+    "{{unit_name}}": roomNames,
+    "{{rooms_booked}}": `<ul style="margin: 0; padding-left: 18px;">${roomsBookedHtml}</ul>`,
+
     "{{rate_type_name}}": rateTypeName,
     "{{adults}}": String(booking.adults || 0),
     "{{teens}}": String(booking.teens || 0),
