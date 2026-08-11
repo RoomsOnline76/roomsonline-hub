@@ -416,19 +416,29 @@ function generateInvoiceHTML(
             <tr><td></td><td style="width:320px;">
               <table style="width:100%;border-collapse:collapse;">
                 ${streamSummaryRows}
+                ${isVatRegistered ? `
+                <tr>
+                  <td style="padding:6px 16px;font-size:13px;color:${t.muted};">Subtotal (excl. VAT)</td>
+                  <td style="padding:6px 16px;text-align:right;font-size:13px;">${vatExclusive.toFixed(2)}</td>
+                </tr>
+                ${vatExemptTotal > 0.009 ? `<tr>
+                  <td style="padding:6px 16px;font-size:12px;color:${t.muted};">Refundable deposit (no VAT)</td>
+                  <td style="padding:6px 16px;text-align:right;font-size:12px;color:${t.muted};">${vatExemptTotal.toFixed(2)}</td>
+                </tr>` : ""}
+                <tr>
+                  <td style="padding:6px 16px;font-size:13px;color:${t.muted};">VAT @ ${vatRate.toFixed(vatRate % 1 === 0 ? 0 : 2)}%</td>
+                  <td style="padding:6px 16px;text-align:right;font-size:13px;">${vatAmount.toFixed(2)}</td>
+                </tr>` : `
                 <tr>
                   <td style="padding:6px 16px;font-size:13px;color:${t.muted};">Subtotal</td>
                   <td style="padding:6px 16px;text-align:right;font-size:13px;">${Number(invoice.subtotal || 0).toFixed(2)}</td>
-                </tr>
-                <tr>
-                  <td style="padding:6px 16px;font-size:13px;color:${t.muted};">Tax${isVatRegistered ? " (incl. VAT)" : ""}</td>
-                  <td style="padding:6px 16px;text-align:right;font-size:13px;">${Number(invoice.tax_total || 0).toFixed(2)}</td>
-                </tr>
+                </tr>`}
                 <tr style="border-top:2px solid ${t.accent};">
-                  <td style="padding:10px 16px;font-weight:700;font-size:15px;">Total</td>
+                  <td style="padding:10px 16px;font-weight:700;font-size:15px;">Total${isVatRegistered ? " (incl. VAT)" : ""}</td>
                   <td style="padding:10px 16px;text-align:right;font-weight:700;font-size:15px;">${money(total)}</td>
                 </tr>
                 ${commissionRows}
+
               </table>
             </td></tr>
           </table>
