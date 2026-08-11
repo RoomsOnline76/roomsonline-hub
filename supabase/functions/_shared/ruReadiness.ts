@@ -434,3 +434,50 @@ export function bookableWindowChecks(
   ];
 }
 
+
+/**
+ * Currency verification (Push_ChangeCurrency_RQ + read-back).
+ *
+ * A property could previously clear every onboarding phase with an unverified currency,
+ * because verification lived only in the Currency panel. RU prices are meaningless in the
+ * wrong currency, so the wizard scores it as a mandatory pricing check.
+ */
+export function currencyVerificationChecks(
+  state: {
+    published_currency_iso?: string | null;
+    ru_reported_currency_iso?: string | null;
+    verified_at?: string | null;
+  } | null,
+  /** Pre-publish there is no RU listing to read back — advisory until the property exists. */
+  opts: { published?: boolean } = {},
+): RuCheck[] {
+  const published = opts.published !== false;
+  const intended = state?.published_currency_iso ?? null;
+  const reported = state?.ru_reported_currency_iso ?? null;
+  const verified = !!state?.verified_at && !!intended && !!reported && intended === reported;
+  return [
+    {
+      key: "currency_verified",
+      group: "Pricing 365d",
+      label: published
+        ? "Listing currency verified on the channel"
+        : "Listing currency decided (verified after the first push)",
+      mandatory: published,
+      passed: published ? verified : !!intended,
+      fix_hint: "Channel console → Currency panel → Verify currency",
+      ...(published
+        ? verified
+          ? { detail: `Channel reports ${reported} — matches the published currency` }
+          : {
+            detail: !intended
+              ? "No currency decision recorded for this property"
+              : !reported
+                ? `Published as ${intended}, but the channel has never been read back to confirm it`
+                : `Channel reports ${reported}, ROL'OS publishes ${intended}`,
+          }
+        : intended
+          ? { detail: `Will publish as ${intended}` }
+          : { detail: "No currency decision recorded for this property" }),
+    },
+  ];
+}
