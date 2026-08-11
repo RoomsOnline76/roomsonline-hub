@@ -44,6 +44,7 @@ import {
 } from "@/components/ui/collapsible";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { applyAdminScope } from "@/lib/adminScope";
 import { toast } from "sonner";
 import { isRevenuePaymentStatus } from "@/lib/revenueStatuses";
 import { format, parseISO, subDays, addDays } from "date-fns";
@@ -96,7 +97,7 @@ interface Booking {
 
 
 const Bookings = () => {
-  const { user, isAdmin, isDev, isFearlessLeader } = useAuth();
+  const { user, isAdmin, isDev, isFearlessLeader, scopedPropertyIds } = useAuth();
   const [properties, setProperties] = useState<Property[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
