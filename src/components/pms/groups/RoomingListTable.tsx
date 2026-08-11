@@ -244,6 +244,13 @@ export default function RoomingListTable({
                       {r.room_preference && <div className="text-xs text-muted-foreground">Pref: {r.room_preference}</div>}
                     </TableCell>
                     <TableCell className="text-xs whitespace-nowrap">
+                      {r.room?.room_name || r.room?.room_number || (
+                        <span className="text-muted-foreground">
+                          {block?.room_type?.name ? `${block.room_type.name} · unassigned` : "Unassigned"}
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-xs whitespace-nowrap">
                       {r.arrival_date && r.departure_date
                         ? `${format(new Date(r.arrival_date), "MMM d")} – ${format(new Date(r.departure_date), "MMM d")}`
                         : "—"}
