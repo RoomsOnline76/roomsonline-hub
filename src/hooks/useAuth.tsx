@@ -216,6 +216,9 @@ export function useAuth() {
     isDev,
     isFearlessLeader,
     isSalesRep,
+    isScopedAdmin,
+    scopedPropertyIds,
+
     salesRepId: context?.sales_rep_id ?? null,
     profile: context?.profile ?? null,
     userRole,
