@@ -214,6 +214,12 @@ function generateInvoiceHTML(
   const total = Number(invoice.total || 0);
   const balance = Math.round((total - paidTotal) * 100) / 100;
 
+  // VAT presentation: charges are captured VAT-inclusive, so the VAT contained in
+  // the total is shown alongside the exclusive value (refundable deposits carry no VAT).
+  const vatAmount = isVatRegistered ? Math.round(Number(invoice.tax_total || 0) * 100) / 100 : 0;
+  const vatExclusive = Math.round((total - vatAmount) * 100) / 100;
+
+
   const paymentRows = allPayments.map((p) => `
       <tr>
         <td style="padding:9px 14px;border-bottom:1px solid ${t.rule};font-size:13px;color:#15803d;">${esc(p.label)}</td>
