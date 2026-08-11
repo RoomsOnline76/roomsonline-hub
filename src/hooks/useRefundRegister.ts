@@ -135,7 +135,7 @@ export function useRefundCapability(propertyId?: string | null) {
     queryKey: ["refund-capability", propertyId ?? "none"],
     enabled: !!propertyId,
     queryFn: () =>
-      callRefundsApi<{ available: boolean; reason?: string }>({
+      callRefundsApi<{ capable: boolean | null; reason?: string | null }>({
         action: "refund_capability",
         property_id: propertyId ?? null,
       }),
