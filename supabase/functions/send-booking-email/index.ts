@@ -208,32 +208,121 @@ function wrapCustomTemplate(customContent: string, property: any): string {
 // Helper: resolve branding for a property
 // ROL'OS properties (is_rol_property) get branded automatically when colours exist — no toggle needed.
 // Other properties require brand_override_enabled to be true.
-function resolveBranding(property: any): { accentColor: string; logoUrl: string; senderName: string; isBranded: boolean; secondaryColor: string; fontColor: string } {
+interface EmailBrand {
+  accentColor: string;
+  logoUrl: string;
+  senderName: string;
+  isBranded: boolean;
+  secondaryColor: string;
+  fontColor: string;
+  darkColor: string;
+  mutedColor: string;
+  pageBg: string;
+  headingFont: string;
+  bodyFont: string;
+}
+
+function resolveBranding(property: any): EmailBrand {
   const isRol = !!property.is_rol_property;
   const hasColors = !!property.brand_primary_color;
   const isBranded = isRol ? hasColors : (!!property.brand_override_enabled && hasColors);
+  const headingFont = (isBranded && property.brand_heading_font)
+    ? `'${property.brand_heading_font}', Georgia, 'Times New Roman', serif`
+    : `Georgia, 'Times New Roman', serif`;
   return {
     isBranded,
     accentColor: (isBranded && property.brand_primary_color) ? property.brand_primary_color : "#e91e8c",
     secondaryColor: (isBranded && property.brand_secondary_color) ? property.brand_secondary_color : "#ffffff",
-    fontColor: (isBranded && property.brand_font_color) ? property.brand_font_color : "#333333",
+    fontColor: (isBranded && property.brand_font_color) ? property.brand_font_color : "#2b2b33",
+    darkColor: (isBranded && property.brand_dark_bg_color) ? property.brand_dark_bg_color : "#1a1a2e",
+    mutedColor: (isBranded && property.brand_muted_text_color) ? property.brand_muted_text_color : "#6b6b78",
+    pageBg: (isBranded && property.brand_light_bg_color) ? property.brand_light_bg_color : "#f6f3ee",
     logoUrl: (isBranded && property.brand_logo_url) ? property.brand_logo_url : "https://book.sleepinafrica.roomsonline.co.za/images/rol-logo-email.png",
     senderName: isBranded ? property.name : "Sleep in Africa by RoomsOnline",
+    headingFont,
+    bodyFont: `-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif`,
   };
+}
+
+/** Escape user/property supplied text before it lands in the HTML email. */
+function esc(value: unknown): string {
+  return String(value ?? "").replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" } as Record<string, string>)[c]);
+}
+
+/** A branded content section: display-serif heading with a thin accent rule. */
+function section(brand: EmailBrand, title: string, inner: string, opts: { last?: boolean } = {}): string {
+  if (!inner) return "";
+  return `
+          <tr>
+            <td style="padding: 0 32px ${opts.last ? "8px" : "26px"};">
+              <div style="border-top: 1px solid #e7e1d8; padding-top: 22px;">
+                <p style="margin: 0 0 14px; font-family: ${brand.headingFont}; font-size: 12px; letter-spacing: 2.4px; text-transform: uppercase; color: ${brand.accentColor};">${esc(title)}</p>
+                ${inner}
+              </div>
+            </td>
+          </tr>`;
+}
+
+/** Two-column label/value rows used across the booking information blocks. */
+function kvRows(brand: EmailBrand, rows: Array<[string, string | null | undefined]>): string {
+  const visible = rows.filter(([, v]) => !!v && String(v).trim() !== "");
+  if (!visible.length) return "";
+  return `
+                <table role="presentation" width="100%" style="width: 100%; border-collapse: collapse;">
+                  ${visible
+                    .map(
+                      ([label, value]) => `
+                  <tr>
+                    <td style="padding: 7px 0; color: ${brand.mutedColor}; font-size: 14px; vertical-align: top;">${esc(label)}</td>
+                    <td style="padding: 7px 0; color: ${brand.fontColor}; font-size: 14px; font-weight: 600; text-align: right; vertical-align: top;">${value}</td>
+                  </tr>`,
+                    )
+                    .join("")}
+                </table>`;
+}
+
+/** A soft callout panel (payment, notes, warnings). */
+function panel(brand: EmailBrand, inner: string, tone: "accent" | "success" | "warn" | "quiet" = "quiet"): string {
+  const tones: Record<string, { bg: string; border: string }> = {
+    accent: { bg: "#fdf4f9", border: brand.accentColor },
+    success: { bg: "#f0fdf4", border: "#22c55e" },
+    warn: { bg: "#fffbeb", border: "#f59e0b" },
+    quiet: { bg: "#faf8f5", border: "#e7e1d8" },
+  };
+  const t = tones[tone];
+  return `<div style="background-color: ${t.bg}; border-left: 3px solid ${t.border}; border-radius: 4px; padding: 16px 18px;">${inner}</div>`;
+}
+
+/** Convert plain text (possibly newline separated) into a readable list/paragraphs. */
+function textToHtmlLines(brand: EmailBrand, text: string): string {
+  const lines = String(text)
+    .split(/\r?\n|(?<=\.)\s{2,}/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+  if (lines.length <= 1) {
+    return `<p style="margin: 0; color: ${brand.fontColor}; font-size: 14px; line-height: 1.65;">${esc(text.trim())}</p>`;
+  }
+  return `<ul style="margin: 0; padding-left: 18px; color: ${brand.fontColor}; font-size: 14px; line-height: 1.7;">${lines
+    .map((l) => `<li style="margin: 0 0 4px;">${esc(l.replace(/^[-•*]\s*/, ""))}</li>`)
+    .join("")}</ul>`;
 }
 
 // Helper: generate the email header row with logo
 function generateEmailHeader(brand: ReturnType<typeof resolveBranding>, property: any): string {
-  if (brand.isBranded) {
-    return `
+  const logo = brand.isBranded
+    ? `<img src="${esc(brand.logoUrl)}" alt="${esc(property.name)}" style="max-width: 190px; max-height: 74px; height: auto; display: block; margin: 0 auto 10px;" />`
+    : "";
+  const location = [property.city, property.country].filter(Boolean).join(", ");
+  return `
       <tr>
-        <td style="padding: 30px 40px 15px; text-align: center; background-color: ${brand.accentColor}; border-radius: 8px 8px 0 0;">
-          <img src="${brand.logoUrl}" alt="${property.name}" style="max-width: 200px; max-height: 80px; height: auto;" />
+        <td style="padding: 30px 32px 26px; text-align: center; background-color: ${brand.darkColor}; border-radius: 10px 10px 0 0;">
+          ${logo}
+          <p style="margin: 0; font-family: ${brand.headingFont}; font-size: 26px; line-height: 1.2; color: #ffffff; letter-spacing: 0.4px;">${esc(property.name || "")}</p>
+          ${location ? `<p style="margin: 8px 0 0; color: rgba(255,255,255,0.68); font-size: 12px; letter-spacing: 2px; text-transform: uppercase;">${esc(location)}</p>` : ""}
         </td>
       </tr>
     `;
-  }
-  return "";
 }
 
 // Helper: generate the email footer row
@@ -243,14 +332,13 @@ function generateEmailFooter(brand: ReturnType<typeof resolveBranding>, property
   if (isWhiteLabel) {
     const contactBits = [property.contact_phone || property.phone, property.contact_email || property.email]
       .filter(Boolean)
+      .map((v: string) => esc(v))
       .join(" · ");
     return `
       <tr>
-        <td style="padding: 20px 40px; background-color: #fafafa; border-radius: 0 0 8px 8px; text-align: center;">
-          <div style="border-top: 1px solid #e5e5e5; padding-top: 15px;">
-            <p style="margin: 0 0 6px; color: #333; font-size: 13px;"><strong>${property.name}</strong></p>
-            ${contactBits ? `<p style="margin: 0; color: #888; font-size: 11px;">${contactBits}</p>` : ""}
-          </div>
+        <td style="padding: 24px 32px 28px; background-color: #faf8f5; border-radius: 0 0 10px 10px; text-align: center;">
+          <p style="margin: 0 0 6px; font-family: ${brand.headingFont}; color: ${brand.fontColor}; font-size: 15px;">${esc(property.name)}</p>
+          ${contactBits ? `<p style="margin: 0; color: ${brand.mutedColor}; font-size: 12px;">${contactBits}</p>` : ""}
         </td>
       </tr>
     `;
@@ -259,10 +347,8 @@ function generateEmailFooter(brand: ReturnType<typeof resolveBranding>, property
     // ROL'OS-hosted branded property: subtle "Powered by" line only — no ROL logo, no "Kind regards"
     return `
       <tr>
-        <td style="padding: 20px 40px; background-color: #fafafa; border-radius: 0 0 8px 8px; text-align: center;">
-          <div style="border-top: 1px solid #e5e5e5; padding-top: 15px;">
-            <p style="margin: 0; color: #aaa; font-size: 11px;">Powered by <a href="https://roomsonline.co.za" style="color: #aaa; text-decoration: none;">RoomsOnline</a> · Rooms Done Right</p>
-          </div>
+        <td style="padding: 24px 32px 28px; background-color: #faf8f5; border-radius: 0 0 10px 10px; text-align: center;">
+          <p style="margin: 0; color: ${brand.mutedColor}; font-size: 11px;">Powered by <a href="https://roomsonline.co.za" style="color: ${brand.mutedColor}; text-decoration: none;">RoomsOnline</a> · Rooms Done Right</p>
         </td>
       </tr>
     `;
@@ -270,17 +356,17 @@ function generateEmailFooter(brand: ReturnType<typeof resolveBranding>, property
 
   return `
     <tr>
-      <td style="padding: 30px 40px; background-color: #fafafa; border-radius: 0 0 8px 8px; text-align: center;">
-        <p style="margin: 0 0 8px; font-family: Georgia, serif; font-style: italic; color: #666; font-size: 14px;">Sleep in Africa like never before</p>
-        <p style="margin: 0 0 20px; color: #666; font-size: 14px;">Kind regards</p>
-        <p style="margin: 0 0 15px; color: #333; font-size: 14px;">
-          Sleep in Africa by RoomsOnline on behalf of <strong>${property.name}</strong>
+      <td style="padding: 28px 32px; background-color: #faf8f5; border-radius: 0 0 10px 10px; text-align: center;">
+        <p style="margin: 0 0 10px; font-family: ${brand.headingFont}; font-style: italic; color: ${brand.mutedColor}; font-size: 15px;">Sleep in Africa like never before</p>
+        <p style="margin: 0 0 14px; color: ${brand.mutedColor}; font-size: 13px;">
+          Sleep in Africa by RoomsOnline on behalf of <strong style="color: ${brand.fontColor};">${esc(property.name)}</strong>
         </p>
-        <img src="https://book.sleepinafrica.roomsonline.co.za/images/rol-logo-email.png" alt="RoomsOnline" style="max-width: 180px; height: auto;" />
+        <img src="https://book.sleepinafrica.roomsonline.co.za/images/rol-logo-email.png" alt="RoomsOnline" style="max-width: 160px; height: auto;" />
       </td>
     </tr>
   `;
 }
+
 
 // Generate inline invoice breakdown from ai_metadata or fallback to simple total
 function generateInvoiceSection(booking: any, accentColor: string): string {
