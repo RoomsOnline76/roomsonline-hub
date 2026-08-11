@@ -1086,6 +1086,8 @@ Deno.serve(async (req) => {
             paymentMode: (property as any)?.payment_mode || null,
             banking: bank || amenitiesObj.banking || null,
             paymentReference: bookingRow?.rol_reference || invoice.invoice_number,
+            vat: vatSummary,
+
           },
         );
 
