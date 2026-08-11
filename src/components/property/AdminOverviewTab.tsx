@@ -424,6 +424,7 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
                   <span className={l.variable ? "font-mono text-muted-foreground" : "font-mono"}>
                     {l.variable ?? fmt(l.amount)}
                   </span>
+                </div>
 
               ))}
             </div>
