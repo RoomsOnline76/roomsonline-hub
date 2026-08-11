@@ -90,6 +90,7 @@ export default function AiAmenityDialog({
   websiteUrl,
   currentPropertyFacilities,
   onApplyProperty,
+  unitScope,
 }: AiAmenityDialogProps) {
   const [loading, setLoading] = useState(false);
   const [applying, setApplying] = useState(false);
@@ -97,14 +98,38 @@ export default function AiAmenityDialog({
   const [selectedProperty, setSelectedProperty] = useState<Set<number>>(new Set());
   const [selectedUnits, setSelectedUnits] = useState<Record<string, Set<number>>>({});
 
+  const propertyFacilities = useMemo(() => currentPropertyFacilities ?? [], [currentPropertyFacilities]);
+
   const existingPropertyIds = useMemo(
     () =>
       new Set(
-        currentPropertyFacilities
+        propertyFacilities
           .map((token) => ruTokenId(token))
           .filter((id): id is number => id !== null),
       ),
-    [currentPropertyFacilities],
+    [propertyFacilities],
+  );
+
+  /** In single-unit mode only that unit's block is shown and applied. */
+  const scopedUnits = useMemo(() => {
+    if (!result) return [];
+    if (!unitScope) return result.units;
+    const match =
+      result.units.find((u) => String(u.unit_id) === String(unitScope.unitId)) ??
+      result.units.find(
+        (u) => u.unit_name?.trim().toLowerCase() === unitScope.unitName?.trim().toLowerCase(),
+      );
+    return match ? [match] : [];
+  }, [result, unitScope]);
+
+  const existingUnitIds = useMemo(
+    () =>
+      new Set(
+        (unitScope?.current ?? [])
+          .map((token) => ruTokenId(token))
+          .filter((id): id is number => id !== null),
+      ),
+    [unitScope?.current],
   );
 
   const runCheck = useCallback(async () => {
@@ -120,17 +145,24 @@ export default function AiAmenityDialog({
 
       setResult(payload);
       setSelectedProperty(
-        new Set(
-          payload.property
-            .filter((s) => s.confidence !== "low" && !existingPropertyIds.has(s.id))
-            .map((s) => s.id),
-        ),
+        unitScope
+          ? new Set()
+          : new Set(
+              payload.property
+                .filter((s) => s.confidence !== "low" && !existingPropertyIds.has(s.id))
+                .map((s) => s.id),
+            ),
       );
       setSelectedUnits(
         Object.fromEntries(
           payload.units.map((u) => [
             u.unit_id,
-            new Set(u.amenities.filter((a) => a.confidence !== "low").map((a) => a.id)),
+            new Set(
+              u.amenities
+                .filter((a) => a.confidence !== "low")
+                .filter((a) => !(unitScope && existingUnitIds.has(a.id)))
+                .map((a) => a.id),
+            ),
           ]),
         ),
       );
@@ -139,7 +171,8 @@ export default function AiAmenityDialog({
     } finally {
       setLoading(false);
     }
-  }, [propertyId, websiteUrl, existingPropertyIds]);
+  }, [propertyId, websiteUrl, existingPropertyIds, existingUnitIds, unitScope]);
+
 
   const toggleProperty = (id: number) =>
     setSelectedProperty((prev) => {
