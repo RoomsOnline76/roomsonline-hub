@@ -1040,6 +1040,7 @@ function buildUnitPayload(
 
   // Use unit images first, fall back to property images
   let images = mapImages(unit.images as unknown[] | null, (unit as any).ru_image_tags);
+  const ownImageCount = images.length;
   if (images.length < 10) {
     const propImages = mapImages(property.images as unknown[] | null, (property as any).ru_image_tags);
     const seenUrls = new Set(images.map(i => i.url));
@@ -1048,6 +1049,7 @@ function buildUnitPayload(
     }
   }
   images = restampRuImages(images);
+  const inheritedImageCount = Math.max(0, images.length - ownImageCount);
 
   // Amenities: merge unit + property (property-level facilities are always additive so
   // the RU-aligned property selection reaches every unit of the listing).
