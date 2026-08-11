@@ -99,7 +99,7 @@ export default function PMSGroups() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("rolos_group_reservations" as never)
-        .select("*")
+        .select("*, room:rolos_rooms!room_id(room_name, room_number)")
         .eq("group_id", selectedGroup!.id)
         .order("created_at", { ascending: false });
       if (error) throw error;
