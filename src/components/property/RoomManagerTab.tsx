@@ -93,6 +93,8 @@ export function RoomManagerTab({
   const navigate = useNavigate();
   const { toast } = useToast();
   const [isRoomImageUploading, setIsRoomImageUploading] = useState(false);
+  const [aiUnitAmenityOpen, setAiUnitAmenityOpen] = useState(false);
+
   const roomImageAudit = useImageDimensionAudit(
     (roomTypes.find((r) => r.id === selectedRoomType)?.images || []) as string[],
   );
