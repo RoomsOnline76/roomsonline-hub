@@ -321,7 +321,7 @@ export default function AiAmenityDialog({
 
             <ScrollArea className="h-[420px] pr-3">
               <div className="space-y-4">
-                <div>
+                <div className={unitScope ? "hidden" : undefined}>
                   <h4 className="text-xs font-semibold mb-2">
                     Property amenities &amp; facilities ({result.property.length})
                   </h4>
