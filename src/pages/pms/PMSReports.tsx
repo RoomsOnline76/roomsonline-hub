@@ -5,8 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { BarChart3, BedDouble, Percent, RefreshCw, Download, Loader2, Receipt, LayoutGrid, Building2, XCircle, UsersRound } from "lucide-react";
+import { BarChart3, BedDouble, Percent, RefreshCw, Download, Loader2, Receipt, LayoutGrid, Building2, XCircle, UsersRound, RotateCcw } from "lucide-react";
 import { PMSFoliosManager } from "@/components/pms/PMSFoliosManager";
+import { RefundRegisterPanel } from "@/components/pms/RefundRegisterPanel";
 import { GroupPerformancePanel } from "@/components/pms/GroupPerformancePanel";
 import { CrossPropertyPipelineCard } from "@/components/pms/CrossPropertyPipelineCard";
 import { supabase } from "@/integrations/supabase/client";
@@ -371,6 +372,7 @@ export default function PMSReports() {
             <TabsTrigger value="analytics"><BarChart3 className="w-4 h-4 mr-1" />Analytics</TabsTrigger>
             <TabsTrigger value="groups"><UsersRound className="w-4 h-4 mr-1" />Groups</TabsTrigger>
             <TabsTrigger value="folios"><Receipt className="w-4 h-4 mr-1" />Folios</TabsTrigger>
+            <TabsTrigger value="refunds"><RotateCcw className="w-4 h-4 mr-1" />Refunds</TabsTrigger>
           </TabsList>
 
           <TabsContent value="analytics" className="space-y-6">
@@ -637,6 +639,10 @@ export default function PMSReports() {
 
           <TabsContent value="groups">
             <GroupPerformancePanel propertyIds={activePropertyIds} startDate={fromStr} endDate={toStr} />
+          </TabsContent>
+
+          <TabsContent value="refunds">
+            <RefundRegisterPanel propertyId={propertyId} />
           </TabsContent>
 
           <TabsContent value="folios">
