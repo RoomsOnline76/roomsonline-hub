@@ -388,10 +388,22 @@ function readPixelDimensions(bytes: Uint8Array): { width: number; height: number
   if (bytes.length > 10 && bytes[0] === 0x47 && bytes[1] === 0x49) {
     return { width: dv.getUint16(6, true), height: dv.getUint16(8, true) };
   }
-  // WebP (VP8X / VP8 lossy simple form)
+  // WebP (VP8X extended, VP8 lossy, VP8L lossless)
   if (bytes.length > 30 && String.fromCharCode(...bytes.slice(8, 12)) === 'WEBP') {
     const chunk = String.fromCharCode(...bytes.slice(12, 16));
     if (chunk === 'VP8X') return { width: 1 + (bytes[24] | (bytes[25] << 8) | (bytes[26] << 16)), height: 1 + (bytes[27] | (bytes[28] << 8) | (bytes[29] << 16)) };
+    if (chunk === 'VP8 ' && bytes.length > 30) {
+      return { width: (bytes[26] | (bytes[27] << 8)) & 0x3fff, height: (bytes[28] | (bytes[29] << 8)) & 0x3fff };
+    }
+    if (chunk === 'VP8L' && bytes.length > 25) {
+      const bits = (bytes[21] | (bytes[22] << 8) | (bytes[23] << 16) | (bytes[24] << 24)) >>> 0;
+      return { width: (bits & 0x3fff) + 1, height: ((bits >> 14) & 0x3fff) + 1 };
+    }
+  }
+  // AVIF / HEIC (ISOBMFF): the image size lives in the `ispe` box inside `meta`.
+  if (bytes.length > 16 && String.fromCharCode(...bytes.slice(4, 8)) === 'ftyp') {
+    const ispe = readIsobmffIspe(bytes, dv);
+    if (ispe) return ispe;
   }
   // JPEG: walk the segment markers for SOF0/SOF2
   if (bytes.length > 4 && bytes[0] === 0xff && bytes[1] === 0xd8) {
@@ -399,15 +411,39 @@ function readPixelDimensions(bytes: Uint8Array): { width: number; height: number
     while (offset + 9 < bytes.length) {
       if (bytes[offset] !== 0xff) { offset += 1; continue; }
       const marker = bytes[offset + 1];
+      // Standalone markers carry no length payload.
+      if (marker === 0xd8 || marker === 0x01 || (marker >= 0xd0 && marker <= 0xd9)) { offset += 2; continue; }
       const length = dv.getUint16(offset + 2);
       if (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc) {
         return { height: dv.getUint16(offset + 5), width: dv.getUint16(offset + 7) };
       }
+      if (length < 2) break;
       offset += 2 + length;
     }
   }
   return null;
 }
+
+/**
+ * Scans an ISOBMFF byte range (AVIF/HEIC/HEIF) for the largest `ispe` box, which
+ * declares the image's pixel dimensions. Without this every AVIF upload is reported
+ * as "size could not be measured", which used to hard-block channel onboarding.
+ */
+function readIsobmffIspe(bytes: Uint8Array, dv: DataView): { width: number; height: number } | null {
+  let best: { width: number; height: number } | null = null;
+  const limit = bytes.length - 12;
+  for (let i = 4; i < limit; i += 1) {
+    if (bytes[i] !== 0x69 || bytes[i + 1] !== 0x73 || bytes[i + 2] !== 0x70 || bytes[i + 3] !== 0x65) continue;
+    // ispe payload: 4 bytes version/flags, then width and height as big-endian u32.
+    const width = dv.getUint32(i + 8);
+    const height = dv.getUint32(i + 12);
+    if (width > 0 && height > 0 && width < 100000 && height < 100000) {
+      if (!best || width * height > best.width * best.height) best = { width, height };
+    }
+  }
+  return best;
+}
+
 
 async function probeRuImage(url: string): Promise<RuImageProbe> {
   if (!/^https:\/\//i.test(url)) {
@@ -426,12 +462,21 @@ async function probeRuImage(url: string): Promise<RuImageProbe> {
     if (contentType && !/^image\//i.test(contentType)) {
       return { url, ok: false, reason: `URL is not an image (content-type ${contentType})` };
     }
-    const dims = readPixelDimensions(buf);
+    let dims = readPixelDimensions(buf);
+    if (!dims) {
+      // The first 64KB did not carry the size header (large EXIF blocks, AVIF with a
+      // late `meta` box). Retry with a bigger window before calling it unmeasurable.
+      try {
+        const wide = await fetch(url, { headers: { Range: 'bytes=0-1048575' } });
+        if (wide.ok || wide.status === 206) dims = readPixelDimensions(new Uint8Array(await wide.arrayBuffer()));
+      } catch { /* keep the unmeasured result */ }
+    }
     if (!dims) {
       // Reachable and served as an image, but the header block we read did not carry
       // dimensions. Accept it and report that the size could not be measured.
       return { url, ok: true, width: null, height: null, reason: 'reachable — pixel size could not be measured' };
     }
+
     if (dims.width < RU_MIN_IMAGE_WIDTH || dims.height < RU_MIN_IMAGE_HEIGHT) {
       return { url, ok: false, width: dims.width, height: dims.height, reason: `${dims.width}x${dims.height}px is below Rentals United's ${RU_MIN_IMAGE_WIDTH}x${RU_MIN_IMAGE_HEIGHT}px minimum` };
     }
@@ -563,6 +608,7 @@ function buildValidation(payload: Record<string, any>): Record<string, unknown> 
     unmapped_bed_labels: payload.unmapped_bed_labels ?? [],
     images_meeting_size: sized,
     images_size_unverified: unverified,
+    images_inherited_count: Number(payload.images_inherited_count || 0),
     images_meet_size: images.length > 0 && sized === images.length,
     meets_minimum_images: images.length >= RU_MIN_IMAGES,
     amenities_count: amenities.length,
@@ -995,6 +1041,7 @@ function buildUnitPayload(
 
   // Use unit images first, fall back to property images
   let images = mapImages(unit.images as unknown[] | null, (unit as any).ru_image_tags);
+  const ownImageCount = images.length;
   if (images.length < 10) {
     const propImages = mapImages(property.images as unknown[] | null, (property as any).ru_image_tags);
     const seenUrls = new Set(images.map(i => i.url));
@@ -1003,6 +1050,7 @@ function buildUnitPayload(
     }
   }
   images = restampRuImages(images);
+  const inheritedImageCount = Math.max(0, images.length - ownImageCount);
 
   // Amenities: merge unit + property (property-level facilities are always additive so
   // the RU-aligned property selection reaches every unit of the listing).
@@ -1119,6 +1167,7 @@ function buildUnitPayload(
     rooms,
     descriptions: [{ language_id: 1, text: descText }],
     images,
+    images_inherited_count: inheritedImageCount,
     payment_methods: paymentMethods.methods,
     payment_methods_is_default: paymentMethods.isDefault,
     deposit,
@@ -3704,6 +3753,7 @@ Deno.serve(async (req) => {
               images_meet_cert_size: everyFlag('images_meet_cert_size'),
               images_meeting_cert_size: units.reduce((s, u) => s + Number((u.validation as any).images_meeting_cert_size || 0), 0),
               images_size_unverified: units.reduce((s, u) => s + Number((u.validation as any).images_size_unverified || 0), 0),
+              images_inherited_count: units.reduce((s, u) => s + Number((u.validation as any).images_inherited_count || 0), 0),
               images_measured_count: units.reduce((s, u) => s + Number((u.validation as any).images_measured_count || 0), 0),
               smallest_image_width: (() => {
                 const vals = units.map(u => Number((u.validation as any).smallest_image_width)).filter(n => Number.isFinite(n));
