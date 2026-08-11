@@ -42,7 +42,9 @@ import AiAmenityDialog from "@/components/property/AiAmenityDialog";
 export interface RoomManagerTabProps {
   propertyId: string | null;
   propertySlug: string;
+  propertyWebsiteUrl?: string | null;
   routeId: string | undefined; // useParams().id
+
   roomTypes: any[];
   setRoomTypes: React.Dispatch<React.SetStateAction<any[]>>;
   selectedRoomType: string;
