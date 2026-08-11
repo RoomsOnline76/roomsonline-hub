@@ -188,21 +188,35 @@ export default function AiAmenityDialog({
       return { ...prev, [unitId]: next };
     });
 
-  const totalSelected =
-    selectedProperty.size +
-    Object.values(selectedUnits).reduce((sum, set) => sum + set.size, 0);
+  const totalSelected = unitScope
+    ? (selectedUnits[scopedUnits[0]?.unit_id ?? ""]?.size ?? 0)
+    : selectedProperty.size +
+      Object.values(selectedUnits).reduce((sum, set) => sum + set.size, 0);
 
   const applyAll = async () => {
     if (!result) return;
     setApplying(true);
     try {
+      // Single-unit mode: hand the merged list back to the form, nothing else.
+      if (unitScope) {
+        const unitId = scopedUnits[0]?.unit_id;
+        const picks = [...(selectedUnits[unitId ?? ""] ?? [])].filter((id) => !existingUnitIds.has(id));
+        if (picks.length > 0) unitScope.onApply([...unitScope.current, ...picks.map((id) => ruToken(id))]);
+        toast.success(
+          `Applied ${picks.length} amenit${picks.length === 1 ? "y" : "ies"} to ${unitScope.unitName}. Save the property to persist.`,
+        );
+        onOpenChange(false);
+        setResult(null);
+        return;
+      }
+
       // Property-level facilities — merge tokens, keep everything already chosen.
       if (selectedProperty.size > 0) {
-        const merged = [...currentPropertyFacilities];
+        const merged = [...propertyFacilities];
         selectedProperty.forEach((id) => {
           if (!existingPropertyIds.has(id)) merged.push(ruToken(id));
         });
-        onApplyProperty(merged);
+        onApplyProperty?.(merged);
       }
 
       // Unit-level amenities — write straight to the room types.
@@ -238,6 +252,7 @@ export default function AiAmenityDialog({
 
       toast.success(
         `Applied ${totalSelected} amenit${totalSelected === 1 ? "y" : "ies"}. Save the property to persist facility changes.`,
+
       );
       onOpenChange(false);
       setResult(null);
