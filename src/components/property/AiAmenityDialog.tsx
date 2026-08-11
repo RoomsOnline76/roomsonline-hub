@@ -366,19 +366,28 @@ export default function AiAmenityDialog({
                   </div>
                 </div>
 
-                {result.units.map((unit) => (
+                {unitScope && scopedUnits.length === 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    TOBI had no amenity suggestions for {unitScope.unitName}.
+                  </p>
+                )}
+
+                {scopedUnits.map((unit) => (
                   <div key={unit.unit_id}>
-                    <Separator className="mb-3" />
+                    {!unitScope && <Separator className="mb-3" />}
                     <h4 className="text-xs font-semibold mb-2">
                       {unit.unit_name} ({unit.amenities.length})
                     </h4>
                     <div className="space-y-1.5">
-                      {unit.amenities.map((a) => (
+                      {unit.amenities.map((a) => {
+                        const already = !!unitScope && existingUnitIds.has(a.id);
+                        return (
                         <div key={`${unit.unit_id}-${a.id}`} className="flex items-start gap-2">
                           <Checkbox
                             id={`unit-${unit.unit_id}-${a.id}`}
                             className="h-3.5 w-3.5 mt-0.5"
                             checked={selectedUnits[unit.unit_id]?.has(a.id) ?? false}
+                            disabled={already}
                             onCheckedChange={() => toggleUnit(unit.unit_id, a.id)}
                           />
                           <Label
@@ -389,17 +398,25 @@ export default function AiAmenityDialog({
                             <span className="ml-2 text-[10px] text-muted-foreground">{a.reason}</span>
                           </Label>
                           <EvidenceBadge evidence={a.evidence} />
-                          <Badge
-                            variant="outline"
-                            className={`text-[10px] ${confidenceTone(a.confidence)}`}
-                          >
-                            {a.confidence}
-                          </Badge>
+                          {already ? (
+                            <Badge variant="outline" className="text-[10px] gap-1">
+                              <Check className="h-2.5 w-2.5" /> selected
+                            </Badge>
+                          ) : (
+                            <Badge
+                              variant="outline"
+                              className={`text-[10px] ${confidenceTone(a.confidence)}`}
+                            >
+                              {a.confidence}
+                            </Badge>
+                          )}
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 ))}
+
               </div>
             </ScrollArea>
           </div>
