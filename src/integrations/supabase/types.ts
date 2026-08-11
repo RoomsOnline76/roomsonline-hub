@@ -14141,6 +14141,52 @@ export type Database = {
           },
         ]
       }
+      scoped_admin_properties: {
+        Row: {
+          created_at: string
+          id: string
+          property_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          property_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          property_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scoped_admin_properties_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "scoped_admin_properties_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scoped_admin_properties_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       subscription_charge_items: {
         Row: {
           amount: number
@@ -15484,6 +15530,10 @@ export type Database = {
         }
         Returns: string
       }
+      admin_scope_allows: {
+        Args: { _property_id: string; _user_id: string }
+        Returns: boolean
+      }
       attribute_portfolio_share: {
         Args: { _booking_id: string }
         Returns: undefined
@@ -15628,6 +15678,7 @@ export type Database = {
         Args: { _property_id: string; _user_id: string }
         Returns: boolean
       }
+      is_scoped_admin: { Args: { _user_id: string }; Returns: boolean }
       next_commission_statement_reference: {
         Args: { _period_month: string; _rep_code: string }
         Returns: string
