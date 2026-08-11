@@ -568,10 +568,15 @@ const MILESTONE_SYNC_ACTIONS: Record<string, string[]> = {
   "Pull_ListReservations_RQ": ["pull_reservations"],
   "Pull_GetReservationByID_RQ": ["reservation_detail_test", "get_reservation_by_id"],
   "Pull_GetLeads_RQ": ["lead_lifecycle", "pull_reservations"],
-  "Push_PutProperty_RQ": ["inventory_push", "weekly_content_refresh"],
+  "Push_PutProperty_RQ": ["inventory_push", "weekly_content_refresh", "static_delta"],
+  "Push_PutProperty_RQ (differential)": ["static_delta"],
   "Push_PutAvbUnits_RQ": ["refresh_ari", "availability_playground", "duplicate_range_test"],
   "Push_PutPrices_RQ": ["refresh_ari", "pricing_playground", "pricing_duplicate_test"],
+  "Push_PutLongStayDiscounts_RQ": ["push_long_stay", "push_discounts", "refresh_discounts", "inventory_push"],
+  "Push_PutLastMinuteDiscounts_RQ": ["push_last_minute", "push_discounts", "refresh_discounts", "inventory_push"],
+  "LNM notification (inbound)": ["LNM_Notification", "lnm_repull"],
   "Pull_ListSalesChannels_RQ": ["resolve_sales_channel", "list_sales_channels"],
+
 };
 
 /** Cert runs are orchestrated in phases from the browser; a closed tab or a failed phase
