@@ -1166,6 +1166,7 @@ function buildUnitPayload(
     rooms,
     descriptions: [{ language_id: 1, text: descText }],
     images,
+    images_inherited_count: inheritedImageCount,
     payment_methods: paymentMethods.methods,
     payment_methods_is_default: paymentMethods.isDefault,
     deposit,
