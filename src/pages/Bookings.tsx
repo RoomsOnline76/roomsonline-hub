@@ -301,6 +301,8 @@ const Bookings = () => {
           .is("permanently_deleted_at", null)
           .order("name");
 
+        query = applyAdminScope(query, "id", scopedPropertyIds);
+
         // For owners, filter by their email
         if (!canViewAllProperties) {
           const { data: profile } = await supabase

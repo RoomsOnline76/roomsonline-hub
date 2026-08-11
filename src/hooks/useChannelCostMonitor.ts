@@ -185,12 +185,20 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
     try {
       const [propsRes, unitsRes, membersRes, portfoliosRes, runsRes, eventsRes, fxRate, defaultsRes, accountsRes] =
         await Promise.all([
-        supabase
-          .from("properties")
-          .select("id, name, is_active, is_trading, is_sandbox, ru_push_enabled, ru_archived, ru_archived_at, rentalsunited_property_id, owner_email"),
-        supabase
-          .from("hostfully_room_types")
-          .select("id, property_id, name, is_active, rentalsunited_property_id"),
+        applyAdminScope(
+          supabase
+            .from("properties")
+            .select("id, name, is_active, is_trading, is_sandbox, ru_push_enabled, ru_archived, ru_archived_at, rentalsunited_property_id, owner_email"),
+          "id",
+          scopedPropertyIds,
+        ),
+        applyAdminScope(
+          supabase
+            .from("hostfully_room_types")
+            .select("id, property_id, name, is_active, rentalsunited_property_id"),
+          "property_id",
+          scopedPropertyIds,
+        ),
         supabase.from("property_portfolio_members").select("property_id, portfolio_id"),
         supabase.from("property_portfolios").select("id, name"),
         supabase

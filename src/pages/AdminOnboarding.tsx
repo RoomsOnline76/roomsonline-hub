@@ -306,7 +306,7 @@ export default function AdminOnboarding() {
       setLoading(true);
 
       // Load only ACTIVE properties (non-deleted, is_active = true)
-      const { data: propData, error: propError } = await supabase
+      const propQuery = supabase
         .from("properties")
         .select(`
           id, name, owner_email, listing_status, show_on_website, is_active,
@@ -319,6 +319,12 @@ export default function AdminOnboarding() {
         .is("permanently_deleted_at", null)
         .eq("is_active", true)
         .order("created_at", { ascending: false });
+
+      const { data: propData, error: propError } = await applyAdminScope(
+        propQuery,
+        "id",
+        scopedPropertyIds,
+      );
 
       if (propError) throw propError;
 

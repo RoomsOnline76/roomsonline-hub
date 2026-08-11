@@ -68,7 +68,7 @@ const PropertyOverview = () => {
 
   const { loading: authLoading } = useAuth();
   const { data: allProperties, isLoading, refetch } = useQuery({
-    queryKey: ["properties", user?.id, isAdmin],
+    queryKey: ["properties", user?.id, isAdmin, scopedPropertyIds.join(",")],
     queryFn: async () => {
       const { data: profile } = await supabase
         .from("profiles")
@@ -85,6 +85,8 @@ const PropertyOverview = () => {
       if (!isAdmin && profile?.email) {
         query = query.eq("owner_email", profile.email);
       }
+
+      query = applyAdminScope(query, "id", scopedPropertyIds);
 
       const { data: propertiesData, error: propertiesError } = await query;
       
