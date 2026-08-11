@@ -398,9 +398,21 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
   const derived = useMemo(() => {
     const billableListings = properties.reduce((sum, r) => sum + r.listings, 0);
     const thisMonth = monthKey(new Date());
-    const unitsArchivedThisMonth = events
-      .filter((e) => e.direction === "archived" && monthKey(new Date(e.created_at)) === thisMonth)
+    // Unique, not cumulative: a unit toggled archived → active → archived must
+    // count once. Keep only the latest event per property for the month and
+    // count its units when that final state is "archived".
+    const latestByProperty = new Map<string, ArchiveEventRow>();
+    for (const e of events) {
+      if (monthKey(new Date(e.created_at)) !== thisMonth) continue;
+      const current = latestByProperty.get(e.property_id);
+      if (!current || new Date(e.created_at) > new Date(current.created_at)) {
+        latestByProperty.set(e.property_id, e);
+      }
+    }
+    const unitsArchivedThisMonth = Array.from(latestByProperty.values())
+      .filter((e) => e.direction === "archived")
       .reduce((sum, e) => sum + (e.unit_count || 0), 0);
+
 
     const forecast = forecastForDate(billableListings);
     const schedule = forecastSchedule(billableListings, new Date(), 8);
