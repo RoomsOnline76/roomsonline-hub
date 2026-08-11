@@ -244,8 +244,8 @@ export function RefundRegisterPanel({ propertyId }: RefundRegisterPanelProps) {
               Reject refund
             </Button>
           </DialogFooter>
-        </DialogFooter>
         </DialogContent>
+
       </Dialog>
     </div>
   );
