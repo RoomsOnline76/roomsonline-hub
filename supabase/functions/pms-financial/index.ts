@@ -112,7 +112,11 @@ interface InvoiceExtras {
   paymentMode?: string | null;
   banking?: Record<string, unknown> | null;
   paymentReference?: string | null;
+  /** Property VAT position, resolved from brand config / property setup. */
+  vat?: { registered: boolean; rate: number; number: string | null; exempt_total?: number } | null;
 }
+
+
 
 function generateInvoiceHTML(
   invoice: any,
@@ -130,8 +134,13 @@ function generateInvoiceHTML(
       .join(", ");
   const amenities = property?.amenities || {};
   const amenityVatNumber = plain(amenities?.vat_number);
-  const vatNumber = plain(branding?.vat_number) || amenityVatNumber;
-  const isVatRegistered = !!branding?.is_vat_registered || !!amenityVatNumber;
+  const vatNumber = plain(extras.vat?.number) || plain(branding?.vat_number) || amenityVatNumber;
+  const isVatRegistered = extras.vat
+    ? !!extras.vat.registered
+    : (!!branding?.is_vat_registered || !!amenityVatNumber);
+  const vatRate = Number(extras.vat?.rate ?? branding?.vat_rate ?? 15);
+  const vatExemptTotal = Number(extras.vat?.exempt_total || 0);
+
   const logoUrl = plain(property?.brand_logo_url);
   const currency = plain(invoice.currency) || "ZAR";
   const money = (n: number) => `${currency} ${Number(n || 0).toFixed(2)}`;
@@ -204,6 +213,12 @@ function generateInvoiceHTML(
     : allPayments.reduce((s, p) => s + p.amount, 0);
   const total = Number(invoice.total || 0);
   const balance = Math.round((total - paidTotal) * 100) / 100;
+
+  // VAT presentation: charges are captured VAT-inclusive, so the VAT contained in
+  // the total is shown alongside the exclusive value (refundable deposits carry no VAT).
+  const vatAmount = isVatRegistered ? Math.round(Number(invoice.tax_total || 0) * 100) / 100 : 0;
+  const vatExclusive = Math.round((total - vatAmount) * 100) / 100;
+
 
   const paymentRows = allPayments.map((p) => `
       <tr>
@@ -353,7 +368,7 @@ function generateInvoiceHTML(
                   ${logoUrl ? `<img src="${esc(logoUrl)}" alt="${esc(businessName)}" style="max-height:56px;max-width:190px;display:block;margin-bottom:8px;" />` : ""}
                   <div style="font-family:${t.headingFont};font-size:24px;color:#ffffff;letter-spacing:0.4px;">${esc(businessName)}</div>
                   ${businessAddress ? `<div style="margin-top:6px;font-size:12px;color:rgba(255,255,255,0.7);">${esc(businessAddress)}</div>` : ""}
-                  ${isVatRegistered && vatNumber && !isProForma ? `<div style="margin-top:4px;font-size:12px;color:rgba(255,255,255,0.7);">VAT No: ${esc(vatNumber)}</div>` : ""}
+                  ${isVatRegistered && vatNumber ? `<div style="margin-top:4px;font-size:12px;color:rgba(255,255,255,0.7);">VAT registration No: ${esc(vatNumber)}</div>` : ""}
                 </td>
                 <td style="vertical-align:top;text-align:right;">
                   <div style="font-family:${t.headingFont};font-size:16px;letter-spacing:2.4px;text-transform:uppercase;color:${t.accent};">${docTitle}</div>
@@ -369,7 +384,7 @@ function generateInvoiceHTML(
 
         <tr><td style="padding:28px 32px 8px;">
 
-          ${isProForma ? `<p style="margin:0 0 22px;padding:12px 14px;background:#fffbeb;border-left:3px solid #f59e0b;border-radius:4px;font-size:12px;color:#92400e;">This is a <strong>pro forma invoice</strong> — a quotation of charges for your upcoming stay. It is not a tax invoice and cannot be used for VAT purposes. A final invoice will be issued after your stay.</p>` : ""}
+          ${isProForma ? `<p style="margin:0 0 22px;padding:12px 14px;background:#fffbeb;border-left:3px solid #f59e0b;border-radius:4px;font-size:12px;color:#92400e;">This is a <strong>pro forma invoice</strong> — a quotation of the charges for your upcoming stay, issued for payment purposes. It is <strong>not a tax invoice</strong>${isVatRegistered ? " and may not be used to claim input VAT" : ""}.${isVatRegistered ? ` Amounts shown include VAT at ${vatRate.toFixed(vatRate % 1 === 0 ? 0 : 2)}%; a valid tax invoice will be issued once your stay is complete.` : " A final invoice will be issued after your stay."}</p>` : ""}
 
           ${sectionBlock(`Invoiced to${billToKindLabel ? ` &middot; ${billToKindLabel}` : ""}`, kvRows([
             ["Name", invoice.invoice_to],
@@ -407,22 +422,40 @@ function generateInvoiceHTML(
             <tr><td></td><td style="width:320px;">
               <table style="width:100%;border-collapse:collapse;">
                 ${streamSummaryRows}
+                ${isVatRegistered ? `
+                <tr>
+                  <td style="padding:6px 16px;font-size:13px;color:${t.muted};">Subtotal (excl. VAT)</td>
+                  <td style="padding:6px 16px;text-align:right;font-size:13px;">${vatExclusive.toFixed(2)}</td>
+                </tr>
+                ${vatExemptTotal > 0.009 ? `<tr>
+                  <td style="padding:6px 16px;font-size:12px;color:${t.muted};">Refundable deposit (no VAT)</td>
+                  <td style="padding:6px 16px;text-align:right;font-size:12px;color:${t.muted};">${vatExemptTotal.toFixed(2)}</td>
+                </tr>` : ""}
+                <tr>
+                  <td style="padding:6px 16px;font-size:13px;color:${t.muted};">VAT @ ${vatRate.toFixed(vatRate % 1 === 0 ? 0 : 2)}%</td>
+                  <td style="padding:6px 16px;text-align:right;font-size:13px;">${vatAmount.toFixed(2)}</td>
+                </tr>` : `
                 <tr>
                   <td style="padding:6px 16px;font-size:13px;color:${t.muted};">Subtotal</td>
                   <td style="padding:6px 16px;text-align:right;font-size:13px;">${Number(invoice.subtotal || 0).toFixed(2)}</td>
-                </tr>
-                <tr>
-                  <td style="padding:6px 16px;font-size:13px;color:${t.muted};">Tax${isVatRegistered ? " (incl. VAT)" : ""}</td>
-                  <td style="padding:6px 16px;text-align:right;font-size:13px;">${Number(invoice.tax_total || 0).toFixed(2)}</td>
-                </tr>
+                </tr>`}
                 <tr style="border-top:2px solid ${t.accent};">
-                  <td style="padding:10px 16px;font-weight:700;font-size:15px;">Total</td>
+                  <td style="padding:10px 16px;font-weight:700;font-size:15px;">Total${isVatRegistered ? " (incl. VAT)" : ""}</td>
                   <td style="padding:10px 16px;text-align:right;font-weight:700;font-size:15px;">${money(total)}</td>
                 </tr>
                 ${commissionRows}
+
               </table>
             </td></tr>
           </table>
+
+          <p style="margin:-8px 0 24px;font-size:11.5px;color:${t.muted};">${
+            isVatRegistered
+              ? `All amounts are quoted in ${esc(currency)} and include VAT at ${vatRate.toFixed(vatRate % 1 === 0 ? 0 : 2)}%${vatNumber ? `. VAT registration number ${esc(vatNumber)}` : ""}.${isProForma ? " VAT becomes claimable only on the tax invoice issued after departure." : " This document serves as a tax invoice for VAT purposes."}${vatExemptTotal > 0.009 ? " Refundable deposits are not consideration for a supply and carry no VAT." : ""}`
+              : `All amounts are quoted in ${esc(currency)}. ${esc(businessName)} is not registered for VAT, therefore no VAT is charged on this document.`
+          }</p>
+
+
 
           ${sectionBlock("Payments received", allPayments.length
             ? `<table style="width:100%;border-collapse:collapse;">${paymentRows}</table>`
@@ -677,26 +710,43 @@ Deno.serve(async (req) => {
           return sum + (vatableSubtotal * Number(rule.rate) / 100);
         }, 0);
 
-        // If no explicit tax rules but property has VAT enabled, apply VAT
-        if (taxTotal === 0) {
-          const { data: brandCfg } = await supabase
-            .from("rolos_brand_config")
-            .select("is_vat_registered, vat_rate, vat_number")
-            .eq("property_id", invPropId)
-            .maybeSingle();
-          const { data: propData } = await supabase
-            .from("properties")
-            .select("amenities")
-            .eq("id", invPropId)
-            .single();
-          const propAmenities = (propData?.amenities as any) || {};
-          const hasVat = brandCfg?.is_vat_registered || !!propAmenities?.vat_number;
-          if (hasVat) {
-            const vatRate = brandCfg?.vat_rate ?? 15;
-            // VAT is inclusive on vatable amount only
-            taxTotal = vatableSubtotal - (vatableSubtotal / (1 + vatRate / 100));
-          }
+        // VAT registration is a property-level fact: brand config flag, or a VAT
+        // number captured in property setup. It drives both the maths below and
+        // the wording on the guest-facing document (tax invoice vs invoice).
+        const { data: brandCfgVat } = await supabase
+          .from("rolos_brand_config")
+          .select("is_vat_registered, vat_rate, vat_number")
+          .eq("property_id", invPropId)
+          .maybeSingle();
+        const { data: propVatData } = await supabase
+          .from("properties")
+          .select("amenities")
+          .eq("id", invPropId)
+          .maybeSingle();
+        const propVatNumber = (() => {
+          const a = (propVatData?.amenities as any) || {};
+          const v = a?.vat_number;
+          return typeof v === "string" && v.trim() ? v.trim() : null;
+        })();
+        const vatNumberResolved = (brandCfgVat?.vat_number && String(brandCfgVat.vat_number).trim())
+          ? String(brandCfgVat.vat_number).trim()
+          : propVatNumber;
+        const vatRegistered = !!brandCfgVat?.is_vat_registered || !!vatNumberResolved;
+        const vatRateResolved = Number(brandCfgVat?.vat_rate ?? 15);
+
+        // If no explicit tax rules but the property is VAT registered, derive the
+        // VAT already contained in the (VAT-inclusive) charges.
+        if (taxTotal === 0 && vatRegistered) {
+          taxTotal = vatableSubtotal - (vatableSubtotal / (1 + vatRateResolved / 100));
         }
+
+        const vatSummary = {
+          registered: vatRegistered,
+          rate: vatRateResolved,
+          number: vatNumberResolved,
+          exempt_total: Math.round(refundableTotal * 100) / 100,
+        };
+
 
         // ---------------------------------------------------------------------
         // Billing party resolution.
@@ -1069,6 +1119,8 @@ Deno.serve(async (req) => {
             paymentMode: (property as any)?.payment_mode || null,
             banking: bank || amenitiesObj.banking || null,
             paymentReference: bookingRow?.rol_reference || invoice.invoice_number,
+            vat: vatSummary,
+
           },
         );
 
