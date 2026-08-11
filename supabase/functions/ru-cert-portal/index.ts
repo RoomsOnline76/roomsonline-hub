@@ -458,10 +458,11 @@ const RU_ENDPOINT_REGISTRY: {
     rolos_surface: "RU console → ARI read-back", rolos_stream: "Onboarding P4 — ARI verification", rolos_wired: true, sync_actions: ["verify_availability"], note: "CalDay/Units parsing" },
   { rolos_via_cert: true, key: "get_prices", area: "ari", label: "Get prices (365d)", ru_method: "Pull_ListPropertyPrices_RQ", direction: "pull", mandatory: true, implemented: true,
     rolos_surface: "RU console → ARI read-back", rolos_stream: "Onboarding P4 — ARI verification", rolos_wired: true, sync_actions: ["verify_prices"], note: "" },
-  { rolos_via_cert: true, key: "long_stay", area: "ari", label: "Long-stay discounts", ru_method: "Push_PutLongStayDiscounts_RQ", direction: "push", mandatory: false, implemented: true,
-    rolos_surface: "RU console → Discounts ladder", rolos_stream: "Specials / discount ladder", rolos_wired: true, sync_actions: ["push_long_stay"], note: "Optional but recommended" },
-  { rolos_via_cert: true, key: "last_minute", area: "ari", label: "Last-minute discounts", ru_method: "Push_PutLastMinuteDiscounts_RQ", direction: "push", mandatory: false, implemented: true,
-    rolos_surface: "RU console → Discounts ladder", rolos_stream: "Specials / discount ladder", rolos_wired: true, sync_actions: ["push_last_minute"], note: "Optional but recommended" },
+  { key: "long_stay", area: "ari", label: "Long-stay discounts", ru_method: "Push_PutLongStayDiscounts_RQ", direction: "push", mandatory: false, implemented: true, max_age_hours: 24,
+    rolos_surface: "Discount ladder save (event) + daily discount cron", rolos_stream: "Specials / discount ladder", rolos_wired: true, sync_actions: ["push_long_stay", "push_discounts", "refresh_discounts", "inventory_push"], note: "Pushed on change and re-pushed daily" },
+  { key: "last_minute", area: "ari", label: "Last-minute discounts", ru_method: "Push_PutLastMinuteDiscounts_RQ", direction: "push", mandatory: false, implemented: true, max_age_hours: 24,
+    rolos_surface: "Discount ladder save (event) + daily discount cron", rolos_stream: "Specials / discount ladder", rolos_wired: true, sync_actions: ["push_last_minute", "push_discounts", "refresh_discounts", "inventory_push"], note: "Pushed on change and re-pushed daily" },
+
 
   // ── reservations ──
   { key: "reservations", area: "reservations", label: "Pull reservations", ru_method: "Pull_ListReservations_RQ", direction: "pull", mandatory: true, implemented: true,
