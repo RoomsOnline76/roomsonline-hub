@@ -54,4 +54,4 @@ Enforcement happens in two layers:
 
 ## Out of scope
 
-The owner login `michal.tomaszewski@rentalsunited.com` keeps its existing owner-level access to the same two properties; no change there.
+The owner login `ru-owner@roomsonline.co.za` keeps its existing owner-level access to the same two properties; no change there.
