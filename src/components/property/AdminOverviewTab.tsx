@@ -316,6 +316,18 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
   // BYO payment gateway monthly add-on (only when owner uses their own provider)
   if (customProvider) push("BYO payment gateway add-on", c.byo_gateway_monthly_fee);
 
+  // ROL payment facilitator surcharge — per-booking, variable. Always surfaced
+  // as a line item when ROL processes payments so the client cost picture is
+  // complete (it never adds to the fixed monthly / setup totals).
+  if (facilitator) {
+    const surcharge = Number(c.transaction_fee_percentage ?? 0);
+    costLines.push({
+      label: "ROL payment facilitator surcharge",
+      amount: 0,
+      variable: surcharge > 0 ? `${surcharge}% / booking` : "rate not set",
+    });
+  }
+
 
   const monthlyTotal = costLines.filter((l) => !l.once).reduce((s, l) => s + l.amount, 0);
   const setupTotal = costLines.filter((l) => l.once).reduce((s, l) => s + l.amount, 0);
