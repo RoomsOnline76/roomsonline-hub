@@ -16,6 +16,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useAdminActionCounts } from "@/hooks/useAdminActionCounts";
 import { PmsMobileBottomNav } from "./PmsMobileBottomNav";
 import { useNavVisibility } from "@/hooks/useNavVisibility";
+import { VersionBadge } from "./VersionBadge";
 
 export function MobileBottomNav() {
   const location = useLocation();
@@ -181,6 +182,8 @@ export function MobileBottomNav() {
                 <LogOut className="h-5 w-5" />
                 Sign out
               </button>
+
+              <VersionBadge />
             </div>
           </SheetContent>
         </Sheet>
