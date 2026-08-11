@@ -1393,17 +1393,17 @@ Deno.serve(async (req) => {
     try {
       const { data: contacts } = await supabaseClient
         .from("property_contact_details")
-        .select("contact_name, email, phone, mobile, role, is_public, sort_order")
+        .select("name, email, phone, role, is_public, sort_order")
         .eq("property_id", property.id)
         .eq("is_public", true)
         .order("sort_order", { ascending: true })
         .limit(5);
       if (Array.isArray(contacts) && contacts.length) {
         (property as any).__contact = {
-          hostName: contacts.find((c: any) => c.contact_name)?.contact_name || null,
+          hostName: contacts.find((c: any) => c.name)?.name || null,
           email: contacts.find((c: any) => c.email)?.email || null,
           phone: contacts.find((c: any) => c.phone)?.phone || null,
-          cell: contacts.find((c: any) => c.mobile)?.mobile || null,
+          cell: null,
         };
       }
     } catch (e) {
