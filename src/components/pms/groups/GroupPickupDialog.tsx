@@ -57,6 +57,7 @@ export default function GroupPickupDialog({
   const [saving, setSaving] = useState(false);
   const { packages } = useActivePackages(propertyId);
   const [packageId, setPackageId] = useState("none");
+  const [roomId, setRoomId] = useState("auto");
   const [form, setForm] = useState({
     guest_name: "",
     guest_email: "",
@@ -83,9 +84,52 @@ export default function GroupPickupDialog({
       special_requests: roomingLine?.special_requests || "",
     });
     setPackageId(block?.package_id || "none");
+    setRoomId(roomingLine?.room_id || "auto");
   }, [open, block, roomingLine]);
 
-  const submit = async () => {
+  const arrival = form.arrival_date || block?.start_date || null;
+  const departure = form.departure_date || block?.end_date || null;
+
+  // Named units belonging to the blocked room type, flagged busy when another
+  // live booking already overlaps the requested dates.
+  const { data: units = [], isFetching: unitsLoading } = useQuery({
+    queryKey: ["group-pickup-units", propertyId, block?.room_type_id, arrival, departure],
+    enabled: open && !!propertyId && !!block?.room_type_id,
+    queryFn: async (): Promise<UnitOption[]> => {
+      const { data: rooms, error } = await supabase
+        .from("rolos_rooms")
+        .select("id, room_name, room_number, max_occupancy, status")
+        .eq("property_id", propertyId)
+        .eq("room_type_id", block!.room_type_id)
+        .order("room_number", { ascending: true });
+      if (error) throw error;
+      const ids = (rooms || []).map((r) => r.id);
+      const busy = new Set<string>();
+      if (ids.length && arrival && departure) {
+        const { data: assigned } = await supabase
+          .from("rolos_booking_rooms")
+          .select("room_id, booking:bookings!booking_id(check_in_date, check_out_date, status)")
+          .in("room_id", ids);
+        (assigned || []).forEach((row: { room_id: string | null; booking: { check_in_date: string | null; check_out_date: string | null; status: string | null } | null }) => {
+          const b = row.booking;
+          if (!row.room_id || !b?.check_in_date || !b?.check_out_date) return;
+          if (["cancelled", "no_show"].includes(String(b.status || "").toLowerCase())) return;
+          if (b.check_in_date < departure && b.check_out_date > arrival) busy.add(row.room_id);
+        });
+      }
+      return (rooms || []).map((r) => ({
+        id: r.id,
+        label: r.room_name || r.room_number || "Unit",
+        maxOccupancy: r.max_occupancy ?? null,
+        status: r.status ?? null,
+        busy: busy.has(r.id),
+      }));
+    },
+  });
+
+  const freeUnits = useMemo(() => units.filter((u) => !u.busy), [units]);
+
+  const submit = useCallback(async () => {
     if (!block) return;
     setSaving(true);
     try {
@@ -102,6 +146,7 @@ export default function GroupPickupDialog({
         adults: parseInt(form.adults, 10) || 1,
         children: parseInt(form.children, 10) || 0,
         room_preference: form.room_preference.trim() || null,
+        room_id: roomId === "auto" ? null : roomId,
         special_requests: form.special_requests.trim() || null,
         package_id: packageId === "none" ? null : packageId,
       });
@@ -113,7 +158,8 @@ export default function GroupPickupDialog({
     } finally {
       setSaving(false);
     }
-  };
+  }, [block, propertyId, groupId, roomingLine, form, roomId, packageId, onOpenChange, onDone]);
+
 
   const remaining = block ? Math.max(0, block.blocked_count - block.picked_up_count) : 0;
 
