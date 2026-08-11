@@ -32,27 +32,119 @@ function channelLabel(key: string | null | undefined): string {
   return map[k] || key!;
 }
 
-function generateInvoiceHTML(invoice: any, transactions: any[], property: any, branding: any): string {
+/** Escape any value before it lands in the HTML document. */
+function esc(value: unknown): string {
+  if (value == null) return "";
+  const raw = typeof value === "object" ? "" : String(value);
+  return raw.replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" } as Record<string, string>)[c]);
+}
 
+/** Documents may only ever print plain strings — objects become empty, never "[object Object]". */
+function plain(value: unknown): string {
+  if (value == null) return "";
+  if (typeof value === "string") return value.trim();
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (Array.isArray(value)) return value.map(plain).filter(Boolean).join(", ");
+  if (typeof value === "object") {
+    const o = value as Record<string, unknown>;
+    return [o.line1, o.address_line1, o.address_line2, o.street, o.city, o.postal_code, o.province, o.country]
+      .map((v) => (typeof v === "string" ? v.trim() : ""))
+      .filter(Boolean)
+      .join(", ");
+  }
+  return "";
+}
+
+interface InvoiceBrandTokens {
+  accent: string;
+  dark: string;
+  font: string;
+  muted: string;
+  pageBg: string;
+  panelBg: string;
+  rule: string;
+  headingFont: string;
+  bodyFont: string;
+}
+
+/** Brand tokens mirroring the guest confirmation email (ivory / charcoal / accent). */
+function invoiceBrandTokens(property: any): InvoiceBrandTokens {
+  const isRol = !!property?.is_rol_property;
+  const hasColors = !!property?.brand_primary_color;
+  const isBranded = isRol ? hasColors : (!!property?.brand_override_enabled && hasColors);
+  return {
+    accent: isBranded ? property.brand_primary_color : "#e91e8c",
+    dark: (isBranded && property?.brand_dark_bg_color) || "#1a1a2e",
+    font: (isBranded && property?.brand_font_color) || "#2b2b33",
+    muted: (isBranded && property?.brand_muted_text_color) || "#6b6b78",
+    pageBg: (isBranded && property?.brand_light_bg_color) || "#f6f3ee",
+    panelBg: "#faf8f5",
+    rule: "#e7e1d8",
+    headingFont: (isBranded && property?.brand_heading_font)
+      ? `'${property.brand_heading_font}', Georgia, 'Times New Roman', serif`
+      : `Georgia, 'Times New Roman', serif`,
+    bodyFont: `-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif`,
+  };
+}
+
+interface InvoiceExtras {
+  guest?: {
+    name?: string | null;
+    email?: string | null;
+    phone?: string | null;
+    address?: string | null;
+    nationality?: string | null;
+  } | null;
+  rooms?: Array<{
+    name: string;
+    basis?: string | null;
+    occupancy?: string | null;
+    dates?: string | null;
+  }>;
+  payments?: Array<{ label: string; amount: number; date?: string | null; method?: string | null }>;
+  amountPaid?: number;
+  deposit?: { amount?: number | null; due_date?: string | null } | null;
+  cancellation?: string | null;
+  terms?: string[];
+  contact?: { phone?: string | null; email?: string | null; website?: string | null; address?: string | null } | null;
+  bookingReference?: string | null;
+  paymentMode?: string | null;
+  banking?: Record<string, unknown> | null;
+  paymentReference?: string | null;
+}
+
+function generateInvoiceHTML(
+  invoice: any,
+  transactions: any[],
+  property: any,
+  branding: any,
+  extras: InvoiceExtras = {},
+): string {
+  const t = invoiceBrandTokens(property);
   const isProForma = invoice?.document_kind === "pro_forma";
-  const businessName = branding?.business_name || property?.name || "Property";
-  const businessAddress = branding?.business_address || "";
+  const businessName = plain(branding?.business_name) || plain(property?.name) || "Property";
+  const businessAddress = plain(branding?.business_address) ||
+    [plain(property?.address), plain(property?.city), plain(property?.postal_code), plain(property?.country)]
+      .filter(Boolean)
+      .join(", ");
   const amenities = property?.amenities || {};
-  const amenityVatNumber = amenities?.vat_number || "";
-  const vatNumber = branding?.vat_number || amenityVatNumber || "";
-  const isVatRegistered = branding?.is_vat_registered || !!amenityVatNumber;
-  const logoUrl = property?.brand_logo_url || "";
-  const primaryColor = property?.brand_primary_color || "#1a1a2e";
+  const amenityVatNumber = plain(amenities?.vat_number);
+  const vatNumber = plain(branding?.vat_number) || amenityVatNumber;
+  const isVatRegistered = !!branding?.is_vat_registered || !!amenityVatNumber;
+  const logoUrl = plain(property?.brand_logo_url);
+  const currency = plain(invoice.currency) || "ZAR";
+  const money = (n: number) => `${currency} ${Number(n || 0).toFixed(2)}`;
 
-  const charges = transactions.filter((t: any) => (t.amount || 0) > 0);
-  const payments = transactions.filter((t: any) => (t.amount || 0) < 0);
+  const charges = transactions.filter((x: any) => (x.amount || 0) > 0);
+  const txPayments = transactions.filter((x: any) => (x.amount || 0) < 0);
 
   // Guest-facing line clarity: group charges by revenue stream so the guest (or
   // their accounts team) can see accommodation separately from food & beverage.
-  const streamOf = (t: any): "accommodation" | "fnb" | "other" => {
-    const raw = String(t.revenue_stream || "").toLowerCase();
+  const streamOf = (x: any): "accommodation" | "fnb" | "other" => {
+    const raw = String(x.revenue_stream || "").toLowerCase();
     if (raw === "fnb" || raw === "other" || raw === "accommodation") return raw as any;
-    const text = `${t.transaction_type || ""} ${t.description || ""}`.toLowerCase();
+    const text = `${x.transaction_type || ""} ${x.description || ""}`.toLowerCase();
     if (/breakfast|dinner|lunch|meal|restaurant|bar |beverage|food/.test(text)) return "fnb";
     if (/accommodation|room rate|stay charge|booking total|night/.test(text)) return "accommodation";
     return "other";
@@ -64,82 +156,63 @@ function generateInvoiceHTML(invoice: any, transactions: any[], property: any, b
   ];
   const grouped = sectionMeta
     .map((s) => {
-      const items = charges.filter((t: any) => streamOf(t) === s.key);
-      return { ...s, items, total: items.reduce((sum: number, t: any) => sum + Number(t.amount || 0), 0) };
+      const items = charges.filter((x: any) => streamOf(x) === s.key);
+      return { ...s, items, total: items.reduce((sum: number, x: any) => sum + Number(x.amount || 0), 0) };
     })
     .filter((s) => s.items.length > 0);
   const showSections = grouped.length > 1;
 
-  const lineRow = (t: any) => `
-    <tr>
-      <td style="padding:8px 12px;border-bottom:1px solid #eee;${showSections ? "padding-left:24px;" : ""}">${t.description || "Charge"}</td>
-      <td style="padding:8px 12px;border-bottom:1px solid #eee;text-align:right;">${Number(t.amount).toFixed(2)}</td>
-    </tr>
-  `;
+  const lineRow = (x: any) => `
+      <tr>
+        <td style="padding:9px 14px;border-bottom:1px solid ${t.rule};font-size:13px;color:${t.font};${showSections ? "padding-left:26px;" : ""}">${esc(plain(x.description) || "Charge")}</td>
+        <td style="padding:9px 14px;border-bottom:1px solid ${t.rule};text-align:right;font-size:13px;color:${t.font};">${Number(x.amount).toFixed(2)}</td>
+      </tr>`;
 
   const chargeRows = showSections
     ? grouped.map((s) => `
-    <tr>
-      <td style="padding:10px 12px;border-bottom:1px solid #eee;font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:0.6px;color:#666;">${s.label}</td>
-      <td style="padding:10px 12px;border-bottom:1px solid #eee;"></td>
-    </tr>
-    ${s.items.map(lineRow).join("")}
-    <tr>
-      <td style="padding:6px 12px;border-bottom:1px solid #eee;font-size:12px;color:#666;">${s.label} subtotal</td>
-      <td style="padding:6px 12px;border-bottom:1px solid #eee;text-align:right;font-size:12px;font-weight:600;color:#666;">${s.total.toFixed(2)}</td>
-    </tr>
-  `).join("")
+      <tr>
+        <td style="padding:11px 14px;border-bottom:1px solid ${t.rule};font-size:11px;text-transform:uppercase;letter-spacing:1.4px;color:${t.accent};">${s.label}</td>
+        <td style="padding:11px 14px;border-bottom:1px solid ${t.rule};"></td>
+      </tr>
+      ${s.items.map(lineRow).join("")}
+      <tr>
+        <td style="padding:6px 14px;border-bottom:1px solid ${t.rule};font-size:12px;color:${t.muted};">${s.label} subtotal</td>
+        <td style="padding:6px 14px;border-bottom:1px solid ${t.rule};text-align:right;font-size:12px;font-weight:600;color:${t.muted};">${s.total.toFixed(2)}</td>
+      </tr>`).join("")
     : charges.map(lineRow).join("");
 
   const streamSummaryRows = showSections
     ? grouped.map((s) => `
       <tr>
-        <td style="padding:4px 16px;font-size:12px;color:#666;">${s.label}</td>
-        <td style="padding:4px 16px;text-align:right;font-size:12px;color:#666;">${s.total.toFixed(2)}</td>
-      </tr>
-    `).join("")
+        <td style="padding:4px 16px;font-size:12px;color:${t.muted};">${s.label}</td>
+        <td style="padding:4px 16px;text-align:right;font-size:12px;color:${t.muted};">${s.total.toFixed(2)}</td>
+      </tr>`).join("")
     : "";
 
-  const paymentRows = payments.map((t: any) => `
-    <tr>
-      <td style="padding:8px 12px;border-bottom:1px solid #eee;color:#16a34a;">${t.description || "Payment"}</td>
-      <td style="padding:8px 12px;border-bottom:1px solid #eee;text-align:right;color:#16a34a;">(${Math.abs(Number(t.amount)).toFixed(2)})</td>
-    </tr>
-  `).join("");
+  // Payments: gateway/EFT records with their method, plus any folio credit lines.
+  const gatewayPayments = (extras.payments || []).map((p) => ({
+    label: [p.label, p.method ? `(${p.method})` : "", p.date ? `· ${p.date}` : ""].filter(Boolean).join(" "),
+    amount: Math.abs(Number(p.amount || 0)),
+  }));
+  const folioPayments = txPayments.map((x: any) => ({
+    label: plain(x.description) || "Payment",
+    amount: Math.abs(Number(x.amount || 0)),
+  }));
+  const allPayments = gatewayPayments.length ? gatewayPayments : folioPayments;
+  const paidTotal = extras.amountPaid != null
+    ? Number(extras.amountPaid)
+    : allPayments.reduce((s, p) => s + p.amount, 0);
+  const total = Number(invoice.total || 0);
+  const balance = Math.round((total - paidTotal) * 100) / 100;
 
-  // Reservation-only stays are settled by bank transfer — surface the account
-  // details, what is due and by when, plus the cancellation terms.
-  const resBanking = amenities?.banking || property?.__banking || null;
-  const resTerms = property?.__reservation_terms || null;
-  const bankingBlock = (() => {
-    if (!resBanking && !resTerms) return "";
-    const rows: Array<[string, unknown]> = resBanking
-      ? [
-          ["Account holder", resBanking.account_holder],
-          ["Bank", resBanking.bank_name],
-          ["Account number", resBanking.account_number || resBanking.account_number_masked],
-          ["Account type", resBanking.account_type],
-          ["Branch code", resBanking.branch_code],
-          ["SWIFT / BIC", resBanking.swift_code],
-          ["Payment reference", resTerms?.reference || invoice.invoice_number],
-        ]
-      : [];
-    const dueNow = Number(resTerms?.deposit_amount || 0);
-    const dueLine = dueNow > 0
-      ? `<p style="margin:0 0 8px;font-size:13px;color:#444;">Due now: <strong>${invoice.currency || "ZAR"} ${dueNow.toFixed(2)}</strong>${resTerms?.deposit_due_date ? ` by <strong>${resTerms.deposit_due_date}</strong>` : ""}.</p>`
-      : "";
-    return `
-  <div style="margin-top:24px;padding:14px 16px;border:1px solid #e2e8f0;border-radius:6px;">
-    <div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#999;margin-bottom:6px;">Payment by bank transfer</div>
-    ${dueLine}
-    ${rows.filter(([, v]) => !!v).map(([label, v]) => `<div style="font-size:12px;color:#444;">${label}: <span style="font-family:monospace;">${v}</span></div>`).join("")}
-    ${resTerms?.cancellation ? `<p style="margin:10px 0 0;font-size:11px;color:#777;"><strong>Cancellation policy:</strong> ${resTerms.cancellation}</p>` : ""}
-  </div>`;
-  })();
+  const paymentRows = allPayments.map((p) => `
+      <tr>
+        <td style="padding:9px 14px;border-bottom:1px solid ${t.rule};font-size:13px;color:#15803d;">${esc(p.label)}</td>
+        <td style="padding:9px 14px;border-bottom:1px solid ${t.rule};text-align:right;font-size:13px;color:#15803d;">(${p.amount.toFixed(2)})</td>
+      </tr>`).join("");
 
   const docTitle = isProForma ? "PRO FORMA INVOICE" : (isVatRegistered ? "TAX INVOICE" : "INVOICE");
 
-  // Who is being billed — printed next to the name so an accounts team can file it.
   const billToKindLabel = ({
     guest: "Guest",
     company: "Company",
@@ -152,96 +225,239 @@ function generateInvoiceHTML(invoice: any, transactions: any[], property: any, b
   const netPayable = invoice.net_payable != null ? Number(invoice.net_payable) : null;
   const commissionRows = commissionAmount > 0 ? `
       <tr>
-        <td style="padding:6px 16px;font-size:12px;color:#666;">Commission${commissionRate > 0 ? ` (${commissionRate.toFixed(2)}%)` : ""}</td>
-        <td style="padding:6px 16px;text-align:right;font-size:12px;color:#666;">(${commissionAmount.toFixed(2)})</td>
+        <td style="padding:6px 16px;font-size:12px;color:${t.muted};">Commission${commissionRate > 0 ? ` (${commissionRate.toFixed(2)}%)` : ""}</td>
+        <td style="padding:6px 16px;text-align:right;font-size:12px;color:${t.muted};">(${commissionAmount.toFixed(2)})</td>
       </tr>
       ${netPayable != null ? `<tr>
-        <td style="padding:6px 16px;font-weight:600;">Net payable</td>
-        <td style="padding:6px 16px;text-align:right;font-weight:600;">${netPayable.toFixed(2)}</td>
-      </tr>` : ""}
-  ` : "";
+        <td style="padding:6px 16px;font-weight:600;font-size:13px;">Net payable</td>
+        <td style="padding:6px 16px;text-align:right;font-weight:600;font-size:13px;">${netPayable.toFixed(2)}</td>
+      </tr>` : ""}` : "";
 
+  // ── Layout primitives, matching the guest confirmation email ───────────────
+  const sectionBlock = (title: string, inner: string) => inner
+    ? `
+    <div style="margin:0 0 26px;border-top:1px solid ${t.rule};padding-top:20px;">
+      <p style="margin:0 0 12px;font-family:${t.headingFont};font-size:11px;letter-spacing:2.2px;text-transform:uppercase;color:${t.accent};">${title}</p>
+      ${inner}
+    </div>`
+    : "";
+
+  const kvRows = (rows: Array<[string, unknown]>) => {
+    const visible = rows.filter(([, v]) => !!plain(v));
+    if (!visible.length) return "";
+    return `
+      <table style="width:100%;border-collapse:collapse;">
+        ${visible.map(([label, v]) => `
+        <tr>
+          <td style="padding:6px 0;font-size:13px;color:${t.muted};vertical-align:top;">${label}</td>
+          <td style="padding:6px 0;font-size:13px;color:${t.font};font-weight:600;text-align:right;vertical-align:top;">${esc(plain(v))}</td>
+        </tr>`).join("")}
+      </table>`;
+  };
+
+  const textLines = (text: string) => {
+    const lines = String(text).split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    if (lines.length <= 1) {
+      return `<p style="margin:0;font-size:13px;line-height:1.65;color:${t.font};">${esc(text.trim())}</p>`;
+    }
+    return `<ul style="margin:0;padding-left:18px;font-size:13px;line-height:1.7;color:${t.font};">${lines
+      .map((l) => `<li style="margin:0 0 4px;">${esc(l.replace(/^[-•*]\s*/, ""))}</li>`)
+      .join("")}</ul>`;
+  };
+
+  // Accommodation reserved — which unit(s) the guest actually booked.
+  const roomsBlock = (extras.rooms || []).length
+    ? `<table style="width:100%;border-collapse:collapse;">${(extras.rooms || []).map((r) => `
+        <tr>
+          <td style="padding:8px 0;border-bottom:1px solid ${t.rule};">
+            <div style="font-size:14px;font-weight:600;color:${t.font};">${esc(r.name)}</div>
+            <div style="font-size:12px;color:${t.muted};">${esc([r.basis, r.occupancy, r.dates].filter(Boolean).join(" · "))}</div>
+          </td>
+        </tr>`).join("")}</table>`
+    : "";
+
+  const guest = extras.guest || {};
+  const guestBlock = kvRows([
+    ["Name", guest.name],
+    ["Email", guest.email],
+    ["Phone", guest.phone],
+    ["Address", guest.address],
+    ["Nationality", guest.nationality],
+  ]);
+
+  const depositAmount = Number(extras.deposit?.amount || 0);
+  const settlementRows: Array<[string, unknown]> = [
+    ["Invoice total", money(total)],
+    ["Paid to date", paidTotal > 0 ? `-${money(paidTotal)}` : money(0)],
+  ];
+  if (depositAmount > 0 && balance > 0) {
+    settlementRows.push(["Deposit due", money(depositAmount)]);
+    if (extras.deposit?.due_date) settlementRows.push(["Deposit due by", extras.deposit.due_date]);
+  }
+  const statusLabel = balance <= 0.009
+    ? "PAID IN FULL"
+    : paidTotal > 0
+      ? "PART PAID"
+      : "AWAITING PAYMENT";
+  const statusColor = balance <= 0.009 ? "#15803d" : t.accent;
+  const settlementBlock = `
+      ${kvRows(settlementRows)}
+      <div style="margin-top:12px;padding:14px 16px;background:${t.panelBg};border-left:3px solid ${statusColor};border-radius:4px;">
+        <div style="font-size:11px;letter-spacing:1.6px;text-transform:uppercase;color:${statusColor};">${statusLabel}</div>
+        <div style="margin-top:4px;font-size:18px;font-weight:700;color:${t.font};">
+          ${balance > 0.009 ? `Balance owing: ${money(balance)}` : `Nothing further due`}
+        </div>
+      </div>`;
+
+  const banking = extras.banking || null;
+  const bankingBlock = banking
+    ? kvRows([
+        ["Account holder", (banking as any).account_holder],
+        ["Bank", (banking as any).bank_name],
+        ["Account number", (banking as any).account_number || (banking as any).account_number_masked],
+        ["Account type", (banking as any).account_type],
+        ["Branch code", (banking as any).branch_code],
+        ["SWIFT / BIC", (banking as any).swift_code],
+        ["Payment reference", extras.paymentReference || invoice.invoice_number],
+      ])
+    : "";
+
+  const contact = extras.contact || {};
+  const contactBlock = kvRows([
+    ["Telephone", contact.phone],
+    ["Email", contact.email],
+    ["Website", contact.website],
+    ["Address", contact.address || businessAddress],
+  ]);
+
+  const termsBlock = (extras.terms || []).filter(Boolean).length
+    ? `<ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7;color:${t.muted};">${(extras.terms || [])
+        .filter(Boolean)
+        .map((line) => `<li style="margin:0 0 4px;">${esc(line)}</li>`)
+        .join("")}</ul>`
+    : "";
 
   return `<!DOCTYPE html>
 <html>
-<head><meta charset="utf-8"><title>${docTitle} ${invoice.invoice_number}</title></head>
-<body style="font-family:'Helvetica Neue',Arial,sans-serif;margin:0;padding:40px;color:#1a1a2e;max-width:800px;margin:0 auto;">
-  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:40px;">
-    <div>
-      ${logoUrl ? `<img src="${logoUrl}" alt="${businessName}" style="max-height:60px;margin-bottom:8px;" />` : ""}
-      <h1 style="margin:0;font-size:28px;color:${primaryColor};">${businessName}</h1>
-      ${businessAddress ? `<p style="margin:4px 0;color:#666;font-size:13px;">${businessAddress}</p>` : ""}
-      ${isVatRegistered && vatNumber && !isProForma ? `<p style="margin:4px 0;color:#666;font-size:13px;">VAT: ${vatNumber}</p>` : ""}
-    </div>
-    <div style="text-align:right;">
-      <h2 style="margin:0;font-size:24px;color:${primaryColor};">${docTitle}</h2>
-      <p style="margin:4px 0;font-size:14px;color:#666;">${invoice.invoice_number}</p>
-      <p style="margin:4px 0;font-size:13px;color:#666;">Issued: ${invoice.issued_date || new Date().toISOString().split("T")[0]}</p>
-      ${invoice.due_date ? `<p style="margin:4px 0;font-size:13px;color:#666;">Due: ${invoice.due_date}</p>` : ""}
-    </div>
-  </div>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${docTitle} ${esc(invoice.invoice_number)}</title></head>
+<body style="margin:0;padding:0;background-color:${t.pageBg};font-family:${t.bodyFont};color:${t.font};">
+  <table role="presentation" style="width:100%;border-collapse:collapse;">
+    <tr><td align="center" style="padding:32px 16px;">
+      <table role="presentation" style="width:100%;max-width:720px;border-collapse:collapse;background:#ffffff;border-radius:10px;overflow:hidden;box-shadow:0 4px 16px rgba(26,26,46,0.08);">
 
-  ${isProForma ? `<p style="margin:0 0 24px;padding:10px 14px;background:#fff7ed;border:1px solid #fdba74;border-radius:6px;font-size:12px;color:#9a3412;">This is a <strong>pro forma invoice</strong> — a quotation of charges for your upcoming stay. It is not a tax invoice and cannot be used for VAT purposes. A final invoice will be issued after your stay.</p>` : ""}
+        <tr>
+          <td style="padding:28px 32px;background:${t.dark};">
+            <table style="width:100%;border-collapse:collapse;">
+              <tr>
+                <td style="vertical-align:top;">
+                  ${logoUrl ? `<img src="${esc(logoUrl)}" alt="${esc(businessName)}" style="max-height:56px;max-width:190px;display:block;margin-bottom:8px;" />` : ""}
+                  <div style="font-family:${t.headingFont};font-size:24px;color:#ffffff;letter-spacing:0.4px;">${esc(businessName)}</div>
+                  ${businessAddress ? `<div style="margin-top:6px;font-size:12px;color:rgba(255,255,255,0.7);">${esc(businessAddress)}</div>` : ""}
+                  ${isVatRegistered && vatNumber && !isProForma ? `<div style="margin-top:4px;font-size:12px;color:rgba(255,255,255,0.7);">VAT No: ${esc(vatNumber)}</div>` : ""}
+                </td>
+                <td style="vertical-align:top;text-align:right;">
+                  <div style="font-family:${t.headingFont};font-size:16px;letter-spacing:2.4px;text-transform:uppercase;color:${t.accent};">${docTitle}</div>
+                  <div style="margin-top:8px;font-size:13px;color:#ffffff;font-family:monospace;">${esc(invoice.invoice_number)}</div>
+                  <div style="margin-top:4px;font-size:12px;color:rgba(255,255,255,0.7);">Issued: ${esc(invoice.issued_date || new Date().toISOString().split("T")[0])}</div>
+                  ${invoice.due_date ? `<div style="font-size:12px;color:rgba(255,255,255,0.7);">Due: ${esc(invoice.due_date)}</div>` : ""}
+                  ${extras.bookingReference ? `<div style="margin-top:4px;font-size:12px;color:rgba(255,255,255,0.7);">Booking: ${esc(extras.bookingReference)}</div>` : ""}
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
 
-  ${invoice.invoice_to || invoice.stay ? `
-  <div style="display:flex;gap:32px;margin-bottom:24px;font-size:13px;color:#444;">
-    ${invoice.invoice_to ? `<div><div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#999;">Invoice To${billToKindLabel ? ` &middot; ${billToKindLabel}` : ""}</div><div style="font-weight:600;">${invoice.invoice_to}</div>${invoice.bill_to?.address ? `<div style="font-size:12px;color:#666;">${invoice.bill_to.address}</div>` : ""}${invoice.bill_to?.vat_number ? `<div style="font-size:12px;color:#666;">VAT No: ${invoice.bill_to.vat_number}</div>` : ""}${invoice.bill_to?.terms_days ? `<div style="font-size:12px;color:#666;">Payment terms: ${invoice.bill_to.terms_days} days</div>` : ""}</div>` : ""}
-    ${invoice.stay ? `<div><div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#999;">Stay</div><div>${invoice.stay.check_in} &rarr; ${invoice.stay.check_out}</div>${invoice.stay.guest ? `<div style="font-size:12px;color:#666;">Guest: ${invoice.stay.guest}</div>` : ""}</div>` : ""}
-    ${invoice.channel_label ? `<div><div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#999;">Channel</div><div>${invoice.channel_label}</div></div>` : ""}
-    ${invoice.reference ? `<div><div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#999;">Reference</div><div>${invoice.reference}</div></div>` : ""}
-  </div>` : ""}
+        <tr><td style="padding:28px 32px 8px;">
 
+          ${isProForma ? `<p style="margin:0 0 22px;padding:12px 14px;background:#fffbeb;border-left:3px solid #f59e0b;border-radius:4px;font-size:12px;color:#92400e;">This is a <strong>pro forma invoice</strong> — a quotation of charges for your upcoming stay. It is not a tax invoice and cannot be used for VAT purposes. A final invoice will be issued after your stay.</p>` : ""}
 
+          ${sectionBlock(`Invoiced to${billToKindLabel ? ` &middot; ${billToKindLabel}` : ""}`, kvRows([
+            ["Name", invoice.invoice_to],
+            ["Address", invoice.bill_to?.address],
+            ["VAT No", invoice.bill_to?.vat_number],
+            ["Payment terms", invoice.bill_to?.terms_days ? `${invoice.bill_to.terms_days} days` : ""],
+          ]))}
 
-  <table style="width:100%;border-collapse:collapse;margin-bottom:24px;">
-    <thead>
-      <tr style="background:${primaryColor};color:white;">
-        <th style="padding:10px 12px;text-align:left;">Description</th>
-        <th style="padding:10px 12px;text-align:right;width:120px;">Amount</th>
-      </tr>
-    </thead>
-    <tbody>
-      ${chargeRows}
-    </tbody>
+          ${sectionBlock("Guest details", guestBlock)}
+
+          ${sectionBlock("Stay", kvRows([
+            ["Arriving", invoice.stay?.check_in],
+            ["Departing", invoice.stay?.check_out],
+            ["Nights", invoice.stay?.nights],
+            ["Guests", invoice.stay?.guests],
+            ["Channel", invoice.channel_label],
+            ["Reference", extras.bookingReference || invoice.reference],
+          ]))}
+
+          ${sectionBlock("Accommodation reserved", roomsBlock)}
+
+          <div style="margin:0 0 22px;">
+            <table style="width:100%;border-collapse:collapse;">
+              <thead>
+                <tr style="background:${t.panelBg};">
+                  <th style="padding:11px 14px;text-align:left;font-size:11px;letter-spacing:1.6px;text-transform:uppercase;color:${t.muted};border-bottom:1px solid ${t.rule};">Description</th>
+                  <th style="padding:11px 14px;text-align:right;width:130px;font-size:11px;letter-spacing:1.6px;text-transform:uppercase;color:${t.muted};border-bottom:1px solid ${t.rule};">Amount</th>
+                </tr>
+              </thead>
+              <tbody>${chargeRows}</tbody>
+            </table>
+          </div>
+
+          <table style="width:100%;border-collapse:collapse;margin:0 0 24px;">
+            <tr><td></td><td style="width:320px;">
+              <table style="width:100%;border-collapse:collapse;">
+                ${streamSummaryRows}
+                <tr>
+                  <td style="padding:6px 16px;font-size:13px;color:${t.muted};">Subtotal</td>
+                  <td style="padding:6px 16px;text-align:right;font-size:13px;">${Number(invoice.subtotal || 0).toFixed(2)}</td>
+                </tr>
+                <tr>
+                  <td style="padding:6px 16px;font-size:13px;color:${t.muted};">Tax${isVatRegistered ? " (incl. VAT)" : ""}</td>
+                  <td style="padding:6px 16px;text-align:right;font-size:13px;">${Number(invoice.tax_total || 0).toFixed(2)}</td>
+                </tr>
+                <tr style="border-top:2px solid ${t.accent};">
+                  <td style="padding:10px 16px;font-weight:700;font-size:15px;">Total</td>
+                  <td style="padding:10px 16px;text-align:right;font-weight:700;font-size:15px;">${money(total)}</td>
+                </tr>
+                ${commissionRows}
+              </table>
+            </td></tr>
+          </table>
+
+          ${sectionBlock("Payments received", allPayments.length
+            ? `<table style="width:100%;border-collapse:collapse;">${paymentRows}</table>`
+            : `<p style="margin:0;font-size:13px;color:${t.muted};">No payments received to date.</p>`)}
+
+          ${sectionBlock("Settlement", settlementBlock)}
+
+          ${bankingBlock && balance > 0.009
+            ? sectionBlock("How to pay — bank transfer", `${bankingBlock}<p style="margin:10px 0 0;font-size:12px;color:${t.muted};">Please use the payment reference above and email proof of payment to ${esc(contact.email || "")}.</p>`)
+            : ""}
+
+          ${sectionBlock("Cancellation policy", extras.cancellation ? textLines(extras.cancellation) : "")}
+
+          ${sectionBlock("Terms &amp; other information", termsBlock)}
+
+          ${sectionBlock("Property contact", contactBlock)}
+
+          ${invoice.notes ? `<div style="margin:0 0 24px;padding:14px 16px;background:${t.panelBg};border-left:3px solid ${t.rule};border-radius:4px;font-size:13px;color:${t.muted};">${esc(plain(invoice.notes))}</div>` : ""}
+
+        </td></tr>
+
+        <tr>
+          <td style="padding:22px 32px 26px;background:${t.panelBg};text-align:center;">
+            <p style="margin:0 0 4px;font-family:${t.headingFont};font-size:14px;color:${t.font};">${esc(businessName)}</p>
+            <p style="margin:0;font-size:11px;color:${t.muted};">Powered by RoomsOnline · Rooms Done Right</p>
+          </td>
+        </tr>
+
+      </table>
+    </td></tr>
   </table>
-
-  <div style="display:flex;justify-content:flex-end;margin-bottom:24px;">
-    <table style="border-collapse:collapse;min-width:280px;">
-      ${streamSummaryRows}
-      <tr>
-        <td style="padding:6px 16px;font-weight:600;">Subtotal</td>
-        <td style="padding:6px 16px;text-align:right;">${Number(invoice.subtotal).toFixed(2)}</td>
-      </tr>
-      <tr>
-        <td style="padding:6px 16px;font-weight:600;">Tax</td>
-        <td style="padding:6px 16px;text-align:right;">${Number(invoice.tax_total).toFixed(2)}</td>
-      </tr>
-      <tr style="border-top:2px solid ${primaryColor};">
-        <td style="padding:10px 16px;font-weight:700;font-size:16px;">Total</td>
-        <td style="padding:10px 16px;text-align:right;font-weight:700;font-size:16px;">${invoice.currency || "ZAR"} ${Number(invoice.total).toFixed(2)}</td>
-      </tr>
-      ${commissionRows}
-
-    </table>
-  </div>
-
-  ${payments.length > 0 ? `
-  <h3 style="font-size:16px;margin-bottom:8px;color:${primaryColor};">Payments Received</h3>
-  <table style="width:100%;border-collapse:collapse;margin-bottom:24px;">
-    <tbody>${paymentRows}</tbody>
-  </table>
-  ` : ""}
-
-  ${bankingBlock}
-
-  ${invoice.notes ? `<p style="margin-top:24px;padding:12px;background:#f8f8f8;border-radius:4px;font-size:13px;color:#666;">${invoice.notes}</p>` : ""}
-  
-  <div style="margin-top:40px;padding-top:16px;border-top:1px solid #eee;text-align:center;color:#999;font-size:11px;">
-    Generated by ROL'OS Property Management System
-  </div>
 </body>
 </html>`;
 }
+
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -368,7 +584,7 @@ Deno.serve(async (req) => {
         if (invBookingId) {
           const { data: bk } = await supabase
             .from("bookings")
-            .select("id, guest_name, guest_email, check_in_date, check_out_date, total_price, status, property_id, company_account_id, agent_account_id, source_account_id, booking_channel, comm_channel, commission_rate_applied, calculated_commission, invoice_to_name, invoice_to_vat, invoice_to_address, deposit_amount, deposit_due_date, rol_reference, payment_status")
+            .select("id, guest_name, guest_email, guest_phone, check_in_date, check_out_date, total_price, status, property_id, company_account_id, agent_account_id, source_account_id, booking_channel, comm_channel, commission_rate_applied, calculated_commission, invoice_to_name, invoice_to_vat, invoice_to_address, deposit_amount, deposit_due_date, rol_reference, payment_status, payment_method, rooms, adults, teens, children, infants, special_requests, room_type_id")
             .eq("id", invBookingId)
             .maybeSingle();
 
@@ -583,8 +799,27 @@ Deno.serve(async (req) => {
           ? Math.round((total - commissionAmount) * 100) / 100
           : null;
 
-        const prefix = documentKind === "pro_forma" ? "PF" : "INV";
-        const invoiceNumber = `${prefix}-${Date.now().toString(36).toUpperCase()}`;
+        // ROL numbering strategy: ROL-<DOC>-<PARTY>-<YYYYMM>-<NNN>
+        const docCode = documentKind === "pro_forma" ? "PFI" : "TXI";
+        const period = new Date().toISOString().slice(0, 7).replace("-", "");
+        let invoiceNumber = "";
+        try {
+          const { data: partyCode } = await supabase.rpc("rol_party_code", {
+            _property_id: invPropId,
+            _portfolio_id: null,
+          });
+          const { data: ref } = await supabase.rpc("next_rol_document_reference", {
+            _doc: docCode,
+            _party_code: partyCode || "GEN",
+            _period: period,
+          });
+          invoiceNumber = String(ref || "");
+        } catch (_e) {
+          invoiceNumber = "";
+        }
+        if (!invoiceNumber) {
+          invoiceNumber = `ROL-${docCode}-GEN-${period}-${Date.now().toString(36).toUpperCase().slice(-4)}`;
+        }
 
         // Only one live document of each kind per booking — supersede the previous one
         if (invBookingId) {
@@ -635,29 +870,140 @@ Deno.serve(async (req) => {
 
         const { data: property } = await supabase
           .from("properties")
-          .select("name, brand_logo_url, brand_primary_color, amenities, payment_mode, email")
+          .select(
+            "name, slug, brand_logo_url, brand_primary_color, brand_secondary_color, brand_font_color, brand_dark_bg_color, brand_muted_text_color, brand_light_bg_color, brand_heading_font, brand_override_enabled, is_rol_property, amenities, payment_mode, address, city, postal_code, country, property_url, latitude, longitude",
+          )
           .eq("id", invPropId)
-          .single();
+          .maybeSingle();
 
-        // Reservation-only properties collect payment manually, so a pro forma
-        // must carry their banking details and payment terms.
-        if (property && (property as any).payment_mode === "reservation_only") {
-          const { data: bank } = await supabase
-            .from("property_bank_details")
-            .select("bank_name, branch_code, account_holder, account_number_masked, account_type, swift_code")
+        // Banking details always accompany a document with a balance owing —
+        // reservation-only stays settle by EFT, and part-paid stays still need them.
+        const { data: bank } = await supabase
+          .from("property_bank_details")
+          .select("bank_name, branch_code, account_holder, account_number_masked, account_type, swift_code")
+          .eq("property_id", invPropId)
+          .maybeSingle();
+
+        // Public property contact rows (never internal/private contacts)
+        let contactPhone: string | null = null;
+        let contactEmail: string | null = null;
+        try {
+          const { data: contactRows } = await supabase
+            .from("property_contact_details")
+            .select("email, phone, is_public, sort_order")
             .eq("property_id", invPropId)
-            .maybeSingle();
-          if (bank) (property as any).__banking = bank;
-          (property as any).__reservation_terms = {
-            deposit_amount: bookingRow?.deposit_amount ?? null,
-            deposit_due_date: bookingRow?.deposit_due_date ?? null,
-            reference: bookingRow?.rol_reference ?? null,
-            cancellation:
-              (property as any)?.amenities?.policies?.cancellation_policy ||
-              (property as any)?.amenities?.house_rules?.cancellation_policy ||
-              null,
-          };
+            .eq("is_public", true)
+            .order("sort_order", { ascending: true })
+            .limit(5);
+          contactPhone = (contactRows || []).find((c: any) => c.phone)?.phone || null;
+          contactEmail = (contactRows || []).find((c: any) => c.email)?.email || null;
+        } catch (_e) {
+          // ignore
         }
+
+        // Which unit(s) the guest reserved, e.g. GALJOEN
+        const bookedRooms: any[] = Array.isArray(bookingRow?.rooms) ? bookingRow!.rooms : [];
+        const nightsCount = bookingRow?.check_in_date && bookingRow?.check_out_date
+          ? Math.max(
+              0,
+              Math.round(
+                (new Date(bookingRow.check_out_date).getTime() - new Date(bookingRow.check_in_date).getTime()) /
+                  86400000,
+              ),
+            )
+          : null;
+        let roomLines = bookedRooms.map((r: any) => {
+          const occ = [
+            r.numberOfAdults ? `${r.numberOfAdults} adult${r.numberOfAdults > 1 ? "s" : ""}` : "",
+            r.numberOfTeens ? `${r.numberOfTeens} teen${r.numberOfTeens > 1 ? "s" : ""}` : "",
+            r.numberOfChildren ? `${r.numberOfChildren} child${r.numberOfChildren > 1 ? "ren" : ""}` : "",
+            r.numberOfInfants ? `${r.numberOfInfants} infant${r.numberOfInfants > 1 ? "s" : ""}` : "",
+          ].filter(Boolean).join(", ");
+          const dates = r.checkIn && r.checkOut ? `${r.checkIn} → ${r.checkOut}` : null;
+          return {
+            name: String(r.roomTypeName || r.roomName || r.unitName || "Unit"),
+            basis: r.rateTypeName || r.mealPlan || null,
+            occupancy: occ || null,
+            dates,
+          };
+        });
+        if (!roomLines.length && bookingRow?.room_type_id) {
+          const { data: rt } = await supabase
+            .from("rolos_room_types")
+            .select("name")
+            .eq("id", bookingRow.room_type_id)
+            .maybeSingle();
+          if (rt?.name) roomLines = [{ name: rt.name, basis: null, occupancy: null, dates: null }];
+        }
+
+        // Payments with their method (card / EFT / cash …)
+        const { data: paymentRowsData } = await supabase
+          .from("rolos_payments")
+          .select("amount, method, reference, status, created_at")
+          .eq("folio_id", invFolioId)
+          .order("created_at");
+        const methodLabel = (m: string | null | undefined) => {
+          const k = String(m || "").toLowerCase();
+          const map: Record<string, string> = {
+            card: "Card",
+            credit_card: "Card",
+            payfast: "Card · PayFast",
+            eft: "EFT",
+            bank_transfer: "EFT / bank transfer",
+            cash: "Cash",
+            voucher: "Voucher",
+            other: "Other",
+          };
+          return map[k] || (m ? String(m) : "Payment");
+        };
+        const settledPayments = (paymentRowsData || []).filter(
+          (p: any) => !["failed", "refunded", "cancelled", "voided"].includes(String(p.status || "").toLowerCase()),
+        );
+        const invoicePayments = settledPayments.map((p: any) => ({
+          label: `Payment${p.reference ? ` · ${p.reference}` : ""}`,
+          amount: Number(p.amount || 0),
+          method: methodLabel(p.method),
+          date: p.created_at ? String(p.created_at).slice(0, 10) : null,
+        }));
+        let amountPaid = invoicePayments.reduce((s, p) => s + Math.abs(p.amount), 0);
+        if (!invoicePayments.length) {
+          const folioCredits = (transactions || [])
+            .filter((x: any) => Number(x.amount || 0) < 0)
+            .reduce((s: number, x: any) => s + Math.abs(Number(x.amount || 0)), 0);
+          if (folioCredits > 0) {
+            amountPaid = folioCredits;
+          } else if (String(bookingRow?.payment_status || "").toLowerCase() === "paid") {
+            // Gateway-paid booking with no folio payment row yet
+            amountPaid = Math.round(total * 100) / 100;
+            invoicePayments.push({
+              label: "Payment received",
+              amount: amountPaid,
+              method: methodLabel(bookingRow?.payment_method),
+              date: null,
+            });
+          }
+        }
+
+        const amenitiesObj = ((property as any)?.amenities as any) || {};
+        const houseRules = amenitiesObj.house_rules || {};
+        const policies = amenitiesObj.policies || {};
+        const cancellationText =
+          policies.cancellation_policy ||
+          houseRules.cancellation_policy ||
+          null;
+        const terms = [
+          policies.terms_and_conditions,
+          houseRules.fine_print,
+          houseRules.deposit_terms,
+          houseRules.check_in_instructions ? `Arrival: ${houseRules.check_in_instructions}` : null,
+          houseRules.check_in_time ? `Check-in from ${houseRules.check_in_time}` : null,
+          houseRules.check_out_time ? `Check-out by ${houseRules.check_out_time}` : null,
+          houseRules.pets_allowed === false ? "No pets permitted." : null,
+          houseRules.smoking_allowed === false ? "Strictly no smoking indoors." : null,
+          bookingRow?.special_requests ? `Guest notes: ${bookingRow.special_requests}` : null,
+        ]
+          .map((v: unknown) => (typeof v === "string" ? v.trim() : ""))
+          .filter(Boolean) as string[];
 
         const { data: branding } = await supabase
           .from("rolos_brand_config")
@@ -665,18 +1011,67 @@ Deno.serve(async (req) => {
           .eq("property_id", invPropId)
           .maybeSingle();
 
+        const guestsLabel = [
+          bookingRow?.adults ? `${bookingRow.adults} adult${bookingRow.adults > 1 ? "s" : ""}` : "",
+          bookingRow?.teens ? `${bookingRow.teens} teen${bookingRow.teens > 1 ? "s" : ""}` : "",
+          bookingRow?.children ? `${bookingRow.children} child${bookingRow.children > 1 ? "ren" : ""}` : "",
+          bookingRow?.infants ? `${bookingRow.infants} infant${bookingRow.infants > 1 ? "s" : ""}` : "",
+        ].filter(Boolean).join(", ");
+
         const html = generateInvoiceHTML(
           {
             ...invoice,
             bill_to: billTo,
             channel_label: channelKey ? channelLabel(channelKey) : null,
-            stay: bookingRow ? { check_in: bookingRow.check_in_date, check_out: bookingRow.check_out_date, guest: bookingRow.guest_name } : null,
+            stay: bookingRow
+              ? {
+                  check_in: bookingRow.check_in_date,
+                  check_out: bookingRow.check_out_date,
+                  guest: bookingRow.guest_name,
+                  nights: nightsCount ? `${nightsCount} night${nightsCount > 1 ? "s" : ""}` : null,
+                  guests: guestsLabel || null,
+                }
+              : null,
           },
-
           transactions || [],
           property,
           branding,
+          {
+            guest: bookingRow
+              ? {
+                  name: bookingRow.guest_name,
+                  email: bookingRow.guest_email,
+                  phone: bookingRow.guest_phone,
+                  address: bookingRow.invoice_to_address,
+                }
+              : null,
+            rooms: roomLines,
+            payments: invoicePayments,
+            amountPaid,
+            deposit: {
+              amount: bookingRow?.deposit_amount ?? null,
+              due_date: bookingRow?.deposit_due_date ?? null,
+            },
+            cancellation: cancellationText,
+            terms,
+            contact: {
+              phone: contactPhone,
+              email: contactEmail,
+              website: (property as any)?.property_url || null,
+              address: [
+                (property as any)?.address,
+                (property as any)?.city,
+                (property as any)?.postal_code,
+                (property as any)?.country,
+              ].filter(Boolean).join(", "),
+            },
+            bookingReference: bookingRow?.rol_reference || null,
+            paymentMode: (property as any)?.payment_mode || null,
+            banking: bank || amenitiesObj.banking || null,
+            paymentReference: bookingRow?.rol_reference || invoice.invoice_number,
+          },
         );
+
 
         const filePath = `${invPropId}/${invoiceNumber}.html`;
         const encoder = new TextEncoder();
