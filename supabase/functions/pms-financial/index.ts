@@ -870,29 +870,140 @@ Deno.serve(async (req) => {
 
         const { data: property } = await supabase
           .from("properties")
-          .select("name, brand_logo_url, brand_primary_color, amenities, payment_mode, email")
+          .select(
+            "name, slug, brand_logo_url, brand_primary_color, brand_secondary_color, brand_font_color, brand_dark_bg_color, brand_muted_text_color, brand_light_bg_color, brand_heading_font, brand_override_enabled, is_rol_property, amenities, payment_mode, address, city, postal_code, country, property_url, latitude, longitude",
+          )
           .eq("id", invPropId)
-          .single();
+          .maybeSingle();
 
-        // Reservation-only properties collect payment manually, so a pro forma
-        // must carry their banking details and payment terms.
-        if (property && (property as any).payment_mode === "reservation_only") {
-          const { data: bank } = await supabase
-            .from("property_bank_details")
-            .select("bank_name, branch_code, account_holder, account_number_masked, account_type, swift_code")
+        // Banking details always accompany a document with a balance owing —
+        // reservation-only stays settle by EFT, and part-paid stays still need them.
+        const { data: bank } = await supabase
+          .from("property_bank_details")
+          .select("bank_name, branch_code, account_holder, account_number_masked, account_type, swift_code")
+          .eq("property_id", invPropId)
+          .maybeSingle();
+
+        // Public property contact rows (never internal/private contacts)
+        let contactPhone: string | null = null;
+        let contactEmail: string | null = null;
+        try {
+          const { data: contactRows } = await supabase
+            .from("property_contact_details")
+            .select("email, phone, is_public, sort_order")
             .eq("property_id", invPropId)
-            .maybeSingle();
-          if (bank) (property as any).__banking = bank;
-          (property as any).__reservation_terms = {
-            deposit_amount: bookingRow?.deposit_amount ?? null,
-            deposit_due_date: bookingRow?.deposit_due_date ?? null,
-            reference: bookingRow?.rol_reference ?? null,
-            cancellation:
-              (property as any)?.amenities?.policies?.cancellation_policy ||
-              (property as any)?.amenities?.house_rules?.cancellation_policy ||
-              null,
-          };
+            .eq("is_public", true)
+            .order("sort_order", { ascending: true })
+            .limit(5);
+          contactPhone = (contactRows || []).find((c: any) => c.phone)?.phone || null;
+          contactEmail = (contactRows || []).find((c: any) => c.email)?.email || null;
+        } catch (_e) {
+          // ignore
         }
+
+        // Which unit(s) the guest reserved, e.g. GALJOEN
+        const bookedRooms: any[] = Array.isArray(bookingRow?.rooms) ? bookingRow!.rooms : [];
+        const nightsCount = bookingRow?.check_in_date && bookingRow?.check_out_date
+          ? Math.max(
+              0,
+              Math.round(
+                (new Date(bookingRow.check_out_date).getTime() - new Date(bookingRow.check_in_date).getTime()) /
+                  86400000,
+              ),
+            )
+          : null;
+        let roomLines = bookedRooms.map((r: any) => {
+          const occ = [
+            r.numberOfAdults ? `${r.numberOfAdults} adult${r.numberOfAdults > 1 ? "s" : ""}` : "",
+            r.numberOfTeens ? `${r.numberOfTeens} teen${r.numberOfTeens > 1 ? "s" : ""}` : "",
+            r.numberOfChildren ? `${r.numberOfChildren} child${r.numberOfChildren > 1 ? "ren" : ""}` : "",
+            r.numberOfInfants ? `${r.numberOfInfants} infant${r.numberOfInfants > 1 ? "s" : ""}` : "",
+          ].filter(Boolean).join(", ");
+          const dates = r.checkIn && r.checkOut ? `${r.checkIn} → ${r.checkOut}` : null;
+          return {
+            name: String(r.roomTypeName || r.roomName || r.unitName || "Unit"),
+            basis: r.rateTypeName || r.mealPlan || null,
+            occupancy: occ || null,
+            dates,
+          };
+        });
+        if (!roomLines.length && bookingRow?.room_type_id) {
+          const { data: rt } = await supabase
+            .from("rolos_room_types")
+            .select("name")
+            .eq("id", bookingRow.room_type_id)
+            .maybeSingle();
+          if (rt?.name) roomLines = [{ name: rt.name, basis: null, occupancy: null, dates: null }];
+        }
+
+        // Payments with their method (card / EFT / cash …)
+        const { data: paymentRowsData } = await supabase
+          .from("rolos_payments")
+          .select("amount, method, reference, status, created_at")
+          .eq("folio_id", invFolioId)
+          .order("created_at");
+        const methodLabel = (m: string | null | undefined) => {
+          const k = String(m || "").toLowerCase();
+          const map: Record<string, string> = {
+            card: "Card",
+            credit_card: "Card",
+            payfast: "Card · PayFast",
+            eft: "EFT",
+            bank_transfer: "EFT / bank transfer",
+            cash: "Cash",
+            voucher: "Voucher",
+            other: "Other",
+          };
+          return map[k] || (m ? String(m) : "Payment");
+        };
+        const settledPayments = (paymentRowsData || []).filter(
+          (p: any) => !["failed", "refunded", "cancelled", "voided"].includes(String(p.status || "").toLowerCase()),
+        );
+        const invoicePayments = settledPayments.map((p: any) => ({
+          label: `Payment${p.reference ? ` · ${p.reference}` : ""}`,
+          amount: Number(p.amount || 0),
+          method: methodLabel(p.method),
+          date: p.created_at ? String(p.created_at).slice(0, 10) : null,
+        }));
+        let amountPaid = invoicePayments.reduce((s, p) => s + Math.abs(p.amount), 0);
+        if (!invoicePayments.length) {
+          const folioCredits = (transactions || [])
+            .filter((x: any) => Number(x.amount || 0) < 0)
+            .reduce((s: number, x: any) => s + Math.abs(Number(x.amount || 0)), 0);
+          if (folioCredits > 0) {
+            amountPaid = folioCredits;
+          } else if (String(bookingRow?.payment_status || "").toLowerCase() === "paid") {
+            // Gateway-paid booking with no folio payment row yet
+            amountPaid = Math.round(total * 100) / 100;
+            invoicePayments.push({
+              label: "Payment received",
+              amount: amountPaid,
+              method: methodLabel(bookingRow?.payment_method),
+              date: null,
+            });
+          }
+        }
+
+        const amenitiesObj = ((property as any)?.amenities as any) || {};
+        const houseRules = amenitiesObj.house_rules || {};
+        const policies = amenitiesObj.policies || {};
+        const cancellationText =
+          policies.cancellation_policy ||
+          houseRules.cancellation_policy ||
+          null;
+        const terms = [
+          policies.terms_and_conditions,
+          houseRules.fine_print,
+          houseRules.deposit_terms,
+          houseRules.check_in_instructions ? `Arrival: ${houseRules.check_in_instructions}` : null,
+          houseRules.check_in_time ? `Check-in from ${houseRules.check_in_time}` : null,
+          houseRules.check_out_time ? `Check-out by ${houseRules.check_out_time}` : null,
+          houseRules.pets_allowed === false ? "No pets permitted." : null,
+          houseRules.smoking_allowed === false ? "Strictly no smoking indoors." : null,
+          bookingRow?.special_requests ? `Guest notes: ${bookingRow.special_requests}` : null,
+        ]
+          .map((v: unknown) => (typeof v === "string" ? v.trim() : ""))
+          .filter(Boolean) as string[];
 
         const { data: branding } = await supabase
           .from("rolos_brand_config")
@@ -900,18 +1011,67 @@ Deno.serve(async (req) => {
           .eq("property_id", invPropId)
           .maybeSingle();
 
+        const guestsLabel = [
+          bookingRow?.adults ? `${bookingRow.adults} adult${bookingRow.adults > 1 ? "s" : ""}` : "",
+          bookingRow?.teens ? `${bookingRow.teens} teen${bookingRow.teens > 1 ? "s" : ""}` : "",
+          bookingRow?.children ? `${bookingRow.children} child${bookingRow.children > 1 ? "ren" : ""}` : "",
+          bookingRow?.infants ? `${bookingRow.infants} infant${bookingRow.infants > 1 ? "s" : ""}` : "",
+        ].filter(Boolean).join(", ");
+
         const html = generateInvoiceHTML(
           {
             ...invoice,
             bill_to: billTo,
             channel_label: channelKey ? channelLabel(channelKey) : null,
-            stay: bookingRow ? { check_in: bookingRow.check_in_date, check_out: bookingRow.check_out_date, guest: bookingRow.guest_name } : null,
+            stay: bookingRow
+              ? {
+                  check_in: bookingRow.check_in_date,
+                  check_out: bookingRow.check_out_date,
+                  guest: bookingRow.guest_name,
+                  nights: nightsCount ? `${nightsCount} night${nightsCount > 1 ? "s" : ""}` : null,
+                  guests: guestsLabel || null,
+                }
+              : null,
           },
-
           transactions || [],
           property,
           branding,
+          {
+            guest: bookingRow
+              ? {
+                  name: bookingRow.guest_name,
+                  email: bookingRow.guest_email,
+                  phone: bookingRow.guest_phone,
+                  address: bookingRow.invoice_to_address,
+                }
+              : null,
+            rooms: roomLines,
+            payments: invoicePayments,
+            amountPaid,
+            deposit: {
+              amount: bookingRow?.deposit_amount ?? null,
+              due_date: bookingRow?.deposit_due_date ?? null,
+            },
+            cancellation: cancellationText,
+            terms,
+            contact: {
+              phone: contactPhone,
+              email: contactEmail,
+              website: (property as any)?.property_url || null,
+              address: [
+                (property as any)?.address,
+                (property as any)?.city,
+                (property as any)?.postal_code,
+                (property as any)?.country,
+              ].filter(Boolean).join(", "),
+            },
+            bookingReference: bookingRow?.rol_reference || null,
+            paymentMode: (property as any)?.payment_mode || null,
+            banking: bank || amenitiesObj.banking || null,
+            paymentReference: bookingRow?.rol_reference || invoice.invoice_number,
+          },
         );
+
 
         const filePath = `${invPropId}/${invoiceNumber}.html`;
         const encoder = new TextEncoder();
