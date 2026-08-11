@@ -74,7 +74,7 @@ function json(payload: unknown, status = 200) {
 async function findGatewayHandle(supabase: any, bookingId: string) {
   const { data } = await supabase
     .from("payment_transactions")
-    .select("id, amount, status, payment_provider, payment_reference, metadata, created_at")
+    .select("id, amount, status, payment_provider, pf_payment_id, transaction_ref, credential_source, created_at")
     .eq("booking_id", bookingId)
     .order("created_at", { ascending: false });
 
@@ -85,16 +85,15 @@ async function findGatewayHandle(supabase: any, bookingId: string) {
   const pick = settled[0] ?? rows[0] ?? null;
   if (!pick) return { transactionId: null, pfPaymentId: null, provider: null, paidAmount: 0 };
 
-  const meta = (pick.metadata ?? {}) as Record<string, unknown>;
-  const fromMeta = typeof meta.pf_payment_id === "string" ? meta.pf_payment_id : null;
+  const fromColumn = typeof pick.pf_payment_id === "string" ? pick.pf_payment_id : null;
   const fromRef =
-    typeof pick.payment_reference === "string" && /^\d{4,}$/.test(pick.payment_reference.trim())
-      ? pick.payment_reference.trim()
+    typeof pick.transaction_ref === "string" && /^\d{4,}$/.test(pick.transaction_ref.trim())
+      ? pick.transaction_ref.trim()
       : null;
 
   return {
     transactionId: pick.id as string,
-    pfPaymentId: fromMeta ?? fromRef,
+    pfPaymentId: fromColumn ?? fromRef,
     provider: (pick.payment_provider as string | null) ?? null,
     paidAmount: settled.reduce((s, r) => s + Number(r.amount || 0), 0),
   };
@@ -212,7 +211,7 @@ Deno.serve(async (req) => {
       const { data: bookings } = bookingIds.length
         ? await supabase
             .from("bookings")
-            .select("id, booking_reference, guest_name, check_in, check_out, total_price, booking_channel, property_id")
+            .select("id, rol_reference, rol_reference_legacy, external_reservation_id, guest_name, check_in_date, check_out_date, total_price, booking_channel, property_id")
             .in("id", bookingIds)
         : { data: [] };
       const byId = new Map((bookings ?? []).map((b: any) => [b.id, b]));
@@ -251,7 +250,7 @@ Deno.serve(async (req) => {
 
       const { data: booking, error: bErr } = await supabase
         .from("bookings")
-        .select("id, property_id, booking_reference, guest_name, guest_email, check_in, total_price, payment_status, status, booking_channel")
+        .select("id, property_id, rol_reference, rol_reference_legacy, guest_name, guest_email, check_in_date, total_price, payment_status, status, booking_channel")
         .eq("id", booking_id)
         .maybeSingle();
       if (bErr) throw bErr;
@@ -263,7 +262,7 @@ Deno.serve(async (req) => {
 
       const entitlement = await resolveRefundEntitlement(supabase, {
         property_id: booking.property_id,
-        check_in: booking.check_in,
+        check_in: booking.check_in_date,
         amount_paid: amountPaid,
       });
 
@@ -314,7 +313,7 @@ Deno.serve(async (req) => {
 
       await notify(
         supabase,
-        `Refund ${autoApprove ? "auto-approved" : "requested"}: ${booking.booking_reference ?? booking_id}`,
+        `Refund ${autoApprove ? "auto-approved" : "requested"}: ${booking.rol_reference ?? booking_id}`,
         [
           `Guest: ${booking.guest_name ?? "—"}`,
           `Amount: R${amount.toFixed(2)}`,
@@ -471,7 +470,7 @@ Deno.serve(async (req) => {
       // Reflect the refund on the booking and its folio.
       const { data: booking } = await supabase
         .from("bookings")
-        .select("id, total_price, payment_status, booking_reference, guest_email")
+        .select("id, total_price, payment_status, rol_reference, guest_email")
         .eq("id", refund.booking_id)
         .maybeSingle();
 
@@ -515,7 +514,7 @@ Deno.serve(async (req) => {
         supabase,
         `Refund processed: R${amount.toFixed(2)}${manual ? " (manual settlement required)" : ""}`,
         [
-          `Booking: ${booking?.booking_reference ?? refund.booking_id ?? "—"}`,
+          `Booking: ${booking?.rol_reference ?? refund.booking_id ?? "—"}`,
           manual
             ? `Gateway refund unavailable — settle manually.${gatewayError ? ` (${gatewayError})` : ""}`
             : `Gateway reference: ${gatewayRefundId ?? "—"}`,

@@ -26,10 +26,12 @@ export interface RefundRecord {
   created_at: string;
   booking?: {
     id: string;
-    booking_reference: string | null;
+    rol_reference: string | null;
+    rol_reference_legacy: string | null;
+    external_reservation_id: string | null;
     guest_name: string | null;
-    check_in: string | null;
-    check_out: string | null;
+    check_in_date: string | null;
+    check_out_date: string | null;
     total_price: number | null;
     booking_channel: string | null;
   } | null;
