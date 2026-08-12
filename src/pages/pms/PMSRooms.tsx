@@ -17,6 +17,7 @@ import { autoAssignBookings } from "@/lib/bookingAssignment";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { PmsPageSkeleton } from "@/components/pms/PmsPageSkeleton";
+import { PmsNoPropertyState } from "@/components/pms/PmsNoPropertyState";
 import { BookingQuickViewSheet } from "@/components/pms/BookingQuickViewSheet";
 import { RoomTypePlanGrid } from "@/components/pms/rooms/RoomTypePlanGrid";
 import { ReservationFinder } from "@/components/pms/rooms/ReservationFinder";
@@ -394,7 +395,7 @@ export default function PMSRooms() {
   );
 
   if (propertyLoading) return <PmsPageSkeleton rows={4} />;
-  if (!propertyId && !isPortfolio) return <p className="text-muted-foreground">Select a property first.</p>;
+  if (!propertyId && !isPortfolio) return <PmsNoPropertyState description="No property is assigned to this account yet, so there is no room inventory to show. Rooms appear here once a property is linked." />;
 
   const currentIdx = properties.findIndex((p) => p.id === propertyId);
   const canCycle = !isPortfolio && properties.length > 1;
