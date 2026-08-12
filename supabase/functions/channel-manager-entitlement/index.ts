@@ -396,7 +396,11 @@ Deno.serve(async (req) => {
           (a: { ru_owner_id: string | null }) => String(a.ru_owner_id) === ownerId,
         ) as { owner_email: string | null } | undefined;
         const { data: listRes, error: listErr } = await admin.functions.invoke("rentalsunited-api", {
-          body: { action: "list_properties", owner_id: Number(ownerId) },
+          body: {
+            action: "list_properties",
+            owner_id: Number(ownerId),
+            ...logCtx(traceId, "channel-reconcile:pull_listings"),
+          },
         });
         const res = (listRes || {}) as {
           success?: boolean;
