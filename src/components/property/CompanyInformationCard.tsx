@@ -1,4 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
+import { focusFieldTargets } from "@/lib/requirementFocus";
+import { channelMandatoryClass } from "@/lib/channelMandatoryFields";
+
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
