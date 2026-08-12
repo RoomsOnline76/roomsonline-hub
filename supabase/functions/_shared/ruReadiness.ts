@@ -136,8 +136,8 @@ export const RU_MIN_AMENITIES = 10;
 export const RU_MIN_IMAGE_WIDTH = 1024;
 export const RU_MIN_IMAGE_HEIGHT = 683;
 
-/** Beds must cover at least this share of CanSleepMax (RU rule). */
-export const RU_BED_COVERAGE = 0.5;
+/** Certification requires authored sleeping places to match CanSleepMax. */
+export const RU_BED_COVERAGE = 1;
 
 export function evaluateUnitChecks(
   validation: RuUnitValidation | null | undefined,
@@ -222,17 +222,17 @@ export function evaluateUnitChecks(
   // it produced a permanent false "amenities < 10" gap on fully-completed units.
 
 
-  // RU White-Label minimum: sleeping places must cover >= 50% of CanSleepMax. Coverage
-  // is measured in people, not beds (a double sleeps 2). Full coverage is advisory.
+  // Certification requires sleeping places to cover CanSleepMax. Coverage is measured
+  // in people, not bed objects (a double sleeps 2).
   const sleeps = v.total_bed_capacity ?? v.total_beds ?? 0;
-  add("beds_cover_half", "Rooms & beds", `Sleeping places cover ≥ ${Math.round(RU_BED_COVERAGE * 100)}% of max guests`,
+  add("beds_cover_half", "Rooms & beds", "Sleeping places match max guests",
     v.beds_cover_half !== false,
     `Beds sleep ${sleeps} of ${v.max_guests ?? 0} max guests — the Channel Manager requires ${Math.round(RU_BED_COVERAGE * 100)}%`,
     "Rooms → Unit → Bed configuration");
-  add("beds_meet_max_guests", "Rooms & beds", "Sleeping places cover 100% of max guests (recommended)",
+  add("beds_meet_max_guests", "Rooms & beds", "Sleeping places cover 100% of max guests",
     v.beds_meet_max_guests !== false,
-    `Beds sleep ${sleeps} people but the unit takes ${v.max_guests ?? 0} guests — not required by the Channel Manager, but improves channel quality`,
-    "Rooms → Unit → Bed configuration", false);
+    `Beds sleep ${sleeps} people but the unit takes ${v.max_guests ?? 0} guests — authored bed capacity must cover maximum occupancy`,
+    "Rooms → Unit → Bed configuration");
   // Certification composition strictness.
   add("has_bedroom", "Rooms & beds", "At least 1 bedroom in the composition", v.has_bedroom !== false,
     "No bedroom block is declared in the composition", "Rooms → Unit → Bedrooms");

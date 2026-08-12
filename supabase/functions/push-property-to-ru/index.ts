@@ -981,6 +981,8 @@ function resolveUnitComposition(
     if (unit) {
       match = list.find((rt) =>
         (rt?.pmsRoomId && norm(rt.pmsRoomId) === norm(unit.id)) ||
+        (rt?.linkedRolosId && norm(rt.linkedRolosId) === norm(unit.id)) ||
+        (unit.linked_rolos_id && rt?.id && norm(rt.id) === norm(unit.linked_rolos_id)) ||
         (rt?.id && norm(rt.id) === norm(unit.id)) ||
         (rt?.name && norm(rt.name) === norm(unit.name))
       ) || null;
@@ -993,10 +995,15 @@ function resolveUnitComposition(
     return Number.isFinite(n) && n > 0 ? n : 0;
   };
 
-  const bathrooms =
-    num(unit?.bathrooms) || num(match?.bathrooms) || num(property.bathrooms);
-  const toilets =
-    num(match?.toilets) || num((match as any)?.separateToilets) || num(property.toilets);
+  // A multi-unit listing must explicitly author composition on the matching canonical
+  // room entry. Never let a property-wide value hide a blank or unmatched unit field.
+  const requiresExplicitUnitComposition = list.length > 1;
+  const bathrooms = requiresExplicitUnitComposition
+    ? num(match?.bathrooms)
+    : num(match?.bathrooms) || num(unit?.bathrooms) || num(property.bathrooms);
+  const toilets = requiresExplicitUnitComposition
+    ? num(match?.toilets ?? match?.separateToilets)
+    : num(match?.toilets ?? match?.separateToilets) || num(property.toilets);
   const separateKitchen =
     match?.separateKitchen === true || match?.separate_kitchen === true
       ? true
