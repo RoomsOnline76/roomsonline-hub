@@ -392,7 +392,10 @@ export function RuApiLogPanel({ properties }: RuApiLogPanelProps) {
                         )}
                       </td>
                       <td className="px-3 py-2">
-                        {propertyNames.get(row.property_id ?? "") ?? row.ru_property_id ?? "—"}
+                        {propertyNames.get(row.property_id ?? "") ??
+                          row.ru_property_id ??
+                          (row.ru_owner_id ? `Account ${row.ru_owner_id}` : "—")}
+
                       </td>
                       <td className="px-3 py-2">
                         <Badge variant={row.success ? "secondary" : "destructive"}>
