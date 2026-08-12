@@ -53,17 +53,31 @@ export const ArrivalPolicyPanel: React.FC<ArrivalPolicyPanelProps> = ({ property
         supabase.from("properties").select("amenities").eq("id", propertyId).maybeSingle(),
         supabase
           .from("hostfully_room_types")
-          .select("id, name, check_in_instructions")
+          .select("id, name, check_in_instructions, is_active")
           .eq("property_id", propertyId),
       ]);
       const amenities = (prop?.amenities ?? {}) as Record<string, any>;
       const current = String(amenities?.house_rules?.check_in_instructions ?? "");
       setText(current);
       setSaved(current);
-      // Every unit is listed: a blank value means "inherit the property arrival policy".
-      setOverrides(
-        ((rooms ?? []) as RoomOverride[]).sort((a, b) => (a.name ?? "").localeCompare(b.name ?? "")),
+      // Every unit is listed once: archived duplicates and case variants of the same
+      // unit name are collapsed. A blank value means "inherit the property arrival policy".
+      const active = ((rooms ?? []) as Array<RoomOverride & { is_active?: boolean | null }>).filter(
+        (r) => r.is_active !== false,
       );
+      const byName = new Map<string, RoomOverride>();
+      for (const room of active) {
+        const key = String(room.name ?? "").trim().toLowerCase() || room.id;
+        const existing = byName.get(key);
+        // Prefer the record that already carries unit-specific instructions.
+        if (!existing || (!existing.check_in_instructions && room.check_in_instructions)) {
+          byName.set(key, room);
+        }
+      }
+      setOverrides(
+        Array.from(byName.values()).sort((a, b) => (a.name ?? "").localeCompare(b.name ?? "")),
+      );
+
       setUnitDrafts({});
 
     } catch (e) {
