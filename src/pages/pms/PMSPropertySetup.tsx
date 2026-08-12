@@ -185,6 +185,7 @@ export default function PMSPropertySetup() {
           mandatoryTotal={mandatoryTotal}
           recommendedOutstanding={recommendedOutstanding}
           recommendedTotal={recommendedTotal}
+          propertyId={propertyId}
         />
       </div>
 

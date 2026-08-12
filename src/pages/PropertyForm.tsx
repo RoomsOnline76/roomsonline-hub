@@ -4022,6 +4022,7 @@ export default function PropertyForm({
               mandatoryTotal={requirementMandatoryTotal}
               recommendedOutstanding={requirementRecommendedOutstanding}
               recommendedTotal={requirementRecommendedTotal}
+              propertyId={propertyId}
             />
           </div>
         )}
