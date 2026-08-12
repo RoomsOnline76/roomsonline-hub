@@ -74,6 +74,10 @@ export function usePmsPropertyId() {
 
       const linkedIds = owned?.map((o) => o.property_id) || [];
 
+      // No ownership signal at all (no matching owner email, no linked rows) means
+      // no property is assigned to this account — never fall through to "all properties".
+      if (!profile?.email && linkedIds.length === 0) return [];
+
       let query = supabase
         .from("properties")
         .select("id, name")
