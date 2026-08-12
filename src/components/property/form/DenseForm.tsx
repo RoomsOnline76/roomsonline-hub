@@ -14,6 +14,14 @@ interface FormSectionProps {
   description?: string;
   actions?: React.ReactNode;
   className?: string;
+  /**
+   * When provided the section becomes collapsible and starts collapsed while the
+   * requirement is met, so a long form only shows what still needs attention.
+   * Flipping back to `false` re-opens it automatically.
+   */
+  satisfied?: boolean;
+  /** One-line recap shown in place of the body while collapsed. */
+  collapsedSummary?: string;
   children: React.ReactNode;
 }
 
@@ -23,23 +31,63 @@ export const FormSection: React.FC<FormSectionProps> = ({
   description,
   actions,
   className,
+  satisfied,
+  collapsedSummary,
   children,
-}) => (
-  <section className={cn("pf-section", className)}>
-    {(title || actions) && (
-      <div className="mb-2 flex items-end justify-between gap-3 border-b border-border/60 pb-1.5">
-        <div className="min-w-0">
-          {title && <h3 className="pf-section-title">{title}</h3>}
-          {description && (
-            <p className="mt-0.5 text-[11px] leading-tight text-muted-foreground">{description}</p>
-          )}
+}) => {
+  const collapsible = satisfied !== undefined;
+  // null = follow `satisfied`; true/false = the user overrode it by clicking.
+  const [manual, setManual] = React.useState<boolean | null>(null);
+  React.useEffect(() => {
+    // A section that stops being satisfied must re-open even if it was closed by hand.
+    if (!satisfied) setManual(null);
+  }, [satisfied]);
+  const open = manual ?? !satisfied;
+
+  return (
+    <section className={cn("pf-section", className)}>
+      {(title || actions) && (
+        <div className="mb-2 flex items-end justify-between gap-3 border-b border-border/60 pb-1.5">
+          <div className="min-w-0">
+            {title &&
+              (collapsible ? (
+                <button
+                  type="button"
+                  onClick={() => setManual(!open)}
+                  aria-expanded={open}
+                  className="flex items-center gap-1.5 text-left"
+                >
+                  <ChevronRight
+                    className={cn(
+                      "h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform",
+                      open && "rotate-90",
+                    )}
+                  />
+                  <h3 className="pf-section-title">{title}</h3>
+                  {satisfied && (
+                    <span className="inline-flex items-center gap-0.5 rounded border border-border/60 bg-muted/40 px-1 py-px text-[10px] text-muted-foreground">
+                      <Check className="h-2.5 w-2.5" /> Complete
+                    </span>
+                  )}
+                </button>
+              ) : (
+                <h3 className="pf-section-title">{title}</h3>
+              ))}
+            {description && (open || !collapsible) && (
+              <p className="mt-0.5 text-[11px] leading-tight text-muted-foreground">{description}</p>
+            )}
+            {collapsible && !open && collapsedSummary && (
+              <p className="mt-0.5 text-[11px] leading-tight text-muted-foreground">{collapsedSummary}</p>
+            )}
+          </div>
+          {actions && open && <div className="flex shrink-0 items-center gap-1.5">{actions}</div>}
         </div>
-        {actions && <div className="flex shrink-0 items-center gap-1.5">{actions}</div>}
-      </div>
-    )}
-    {children}
-  </section>
-);
+      )}
+      {open && children}
+    </section>
+  );
+};
+
 
 interface FieldGridProps {
   /** Columns at lg and above. Defaults to 2. */
