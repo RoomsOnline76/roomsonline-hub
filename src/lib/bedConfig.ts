@@ -1,9 +1,30 @@
 // Bed configuration types and utilities
 
+/**
+ * A bed, optionally placed in a named sleeping space.
+ *
+ * The channel reviews beds PER BEDROOM, so every entry can carry the slot it belongs to.
+ * Legacy rows have no `room` — those fold into bedroom 1 so nothing is lost on read.
+ */
 export interface BedEntry {
   type: string;
   count: number;
+  room?: BedRoomSlot;
 }
+
+/** Where a bed sits. Only `bedroom` slots count as bedrooms for the channel. */
+export interface BedRoomSlot {
+  /** 1-based index within its kind: Bedroom 1, Bedroom 2, Living area 1. */
+  index: number;
+  kind: "bedroom" | "living";
+}
+
+/** A sleeping space with the beds authored inside it. */
+export interface BedRoomGroup {
+  slot: BedRoomSlot;
+  beds: BedEntry[];
+}
+
 
 export const BED_TYPES = [
   { value: "king", label: "King" },
