@@ -29,6 +29,11 @@ export default function PMSChannels() {
     return () => document.documentElement.classList.remove("channels-force-light");
   }, []);
 
+  // Billing entitlement — Channel Manager must be explicitly switched on by admin.
+  // Hooks must run unconditionally, so this stays above any early return.
+  const { config: billingConfig, isLoading: billingLoading } = useBillingConfig(propertyId ?? undefined);
+  const channelManagerEnabled = billingConfig?.channel_manager_enabled === true;
+
   // No property linked — never open a channel-manager session or attempt a channel
   // connection: the channel onboarding gate has nothing to assess.
   if (!propertyId) {
@@ -39,10 +44,6 @@ export default function PMSChannels() {
       />
     );
   }
-
-  // Billing entitlement — Channel Manager must be explicitly switched on by admin.
-  const { config: billingConfig, isLoading: billingLoading } = useBillingConfig(propertyId ?? undefined);
-  const channelManagerEnabled = billingConfig?.channel_manager_enabled === true;
 
   if (!billingLoading && !channelManagerEnabled) {
     return (
