@@ -93,7 +93,12 @@ export interface RuUnitValidation {
   has_bedroom?: boolean;
   has_kitchen?: boolean;
   has_bathroom_room?: boolean;
+  has_bathrooms?: boolean;
+  has_toilets?: boolean;
+  bathrooms_count?: number;
+  toilets_count?: number;
   beds_distributed?: boolean;
+
   arrival_instructions_length?: number;
   has_arrival_instructions?: boolean;
   ru_location_authored?: boolean;
@@ -186,8 +191,9 @@ export function evaluateUnitChecks(
     "Property → House rules → Check-in / Check-out", false);
   add("has_arrival_instructions", "Content", "Arrival instructions populated",
     v.has_arrival_instructions !== false,
-    `Arrival instructions are ${v.arrival_instructions_length ?? 0} characters — at least ${RU_MIN_ARRIVAL_INSTRUCTIONS} are required`,
-    "Property → House rules → Check-in instructions");
+    `Arrival instructions are ${v.arrival_instructions_length ?? 0} characters — at least ${RU_MIN_ARRIVAL_INSTRUCTIONS} are required. Units without their own instructions use the master property arrival policy, so save that policy to clear every unit at once`,
+    "Property → Policies → Arrival policy");
+
   // Space stays advisory (RU accepts an estimate), but Floor is authored data the
   // channel review checks — a blank Floor must block the push instead of silently
   // shipping the ground-floor default.
@@ -234,6 +240,14 @@ export function evaluateUnitChecks(
     "No kitchen is declared in the composition or amenities", "Rooms → Unit → Facilities → Kitchen");
   add("has_bathroom_room", "Rooms & beds", "Bathroom declared", v.has_bathroom_room !== false,
     "No bathroom is declared in the composition or amenities", "Rooms → Unit → Facilities → Bathrooms");
+  // RU composition treats bathrooms and toilets as mandatory counts — zero or blank is rejected.
+  add("has_bathrooms", "Rooms & beds", "Number of bathrooms ≥ 1", v.has_bathrooms !== false,
+    `Bathrooms are ${v.bathrooms_count ?? 0} — the Channel Manager rejects a blank or zero bathroom count`,
+    "Rooms → Unit → Facilities → Bathrooms");
+  add("has_toilets", "Rooms & beds", "Number of toilets ≥ 1", v.has_toilets !== false,
+    `Toilets are ${v.toilets_count ?? 0} — the Channel Manager rejects a blank or zero toilet count`,
+    "Rooms → Unit → Facilities → Toilets");
+
   add("beds_distributed", "Rooms & beds", "Beds distributed between bedrooms", v.beds_distributed !== false,
     `${v.bedrooms_with_beds ?? 0} of ${v.bedroom_blocks ?? 0} bedrooms carry beds — spread the bed configuration across the bedrooms`,
     "Rooms → Unit → Bed configuration");
