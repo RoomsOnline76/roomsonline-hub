@@ -168,6 +168,39 @@ const bedCapacity = (raw: unknown): number => {
   return calculateBedCapacity(entries);
 };
 
+/**
+ * Per-unit rules.
+ *
+ * The scoring registry answers "is this satisfied for EVERY unit" (a channel push
+ * blocks on the worst unit). The field markers in the editor need the answer for
+ * the ONE unit the owner has open, otherwise an unfinished sibling keeps the
+ * border dark on a unit that is actually complete. Both consume these rules, so
+ * the definition of "complete" can never drift between the two.
+ */
+export const UNIT_ROW_RULES = {
+  description: (room: RoomRequirementRow) => str(room.description).length >= 700,
+  floor: (room: RoomRequirementRow) => room.floor !== null && room.floor !== undefined,
+  size: (room: RoomRequirementRow) => numericAtLeast(room.roomSize ?? room.room_size, 1),
+  bathrooms: (room: RoomRequirementRow) => numericAtLeast(room.bathrooms, 1),
+  toilets: (room: RoomRequirementRow) => numericAtLeast(room.toilets, 1),
+  maxGuests: (room: RoomRequirementRow) => numericAtLeast(room.maxPeople ?? room.max_guests, 1),
+  /** Authored sleeping places must cover the unit's maximum occupancy. */
+  beds: (room: RoomRequirementRow) => {
+    const maximum = Number(room.maxPeople ?? room.max_guests ?? 0);
+    return maximum >= 1 && bedCapacity(room.bedConfiguration ?? room.bed_configuration) >= maximum;
+  },
+  images: (room: RoomRequirementRow) => (Array.isArray(room.images) ? room.images.length : 0) >= 10,
+  amenities: (room: RoomRequirementRow) =>
+    (Array.isArray(room.amenities) ? room.amenities.length : 0) >= 10,
+} as const;
+
+export type UnitRowRuleKey = keyof typeof UNIT_ROW_RULES;
+
+/** Evaluate a per-unit rule for a single unit row. */
+export function isUnitRowSatisfied(rule: UnitRowRuleKey, room: RoomRequirementRow | null | undefined): boolean {
+  if (!room) return false;
+  return UNIT_ROW_RULES[rule](room);
+}
 
 
 const measuredImages = (
