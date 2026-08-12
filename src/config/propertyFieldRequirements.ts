@@ -448,7 +448,7 @@ export const PROPERTY_FIELD_REQUIREMENTS: FieldRequirement[] = [
     key: "master_policy",
     label: "Master cancellation policy",
     tier: "mandatory",
-    section: "rates",
+    section: "policies",
     target: ['[data-field="master_policy"]', "#master_policy"],
     hint: "Pick a policy from the library, or explicitly select “None”.",
     isSatisfied: (s) =>
@@ -464,7 +464,7 @@ export const PROPERTY_FIELD_REQUIREMENTS: FieldRequirement[] = [
     key: "check_times",
     label: "Check-in / check-out times",
     tier: "mandatory",
-    section: "rates",
+    section: "policies",
     target: [
       '[data-field="check_in_from"]',
       '[data-field="amenities.house_rules.check_in_from"]',
@@ -477,7 +477,7 @@ export const PROPERTY_FIELD_REQUIREMENTS: FieldRequirement[] = [
     key: "arrival_instructions",
     label: "Arrival policy / how to arrive",
     tier: "mandatory",
-    section: "rates",
+    section: "policies",
     target: [
       '[data-field="arrival_instructions"]',
       '[data-field="amenities.house_rules.check_in_instructions"]',
@@ -493,7 +493,7 @@ export const PROPERTY_FIELD_REQUIREMENTS: FieldRequirement[] = [
     key: "payment_methods",
     label: "Accepted payment methods",
     tier: "mandatory",
-    section: "rates",
+    section: "policies",
     target: ['[data-field="payment_methods"]', "#payment_methods"],
     hint: "At least one payment method must be captured for the listing.",
     isSatisfied: (s) => {
