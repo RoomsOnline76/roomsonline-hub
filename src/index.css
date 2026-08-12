@@ -847,11 +847,21 @@ button {
 /* Completed — keep the colour cue, drop the shout */
 .pf-req-satisfied.pf-req-mandatory {
   border-color: hsl(var(--req-mandatory) / 0.3) !important;
-  box-shadow: none;
+  box-shadow: none !important;
+  background-color: transparent !important;
 }
 .pf-req-satisfied.pf-req-recommended {
   border-color: hsl(var(--req-recommended) / 0.28) !important;
-  box-shadow: none;
+  box-shadow: none !important;
+  background-color: transparent !important;
+}
+
+/* A control that publishes its own live marker owns its border: the painter
+   (driven by SAVED data) must never repaint it, or a just-completed field would
+   keep shouting until the record is saved. */
+[data-req-live="1"].pf-req-mandatory,
+[data-req-live="1"].pf-req-recommended {
+  box-shadow: none !important;
 }
 
 /* Pulse when the checksheet or the stepper walks you to a field */
@@ -1012,7 +1022,27 @@ div.channel-required {
 /* Once the value is captured the border stays, but stops shouting. */
 .channel-required[data-channel-satisfied="1"] {
   border-color: hsl(var(--req-mandatory) / 0.35) !important;
-  background-color: transparent;
+  background-color: transparent !important;
+  box-shadow: none !important;
+}
+
+/* Recommended (blue) counterpart — identical behaviour, softer intent. */
+.channel-recommended,
+.channel-recommended[data-slot="select-trigger"],
+.channel-recommended[role="combobox"] {
+  border-width: 2px !important;
+  border-style: solid !important;
+  border-color: hsl(var(--req-recommended)) !important;
+  background-color: hsl(var(--req-recommended) / 0.04);
+}
+div.channel-recommended {
+  border-radius: calc(var(--radius) - 2px);
+  padding: 0.375rem;
+}
+.channel-recommended[data-channel-satisfied="1"] {
+  border-color: hsl(var(--req-recommended) / 0.28) !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
 }
 
 /* Requirement painter: inputs need an explicit solid border, not only the ring,
