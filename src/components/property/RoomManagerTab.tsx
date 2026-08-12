@@ -30,6 +30,7 @@ import {
   RECOMMENDED_DESCRIPTION_CHARS,
 } from "@/components/property/ContentRuleHint";
 import { listDeclaresKitchen } from "@/config/propertyFieldRequirements";
+import { ruToken } from "@/lib/ruAmenities";
 import { ImageQualityMarker } from "@/components/property/ImageQualityMarker";
 import RuImageTagPicker from "@/components/property/RuImageTagPicker";
 import { normalizeRuImageTagMap } from "@/lib/ruImageTags";
@@ -1523,6 +1524,27 @@ export function RoomManagerTab({
               {ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.amenities).length < 10 && (
                 <p className="mt-2 text-[10px] text-destructive">At least 10 mapped amenities are required.</p>
               )}
+              {(() => {
+                // Live kitchen rule: self-catering units are rejected by the channel
+                // without a kitchen or kitchenette amenity.
+                const amenities = ensureArray(
+                  roomTypes.find((r) => r.id === selectedRoomType)?.amenities,
+                ) as string[];
+                const tick = (id: number) =>
+                  updateRoomTypeField(selectedRoomType, "amenities", [...amenities, ruToken(id)]);
+                return (
+                  <KitchenHint
+                    className="mt-2"
+                    selfCatering
+                    hasKitchen={
+                      listDeclaresKitchen(amenities) ||
+                      !!roomTypes.find((r) => r.id === selectedRoomType)?.separateKitchen
+                    }
+                    onTickKitchen={() => tick(101)}
+                    onTickKitchenette={() => tick(157)}
+                  />
+                );
+              })()}
             </div>
 
             {propertyId && selectedRoomType && (
