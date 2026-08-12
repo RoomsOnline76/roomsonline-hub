@@ -143,7 +143,7 @@ export const HouseRulesCard: React.FC<HouseRulesCardProps> = ({
             </CardContent>
           </Card>
 
-          <Card data-field="check_in_from">
+          <Card data-field="check_in_from" {...markerFlags(!!(formData.check_in_from || "").trim() && !!(formData.check_out_to || "").trim())}>
             <CardHeader className="py-1.5 px-3">
               <CardTitle className="text-xs">Check-in</CardTitle>
 
@@ -193,10 +193,12 @@ export const HouseRulesCard: React.FC<HouseRulesCardProps> = ({
                 <Label className="text-xs text-muted-foreground w-8">To</Label>
                 <Input
                   type="time"
+                  data-field="check_out_until_input"
                   value={formData.check_out_to}
                   onChange={(e) => handleInputChange("check_out_to", e.target.value)}
                   disabled={isFieldPopulatedByPMS("check_out_to", selectedPMS)}
-                  className={cn("h-6 text-xs flex-1", getPMSFieldClass("check_out_to", selectedPMS))}
+                  className={cn("h-6 text-xs flex-1", getPMSFieldClass("check_out_to", selectedPMS), channelMandatoryClass("check_out_until"))}
+                  {...markerFlags(!!(formData.check_out_to || "").trim())}
                 />
               </div>
             </CardContent>
