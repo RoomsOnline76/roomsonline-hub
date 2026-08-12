@@ -716,7 +716,11 @@ export function CompanyInformationCard({
                   )}
                 </div>
                 {COMPANY_TEXT_FIELDS.map((f) => (
-                  <div key={String(f.key)} className="flex flex-col gap-1">
+                  <div
+                    key={String(f.key)}
+                    className="flex flex-col gap-1"
+                    data-field={`company.${String(f.key)}`}
+                  >
                     <Label className="text-xs">
                       {f.label}
                       {f.required && <Req />}
@@ -725,11 +729,15 @@ export function CompanyInformationCard({
                       value={str(companyProfile[f.key])}
                       placeholder={f.placeholder}
                       onChange={(e) => setField(f.key, e.target.value)}
-                      className="h-7 text-xs"
+                      className={f.required ? "h-7 text-xs channel-required" : "h-7 text-xs"}
+                      data-channel-satisfied={
+                        str(companyProfile[f.key]).trim() ? "1" : "0"
+                      }
                     />
                     {f.hint && <Hint>{f.hint}</Hint>}
                   </div>
                 ))}
+
                 {COMPANY_RANGE_FIELDS.map((f) => {
                   const stored = companyProfile[f.key];
                   // A legacy raw count is re-read as a count and shown on its bucket.
