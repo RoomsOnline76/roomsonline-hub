@@ -94,7 +94,9 @@ export default function ConnectGetStarted() {
             transition={{ duration: 0.7, delay: 0.08, ease: [0.16, 1, 0.3, 1] }}
             className="mt-4 text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto"
           >
-            Start your 60-day free trial. No contracts. No setup fees. Cancel anytime.
+            Free for your first 60 days — and still free to run after that. No subscription, no setup fees.
+            You only pay a booking fee when we deliver a booking.
+
           </motion.p>
         </div>
       </section>
