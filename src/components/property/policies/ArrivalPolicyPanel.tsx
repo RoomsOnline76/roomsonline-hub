@@ -149,6 +149,15 @@ export const ArrivalPolicyPanel: React.FC<ArrivalPolicyPanelProps> = ({ property
   const belowTarget = trimmed.length >= MIN_ARRIVAL_CHARS && trimmed.length < TARGET_ARRIVAL_CHARS;
   const dirty = text !== saved;
 
+  /** Local edit: keep the panel state and flag the property form so its Save bar appears. */
+  const applyText = useCallback(
+    (value: string) => {
+      setText(value);
+      onDirty?.();
+    },
+    [onDirty],
+  );
+
   const handleSave = async () => {
     setSaving(true);
     try {
