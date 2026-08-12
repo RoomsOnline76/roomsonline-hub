@@ -991,47 +991,18 @@ export function RoomManagerTab({
                     );
                     return (
                   <div className="space-y-1">
-                    <div className="flex items-center justify-between gap-1">
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Label className="text-xs whitespace-nowrap cursor-help underline decoration-dotted">Channel property type</Label>
-                          </TooltipTrigger>
-                          <TooltipContent className="max-w-xs text-xs">
-                            The type the Channel Manager publishes for this unit. It inherits the property type
-                            set in Identity &amp; Location unless you override it here. Options come from the
-                            channel's own type list.
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-5 px-1 text-[10px]"
-                        disabled={channelTypes.refresh.isPending}
-                        onClick={() =>
-                          channelTypes.refresh.mutate(undefined, {
-                            onSuccess: (data) =>
-                              toast({
-                                title: "Channel type list refreshed",
-                                description: `${data?.type_count ?? 0} types pulled from the channel.`,
-                              }),
-                            onError: (err: any) =>
-                              toast({
-                                title: "Could not refresh type list",
-                                description: err?.message ?? "Unknown error",
-                                variant: "destructive",
-                              }),
-                          })
-                        }
-                      >
-                        {channelTypes.refresh.isPending
-                          ? <Loader2 className="h-3 w-3 animate-spin" />
-                          : <RefreshCw className="h-3 w-3" />}
-                        <span className="ml-1">Refresh list</span>
-                      </Button>
-                    </div>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Label className="text-xs whitespace-nowrap cursor-help underline decoration-dotted">Channel property type</Label>
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs text-xs">
+                          The type the Channel Manager publishes for this unit. It inherits the property type
+                          set in Identity &amp; Location unless you override it here.
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+
                     <Select
                       value={
                         normalizeChannelPropertyType(selectedRoom?.channelPropertyType) &&
