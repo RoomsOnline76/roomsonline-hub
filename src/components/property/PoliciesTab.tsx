@@ -11,6 +11,7 @@ import { ApplyPolicyToPropertiesDialog } from "@/components/property/ApplyPolicy
 import { MasterPolicyPanel } from "@/components/property/policies/MasterPolicyPanel";
 import { PolicyLibraryTable, type PolicyMetric } from "@/components/property/policies/PolicyLibraryTable";
 import { PortfolioPolicyLibrary } from "@/components/property/policies/PortfolioPolicyLibrary";
+import { ArrivalPolicyPanel } from "@/components/property/policies/ArrivalPolicyPanel";
 import { FormSection } from "@/components/property/form/DenseForm";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -154,6 +155,19 @@ export const PoliciesTab: React.FC<PoliciesTabProps> = ({ propertyId, onOpenSpec
         </div>
 
       </FormSection>
+
+      <FormSection
+        title="Arrival policy"
+        description={
+          siblings.length > 0
+            ? "One arrival policy for this property — pushed to channels, guest confirmations and invoices. Apply it across the portfolio to keep a single source."
+            : "One arrival policy for this property — pushed to channels, guest confirmations and invoices."
+        }
+      >
+        <ArrivalPolicyPanel propertyId={propertyId} siblings={siblings} />
+      </FormSection>
+
+
 
       <FormSection
         title="Policy library"
