@@ -148,7 +148,8 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { pmsIntegrationStatus } from "@/components/ApiMilestones";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertTriangle, Sparkles, Globe, Palette, ShieldCheck } from "lucide-react";
+import { AlertTriangle, Sparkles, Globe, Palette, ShieldCheck, Loader2 } from "lucide-react";
+import { MIN_DESCRIPTION_CHARS } from "@/components/property/InfoFacilitiesTab";
 import RuImageTagPicker from "@/components/property/RuImageTagPicker";
 import {
   RuImageTagMap,
@@ -791,6 +792,51 @@ export default function PropertyForm({
   const [isSandbox, setIsSandbox] = useState(false);
   const [adminSubTab, setAdminSubTab] = useState<string>(() => searchParams.get("sub") || "overview");
   const [selectedFacilities, setSelectedFacilities] = useState<string[]>([]);
+  // TOBI description assistance (Info & Facilities tab)
+  const [writingPropertyDescription, setWritingPropertyDescription] = useState(false);
+  const propertyDescriptionLength = (formData.description ?? "").trim().length;
+  const propertyDescriptionTooShort = propertyDescriptionLength < MIN_DESCRIPTION_CHARS;
+  const writePropertyDescriptionWithTobi = useCallback(async () => {
+    setWritingPropertyDescription(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("editorial-ai-assist", {
+        body: {
+          action: "generate_property_description",
+          minChars: MIN_DESCRIPTION_CHARS,
+          propertyContext: {
+            name: formData.name,
+            property_type: formData.property_type,
+            star_rating: starRating,
+            description: formData.description,
+            country: formData.country,
+            city: formData.city,
+            suburb: formData.suburb,
+            facilities: selectedFacilities,
+          },
+        },
+      });
+      if (error) throw error;
+      const text: string = (data?.description ?? "").trim();
+      if (!text) throw new Error("TOBI returned no text");
+      handleInputChange("description", text);
+      setIsDirty(true);
+      toast({
+        title: "TOBI drafted your description",
+        description:
+          text.length >= MIN_DESCRIPTION_CHARS
+            ? `${text.length} characters — review and save.`
+            : `${text.length} characters — still under the ${MIN_DESCRIPTION_CHARS} minimum, please expand.`,
+      });
+    } catch (err) {
+      toast({
+        title: "TOBI could not write the description",
+        description: err instanceof Error ? err.message : undefined,
+        variant: "destructive",
+      });
+    } finally {
+      setWritingPropertyDescription(false);
+    }
+  }, [formData, starRating, selectedFacilities, toast]);
   const [aiAmenityOpen, setAiAmenityOpen] = useState(false);
   const [selectedBreakfastOptions, setSelectedBreakfastOptions] = useState<string[]>([]);
   // Property composition — mandatory for Rentals United / channel pushes
@@ -5816,22 +5862,62 @@ export default function PropertyForm({
                 </CardHeader>
                 <CardContent className="py-2 px-4">
                   <div className="space-y-1">
-                    <Label htmlFor="description" className="text-xs">
-                      Description
-                    </Label>
+                    <div className="flex items-center justify-between gap-2">
+                      <Label htmlFor="description" className="text-xs">
+                        Description
+                      </Label>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={cn(
+                            "text-[10px] tabular-nums",
+                            propertyDescriptionTooShort ? "text-destructive" : "text-muted-foreground",
+                          )}
+                        >
+                          {propertyDescriptionLength} / {MIN_DESCRIPTION_CHARS} characters
+                        </span>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-6 px-2 text-[10px]"
+                          disabled={writingPropertyDescription || isFieldPopulatedByPMS("description", selectedPMS)}
+                          onClick={writePropertyDescriptionWithTobi}
+                        >
+                          {writingPropertyDescription ? (
+                            <>
+                              <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                              TOBI is writing…
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles className="h-3 w-3 mr-1" />
+                              Write with TOBI
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
                     <Textarea
                       id="description"
                       value={formData.description}
                       onChange={(e) => handleInputChange("description", e.target.value)}
                       placeholder="Describe your property, its unique features, amenities, and what makes it special..."
-                      rows={3}
+                      rows={6}
                       disabled={isFieldPopulatedByPMS("description", selectedPMS)}
                       className={cn(
                         "resize-none text-xs",
+                        propertyDescriptionTooShort && "border-destructive focus-visible:ring-destructive",
                         getPMSFieldClass("description", selectedPMS),
                         isFieldPopulatedByPMS("description", selectedPMS) && "cursor-not-allowed",
                       )}
                     />
+                    {propertyDescriptionTooShort && (
+                      <p className="flex items-center gap-1 text-[10px] text-destructive">
+                        <AlertTriangle className="h-3 w-3" />
+                        {MIN_DESCRIPTION_CHARS - propertyDescriptionLength} more characters needed — distribution
+                        channels require at least {MIN_DESCRIPTION_CHARS} characters.
+                      </p>
+                    )}
                   </div>
                   <div className="mt-3 pt-3 border-t border-border">
                     <RuChannelContentFields

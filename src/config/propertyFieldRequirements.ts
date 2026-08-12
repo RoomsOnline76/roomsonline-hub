@@ -171,9 +171,9 @@ export const PROPERTY_FIELD_REQUIREMENTS: FieldRequirement[] = [
     key: "description",
     label: "Description (min 700 characters)",
     tier: "mandatory",
-    section: "general",
+    section: "info-facilities",
     target: ["#description", '[data-field="description"]'],
-    hint: "Must be at least 700 characters to pass channel certification.",
+    hint: "Add it under Info & Facilities → Description (700+ characters, TOBI can draft it).",
     isSatisfied: (s) => str(s.description).length >= 700,
   },
   {
