@@ -38,7 +38,7 @@ const FAQ_CATEGORIES = [
     items: [
       {
         q: "How do I get API access?",
-        a: "Submit a request through our Get Started page. You'll receive your property ID and API key within 24 hours. All plans include full API access — no per-call fees.",
+        a: "Submit a request through our Get Started page. You will receive your property ID and API key within 24 hours. Full API access is included for every property — no per-call fees and no API add-on.",
       },
       {
         q: "What authentication does the API use?",
@@ -84,7 +84,7 @@ const FAQ_CATEGORIES = [
       },
       {
         q: "Can I manage multiple properties?",
-        a: "Yes. Professional plans support up to 3 properties, and Enterprise plans offer unlimited properties with portfolio-level analytics and aggregated KPIs.",
+        a: "Yes — unlimited properties, with portfolio-level analytics and aggregated KPIs. There are no plan tiers and no per-property subscription.",
       },
       {
         q: "Do you support OTA channel management?",
@@ -101,12 +101,25 @@ const FAQ_CATEGORIES = [
     items: [
       {
         q: "What support is included?",
-        a: "All plans include email support. Professional plans get priority response. Enterprise plans include a dedicated account manager and SLA guarantees.",
+        a: "All of it, free. Onboarding, setup assistance, training and email support are included for every property — there is no support tier to buy.",
       },
       {
-        q: "Is there a free trial?",
-        a: "Yes! All plans come with a 60-day free trial. No credit card required. Full API access from day one.",
+        q: "What does ROL'OS cost?",
+        a: "Nothing to run. There is no monthly subscription, no setup fee and no per-room or per-user charge. Your first 60 days are free and it stays free after that. The only charge is a booking fee on bookings we deliver through ROL OTA and channel listings or the widget/embed booking engine.",
       },
+      {
+        q: "What is the booking fee?",
+        a: "It is competitive and surprisingly low, agreed per property and negotiable for volume and portfolios. We put it in writing before you go live — talk to us via the Get Started page.",
+      },
+      {
+        q: "Do I pay extra for White Label, Revenue Management or the Channel Manager?",
+        a: "No. White-label branding on your own booking domain, revenue management and yield tools, PMS, channel integration, the developer API, CRM, folio and invoicing are all included. Nothing in ROL'OS is paywalled.",
+      },
+      {
+        q: "What happens after the first 60 days?",
+        a: "Nothing changes. The system stays free to run — the 60 days simply mark the point from which booking fees apply to bookings we deliver.",
+      },
+
       {
         q: "What static content can I pull for a property?",
         a: "Everything you need to render a rich booking flow: property name, type, location & geo, images (with automatic room-image fallback), room types with bed configs and capacities, amenities, rates and live availability, cancellation policies (with linked rate plans), reservation (deposit/guarantee) policies, accepted payment methods, and reception/landlord contact details. Add ?include_static_content=true to the Portfolio API to get it all in one call.",

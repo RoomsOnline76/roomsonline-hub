@@ -14,7 +14,7 @@ const fadeUp = {
 };
 
 const STATS = [
-  { value: "60-Day", label: "Free Trial" },
+  { value: "R 0", label: "Monthly Fee" },
   { value: "R 0", label: "Setup Fee" },
   { value: "24/7", label: "TOBI Assistant" },
   { value: "Flexible", label: "Negotiable Plans" },
@@ -47,7 +47,7 @@ const COMPARISON = [
   { feature: "White-Label Branding", rolos: true, others: false, othersNote: "Enterprise only" },
   { feature: "Revenue Management", rolos: true, others: true, othersNote: "Limited" },
   { feature: "Night Audit Automation", rolos: true, others: false, othersNote: "Manual process" },
-  { feature: "Negotiable Pricing", rolos: true, others: false, othersNote: "Fixed tiers only" },
+  { feature: "No Monthly Subscription", rolos: true, others: false, othersNote: "Fixed monthly tiers" },
 ];
 
 const TRUST_LOGOS = ["Hostfully", "Benson", "Rentals United", "WordPress", "Elementor"];
@@ -71,7 +71,7 @@ export default function ConnectHome() {
           >
             <motion.div variants={fadeUp} transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}>
               <span className="inline-block px-3 py-1 text-xs font-medium rounded-full bg-primary/10 text-primary mb-6">
-                60-Day Free Trial — No Credit Card Required
+                Free to run — you only pay a booking fee
               </span>
             </motion.div>
 
@@ -102,7 +102,7 @@ export default function ConnectHome() {
             >
               <Link to={connectPath("/connect/get-started")} className="w-full sm:w-auto">
                 <Button size="lg" className="gap-2 font-medium px-6 w-full sm:w-auto">
-                  Start My Free Trial <ArrowRight className="h-4 w-4" />
+                  Get Started Free <ArrowRight className="h-4 w-4" />
                 </Button>
               </Link>
               <Link to={connectPath("/connect/features")} className="w-full sm:w-auto">
@@ -323,15 +323,18 @@ export default function ConnectHome() {
           >
             <h2 className="text-xl sm:text-2xl md:text-3xl font-bold mb-3">Stop Losing Bookings. Start Managing Smarter.</h2>
             <p className="text-muted-foreground mb-6 max-w-lg mx-auto">
-              60-day free trial. No credit card. No setup fees. Full access from day one.
-              Pricing is flexible — we'll build a plan that fits your budget.
+              Free for your first 60 days — and still free to run after that. No subscription,
+              no setup fee, no credit card. PMS, white label, revenue management, channel
+              integration and the API are all included. You only pay a booking fee on the
+              bookings we deliver.
             </p>
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-3">
               <Link to={connectPath("/connect/get-started")} className="w-full sm:w-auto">
                 <Button size="lg" className="gap-2 font-medium w-full sm:w-auto">
-                  Start My Free Trial <ArrowRight className="h-4 w-4" />
+                  Get Started Free <ArrowRight className="h-4 w-4" />
                 </Button>
               </Link>
+
               <Link to={connectPath("/connect/pricing")} className="w-full sm:w-auto">
                 <Button variant="outline" size="lg" className="gap-2 font-medium w-full sm:w-auto">
                   See Pricing
@@ -340,14 +343,15 @@ export default function ConnectHome() {
             </div>
             <div className="mt-6 flex flex-wrap items-center justify-center gap-4 text-xs text-muted-foreground">
               <span className="flex items-center gap-1">
-                <CheckCircle2 className="h-3.5 w-3.5 text-primary" /> 60-day free trial
+                <CheckCircle2 className="h-3.5 w-3.5 text-primary" /> 60 days free
               </span>
               <span className="flex items-center gap-1">
-                <CheckCircle2 className="h-3.5 w-3.5 text-primary" /> No credit card
+                <CheckCircle2 className="h-3.5 w-3.5 text-primary" /> No subscription
               </span>
               <span className="flex items-center gap-1">
-                <CheckCircle2 className="h-3.5 w-3.5 text-primary" /> Negotiable pricing
+                <CheckCircle2 className="h-3.5 w-3.5 text-primary" /> Booking fee only
               </span>
+
               <span className="flex items-center gap-1">
                 <CheckCircle2 className="h-3.5 w-3.5 text-primary" /> Cancel anytime
               </span>

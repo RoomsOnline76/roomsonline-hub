@@ -2,135 +2,119 @@ import { Link } from "react-router-dom";
 import { connectPath } from "@/lib/config";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
-import { ArrowRight, Check, CheckCircle2, Shield, Sparkles, Palette, Globe, TrendingUp, CreditCard } from "lucide-react";
-import { usePublicPricing, formatZar, type PublicPricingTier } from "@/hooks/usePublicPricing";
+import {
+  ArrowRight,
+  Check,
+  CheckCircle2,
+  Shield,
+  Sparkles,
+  Building2,
+  Globe,
+  TrendingUp,
+  CreditCard,
+} from "lucide-react";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 16, filter: "blur(4px)" },
   visible: { opacity: 1, y: 0, filter: "blur(0px)" },
 };
 
-const TIER_FEATURES_XS = [
-  "Booking Engine Widgets",
-  "WordPress plugin",
-  "Guest CRM",
-  "Rate season management",
-  "Revenue management & analytics",
-  "Folio & billing system",
-  "Housekeeping board",
-  "TOBI assistant",
-  "Night audit automation",
-  "Email support",
+/** What the booking fee applies to — the only thing a property ever pays. */
+const FEE_APPLIES_TO = [
+  "Bookings delivered through ROL OTA and channel listings",
+  "Bookings taken through the widget, embed or WordPress booking engine",
+  "Nothing else — no monthly fee, no setup fee, no per-room or per-user charge",
 ];
 
-const TIER_FEATURES_S = [
-  "Everything in the smaller tier",
-  "Portfolio analytics dashboard",
-  "Channel manager (1 OTA included)",
+const FREE_POINTS = [
+  "Free for your first 60 days — and still free to run after that",
+  "No subscription, no contract, no lock-in",
+  "Onboarding, setup, training and support at no charge",
+  "Every module included, on every property, from day one",
 ];
 
-const TIER_FEATURES_M = [
-  "Everything in the smaller tier",
-  "Additional OTA channels",
-  "Priority support",
+/** Grouped capability list — the promo surface for what "included" means. */
+const INCLUDED_GROUPS: { icon: typeof Building2; title: string; items: string[] }[] = [
+  {
+    icon: Building2,
+    title: "Operate",
+    items: [
+      "ROL'OS PMS & front desk",
+      "Reservations, groups & events",
+      "Rates, seasons & rate plans",
+      "Packages, specials & promo codes",
+      "Housekeeping & maintenance boards",
+      "Night audit automation",
+      "Staff roles & shift management",
+      "Multi-property portfolio management",
+    ],
+  },
+  {
+    icon: Globe,
+    title: "Distribute",
+    items: [
+      "Channel manager & OTA distribution",
+      "White-label branding on your own booking domain",
+      "Booking widgets, embeds & WordPress plugin",
+      "Developer REST API (55+ actions)",
+      "HMAC-signed webhooks",
+      "PMS adapters — keep the system you already run",
+      "Direct booking button for any website",
+      "Guest journeys & multi-property itineraries",
+    ],
+  },
+  {
+    icon: CreditCard,
+    title: "Get paid",
+    items: [
+      "Folio, invoicing & pro-forma documents",
+      "VAT handling & tax invoices",
+      "Payment gateway integration (or bring your own)",
+      "Refund register with approval workflow",
+      "F&B and revenue splits",
+      "Portfolio reconciliation & payout statements",
+      "Deposit schedules & balance tracking",
+      "Reservation-only mode if you never take payment",
+    ],
+  },
+  {
+    icon: TrendingUp,
+    title: "Grow",
+    items: [
+      "Revenue management, yield rules & rate strategies",
+      "Reviews & reputation monitoring",
+      "Guest CRM & segmentation",
+      "Portfolio analytics & Revenue Pulse",
+      "TOBI assistant for you and your guests",
+      "Branded guest email & messaging",
+      "Mobile apps for iPhone & Android",
+      "Content quality & channel readiness scoring",
+    ],
+  },
 ];
-
-const TIER_FEATURES_L = [
-  "Everything in the smaller tier",
-  "Unlimited OTA channels",
-  "Full API access (55+ actions)",
-  "Dedicated account manager",
-];
-
-function tierMeta(index: number) {
-  const list = [
-    { name: "Starter", desc: "0–9 rooms · for individual properties getting started.", features: TIER_FEATURES_XS, popular: false },
-    { name: "Medium", desc: "10–19 rooms · for growing properties adding OTAs.", features: TIER_FEATURES_S, popular: true },
-    { name: "Large", desc: "20–50 rooms · for established properties and small portfolios.", features: TIER_FEATURES_M, popular: false },
-    { name: "Enterprise", desc: "51+ rooms · for hotel groups and larger operations.", features: TIER_FEATURES_L, popular: false },
-  ];
-  return list[index];
-}
-
-function tierPrice(t: PublicPricingTier | undefined): { price: string; period: string } {
-  if (!t || t.monthly_fee === null || t.monthly_fee === undefined) {
-    return { price: "Let's Talk", period: "" };
-  }
-  return { price: formatZar(t.monthly_fee), period: "/month" };
-}
-
-function tierCaps(t: PublicPricingTier | undefined, fallback: string): string {
-  if (!t) return fallback;
-  const min = t.min_rooms ?? 0;
-  if (t.max_rooms === null || t.max_rooms === undefined) return `${min}+ rooms`;
-  return `${min}–${t.max_rooms} rooms`;
-}
 
 const GUARANTEES = [
-  "60-day free trial on all plans",
-  "Month-to-month billing — no annual lock-in",
+  "60 days free, then still free to run",
+  "No subscription and no annual lock-in",
   "Cancel anytime, keep your data",
   "Full data export included",
+  "Every module included — nothing paywalled",
+  "Free onboarding, training and support",
 ];
 
+const COMPETITOR_COSTS = [
+  { item: "Basic PMS (rooms + bookings)", typical: "R 2,500 – R 5,000/mo", rolos: "Included" },
+  { item: "Channel manager & OTA distribution", typical: "R 2,000 – R 4,000/mo", rolos: "Included" },
+  { item: "API access & webhooks", typical: "R 1,500 – R 3,000/mo", rolos: "Included" },
+  { item: "Revenue management & yield tools", typical: "R 1,000 – R 2,500/mo", rolos: "Included" },
+  { item: "White-label branding & own booking domain", typical: "Enterprise tier only", rolos: "Included" },
+  { item: "Assistant / chatbot", typical: "R 800 – R 2,000/mo", rolos: "Included (TOBI)" },
+  { item: "Reviews & reputation monitoring", typical: "R 600 – R 1,500/mo", rolos: "Included" },
+  { item: "Revenue splits & portfolio recon", typical: "Rarely offered", rolos: "Included" },
+  { item: "Monthly subscription", typical: "Always", rolos: "None" },
+];
 
 export default function ConnectPricing() {
-  const { data: pricing } = usePublicPricing();
-
-  const rolosTiers = [...(pricing?.rolosTiers ?? [])].sort((a, b) => {
-    const ar = a.max_rooms ?? Number.POSITIVE_INFINITY;
-    const br = b.max_rooms ?? Number.POSITIVE_INFINITY;
-    return ar - br;
-  });
-
-  const tierData = [0, 1, 2, 3].map((i) => ({
-    meta: tierMeta(i),
-    row: rolosTiers[i],
-    fallbackCaps: ["0–9 rooms", "10–19 rooms", "20–50 rooms", "51+ rooms"][i],
-  }));
-
-  const widgetPct = pricing?.widgetFlatCommissionRate ?? 2;
-  const widgetPctLabel = Number.isInteger(widgetPct) ? `${widgetPct}%` : `${widgetPct.toFixed(1)}%`;
-
-  const ADD_ONS = [
-    {
-      icon: Palette,
-      name: "Basic Branding",
-      price: `From ${formatZar(pricing?.brandingAddonMonthly)} / month`,
-      desc: "Logo, colour palette and typography applied to the hosted booking flow so it matches your website.",
-    },
-    {
-      icon: Globe,
-      name: "White-label Branding",
-      price: `From ${formatZar(pricing?.whiteLabelMonthly)} / month`,
-      desc: "Your own booking subdomain (e.g. book.yourdomain.com) with a full brand takeover of the guest experience.",
-    },
-    {
-      icon: TrendingUp,
-      name: "PriceLabs Revenue Management",
-      price: `From ${formatZar(pricing?.pricelabsMonthly)} / month`,
-      desc: "Automated dynamic pricing pushed straight into ROL'OS. Available on ROL'OS PMS properties only.",
-    },
-    {
-      icon: CreditCard,
-      name: "BYO Payment Gateway",
-      price: `From ${formatZar(pricing?.byoGatewayMonthly)} / month`,
-      desc: "Connect your own payment provider — funds settle directly to you, ROL does not touch the money.",
-    },
-  ];
-
-  const starterPriceLabel = rolosTiers[0]?.monthly_fee ? formatZar(rolosTiers[0].monthly_fee) : "R 450";
-  const COMPETITOR_COSTS = [
-    { item: "Basic PMS (rooms + bookings)", typical: "R 2,500 – R 5,000/mo", rolos: `Included from ${starterPriceLabel}` },
-    { item: "Channel Manager add-on", typical: "R 2,000 – R 4,000/mo", rolos: "Included from 10+ rooms" },
-    { item: "API access", typical: "R 1,500 – R 3,000/mo", rolos: "Included on 51+ rooms tier" },
-    { item: "Revenue management", typical: "R 1,000 – R 2,500/mo", rolos: "Included on every tier" },
-    { item: "Assistant / chatbot", typical: "R 800 – R 2,000/mo", rolos: "Included (TOBI)" },
-    { item: "White-label branding", typical: "Enterprise tier only", rolos: "Available as an add-on" },
-    { item: "Booking widget / WBE (commission-only)", typical: "5–15% + setup fees", rolos: `From ${widgetPctLabel} · negotiable` },
-  ];
-
-
   return (
     <div>
       {/* Hero */}
@@ -141,7 +125,7 @@ export default function ConnectPricing() {
             transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
           >
             <span className="inline-block px-3 py-1 text-xs font-medium rounded-full bg-primary/10 text-primary mb-4">
-              Negotiable Plans Available
+              60 days free · then still free to run
             </span>
           </motion.div>
           <motion.h1
@@ -149,217 +133,140 @@ export default function ConnectPricing() {
             transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
             className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight"
           >
-            Enterprise Power.{" "}
-            <span className="text-primary">Startup Pricing.</span>
+            Free to run.{" "}
+            <span className="text-primary">You only pay when we bring you a booking.</span>
           </motion.h1>
           <motion.p
             initial="hidden" animate="visible" variants={fadeUp}
             transition={{ duration: 0.7, delay: 0.08, ease: [0.16, 1, 0.3, 1] }}
             className="mt-4 text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto"
           >
-            You'll think we made a mistake on the price. No per-API-call fees.
-            No hidden charges. Every plan includes what others charge extra for —
-            or skip the subscription entirely with our commission-only widget option.
+            No monthly subscription. No setup fee. No per-room or per-user charge.
+            White label, revenue management, PMS, channel integration, API, CRM and the
+            full ROL'OS stack are included — you pay a single booking fee only on the
+            bookings we deliver through OTA listings and the widget booking engine.
           </motion.p>
-
         </div>
       </section>
 
-      {/* Pricing cards */}
-      <section className="py-12 sm:py-16 lg:py-20">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          {/* Commission-only callout — WBE / Widgets / WordPress */}
+      {/* The single offer */}
+      <section className="py-12 sm:py-16">
+        <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
           <motion.div
             initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.2 }}
             variants={fadeUp} transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-            className="mb-10 rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/5 via-background to-background p-6 sm:p-8 relative"
+            className="rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/5 via-background to-background p-6 sm:p-10 relative"
           >
             <span className="absolute top-4 right-4 text-xs px-2 py-0.5 rounded-full bg-accent text-accent-foreground font-medium flex items-center gap-1">
               <Sparkles className="h-3 w-3" /> Negotiable
             </span>
-            <div className="grid md:grid-cols-[1.4fr_1fr] gap-6 items-center">
+
+            <div className="grid md:grid-cols-2 gap-8 md:gap-10">
               <div>
-                <h3 className="text-2xl font-bold">WBE, Widgets &amp; WordPress</h3>
-                <div className="mt-2 flex items-baseline gap-2">
-                  <span className="text-3xl font-bold text-primary">From {widgetPctLabel}</span>
-                  <span className="text-sm text-muted-foreground">commission per booking</span>
+                <h2 className="text-2xl sm:text-3xl font-bold">One plan. Everything in it.</h2>
+                <div className="mt-3 flex items-baseline gap-2 flex-wrap">
+                  <span className="text-3xl sm:text-4xl font-bold text-primary">R 0</span>
+                  <span className="text-sm text-muted-foreground">/month, on every tier and every room count</span>
                 </div>
-                <p className="text-sm text-muted-foreground mt-3 max-w-xl">
-                  Pay only when you get a booking. Perfect for properties that already
-                  have a website and just want a booking engine that converts.
-                </p>
-                <Link to={connectPath("/connect/get-started")} className="inline-block mt-5">
-                  <Button className="gap-2">
-                    Talk to us <ArrowRight className="h-3.5 w-3.5" />
-                  </Button>
-                </Link>
-              </div>
-              <ul className="space-y-2.5">
-                {[
-                  "Embed the ROL booking engine (WBE) on any site",
-                  "WordPress plugin + shortcodes",
-                  "Availability & booking widgets",
-                  "Commission negotiable for volume / portfolios",
-                ].map((f) => (
-                  <li key={f} className="flex items-start gap-2 text-sm">
-                    <Check className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" />
-                    {f}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </motion.div>
-
-          <motion.div
-            initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.2 }}
-            variants={{ visible: { transition: { staggerChildren: 0.08 } } }}
-            className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6"
-          >
-
-            {tierData.map(({ meta, row, fallbackCaps }) => {
-              const { price, period } = tierPrice(row);
-              const caps = tierCaps(row, fallbackCaps);
-              return (
-              <motion.div
-                key={meta.name}
-                variants={fadeUp}
-                transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-                className={`rounded-2xl border p-6 relative ${meta.popular ? "border-primary shadow-lg ring-1 ring-primary/20" : "bg-card"}`}
-              >
-                {meta.popular && (
-                  <span className="absolute -top-3 left-1/2 -translate-x-1/2 text-xs px-3 py-1 rounded-full bg-primary text-primary-foreground font-medium">
-                    Most Popular
-                  </span>
-                )}
-                <h3 className="text-lg font-semibold">{meta.name}</h3>
-                <div className="mt-3 flex items-baseline gap-1">
-                  <span className="text-2xl sm:text-3xl font-bold">{price}</span>
-                  <span className="text-sm text-muted-foreground">{period}</span>
-                </div>
-                <p className="text-xs font-medium text-primary mt-2">{caps}</p>
-                <p className="text-sm text-muted-foreground mt-2">{meta.desc}</p>
-
                 <ul className="mt-6 space-y-2.5">
-                  {meta.features.map((f) => (
+                  {FREE_POINTS.map((f) => (
                     <li key={f} className="flex items-start gap-2 text-sm">
                       <Check className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" />
                       {f}
                     </li>
                   ))}
                 </ul>
-
-                <Link to={connectPath("/connect/get-started")} className="block mt-8">
-                  <Button variant={meta.popular ? "default" : "outline"} className="w-full gap-2">
-                    Start 60-Day Free Trial <ArrowRight className="h-3.5 w-3.5" />
+                <Link to={connectPath("/connect/get-started")} className="inline-block mt-7">
+                  <Button size="lg" className="gap-2">
+                    Get started free <ArrowRight className="h-4 w-4" />
                   </Button>
                 </Link>
-              </motion.div>
-              );
-            })}
+              </div>
+
+              <div className="rounded-xl border bg-card p-5 sm:p-6">
+                <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                  The only charge
+                </h3>
+                <p className="mt-2 text-xl font-bold">
+                  A booking fee — <span className="text-primary">competitive and surprisingly low</span>
+                </p>
+                <ul className="mt-4 space-y-2.5">
+                  {FEE_APPLIES_TO.map((f) => (
+                    <li key={f} className="flex items-start gap-2 text-sm">
+                      <CheckCircle2 className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" />
+                      <span>{f}</span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="text-xs text-muted-foreground mt-4 leading-relaxed">
+                  The fee is agreed per property and negotiable for volume and portfolios.
+                  Talk to us and we'll put it in writing before you go live.
+                </p>
+              </div>
+            </div>
           </motion.div>
         </div>
       </section>
 
-      {/* Standard — included in every monthly plan */}
+      {/* Everything included */}
       <section className="py-10 sm:py-12 lg:py-16 border-t">
-        <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
           <motion.div
             initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.2 }}
             variants={fadeUp} transition={{ duration: 0.6 }}
             className="text-center mb-10"
           >
             <span className="inline-block px-3 py-1 text-xs font-medium rounded-full bg-primary/10 text-primary mb-3">
-              Standard · Included in your monthly fee
+              Included · Every property, every module
             </span>
-            <h2 className="text-2xl sm:text-3xl font-bold">What you get.</h2>
-            <p className="text-muted-foreground mt-2 max-w-xl mx-auto">
-              Every ROL'OS subscription — from the smallest tier upwards — ships with the full
-              operating stack. No feature paywalls on the essentials.
-            </p>
-          </motion.div>
-
-          <motion.ul
-            initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.15 }}
-            variants={{ visible: { transition: { staggerChildren: 0.05 } } }}
-            className="grid sm:grid-cols-2 gap-x-8 gap-y-3 max-w-3xl mx-auto"
-          >
-            {[
-              "Front-desk booking system",
-              "Property Management System (PMS) integration",
-              "Direct booking button on your website",
-              "Booking Engine Widgets & WordPress plugin",
-              "Guest CRM",
-              "Rate & season management",
-              "Revenue management & analytics",
-              "Folio & billing system",
-              "Housekeeping board",
-              "Night audit automation",
-              "TOBI assistant",
-              "Portfolio analytics dashboard",
-              "Phone app for iPhone & Android",
-              "Payfast (SA only — conditions apply)",
-              "Free training and email support",
-            ].map((item) => (
-
-              <motion.li
-                key={item}
-                variants={fadeUp}
-                transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-                className="flex items-start gap-2.5 text-sm"
-              >
-                <CheckCircle2 className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" />
-                <span>{item}</span>
-              </motion.li>
-            ))}
-          </motion.ul>
-        </div>
-      </section>
-
-      {/* Optional Add-Ons */}
-      <section className="py-10 sm:py-12 lg:py-16 border-t bg-muted/20">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <motion.div
-            initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.2 }}
-            variants={fadeUp} transition={{ duration: 0.6 }}
-            className="text-center mb-10"
-          >
-            <h2 className="text-2xl font-bold">Optional Add-Ons</h2>
-            <p className="text-muted-foreground mt-2 max-w-xl mx-auto">
-              Bolt on only what you need. Enabled per property by your ROL admin — cancel or pause any time.
+            <h2 className="text-2xl sm:text-3xl font-bold">Everything is in the box.</h2>
+            <p className="text-muted-foreground mt-2 max-w-2xl mx-auto">
+              White label, revenue management, PMS, channel integration, the developer API and
+              the rest of the operating stack ship switched on. There are no feature paywalls
+              and no upgrade tiers to climb.
             </p>
           </motion.div>
 
           <motion.div
-            initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.15 }}
-            variants={{ visible: { transition: { staggerChildren: 0.06 } } }}
-            className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4"
+            initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.1 }}
+            variants={{ visible: { transition: { staggerChildren: 0.07 } } }}
+            className="grid sm:grid-cols-2 gap-5"
           >
-            {ADD_ONS.map((a) => (
+            {INCLUDED_GROUPS.map((g) => (
               <motion.div
-                key={a.name}
+                key={g.title}
                 variants={fadeUp}
                 transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-                className="rounded-xl border bg-card p-5"
+                className="rounded-2xl border bg-card p-6"
               >
-                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center mb-3">
-                  <a.icon className="h-5 w-5 text-primary" />
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                    <g.icon className="h-5 w-5 text-primary" />
+                  </div>
+                  <h3 className="text-lg font-semibold">{g.title}</h3>
                 </div>
-                <h3 className="text-sm font-semibold">{a.name}</h3>
-                <p className="text-xs font-medium text-primary mt-1">{a.price}</p>
-                <p className="text-xs text-muted-foreground mt-2 leading-relaxed">{a.desc}</p>
+                <ul className="space-y-2.5">
+                  {g.items.map((item) => (
+                    <li key={item} className="flex items-start gap-2 text-sm">
+                      <CheckCircle2 className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
               </motion.div>
             ))}
           </motion.div>
 
           <p className="text-xs text-muted-foreground text-center mt-6 max-w-2xl mx-auto">
-            Add-ons are priced per property and configured by your ROL admin. Final pricing may be adjusted for
-            multi-property portfolios.
+            Third-party pass-through costs stay with the third party — an external revenue-management
+            licence you already hold, or your own payment gateway's transaction fees, are billed at cost
+            where they apply. Nothing in ROL'OS itself is charged for.
           </p>
         </div>
       </section>
 
       {/* What Others Charge */}
-      <section className="py-10 sm:py-12 lg:py-16 border-t">
+      <section className="py-10 sm:py-12 lg:py-16 border-t bg-muted/20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <motion.div
             initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.2 }}
@@ -368,7 +275,8 @@ export default function ConnectPricing() {
           >
             <h2 className="text-2xl font-bold">What Others Charge for the Same Features</h2>
             <p className="text-muted-foreground mt-2 max-w-lg mx-auto">
-              Most PMS providers sell these as expensive add-ons. ROL'OS includes them all.
+              Most providers sell these as tiers and add-ons. ROL'OS includes them and charges
+              nothing until a booking arrives.
             </p>
           </motion.div>
 
@@ -422,7 +330,7 @@ export default function ConnectPricing() {
           <div className="mt-8">
             <Link to={connectPath("/connect/get-started")}>
               <Button size="lg" className="gap-2">
-                Start 60-Day Free Trial <ArrowRight className="h-4 w-4" />
+                Get started free <ArrowRight className="h-4 w-4" />
               </Button>
             </Link>
           </div>
