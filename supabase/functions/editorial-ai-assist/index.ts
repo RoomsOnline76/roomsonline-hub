@@ -87,6 +87,69 @@ Requirements:
       });
     }
 
+    // TOBI: long-form property description for the Facilities tab (min 800 characters)
+    if (action === "generate_property_description") {
+      const ctx = propertyContext || {};
+      const minChars = Number(body.minChars) > 0 ? Number(body.minChars) : 800;
+      const roomLines = ctx.rooms?.length
+        ? ctx.rooms.map((r: { name: string; maxPeople?: number; bedConfiguration?: string }) =>
+            `- ${r.name}${r.maxPeople ? ` (sleeps ${r.maxPeople})` : ""}${r.bedConfiguration ? `, ${r.bedConfiguration}` : ""}`).join("\n")
+        : "Not specified";
+
+      const descPrompt = `You are a luxury hospitality copywriter writing the main listing description for an accommodation.
+
+PROPERTY: ${ctx.name || "Unknown"} (${ctx.property_type || "Accommodation"}${ctx.star_rating ? `, ${ctx.star_rating}-star` : ""})
+LOCATION: ${[ctx.suburb, ctx.city, ctx.country].filter(Boolean).join(", ") || "Not specified"}
+FACILITIES: ${ctx.facilities?.length ? ctx.facilities.join(", ") : "None listed"}
+ROOMS / UNITS:
+${roomLines}
+SURROUNDINGS: dining — ${ctx.restaurants_cafes || "n/a"}; transport — ${ctx.public_transport || "n/a"}; airport — ${ctx.closest_airport || "n/a"}
+EXISTING DRAFT (improve and expand, keep any true facts): ${ctx.description || "none"}
+
+RULES
+- Write ${minChars}-1400 characters of flowing prose in 3-4 paragraphs separated by blank lines.
+- Warm, editorial, specific. No clichés ("hidden gem", "nestled", "best-kept secret"), no bullet lists, no headings, no emojis.
+- Only use facts given above — never invent facilities, distances, awards or star ratings.
+- Cover: the feel of the place, the accommodation itself, the facilities guests actually use, and the location.
+- Return ONLY the description text.`;
+
+      const descRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: AI_MODELS.property_description,
+          temperature: 0.5,
+          messages: [{ role: "user", content: descPrompt }],
+        }),
+      });
+
+      if (!descRes.ok) {
+        if (descRes.status === 429) {
+          return new Response(JSON.stringify({ error: "TOBI is busy right now — please try again shortly." }), {
+            status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        if (descRes.status === 402) {
+          return new Response(JSON.stringify({ error: "TOBI is temporarily unavailable — credits exhausted." }), {
+            status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        const detail = await descRes.text();
+        console.error("property description AI error:", descRes.status, detail.slice(0, 400));
+        return new Response(JSON.stringify({ error: "TOBI could not write the description." }), {
+          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const descJson = await descRes.json();
+      const description = (descJson?.choices?.[0]?.message?.content ?? "").trim();
+      return new Response(JSON.stringify({ description, characters: description.length, min_characters: minChars }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+
+
     // Original property editorial content generation
 
     // Build comprehensive property context
