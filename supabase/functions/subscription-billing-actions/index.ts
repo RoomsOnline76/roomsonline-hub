@@ -942,6 +942,21 @@ Deno.serve(async (req) => {
         ? 0
         : fee;
       if (monthlyDue > 0 && !openSubscription && !canStart && !testRecipient) monthlyDue = 0;
+      // An authorised mandate collects the monthly fee automatically, so the
+      // owner is never asked to pay it again. Only a missing, declined or
+      // repriced mandate reverts to a payment request.
+      const mandateActive =
+        !!String((cfg as any)?.mandate_token || "").trim() &&
+        String((cfg as any)?.mandate_status || "") === "active" &&
+        (cfg as any)?.mandate_requires_reauth !== true;
+      if (mandateActive && !testRecipient) monthlyDue = 0;
+      // A subscription winding down (cancelled, or cancelling at period end) is
+      // paid up for the rest of its term — nothing further is due.
+      const windingDown =
+        (cfg as any)?.cancel_at_period_end === true ||
+        ["cancelling", "cancelled"].includes(String((cfg as any)?.subscription_status || ""));
+      if (windingDown && !openSubscription && !testRecipient) monthlyDue = 0;
+
 
       if (setupDue <= 0 && monthlyDue <= 0 && !preview)
         return json({ success: true, skipped: "nothing_outstanding" });

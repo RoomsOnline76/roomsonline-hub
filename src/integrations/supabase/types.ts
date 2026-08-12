@@ -4250,6 +4250,7 @@ export type Database = {
       }
       portfolio_billing_configs: {
         Row: {
+          auto_charge_failures: number
           billing_anchor_day: number | null
           billing_enabled: boolean
           billing_start_date: string | null
@@ -4276,9 +4277,18 @@ export type Database = {
           enterprise_custom_fee: number | null
           free_period_days: number | null
           id: string
+          last_auto_charge_at: string | null
+          last_auto_charge_error: string | null
+          last_auto_charge_status: string | null
           last_invoice_id: string | null
           linked_contract_id: string | null
           listing_commission_rate: number | null
+          mandate_amount: number | null
+          mandate_cancelled_at: string | null
+          mandate_created_at: string | null
+          mandate_requires_reauth: boolean
+          mandate_status: string | null
+          mandate_token: string | null
           payment_facilitator_enabled: boolean | null
           payment_model: string | null
           pending_effective_date: string | null
@@ -4313,6 +4323,7 @@ export type Database = {
           widget_flat_commission_rate: number | null
         }
         Insert: {
+          auto_charge_failures?: number
           billing_anchor_day?: number | null
           billing_enabled?: boolean
           billing_start_date?: string | null
@@ -4339,9 +4350,18 @@ export type Database = {
           enterprise_custom_fee?: number | null
           free_period_days?: number | null
           id?: string
+          last_auto_charge_at?: string | null
+          last_auto_charge_error?: string | null
+          last_auto_charge_status?: string | null
           last_invoice_id?: string | null
           linked_contract_id?: string | null
           listing_commission_rate?: number | null
+          mandate_amount?: number | null
+          mandate_cancelled_at?: string | null
+          mandate_created_at?: string | null
+          mandate_requires_reauth?: boolean
+          mandate_status?: string | null
+          mandate_token?: string | null
           payment_facilitator_enabled?: boolean | null
           payment_model?: string | null
           pending_effective_date?: string | null
@@ -4376,6 +4396,7 @@ export type Database = {
           widget_flat_commission_rate?: number | null
         }
         Update: {
+          auto_charge_failures?: number
           billing_anchor_day?: number | null
           billing_enabled?: boolean
           billing_start_date?: string | null
@@ -4402,9 +4423,18 @@ export type Database = {
           enterprise_custom_fee?: number | null
           free_period_days?: number | null
           id?: string
+          last_auto_charge_at?: string | null
+          last_auto_charge_error?: string | null
+          last_auto_charge_status?: string | null
           last_invoice_id?: string | null
           linked_contract_id?: string | null
           listing_commission_rate?: number | null
+          mandate_amount?: number | null
+          mandate_cancelled_at?: string | null
+          mandate_created_at?: string | null
+          mandate_requires_reauth?: boolean
+          mandate_status?: string | null
+          mandate_token?: string | null
           payment_facilitator_enabled?: boolean | null
           payment_model?: string | null
           pending_effective_date?: string | null
@@ -5491,6 +5521,7 @@ export type Database = {
       }
       property_billing_configs: {
         Row: {
+          auto_charge_failures: number
           billing_anchor_day: number | null
           billing_enabled: boolean
           billing_start_date: string | null
@@ -5517,9 +5548,18 @@ export type Database = {
           enterprise_custom_fee: number | null
           free_period_days: number | null
           id: string
+          last_auto_charge_at: string | null
+          last_auto_charge_error: string | null
+          last_auto_charge_status: string | null
           last_invoice_id: string | null
           linked_contract_id: string | null
           listing_commission_rate: number | null
+          mandate_amount: number | null
+          mandate_cancelled_at: string | null
+          mandate_created_at: string | null
+          mandate_requires_reauth: boolean
+          mandate_status: string | null
+          mandate_token: string | null
           owner_id: string | null
           payment_facilitator_enabled: boolean | null
           payment_model: string | null
@@ -5556,6 +5596,7 @@ export type Database = {
           widget_flat_commission_rate: number | null
         }
         Insert: {
+          auto_charge_failures?: number
           billing_anchor_day?: number | null
           billing_enabled?: boolean
           billing_start_date?: string | null
@@ -5582,9 +5623,18 @@ export type Database = {
           enterprise_custom_fee?: number | null
           free_period_days?: number | null
           id?: string
+          last_auto_charge_at?: string | null
+          last_auto_charge_error?: string | null
+          last_auto_charge_status?: string | null
           last_invoice_id?: string | null
           linked_contract_id?: string | null
           listing_commission_rate?: number | null
+          mandate_amount?: number | null
+          mandate_cancelled_at?: string | null
+          mandate_created_at?: string | null
+          mandate_requires_reauth?: boolean
+          mandate_status?: string | null
+          mandate_token?: string | null
           owner_id?: string | null
           payment_facilitator_enabled?: boolean | null
           payment_model?: string | null
@@ -5621,6 +5671,7 @@ export type Database = {
           widget_flat_commission_rate?: number | null
         }
         Update: {
+          auto_charge_failures?: number
           billing_anchor_day?: number | null
           billing_enabled?: boolean
           billing_start_date?: string | null
@@ -5647,9 +5698,18 @@ export type Database = {
           enterprise_custom_fee?: number | null
           free_period_days?: number | null
           id?: string
+          last_auto_charge_at?: string | null
+          last_auto_charge_error?: string | null
+          last_auto_charge_status?: string | null
           last_invoice_id?: string | null
           linked_contract_id?: string | null
           listing_commission_rate?: number | null
+          mandate_amount?: number | null
+          mandate_cancelled_at?: string | null
+          mandate_created_at?: string | null
+          mandate_requires_reauth?: boolean
+          mandate_status?: string | null
+          mandate_token?: string | null
           owner_id?: string | null
           payment_facilitator_enabled?: boolean | null
           payment_model?: string | null
@@ -14315,6 +14375,7 @@ export type Database = {
       subscription_invoices: {
         Row: {
           amount: number
+          auto_charged: boolean
           created_at: string
           currency: string
           email_sent_at: string | null
@@ -14322,6 +14383,7 @@ export type Database = {
           invoice_kind: string
           invoice_number: string | null
           line_items: Json
+          mandate_token: string | null
           metadata: Json
           once_off_amount: number
           owner_id: string | null
@@ -14340,6 +14402,7 @@ export type Database = {
         }
         Insert: {
           amount: number
+          auto_charged?: boolean
           created_at?: string
           currency?: string
           email_sent_at?: string | null
@@ -14347,6 +14410,7 @@ export type Database = {
           invoice_kind?: string
           invoice_number?: string | null
           line_items?: Json
+          mandate_token?: string | null
           metadata?: Json
           once_off_amount?: number
           owner_id?: string | null
@@ -14365,6 +14429,7 @@ export type Database = {
         }
         Update: {
           amount?: number
+          auto_charged?: boolean
           created_at?: string
           currency?: string
           email_sent_at?: string | null
@@ -14372,6 +14437,7 @@ export type Database = {
           invoice_kind?: string
           invoice_number?: string | null
           line_items?: Json
+          mandate_token?: string | null
           metadata?: Json
           once_off_amount?: number
           owner_id?: string | null

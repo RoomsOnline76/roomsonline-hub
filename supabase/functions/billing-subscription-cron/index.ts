@@ -141,7 +141,51 @@ function renderEmail({ entityName, amount, currency, periodStart, periodEnd, pay
   </div></body></html>`;
 }
 
+// ── Automatic renewal ────────────────────────────────────────────────────────
+// A healthy subscription is collected silently against the PayFast mandate the
+// owner authorised on their first payment. Only a missing, declined or repriced
+// mandate falls back to asking the owner to pay.
+async function callPayfast(action: string, payload: Record<string, unknown>) {
+  const res = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/payfast-api`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+    },
+    body: JSON.stringify({ action, ...payload }),
+  });
+  const body = await res.json().catch(() => ({}));
+  return { ok: res.ok && (body as any)?.success === true, body: body as any };
+}
+
+async function attemptAutoCharge(supabase: any, cfg: any, scope: "property" | "portfolio", entityId: string, invoiceId: string) {
+  const token = String(cfg?.mandate_token || "").trim();
+  if (!token) return { attempted: false, reason: "no_mandate" };
+  if (String(cfg?.mandate_status || "") !== "active") return { attempted: false, reason: `mandate_${cfg?.mandate_status || "missing"}` };
+  if (cfg?.mandate_requires_reauth === true) return { attempted: false, reason: "requires_reauth" };
+
+  const { ok, body } = await callPayfast("charge_subscription_mandate", { invoice_id: invoiceId });
+  if (ok || body?.already_paid) return { attempted: true, charged: true };
+
+  const err = String(body?.error || "charge_failed");
+  if (err === "amount_changed_requires_reauth") {
+    // PayFast cannot reprice a live mandate, so the old one is retired and the
+    // owner re-authorises the new amount once.
+    await callPayfast("cancel_subscription_mandate", { mandate_token: token });
+    await supabase
+      .from(scope === "property" ? "property_billing_configs" : "portfolio_billing_configs")
+      .update({
+        mandate_status: "cancelled",
+        mandate_cancelled_at: new Date().toISOString(),
+        mandate_requires_reauth: true,
+      })
+      .eq(scope === "property" ? "property_id" : "portfolio_id", entityId);
+  }
+  return { attempted: true, charged: false, error: err, failures: Number(body?.failures) || 0 };
+}
+
 async function sendReminder(resend: Resend, to: string, subject: string, html: string, cc: string[] = []) {
+
   try {
     const res = await resend.emails.send({
       from: FROM_EMAIL,
@@ -312,7 +356,19 @@ async function ensureInvoiceAndEmail(supabase: any, resend: Resend, opts: {
     }
   }
 
+  // Try the mandate first — renewals on an authorised mandate never ask the
+  // owner for money. The paid tax invoice is emailed by the settlement path.
+  const auto = await attemptAutoCharge(supabase, cfg, scope, entityId, invoice.id);
+  if (auto.charged) {
+    return { auto_charged: true, invoice_id: invoice.id };
+  }
+  if (auto.attempted && !auto.charged && auto.error !== "amount_changed_requires_reauth" && (auto.failures || 0) < 3) {
+    // Transient decline — retry on the next run before troubling the owner.
+    return { skipped: true, reason: "auto_charge_retry", invoice_id: invoice.id, error: auto.error };
+  }
+
   if (!ownerEmail) return { skipped: true, reason: "no_owner_email", invoice_id: invoice.id };
+
 
   const payUrl = `${SITE_URL}/subscribe/pay/${invoice.payfast_token}`;
   const { data: invFull } = await supabase.from("subscription_invoices").select("amount, currency, period_start, period_end").eq("id", invoice.id).single();
