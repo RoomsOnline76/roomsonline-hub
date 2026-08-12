@@ -3852,9 +3852,11 @@ export default function PropertyForm({
         void runAutoShare(savedPropertyId)
           .then((result) => {
             if (result && result.updatedGroups.length > 0) {
+              const sets = `${result.updatedGroups.length} shared data set${result.updatedGroups.length === 1 ? "" : "s"}`;
+              const props = `${result.updatedProperties} propert${result.updatedProperties === 1 ? "y" : "ies"}`;
               toast({
                 title: "Portfolio commons synced",
-                description: `${result.updatedGroups.length} shared data set${result.updatedGroups.length === 1 ? "" : "s"} aligned across the portfolio.`,
+                description: `${sets} pushed into ${props} in this portfolio. Existing values were left untouched.`,
               });
               void queryClient.invalidateQueries({ queryKey: ["property-readiness"] });
             }
