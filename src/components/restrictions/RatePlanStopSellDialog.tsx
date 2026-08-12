@@ -176,6 +176,9 @@ export function RatePlanStopSellDialog({
         toast.success(`Reopened ${dates.length} date(s) × ${targetRatePlanIds.length} rate plan(s)`);
       }
 
+      // Closing or reopening dates changes what the channel may sell.
+      for (const propId of targetPropertyIds) void queueChannelRatesSync(propId, "stop_sell_change");
+
       refetchClosures();
       queryClient.invalidateQueries({ queryKey: ["rate-plan-stop-sell"] });
       onSaved?.();
