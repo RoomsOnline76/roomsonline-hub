@@ -27,6 +27,7 @@ import { ACCOMMODATION_LABEL_OPTIONS } from "@/lib/accommodationLabels";
 import { getPMSFieldClass, getPMSDisplayName, isFieldPopulatedByPMS } from "@/lib/pmsFieldConfig";
 import { isPMSFullyIntegrated, getPMSIntegrationLevel, getPMSIcon } from "@/hooks/usePMSSync";
 import { channelMandatoryClass, CHANNEL_MANDATORY_LEGEND } from "@/lib/channelMandatoryFields";
+import { markerFlags } from "@/lib/fieldMarkers";
 import { ChannelFieldHint } from "@/components/property/ChannelFieldHint";
 import { checkChannelCoordinates, checkChannelName, checkChannelPlace, checkChannelPostalCode, checkChannelStreet } from "@/lib/channelFieldRules";
 import { cn } from "@/lib/utils";
@@ -566,7 +567,7 @@ export function GeneralTab(props: GeneralTabProps) {
                 <p className="col-span-full text-[11px] text-muted-foreground">{CHANNEL_MANDATORY_LEGEND}</p>
                 <div className="flex flex-col gap-1">
                   <Label htmlFor="name" className="text-xs">Name *</Label>
-                  <Input id="name" value={formData.name} onChange={(e) => handleInputChange("name", e.target.value)} placeholder="Property name" required disabled={isFieldPopulatedByPMS("name", selectedPMS)} className={cn("h-7 text-xs", getPMSFieldClass("name", selectedPMS), channelMandatoryClass("name"), nameFeedback.status === "error" && "border-destructive focus-visible:ring-destructive", isFieldPopulatedByPMS("name", selectedPMS) && "cursor-not-allowed")} />
+                  <Input id="name" value={formData.name} onChange={(e) => handleInputChange("name", e.target.value)} placeholder="Property name" required disabled={isFieldPopulatedByPMS("name", selectedPMS)} className={cn("h-7 text-xs", getPMSFieldClass("name", selectedPMS), channelMandatoryClass("name"), nameFeedback.status === "error" && "border-destructive focus-visible:ring-destructive", isFieldPopulatedByPMS("name", selectedPMS) && "cursor-not-allowed")} {...markerFlags(nameFeedback.status === "ok" && formData.name.trim().length > 0)} />
                   <ChannelFieldHint feedback={nameFeedback} />
                 </div>
 
@@ -748,7 +749,7 @@ export function GeneralTab(props: GeneralTabProps) {
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
                   <div className="flex flex-col gap-1">
                     <Label htmlFor="address" className="text-xs">Street *</Label>
-                    <Input id="address" value={formData.address} onChange={(e) => handleInputChange("address", e.target.value)} placeholder="Street address" required={!noStreetAddress} disabled={isFieldPopulatedByPMS("address", selectedPMS)} className={cn("h-7 text-xs", getPMSFieldClass("address", selectedPMS), channelMandatoryClass("address"), streetFeedback.status === "error" && "border-destructive focus-visible:ring-destructive", isFieldPopulatedByPMS("address", selectedPMS) && "cursor-not-allowed")} />
+                    <Input id="address" value={formData.address} onChange={(e) => handleInputChange("address", e.target.value)} placeholder="Street address" required={!noStreetAddress} disabled={isFieldPopulatedByPMS("address", selectedPMS)} className={cn("h-7 text-xs", getPMSFieldClass("address", selectedPMS), channelMandatoryClass("address"), streetFeedback.status === "error" && "border-destructive focus-visible:ring-destructive", isFieldPopulatedByPMS("address", selectedPMS) && "cursor-not-allowed")} {...markerFlags(noStreetAddress || (streetFeedback.status !== "error" && formData.address.trim().length > 0))} />
                     <ChannelFieldHint feedback={streetFeedback} />
                   </div>
                   <div className="flex flex-col gap-1">
@@ -757,7 +758,7 @@ export function GeneralTab(props: GeneralTabProps) {
                   </div>
                   <div className="flex flex-col gap-1">
                     <Label htmlFor="city" className="text-xs">City *</Label>
-                    <Input id="city" value={formData.city} onChange={(e) => handleInputChange("city", e.target.value)} placeholder="City" required={!noStreetAddress} disabled={isFieldPopulatedByPMS("city", selectedPMS)} className={cn("h-7 text-xs", getPMSFieldClass("city", selectedPMS), channelMandatoryClass("city"), isFieldPopulatedByPMS("city", selectedPMS) && "cursor-not-allowed")} />
+                    <Input id="city" value={formData.city} onChange={(e) => handleInputChange("city", e.target.value)} placeholder="City" required={!noStreetAddress} disabled={isFieldPopulatedByPMS("city", selectedPMS)} className={cn("h-7 text-xs", getPMSFieldClass("city", selectedPMS), channelMandatoryClass("city"), isFieldPopulatedByPMS("city", selectedPMS) && "cursor-not-allowed")} {...markerFlags(formData.city.trim().length > 0)} />
                     <ChannelFieldHint feedback={cityFeedback} />
                   </div>
                   <div className="flex flex-col gap-1" data-field="country">
@@ -780,7 +781,7 @@ export function GeneralTab(props: GeneralTabProps) {
                   </div>
                   <div className="flex flex-col gap-1">
                     <Label htmlFor="postal_code" className="text-xs">Code</Label>
-                    <Input id="postal_code" value={formData.postal_code} onChange={(e) => handleInputChange("postal_code", e.target.value)} placeholder="Postal code" disabled={isFieldPopulatedByPMS("postal_code", selectedPMS)} className={cn("h-7 text-xs", getPMSFieldClass("postal_code", selectedPMS), channelMandatoryClass("postal_code"), postalFeedback.status === "error" && "border-destructive focus-visible:ring-destructive", isFieldPopulatedByPMS("postal_code", selectedPMS) && "cursor-not-allowed")} />
+                    <Input id="postal_code" value={formData.postal_code} onChange={(e) => handleInputChange("postal_code", e.target.value)} placeholder="Postal code" disabled={isFieldPopulatedByPMS("postal_code", selectedPMS)} className={cn("h-7 text-xs", getPMSFieldClass("postal_code", selectedPMS), channelMandatoryClass("postal_code"), postalFeedback.status === "error" && "border-destructive focus-visible:ring-destructive", isFieldPopulatedByPMS("postal_code", selectedPMS) && "cursor-not-allowed")} {...markerFlags(postalFeedback.status !== "error" && formData.postal_code.trim().length > 0)} />
                     <ChannelFieldHint feedback={postalFeedback} />
                   </div>
                 </div>
@@ -789,11 +790,11 @@ export function GeneralTab(props: GeneralTabProps) {
                 <div className="flex flex-col gap-1">
 
                   <Label htmlFor="latitude_input" className="text-xs flex items-center gap-1"><MapPin className="h-3 w-3 text-primary" />Latitude</Label>
-                  <Input id="latitude_input" type="number" step="any" value={latitude ?? ""} onChange={(e) => { setLatitude(e.target.value ? parseFloat(e.target.value) : null); setIsDirty(true); }} placeholder="-34.0522" className={cn("h-7 text-xs font-mono", channelMandatoryClass("latitude"))} />
+                  <Input id="latitude_input" type="number" step="any" value={latitude ?? ""} onChange={(e) => { setLatitude(e.target.value ? parseFloat(e.target.value) : null); setIsDirty(true); }} placeholder="-34.0522" className={cn("h-7 text-xs font-mono", channelMandatoryClass("latitude"))} {...markerFlags(Number.isFinite(Number(latitude)) && latitude !== null)} />
                 </div>
                 <div className="flex flex-col gap-1">
                   <Label htmlFor="longitude_input" className="text-xs flex items-center gap-1"><MapPin className="h-3 w-3 text-primary" />Longitude</Label>
-                  <Input id="longitude_input" type="number" step="any" value={longitude ?? ""} onChange={(e) => { setLongitude(e.target.value ? parseFloat(e.target.value) : null); setIsDirty(true); }} placeholder="18.4241" className={cn("h-7 text-xs font-mono", channelMandatoryClass("longitude"))} />
+                  <Input id="longitude_input" type="number" step="any" value={longitude ?? ""} onChange={(e) => { setLongitude(e.target.value ? parseFloat(e.target.value) : null); setIsDirty(true); }} placeholder="18.4241" className={cn("h-7 text-xs font-mono", channelMandatoryClass("longitude"))} {...markerFlags(Number.isFinite(Number(longitude)) && longitude !== null)} />
                 </div>
                 <div className="col-span-2 md:col-span-4">
                   <ChannelFieldHint feedback={coordsFeedback} compact={false} />
