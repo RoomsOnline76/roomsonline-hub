@@ -1485,6 +1485,65 @@ export function RoomManagerTab({
                 </>
               );
             })()}
+
+            {/* Channel image compliance — states exactly which rule fails and which photos */}
+            {(() => {
+              const images = ((roomTypes.find((r) => r.id === selectedRoomType)?.images || []) as string[]);
+              const entries = images.map((url, i) => ({ url, index: i + 1, entry: roomImageAudit.results[url] }));
+              const failing = entries.filter((e) => e.entry?.status === "fail");
+              const unmeasured = entries.filter((e) => e.entry?.status === "unmeasured");
+              const pending = entries.filter((e) => !e.entry || e.entry.status === "pending");
+              const countOk = images.length >= 10;
+              const allOk = countOk && failing.length === 0 && unmeasured.length === 0;
+
+              const Row = ({ ok, children }: { ok: boolean; children: React.ReactNode }) => (
+                <li className={cn("flex items-start gap-1.5 text-xs", ok ? "text-success" : "text-destructive")}>
+                  {ok ? <CheckCircle2 className="mt-[2px] h-3 w-3 shrink-0" /> : <AlertTriangle className="mt-[2px] h-3 w-3 shrink-0" />}
+                  <span>{children}</span>
+                </li>
+              );
+
+              return (
+                <div
+                  className={cn(
+                    "rounded-md border p-3",
+                    allOk ? "border-success/40 bg-success/5" : "border-destructive/40 bg-destructive/5",
+                  )}
+                >
+                  <p className="mb-2 text-xs font-medium">
+                    Channel image requirements {pending.length > 0 && (
+                      <span className="text-muted-foreground">· measuring {pending.length}…</span>
+                    )}
+                  </p>
+                  <ul className="space-y-1">
+                    <Row ok={countOk}>
+                      At least 10 images — <strong>{images.length}</strong> loaded
+                      {!countOk && ` (add ${10 - images.length} more)`}
+                    </Row>
+                    <Row ok={failing.length === 0}>
+                      Every image at least {MIN_IMAGE_WIDTH}×{MIN_IMAGE_HEIGHT}px
+                      {failing.length > 0 && (
+                        <>
+                          {" — "}
+                          {failing.length} too small: {failing
+                            .map((f) => `#${f.index} (${f.entry?.width}×${f.entry?.height})`)
+                            .join(", ")}
+                        </>
+                      )}
+                    </Row>
+                    {unmeasured.length > 0 && (
+                      <Row ok={false}>
+                        Could not verify size for {unmeasured.map((f) => `#${f.index}`).join(", ")} — re-upload these photos
+                      </Row>
+                    )}
+                  </ul>
+                  <p className="mt-2 text-[10px] text-muted-foreground">
+                    Failing photos are ringed in red in the gallery below. Property-gallery images may supplement this unit during channel validation.
+                  </p>
+                </div>
+              );
+            })()}
+
             <div
               data-field="room_images"
               className={cn("grid grid-cols-6 gap-4", channelMandatoryClass("room_images"))}
