@@ -564,7 +564,7 @@ export function RoomManagerTab({
 
 
       {/* Main Content - Room Type Details */}
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 min-w-0">
         <Tabs defaultValue="room-type" className="w-full">
           <TabsList className="h-8">
             <TabsTrigger value="room-type" className="text-xs h-7">
