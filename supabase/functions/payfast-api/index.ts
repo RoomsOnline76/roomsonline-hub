@@ -1452,6 +1452,10 @@ Deno.serve(async (req) => {
       const cancelUrl = `${siteUrl}/subscribe/pay/${token}?status=cancelled`;
       const notifyUrl = `${supabaseUrl}/functions/v1/payfast-api`;
       const mPaymentId = `SUB-${inv.id}`;
+      // Monthly subscriptions are taken as a tokenised payment so the renewal
+      // can be collected automatically from then on. Setup / once-off fees stay
+      // simple sales.
+      const isRecurringInvoice = String(inv.invoice_kind || "") !== "once_off";
       const formFields: Record<string, string> = {
         merchant_id: merchantId!,
         merchant_key: merchantKey!,
@@ -1465,7 +1469,9 @@ Deno.serve(async (req) => {
         ...(ownerEmail ? { email_address: ownerEmail } : {}),
         ...(ownerFirst ? { name_first: ownerFirst } : {}),
         ...(ownerLast ? { name_last: ownerLast } : {}),
+        ...(isRecurringInvoice ? { subscription_type: "2" } : {}),
       };
+
       formFields.signature = generateSignature(formFields, passphrase);
       const payfastUrl = isSandbox ? PAYFAST_SANDBOX_URL : PAYFAST_PRODUCTION_URL;
       return new Response(JSON.stringify({
