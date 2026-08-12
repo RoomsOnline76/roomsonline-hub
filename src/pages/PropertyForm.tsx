@@ -148,7 +148,8 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { pmsIntegrationStatus } from "@/components/ApiMilestones";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertTriangle, Sparkles, Globe, Palette, ShieldCheck } from "lucide-react";
+import { AlertTriangle, Sparkles, Globe, Palette, ShieldCheck, Loader2 } from "lucide-react";
+import { MIN_DESCRIPTION_CHARS } from "@/components/property/InfoFacilitiesTab";
 import RuImageTagPicker from "@/components/property/RuImageTagPicker";
 import {
   RuImageTagMap,
@@ -819,17 +820,23 @@ export default function PropertyForm({
       if (!text) throw new Error("TOBI returned no text");
       handleInputChange("description", text);
       setIsDirty(true);
-      toast.success(
-        text.length >= MIN_DESCRIPTION_CHARS
-          ? `TOBI wrote ${text.length} characters — review and save.`
-          : `TOBI wrote ${text.length} characters — still under the ${MIN_DESCRIPTION_CHARS} minimum, please expand.`,
-      );
+      toast({
+        title: "TOBI drafted your description",
+        description:
+          text.length >= MIN_DESCRIPTION_CHARS
+            ? `${text.length} characters — review and save.`
+            : `${text.length} characters — still under the ${MIN_DESCRIPTION_CHARS} minimum, please expand.`,
+      });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "TOBI could not write the description");
+      toast({
+        title: "TOBI could not write the description",
+        description: err instanceof Error ? err.message : undefined,
+        variant: "destructive",
+      });
     } finally {
       setWritingPropertyDescription(false);
     }
-  }, [formData, starRating, selectedFacilities]);
+  }, [formData, starRating, selectedFacilities, toast]);
   const [aiAmenityOpen, setAiAmenityOpen] = useState(false);
   const [selectedBreakfastOptions, setSelectedBreakfastOptions] = useState<string[]>([]);
   // Property composition — mandatory for Rentals United / channel pushes
