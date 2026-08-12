@@ -90,10 +90,41 @@ export function InfoFacilitiesTab(props: InfoFacilitiesTabProps) {
         </CardHeader>
         <CardContent className="py-2 px-4">
           <div className="space-y-1">
-            <Label htmlFor="description" className="text-xs">Description</Label>
-            <Textarea id="description" value={formData.description} onChange={(e) => handleInputChange("description", e.target.value)} placeholder="Describe your property..." rows={3} disabled={isFieldPopulatedByPMS("description", selectedPMS)} className={cn("resize-none text-xs", getPMSFieldClass("description", selectedPMS), isFieldPopulatedByPMS("description", selectedPMS) && "cursor-not-allowed")} />
+            <div className="flex items-center justify-between gap-2">
+              <Label htmlFor="description" className="text-xs">Description</Label>
+              <div className="flex items-center gap-2">
+                <span className={cn("text-[10px] tabular-nums", descriptionTooShort ? "text-destructive" : "text-muted-foreground")}>
+                  {descriptionLength} / {MIN_DESCRIPTION_CHARS} characters
+                </span>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-6 px-2 text-[10px]"
+                  disabled={writingDescription || isFieldPopulatedByPMS("description", selectedPMS)}
+                  onClick={writeWithTobi}
+                >
+                  {writingDescription
+                    ? <><Loader2 className="h-3 w-3 mr-1 animate-spin" />TOBI is writing…</>
+                    : <><Sparkles className="h-3 w-3 mr-1" />Write with TOBI</>}
+                </Button>
+              </div>
+            </div>
+            <Textarea id="description" value={formData.description} onChange={(e) => handleInputChange("description", e.target.value)} placeholder="Describe your property..." rows={6} disabled={isFieldPopulatedByPMS("description", selectedPMS)} className={cn("resize-none text-xs", descriptionTooShort && "border-destructive focus-visible:ring-destructive", getPMSFieldClass("description", selectedPMS), isFieldPopulatedByPMS("description", selectedPMS) && "cursor-not-allowed")} />
+            {descriptionTooShort ? (
+              <p className="flex items-center gap-1 text-[10px] text-destructive">
+                <AlertTriangle className="h-3 w-3" />
+                {MIN_DESCRIPTION_CHARS - descriptionLength} more characters needed — distribution channels require at least {MIN_DESCRIPTION_CHARS} characters.
+              </p>
+            ) : (
+              <p className="flex items-center gap-1 text-[10px] text-emerald-600 dark:text-emerald-400">
+                <CheckCircle2 className="h-3 w-3" />
+                Meets the {MIN_DESCRIPTION_CHARS}-character minimum for channel distribution.
+              </p>
+            )}
           </div>
         </CardContent>
+
       </Card>
 
       <Card>
