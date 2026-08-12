@@ -11,6 +11,8 @@ import { StepProps } from "./types";
 import { cn } from "@/lib/utils";
 import { useState, useMemo } from "react";
 import { VISIBLE_PMS_SYSTEMS } from "@/lib/pmsSystemsConfig";
+import { CHANNEL_REGISTRY } from "@/config/channelRegistry";
+
 import { Badge } from "@/components/ui/badge";
 import {
   RU_TIME_ZONES,
