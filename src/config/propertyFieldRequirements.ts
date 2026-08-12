@@ -604,7 +604,7 @@ export const CHECK_TO_FIELD_KEYS: Record<string, string[]> = {
   commercial: ["banking"],
   location: ["address", "city", "country", "geo", "postal_code"],
   contact: ["contact_email", "contact_phone", "emergency_contact"],
-  rooms: ["rooms", "room_descriptions", "room_floors", "room_bathrooms", "room_toilets", "room_beds"],
+  rooms: ["rooms", "room_descriptions", "room_floors", "room_size", "room_bathrooms", "room_toilets", "room_beds"],
   policies: ["master_policy", "payment_methods"],
   rentalsunited_geo: ["geo"],
   rentalsunited_location_currency: ["ru_currency"],
