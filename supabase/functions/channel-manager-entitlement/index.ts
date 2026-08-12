@@ -719,6 +719,21 @@ Deno.serve(async (req) => {
       let unitStatus: "updated" | "ru_failed" = "updated";
       let unitDetail: string | undefined;
 
+      // Delisting is not deactivating. A unit the Rooms tab still lists is real
+      // sellable inventory: pull its channel listing, but never switch the unit
+      // off — that is what silently shrank a property's push to a single unit.
+      let keptActive = false;
+      if (unitArchive) {
+        const { data: parent } = await admin
+          .from("properties")
+          .select("amenities")
+          .eq("id", unit.property_id)
+          .maybeSingle();
+        const canonical = (((parent?.amenities as { room_types?: Array<{ name?: string | null }> } | null)
+          ?.room_types) || []).map((r) => String(r?.name || "").trim().toLowerCase());
+        keptActive = canonical.includes(String(unit.name || "").trim().toLowerCase());
+      }
+
       if (unit.rentalsunited_property_id) {
         const ownerId = await resolveRuOwnerId(admin, unit.property_id);
         const failure = await pushListingStatus(admin, {
@@ -736,14 +751,29 @@ Deno.serve(async (req) => {
       }
 
 
-      const { error: flagErr } = await admin
-        .from("hostfully_room_types")
-        .update({ is_active: !unitArchive })
-        .eq("id", unit.id);
-      if (flagErr) {
-        unitStatus = "ru_failed";
-        unitDetail = flagErr.message;
+      if (keptActive) {
+        // Release the channel id so the unit stops billing, but leave it sellable.
+        const { error: idErr } = await admin
+          .from("hostfully_room_types")
+          .update({ rentalsunited_property_id: null })
+          .eq("id", unit.id);
+        if (idErr) {
+          unitStatus = "ru_failed";
+          unitDetail = idErr.message;
+        } else {
+          unitDetail = `${unitDetail ? `${unitDetail}; ` : ""}delisted from the channel and kept active locally — it is still listed on the property's Rooms tab`;
+        }
+      } else {
+        const { error: flagErr } = await admin
+          .from("hostfully_room_types")
+          .update({ is_active: !unitArchive })
+          .eq("id", unit.id);
+        if (flagErr) {
+          unitStatus = "ru_failed";
+          unitDetail = flagErr.message;
+        }
       }
+
 
       // Activation is one act: unlock the building, resume pushes and resync ARI.
       let unitAri: string | null = null;
