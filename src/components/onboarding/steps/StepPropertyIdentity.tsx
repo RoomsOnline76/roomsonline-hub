@@ -11,7 +11,7 @@ import { StepProps } from "./types";
 import { cn } from "@/lib/utils";
 import { useState, useMemo } from "react";
 import { VISIBLE_PMS_SYSTEMS } from "@/lib/pmsSystemsConfig";
-import { CHANNEL_REGISTRY } from "@/config/channelRegistry";
+import { CHANNEL_REGISTRY, getChannelRegistryLabel } from "@/config/channelRegistry";
 
 import { Badge } from "@/components/ui/badge";
 import {
@@ -31,10 +31,10 @@ const CHANNEL_MANAGER_OPTIONS = CHANNEL_REGISTRY
   .filter(c => !["nightsbridge"].includes(c.key))
   .map(c => ({
     key: c.key,
-    name:
-      VISIBLE_PMS_SYSTEMS.find(s => s.key === c.key)?.name ??
-      c.key.replace(/_/g, " ").replace(/\b\w/g, m => m.toUpperCase()),
-  }));
+    name: c.label ?? VISIBLE_PMS_SYSTEMS.find(s => s.key === c.key)?.name ?? getChannelRegistryLabel(c.key),
+  }))
+  .sort((a, b) => a.name.localeCompare(b.name));
+
 
 
 const PROPERTY_TYPE_LABELS: Record<string, string> = {
