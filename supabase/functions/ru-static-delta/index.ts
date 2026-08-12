@@ -48,13 +48,32 @@ Deno.serve(async (req) => {
       : 'manual';
 
     const supabase = createClient(supabaseUrl, serviceKey);
-    const outcome = await queueRuStaticDelta(supabase, propertyId, trigger, {
+    const work = queueRuStaticDelta(supabase, propertyId, trigger, {
       force: body?.force === true,
     });
 
-    return new Response(JSON.stringify({ success: true, ...outcome }), {
+    // Callers in a save path fire and forget, and the delta can wait out its de-bounce window
+    // before pushing. Keep the work alive after the response so closing the editor or navigating
+    // away can never kill an in-flight content sync. `wait: true` (diagnostics, cron) still gets
+    // the full outcome inline.
+    if (body?.wait === true) {
+      const outcome = await work;
+      return new Response(JSON.stringify({ success: true, ...outcome }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const runtime = (globalThis as { EdgeRuntime?: { waitUntil: (p: Promise<unknown>) => void } }).EdgeRuntime;
+    if (runtime?.waitUntil) {
+      runtime.waitUntil(work.catch((err) => console.error('[ru-static-delta] background failed:', err)));
+    } else {
+      void work.catch((err) => console.error('[ru-static-delta] background failed:', err));
+    }
+
+    return new Response(JSON.stringify({ success: true, accepted: true }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
+
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     console.error('[ru-static-delta] Failed:', message);
