@@ -1197,7 +1197,7 @@ function buildUnitPayload(
     currency_is_default: !currencyAuthored.authored,
     currency_iso: currencyAuthored.iso,
     unmapped_bed_labels: unmappedUnitBedLabels,
-    changeover_is_default: !isChangeoverAuthored(unit.amenities as Record<string, any> | null, amenities as Record<string, any>),
+    changeover_is_default: !isChangeoverAuthored(unit.amenities as Record<string, any> | null, amenities as Record<string, any>, (unit as { id?: unknown }).id),
 
     owner_id: 0, // placeholder — always overwritten with the resolved sub-account OwnerID
     no_of_units: 1,
@@ -1315,7 +1315,7 @@ function buildSinglePropertyPayload(property: PropertyRow, roomTypes: RoomTypeRo
     currency_is_default: !currencyAuthored.authored,
     currency_iso: currencyAuthored.iso,
     beds_are_default: bedsDerivedFromCounts,
-    changeover_is_default: !isChangeoverAuthored((primaryRoom?.amenities as Record<string, any>) || null, amenities as Record<string, any>),
+    changeover_is_default: !isChangeoverAuthored((primaryRoom?.amenities as Record<string, any>) || null, amenities as Record<string, any>, (primaryRoom as { id?: unknown } | undefined)?.id),
 
     owner_id: 0, no_of_units: 1, floor: buildingFloor, floor_is_default: buildingFloorIsDefault, space, space_is_default: spaceIsDefault, street,
     detailed_location_id: locationId, zip_code: zipCode,
@@ -1387,13 +1387,28 @@ interface UnitContext {
 // Maps day-of-week → RU changeover code (0=none, 1=check-in only, 2=check-out only, 3=both)
 const DOW_KEYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 
+/**
+ * Per-unit changeover override authored in ROL'OS (Rooms tab). It is mirrored to
+ * `amenities.changeover_by_unit` keyed by unit id, because unit-level amenities are
+ * PMS-owned and get rebuilt on sync.
+ */
+function unitChangeoverOverride(unitId: unknown, propertyAmenities: Record<string, any>): number | null {
+  const map = propertyAmenities?.changeover_by_unit;
+  if (!unitId || !map || typeof map !== 'object') return null;
+  const raw = (map as Record<string, unknown>)[String(unitId)];
+  return raw == null || raw === '' || isNaN(Number(raw)) ? null : Number(raw);
+}
+
 function resolveChangeoverRules(
   unit: UnitContext | undefined,
   propertyAmenities: Record<string, any>,
 ): { perDow: Record<number, number> | null; defaultCode: number; isDefault: boolean } {
   const unitAmenities = (unit?.amenities || {}) as Record<string, any>;
   const rules = (unitAmenities.changeover_rules ?? propertyAmenities.changeover_rules) as Record<string, any> | undefined;
-  const authoredCode = unitAmenities.changeover ?? propertyAmenities.changeover;
+  const authoredCode =
+    unitAmenities.changeover ??
+    unitChangeoverOverride((unit as { id?: unknown } | undefined)?.id, propertyAmenities) ??
+    propertyAmenities.changeover;
   const defaultCode = Number(authoredCode ?? 3);
   if (rules && typeof rules === 'object' && !Array.isArray(rules)) {
     const perDow: Record<number, number> = {};
@@ -1408,12 +1423,17 @@ function resolveChangeoverRules(
 }
 
 /** Is a changeover rule authored anywhere for this unit / property? */
-function isChangeoverAuthored(unitAmenities: Record<string, any> | null, propertyAmenities: Record<string, any>): boolean {
+function isChangeoverAuthored(
+  unitAmenities: Record<string, any> | null,
+  propertyAmenities: Record<string, any>,
+  unitId?: unknown,
+): boolean {
   const ua = (unitAmenities || {}) as Record<string, any>;
   const rules = (ua.changeover_rules ?? propertyAmenities.changeover_rules) as Record<string, any> | undefined;
   if (rules && typeof rules === 'object' && !Array.isArray(rules)) {
     if (DOW_KEYS.some((k) => rules[k] != null && !isNaN(Number(rules[k])))) return true;
   }
+  if (unitChangeoverOverride(unitId, propertyAmenities) != null) return true;
   return (ua.changeover ?? propertyAmenities.changeover) != null;
 }
 
