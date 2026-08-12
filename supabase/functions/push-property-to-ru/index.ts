@@ -781,6 +781,8 @@ function buildValidation(payload: Record<string, any>): Record<string, unknown> 
     has_description: descriptionText.length > 0,
     description_meets_recommended: descriptionText.length >= 100,
     description_meets_cert: descriptionText.length >= RU_CERT_MIN_DESCRIPTION,
+    // Nice-to-have: how many nearby attractions carry a distance we can push.
+    attraction_distance_count: Array.isArray(payload.distances) ? payload.distances.length : 0,
     // Composition strictness (certification).
     bedroom_blocks: bedroomBlocks.length,
     bedrooms_with_beds: bedroomsWithBeds,
@@ -4039,6 +4041,7 @@ Deno.serve(async (req) => {
               name_issues: Array.from(new Set(units.flatMap(u => ((u.validation as any).name_issues || []) as string[]))),
               name_issue_detail: units.map(u => (u.validation as any).name_issue_detail).filter(Boolean).join('; ') || null,
               description_meets_cert: everyFlag('description_meets_cert'),
+              attraction_distance_count: propertyDistances.length,
               images_meet_cert_size: everyFlag('images_meet_cert_size'),
               images_meeting_cert_size: units.reduce((s, u) => s + Number((u.validation as any).images_meeting_cert_size || 0), 0),
               images_size_unverified: units.reduce((s, u) => s + Number((u.validation as any).images_size_unverified || 0), 0),
