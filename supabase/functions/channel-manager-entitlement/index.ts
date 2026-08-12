@@ -14,15 +14,17 @@ const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 const NOTIFY_RECIPIENTS = ["dev@roomsonline.co.za", "carike@roomsonline.co.za"];
 
 interface Body {
-  scope: "property" | "portfolio" | "unit";
+  scope: "property" | "portfolio" | "unit" | "purge_duplicates";
   entity_id: string;
-  enabled: boolean;
+  enabled?: boolean;
   /** Free-text audit note captured in the confirmation dialog. */
   reason?: string;
   /** Set by the cost monitor so unit listings are archived too. */
   include_units?: boolean;
   /** Send the re-activation notice to dev + finance. */
   notify?: boolean;
+  /** purge_duplicates: limit the purge to a single deactivated unit record. */
+  unit_id?: string;
 }
 
 function bad(message: string, status = 400) {
