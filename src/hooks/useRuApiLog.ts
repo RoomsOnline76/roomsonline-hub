@@ -43,8 +43,13 @@ export interface RuApiLogDetail extends RuApiLogRow {
 export type RuApiLogOutcome = "all" | "success" | "failure";
 
 export interface RuApiLogFilters {
+  /** Property id, "all", or "account" for account-level calls with no property. */
   propertyId: string;
   action: string;
+  /** High-level ROL'OS operation (`parent_action`), e.g. channel-cleanup:delete. */
+  operation: string;
+  /** Channel account (RU OwnerID) that the exchange was authenticated against. */
+  ownerId: string;
   outcome: RuApiLogOutcome;
   /** Exact ResponseID lookup — the reference channel support asks for. */
   responseId: string;
@@ -55,6 +60,8 @@ export interface RuApiLogFilters {
 export const DEFAULT_RU_API_LOG_FILTERS: RuApiLogFilters = {
   propertyId: "all",
   action: "all",
+  operation: "all",
+  ownerId: "all",
   outcome: "all",
   responseId: "",
   days: 7,
@@ -68,6 +75,8 @@ const PAGE_SIZE = 100;
 export function useRuApiLog(filters: RuApiLogFilters) {
   const [rows, setRows] = useState<RuApiLogRow[]>([]);
   const [actions, setActions] = useState<string[]>([]);
+  const [operations, setOperations] = useState<string[]>([]);
+  const [owners, setOwners] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
@@ -81,8 +90,13 @@ export function useRuApiLog(filters: RuApiLogFilters) {
       // A ResponseID lookup is a support escalation: it must never be narrowed by the other filters.
       const responseId = filters.responseId.trim();
       if (responseId) return query.ilike("response_id", `%${responseId}%`);
-      if (filters.propertyId !== "all") query = query.eq("property_id", filters.propertyId);
+      // Account-level work (pull all listings, deletions) carries no property id,
+      // so it needs its own scope rather than disappearing behind "All properties".
+      if (filters.propertyId === "account") query = query.is("property_id", null);
+      else if (filters.propertyId !== "all") query = query.eq("property_id", filters.propertyId);
       if (filters.action !== "all") query = query.eq("action", filters.action);
+      if (filters.operation !== "all") query = query.ilike("parent_action", `${filters.operation}%`);
+      if (filters.ownerId !== "all") query = query.eq("ru_owner_id", filters.ownerId);
       if (filters.outcome !== "all") query = query.eq("success", filters.outcome === "success");
       if (filters.days > 0) {
         const since = new Date(Date.now() - filters.days * 86_400_000).toISOString();
@@ -90,8 +104,17 @@ export function useRuApiLog(filters: RuApiLogFilters) {
       }
       return query;
     },
-    [filters.propertyId, filters.action, filters.outcome, filters.responseId, filters.days],
+    [
+      filters.propertyId,
+      filters.action,
+      filters.operation,
+      filters.ownerId,
+      filters.outcome,
+      filters.responseId,
+      filters.days,
+    ],
   );
+
 
   /** Fetches one page; `offset > 0` appends so the operator can walk the whole retained window. */
   const fetchPage = useCallback(
