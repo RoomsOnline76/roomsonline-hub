@@ -158,8 +158,14 @@ const numericAtLeast = (value: unknown, minimum: number): boolean => {
   return Number.isFinite(parsed) && parsed >= minimum;
 };
 
+/**
+ * Sleeping capacity implied by an AUTHORED bed configuration.
+ *
+ * Array-only on purpose: the channel push builds its bedroom composition blocks from an
+ * array `bed_configuration`, so a legacy string ("king-twin") emits no bedroom at all and
+ * must never score as satisfied here.
+ */
 const bedCapacity = (raw: unknown): number => {
-  if (typeof raw === "string") return calculateBedCapacity(raw);
   if (!Array.isArray(raw)) return 0;
   const entries: BedEntry[] = raw.flatMap((entry) => {
     if (!entry || typeof entry !== "object") return [];
@@ -171,6 +177,26 @@ const bedCapacity = (raw: unknown): number => {
   });
   return calculateBedCapacity(entries);
 };
+
+/**
+ * Would the channel push emit at least one bedroom composition block for this unit?
+ * Mirrors `push-property-to-ru`: an array bed configuration with a typed entry, or the
+ * derived fallback from bedroom + bed counts.
+ */
+const hasBedroomComposition = (room: RoomRequirementRow): boolean => {
+  const config = room.bedConfiguration ?? room.bed_configuration;
+  if (Array.isArray(config)) {
+    const authored = config.some((entry) => {
+      if (!entry || typeof entry !== "object") return false;
+      const candidate = entry as { type?: unknown; count?: unknown };
+      return typeof candidate.type === "string" && candidate.type.trim().length > 0
+        && (Number(candidate.count) || 0) >= 1;
+    });
+    if (authored) return true;
+  }
+  return numericAtLeast(room.bedrooms, 1) && numericAtLeast(room.beds, 1);
+};
+
 
 /**
  * Per-unit rules.
