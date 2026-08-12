@@ -6,7 +6,7 @@ import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { CheckCircle2, XCircle, RefreshCw, ShieldAlert, Loader2 } from "lucide-react";
+import { CheckCircle2, XCircle, RefreshCw, ShieldAlert, Loader2, ChevronDown, ChevronUp } from "lucide-react";
 
 export interface RuReadinessCheck {
   key: string;
