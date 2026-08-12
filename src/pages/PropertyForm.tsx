@@ -7156,6 +7156,21 @@ export default function PropertyForm({
                       setIsDirty(true);
                     }}
                   />
+                  <ChangeoverRulesCard
+                    master={changeoverMaster}
+                    onMasterChange={(next) => {
+                      setChangeoverMaster(next);
+                      setIsDirty(true);
+                    }}
+                    rules={changeoverRules}
+                    onRulesChange={(next) => {
+                      setChangeoverRules(next);
+                      setIsDirty(true);
+                    }}
+                    unitOverrides={roomTypes
+                      .filter((r: any) => r?.changeover !== null && r?.changeover !== undefined && r?.changeover !== "")
+                      .map((r: any) => ({ name: r.name || "Unit", changeover: Number(r.changeover) }))}
+                  />
                   <HouseRulesCard
                     formData={formData as any}
                     setFormData={setFormData as any}
@@ -7238,6 +7253,21 @@ export default function PropertyForm({
                       setPaymentMethods(next);
                       setIsDirty(true);
                     }}
+                  />
+                  <ChangeoverRulesCard
+                    master={changeoverMaster}
+                    onMasterChange={(next) => {
+                      setChangeoverMaster(next);
+                      setIsDirty(true);
+                    }}
+                    rules={changeoverRules}
+                    onRulesChange={(next) => {
+                      setChangeoverRules(next);
+                      setIsDirty(true);
+                    }}
+                    unitOverrides={roomTypes
+                      .filter((r: any) => r?.changeover !== null && r?.changeover !== undefined && r?.changeover !== "")
+                      .map((r: any) => ({ name: r.name || "Unit", changeover: Number(r.changeover) }))}
                   />
                   <HouseRulesCard
                     formData={formData as any}

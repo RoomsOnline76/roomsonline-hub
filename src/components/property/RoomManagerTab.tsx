@@ -133,6 +133,10 @@ export function RoomManagerTab({
       bathrooms: 1,
       toilets: 1 as number | null,
       separateKitchen: false,
+      // Channel-mandatory: the type the Channel Manager maps to ObjectTypeID.
+      channelPropertyType: "",
+      // null = inherit the property master changeover rule.
+      changeover: null as number | null,
 
       maxPeople: 2,
       maxAdults: 2,
