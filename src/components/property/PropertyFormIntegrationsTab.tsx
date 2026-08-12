@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { PushToRentalsUnited } from "./PushToRentalsUnited";
 import { RuReadinessScorecard, type RuReadinessReport } from "@/components/pms/channels/RuReadinessScorecard";
 import { RuOnboardingPipeline } from "@/components/integrations/RuOnboardingPipeline";
+import { NightsBridgeBookingImport } from "./NightsBridgeBookingImport";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { DirectLinkTab } from "@/components/integrations/DirectLinkTab";
