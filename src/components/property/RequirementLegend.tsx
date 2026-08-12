@@ -3,6 +3,7 @@ import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useRolosOnboardingProgress } from "@/hooks/useRolosOnboardingProgress";
 import { Loader2 } from "lucide-react";
+import { focusRequirementField } from "@/lib/requirementFocus";
 
 interface RequirementLegendProps {
   mandatoryOutstanding: number;
