@@ -345,6 +345,30 @@ export const PROPERTY_FIELD_REQUIREMENTS: FieldRequirement[] = [
     target: ['[data-field="star_rating"]', "#star_rating"],
     isSatisfied: (s) => Number(amenity(s, "star_rating") ?? 0) > 0,
   },
+  {
+    key: "property_floor",
+    label: "Floor (property-level channel fallback)",
+    tier: "mandatory",
+    section: "info-facilities",
+    target: ['[data-field="property_floor"]'],
+    hint: "Set the property floor here, or capture a floor on every unit in the Rooms tab.",
+    isSatisfied: (s) =>
+      Number.isFinite(Number(amenity(s, "property_floor"))) ||
+      (roomRows(s).length > 0 && roomRows(s).every((room) => room.floor !== null && room.floor !== undefined)),
+  },
+  {
+    key: "property_size_sqm",
+    label: "Property size in m² (channel Space)",
+    tier: "mandatory",
+    section: "info-facilities",
+    target: ['[data-field="property_size_sqm"]'],
+    hint: "Set the property size here, or capture a size on every unit in the Rooms tab — the channel otherwise receives an invented 50 m².",
+    isSatisfied: (s) =>
+      numericAtLeast(amenity(s, "property_size_sqm"), 1) ||
+      (roomRows(s).length > 0 && roomRows(s).every((room) => numericAtLeast(room.roomSize ?? room.room_size, 1))),
+  },
+
+
 
   /* ---------- Rooms ---------- */
   {
