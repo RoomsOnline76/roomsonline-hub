@@ -1089,7 +1089,15 @@ Deno.serve(async (req) => {
           console.log("[PayFast] Subscription ITN for invoice:", invoiceId, "status:", paymentStatus);
           const subStatus = paymentStatus === "COMPLETE" ? "paid" : paymentStatus === "FAILED" ? "failed" : "cancelled";
           await settleSubscriptionInvoice(supabase, invoiceId, subStatus, pfPaymentId, itnData);
+          // A tokenised first payment returns the mandate that drives every
+          // future renewal automatically.
+          const mandateToken = (itnData.token || "").trim();
+          if (subStatus === "paid" && mandateToken) {
+            await storeMandateFromItn(supabase, invoiceId, mandateToken);
+          }
           return new Response("OK", { status: 200, headers: corsHeaders });
+
+
 
         }
         console.error("[PayFast] Transaction not found for m_payment_id:", mPaymentId);
