@@ -281,8 +281,9 @@ export default function AdminChannelMonitor() {
                   onChanged={() => data.refresh()}
                 />
                 <ChannelArchiveLog events={data.events} />
-
+              </>
             )}
+
           </TabsContent>
 
           <TabsContent value="accounts">
