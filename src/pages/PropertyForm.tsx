@@ -5463,7 +5463,15 @@ export default function PropertyForm({
                 )}
 
                 {/* Content quality review outcomes the owner can act on */}
-                {isEditMode && propertyId && <RuMcqPrompts propertyId={propertyId} />}
+                {isEditMode && propertyId && (
+                  <RuMcqPrompts
+                    propertyId={propertyId}
+                    onNavigateSection={(section, focusKey) => {
+                      setActiveTab(section);
+                      if (focusKey) window.setTimeout(() => focusRequirementField(focusKey), 400);
+                    }}
+                  />
+                )}
 
 
                 {/* Company Information — contract variables + banking + Rentals United profile */}
