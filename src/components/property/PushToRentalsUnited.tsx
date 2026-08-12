@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import type { RuReadinessReport } from "@/components/pms/channels/RuReadinessScorecard";
 import { usePropertyReadiness } from "@/hooks/usePropertyReadiness";
+import ChannelContentSyncStatus from "@/components/property/ChannelContentSyncStatus";
 
 import {
   RuChannelContentChecklist,
@@ -658,6 +659,9 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
             </Button>
 
           </div>
+        </div>
+        <div className="mt-2 border-t pt-2">
+          <ChannelContentSyncStatus propertyId={propertyId} />
         </div>
       </CardHeader>
 
