@@ -62,6 +62,11 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  clearArrivalPolicyDraft,
+  getArrivalPolicyDraft,
+  notifyArrivalPolicySaved,
+} from "@/lib/arrivalPolicyDraft";
 import { useToast } from "@/hooks/use-toast";
 import { validateImageDimensions, getValidationErrorMessage } from "@/lib/imageValidation";
 import { useImageDimensionAudit } from "@/hooks/useImageDimensionAudit";
@@ -3785,6 +3790,12 @@ export default function PropertyForm({
             }
           })
           .catch((commonsError) => console.error("Portfolio commons auto-share failed:", commonsError));
+      }
+
+      // The arrival policy draft is now stored — release it and let the panel re-read.
+      if (savedPropertyId) {
+        clearArrivalPolicyDraft(savedPropertyId);
+        notifyArrivalPolicySaved(savedPropertyId);
       }
 
       toast({
