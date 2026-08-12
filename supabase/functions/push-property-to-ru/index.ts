@@ -1289,6 +1289,9 @@ function buildUnitPayload(
     currency_is_default: !currencyAuthored.authored,
     currency_iso: currencyAuthored.iso,
     unmapped_bed_labels: unmappedUnitBedLabels,
+    // Declared bedrooms — the scorer requires one bedroom composition block per declared bedroom.
+    declared_bedrooms: Math.max(0, Number((unit as { bedrooms?: unknown }).bedrooms) || 0),
+
     changeover_is_default: !isChangeoverAuthored(unit.amenities as Record<string, any> | null, amenities as Record<string, any>, (unit as { id?: unknown }).id),
 
     owner_id: 0, // placeholder — always overwritten with the resolved sub-account OwnerID
