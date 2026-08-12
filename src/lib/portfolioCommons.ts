@@ -640,7 +640,12 @@ async function applyGroups(
       }
     }
 
-    if (dirty) updatedProperties += 1;
+    if (dirty) {
+      updatedProperties += 1;
+      // Shared content landed on a sibling listing — refresh that listing on the channel too.
+      void queueChannelContentSync(target.id, "portfolio_commons_share");
+    }
+
   }
 
   return { updatedProperties, updatedGroups: [...touchedGroups], contactsWritten, rowsWritten };
