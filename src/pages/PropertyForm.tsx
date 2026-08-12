@@ -2644,9 +2644,19 @@ export default function PropertyForm({
                   room.separateKitchen ?? room.separate_kitchen ?? false,
                 // Channel property type (ObjectTypeID) — authored in ROL'OS, distinct from
                 // the free-text PMS type. Legacy rows kept it in `property_type`.
-                channelPropertyType: normalizeChannelPropertyType(
-                  room.channelPropertyType ?? room.channel_property_type ?? room.property_type,
-                ),
+                // Blank = inherit the property type. Legacy rows kept a free-text PMS type
+                // in `property_type`, which is not an override — only a mapped value is.
+                channelPropertyType: (() => {
+                  // An authored override is whatever the channel-type dropdown wrote.
+                  const explicit = normalizeChannelPropertyType(
+                    room.channelPropertyType ?? room.channel_property_type,
+                  );
+                  if (explicit) return explicit;
+                  // Legacy rows reused `property_type` for the free-text PMS type — only a
+                  // value the channel can map counts as an override, the rest inherits.
+                  const legacy = normalizeChannelPropertyType(room.property_type);
+                  return legacy && isMappedChannelPropertyType(legacy) ? legacy : "";
+                })(),
                 // Per-unit changeover override; null means "inherit the property rule".
                 changeover:
                   room.changeover ?? room.changeover_code ?? null,
@@ -3520,10 +3530,10 @@ export default function PropertyForm({
               bathrooms: room.bathrooms || null,
               // The channel maps ObjectTypeID from this column, so the authored channel
               // type wins over the free-text PMS type.
-              property_type:
-                (room.channelPropertyType && isMappedChannelPropertyType(room.channelPropertyType)
-                  ? normalizeChannelPropertyType(room.channelPropertyType)
-                  : null) || room.pmsRoomType || null,
+              // Blank means "inherit the property type": the push resolves
+              // `unit.property_type || property.property_type`, so the free-text PMS type
+              // must never be copied in here — that would look like an explicit override.
+              property_type: normalizeChannelPropertyType(room.channelPropertyType) || null,
               linked_rate_type_ids: room.linkedRateTypes || null,
               // Use existing id if it looks like a UUID, otherwise don't set
               ...(room.id && room.id.length === 36 ? { id: room.id } : {}),
@@ -7324,7 +7334,7 @@ export default function PropertyForm({
               propertyId={propertyId}
               propertySlug={propertySlug}
               propertyWebsiteUrl={formData.property_url || undefined}
-
+              propertyChannelType={formData.property_type}
               routeId={id}
               roomTypes={roomTypes}
               setRoomTypes={setRoomTypes}

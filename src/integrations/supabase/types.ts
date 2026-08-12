@@ -14001,6 +14001,33 @@ export type Database = {
         }
         Relationships: []
       }
+      ru_property_types: {
+        Row: {
+          created_at: string
+          is_active: boolean
+          name: string
+          ru_type_id: number
+          slug: string
+          synced_at: string
+        }
+        Insert: {
+          created_at?: string
+          is_active?: boolean
+          name: string
+          ru_type_id: number
+          slug: string
+          synced_at?: string
+        }
+        Update: {
+          created_at?: string
+          is_active?: boolean
+          name?: string
+          ru_type_id?: number
+          slug?: string
+          synced_at?: string
+        }
+        Relationships: []
+      }
       ru_sync_runs: {
         Row: {
           action: string

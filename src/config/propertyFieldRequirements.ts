@@ -515,11 +515,14 @@ export const PROPERTY_FIELD_REQUIREMENTS: FieldRequirement[] = [
     tier: "mandatory",
     section: "rooms",
     target: ['[data-field="channel_property_type"]'],
-    hint: "An unmapped type would publish as an assumed Chalet — pick a supported channel type.",
+    hint: "Units inherit the property type — set a supported type there, or override the unit.",
+    // The property type is the master: a unit with no override inherits it (mirrors the push,
+    // which resolves `unit.property_type || property.property_type`).
     isSatisfied: (s) =>
       roomRows(s).length > 0 &&
       roomRows(s).every((room) =>
-        isMappedChannelPropertyType(room.channelPropertyType ?? room.property_type),
+        isMappedChannelPropertyType(room.channelPropertyType ?? room.property_type)
+        || isMappedChannelPropertyType(s.property_type),
       ),
   },
   {

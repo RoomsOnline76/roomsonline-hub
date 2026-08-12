@@ -92,6 +92,21 @@ const PROPERTY_TYPE_MAP: Record<string, number> = {
   self_catering: 12, lodge: 11, resort: 7, farm_stay: 12, boutique_hotel: 7,
 };
 
+/**
+ * ObjectTypeIDs come from the curated PROPERTY_TYPE_MAP above.
+ *
+ * There is no RU pull endpoint for the ObjectType dictionary: `Pull_ListPropTypes_RQ`
+ * returns bedroom *layouts* (Studio, One Bedroom, …), a different field whose ids overlap
+ * ObjectTypeIDs numerically. Resolving listing kinds from that cache would publish the
+ * wrong type, so the static map is authoritative here.
+ */
+
+/** Resolve a ROL'OS type slug to an RU ObjectTypeID. */
+function resolveRuTypeId(slug: string): number | undefined {
+  return PROPERTY_TYPE_MAP[slug];
+}
+
+
 
 /**
  * RU bed-type amenity IDs (verified against the live RU amenity dictionary in `ru_amenities`).
@@ -1050,7 +1065,7 @@ function buildUnitPayload(
   const unitType = (authoredUnitType || 'apartment').toLowerCase().replace(/[\s-]+/g, '_');
   // An unmapped type used to publish silently as Chalet (12). The value is still sent so the
   // XML stays schema-valid, but it is flagged so the readiness gate blocks the push.
-  const mappedObjectTypeId = PROPERTY_TYPE_MAP[unitType];
+  const mappedObjectTypeId = resolveRuTypeId(unitType);
   const objectTypeId = mappedObjectTypeId || 12;
   const objectTypeIsDefault = !mappedObjectTypeId;
   const currencyAuthored = resolveAuthoredCurrency(property.amenities);
@@ -1243,9 +1258,9 @@ function buildSinglePropertyPayload(property: PropertyRow, roomTypes: RoomTypeRo
   const primaryRoom = roomTypes[0] || null;
   const amenities = property.amenities || {};
   const authoredSingleType = primaryRoom?.property_type || property.property_type || null;
-  const mappedSingleTypeId = PROPERTY_TYPE_MAP[
-    (authoredSingleType || 'apartment').toLowerCase().replace(/[\s-]+/g, '_')
-  ];
+  const mappedSingleTypeId = resolveRuTypeId(
+    (authoredSingleType || 'apartment').toLowerCase().replace(/[\s-]+/g, '_'),
+  );
   const objectTypeId = mappedSingleTypeId || 1;
   const objectTypeIsDefault = !mappedSingleTypeId;
   const currencyAuthored = resolveAuthoredCurrency(property.amenities);

@@ -64,6 +64,7 @@ function getLogClient() {
  * - list_lnm_subscriptions: Pull_ListLiveNotificationMechanismSubscriptions_RQ
  * - list_lnm_change_types: Pull_ListLiveNotificationMechanismChangeTypes_RQ
  * - list_sales_channels: Pull_ListSalesChannels_RQ
+ * - list_property_types: Pull_ListPropTypes_RQ (cached in ru_property_types)
 
  * - push_long_stay_discounts: Push_PutLongStayDiscounts_RQ
  * - push_last_minute_discounts: Push_PutLastMinuteDiscounts_RQ
@@ -1094,6 +1095,61 @@ function buildListSalesChannelsXml(creds: RUCredentials): string {
 </Pull_ListSalesChannels_RQ>`;
 }
 
+/**
+ * Pull_ListPropTypes_RQ — the closed list of property/unit types RU accepts.
+ * This is the dictionary that backs the "Channel property type" dropdown, so the
+ * editor never offers a value the channel cannot map.
+ */
+function buildListPropertyTypesXml(creds: RUCredentials): string {
+  return `<?xml version="1.0" encoding="utf-8"?>
+<Pull_ListPropTypes_RQ>
+  ${buildAuthXml(creds)}
+</Pull_ListPropTypes_RQ>`;
+}
+
+export interface RUPropertyType {
+  ru_type_id: number;
+  name: string;
+  slug: string;
+}
+
+/** ROL'OS slug for an RU type name (mirrors normalizeChannelPropertyType on the client). */
+function slugifyPropertyType(name: string): string {
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/&/g, 'and')
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
+/**
+ * Parse Pull_ListPropTypes_RS. RU has shipped both attribute-style
+ * (`<PropertyType PropertyTypeID="1">Apartment</PropertyType>`) and element-style
+ * (`<PropertyType><ID>1</ID><Name>Apartment</Name></PropertyType>`) payloads, and
+ * uses `<ObjectType>` in some responses, so both shapes are accepted.
+ */
+function parsePropertyTypes(xml: string): RUPropertyType[] {
+  const out = new Map<number, RUPropertyType>();
+  const blocks = xml.match(/<(?:PropertyType|ObjectType)\b[^>]*>[\s\S]*?<\/(?:PropertyType|ObjectType)>/g) ?? [];
+  for (const block of blocks) {
+    const attr = block.match(/\b(?:PropertyTypeID|ObjectTypeID|ID)\s*=\s*"(\d+)"/i);
+    const idEl = block.match(/<(?:PropertyTypeID|ObjectTypeID|ID)[^>]*>\s*(\d+)\s*</i);
+    const id = Number(attr?.[1] ?? idEl?.[1] ?? 0);
+    if (!Number.isFinite(id) || id <= 0) continue;
+    const nameEl = block.match(/<(?:PropertyTypeName|ObjectTypeName|Name)[^>]*>([\s\S]*?)<\//i);
+    const text = block.replace(/<[^>]+>/g, ' ').trim();
+    const name = (nameEl?.[1] ?? text).replace(/\s+/g, ' ').trim();
+    if (!name) continue;
+    const slug = slugifyPropertyType(name);
+    if (!slug) continue;
+    if (!out.has(id)) out.set(id, { ru_type_id: id, name, slug });
+  }
+  return Array.from(out.values()).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+
+
 export interface RUSalesChannel {
   channel_id: number;
   company_name: string;
@@ -2047,6 +2103,7 @@ Deno.serve(async (req) => {
             list_lnm_subscriptions: true,
             list_lnm_change_types: true,
             list_sales_channels: true,
+            list_property_types: true,
 
             push_long_stay_discounts: true,
             push_last_minute_discounts: true,
@@ -2670,7 +2727,53 @@ Deno.serve(async (req) => {
       });
     }
 
+    // ── list_property_types (Pull_ListPropTypes_RQ) ──
+    // The property-type dictionary belongs to the channel manager account, so this read
+    // always runs on master credentials. Results are cached in `ru_property_types` so the
+    // property editor can offer exactly the types the channel accepts.
+    if (action === 'list_property_types') {
+      const xml = buildListPropertyTypesXml(creds);
+      const response = await callRentalsUnited(creds, xml);
+      const { ok, status } = handleRUStatus(response);
+      if (!ok) return ruErrorResponse(status);
+      const propertyTypes = parsePropertyTypes(response);
 
+      let synced = 0;
+      let sync_error: string | null = null;
+      if (propertyTypes.length > 0) {
+        try {
+          const supabase = createClient(
+            Deno.env.get('SUPABASE_URL')!,
+            Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+          );
+          const now = new Date().toISOString();
+          const { error: upErr } = await supabase.from('ru_property_types').upsert(
+            propertyTypes.map((t) => ({
+              ru_type_id: t.ru_type_id,
+              name: t.name,
+              slug: t.slug,
+              is_active: true,
+              synced_at: now,
+            })),
+            { onConflict: 'ru_type_id' },
+          );
+          if (upErr) sync_error = upErr.message;
+          else synced = propertyTypes.length;
+        } catch (err) {
+          sync_error = err instanceof Error ? err.message : 'Unknown cache error';
+        }
+      }
+
+      return jsonResponse({
+        success: true,
+        auth_mode: 'master_channel_manager',
+        property_types: propertyTypes,
+        type_count: propertyTypes.length,
+        synced,
+        sync_error,
+        raw_xml: response,
+      });
+    }
 
 
     // ── get_long_stay_discounts (verification) ──

@@ -34,6 +34,9 @@ export const CHANNEL_PROPERTY_TYPES: ChannelPropertyTypeOption[] = [
   { value: "farm_stay", label: "Farm stay" },
 ];
 
+/** Built-in fallback list used until the live channel dictionary has been pulled. */
+export const FALLBACK_CHANNEL_PROPERTY_TYPES = CHANNEL_PROPERTY_TYPES;
+
 /** Extra aliases the push also maps, accepted on load but not offered as new choices. */
 const CHANNEL_TYPE_ALIASES = new Set(["guesthouse", "bnb"]);
 
@@ -109,4 +112,25 @@ export function isChangeoverAuthored(
     );
   }
   return false;
+}
+
+/**
+ * Resolve the channel type actually published for a unit.
+ *
+ * The property type authored in Identity & Location is the master: a unit with no
+ * explicit type of its own inherits it (this mirrors the push, which resolves
+ * `unit.property_type || property.property_type`).
+ *
+ * `isMapped` may be swapped for the live-dictionary check so a type RU added after
+ * this build still counts as explicit.
+ */
+export function resolveUnitChannelType(
+  unitValue: unknown,
+  propertyValue: unknown,
+  isMapped: (value: unknown) => boolean = isMappedChannelPropertyType,
+): { value: string; inherited: boolean; isMapped: boolean } {
+  const unit = normalizeChannelPropertyType(unitValue);
+  if (unit && isMapped(unit)) return { value: unit, inherited: false, isMapped: true };
+  const master = normalizeChannelPropertyType(propertyValue);
+  return { value: master, inherited: true, isMapped: !!master && isMapped(master) };
 }
