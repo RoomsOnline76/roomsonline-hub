@@ -21,6 +21,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 export const MIN_DESCRIPTION_CHARS = 800;
+/** Hard channel floor — below this the listing is rejected outright. */
+export const CHANNEL_FLOOR_DESCRIPTION_CHARS = CHANNEL_MIN_DESCRIPTION;
 
 
 const FACILITIES = {
@@ -148,9 +150,11 @@ export function InfoFacilitiesTab(props: InfoFacilitiesTabProps) {
             <div className="flex items-center justify-between gap-2">
               <Label htmlFor="description" className="text-xs">Description</Label>
               <div className="flex items-center gap-2">
-                <span className={cn("text-[10px] tabular-nums", descriptionTooShort ? "text-destructive" : "text-muted-foreground")}>
-                  {descriptionLength} / {MIN_DESCRIPTION_CHARS} characters
-                </span>
+                <CharacterCounterHint
+                  value={formData.description}
+                  required={CHANNEL_MIN_DESCRIPTION}
+                  recommended={MIN_DESCRIPTION_CHARS}
+                />
                 <Button
                   type="button"
                   size="sm"
@@ -166,12 +170,13 @@ export function InfoFacilitiesTab(props: InfoFacilitiesTabProps) {
               </div>
             </div>
             <Textarea id="description" data-field="description" value={formData.description} onChange={(e) => handleInputChange("description", e.target.value)} placeholder="Describe your property..." rows={6} disabled={isFieldPopulatedByPMS("description", selectedPMS)} className={cn("resize-none text-xs", channelMandatoryClass("description"), descriptionTooShort && "border-destructive focus-visible:ring-destructive", getPMSFieldClass("description", selectedPMS), isFieldPopulatedByPMS("description", selectedPMS) && "cursor-not-allowed")} {...markerFlags(!descriptionTooShort)} />
-            {descriptionTooShort ? (
-              <p className="flex items-center gap-1 text-[10px] text-destructive">
-                <AlertTriangle className="h-3 w-3" />
-                {MIN_DESCRIPTION_CHARS - descriptionLength} more characters needed — distribution channels require at least {MIN_DESCRIPTION_CHARS} characters.
-              </p>
-            ) : (
+            <DescriptionShortfallHint
+              value={formData.description}
+              required={CHANNEL_MIN_DESCRIPTION}
+              recommended={MIN_DESCRIPTION_CHARS}
+              subject="property"
+            />
+            {descriptionLength >= CHANNEL_MIN_DESCRIPTION && (
               <ChannelFieldHint feedback={checkChannelDescription(formData.description)} compact={false} />
             )}
 
