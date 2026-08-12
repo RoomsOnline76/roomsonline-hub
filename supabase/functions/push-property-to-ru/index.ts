@@ -1343,20 +1343,36 @@ interface UnitContext {
 // Maps day-of-week → RU changeover code (0=none, 1=check-in only, 2=check-out only, 3=both)
 const DOW_KEYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 
-function resolveChangeoverRules(unit: UnitContext | undefined, propertyAmenities: Record<string, any>): { perDow: Record<number, number> | null; defaultCode: number } {
+function resolveChangeoverRules(
+  unit: UnitContext | undefined,
+  propertyAmenities: Record<string, any>,
+): { perDow: Record<number, number> | null; defaultCode: number; isDefault: boolean } {
   const unitAmenities = (unit?.amenities || {}) as Record<string, any>;
   const rules = (unitAmenities.changeover_rules ?? propertyAmenities.changeover_rules) as Record<string, any> | undefined;
-  const defaultCode = Number(unitAmenities.changeover ?? propertyAmenities.changeover ?? 3);
+  const authoredCode = unitAmenities.changeover ?? propertyAmenities.changeover;
+  const defaultCode = Number(authoredCode ?? 3);
   if (rules && typeof rules === 'object' && !Array.isArray(rules)) {
     const perDow: Record<number, number> = {};
     for (let i = 0; i < 7; i++) {
       const v = rules[DOW_KEYS[i]];
       if (v != null && !isNaN(Number(v))) perDow[i] = Number(v);
     }
-    if (Object.keys(perDow).length > 0) return { perDow, defaultCode };
+    if (Object.keys(perDow).length > 0) return { perDow, defaultCode, isDefault: false };
   }
-  return { perDow: null, defaultCode };
+  // No per-day rules and no authored code — the code below is our assumption, not the owner's.
+  return { perDow: null, defaultCode, isDefault: authoredCode == null };
 }
+
+/** Is a changeover rule authored anywhere for this unit / property? */
+function isChangeoverAuthored(unitAmenities: Record<string, any> | null, propertyAmenities: Record<string, any>): boolean {
+  const ua = (unitAmenities || {}) as Record<string, any>;
+  const rules = (ua.changeover_rules ?? propertyAmenities.changeover_rules) as Record<string, any> | undefined;
+  if (rules && typeof rules === 'object' && !Array.isArray(rules)) {
+    if (DOW_KEYS.some((k) => rules[k] != null && !isNaN(Number(rules[k])))) return true;
+  }
+  return (ua.changeover ?? propertyAmenities.changeover) != null;
+}
+
 
 type AvailabilityPeriod = { from: string; to: string; minStay: number; seasonId: string };
 
