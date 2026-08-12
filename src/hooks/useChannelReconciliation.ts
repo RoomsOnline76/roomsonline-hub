@@ -109,37 +109,24 @@ export function useChannelReconciliation() {
     }
   }, []);
 
-  const purgeOrphan = useCallback(async (orphan: ReconOrphan) => {
-    const { data, error: fnError } = await supabase.functions.invoke("channel-manager-entitlement", {
-      body: {
-        scope: "purge_listing",
-        entity_id: orphan.listing_id,
-        owner_id: orphan.owner_id,
-        already_archived: orphan.is_archived === true,
-        reason: "Orphan listing removed during channel reconciliation",
-      },
-    });
-    if (fnError) throw fnError;
-    const payload = (data || {}) as { success?: boolean; error?: string };
-    if (payload.success === false) throw new Error(payload.error || "Could not remove the listing");
-    // The listing is gone upstream, so the channel counter (and the account it
-    // belonged to) must drop with it — otherwise the footer keeps reporting a
-    // billing gap that no longer exists.
-    setResult((prev) =>
-      prev
-        ? {
-            ...prev,
-            channel_listing_count: Math.max(0, prev.channel_listing_count - 1),
-            accounts: prev.accounts.map((a) =>
-              a.owner_id === orphan.owner_id
-                ? { ...a, listing_count: Math.max(0, a.listing_count - 1) }
-                : a,
-            ),
-            orphans: prev.orphans.filter((o) => o.listing_id !== orphan.listing_id),
-          }
-        : prev,
-    );
-  }, []);
+export type PurgeOutcome = "already_gone" | "deleted" | "refused";
+
+/** Reads the JSON body an edge function returned alongside a non-2xx status. */
+async function readFunctionError(fnError: unknown): Promise<string | null> {
+  const ctx = (fnError as { context?: Response } | null)?.context;
+  if (!ctx || typeof ctx.json !== "function") return null;
+  try {
+    const body = (await ctx.clone().json()) as { detail?: string; error?: string };
+    return body.detail || body.error || null;
+  } catch {
+    return null;
+  }
+}
+
+export function useChannelReconciliationInternal() {
+  return null;
+}
+
 
   const clearStale = useCallback(async (row: ReconStale) => {
     const { data, error: fnError } = await supabase.functions.invoke("channel-manager-entitlement", {
