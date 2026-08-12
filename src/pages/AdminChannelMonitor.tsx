@@ -88,6 +88,47 @@ export default function AdminChannelMonitor() {
     [data],
   );
 
+  const handlePurgeDuplicate = useCallback(
+    async (row: ChannelPropertyRow, unit?: ChannelUnitRow) => {
+      const label = unit ? unit.name : `${row.duplicateListings} duplicate listings`;
+      if (
+        !window.confirm(
+          `Remove ${label} from the channel manager? The listing is archived upstream and the link is cleared permanently.`,
+        )
+      ) {
+        return;
+      }
+      if (unit) setBusyUnitId(unit.id);
+      else setBusyId(row.id);
+      try {
+        const { data: res, error } = await supabase.functions.invoke("channel-manager-entitlement", {
+          body: {
+            scope: "purge_duplicates",
+            entity_id: row.id,
+            unit_id: unit?.id,
+            reason: "Duplicate listing purge from channel cost monitor",
+          },
+        });
+        if (error) throw new Error(error.message);
+        const payload = res as { purged?: number; failed?: number } | null;
+        const purged = payload?.purged ?? 0;
+        const failed = payload?.failed ?? 0;
+        if (failed > 0) {
+          toast.warning(`${purged} removed, ${failed} could not be removed at the channel manager.`);
+        } else {
+          toast.success(`${purged} duplicate listing${purged === 1 ? "" : "s"} removed from the channel manager`);
+        }
+        await data.refresh();
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Purge failed");
+      } finally {
+        setBusyUnitId(null);
+        setBusyId(null);
+      }
+    },
+    [data],
+  );
+
 
   const runPropertyToggle = useCallback(
     async (row: ChannelPropertyRow, mode: "archive" | "reactivate", reason?: string) => {
