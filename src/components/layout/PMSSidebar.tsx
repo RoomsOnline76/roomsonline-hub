@@ -112,6 +112,16 @@ export const pmsNavGroups: NavGroup[] = [
   },
 ];
 
+/**
+ * Modules that make no sense without a linked property — hidden entirely for accounts
+ * that have no property assigned yet (e.g. partner/IT test logins).
+ */
+export const PROPERTY_LINKED_ONLY_MODULES: PmsModule[] = ["messaging"];
+
+export function isNavItemVisibleForScope(item: NavItem, hasProperty: boolean): boolean {
+  return hasProperty || !PROPERTY_LINKED_ONLY_MODULES.includes(item.module);
+}
+
 export function PMSSidebar() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -282,7 +292,9 @@ export function PMSSidebar() {
         {pmsNavGroups.map((group) => {
           const visibleItems = group.items.filter(
             (item) =>
-              (item.platformOnly ? isPlatformUser : true) && (isPlatformUser || visibleModules.includes(item.module))
+              (item.platformOnly ? isPlatformUser : true) &&
+              (isPlatformUser || visibleModules.includes(item.module)) &&
+              isNavItemVisibleForScope(item, !!propertyId)
           );
           if (visibleItems.length === 0) return null;
           return (

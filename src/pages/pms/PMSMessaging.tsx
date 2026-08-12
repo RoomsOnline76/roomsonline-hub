@@ -23,6 +23,7 @@ import Link from "@tiptap/extension-link";
 import TextAlign from "@tiptap/extension-text-align";
 import Image from "@tiptap/extension-image";
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
+import { PmsNoPropertyState } from "@/components/pms/PmsNoPropertyState";
 import {
   useMessageTemplates, useUpsertTemplate, useDeleteTemplate,
   useSendMessage, useMessageLog, useMessageQueue, useProcessQueue,
@@ -76,7 +77,7 @@ const STARTER_TEMPLATES: Record<string, { subject: string; body: string }> = {
 function PMSMessaging() {
   const [searchParams] = useSearchParams();
   const propertyId = searchParams.get("property");
-  const { propertyId: hookPropertyId } = usePmsPropertyId();
+  const { propertyId: hookPropertyId, loading: propertyLoading } = usePmsPropertyId();
   const pid = propertyId || hookPropertyId;
 
   const { data: propertyBrand } = useQuery({
@@ -219,6 +220,14 @@ function PMSMessaging() {
     acc[key].push(t);
     return acc;
   }, {});
+
+  // Messaging needs a property (templates, guests, sender identity) — stay inert
+  // for accounts with no property assigned.
+  if (!propertyLoading && !hookPropertyId) {
+    return (
+      <PmsNoPropertyState description="Guest messaging becomes available once a property is assigned to this account." />
+    );
+  }
 
   return (
     <>

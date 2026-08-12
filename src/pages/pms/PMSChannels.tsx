@@ -5,6 +5,7 @@ import { useBillingConfig } from "@/hooks/useBillingConfig";
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 import { RuCurrencyNotice } from "@/components/pms/channels/RuCurrencyNotice";
 import { RuWhiteLabelEmbed } from "@/components/pms/channels/RuWhiteLabelEmbed";
+import { PmsNoPropertyState } from "@/components/pms/PmsNoPropertyState";
 
 /**
  * ROL'OS Channels
@@ -27,6 +28,17 @@ export default function PMSChannels() {
     document.documentElement.classList.add("channels-force-light");
     return () => document.documentElement.classList.remove("channels-force-light");
   }, []);
+
+  // No property linked — never open a channel-manager session or attempt a channel
+  // connection: the channel onboarding gate has nothing to assess.
+  if (!propertyId) {
+    return (
+      <PmsNoPropertyState
+        title="No property linked yet"
+        description="Channel distribution stays switched off until a property is assigned to this account. Once linked and the onboarding gate passes, the Channel Manager opens here."
+      />
+    );
+  }
 
   // Billing entitlement — Channel Manager must be explicitly switched on by admin.
   const { config: billingConfig, isLoading: billingLoading } = useBillingConfig(propertyId ?? undefined);

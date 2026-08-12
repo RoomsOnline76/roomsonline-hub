@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
+import { PmsNoPropertyState } from "@/components/pms/PmsNoPropertyState";
 
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -45,7 +46,7 @@ export default function PMSRatePlans() {
   }, [viewMode, propertyLoading, isPortfolio, scopeProperties, propertyId]);
 
   if (propertyLoading) return <PmsPageSkeleton rows={3} />;
-  if (!isPortfolio && !propertyId) return <p className="text-muted-foreground">Select a property first.</p>;
+  if (!isPortfolio && !propertyId) return <PmsNoPropertyState description="No property is assigned to this account yet, so there are no rate plans to show. Rate plans appear here once a property is linked." />;
 
   return (
     <RatePlansPanel

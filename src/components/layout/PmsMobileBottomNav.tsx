@@ -8,7 +8,7 @@ import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 import { usePmsStaffRole } from "@/hooks/usePmsStaffRole";
 import { VersionBadge } from "./VersionBadge";
 import { getVisibleModules } from "@/lib/pmsPermissions";
-import { pmsNavGroups, type NavItem } from "./PMSSidebar";
+import { pmsNavGroups, isNavItemVisibleForScope, type NavItem } from "./PMSSidebar";
 import {
   Sheet,
   SheetContent,
@@ -41,7 +41,8 @@ export function PmsMobileBottomNav() {
       items: group.items.filter(
         (item) =>
           (item.platformOnly ? isPlatformUser : true) &&
-          (isPlatformUser || visibleModules.includes(item.module)),
+          (isPlatformUser || visibleModules.includes(item.module)) &&
+          isNavItemVisibleForScope(item, !!propertyId),
       ),
     }))
     .filter((group) => group.items.length > 0);
