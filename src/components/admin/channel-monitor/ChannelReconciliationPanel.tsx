@@ -125,11 +125,11 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
           </CardDescription>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          {result && (
+          {result && (cleanableTotal > 0 || cleaning) && (
             <Button
               variant="default"
               size="sm"
-              disabled={running || cleaning || cleanableTotal === 0}
+              disabled={running || cleaning}
               onClick={() => setConfirmOpen(true)}
             >
               {cleaning ? (
@@ -145,6 +145,13 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
               )}
             </Button>
           )}
+          {result && cleanableTotal === 0 && !cleaning && (
+            <Badge variant="secondary" className="gap-1.5">
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              Nothing to clean up
+            </Badge>
+          )}
+
           <Button variant="outline" size="sm" onClick={() => void reconcile()} disabled={running || cleaning}>
             <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${running ? "animate-spin" : ""}`} />
             Reconcile with channel
