@@ -646,17 +646,34 @@ Deno.serve(async (req) => {
 
       for (const dup of dupes) {
         const listingId = dup.rentalsunited_property_id as string;
-        const failure = await pushListingStatus(admin, {
+        const removal = await removeListingUpstream(admin, {
           propertyId: dup.property_id,
-          ruPropertyId: listingId,
-          archive: true,
+          listingId,
           ownerId,
+          ctx: logCtx(traceId, "channel-cleanup:delete"),
         });
-        if (failure) {
+        if (removal.error) {
           failed += 1;
-          results.push({ name: dup.name, listing_id: listingId, status: "ru_failed", detail: failure });
+          results.push({ name: dup.name, listing_id: listingId, status: "ru_failed", detail: removal.error });
           continue;
         }
+        // Confirm against the account before releasing the local id.
+        const after = await verifyListingPresence(admin, {
+          listingId,
+          ownerId,
+          ctx: logCtx(traceId, "channel-cleanup:verify_after"),
+        });
+        if (after.present) {
+          failed += 1;
+          results.push({
+            name: dup.name,
+            listing_id: listingId,
+            status: "ru_failed",
+            detail: `still returned by the channel account after a ${removal.method} request`,
+          });
+          continue;
+        }
+
         const { error: clearErr } = await admin
           .from("hostfully_room_types")
           .update({ rentalsunited_property_id: null })
