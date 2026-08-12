@@ -14,7 +14,17 @@ const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 const NOTIFY_RECIPIENTS = ["dev@roomsonline.co.za", "carike@roomsonline.co.za"];
 
 interface Body {
-  scope: "property" | "portfolio" | "unit" | "purge_duplicates";
+  scope:
+    | "property"
+    | "portfolio"
+    | "unit"
+    | "purge_duplicates"
+    /** Read-only: pull every listing the channel account holds and classify it. */
+    | "reconcile"
+    /** Archive one listing id upstream (orphans that no local record points at). */
+    | "purge_listing"
+    /** Clear a local listing id the channel account no longer returns. */
+    | "clear_local_listing";
   entity_id: string;
   enabled?: boolean;
   /** Free-text audit note captured in the confirmation dialog. */
@@ -25,7 +35,12 @@ interface Body {
   notify?: boolean;
   /** purge_duplicates: limit the purge to a single deactivated unit record. */
   unit_id?: string;
+  /** purge_listing: RU OwnerID that owns the listing. */
+  owner_id?: string | null;
+  /** clear_local_listing: "property" | "unit" record kind holding the stale id. */
+  record_kind?: "property" | "unit";
 }
+
 
 function bad(message: string, status = 400) {
   return new Response(JSON.stringify({ error: message }), {
@@ -165,14 +180,250 @@ Deno.serve(async (req) => {
     const actorEmail = userData.user.email ?? null;
 
     const raw = (await req.json().catch(() => null)) as Body | null;
-    const scopes = ["property", "portfolio", "unit", "purge_duplicates"];
+    const scopes = [
+      "property",
+      "portfolio",
+      "unit",
+      "purge_duplicates",
+      "reconcile",
+      "purge_listing",
+      "clear_local_listing",
+    ];
     if (!raw || !scopes.includes(raw.scope)) {
-      return bad("scope must be 'property', 'portfolio', 'unit' or 'purge_duplicates'");
+      return bad(`scope must be one of: ${scopes.join(", ")}`);
     }
     if (!raw.entity_id) return bad("entity_id is required");
-    if (raw.scope !== "purge_duplicates" && typeof raw.enabled !== "boolean") {
+    const NO_ENABLED = new Set(["purge_duplicates", "reconcile", "purge_listing", "clear_local_listing"]);
+    if (!NO_ENABLED.has(raw.scope) && typeof raw.enabled !== "boolean") {
       return bad("enabled is required");
     }
+
+    // ── Reconcile: read every listing the channel account actually holds and
+    //    classify it against local records. Read-only — nothing is mutated. ──
+    if (raw.scope === "reconcile") {
+      const { data: accounts, error: accErr } = await admin
+        .from("ru_owner_accounts")
+        .select("id, ru_owner_id, ru_user_id, owner_email, portfolio_id, property_id")
+        .not("ru_owner_id", "is", null);
+      if (accErr) return bad(accErr.message, 500);
+
+      const [{ data: props }, { data: units }] = await Promise.all([
+        admin.from("properties").select("id, name, is_active, rentalsunited_property_id"),
+        admin.from("hostfully_room_types").select("id, name, property_id, is_active, rentalsunited_property_id"),
+      ]);
+
+      type Local = {
+        listingId: string;
+        kind: "property" | "unit";
+        recordId: string;
+        propertyId: string;
+        label: string;
+        isActive: boolean;
+      };
+      const localByListing = new Map<string, Local>();
+      for (const p of (props || []) as Array<Record<string, unknown>>) {
+        const lid = p.rentalsunited_property_id as string | null;
+        if (!lid) continue;
+        localByListing.set(String(lid), {
+          listingId: String(lid),
+          kind: "property",
+          recordId: p.id as string,
+          propertyId: p.id as string,
+          label: (p.name as string) || "Untitled property",
+          isActive: p.is_active !== false,
+        });
+      }
+      const propertyNames = new Map<string, string>();
+      for (const p of (props || []) as Array<Record<string, unknown>>) {
+        propertyNames.set(p.id as string, ((p.name as string) || "Untitled property"));
+      }
+      for (const u of (units || []) as Array<Record<string, unknown>>) {
+        const lid = u.rentalsunited_property_id as string | null;
+        if (!lid) continue;
+        localByListing.set(String(lid), {
+          listingId: String(lid),
+          kind: "unit",
+          recordId: u.id as string,
+          propertyId: u.property_id as string,
+          label: `${propertyNames.get(u.property_id as string) || "Property"} — ${(u.name as string) || "Unit"}`,
+          isActive: u.is_active !== false,
+        });
+      }
+
+      const ownerIds = Array.from(
+        new Set((accounts || []).map((a: { ru_owner_id: string | null }) => String(a.ru_owner_id))),
+      );
+      const accountResults: Array<{
+        owner_id: string;
+        owner_email: string | null;
+        listing_count: number;
+        error: string | null;
+      }> = [];
+      const seenOnChannel = new Set<string>();
+      const orphans: Array<{ listing_id: string; name: string; owner_id: string; is_archived: boolean }> = [];
+      const matched: Array<{
+        listing_id: string;
+        name: string;
+        owner_id: string;
+        is_archived: boolean;
+        local_label: string;
+        local_active: boolean;
+        kind: "property" | "unit";
+      }> = [];
+
+      for (const ownerId of ownerIds) {
+        const account = (accounts || []).find(
+          (a: { ru_owner_id: string | null }) => String(a.ru_owner_id) === ownerId,
+        ) as { owner_email: string | null } | undefined;
+        const { data: listRes, error: listErr } = await admin.functions.invoke("rentalsunited-api", {
+          body: { action: "list_properties", owner_id: Number(ownerId) },
+        });
+        const res = (listRes || {}) as {
+          success?: boolean;
+          error?: { message?: string } | string;
+          properties?: Array<{ id: string; name: string; is_active?: boolean; is_archived?: boolean }>;
+        };
+        if (listErr || res.success === false) {
+          const message =
+            listErr?.message ||
+            (typeof res.error === "string" ? res.error : res.error?.message) ||
+            "Channel account could not be read";
+          accountResults.push({
+            owner_id: ownerId,
+            owner_email: account?.owner_email ?? null,
+            listing_count: 0,
+            error: message,
+          });
+          continue;
+        }
+
+        const listings = res.properties || [];
+        accountResults.push({
+          owner_id: ownerId,
+          owner_email: account?.owner_email ?? null,
+          listing_count: listings.length,
+          error: null,
+        });
+
+        for (const l of listings) {
+          const id = String(l.id);
+          seenOnChannel.add(id);
+          const local = localByListing.get(id);
+          if (!local) {
+            orphans.push({
+              listing_id: id,
+              name: l.name || "Unnamed listing",
+              owner_id: ownerId,
+              is_archived: l.is_archived === true,
+            });
+            continue;
+          }
+          matched.push({
+            listing_id: id,
+            name: l.name || local.label,
+            owner_id: ownerId,
+            is_archived: l.is_archived === true,
+            local_label: local.label,
+            local_active: local.isActive,
+            kind: local.kind,
+          });
+        }
+      }
+
+      // Local ids the account no longer returns — only trustworthy when at least
+      // one account read succeeded, otherwise everything would look stale.
+      const anyRead = accountResults.some((a) => a.error === null);
+      const stale = anyRead
+        ? Array.from(localByListing.values())
+            .filter((l) => !seenOnChannel.has(l.listingId))
+            .map((l) => ({
+              listing_id: l.listingId,
+              label: l.label,
+              kind: l.kind,
+              record_id: l.recordId,
+              property_id: l.propertyId,
+              local_active: l.isActive,
+            }))
+        : [];
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          reconciled_at: new Date().toISOString(),
+          accounts: accountResults,
+          channel_listing_count: seenOnChannel.size,
+          matched,
+          orphans,
+          stale,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    // ── Purge a single orphan listing id upstream ─────────────────────
+    if (raw.scope === "purge_listing") {
+      const listingId = String(raw.entity_id);
+      let ownerId = raw.owner_id ? String(raw.owner_id) : null;
+      if (!ownerId) {
+        const { data: acct } = await admin
+          .from("ru_owner_accounts")
+          .select("ru_owner_id")
+          .not("ru_owner_id", "is", null)
+          .limit(1)
+          .maybeSingle();
+        ownerId = acct?.ru_owner_id ? String(acct.ru_owner_id) : null;
+      }
+      // Any local record pointing at this id is cleared once the archive lands.
+      const { data: ownerProp } = await admin
+        .from("properties")
+        .select("id")
+        .eq("rentalsunited_property_id", listingId)
+        .maybeSingle();
+      const failure = await pushListingStatus(admin, {
+        propertyId: ownerProp?.id ?? "",
+        ruPropertyId: listingId,
+        archive: true,
+        ownerId,
+      });
+      if (failure) return bad(failure, 502);
+
+      await admin.from("properties").update({ rentalsunited_property_id: null }).eq("rentalsunited_property_id", listingId);
+      await admin
+        .from("hostfully_room_types")
+        .update({ rentalsunited_property_id: null })
+        .eq("rentalsunited_property_id", listingId);
+      await admin.from("ru_archive_events").insert({
+        property_id: ownerProp?.id ?? null,
+        property_name: `Orphan listing purge (#${listingId})`,
+        direction: "archived",
+        unit_count: 0,
+        listing_count: 1,
+        reason: raw.reason ?? "Orphan listing removed during channel reconciliation",
+        actor_user_id: userData.user.id,
+        actor_email: actorEmail,
+        ru_status: "updated",
+        detail: `listing ${listingId} archived at the channel manager`,
+      });
+
+      return new Response(JSON.stringify({ success: true, listing_id: listingId }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ── Clear a stale local listing id (already gone upstream) ────────
+    if (raw.scope === "clear_local_listing") {
+      const table = raw.record_kind === "property" ? "properties" : "hostfully_room_types";
+      const { error: clearErr } = await admin
+        .from(table)
+        .update({ rentalsunited_property_id: null })
+        .eq("id", raw.entity_id);
+      if (clearErr) return bad(clearErr.message, 500);
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+
 
     // ── Purge duplicate listings: deactivated unit records that still hold a
     //    channel listing id. Archive the listing upstream, then clear the id so
