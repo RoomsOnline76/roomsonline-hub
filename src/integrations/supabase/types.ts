@@ -14079,7 +14079,7 @@ export type Database = {
         }
         Insert: {
           action: string
-          batch_id: string
+          batch_id?: string
           created_at?: string
           details?: Json | null
           elapsed_ms?: number | null

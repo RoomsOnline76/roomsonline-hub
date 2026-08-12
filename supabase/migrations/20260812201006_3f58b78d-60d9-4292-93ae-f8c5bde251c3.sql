@@ -1,0 +1,1 @@
+ALTER TABLE public.ru_sync_runs ALTER COLUMN batch_id SET DEFAULT gen_random_uuid();

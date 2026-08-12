@@ -21,12 +21,24 @@ export const RU_STATIC_DELTA_DEBOUNCE_MS = 60 * 1000;
 /** ru_sync_runs.action used for static content deltas. */
 export const RU_STATIC_DELTA_ACTION = 'static_delta';
 
+/**
+ * ru_sync_runs.action used for deltas that deliberately did nothing (not listed, paused,
+ * unchanged fingerprint). Logged under a separate action so it can never be mistaken for a
+ * delivered push by the fingerprint/debounce lookup, while still answering the operator
+ * question "did my save reach the channel?".
+ */
+export const RU_STATIC_DELTA_SKIP_ACTION = 'static_delta_skipped';
+
+/** A multi-unit property is pushed in resumable chunks; walk at most this many chunks. */
+const RU_STATIC_DELTA_MAX_CHUNKS = 12;
+
 export interface RuStaticDeltaOutcome {
   queued: boolean;
   reason?: 'not_connected' | 'unchanged' | 'debounced' | 'error' | 'no_property';
   content_hash?: string;
   error?: string;
 }
+
 
 /** Property columns that end up inside Push_PutProperty_RQ. */
 const PROPERTY_STATIC_COLUMNS = [
@@ -167,7 +179,13 @@ export async function queueRuStaticDelta(
   try {
     const snapshot = await loadSnapshot(supabase, propertyId);
     if (!snapshot.property || !snapshot.ruConnected || !snapshot.pushEnabled) {
-      return { queued: false, reason: 'not_connected' };
+      const reason = !snapshot.property
+        ? 'no_property'
+        : !snapshot.ruConnected
+          ? 'not listed on the channel'
+          : 'pushes paused for this property';
+      await logSkip(supabase, propertyId, trigger, reason, null);
+      return { queued: false, reason: snapshot.property ? 'not_connected' : 'no_property' };
     }
 
     const contentHash = await sha256(
@@ -177,6 +195,7 @@ export async function queueRuStaticDelta(
 
     if (!options.force) {
       if (previous.hash && previous.hash === contentHash) {
+        await logSkip(supabase, propertyId, trigger, 'nothing the channel cares about changed', contentHash);
         return { queued: false, reason: 'unchanged', content_hash: contentHash };
       }
       // Content genuinely changed but the last push was very recent: wait out the window rather
@@ -189,24 +208,29 @@ export async function queueRuStaticDelta(
         // Re-check: another concurrent save may have pushed this exact content while we waited.
         const latest = await lastStaticRun(supabase, propertyId);
         if (latest.hash && latest.hash === contentHash) {
+          await logSkip(supabase, propertyId, trigger, 'a concurrent save already pushed this content', contentHash);
           return { queued: false, reason: 'unchanged', content_hash: contentHash };
         }
       }
     }
 
-
     const startedAt = Date.now();
-    let success = false;
-    let errorMessage: string | null = null;
-    try {
-      const { data, error } = await supabase.functions.invoke('push-property-to-ru', {
-        body: { property_id: propertyId, action: 'static_only' },
-      });
-      if (error) errorMessage = error.message ?? 'Unknown error';
-      else if (!data?.success) errorMessage = data?.error?.message ?? 'Unknown error';
-      else success = true;
-    } catch (err) {
-      errorMessage = err instanceof Error ? err.message : 'Unknown error';
+    const { success, errorMessage, chunks, units } = await pushStaticContent(supabase, propertyId);
+
+    // The push itself writes bookkeeping back onto the rows it just sent (newly issued channel
+    // listing ids in particular), which would make the pre-push fingerprint stale the moment it
+    // is stored — every later save would then look like a change and re-push. Record the
+    // *post-push* fingerprint so the snapshot matches what the channel now holds.
+    let storedHash = contentHash;
+    if (success) {
+      try {
+        const after = await loadSnapshot(supabase, propertyId);
+        if (after.property) {
+          storedHash = await sha256(stableStringify({ property: after.property, units: after.units }));
+        }
+      } catch (rehashErr) {
+        console.warn('[ruStaticDelta] post-push rehash failed', rehashErr);
+      }
     }
 
     // Log unconditionally: the hash is only recorded on success so a failed delta is retried
@@ -218,11 +242,19 @@ export async function queueRuStaticDelta(
         success,
         error_message: errorMessage,
         elapsed_ms: Date.now() - startedAt,
-        details: { trigger, content_hash: success ? contentHash : null, forced: options.force === true },
+        details: {
+          trigger,
+          content_hash: success ? storedHash : null,
+          pushed_hash: contentHash,
+          forced: options.force === true,
+          chunks,
+          units,
+        },
       });
     } catch (logErr) {
       console.warn('[ruStaticDelta] log insert failed', logErr);
     }
+
 
     if (!success) {
       console.warn(`[ruStaticDelta] Static push failed for ${propertyId}: ${errorMessage}`);
@@ -235,3 +267,89 @@ export async function queueRuStaticDelta(
     return { queued: false, reason: 'error', error: message };
   }
 }
+
+/** Visibility row for a delta that intentionally did nothing. */
+async function logSkip(
+  supabase: any,
+  propertyId: string,
+  trigger: string,
+  reason: string,
+  contentHash: string | null,
+): Promise<void> {
+  try {
+    await supabase.from('ru_sync_runs').insert({
+      property_id: propertyId,
+      action: RU_STATIC_DELTA_SKIP_ACTION,
+      success: true,
+      error_message: null,
+      details: { trigger, skipped: true, reason, content_hash: contentHash },
+    });
+  } catch (err) {
+    console.warn('[ruStaticDelta] skip log insert failed', err);
+  }
+}
+
+/**
+ * Deliver the content push, walking the resumable chunk sequence.
+ *
+ * `push-property-to-ru` pushes a slice of a multi-unit property per invocation and reports the
+ * units still outstanding, so a single call to a 9-unit property returns `success: false` with
+ * `resume: true` even though nothing failed. A content delta must finish the sequence, otherwise
+ * every save on a multi-unit listing looks like a failure and no fingerprint is ever stored.
+ */
+async function pushStaticContent(
+  supabase: any,
+  propertyId: string,
+): Promise<{ success: boolean; errorMessage: string | null; chunks: number; units: unknown[] }> {
+  let remaining: string[] | null = null;
+  let batchId: string | null = null;
+  const units: unknown[] = [];
+
+  for (let chunk = 1; chunk <= RU_STATIC_DELTA_MAX_CHUNKS; chunk++) {
+    try {
+      const { data, error } = await supabase.functions.invoke('push-property-to-ru', {
+        body: {
+          property_id: propertyId,
+          action: 'static_only',
+          ...(remaining && remaining.length > 0 ? { only_unit_ids: remaining } : {}),
+          ...(batchId ? { batch_id: batchId } : {}),
+        },
+      });
+      if (error) {
+        return { success: false, errorMessage: error.message ?? 'Channel push transport failed', chunks: chunk, units };
+      }
+      if (Array.isArray(data?.units)) units.push(...data.units);
+      if (typeof data?.batch_id === 'string') batchId = data.batch_id;
+
+      const nextRemaining = Array.isArray(data?.remaining_unit_ids) ? (data.remaining_unit_ids as string[]) : [];
+      if (data?.resume === true && nextRemaining.length > 0) {
+        remaining = nextRemaining;
+        continue;
+      }
+      if (data?.success === true) {
+        return { success: true, errorMessage: null, chunks: chunk, units };
+      }
+      return {
+        success: false,
+        errorMessage: data?.error?.message ?? 'The channel rejected the content push',
+        chunks: chunk,
+        units,
+      };
+    } catch (err) {
+      return {
+        success: false,
+        errorMessage: err instanceof Error ? err.message : 'Unknown error',
+        chunks: chunk,
+        units,
+      };
+    }
+  }
+
+  return {
+    success: false,
+    errorMessage: `Content push did not finish within ${RU_STATIC_DELTA_MAX_CHUNKS} chunks — retry the outstanding units.`,
+    chunks: RU_STATIC_DELTA_MAX_CHUNKS,
+    units,
+  };
+}
+
