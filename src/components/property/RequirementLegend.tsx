@@ -134,6 +134,29 @@ export const RequirementLegend: React.FC<RequirementLegendProps> = ({
               : `${counts.mandatoryOutstanding} of ${counts.mandatoryTotal} outstanding`}
         </span>
       </span>
+      {!isLoading && outstandingFields.length > 0 && (
+        <TooltipProvider delayDuration={100}>
+          <span className="flex flex-wrap items-center gap-1">
+            {outstandingFields.map((f) => (
+              <Tooltip key={f.key}>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={() => focusRequirementField(f.key)}
+                    className="pf-req-count-mandatory rounded border px-1.5 text-[10px] font-medium leading-4 hover:opacity-80"
+                  >
+                    {f.label}
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="max-w-[280px] text-[11px]">
+                  {f.section && <p className="font-medium">{f.section}</p>}
+                  <p className="text-muted-foreground">{f.hint ?? "Click to jump to this field."}</p>
+                </TooltipContent>
+              </Tooltip>
+            ))}
+          </span>
+        </TooltipProvider>
+      )}
       <span className="flex items-center gap-1.5">
         <span className="pf-req-legend-dot pf-req-legend-recommended" aria-hidden />
         <span className="font-medium">Nice to have</span>
