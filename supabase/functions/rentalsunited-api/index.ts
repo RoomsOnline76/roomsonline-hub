@@ -540,13 +540,25 @@ function buildGetPropertyXml(creds: RUCredentials, propertyId: number): string {
 </Pull_ListSpecProp_RQ>`;
 }
 
+/**
+ * ARI pull endpoints accept ONLY `YYYY-MM-DD`. Datetime or locale-formatted values
+ * return RU status -3 "String was not recognized as a valid DateTime".
+ */
+function ruDay(value: string): string {
+  const s = (value || '').trim();
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+  const parsed = new Date(s);
+  return Number.isNaN(parsed.getTime()) ? s : parsed.toISOString().slice(0, 10);
+}
+
 function buildGetAvailabilityXml(creds: RUCredentials, propertyId: number, dateFrom: string, dateTo: string): string {
   return `<?xml version="1.0" encoding="utf-8"?>
 <Pull_ListPropertyAvailabilityCalendar_RQ>
   ${buildAuthXml(creds)}
   <PropertyID>${propertyId}</PropertyID>
-  <DateFrom>${dateFrom}</DateFrom>
-  <DateTo>${dateTo}</DateTo>
+  <DateFrom>${ruDay(dateFrom)}</DateFrom>
+  <DateTo>${ruDay(dateTo)}</DateTo>
 </Pull_ListPropertyAvailabilityCalendar_RQ>`;
 }
 
@@ -555,8 +567,8 @@ function buildGetPricesXml(creds: RUCredentials, propertyId: number, dateFrom: s
 <Pull_ListPropertyPrices_RQ>
   ${buildAuthXml(creds)}
   <PropertyID>${propertyId}</PropertyID>
-  <DateFrom>${dateFrom}</DateFrom>
-  <DateTo>${dateTo}</DateTo>
+  <DateFrom>${ruDay(dateFrom)}</DateFrom>
+  <DateTo>${ruDay(dateTo)}</DateTo>
 </Pull_ListPropertyPrices_RQ>`;
 }
 
