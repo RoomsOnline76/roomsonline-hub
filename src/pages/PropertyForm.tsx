@@ -2800,10 +2800,14 @@ export default function PropertyForm({
           if (amenities?.mobile_number) setMobileNumber(amenities.mobile_number);
           if (amenities?.postal_address) setPostalAddress(amenities.postal_address);
           if (amenities?.key_representative) setKeyRepresentative(amenities.key_representative);
-          if (amenities?.ru_company_profile && typeof amenities.ru_company_profile === "object") {
-            setRuCompanyProfile(amenities.ru_company_profile as RuCompanyProfile);
-          }
-          if ((data as any)?.ru_location_id) setRuLocationId(Number((data as any).ru_location_id));
+          setRuCompanyProfile(
+            amenities?.ru_company_profile && typeof amenities.ru_company_profile === "object"
+              ? (amenities.ru_company_profile as RuCompanyProfile)
+              : {},
+          );
+          setRuLocationId(
+            typeof (data as any)?.ru_location_id === "number" ? Number((data as any).ru_location_id) : null,
+          );
 
           const templates = amenities?.templates || {};
           if (templates.selected_template) setSelectedTemplate(templates.selected_template);
