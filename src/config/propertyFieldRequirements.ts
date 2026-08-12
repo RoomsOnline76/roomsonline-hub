@@ -608,6 +608,18 @@ export const PROPERTY_FIELD_REQUIREMENTS: FieldRequirement[] = [
     hint: "Authored sleeping places must cover every guest in the unit's maximum occupancy.",
     isSatisfied: (s) => roomRows(s).length > 0 && roomRows(s).every(UNIT_ROW_RULES.beds),
   },
+  {
+    key: "room_bedroom_composition",
+    label: "Bedroom composition authored",
+    tier: "mandatory",
+    section: "rooms",
+    target: ['[data-field="bed_configuration"]'],
+    hint:
+      "Every unit needs at least one bedroom in its composition — author the beds per bedroom in the bed configuration. A single legacy bed label (e.g. \"king-twin\") sends no bedroom to the channel.",
+    isSatisfied: (s) => roomRows(s).length > 0 && roomRows(s).every(UNIT_ROW_RULES.bedroomComposition),
+  },
+
+
 
   {
     key: "room_kitchen",
