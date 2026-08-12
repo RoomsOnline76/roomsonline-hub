@@ -454,10 +454,11 @@ export function StepPropertyIdentity({
             {channelManagers.length > 0 && (
               <div className="flex flex-wrap gap-1.5 mb-1">
                 {channelManagers.map(key => {
-                  const sys = VISIBLE_PMS_SYSTEMS.find(s => s.key === key);
+                  const sys = CHANNEL_MANAGER_OPTIONS.find(s => s.key === key);
                   return (
                     <Badge key={key} variant="secondary" className="gap-1 pr-1">
                       {sys?.name || key}
+
                       <button type="button" onClick={() => toggleChannelManager(key)} className="ml-0.5 rounded-full hover:bg-muted p-0.5">
                         <X className="h-3 w-3" />
                       </button>
