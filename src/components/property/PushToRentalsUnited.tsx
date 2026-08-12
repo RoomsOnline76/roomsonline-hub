@@ -351,7 +351,11 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
     }
   };
 
-  const runDryRun = async () => {
+  /**
+   * Server dry run. Returns the outcome so the live push can require a clean run
+   * from the same session instead of treating validation as optional.
+   */
+  const runDryRun = async (opts: { silent?: boolean } = {}): Promise<{ ok: boolean; gaps: string[]; message?: string }> => {
 
     setDryRunning(true);
     setError(null);
@@ -366,7 +370,10 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
         body: { property_id: propertyId, dry_run: true },
       });
       if (fnErr) throw new Error(fnErr.message);
-      if (!data.success) { setError(data.error); return; }
+      if (!data.success) {
+        setError(data.error);
+        return { ok: false, gaps: (data.gaps ?? []) as string[], message: data.error?.message };
+      }
 
       setIsMultiUnit(!!data.multi_unit);
       setValidation(data.validation);
@@ -376,20 +383,37 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
       setLastChecked(new Date().toLocaleTimeString());
 
       const v = data.validation;
-      if (v.meets_minimum_images && v.meets_minimum_amenities && v.has_coordinates) {
-        toast.success(data.multi_unit ? `All ${v.total_units} units ready to push` : "Property is ready to publish to the Channel Manager");
-      } else {
-        toast.warning("Property needs attention before publishing to the Channel Manager");
+      const gaps = (data.gaps ?? []) as string[];
+      const ok =
+        gaps.length === 0
+        && !!v?.meets_minimum_images
+        && !!v?.meets_minimum_amenities
+        && !!v?.has_coordinates;
+      if (!opts.silent) {
+        if (ok) {
+          toast.success(data.multi_unit ? `All ${v.total_units} units ready to push` : "Property is ready to publish to the Channel Manager");
+        } else {
+          toast.warning("Property needs attention before publishing to the Channel Manager");
+        }
       }
+      return { ok, gaps };
     } catch (err) {
-      setError({ code: "EXCEPTION", message: err instanceof Error ? err.message : "Unknown error" });
-      toast.error("Failed to validate property");
+      const message = err instanceof Error ? err.message : "Unknown error";
+      setError({ code: "EXCEPTION", message });
+      if (!opts.silent) toast.error("Failed to validate property");
+      return { ok: false, gaps: [], message };
     } finally {
       setDryRunning(false);
     }
   };
 
   const pushToRU = async () => {
+    // Fail closed on the registry gate — never rely on the button's disabled state alone.
+    if (gateBlocked) {
+      toast.error(gateReason ?? "Channel readiness is not satisfied");
+      return;
+    }
+
     setLoading(true);
     setError(null);
     setDiagnostics(null);
@@ -397,6 +421,17 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
     setBuildingDiagnostics(null);
 
     try {
+      // Mandatory server dry run: the live push only starts after a clean run this session.
+      const check = await runDryRun({ silent: true });
+      if (!check.ok) {
+        const detail = check.gaps.length
+          ? `${check.gaps.length} requirement(s) outstanding — ${check.gaps.slice(0, 3).join(" · ")}`
+          : check.message ?? "Validation failed";
+        toast.error(`Push blocked by the pre-flight check: ${detail}`, { duration: 12000 });
+        return;
+      }
+
+
       // Resumable batches keep long multi-unit pushes inside the worker budget.
       const data = await pushPropertyToRu(propertyId, {
         onProgress: ({ units }) => setUnitResults(units as any[]),
