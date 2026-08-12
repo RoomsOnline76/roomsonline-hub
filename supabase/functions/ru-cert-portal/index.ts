@@ -1337,7 +1337,7 @@ Deno.serve(async (req) => {
           mandatory: false, passed: localWindow.open_days > 0,
           detail: localWindow.open_days > 0
             ? `${localWindow.open_days} open day(s) in the local calendar — verified on Rentals United after the first push`
-            : "No open day in the local calendar for the next 180 days",
+            : "No open day in the local calendar for the next 365 days",
           fix_hint: "Rate Manager → Calendar / availability",
         });
         extraChecks.push({

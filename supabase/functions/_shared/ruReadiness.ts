@@ -496,7 +496,7 @@ export function bookableWindowChecks(
       mandatory: true,
       passed: window.ok,
       unit,
-      fix_hint: "Rate Manager → Calendar (availability) and Rates",
+      fix_hint: "Rate Manager → Calendar (seasons) and Rate Plans",
       ...(window.ok
         ? {}
         : {

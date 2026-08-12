@@ -827,6 +827,7 @@ export const CHECK_TO_FIELD_KEYS: Record<string, string[]> = {
   has_kitchen: ["room_kitchen"],
   bookable_window: ["bookable_window"],
   min_stay_set: ["min_stay_set"],
+  max_stay_set: ["max_stay_set"],
   object_type_authored: ["room_channel_type"],
   changeover_authored: ["changeover_rules"],
 };
