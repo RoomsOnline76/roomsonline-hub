@@ -12,6 +12,7 @@ import { MasterPolicyPanel } from "@/components/property/policies/MasterPolicyPa
 import { PolicyLibraryTable, type PolicyMetric } from "@/components/property/policies/PolicyLibraryTable";
 import { PortfolioPolicyLibrary } from "@/components/property/policies/PortfolioPolicyLibrary";
 import { ArrivalPolicyPanel } from "@/components/property/policies/ArrivalPolicyPanel";
+import { useArrivalPolicy, MIN_ARRIVAL_CHARS, TARGET_ARRIVAL_CHARS } from "@/hooks/useArrivalPolicy";
 import { FormSection } from "@/components/property/form/DenseForm";
 
 import { supabase } from "@/integrations/supabase/client";
