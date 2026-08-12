@@ -2878,6 +2878,12 @@ export default function PropertyForm({
             setSelectedBreakfastOptions(amenities.breakfast_options);
           if (amenities?.cancellation_policies) setCancellationPolicies(amenities.cancellation_policies);
           if (Array.isArray(amenities?.payment_methods)) setPaymentMethods(amenities.payment_methods as string[]);
+          // Changeover was authored but never hydrated back into state, so every subsequent
+          // save wrote `changeover: null` over it — the channel gate then blocked phase 2.
+          if (amenities?.changeover !== undefined && amenities?.changeover !== null)
+            setChangeoverMaster(Number(amenities.changeover));
+          if (amenities?.changeover_rules && typeof amenities.changeover_rules === "object")
+            setChangeoverRules(amenities.changeover_rules as Partial<Record<ChangeoverDowKey, number>>);
           if (amenities?.property_floor !== undefined && amenities?.property_floor !== null)
             setPropertyFloor(Number(amenities.property_floor));
           if (amenities?.property_size_sqm) setPropertySizeSqm(Number(amenities.property_size_sqm));
