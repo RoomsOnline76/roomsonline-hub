@@ -228,7 +228,11 @@ export async function queueRuStaticDelta(
     }
 
     const startedAt = Date.now();
-    const { success, errorMessage, chunks, units } = await pushStaticContent(supabase, propertyId);
+    const { success, errorMessage, errorCode, blockers, chunks, units } = await pushStaticContent(
+      supabase,
+      propertyId,
+    );
+    const gatePending = !success && !!errorCode && RU_GATE_ERROR_CODES.includes(errorCode);
 
     // The push itself writes bookkeeping back onto the rows it just sent (newly issued channel
     // listing ids in particular), which would make the pre-push fingerprint stale the moment it
@@ -248,10 +252,11 @@ export async function queueRuStaticDelta(
 
     // Log unconditionally: the hash is only recorded on success so a failed delta is retried
     // by the next save (or the weekly cron) instead of being silently treated as delivered.
+    // A gate refusal is parked under its own action so the automatic re-arm can find it.
     try {
       await supabase.from('ru_sync_runs').insert({
         property_id: propertyId,
-        action: RU_STATIC_DELTA_ACTION,
+        action: gatePending ? RU_STATIC_DELTA_PENDING_ACTION : RU_STATIC_DELTA_ACTION,
         success,
         error_message: errorMessage,
         elapsed_ms: Date.now() - startedAt,
@@ -262,6 +267,7 @@ export async function queueRuStaticDelta(
           forced: options.force === true,
           chunks,
           units,
+          ...(gatePending ? { gate_pending: true, error_code: errorCode, blockers } : {}),
         },
       });
     } catch (logErr) {
@@ -269,6 +275,16 @@ export async function queueRuStaticDelta(
     }
 
 
+    if (gatePending) {
+      console.log(`[ruStaticDelta] Delta parked behind the readiness gate for ${propertyId}`);
+      return {
+        queued: false,
+        reason: 'gate_pending',
+        error: errorMessage ?? undefined,
+        blockers,
+        content_hash: contentHash,
+      };
+    }
     if (!success) {
       console.warn(`[ruStaticDelta] Static push failed for ${propertyId}: ${errorMessage}`);
       return { queued: false, reason: 'error', error: errorMessage ?? undefined, content_hash: contentHash };
