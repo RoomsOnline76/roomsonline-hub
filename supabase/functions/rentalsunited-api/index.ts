@@ -360,24 +360,27 @@ function extractStatusId(xml: string): { id: string; message: string } {
  * alongside the id/name pair (additive — existing callers ignore them).
  */
 function extractPropertyIds(xml: string): { id: string; name: string; is_active: boolean; is_archived: boolean }[] {
-  const regex = /<Property\s+([^>]*)>[\s\S]*?<Name>(.*?)<\/Name>/g;
+  // Real shape: <Property><ID BuildingID="-1">5763145</ID><Name>Seester</Name>
+  //             ... <LastMod NLA="false" Active="true">…</LastMod></Property>
+  // Status lives on LastMod, not on the <Property> tag.
+  const blocks = xml.match(/<Property\b[^>]*>[\s\S]*?<\/Property>/g) || [];
   const results: { id: string; name: string; is_active: boolean; is_archived: boolean }[] = [];
-  let match;
-  while ((match = regex.exec(xml)) !== null) {
-    const attrs = match[1] || '';
-    const id = attrs.match(/\bID="(\d+)"/i)?.[1];
+  for (const block of blocks) {
+    const id = block.match(/<ID\b[^>]*>\s*(\d+)\s*<\/ID>/i)?.[1];
     if (!id) continue;
-    const active = attrs.match(/\bIsActive="([^"]+)"/i)?.[1];
-    const archived = attrs.match(/\bIsArchived="([^"]+)"/i)?.[1];
+    const lastMod = block.match(/<LastMod\b([^>]*)>/i)?.[1] || '';
+    const active = lastMod.match(/\bActive="([^"]+)"/i)?.[1];
+    const nla = lastMod.match(/\bNLA="([^"]+)"/i)?.[1];
     results.push({
       id,
-      name: match[2].trim(),
+      name: (block.match(/<Name>([\s\S]*?)<\/Name>/i)?.[1] || '').trim(),
       is_active: active == null ? true : /^(true|1)$/i.test(active),
-      is_archived: archived == null ? false : /^(true|1)$/i.test(archived),
+      is_archived: nla == null ? false : /^(true|1)$/i.test(nla),
     });
   }
   return results;
 }
+
 
 
 function compactXml(xml: string): string {
