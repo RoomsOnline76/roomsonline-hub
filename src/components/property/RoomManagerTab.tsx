@@ -62,6 +62,8 @@ export interface RoomManagerTabProps {
   handleNewMealType: (mealType: string) => Promise<void>;
 }
 
+export const MIN_ROOM_DESCRIPTION_CHARS = 700;
+
 // ─── Helpers (moved from PropertyForm) ──────────────────────────────────────
 const SUPPORTED_ROOM_IMAGE_TYPES = [
   "image/jpeg", "image/png", "image/webp", "image/gif", "image/bmp", "image/svg+xml", "image/avif",
