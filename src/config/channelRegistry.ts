@@ -106,10 +106,85 @@ export const CHANNEL_REGISTRY: ChannelRegistryEntry[] = [
     identifiers: [{ key: "bbid", label: "Property ID (BBID)" }],
     beta: true,
   },
+  // ---------------------------------------------------------------------------
+  // Remaining sales channels available through the channel-manager account.
+  // All are white-label distribution: the listing must be live + eligible, and
+  // the channel-side listing ID is captured once the feed has been activated.
+  // ---------------------------------------------------------------------------
+  ...(
+    [
+      ["alto_vita", "AltoVita"],
+      ["angells", "Angells"],
+      ["avanti_florida_villas", "Avanti Florida Villas"],
+      ["blueground", "Blueground"],
+      ["bynd", "BYND"],
+      ["clickstay", "Clickstay"],
+      ["crewdogs", "Crewdogs"],
+      ["cuddlynest", "CuddlyNest"],
+      ["easy_reserve", "Easy Reserve"],
+      ["emerging", "Emerging"],
+      ["florida_rentals", "FloridaRentals.com"],
+      ["glamping_hub", "Glamping Hub"],
+      ["holidu", "Holidu"],
+      ["homes_and_villas_marriott", "Homes & Villas by Marriott"],
+      ["hometogo", "HomeToGo"],
+      ["hopper", "Hopper"],
+      ["hostelworld", "Hostelworld Group"],
+      ["houfy", "Houfy"],
+      ["housing_anywhere", "Housing Anywhere"],
+      ["livily", "Livily"],
+      ["livjaza", "Livjaza"],
+      ["luxico", "Luxico"],
+      ["luxury_escapes", "Luxury Escapes"],
+      ["maimon_house", "Maimon House"],
+      ["makemytrip", "MakeMyTrip"],
+      ["muchosol", "Muchosol"],
+      ["olivers_travels", "Oliver's Travels"],
+      ["onefinestay", "onefinestay"],
+      ["plum_guide", "Plum Guide"],
+      ["pricetravel", "PriceTravel"],
+      ["rakuten_stay", "Rakuten STAY"],
+      ["savvy", "Savvy"],
+      ["situ", "SITU"],
+      ["smiling_house", "Smiling House"],
+      ["spacest", "Spacest.com"],
+      ["stay", "STAY"],
+      ["hvn", "HVN"],
+      ["staylonger", "StayLonger"],
+      ["stay_one", "StayOne"],
+      ["staysense", "StaySense"],
+      ["the_dyrt", "The Dyrt"],
+      ["quintess_collection", "Quintess Collection"],
+      ["topvillas", "TopVillas"],
+      ["aspect", "Aspect"],
+      ["travelstaytion", "Travelstaytion"],
+      ["trip_com", "Trip.com"],
+      ["vacationfinder", "VacationFinder.com"],
+      ["vacationrenter", "VacationRenter"],
+      ["villafinder", "VillaFinder"],
+      ["villatracker", "VillaTracker"],
+      ["vivrestays", "VivreStays"],
+      ["wander", "Wander"],
+      ["whimstay", "Whimstay"],
+    ] as const
+  ).map<ChannelRegistryEntry>(([key, label]) => ({
+    key,
+    label,
+    connection_mode: "ru_white_label",
+    ru_sales_channel: label,
+    requires_ru_listing: true,
+    identifiers: [{ key: "listing_id", label: `${label} Listing ID`, optional: true }],
+  })),
 ];
 
 export const getChannelEntry = (key: string): ChannelRegistryEntry | undefined =>
   CHANNEL_REGISTRY.find((c) => c.key === key);
+
+/** Display label for a channel key. */
+export const getChannelRegistryLabel = (key: string): string =>
+  getChannelEntry(key)?.label ??
+  key.replace(/_/g, " ").replace(/\b\w/g, (m) => m.toUpperCase());
+
 
 /**
  * Maps a Rentals United readiness check key onto the property-editor deep link
