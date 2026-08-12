@@ -301,18 +301,28 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
       }
 
       const draft = relevant.map((p) => {
-        const units = (unitsByProperty.get(p.id) || []).filter((u) => !!u.rentalsunited_property_id);
+        // Only records that carry a channel listing id have a channel footprint.
+        // Deactivated records without one are pure local artefacts — never shown.
+        const withListing = (unitsByProperty.get(p.id) || []).filter((u) => !!u.rentalsunited_property_id);
+        const liveUnits = withListing.filter((u) => u.is_active !== false);
+        const duplicateUnits = withListing.filter((u) => u.is_active === false);
         const archived = !!p.ru_archived || p.is_active === false;
-        const activeUnitListings = archived ? 0 : units.filter((u) => u.is_active !== false).length;
+        const activeUnitListings = archived ? 0 : liveUnits.length;
         // A building-level listing with no unit rows still bills as one listing.
         const listings =
-          units.length > 0
+          withListing.length > 0
             ? activeUnitListings
             : archived || !p.rentalsunited_property_id
               ? 0
               : 1;
         const state: ChannelSyncState = archived ? "archived" : p.ru_push_enabled ? "live" : "paused";
         const creds = accountByProperty.get(p.id) ?? { ownerId: null, subUserId: null };
+        const toRow = (u: UnitRecord): ChannelUnitRow => ({
+          id: u.id,
+          name: u.name || "Unit",
+          isActive: u.is_active !== false,
+          listingId: u.rentalsunited_property_id,
+        });
 
         return {
           id: p.id,
@@ -320,13 +330,9 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
           portfolioName: portfolioByProperty.get(p.id) ?? null,
           state,
           listings,
-          archivedUnits: units.filter((u) => u.is_active === false).length,
-          units: units.map((u) => ({
-            id: u.id,
-            name: u.name || "Unit",
-            isActive: u.is_active !== false,
-            listingId: u.rentalsunited_property_id,
-          })),
+          duplicateListings: duplicateUnits.length,
+          units: liveUnits.map(toRow),
+          duplicates: duplicateUnits.map(toRow),
           buildingListingId: p.rentalsunited_property_id,
           archivedAt: p.ru_archived_at,
           lastPushAt: lastPush.get(p.id) ?? null,
