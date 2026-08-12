@@ -628,6 +628,18 @@ export const PROPERTY_FIELD_REQUIREMENTS: FieldRequirement[] = [
       "Every unit needs at least one bedroom in its composition — author the beds per bedroom in the bed configuration. A single legacy bed label (e.g. \"king-twin\") sends no bedroom to the channel.",
     isSatisfied: (s) => roomRows(s).length > 0 && roomRows(s).every(UNIT_ROW_RULES.bedroomComposition),
   },
+  {
+    key: "room_beds_distributed",
+    label: "Beds distributed between bedrooms",
+    tier: "mandatory",
+    section: "rooms",
+    target: ['[data-field="bed_configuration"]'],
+    hint:
+      "Author the beds inside each bedroom. Every bedroom must hold a bed and the authored bedrooms must cover the unit's declared bedroom count — the channel rejects a multi-bedroom unit with all its beds in one room.",
+    isSatisfied: (s) => roomRows(s).length > 0 && roomRows(s).every(UNIT_ROW_RULES.bedsDistributed),
+  },
+
+
 
 
 
