@@ -634,7 +634,10 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
             </Alert>
           )}
 
-          {validation && <RuChannelContentChecklist validation={validation as any} />}
+          <RuChannelContentChecklist
+            propertyId={propertyId}
+            validation={(validation as RuContentFlags | null) ?? null}
+          />
 
           {wlGaps.length > 0 && (
             <Alert>
