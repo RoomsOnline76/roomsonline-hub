@@ -1,4 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
+import { queueChannelContentSync } from "@/lib/channelContentSync";
+
 import type { Json } from "@/integrations/supabase/types";
 
 /**
