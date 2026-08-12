@@ -45,6 +45,7 @@ interface Props {
 export function RuReadinessScorecard({ propertyId, standalone = true, onReport }: Props) {
   const [loading, setLoading] = useState(false);
   const [report, setReport] = useState<RuReadinessReport | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
   const load = useCallback(async () => {
     if (!propertyId) return;
