@@ -61,12 +61,18 @@ function StatusIcon({ complete, locked }: { complete: boolean; locked: boolean }
   return <Circle className="h-4 w-4 shrink-0 text-primary" />;
 }
 
+interface BlockerTarget {
+  section: string;
+  fieldKey?: string;
+  unit?: string;
+}
+
 /**
  * Maps a wizard/channel-gate check id onto the editor section + registry field
  * key that owns it, so every blocker in the wizard is a link that lands on the
  * exact control (which the requirement painter then pulses).
  */
-function resolveCheckTarget(checkKey: string): { section: string; fieldKey?: string } | null {
+function resolveCheckTarget(checkKey: string): BlockerTarget | null {
   const fieldKeys = CHECK_TO_FIELD_KEYS[checkKey];
   if (!fieldKeys?.length) return null;
   for (const key of fieldKeys) {
@@ -75,6 +81,34 @@ function resolveCheckTarget(checkKey: string): { section: string; fieldKey?: str
   }
   return null;
 }
+
+/**
+ * Resolve an individual failing point. Unit-scoped failures always route to the
+ * Rooms tab (and the named unit), because the content that fails — unit name,
+ * unit description, unit arrival instructions — is only editable there, even
+ * though the property-level catalogue would send them to General.
+ */
+function resolveFailureTarget(failure: DistributionFailure, checkKey: string): BlockerTarget {
+  const req = resolveMcqRequirement(`${failure.label} ${failure.detail ?? ""}`);
+  if (failure.unit) {
+    return { section: "rooms", unit: failure.unit };
+  }
+  if (req) return { section: req.section, fieldKey: req.focusKey };
+  return resolveCheckTarget(checkKey) ?? { section: "general" };
+}
+
+/** First blocking failure across the step's state checks, if any. */
+function firstBlockingTarget(stateChecks: DistributionCheck[]): BlockerTarget | null {
+  for (const c of stateChecks) {
+    if (c.ok || c.unknown) continue;
+    const blocking = (c.failures ?? []).filter((f) => f.mandatory);
+    if (blocking.length > 0) return resolveFailureTarget(blocking[0], c.key);
+    const target = resolveCheckTarget(c.key);
+    if (target) return target;
+  }
+  return null;
+}
+
 
 
 export function RolosOnboardingWizard({ propertyId, className }: Props) {
