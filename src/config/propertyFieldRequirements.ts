@@ -281,11 +281,11 @@ const KITCHEN_RE = /kitchen|kitchenette|self[-\s]?cater|scullery/i;
 const KITCHEN_CHANNEL_IDS = [94, 101, 517];
 const KITCHEN_ID_RE = new RegExp(`^ru:(${KITCHEN_CHANNEL_IDS.join("|")})$`, "i");
 
-/** Kitchen declared on the unit (composition/amenities) or property facilities. */
-const hasKitchen = (subject: RequirementSubject): boolean => {
-  const reported = channelCheck(subject, "has_kitchen");
-  if (reported !== undefined) return reported;
-  const listHasKitchen = (list: unknown): boolean =>
+/**
+ * True when an amenity/facility list declares a kitchen or kitchenette.
+ * Exported so the unit editor can paint the same rule live on the control.
+ */
+export const listDeclaresKitchen = (list: unknown): boolean =>
     Array.isArray(list) &&
     list.some((entry) => {
       // Room/property facility lists store either plain labels or channel ids ("ru:101").
@@ -297,6 +297,12 @@ const hasKitchen = (subject: RequirementSubject): boolean => {
       }
       return false;
     });
+
+/** Kitchen declared on the unit (composition/amenities) or property facilities. */
+const hasKitchen = (subject: RequirementSubject): boolean => {
+  const reported = channelCheck(subject, "has_kitchen");
+  if (reported !== undefined) return reported;
+  const listHasKitchen = listDeclaresKitchen;
   if (listHasKitchen(amenity(subject, "facilities"))) return true;
   if (listHasKitchen(amenity(subject, "amenities_list"))) return true;
   const rooms = roomRows(subject);
