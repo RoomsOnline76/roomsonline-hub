@@ -337,15 +337,91 @@ export const PROPERTY_FIELD_REQUIREMENTS: FieldRequirement[] = [
   {
     key: "check_times",
     label: "Check-in / check-out times",
-    tier: "recommended",
+    tier: "mandatory",
     section: "rates",
     target: [
       '[data-field="check_in_from"]',
       '[data-field="amenities.house_rules.check_in_from"]',
       "#check_in_from",
     ],
+    hint: "Both times are mandatory for channel distribution (24h format, e.g. 14:00).",
     isSatisfied: (s) => filled(checkTime(s, "in")) && filled(checkTime(s, "out")),
   },
+  {
+    key: "arrival_instructions",
+    label: "Arrival policy / how to arrive",
+    tier: "mandatory",
+    section: "rates",
+    target: [
+      '[data-field="arrival_instructions"]',
+      '[data-field="amenities.house_rules.check_in_instructions"]',
+      "#check_in_instructions",
+    ],
+    hint: "The channel requires arrival instructions (minimum 20 characters).",
+    isSatisfied: (s) =>
+      str(amenity(s, "house_rules.check_in_instructions")).length >= 20 ||
+      str(amenity(s, "check_in_instructions")).length >= 20 ||
+      str(amenity(s, "arrival_instructions")).length >= 20,
+  },
+  {
+    key: "payment_methods",
+    label: "Accepted payment methods",
+    tier: "mandatory",
+    section: "rates",
+    target: ['[data-field="payment_methods"]', "#payment_methods"],
+    hint: "At least one payment method must be captured for the listing.",
+    isSatisfied: (s) => {
+      const list = amenity(s, "payment_methods") ?? amenity(s, "banking.payment_methods");
+      if (Array.isArray(list)) return list.length > 0;
+      if (list && typeof list === "object") {
+        return Object.values(list as Record<string, unknown>).some((v) => v === true || filled(v));
+      }
+      return filled(list) || s.payment_mode === "none";
+    },
+  },
+
+  /* ---------- Company information (contract · distribution) ---------- */
+  {
+    key: "postal_code",
+    label: "Postal / ZIP code",
+    tier: "mandatory",
+    section: "general",
+    target: ["#postal_code", '[data-field="postal_code"]'],
+    isSatisfied: (s) => filled(s.postal_code) || filled(amenity(s, "postal_code")),
+  },
+  {
+    key: "ru_location_id",
+    label: "Channel Manager location",
+    tier: "mandatory",
+    section: "general",
+    target: ['[data-field="ru_location_id"]'],
+    hint: "The location ID decides the listing location and the currency the property is locked into.",
+    isSatisfied: (s) => Number(s.ru_location_id ?? 0) > 0,
+  },
+  {
+    key: "rep_nationality",
+    label: "Legal rep nationality",
+    tier: "mandatory",
+    section: "general",
+    target: ['[data-field="rep_nationality"]'],
+    isSatisfied: (s) =>
+      Number(
+        (amenity(s, "ru_company_profile.legal_rep.nationality_id") as number | undefined) ?? 0,
+      ) > 0,
+  },
+  {
+    key: "rep_country_of_residence",
+    label: "Legal rep country of residence",
+    tier: "mandatory",
+    section: "general",
+    target: ['[data-field="rep_country_of_residence"]'],
+    isSatisfied: (s) =>
+      Number(
+        (amenity(s, "ru_company_profile.legal_rep.country_of_residence_id") as number | undefined) ??
+          0,
+      ) > 0,
+  },
+
 
 
   /* ---------- Integrations / distribution ---------- */
@@ -400,10 +476,28 @@ export const CHECK_TO_FIELD_KEYS: Record<string, string[]> = {
   content: ["name", "property_type", "description"],
   media: ["images", "hero_image"],
   commercial: ["banking"],
-  location: ["address", "city", "country", "geo"],
+  location: ["address", "city", "country", "geo", "postal_code"],
   contact: ["contact_email", "contact_phone", "emergency_contact"],
   rooms: ["rooms"],
-  policies: ["master_policy"],
+  policies: ["master_policy", "payment_methods"],
   rentalsunited_geo: ["geo"],
   rentalsunited_location_currency: ["ru_currency"],
+  // Channel gate check ids (see supabase/functions/_shared/ruReadiness.ts)
+  name_clean: ["name"],
+  description_meets_cert: ["description"],
+  has_street: ["address"],
+  has_zip_code: ["postal_code"],
+  has_coordinates: ["geo"],
+  has_detailed_location_id: ["ru_location_id", "city", "country"],
+  check_in_from: ["check_times"],
+  check_out_until: ["check_times"],
+  arrival_instructions: ["arrival_instructions"],
+  has_cancellation_policies: ["master_policy"],
+  has_payment_methods: ["payment_methods"],
+  has_legal_rep: ["rep_nationality", "rep_country_of_residence"],
+  has_floor: ["rooms"],
+  unit_description: ["rooms"],
+  unit_name_clean: ["rooms"],
+  images_meet_min_size: ["images"],
 };
+

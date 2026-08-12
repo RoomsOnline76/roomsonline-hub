@@ -33,6 +33,15 @@ export const CHANNEL_MANDATORY_FIELDS: ChannelMandatoryField[] = [
   { field: "arrival_instructions", check: "arrival_instructions", reason: "Arrival instructions must be populated" },
   { field: "cancellation_policy", check: "has_cancellation_policies", reason: "At least one cancellation policy" },
   { field: "payment_methods", check: "has_payment_methods", reason: "At least one payment method" },
+  { field: "ru_location_id", check: "has_detailed_location_id", reason: "Channel Manager location decides the listing location and currency" },
+  { field: "rep_nationality", check: "has_legal_rep", reason: "Legal representative nationality is required by the channel" },
+  { field: "rep_country_of_residence", check: "has_legal_rep", reason: "Legal representative country of residence is required by the channel" },
+  { field: "rep_first_name", check: "has_legal_rep", reason: "Legal representative first name is required by the channel" },
+  { field: "rep_last_name", check: "has_legal_rep", reason: "Legal representative last name is required by the channel" },
+  { field: "rep_email", check: "has_legal_rep", reason: "Legal representative email is required by the channel" },
+  { field: "room_name", check: "unit_name_clean", reason: "Unit name — no emoji, special characters or ALL CAPS" },
+  { field: "room_description", check: "unit_description", reason: "Unit description of at least 700 characters" },
+  { field: "floor", check: "has_floor", reason: "Floor is required for every unit" },
 ];
 
 const BY_FIELD = new Map(CHANNEL_MANDATORY_FIELDS.map((f) => [f.field, f]));
@@ -46,13 +55,26 @@ export function channelMandatoryReason(field: string): string | null {
 }
 
 /**
- * Filled-border treatment for a channel-mandatory input. Returns an empty string for fields
+ * Solid-border treatment for a channel-mandatory input. Returns an empty string for fields
  * the channel does not require, so it can be spread into any `cn()` call unconditionally.
  */
 export function channelMandatoryClass(field: string): string {
   return isChannelMandatory(field) ? "channel-required" : "";
 }
 
+/**
+ * Props for a channel-mandatory control: the solid border plus the satisfied flag that
+ * softens it once a value is captured, so an owner can tell "still outstanding" from "done".
+ */
+export function channelMandatoryProps(
+  field: string,
+  satisfied: boolean,
+): { className: string; "data-channel-satisfied": "1" | "0" } | Record<string, never> {
+  if (!isChannelMandatory(field)) return {};
+  return { className: "channel-required", "data-channel-satisfied": satisfied ? "1" : "0" };
+}
+
 /** Legend copy for tabs that carry channel-mandatory inputs. */
 export const CHANNEL_MANDATORY_LEGEND =
-  "Fields with a filled border are mandatory for the Channel Manager — the onboarding wizard blocks the first push until they are complete.";
+  "Fields with a solid pink border are mandatory for the Channel Manager — the onboarding wizard blocks the first push until they are complete. The border fades once the value is captured.";
+

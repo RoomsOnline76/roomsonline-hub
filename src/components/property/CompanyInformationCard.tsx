@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
+import { focusFieldTargets } from "@/lib/requirementFocus";
+
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -459,34 +461,59 @@ export function CompanyInformationCard({
    * Mandatory set = everything that can block a Rentals United company/property
    * push, or that decides which RU LocationID (and therefore which currency) the
    * property gets locked into.
+   *
+   * Each entry carries the selector(s) of its control so the outstanding list can
+   * walk the owner straight to the input (and pulse it) instead of only naming it.
    */
-  const missing = useMemo(() => {
-    const out: string[] = [];
-    const need = (label: string, value: unknown) => {
-      if (!String(value ?? "").trim()) out.push(label);
+  const missingItems = useMemo(() => {
+    const out: { label: string; targets: string[] }[] = [];
+    const need = (label: string, value: unknown, targets: string[]) => {
+      if (!String(value ?? "").trim()) out.push({ label, targets });
     };
-    need("Registered Business Name", registeredBusinessName);
-    need("Key Representative", keyRepresentative);
-    need("Mobile Number", mobileNumber);
-    need("Country", propertyCountry);
-    need("Region / province", companyProfile.region);
-    need("City", propertyCity);
-    if (!normalizeRuTimeZone(companyProfile.time_zone)) out.push("Time zone");
-    if (!ruLocationId) out.push("Channel Manager location");
-    if (banking.has_vat) need("VAT number", banking.vat_number);
-    need("Contact first name", companyProfile.contact_first_name);
-    need("Contact last name", companyProfile.contact_last_name);
-    need("Contact phone", companyProfile.contact_phone);
-    need("Contact date of birth", companyProfile.contact_birth_date);
-    need("Describe your business", companyProfile.describe_your_business);
-    need("Rep first name", rep.first_name);
-    need("Rep last name", rep.last_name);
-    need("Rep email", rep.email);
-    if (!Number(rep.nationality_id)) out.push("Rep nationality");
-    if (!Number(rep.country_of_residence_id)) out.push("Rep country of residence");
-    for (const p of placeholders) out.push(`${p} (placeholder)`);
+    need("Registered Business Name", registeredBusinessName, ["#registered_business_name"]);
+    need("Key Representative", keyRepresentative, ["#key_representative"]);
+    need("Mobile Number", mobileNumber, ["#mobile_number"]);
+    need("Country", propertyCountry, ['[data-field="country"]', "#country"]);
+    need("Region / province", companyProfile.region, ['[data-field="company.region"]']);
+    need("City", propertyCity, ["#city"]);
+    if (!normalizeRuTimeZone(companyProfile.time_zone)) {
+      out.push({ label: "Time zone", targets: ['[data-field="company.time_zone"]'] });
+    }
+    if (!ruLocationId) {
+      out.push({ label: "Channel Manager location", targets: ['[data-field="ru_location_id"]'] });
+    }
+    if (banking.has_vat) need("VAT number", banking.vat_number, ["#vat_number"]);
+    need("Contact first name", companyProfile.contact_first_name, [
+      '[data-field="company.contact_first_name"]',
+    ]);
+    need("Contact last name", companyProfile.contact_last_name, [
+      '[data-field="company.contact_last_name"]',
+    ]);
+    need("Contact phone", companyProfile.contact_phone, ['[data-field="company.contact_phone"]']);
+    need("Contact date of birth", companyProfile.contact_birth_date, [
+      '[data-field="company.contact_birth_date"]',
+    ]);
+    need("Describe your business", companyProfile.describe_your_business, [
+      '[data-field="company.describe_your_business"]',
+    ]);
+    need("Rep first name", rep.first_name, ['[data-field="rep_first_name"]']);
+    need("Rep last name", rep.last_name, ['[data-field="rep_last_name"]']);
+    need("Rep email", rep.email, ['[data-field="rep_email"]']);
+    if (!Number(rep.nationality_id)) {
+      out.push({ label: "Rep nationality", targets: ['[data-field="rep_nationality"]'] });
+    }
+    if (!Number(rep.country_of_residence_id)) {
+      out.push({
+        label: "Rep country of residence",
+        targets: ['[data-field="rep_country_of_residence"]'],
+      });
+    }
+    for (const p of placeholders) {
+      out.push({ label: `${p} (placeholder)`, targets: ['[data-field="company.contact_phone"]'] });
+    }
     return out;
   }, [
+
     registeredBusinessName,
     keyRepresentative,
     mobileNumber,
@@ -524,7 +551,7 @@ export function CompanyInformationCard({
                 </span>
               </span>
               <span className="flex items-center gap-2">
-                {missing.length === 0 ? (
+                {missingItems.length === 0 ? (
                   <Badge variant="outline" className="h-5 gap-1 border-green-600 text-[10px] text-green-700">
                     <Check className="h-3 w-3" />
                     Complete
@@ -532,7 +559,7 @@ export function CompanyInformationCard({
                 ) : (
                   <Badge variant="destructive" className="h-5 gap-1 text-[10px]">
                     <AlertTriangle className="h-3 w-3" />
-                    {missing.length} missing
+                    {missingItems.length} missing
                   </Badge>
                 )}
                 <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
@@ -543,16 +570,26 @@ export function CompanyInformationCard({
         <CollapsibleContent>
           <CardContent className="space-y-4 px-4 py-2">
             {headerAction && <div className="flex justify-end">{headerAction}</div>}
-            {missing.length > 0 && (
+            {missingItems.length > 0 && (
               <div className="rounded-md border border-destructive/40 bg-destructive/5 px-2.5 py-2">
                 <p className="text-[11px] font-semibold text-destructive">
-                  {missing.length} mandatory field{missing.length === 1 ? "" : "s"} outstanding
+                  {missingItems.length} mandatory field{missingItems.length === 1 ? "" : "s"} outstanding
                 </p>
-                <p className="mt-0.5 text-[10px] leading-snug text-muted-foreground">
-                  {missing.join(" · ")}
-                </p>
+                <div className="mt-1 flex flex-wrap gap-1">
+                  {missingItems.map((item) => (
+                    <button
+                      key={item.label}
+                      type="button"
+                      onClick={() => focusFieldTargets(item.targets)}
+                      className="rounded border border-destructive/30 bg-background px-1.5 py-0.5 text-[10px] leading-snug text-muted-foreground transition-colors hover:border-destructive hover:text-destructive"
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
+
 
             {/* ── Legal entity ── */}
             <div className="space-y-2">
@@ -581,7 +618,8 @@ export function CompanyInformationCard({
                     value={registeredBusinessName}
                     onChange={(e) => onRegisteredBusinessNameChange(e.target.value)}
                     placeholder="e.g., Safari Lodge (Pty) Ltd"
-                    className="h-7 text-xs"
+                    className="h-7 text-xs channel-required"
+                    data-channel-satisfied={registeredBusinessName.trim() ? "1" : "0"}
                   />
                 </div>
                 <div className="flex flex-col gap-1">
@@ -593,7 +631,8 @@ export function CompanyInformationCard({
                     value={mobileNumber}
                     onChange={(e) => onMobileNumberChange(e.target.value)}
                     placeholder="e.g., +27 82 123 4567"
-                    className="h-7 text-xs"
+                    className="h-7 text-xs channel-required"
+                    data-channel-satisfied={mobileNumber.trim() ? "1" : "0"}
                   />
                 </div>
                 <div className="flex flex-col gap-1">
@@ -605,7 +644,8 @@ export function CompanyInformationCard({
                     value={keyRepresentative}
                     onChange={(e) => onKeyRepresentativeChange(e.target.value)}
                     placeholder="e.g., John Smith"
-                    className="h-7 text-xs"
+                    className="h-7 text-xs channel-required"
+                    data-channel-satisfied={keyRepresentative.trim() ? "1" : "0"}
                   />
                 </div>
                 <div className="flex flex-col gap-1">
@@ -630,11 +670,12 @@ export function CompanyInformationCard({
                       value={banking.vat_number}
                       onChange={(e) => onBankingChange("vat_number", e.target.value)}
                       placeholder="VAT number"
-                      className="h-7 text-xs"
+                      className="h-7 text-xs channel-required"
+                      data-channel-satisfied={banking.vat_number.trim() ? "1" : "0"}
                     />
                   </div>
                 )}
-                <div className="flex flex-col gap-1">
+                <div className="flex flex-col gap-1" data-field="company.time_zone">
                   <Label className="text-xs">
                     Time zone<Req />
                   </Label>
@@ -642,10 +683,14 @@ export function CompanyInformationCard({
                     value={normalizedTimeZone}
                     onValueChange={(v) => setField("time_zone", v)}
                   >
-                    <SelectTrigger className="h-7 text-xs">
+                    <SelectTrigger
+                      className="h-7 text-xs channel-required"
+                      data-channel-satisfied={normalizedTimeZone ? "1" : "0"}
+                    >
                       <SelectValue placeholder="Select a time zone" />
                     </SelectTrigger>
                     <SelectContent className="max-h-72">
+
                       {RU_TIME_ZONE_GROUPS.map((group) => (
                         <SelectGroup key={group}>
                           <SelectLabel className="text-[10px] uppercase tracking-wide">
@@ -670,7 +715,11 @@ export function CompanyInformationCard({
                   )}
                 </div>
                 {COMPANY_TEXT_FIELDS.map((f) => (
-                  <div key={String(f.key)} className="flex flex-col gap-1">
+                  <div
+                    key={String(f.key)}
+                    className="flex flex-col gap-1"
+                    data-field={`company.${String(f.key)}`}
+                  >
                     <Label className="text-xs">
                       {f.label}
                       {f.required && <Req />}
@@ -679,11 +728,15 @@ export function CompanyInformationCard({
                       value={str(companyProfile[f.key])}
                       placeholder={f.placeholder}
                       onChange={(e) => setField(f.key, e.target.value)}
-                      className="h-7 text-xs"
+                      className={f.required ? "h-7 text-xs channel-required" : "h-7 text-xs"}
+                      data-channel-satisfied={
+                        str(companyProfile[f.key]).trim() ? "1" : "0"
+                      }
                     />
                     {f.hint && <Hint>{f.hint}</Hint>}
                   </div>
                 ))}
+
                 {COMPANY_RANGE_FIELDS.map((f) => {
                   const stored = companyProfile[f.key];
                   // A legacy raw count is re-read as a count and shown on its bucket.
@@ -713,7 +766,11 @@ export function CompanyInformationCard({
                   );
                 })}
                 {CONTACT_FIELDS.map((f) => (
-                  <div key={String(f.key)} className="flex flex-col gap-1">
+                  <div
+                    key={String(f.key)}
+                    className="flex flex-col gap-1"
+                    data-field={`company.${String(f.key)}`}
+                  >
                     <Label className="text-xs">
                       {f.label}
                       <Req />
@@ -722,11 +779,13 @@ export function CompanyInformationCard({
                       type={f.type ?? "text"}
                       value={str(companyProfile[f.key])}
                       onChange={(e) => setField(f.key, e.target.value)}
-                      className="h-7 text-xs"
+                      className="h-7 text-xs channel-required"
+                      data-channel-satisfied={str(companyProfile[f.key]).trim() ? "1" : "0"}
                     />
                     {f.hint && <Hint>{f.hint}</Hint>}
                   </div>
                 ))}
+
 
 
               </div>
@@ -742,15 +801,21 @@ export function CompanyInformationCard({
                   className="min-h-[50px] text-xs"
                 />
               </div>
-              <div className="flex flex-col gap-1">
-                <Label className="text-xs">Describe your business</Label>
+              <div className="flex flex-col gap-1" data-field="company.describe_your_business">
+                <Label className="text-xs">
+                  Describe your business<Req />
+                </Label>
                 <Textarea
                   value={str(companyProfile.describe_your_business)}
                   onChange={(e) => setField("describe_your_business", e.target.value)}
                   placeholder="Short description of the business as it should appear on channel profiles"
-                  className="min-h-[50px] text-xs"
+                  className="min-h-[50px] text-xs channel-required"
+                  data-channel-satisfied={
+                    str(companyProfile.describe_your_business).trim() ? "1" : "0"
+                  }
                 />
               </div>
+
             </div>
 
             {/* ── Banking (contract / payouts) ── */}
@@ -807,11 +872,17 @@ export function CompanyInformationCard({
               <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                 Channel Manager location<Req />
               </p>
-              <RuLocationPicker
-                value={ruLocationId}
-                onChange={(id) => onRuLocationIdChange(id)}
-                initialQuery={propertyCity ?? ""}
-              />
+              <div
+                data-field="ru_location_id"
+                className="channel-required"
+                data-channel-satisfied={ruLocationId ? "1" : "0"}
+              >
+                <RuLocationPicker
+                  value={ruLocationId}
+                  onChange={(id) => onRuLocationIdChange(id)}
+                  initialQuery={propertyCity ?? ""}
+                />
+              </div>
               <p className="text-[10px] leading-snug text-muted-foreground">
                 Attaches a real Channel Manager LocationID to this property and its company push. the Channel Manager owns the
                 currency on the LocationID, so an explicit selection here decides which currency the
@@ -829,7 +900,11 @@ export function CompanyInformationCard({
               </p>
               <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
                 {REP_FIELDS.map((f) => (
-                  <div key={f.key} className="flex flex-col gap-1">
+                  <div
+                    key={f.key}
+                    className="flex flex-col gap-1"
+                    data-field={`rep_${String(f.key)}`}
+                  >
                     <Label className="text-xs">
                       {f.label}
                       {f.required && <Req />}
@@ -839,7 +914,8 @@ export function CompanyInformationCard({
                       value={str(rep[f.key])}
                       placeholder={f.placeholder}
                       onChange={(e) => setRepField(f.key, e.target.value)}
-                      className="h-7 text-xs"
+                      className={f.required ? "h-7 text-xs channel-required" : "h-7 text-xs"}
+                      data-channel-satisfied={str(rep[f.key]).trim() ? "1" : "0"}
                     />
                     {f.hint && <Hint>{f.hint}</Hint>}
                   </div>
@@ -847,34 +923,45 @@ export function CompanyInformationCard({
 
               </div>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <div className="flex flex-col gap-1">
+                <div className="flex flex-col gap-1" data-field="rep_nationality">
                   <Label className="text-xs">
                     Nationality (Channel Manager location)
                     <Req />
                   </Label>
-                  <RuLocationPicker
-                    value={Number(rep.nationality_id) || null}
-                    onChange={(id) => setRepField("nationality_id", id)}
-                    typeFilter={RU_COUNTRY_TYPE_FILTER}
-                    placeholder="Search countries…"
-                    allowRefresh={false}
-                  />
+                  <div
+                    className="channel-required"
+                    data-channel-satisfied={Number(rep.nationality_id) ? "1" : "0"}
+                  >
+                    <RuLocationPicker
+                      value={Number(rep.nationality_id) || null}
+                      onChange={(id) => setRepField("nationality_id", id)}
+                      typeFilter={RU_COUNTRY_TYPE_FILTER}
+                      placeholder="Search countries…"
+                      allowRefresh={false}
+                    />
+                  </div>
                 </div>
-                <div className="flex flex-col gap-1">
+                <div className="flex flex-col gap-1" data-field="rep_country_of_residence">
                   <Label className="text-xs">
                     Country of residence (Channel Manager location)
                     <Req />
                   </Label>
-                  <RuLocationPicker
-                    value={Number(rep.country_of_residence_id) || null}
-                    onChange={(id) => setRepField("country_of_residence_id", id)}
-                    typeFilter={RU_COUNTRY_TYPE_FILTER}
-                    placeholder="Search countries…"
-                    allowRefresh={false}
-                  />
+                  <div
+                    className="channel-required"
+                    data-channel-satisfied={Number(rep.country_of_residence_id) ? "1" : "0"}
+                  >
+                    <RuLocationPicker
+                      value={Number(rep.country_of_residence_id) || null}
+                      onChange={(id) => setRepField("country_of_residence_id", id)}
+                      typeFilter={RU_COUNTRY_TYPE_FILTER}
+                      placeholder="Search countries…"
+                      allowRefresh={false}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
+
           </CardContent>
         </CollapsibleContent>
       </Card>

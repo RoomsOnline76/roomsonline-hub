@@ -988,15 +988,38 @@ html.channels-force-light main .text-muted-foreground {
 }
 
 /* ── Channel-mandatory inputs ───────────────────────────────────────────────
-   Filled border + tinted surface marks a field the Channel Manager hard-blocks
-   on, so owners can see the requirement before running the onboarding wizard. */
-@layer components {
-  .channel-required {
-    border-width: 2px;
-    border-color: hsl(var(--primary));
-    background-color: hsl(var(--muted));
-  }
-  .channel-required:focus-visible {
-    border-color: hsl(var(--primary));
-  }
+   Solid border + tinted surface marks a field the Channel Manager hard-blocks
+   on, so owners can see the requirement before running the onboarding wizard.
+   Declared outside @layer so Tailwind's border-* utilities on the control
+   (e.g. `border-input` on shadcn inputs) cannot win the cascade. */
+.channel-required,
+.channel-required[data-slot="select-trigger"],
+.channel-required[role="combobox"] {
+  border-width: 2px !important;
+  border-style: solid !important;
+  border-color: hsl(var(--req-mandatory)) !important;
+  background-color: hsl(var(--req-mandatory) / 0.04);
 }
+.channel-required:focus-visible {
+  border-color: hsl(var(--req-mandatory)) !important;
+}
+/* Wrapper form (a div marked channel-required around a composite control). */
+div.channel-required {
+  border-radius: calc(var(--radius) - 2px);
+  padding: 0.375rem;
+  background-color: hsl(var(--req-mandatory) / 0.04);
+}
+/* Once the value is captured the border stays, but stops shouting. */
+.channel-required[data-channel-satisfied="1"] {
+  border-color: hsl(var(--req-mandatory) / 0.35) !important;
+  background-color: transparent;
+}
+
+/* Requirement painter: inputs need an explicit solid border, not only the ring,
+   so the marking reads the same as the channel-mandatory treatment. */
+.pf-req-mandatory,
+.pf-req-recommended {
+  border-width: 2px !important;
+  border-style: solid !important;
+}
+

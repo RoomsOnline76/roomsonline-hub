@@ -23,6 +23,11 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { focusRequirementField } from "@/lib/requirementFocus";
+import {
+  CHECK_TO_FIELD_KEYS,
+  PROPERTY_FIELD_REQUIREMENTS,
+} from "@/config/propertyFieldRequirements";
+
 
 import { useRolosOnboardingProgress, type MacroProgress } from "@/hooks/useRolosOnboardingProgress";
 
@@ -48,6 +53,22 @@ function StatusIcon({ complete, locked }: { complete: boolean; locked: boolean }
   if (locked) return <Lock className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />;
   return <Circle className="h-4 w-4 shrink-0 text-primary" />;
 }
+
+/**
+ * Maps a wizard/channel-gate check id onto the editor section + registry field
+ * key that owns it, so every blocker in the wizard is a link that lands on the
+ * exact control (which the requirement painter then pulses).
+ */
+function resolveCheckTarget(checkKey: string): { section: string; fieldKey?: string } | null {
+  const fieldKeys = CHECK_TO_FIELD_KEYS[checkKey];
+  if (!fieldKeys?.length) return null;
+  for (const key of fieldKeys) {
+    const req = PROPERTY_FIELD_REQUIREMENTS.find((r) => r.key === key);
+    if (req) return { section: req.section, fieldKey: req.key };
+  }
+  return null;
+}
+
 
 export function RolosOnboardingWizard({ propertyId, className }: Props) {
   const { user, isAdmin, isDev, isFearlessLeader } = useAuth();
@@ -420,21 +441,35 @@ function MacroRow({
 
           {stateChecks.length > 0 && (
             <ul className="space-y-1">
-              {stateChecks.map((c) => (
-                <li key={c.key} className="flex items-start gap-2 text-[11px]">
-                  {c.ok ? (
-                    <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-500" />
-                  ) : (
-                    <Circle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                  )}
-                  <span className="min-w-0">
-                    <span className={c.ok ? "text-muted-foreground" : "font-medium"}>{c.label}</span>
-                    {c.detail && <span className="block text-[10px] text-muted-foreground">{c.detail}</span>}
-                  </span>
-                </li>
-              ))}
+              {stateChecks.map((c) => {
+                const target = c.ok ? null : resolveCheckTarget(c.key);
+                return (
+                  <li key={c.key} className="flex items-start gap-2 text-[11px]">
+                    {c.ok ? (
+                      <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-500" />
+                    ) : (
+                      <Circle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                    )}
+                    <span className="min-w-0">
+                      {target ? (
+                        <button
+                          type="button"
+                          onClick={() => onGoToField(target.section, target.fieldKey)}
+                          className="text-left font-medium text-primary underline decoration-dotted underline-offset-2 hover:no-underline"
+                        >
+                          {c.label} — fix it
+                        </button>
+                      ) : (
+                        <span className={c.ok ? "text-muted-foreground" : "font-medium"}>{c.label}</span>
+                      )}
+                      {c.detail && <span className="block text-[10px] text-muted-foreground">{c.detail}</span>}
+                    </span>
+                  </li>
+                );
+              })}
             </ul>
           )}
+
 
           {outstandingFields.length > 0 && (
             <>
