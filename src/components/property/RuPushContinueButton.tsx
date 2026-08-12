@@ -99,7 +99,7 @@ export function RuPushContinueButton({ propertyId, className }: RuPushContinueBu
         <Button type="button" size="sm" className="h-7 gap-1 text-xs ml-auto" onClick={handleClick} disabled={pushing}>
           {pushing ? (
             <>
-              <Loader2 className="h-3 w-3 animate-spin" /> Publishing…
+              <Loader2 className="h-3 w-3 animate-spin" /> Publishing{progress ? ` ${progress}` : ""}…
             </>
           ) : alreadyPushed ? (
             <>
