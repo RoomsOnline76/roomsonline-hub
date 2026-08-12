@@ -658,6 +658,15 @@ function buildValidation(payload: Record<string, any>): Record<string, unknown> 
     name_issues: nameCheck.reasons,
     name_issue_detail: nameCheck.detail,
     has_object_type_id: ((payload.object_type_id ?? payload.property_type_id) || 0) > 0,
+    // Guessed values that used to publish silently. Each is now a blocker in the scorer.
+    object_type_is_default: payload.object_type_is_default === true,
+    object_type_source: payload.object_type_source ?? null,
+    currency_is_default: payload.currency_is_default === true,
+    currency_iso: payload.currency_iso ?? null,
+    beds_unmapped: payload.unmapped_bed_labels ?? [],
+    beds_are_default: payload.beds_are_default === true,
+    changeover_is_default: payload.changeover_is_default === true,
+
     can_sleep_max_ok: maxGuests >= 1,
     // Presence is mandatory, 100+ chars advisory, 700+ chars required for certification.
     description_length: descriptionText.length,
@@ -765,6 +774,21 @@ function mapCurrencyToRUId(amenities: Record<string, unknown> | null, country?: 
   // Final fallback — ZAR (matches our primary market). Validation in adapter still rejects 0/null.
   return 48;
 }
+
+/**
+ * Was the currency actually authored on the property, or is `mapCurrencyToRUId` about to
+ * guess it from the country (or fall through to ZAR)? A guessed currency prices the whole
+ * listing, so the readiness scorer blocks the push on it instead of publishing an assumption.
+ */
+function resolveAuthoredCurrency(amenities: Record<string, unknown> | null): { iso: string | null; authored: boolean } {
+  const banking = ((amenities as any)?.banking || {}) as Record<string, unknown>;
+  const iso = String(
+    (banking.currency as string) || ((amenities as any)?.currency as string) || '',
+  ).trim().toUpperCase();
+  if (iso && RU_CURRENCY_BY_ISO[iso]) return { iso, authored: true };
+  return { iso: iso || null, authored: false };
+}
+
 
 // ── Country → default city LocationID fallback ───────────────
 // Used when Pull_GetLocationByCoordinates_RQ returns nothing usable. These IDs are real
@@ -1022,8 +1046,15 @@ function buildUnitPayload(
   currencyId?: number,
 ) {
   const amenities = property.amenities || {};
-  const unitType = (unit.property_type || property.property_type || 'apartment').toLowerCase().replace(/[\s-]+/g, '_');
-  const objectTypeId = PROPERTY_TYPE_MAP[unitType] || 12; // default chalet
+  const authoredUnitType = unit.property_type || property.property_type || null;
+  const unitType = (authoredUnitType || 'apartment').toLowerCase().replace(/[\s-]+/g, '_');
+  // An unmapped type used to publish silently as Chalet (12). The value is still sent so the
+  // XML stays schema-valid, but it is flagged so the readiness gate blocks the push.
+  const mappedObjectTypeId = PROPERTY_TYPE_MAP[unitType];
+  const objectTypeId = mappedObjectTypeId || 12;
+  const objectTypeIsDefault = !mappedObjectTypeId;
+  const currencyAuthored = resolveAuthoredCurrency(property.amenities);
+
 
   const lat = unit.latitude || property.latitude || 0;
   const lng = unit.longitude || property.longitude || 0;
@@ -1133,15 +1164,20 @@ function buildUnitPayload(
   const rooms: { room_id: number; amenities: { id: number; count: number }[] }[] = [];
 
   // Bedrooms: one block per bed_configuration entry (= one physical bedroom)
+  const unmappedUnitBedLabels: string[] = [];
   if (Array.isArray(unit.bed_configuration) && unit.bed_configuration.length > 0) {
     unit.bed_configuration.forEach((bedEntry: any) => {
-      const ruBedId = resolveBedAmenityId(bedEntry.type).id ?? RU_DEFAULT_BED_ID; // default = double bed (RU id 61)
+      const resolvedBed = resolveBedAmenityId(bedEntry.type).id;
+      // Unmapped labels still send a double so the XML stays valid, but the label is reported
+      // and the readiness gate blocks the push — sleeping arrangements are never guessed.
+      if (resolvedBed == null && bedEntry?.type) unmappedUnitBedLabels.push(String(bedEntry.type));
       rooms.push({
         room_id: RU_BEDROOM_ID,
-        amenities: [{ id: ruBedId, count: bedEntry.count || 1 }],
+        amenities: [{ id: resolvedBed ?? RU_DEFAULT_BED_ID, count: bedEntry.count || 1 }],
       });
     });
   }
+
 
   // NOTE: Bathroom (81) and Kitchen (101) blocks are intentionally OMITTED.
   // RU's parser interprets <Amenities/> with no children as amenity id:0 and rejects with
@@ -1152,10 +1188,17 @@ function buildUnitPayload(
   return {
     name: unit.name,
     property_type_id: objectTypeId,
+    object_type_is_default: objectTypeIsDefault,
+    object_type_source: authoredUnitType,
     can_sleep_max: maxGuests,
     standard_guests: Math.ceil(maxGuests * 0.7),
     number_of_beds: beds,
     currency_id: currencyId ?? mapCurrencyToRUId(property.amenities, property.country),
+    currency_is_default: !currencyAuthored.authored,
+    currency_iso: currencyAuthored.iso,
+    unmapped_bed_labels: unmappedUnitBedLabels,
+    changeover_is_default: !isChangeoverAuthored(unit.amenities as Record<string, any> | null, amenities as Record<string, any>),
+
     owner_id: 0, // placeholder — always overwritten with the resolved sub-account OwnerID
     no_of_units: 1,
     floor: unitFloor,
@@ -1199,9 +1242,14 @@ function buildUnitPayload(
 function buildSinglePropertyPayload(property: PropertyRow, roomTypes: RoomTypeRow[], locationId: number, currencyId?: number) {
   const primaryRoom = roomTypes[0] || null;
   const amenities = property.amenities || {};
-  const objectTypeId = PROPERTY_TYPE_MAP[
-    (primaryRoom?.property_type || property.property_type || 'apartment').toLowerCase().replace(/[\s-]+/g, '_')
-  ] || 1;
+  const authoredSingleType = primaryRoom?.property_type || property.property_type || null;
+  const mappedSingleTypeId = PROPERTY_TYPE_MAP[
+    (authoredSingleType || 'apartment').toLowerCase().replace(/[\s-]+/g, '_')
+  ];
+  const objectTypeId = mappedSingleTypeId || 1;
+  const objectTypeIsDefault = !mappedSingleTypeId;
+  const currencyAuthored = resolveAuthoredCurrency(property.amenities);
+
   const lat = primaryRoom?.latitude || property.latitude || 0;
   const lng = primaryRoom?.longitude || property.longitude || 0;
   const street = primaryRoom?.address_street || property.address || 'Not specified';
@@ -1228,6 +1276,7 @@ function buildSinglePropertyPayload(property: PropertyRow, roomTypes: RoomTypeRo
   // single default double bed per room type.
   const rooms: { room_id: number; amenities: { id: number; count: number }[] }[] = [];
   const unmappedBedLabels: string[] = [];
+  let bedsDerivedFromCounts = false;
   for (const rt of roomTypes) {
     const built = bedBlocksFromConfiguration(rt.bed_configuration);
     unmappedBedLabels.push(...built.unmapped);
@@ -1242,8 +1291,11 @@ function buildSinglePropertyPayload(property: PropertyRow, roomTypes: RoomTypeRo
     if (bedroomCount > 0 && bedTotal > 0) {
       const perRoom = Math.max(1, Math.ceil(bedTotal / bedroomCount));
       for (let i = 0; i < bedroomCount; i++) rooms.push({ room_id: 257, amenities: [{ id: RU_DEFAULT_BED_ID, count: perRoom }] });
+      // Derived from bedroom / bed counts, not from an authored bed configuration.
+      bedsDerivedFromCounts = true;
     }
   }
+
   let allImages = mapImages(property.images as unknown[] | null, (property as any).ru_image_tags);
   for (const rt of roomTypes) allImages = allImages.concat(mapImages(rt.images as unknown[] | null, (rt as any).ru_image_tags));
   const seenUrls = new Set<string>();
@@ -1254,10 +1306,17 @@ function buildSinglePropertyPayload(property: PropertyRow, roomTypes: RoomTypeRo
   return {
     name: property.name,
     property_type_id: objectTypeId,
+    object_type_is_default: objectTypeIsDefault,
+    object_type_source: authoredSingleType,
     can_sleep_max: maxGuests,
     standard_guests: Math.ceil(maxGuests * 0.7),
     number_of_beds: numberOfBeds,
     currency_id: currencyId ?? mapCurrencyToRUId(property.amenities, property.country),
+    currency_is_default: !currencyAuthored.authored,
+    currency_iso: currencyAuthored.iso,
+    beds_are_default: bedsDerivedFromCounts,
+    changeover_is_default: !isChangeoverAuthored((primaryRoom?.amenities as Record<string, any>) || null, amenities as Record<string, any>),
+
     owner_id: 0, no_of_units: 1, floor: buildingFloor, floor_is_default: buildingFloorIsDefault, space, space_is_default: spaceIsDefault, street,
     detailed_location_id: locationId, zip_code: zipCode,
     latitude: lat, longitude: lng,
@@ -1317,92 +1376,47 @@ interface UnitContext {
   amenities?: Record<string, any> | null;
 }
 
-interface ResolvedRate {
-  price: number;
-  extra_guest_price?: number;
-}
+// NOTE: the legacy per-unit season-rate resolver used to fall back to "the lowest rate found
+// anywhere in the season" when a unit's own key was missing, which published a price the unit
+// never charged. All ARI pricing now goes through the shared rate resolver
+// (`createRateResolver`), which prices per unit and refuses to publish an unpriced night, so
+// the fallback resolver has been removed rather than kept as a silent safety net.
 
-function resolveUnitRateKey(seasonRates: Record<string, any>, seasonId: string, unit: UnitContext, amenities: Record<string, any>): ResolvedRate | null {
-  // Try multiple keys to find the rate for this specific unit
-  // The critical insight: season_rates uses amenity room_type IDs (timestamp-based like "1775237066341"),
-  // NOT hostfully_room_types UUIDs. We must match by name to find the amenity room_type entry.
-  const roomTypes = (amenities.room_types || []) as any[];
-  const candidateKeys = [unit.id];
-  if (unit.linked_rolos_id) candidateKeys.push(unit.linked_rolos_id);
-
-  // Find matching amenity room by name (case-insensitive), linked_rolos_id, or direct id match
-  for (const rt of roomTypes) {
-    const nameMatch = rt.name && unit.name && rt.name.toLowerCase() === unit.name.toLowerCase();
-    const idMatch = rt.id === unit.id;
-    const rolosMatch = unit.linked_rolos_id && rt.linked_rolos_id === unit.linked_rolos_id;
-    if (nameMatch || idMatch || rolosMatch) {
-      if (rt.id && !candidateKeys.includes(String(rt.id))) {
-        candidateKeys.push(String(rt.id));
-      }
-    }
-  }
-
-  console.log(`[resolveUnitRateKey] Unit "${unit.name}" candidate keys: [${candidateKeys.join(', ')}] for season ${seasonId}`);
-
-  // season_rates schema: { [roomTypeId]: { "[seasonId]-[rateTypeId]": { roomAmount, adultAmount, ... } } }
-  // OUTER key = room id, INNER key = `${seasonId}-${rateTypeId}`. Match outer first.
-  for (const [outerKey, rateData] of Object.entries(seasonRates)) {
-    if (typeof rateData !== 'object' || rateData === null) continue;
-    if (!candidateKeys.includes(String(outerKey))) continue;
-    let bestPrice = 0;
-    let bestExtra: number | undefined;
-    for (const [subKey, subData] of Object.entries(rateData as Record<string, any>)) {
-      if (!subKey.startsWith(seasonId + '-')) continue;
-      const amount = (subData as any)?.roomAmount;
-      if (typeof amount === 'number' && amount > bestPrice) {
-        bestPrice = amount;
-        const adultAmt = (subData as any)?.adultAmount;
-        bestExtra = typeof adultAmt === 'number' && adultAmt > 0 ? adultAmt : undefined;
-      }
-    }
-    if (bestPrice > 0) {
-      console.log(`[resolveUnitRateKey] Found rate ${bestPrice} (extra: ${bestExtra ?? 'none'}) for room "${outerKey}" season ${seasonId}`);
-      return { price: bestPrice, extra_guest_price: bestExtra };
-    }
-  }
-
-  // Fallback: find lowest rate for this season across all entries
-  let lowest = Infinity;
-  let lowestExtraGuest: number | undefined;
-  for (const [, rateData] of Object.entries(seasonRates)) {
-    if (typeof rateData !== 'object' || rateData === null) continue;
-    for (const [subKey, subData] of Object.entries(rateData as Record<string, any>)) {
-      if (subKey.startsWith(seasonId + '-') && typeof subData === 'object' && subData !== null) {
-        const amount = (subData as any).roomAmount;
-        if (typeof amount === 'number' && amount > 0 && amount < lowest) {
-          lowest = amount;
-          lowestExtraGuest = typeof (subData as any).adultAmount === 'number' && (subData as any).adultAmount > 0 ? (subData as any).adultAmount : undefined;
-        }
-      }
-    }
-  }
-  if (lowest < Infinity) console.log(`[resolveUnitRateKey] Fallback rate ${lowest} (extra guest: ${lowestExtraGuest ?? 'none'}) for season ${seasonId}`);
-  return lowest < Infinity ? { price: lowest, extra_guest_price: lowestExtraGuest } : null;
-}
 
 // ── Step 6: Per-night availability expansion ─────────────────
 // Maps day-of-week → RU changeover code (0=none, 1=check-in only, 2=check-out only, 3=both)
 const DOW_KEYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 
-function resolveChangeoverRules(unit: UnitContext | undefined, propertyAmenities: Record<string, any>): { perDow: Record<number, number> | null; defaultCode: number } {
+function resolveChangeoverRules(
+  unit: UnitContext | undefined,
+  propertyAmenities: Record<string, any>,
+): { perDow: Record<number, number> | null; defaultCode: number; isDefault: boolean } {
   const unitAmenities = (unit?.amenities || {}) as Record<string, any>;
   const rules = (unitAmenities.changeover_rules ?? propertyAmenities.changeover_rules) as Record<string, any> | undefined;
-  const defaultCode = Number(unitAmenities.changeover ?? propertyAmenities.changeover ?? 3);
+  const authoredCode = unitAmenities.changeover ?? propertyAmenities.changeover;
+  const defaultCode = Number(authoredCode ?? 3);
   if (rules && typeof rules === 'object' && !Array.isArray(rules)) {
     const perDow: Record<number, number> = {};
     for (let i = 0; i < 7; i++) {
       const v = rules[DOW_KEYS[i]];
       if (v != null && !isNaN(Number(v))) perDow[i] = Number(v);
     }
-    if (Object.keys(perDow).length > 0) return { perDow, defaultCode };
+    if (Object.keys(perDow).length > 0) return { perDow, defaultCode, isDefault: false };
   }
-  return { perDow: null, defaultCode };
+  // No per-day rules and no authored code — the code below is our assumption, not the owner's.
+  return { perDow: null, defaultCode, isDefault: authoredCode == null };
 }
+
+/** Is a changeover rule authored anywhere for this unit / property? */
+function isChangeoverAuthored(unitAmenities: Record<string, any> | null, propertyAmenities: Record<string, any>): boolean {
+  const ua = (unitAmenities || {}) as Record<string, any>;
+  const rules = (ua.changeover_rules ?? propertyAmenities.changeover_rules) as Record<string, any> | undefined;
+  if (rules && typeof rules === 'object' && !Array.isArray(rules)) {
+    if (DOW_KEYS.some((k) => rules[k] != null && !isNaN(Number(rules[k])))) return true;
+  }
+  return (ua.changeover ?? propertyAmenities.changeover) != null;
+}
+
 
 type AvailabilityPeriod = { from: string; to: string; minStay: number; seasonId: string };
 
@@ -1966,6 +1980,16 @@ async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRo
     summary: `${availCoverage.days_total}/${expectedWindowDays} days covered (${availCoverage.days_from_seasons} from seasons, ${availCoverage.days_filled} filled, ${availCoverage.overlaps_resolved} overlapping day(s) resolved)`,
   };
   console.log(`[pushARI] RU ${ruPropertyId} availability window: ${result.availability_coverage.summary}`);
+  if (availCoverage.days_filled > 0) {
+    // Filler days carry an assumed min-stay of 1 because RU rejects gaps in the 365-day window.
+    // Closing those days would strand inventory, so they publish — but never silently.
+    (result as any).availability_warnings = [
+      ...(((result as any).availability_warnings as string[]) || []),
+      `${availCoverage.days_filled} day(s) had no authored season and were published with an assumed minimum stay of 1 night. Extend the seasons in Rate Manager → Calendar to cover the full 365-day window.`,
+    ];
+    console.warn(`[pushARI] RU ${ruPropertyId}: ${availCoverage.days_filled} filler day(s) used an assumed min-stay of 1`);
+  }
+
 
   // Resolve changeover rules (per-day-of-week or default)
   const changeoverConfig = resolveChangeoverRules(unit, amenities);
@@ -3775,6 +3799,15 @@ Deno.serve(async (req) => {
               rooms_meet_min_amenities: everyFlag('rooms_meet_min_amenities'),
               has_name: everyFlag('has_name'),
               has_object_type_id: everyFlag('has_object_type_id'),
+              // Guessed-value flags aggregate pessimistically: one guessing unit blocks the push.
+              object_type_is_default: units.some(u => (u.validation as any).object_type_is_default === true),
+              object_type_source: units.map(u => (u.validation as any).object_type_source).find(Boolean) ?? null,
+              currency_is_default: units.some(u => (u.validation as any).currency_is_default === true),
+              currency_iso: units.map(u => (u.validation as any).currency_iso).find(Boolean) ?? null,
+              beds_unmapped: Array.from(new Set(units.flatMap(u => ((u.validation as any).beds_unmapped || []) as string[]))),
+              beds_are_default: units.some(u => (u.validation as any).beds_are_default === true),
+              changeover_is_default: units.some(u => (u.validation as any).changeover_is_default === true),
+
               can_sleep_max_ok: everyFlag('can_sleep_max_ok'),
               has_description: everyFlag('has_description'),
               description_meets_recommended: everyFlag('description_meets_recommended'),

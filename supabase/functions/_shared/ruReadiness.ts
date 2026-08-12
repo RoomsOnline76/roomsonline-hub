@@ -61,7 +61,22 @@ export interface RuUnitValidation {
   floor_is_default?: boolean;
   has_detailed_location_id?: boolean;
   has_payment_methods?: boolean;
+  payment_methods_is_default?: boolean;
   has_cancellation_policies?: boolean;
+  cancellation_policies_is_default?: boolean;
+  /** Currency was guessed from the country (or the ZAR final fallback) instead of authored. */
+  currency_is_default?: boolean;
+  currency_iso?: string | null;
+  /** Property/unit type did not map to a channel ObjectTypeID and fell back to a default. */
+  object_type_is_default?: boolean;
+  object_type_source?: string | null;
+  /** Bed strings that could not be mapped to a channel bed amenity. */
+  beds_unmapped?: string[];
+  /** Bed blocks were derived from bedroom/occupancy counts instead of an authored configuration. */
+  beds_are_default?: boolean;
+  /** No changeover rule authored on the unit or the property — the default code was assumed. */
+  changeover_is_default?: boolean;
+
   beds_meet_max_guests?: boolean;
   beds_cover_half?: boolean;
   total_beds?: number;
@@ -168,6 +183,17 @@ export function evaluateUnitChecks(
     "Property → General → Name");
   add("has_object_type_id", "Content", "Property type (ObjectTypeID)", !!v.has_object_type_id,
     "No property type selected", "Property → General → Property type");
+  // An unmapped ROL'OS type used to publish silently as Chalet. The channel type decides how
+  // the listing is merchandised, so a guess must block instead.
+  add("object_type_authored", "Content", "Property type maps to a channel type",
+    v.object_type_is_default !== true,
+    `The ROL'OS type${v.object_type_source ? ` "${v.object_type_source}"` : ""} does not map to a Channel Manager property type — the channel would receive an assumed Chalet. Pick a supported type`,
+    "Rooms → Unit → Property type");
+  add("currency_authored", "Content", "Currency is authored (not assumed)",
+    v.currency_is_default !== true,
+    "No currency is set for this property — the channel would receive an assumed ZAR. Set the currency in Billing & banking",
+    "Property → Billing & banking → Currency");
+
   add("can_sleep_max_ok", "Content", "Max guests ≥ 1", !!v.can_sleep_max_ok,
     "CanSleepMax must be at least 1", "Rooms → Unit → Max guests");
   add("has_description", "Content", "Description present", v.has_description !== false,
@@ -251,6 +277,22 @@ export function evaluateUnitChecks(
   add("beds_distributed", "Rooms & beds", "Beds distributed between bedrooms", v.beds_distributed !== false,
     `${v.bedrooms_with_beds ?? 0} of ${v.bedroom_blocks ?? 0} bedrooms carry beds — spread the bed configuration across the bedrooms`,
     "Rooms → Unit → Bed configuration");
+  // Unmapped bed labels used to publish as a double bed, and a missing configuration used to
+  // be derived from bedroom counts. Both are assumptions about sleeping arrangements.
+  add("beds_authored", "Rooms & beds", "Every bed type maps to a channel bed",
+    (v.beds_unmapped ?? []).length === 0 && v.beds_are_default !== true,
+    (v.beds_unmapped ?? []).length > 0
+      ? `Bed type(s) ${(v.beds_unmapped ?? []).join(", ")} do not map to a Channel Manager bed — the channel would receive a double bed instead. Re-select them from the bed list`
+      : "The bed blocks were derived from the bedroom count instead of an authored bed configuration — capture the real beds per bedroom",
+    "Rooms → Unit → Bed configuration");
+  // Changeover rules ship with availability; an assumed code decides which days guests may
+  // arrive or depart, so it must be authored.
+  add("changeover_authored", "Availability 365d", "Changeover rule is authored (not assumed)",
+    v.changeover_is_default !== true,
+    "No changeover rule is set on this unit or the property — the channel would receive an assumed 'arrival and departure any day'. Set the rule in Rate Manager",
+    "Rate Manager → Rules → Changeover");
+
+
 
   // ── Photos ──
   add("meets_minimum_images", "Photos", `Photos (≥ ${RU_MIN_IMAGES})`, !!v.meets_minimum_images,
@@ -301,8 +343,19 @@ export function evaluateUnitChecks(
   // ── Policies & payments ──
   add("has_payment_methods", "Policies & payments", "At least 1 payment method", !!v.has_payment_methods,
     "No payment method configured", "Property → Policies → Payment methods");
+  // A blank configuration used to publish an assumed "cash + card" pair. Commercial terms
+  // may never be invented, so an unauthored set blocks the push.
+  add("payment_methods_authored", "Policies & payments", "Payment methods are authored (not assumed)",
+    v.payment_methods_is_default !== true,
+    "No payment methods are configured — the channel would receive an assumed cash + card pair. Select the methods this property really accepts",
+    "Property → Policies → Payment methods");
   add("has_cancellation_policies", "Policies & payments", "At least 1 cancellation policy", !!v.has_cancellation_policies,
     "No cancellation policy configured", "Property → Policies → Cancellation");
+  add("cancellation_policies_authored", "Policies & payments", "Cancellation policy is authored (not assumed)",
+    v.cancellation_policies_is_default !== true,
+    "No cancellation policy is configured — the channel would receive an assumed 0–30 days / 100% rule. Author the real policy before publishing",
+    "Property → Policies → Cancellation");
+
 
   return checks;
 }
