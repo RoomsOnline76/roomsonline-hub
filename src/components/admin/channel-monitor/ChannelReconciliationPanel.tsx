@@ -226,8 +226,20 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
                 </button>
                 <p className="text-xs text-muted-foreground">
                   The channel keeps archived listings in its data feed and only hides them in its own portal. They
-                  carry no cost, but cleanup still deletes them and verifies they are gone.
+                  carry no cost and are not part of a cleanup — delete them only if you want the feed tidy.
                 </p>
+                {showArchived && archivedCleanable.length > 0 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={running || cleaning}
+                    onClick={() => void handleDeleteArchived()}
+                  >
+                    <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                    Delete archived ({archivedCleanable.length})
+                  </Button>
+                )}
+
                 {showArchived && (
                   <ul className="divide-y rounded-md border">
                     {result.archived_orphans.map((a) => (
