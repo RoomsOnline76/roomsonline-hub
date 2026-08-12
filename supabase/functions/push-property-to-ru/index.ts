@@ -1267,6 +1267,7 @@ function buildSinglePropertyPayload(property: PropertyRow, roomTypes: RoomTypeRo
   // single default double bed per room type.
   const rooms: { room_id: number; amenities: { id: number; count: number }[] }[] = [];
   const unmappedBedLabels: string[] = [];
+  let bedsDerivedFromCounts = false;
   for (const rt of roomTypes) {
     const built = bedBlocksFromConfiguration(rt.bed_configuration);
     unmappedBedLabels.push(...built.unmapped);
@@ -1281,8 +1282,11 @@ function buildSinglePropertyPayload(property: PropertyRow, roomTypes: RoomTypeRo
     if (bedroomCount > 0 && bedTotal > 0) {
       const perRoom = Math.max(1, Math.ceil(bedTotal / bedroomCount));
       for (let i = 0; i < bedroomCount; i++) rooms.push({ room_id: 257, amenities: [{ id: RU_DEFAULT_BED_ID, count: perRoom }] });
+      // Derived from bedroom / bed counts, not from an authored bed configuration.
+      bedsDerivedFromCounts = true;
     }
   }
+
   let allImages = mapImages(property.images as unknown[] | null, (property as any).ru_image_tags);
   for (const rt of roomTypes) allImages = allImages.concat(mapImages(rt.images as unknown[] | null, (rt as any).ru_image_tags));
   const seenUrls = new Set<string>();
