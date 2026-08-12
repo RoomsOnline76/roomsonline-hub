@@ -930,6 +930,9 @@ Deno.serve(async (req) => {
       // A reminder is only ever sent for money that is genuinely still open.
       // Anything already settled must never reappear as "due".
       const testRecipient = isStaff ? String(body.test_recipient || "").trim() : "";
+      // Preview mode renders the layout for a review copy without raising or
+      // stamping anything, even when the account owes nothing.
+      const preview = !!testRecipient && body.preview === true;
       const paidThrough = cfg.current_period_end ? String(cfg.current_period_end).slice(0, 10) : null;
       const subscriptionCovered = !!paidThrough && paidThrough >= today();
       const setupDue = openSetup ? Number(openSetup.amount) || 0 : setupBalance;
@@ -940,8 +943,9 @@ Deno.serve(async (req) => {
         : fee;
       if (monthlyDue > 0 && !openSubscription && !canStart && !testRecipient) monthlyDue = 0;
 
-      if (setupDue <= 0 && monthlyDue <= 0)
+      if (setupDue <= 0 && monthlyDue <= 0 && !preview)
         return json({ success: true, skipped: "nothing_outstanding" });
+
 
       // Make sure the owner always has a working payment link: raise the
       // outstanding invoice when it has not been raised yet.
