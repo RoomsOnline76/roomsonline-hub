@@ -10,6 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { Loader2, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { queueChannelRatesSync } from "@/lib/channelContentSync";
 import { format, eachDayOfInterval, getDay } from "date-fns";
 import {
   PropertyScopeSelector,
