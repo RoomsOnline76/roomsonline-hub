@@ -616,7 +616,7 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
               {resolvingIds ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
               {resolvingIds ? "Fetching..." : "Fetch Channel Manager IDs"}
             </Button>
-            <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={runDryRun} disabled={dryRunning || loading}>
+            <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={() => void runDryRun()} disabled={dryRunning || loading}>
               {dryRunning ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle className="h-3 w-3" />}
               {dryRunning ? "Checking..." : "Validate"}
             </Button>
@@ -628,15 +628,18 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
                 loading ||
                 dryRunning ||
                 identityGate.gated ||
+                gateBlocked ||
                 readiness?.blocked === true ||
                 (validation !== null && !isReady)
               }
               title={
                 identityGate.gated
                   ? identityGate.reason ?? "Link the distribution account and capture its API keys on the Identity tab first"
-                  : readiness?.blocked
-                    ? "Complete the channel readiness checklist below before syncing"
-                    : undefined
+                  : gateBlocked
+                    ? gateReason ?? "Complete the channel readiness checklist below before syncing"
+                    : readiness?.blocked
+                      ? "Complete the channel readiness checklist below before syncing"
+                      : undefined
               }
             >
               {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
@@ -644,11 +647,14 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
                 ? "Pushing..."
                 : identityGate.gated
                   ? "Keys required"
-                  : readiness?.blocked
-                    ? "Sync blocked"
-                    : isMultiUnit
-                      ? "Push Building + Units"
-                      : "Publish to Channel Manager"}
+                  : !gate.hasData && (gate.isLoading || gate.isFetching)
+                    ? "Checking readiness…"
+                    : gateBlocked || readiness?.blocked
+                      ? "Sync blocked"
+                      : isMultiUnit
+                        ? "Push Building + Units"
+                        : "Publish to Channel Manager"}
+
             </Button>
 
           </div>
