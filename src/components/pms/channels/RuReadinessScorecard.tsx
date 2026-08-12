@@ -108,7 +108,26 @@ export function RuReadinessScorecard({ propertyId, standalone = true, onReport }
           {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
           <span className="ml-1.5">Re-check</span>
         </Button>
+        {report && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => setDetailsOpen((v) => !v)}
+            aria-expanded={detailsOpen}
+          >
+            {detailsOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+            <span className="ml-1.5">{detailsOpen ? "Hide checklist" : "Show checklist"}</span>
+          </Button>
+        )}
       </div>
+
+      {satisfied && !detailsOpen && (
+        <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <CheckCircle2 className="h-3.5 w-3.5 text-primary shrink-0" />
+          All {report?.checks_total} requirements met — nothing outstanding.
+        </p>
+      )}
 
       {report?.error && (
         <Alert variant="destructive">
