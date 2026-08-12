@@ -1580,6 +1580,9 @@ export function RoomManagerTab({
                 <div key={index} className="space-y-1">
                   <div className="relative aspect-video rounded-lg overflow-hidden border border-border group">
                     <img src={imageUrl} alt={`Room ${index + 1}`} className="w-full h-full object-cover" />
+                    <span className="absolute bottom-1 right-1 rounded bg-foreground/70 px-1 text-[9px] font-medium text-background">
+                      #{index + 1}
+                    </span>
                     <ImageQualityMarker entry={roomImageAudit.results[imageUrl]} />
                     {index === 0 ? (
                       <div className="absolute top-2 left-2 bg-primary rounded-full p-1.5" title="Primary room image">
