@@ -168,6 +168,11 @@ interface RUPropertyPayload {
   check_out_until?: string;
   check_in_place?: string;
   building_id?: number;
+  /**
+   * Gate #10 nice-to-have: distances to nearby attractions. Emitted only when non-empty —
+   * an empty <Distances/> wrapper is rejected by the channel parser.
+   */
+  distances?: RuDistanceEntry[];
 }
 
 const PAYMENT_METHOD_LABELS: Record<number, string> = {
