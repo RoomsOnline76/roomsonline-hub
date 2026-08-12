@@ -11,7 +11,13 @@ import { StarRating } from "@/components/StarRating";
 import { ACCOMMODATION_LABEL_OPTIONS, getAccommodationLabel } from "@/lib/accommodationLabels";
 import { getPMSFieldClass, getPMSDisplayName, isFieldPopulatedByPMS } from "@/lib/pmsFieldConfig";
 import { cn } from "@/lib/utils";
-import { X, Save, Cloud } from "lucide-react";
+import { X, Save, Cloud, Sparkles, Loader2, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { useCallback, useMemo, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+
+export const MIN_DESCRIPTION_CHARS = 800;
+
 
 const FACILITIES = {
   general: ["Wheelchair Accessible","Non-Smoking Rooms","Designated Smoking Area","Garden","Terrace/Patio","Fireplace Lounge","Lift/Elevator"],
