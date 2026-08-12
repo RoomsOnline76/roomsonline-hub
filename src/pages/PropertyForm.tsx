@@ -874,6 +874,11 @@ export default function PropertyForm({
   const propertyImageAudit = useImageDimensionAudit(uploadedImages);
   /** Rentals United photo tags, keyed by image URL: { "<url>": [4, 83] } */
   const [imageTags, setImageTags] = useState<RuImageTagMap>({});
+  // Explicit main photo: the single gallery URL tagged Main (channel ImageTypeID 1).
+  const mainImageUrl = useMemo(
+    () => findMainImageUrl(imageTags, uploadedImages),
+    [imageTags, uploadedImages],
+  );
 
   const [isDragging, setIsDragging] = useState(false);
 
