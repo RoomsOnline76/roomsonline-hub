@@ -3154,16 +3154,24 @@ export default function PropertyForm({
       // The Arrival policy editor (Policies tab) is the sole author of
       // amenities.house_rules.check_in_instructions and writes it directly. Read the stored
       // value back here so this save preserves it instead of rebuilding house_rules without it.
+      // If the panel has an unsaved draft, THIS save must persist it — owners often type
+      // the policy and then press the form's Save bar rather than the panel's own button.
       let storedArrivalInstructions: string | null = null;
       if (isEditMode && propertyId) {
-        const { data: existingArrival } = await supabase
-          .from("properties")
-          .select("amenities")
-          .eq("id", propertyId)
-          .maybeSingle();
-        const existingHouseRules = ((existingArrival?.amenities as any)?.house_rules ?? {}) as Record<string, unknown>;
-        const existingText = String(existingHouseRules.check_in_instructions ?? "").trim();
-        storedArrivalInstructions = existingText.length > 0 ? existingText : null;
+        const pendingArrival = getArrivalPolicyDraft(propertyId);
+        if (pendingArrival !== undefined) {
+          const pendingText = pendingArrival.trim();
+          storedArrivalInstructions = pendingText.length > 0 ? pendingText : null;
+        } else {
+          const { data: existingArrival } = await supabase
+            .from("properties")
+            .select("amenities")
+            .eq("id", propertyId)
+            .maybeSingle();
+          const existingHouseRules = ((existingArrival?.amenities as any)?.house_rules ?? {}) as Record<string, unknown>;
+          const existingText = String(existingHouseRules.check_in_instructions ?? "").trim();
+          storedArrivalInstructions = existingText.length > 0 ? existingText : null;
+        }
       }
 
       // Prepare data for database

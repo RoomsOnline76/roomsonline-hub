@@ -6,6 +6,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { AlertTriangle, CheckCircle2, Copy, Loader2, Save, Sparkles } from "lucide-react";
 import type { SiblingProperty } from "@/hooks/usePortfolioSiblings";
+import {
+  ARRIVAL_POLICY_SAVED_EVENT,
+  clearArrivalPolicyDraft,
+  setArrivalPolicyDraft,
+} from "@/lib/arrivalPolicyDraft";
 
 /** Channel gate: Rentals United rejects arrival instructions under 20 characters. */
 const MIN_ARRIVAL_CHARS = 20;
@@ -124,6 +129,19 @@ export const ArrivalPolicyPanel: React.FC<ArrivalPolicyPanelProps> = ({ property
     void load();
   }, [load]);
 
+  // The property form can persist the arrival policy through its own Save bar.
+  // Re-read when it does so this panel stops showing an "unsaved" state.
+  useEffect(() => {
+    const onSaved = (event: Event) => {
+      const detail = (event as CustomEvent<{ propertyId?: string }>).detail;
+      if (detail?.propertyId && detail.propertyId !== propertyId) return;
+      clearArrivalPolicyDraft(propertyId);
+      void load();
+    };
+    window.addEventListener(ARRIVAL_POLICY_SAVED_EVENT, onSaved);
+    return () => window.removeEventListener(ARRIVAL_POLICY_SAVED_EVENT, onSaved);
+  }, [load, propertyId]);
+
   const writeArrivalPolicy = useCallback(async (targetId: string, value: string) => {
     const { data, error } = await supabase
       .from("properties")
@@ -163,9 +181,11 @@ export const ArrivalPolicyPanel: React.FC<ArrivalPolicyPanelProps> = ({ property
   const applyText = useCallback(
     (value: string) => {
       setText(value);
+      // Publish the draft so the property form's Save bar persists the same text.
+      setArrivalPolicyDraft(propertyId, value);
       onDirty?.();
     },
-    [onDirty],
+    [onDirty, propertyId],
   );
 
   const handleSave = async () => {
@@ -186,6 +206,7 @@ export const ArrivalPolicyPanel: React.FC<ArrivalPolicyPanelProps> = ({ property
       }
       setSaved(stored);
       setText(stored);
+      clearArrivalPolicyDraft(propertyId);
       toast.success("Arrival policy saved");
       await onChanged?.();
     } catch (e) {
@@ -256,6 +277,7 @@ export const ArrivalPolicyPanel: React.FC<ArrivalPolicyPanelProps> = ({ property
       if (dirty) await writeArrivalPolicy(propertyId, trimmed);
       for (const sibling of siblings) await writeArrivalPolicy(sibling.id, trimmed);
       setSaved(trimmed);
+      clearArrivalPolicyDraft(propertyId);
       toast.success(
         `Arrival policy applied to ${siblings.length} portfolio propert${siblings.length === 1 ? "y" : "ies"}`,
       );
