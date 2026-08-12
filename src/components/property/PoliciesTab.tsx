@@ -44,12 +44,22 @@ export const PoliciesTab: React.FC<PoliciesTabProps> = ({ propertyId, onOpenSpec
   const { portfolioPolicies, loading: loadingPortfolio } = usePortfolioPolicies(propertyId, siblingIds);
   const { mode, saving, setMasterMode } = useMasterPolicyMode(propertyId);
   const { specials } = usePolicySpecialUsage(propertyId);
+  const arrival = useArrivalPolicy(propertyId);
+  const arrivalSectionRef = React.useRef<HTMLDivElement>(null);
 
   const [editorOpen, setEditorOpen] = useState(false);
   const [editing, setEditing] = useState<ReservationPolicy | null>(null);
   const [applyingFrom, setApplyingFrom] = useState<ReservationPolicy | null>(null);
   const [metrics, setMetrics] = useState<Record<string, PolicyMetric>>({});
   const [activating, setActivating] = useState<string | null>(null);
+
+  const focusArrivalSection = React.useCallback(() => {
+    const container = arrivalSectionRef.current;
+    if (!container) return;
+    container.scrollIntoView({ behavior: "smooth", block: "start" });
+    const editor = container.querySelector("textarea");
+    if (editor instanceof HTMLTextAreaElement) window.setTimeout(() => editor.focus(), 350);
+  }, []);
 
   const siblingName = (id: string) => siblings.find((s) => s.id === id)?.name ?? "portfolio";
 
