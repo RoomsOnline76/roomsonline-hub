@@ -38,7 +38,7 @@ export const RequirementLegend: React.FC<RequirementLegendProps> = ({
     if (!propertyId) return null;
     const outstanding = macros.filter((m) => !m.complete);
     const labels = outstanding.flatMap((m) =>
-      m.outstandingLabels.map((l) => `${m.macro.label ?? m.macro.key}: ${l}`),
+      m.outstandingLabels.map((l) => `${m.macro.title}: ${l}`),
     );
     return {
       stepsOutstanding: outstanding.length,
