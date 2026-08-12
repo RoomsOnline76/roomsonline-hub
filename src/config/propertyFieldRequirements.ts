@@ -564,6 +564,23 @@ export const PROPERTY_FIELD_REQUIREMENTS: FieldRequirement[] = [
       numericAtLeast(amenity(s, "property_size_sqm"), 1) ||
       (roomRows(s).length > 0 && roomRows(s).every(UNIT_ROW_RULES.size)),
   },
+  {
+    key: "attraction_distances",
+    label: "Distances to nearby attractions",
+    tier: "recommended",
+    section: "info-facilities",
+    target: ['[data-field="attraction_distances"]', "#nearby-attractions"],
+    hint: "Capture at least three nearby places with a distance in km — channels push these as Distances and guests rank listings by them.",
+    isSatisfied: (s) => attractionsWithDistance(s).length >= 3,
+    describeShortfall: (s) => {
+      const n = attractionsWithDistance(s).length;
+      return n === 0
+        ? "No nearby attraction has a distance captured — add at least three."
+        : `${n} attraction${n === 1 ? "" : "s"} with a distance — add ${3 - n} more.`;
+    },
+  },
+
+
 
 
 
