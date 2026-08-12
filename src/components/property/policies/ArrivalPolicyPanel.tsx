@@ -624,6 +624,12 @@ export const ArrivalPolicyPanel: React.FC<ArrivalPolicyPanelProps> = ({ property
                   placeholder="Blank = use the property arrival policy. Add unit-specific access here (gate code, key box, which chalet door)."
                   className={`text-xs ${unitTooShort ? "border-destructive focus-visible:ring-destructive" : ""}`}
                 />
+                {unitDirty && !unitTooShort && (
+                  <p className="text-[10px] text-amber-600">
+                    Unsaved — press <span className="font-medium">Save</span> on this unit. The property Save bar does
+                    not store unit-level instructions.
+                  </p>
+                )}
                 {unitTooShort && (
                   <p className="text-[10px] text-destructive">
                     At least {MIN_ARRIVAL_CHARS} characters — or clear the field to inherit the property policy.
