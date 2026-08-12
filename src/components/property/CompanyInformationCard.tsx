@@ -459,34 +459,59 @@ export function CompanyInformationCard({
    * Mandatory set = everything that can block a Rentals United company/property
    * push, or that decides which RU LocationID (and therefore which currency) the
    * property gets locked into.
+   *
+   * Each entry carries the selector(s) of its control so the outstanding list can
+   * walk the owner straight to the input (and pulse it) instead of only naming it.
    */
-  const missing = useMemo(() => {
-    const out: string[] = [];
-    const need = (label: string, value: unknown) => {
-      if (!String(value ?? "").trim()) out.push(label);
+  const missingItems = useMemo(() => {
+    const out: { label: string; targets: string[] }[] = [];
+    const need = (label: string, value: unknown, targets: string[]) => {
+      if (!String(value ?? "").trim()) out.push({ label, targets });
     };
-    need("Registered Business Name", registeredBusinessName);
-    need("Key Representative", keyRepresentative);
-    need("Mobile Number", mobileNumber);
-    need("Country", propertyCountry);
-    need("Region / province", companyProfile.region);
-    need("City", propertyCity);
-    if (!normalizeRuTimeZone(companyProfile.time_zone)) out.push("Time zone");
-    if (!ruLocationId) out.push("Channel Manager location");
-    if (banking.has_vat) need("VAT number", banking.vat_number);
-    need("Contact first name", companyProfile.contact_first_name);
-    need("Contact last name", companyProfile.contact_last_name);
-    need("Contact phone", companyProfile.contact_phone);
-    need("Contact date of birth", companyProfile.contact_birth_date);
-    need("Describe your business", companyProfile.describe_your_business);
-    need("Rep first name", rep.first_name);
-    need("Rep last name", rep.last_name);
-    need("Rep email", rep.email);
-    if (!Number(rep.nationality_id)) out.push("Rep nationality");
-    if (!Number(rep.country_of_residence_id)) out.push("Rep country of residence");
-    for (const p of placeholders) out.push(`${p} (placeholder)`);
+    need("Registered Business Name", registeredBusinessName, ["#registered_business_name"]);
+    need("Key Representative", keyRepresentative, ["#key_representative"]);
+    need("Mobile Number", mobileNumber, ["#mobile_number"]);
+    need("Country", propertyCountry, ['[data-field="country"]', "#country"]);
+    need("Region / province", companyProfile.region, ['[data-field="company.region"]']);
+    need("City", propertyCity, ["#city"]);
+    if (!normalizeRuTimeZone(companyProfile.time_zone)) {
+      out.push({ label: "Time zone", targets: ['[data-field="company.time_zone"]'] });
+    }
+    if (!ruLocationId) {
+      out.push({ label: "Channel Manager location", targets: ['[data-field="ru_location_id"]'] });
+    }
+    if (banking.has_vat) need("VAT number", banking.vat_number, ["#vat_number"]);
+    need("Contact first name", companyProfile.contact_first_name, [
+      '[data-field="company.contact_first_name"]',
+    ]);
+    need("Contact last name", companyProfile.contact_last_name, [
+      '[data-field="company.contact_last_name"]',
+    ]);
+    need("Contact phone", companyProfile.contact_phone, ['[data-field="company.contact_phone"]']);
+    need("Contact date of birth", companyProfile.contact_birth_date, [
+      '[data-field="company.contact_birth_date"]',
+    ]);
+    need("Describe your business", companyProfile.describe_your_business, [
+      '[data-field="company.describe_your_business"]',
+    ]);
+    need("Rep first name", rep.first_name, ['[data-field="rep_first_name"]']);
+    need("Rep last name", rep.last_name, ['[data-field="rep_last_name"]']);
+    need("Rep email", rep.email, ['[data-field="rep_email"]']);
+    if (!Number(rep.nationality_id)) {
+      out.push({ label: "Rep nationality", targets: ['[data-field="rep_nationality"]'] });
+    }
+    if (!Number(rep.country_of_residence_id)) {
+      out.push({
+        label: "Rep country of residence",
+        targets: ['[data-field="rep_country_of_residence"]'],
+      });
+    }
+    for (const p of placeholders) {
+      out.push({ label: `${p} (placeholder)`, targets: ['[data-field="company.contact_phone"]'] });
+    }
     return out;
   }, [
+
     registeredBusinessName,
     keyRepresentative,
     mobileNumber,
