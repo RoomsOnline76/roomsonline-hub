@@ -945,6 +945,9 @@ Deno.serve(async (req) => {
 
       if (setupDue <= 0 && monthlyDue <= 0 && !preview)
         return json({ success: true, skipped: "nothing_outstanding" });
+      if (preview && setupDue <= 0 && monthlyDue <= 0) monthlyDue = fee;
+
+
 
 
       // Make sure the owner always has a working payment link: raise the
