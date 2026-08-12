@@ -549,7 +549,7 @@ export function CompanyInformationCard({
                 </span>
               </span>
               <span className="flex items-center gap-2">
-                {missing.length === 0 ? (
+                {missingItems.length === 0 ? (
                   <Badge variant="outline" className="h-5 gap-1 border-green-600 text-[10px] text-green-700">
                     <Check className="h-3 w-3" />
                     Complete
@@ -557,7 +557,7 @@ export function CompanyInformationCard({
                 ) : (
                   <Badge variant="destructive" className="h-5 gap-1 text-[10px]">
                     <AlertTriangle className="h-3 w-3" />
-                    {missing.length} missing
+                    {missingItems.length} missing
                   </Badge>
                 )}
                 <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
@@ -568,16 +568,26 @@ export function CompanyInformationCard({
         <CollapsibleContent>
           <CardContent className="space-y-4 px-4 py-2">
             {headerAction && <div className="flex justify-end">{headerAction}</div>}
-            {missing.length > 0 && (
+            {missingItems.length > 0 && (
               <div className="rounded-md border border-destructive/40 bg-destructive/5 px-2.5 py-2">
                 <p className="text-[11px] font-semibold text-destructive">
-                  {missing.length} mandatory field{missing.length === 1 ? "" : "s"} outstanding
+                  {missingItems.length} mandatory field{missingItems.length === 1 ? "" : "s"} outstanding
                 </p>
-                <p className="mt-0.5 text-[10px] leading-snug text-muted-foreground">
-                  {missing.join(" · ")}
-                </p>
+                <div className="mt-1 flex flex-wrap gap-1">
+                  {missingItems.map((item) => (
+                    <button
+                      key={item.label}
+                      type="button"
+                      onClick={() => focusFieldTargets(item.targets)}
+                      className="rounded border border-destructive/30 bg-background px-1.5 py-0.5 text-[10px] leading-snug text-muted-foreground transition-colors hover:border-destructive hover:text-destructive"
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
+
 
             {/* ── Legal entity ── */}
             <div className="space-y-2">
