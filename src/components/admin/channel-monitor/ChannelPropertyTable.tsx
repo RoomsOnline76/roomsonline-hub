@@ -115,7 +115,7 @@ export function ChannelPropertyTable({
               <TableHead>Portfolio</TableHead>
               <TableHead>State</TableHead>
               <TableHead className="text-right">Listings</TableHead>
-              <TableHead className="text-right">Archived units</TableHead>
+              <TableHead className="text-right">Duplicates</TableHead>
               <TableHead className="text-right">Monthly cost</TableHead>
               <TableHead>Last push</TableHead>
               <TableHead className="text-right">Action</TableHead>
