@@ -15,6 +15,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
+import { queueChannelContentSync } from "@/lib/channelContentSync";
 import { toast } from "sonner";
 import { ruToken, ruTokenId } from "@/lib/ruAmenities";
 
@@ -250,6 +251,7 @@ export default function AiAmenityDialog({
         }
       }
 
+      void queueChannelContentSync(propertyId, "unit_amenities_save");
       toast.success(
         `Applied ${totalSelected} amenit${totalSelected === 1 ? "y" : "ies"}. Save the property to persist facility changes.`,
 

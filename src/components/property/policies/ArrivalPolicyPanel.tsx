@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
+import { queueChannelContentSync } from "@/lib/channelContentSync";
 import { toast } from "sonner";
 import { AlertTriangle, CheckCircle2, Copy, Loader2, Save, Sparkles } from "lucide-react";
 import type { SiblingProperty } from "@/hooks/usePortfolioSiblings";
@@ -173,6 +174,8 @@ export const ArrivalPolicyPanel: React.FC<ArrivalPolicyPanelProps> = ({ property
         "The arrival policy was not saved — your account does not have permission to update this property.",
       );
     }
+    // Arrival instructions are channel content: refresh the listing.
+    void queueChannelContentSync(targetId, "arrival_policy_save");
   }, []);
 
   const trimmed = useMemo(() => text.trim(), [text]);
@@ -342,6 +345,7 @@ export const ArrivalPolicyPanel: React.FC<ArrivalPolicyPanelProps> = ({ property
           `${unit.name ?? "This unit"} was not saved — your account does not have permission to update it.`,
         );
       }
+      void queueChannelContentSync(propertyId, "unit_arrival_policy_save");
       setOverrides((prev) =>
         prev.map((o) => (o.id === unit.id ? { ...o, check_in_instructions: value.length ? value : null } : o)),
       );

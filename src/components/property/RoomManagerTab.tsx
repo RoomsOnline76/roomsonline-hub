@@ -60,6 +60,7 @@ import {
   Loader2, AlertTriangle, CheckCircle2,
 } from "lucide-react";
 import AiAmenityDialog from "@/components/property/AiAmenityDialog";
+import { queueChannelContentSync } from "@/lib/channelContentSync";
 
 
 // ─── Props ──────────────────────────────────────────────────────────────────
@@ -315,6 +316,9 @@ export function RoomManagerTab({
         propertyId, roomId, roomName,
       });
     }
+
+    // Activating or hiding a unit changes the channel inventory for this listing.
+    void queueChannelContentSync(propertyId, "unit_active_toggle");
 
     toast({
       title: newActive ? "Room Activated" : "Room Deactivated",
