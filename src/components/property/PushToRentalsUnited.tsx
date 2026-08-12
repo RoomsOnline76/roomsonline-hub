@@ -376,37 +376,45 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
     setBuildingDiagnostics(null);
 
     try {
-      const { data, error: fnErr } = await supabase.functions.invoke("push-property-to-ru", {
-        body: { property_id: propertyId },
+      // Resumable batches keep long multi-unit pushes inside the worker budget.
+      const data = await pushPropertyToRu(propertyId, {
+        onProgress: ({ units }) => setUnitResults(units as any[]),
       });
-      if (fnErr) throw new Error(fnErr.message);
+
+      if (data.multi_unit && data.units) {
+        setUnitResults(data.units as any[]);
+        setUnits((prev) =>
+          prev.map((u) => {
+            const pushed = (data.units ?? []).find((r) => r.room_type_id === u.room_type_id);
+            return pushed?.rentalsunited_property_id
+              ? { ...u, ru_property_id: pushed.rentalsunited_property_id }
+              : u;
+          })
+        );
+      }
 
       if (!data.success) {
-        setError(data.error);
-        if (data.diagnostics) setDiagnostics(data.diagnostics);
-        toast.error(data.error?.message || "Push failed");
+        setError(data.error as any);
+        if (data.diagnostics) setDiagnostics(data.diagnostics as any);
+        const unitFailures = (data.units ?? [])
+          .filter((u) => u.success === false)
+          .map((u) => `${u.name ?? "Unit"} — ${u.error ?? "failed"}`);
+        toast.error(
+          unitFailures.length
+            ? `${data.error?.message || "Push failed"} — ${unitFailures.slice(0, 3).join(" · ")}`
+            : data.error?.message || "Push failed",
+          { duration: 12000 },
+        );
         return;
       }
 
       if (data.multi_unit) {
-        setBuildingId(String(data.building_id));
-        setUnitResults(data.units || []);
-        setBuildingDiagnostics(data.building_diagnostics || null);
-        // Refresh unit RU IDs from push results
-        if (data.units) {
-          setUnits((prev) =>
-            prev.map((u) => {
-              const pushed = data.units.find((r: any) => r.room_type_id === u.room_type_id);
-              return pushed?.rentalsunited_property_id
-                ? { ...u, ru_property_id: pushed.rentalsunited_property_id }
-                : u;
-            })
-          );
-        }
-        const successCount = (data.units || []).filter((u: any) => u.success).length;
-        toast.success(`Building + ${successCount}/${(data.units || []).length} units published to the Channel Manager`);
+        if (data.building_id) setBuildingId(String(data.building_id));
+        setBuildingDiagnostics((data.building_diagnostics as any) || null);
+        const successCount = (data.units || []).filter((u) => u.success).length;
+        toast.success(`${successCount}/${(data.units || []).length} units published to the Channel Manager`);
       } else {
-        setRuPropertyId(data.rentalsunited_property_id);
+        setRuPropertyId(data.rentalsunited_property_id as string);
         toast.success(`Property pushed to Rentals United (ID: ${data.rentalsunited_property_id})`);
       }
     } catch (err) {
