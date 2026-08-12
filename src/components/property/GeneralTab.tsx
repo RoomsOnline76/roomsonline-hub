@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,6 +25,8 @@ import { ACCOMMODATION_LABEL_OPTIONS } from "@/lib/accommodationLabels";
 import { getPMSFieldClass, getPMSDisplayName, isFieldPopulatedByPMS } from "@/lib/pmsFieldConfig";
 import { isPMSFullyIntegrated, getPMSIntegrationLevel, getPMSIcon } from "@/hooks/usePMSSync";
 import { channelMandatoryClass, CHANNEL_MANDATORY_LEGEND } from "@/lib/channelMandatoryFields";
+import { ChannelFieldHint } from "@/components/property/ChannelFieldHint";
+import { checkChannelCoordinates, checkChannelName, checkChannelPlace, checkChannelPostalCode, checkChannelStreet } from "@/lib/channelFieldRules";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -201,6 +203,13 @@ export function GeneralTab(props: GeneralTabProps) {
 
   const [linkedOwnerSearch, setLinkedOwnerSearch] = useState("");
   const [placeSearchOpen, setPlaceSearchOpen] = useState(false);
+
+  // Live channel-constraint feedback for the channel-mandatory inputs on this tab.
+  const nameFeedback = useMemo(() => checkChannelName(formData.name), [formData.name]);
+  const streetFeedback = useMemo(() => checkChannelStreet(formData.address), [formData.address]);
+  const cityFeedback = useMemo(() => checkChannelPlace(formData.city, "City"), [formData.city]);
+  const postalFeedback = useMemo(() => checkChannelPostalCode(formData.postal_code), [formData.postal_code]);
+  const coordsFeedback = useMemo(() => checkChannelCoordinates(latitude, longitude), [latitude, longitude]);
 
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
@@ -541,8 +550,10 @@ export function GeneralTab(props: GeneralTabProps) {
                 <p className="col-span-full text-[11px] text-muted-foreground">{CHANNEL_MANDATORY_LEGEND}</p>
                 <div className="flex flex-col gap-1">
                   <Label htmlFor="name" className="text-xs">Name *</Label>
-                  <Input id="name" value={formData.name} onChange={(e) => handleInputChange("name", e.target.value)} placeholder="Property name" required disabled={isFieldPopulatedByPMS("name", selectedPMS)} className={cn("h-7 text-xs", getPMSFieldClass("name", selectedPMS), channelMandatoryClass("name"), isFieldPopulatedByPMS("name", selectedPMS) && "cursor-not-allowed")} />
+                  <Input id="name" value={formData.name} onChange={(e) => handleInputChange("name", e.target.value)} placeholder="Property name" required disabled={isFieldPopulatedByPMS("name", selectedPMS)} className={cn("h-7 text-xs", getPMSFieldClass("name", selectedPMS), channelMandatoryClass("name"), nameFeedback.status === "error" && "border-destructive focus-visible:ring-destructive", isFieldPopulatedByPMS("name", selectedPMS) && "cursor-not-allowed")} />
+                  <ChannelFieldHint feedback={nameFeedback} />
                 </div>
+
                 <div className="flex flex-col gap-1">
                   <Label htmlFor="property_type" className="text-xs flex items-center">Type *<ContextualHelp table="properties" field="property_type" /></Label>
                   <Select value={formData.property_type} onValueChange={(v) => handleInputChange("property_type", v)}>
@@ -719,7 +730,8 @@ export function GeneralTab(props: GeneralTabProps) {
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
                   <div className="flex flex-col gap-1">
                     <Label htmlFor="address" className="text-xs">Street *</Label>
-                    <Input id="address" value={formData.address} onChange={(e) => handleInputChange("address", e.target.value)} placeholder="Street address" required={!noStreetAddress} disabled={isFieldPopulatedByPMS("address", selectedPMS)} className={cn("h-7 text-xs", getPMSFieldClass("address", selectedPMS), channelMandatoryClass("address"), isFieldPopulatedByPMS("address", selectedPMS) && "cursor-not-allowed")} />
+                    <Input id="address" value={formData.address} onChange={(e) => handleInputChange("address", e.target.value)} placeholder="Street address" required={!noStreetAddress} disabled={isFieldPopulatedByPMS("address", selectedPMS)} className={cn("h-7 text-xs", getPMSFieldClass("address", selectedPMS), channelMandatoryClass("address"), streetFeedback.status === "error" && "border-destructive focus-visible:ring-destructive", isFieldPopulatedByPMS("address", selectedPMS) && "cursor-not-allowed")} />
+                    <ChannelFieldHint feedback={streetFeedback} />
                   </div>
                   <div className="flex flex-col gap-1">
                     <Label htmlFor="suburb" className="text-xs">Suburb</Label>
@@ -728,6 +740,7 @@ export function GeneralTab(props: GeneralTabProps) {
                   <div className="flex flex-col gap-1">
                     <Label htmlFor="city" className="text-xs">City *</Label>
                     <Input id="city" value={formData.city} onChange={(e) => handleInputChange("city", e.target.value)} placeholder="City" required={!noStreetAddress} disabled={isFieldPopulatedByPMS("city", selectedPMS)} className={cn("h-7 text-xs", getPMSFieldClass("city", selectedPMS), channelMandatoryClass("city"), isFieldPopulatedByPMS("city", selectedPMS) && "cursor-not-allowed")} />
+                    <ChannelFieldHint feedback={cityFeedback} />
                   </div>
                   <div className="flex flex-col gap-1" data-field="country">
                     <Label htmlFor="country" className="text-xs">Country *</Label>
@@ -749,7 +762,8 @@ export function GeneralTab(props: GeneralTabProps) {
                   </div>
                   <div className="flex flex-col gap-1">
                     <Label htmlFor="postal_code" className="text-xs">Code</Label>
-                    <Input id="postal_code" value={formData.postal_code} onChange={(e) => handleInputChange("postal_code", e.target.value)} placeholder="Postal code" disabled={isFieldPopulatedByPMS("postal_code", selectedPMS)} className={cn("h-7 text-xs", getPMSFieldClass("postal_code", selectedPMS), channelMandatoryClass("postal_code"), isFieldPopulatedByPMS("postal_code", selectedPMS) && "cursor-not-allowed")} />
+                    <Input id="postal_code" value={formData.postal_code} onChange={(e) => handleInputChange("postal_code", e.target.value)} placeholder="Postal code" disabled={isFieldPopulatedByPMS("postal_code", selectedPMS)} className={cn("h-7 text-xs", getPMSFieldClass("postal_code", selectedPMS), channelMandatoryClass("postal_code"), postalFeedback.status === "error" && "border-destructive focus-visible:ring-destructive", isFieldPopulatedByPMS("postal_code", selectedPMS) && "cursor-not-allowed")} />
+                    <ChannelFieldHint feedback={postalFeedback} />
                   </div>
                 </div>
               )}
@@ -762,6 +776,9 @@ export function GeneralTab(props: GeneralTabProps) {
                 <div className="flex flex-col gap-1">
                   <Label htmlFor="longitude_input" className="text-xs flex items-center gap-1"><MapPin className="h-3 w-3 text-primary" />Longitude</Label>
                   <Input id="longitude_input" type="number" step="any" value={longitude ?? ""} onChange={(e) => { setLongitude(e.target.value ? parseFloat(e.target.value) : null); setIsDirty(true); }} placeholder="18.4241" className={cn("h-7 text-xs font-mono", channelMandatoryClass("longitude"))} />
+                </div>
+                <div className="col-span-2 md:col-span-4">
+                  <ChannelFieldHint feedback={coordsFeedback} compact={false} />
                 </div>
                 <div className="flex flex-col gap-1 col-span-2">
                   <Label htmlFor="google_maps_link" className="text-xs">Google Maps Link {noStreetAddress && '*'}</Label>

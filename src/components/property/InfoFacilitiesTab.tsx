@@ -11,6 +11,8 @@ import { StarRating } from "@/components/StarRating";
 import { ACCOMMODATION_LABEL_OPTIONS, getAccommodationLabel } from "@/lib/accommodationLabels";
 import { getPMSFieldClass, getPMSDisplayName, isFieldPopulatedByPMS } from "@/lib/pmsFieldConfig";
 import { cn } from "@/lib/utils";
+import { ChannelFieldHint } from "@/components/property/ChannelFieldHint";
+import { checkChannelDescription } from "@/lib/channelFieldRules";
 import { X, Save, Cloud, Sparkles, Loader2, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -168,11 +170,9 @@ export function InfoFacilitiesTab(props: InfoFacilitiesTabProps) {
                 {MIN_DESCRIPTION_CHARS - descriptionLength} more characters needed — distribution channels require at least {MIN_DESCRIPTION_CHARS} characters.
               </p>
             ) : (
-              <p className="flex items-center gap-1 text-[10px] text-emerald-600 dark:text-emerald-400">
-                <CheckCircle2 className="h-3 w-3" />
-                Meets the {MIN_DESCRIPTION_CHARS}-character minimum for channel distribution.
-              </p>
+              <ChannelFieldHint feedback={checkChannelDescription(formData.description)} compact={false} />
             )}
+
           </div>
         </CardContent>
 
