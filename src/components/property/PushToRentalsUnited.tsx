@@ -25,6 +25,8 @@ import {
   RefreshCw,
 } from "lucide-react";
 import type { RuReadinessReport } from "@/components/pms/channels/RuReadinessScorecard";
+import { usePropertyReadiness } from "@/hooks/usePropertyReadiness";
+
 import {
   RuChannelContentChecklist,
   type RuContentFlags,
