@@ -439,9 +439,12 @@ export function localBookableWindowChecks(
     min_stay_set: boolean;
     open_days: number;
     unpriced_open_days: number;
+    /** Active units with no MinStay authored — named so the fix opens the right card. */
+    units_without_min_stay?: string[];
   },
   unit?: string,
 ): RuCheck[] {
+  const minStayUnits = window.units_without_min_stay ?? [];
   return [
     {
       key: "bookable_window",
@@ -463,11 +466,15 @@ export function localBookableWindowChecks(
       label: "MinStay authored in ROL'OS",
       mandatory: true,
       passed: window.min_stay_set,
-      unit,
+      unit: minStayUnits.length === 1 ? minStayUnits[0] : unit,
       fix_hint: "Edit Property → Rooms → Room Type → Min Stay",
       ...(window.min_stay_set
         ? {}
-        : { detail: "No minimum stay is authored on the affected Room Type or its dated/Rate Plan fallback" }),
+        : {
+          detail: minStayUnits.length > 0
+            ? `No minimum stay authored on ${minStayUnits.slice(0, 3).join(", ")}${minStayUnits.length > 3 ? ` +${minStayUnits.length - 3} more` : ""}`
+            : "No minimum stay is authored on the affected Room Type or its dated/Rate Plan fallback",
+        }),
     },
   ];
 }
