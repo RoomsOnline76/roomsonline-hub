@@ -877,6 +877,26 @@ export interface RequirementStatus extends FieldRequirement {
  * checksheet and channel checklist all read the same wording.
  * ------------------------------------------------------------------ */
 
+/**
+ * Unit named at the start of a shortfall detail ("SEESTER: no floor captured").
+ * Per-unit shortfalls are always written that way, so any surface showing the detail
+ * can route the fix to the unit that owns it.
+ */
+export function unitFromShortfall(
+  detail: string | undefined | null,
+  subject: RequirementSubject,
+): string | undefined {
+  const prefix = String(detail ?? "").split(":")[0]?.trim();
+  if (!prefix || prefix.length > 60) return undefined;
+  const rows = roomRows(subject);
+  const norm = (v: string) => v.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const target = norm(prefix);
+  const match = rows.find((room, index) => norm(unitName(room, index)) === target);
+  if (match) return str(match.name) || prefix;
+  // "Unit 2" style fallback names are still valid routing keys.
+  return /^unit \d+$/i.test(prefix) ? prefix : undefined;
+}
+
 const unitName = (room: RoomRequirementRow, index: number): string =>
   str(room.name) || `Unit ${index + 1}`;
 
