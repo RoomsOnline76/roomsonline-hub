@@ -585,16 +585,24 @@ function MacroRow({
                 size="sm"
                 variant="outline"
                 className="h-7 text-[11px]"
-                onClick={() =>
+                onClick={() => {
+                  // A step's real blocker may live on another page (unit content is
+                  // edited on Rooms), so state-check failures win over the macro's
+                  // own section.
+                  if (blockerTarget) {
+                    onGoToField(blockerTarget.section, blockerTarget.fieldKey, blockerTarget.unit);
+                    return;
+                  }
                   onGoToField(
                     firstOutstandingField?.section ?? (macro.section as string),
                     firstOutstandingField?.paintable ? firstOutstandingField.key : undefined,
-                  )
-                }
+                  );
+                }}
               >
                 Open step
               </Button>
             )}
+
 
             {macro.action === "ensure_owner" && isPlatformUser && !complete && (
               <Button
