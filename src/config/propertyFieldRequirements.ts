@@ -11,6 +11,7 @@ import {
 } from "@/lib/bedConfig";
 import { checkChannelName } from "@/lib/channelFieldRules";
 import { MIN_IMAGE_HEIGHT, MIN_IMAGE_WIDTH } from "@/lib/imageValidation";
+import { mainImageState, normalizeRuImageTagMap } from "@/lib/ruImageTags";
 
 /**
  * Field-level readiness registry.
@@ -131,6 +132,31 @@ const checkTime = (subject: RequirementSubject, edge: "in" | "out"): unknown => 
 
 const imageList = (subject: RequirementSubject): unknown[] =>
   Array.isArray(subject.images) ? subject.images : [];
+
+const imageUrlList = (subject: RequirementSubject): string[] =>
+  imageList(subject)
+    .map((img) =>
+      typeof img === "string" ? img : String((img as Record<string, unknown>)?.url ?? ""),
+    )
+    .filter(Boolean);
+
+/**
+ * Channel gate: exactly one photo must carry an explicit main-image designation.
+ * Canonical storage is RU tag 1 in `ru_image_tags`; legacy object-shaped galleries
+ * (`is_main` / `is_hero` / `type: "hero"`) still count.
+ */
+const mainImageCount = (subject: RequirementSubject): number => {
+  const legacy = imageList(subject).filter((img) => {
+    if (typeof img === "string") return false;
+    const rec = img as Record<string, unknown>;
+    return rec?.type === "hero" || rec?.is_main === true || rec?.is_hero === true;
+  }).length;
+  if (legacy > 0) return legacy;
+  return mainImageState(
+    normalizeRuImageTagMap(subject.ru_image_tags),
+    imageUrlList(subject),
+  ).count;
+};
 
 type RoomRequirementRow = {
   id?: string | null;
@@ -448,15 +474,7 @@ export const PROPERTY_FIELD_REQUIREMENTS: FieldRequirement[] = [
     section: "images",
     target: ['[data-field="images"]', "#property-images"],
     hint: "Flag one photo as the main image — the channel rejects the listing without it.",
-    isSatisfied: (s) => {
-      const imgs = imageList(s);
-      if (imgs.length === 0) return false;
-      return imgs.some((img) => {
-        if (typeof img === "string") return false;
-        const rec = img as Record<string, unknown>;
-        return rec?.type === "hero" || rec?.is_main === true || rec?.is_hero === true;
-      });
-    },
+    isSatisfied: (s) => mainImageCount(s) === 1,
   },
 
 
@@ -907,8 +925,13 @@ export const REQUIREMENT_SHORTFALLS: Record<
     const worst = bad[0];
     return `${bad.length} photo(s) below ${MIN_IMAGE_WIDTH}×${MIN_IMAGE_HEIGHT}px (smallest ${worst.width}×${worst.height}px)`;
   },
-  hero_image: (s) =>
-    imageList(s).length === 0 ? "No images uploaded yet" : "No photo is flagged as the main image",
+  hero_image: (s) => {
+    if (imageList(s).length === 0) return "No images uploaded yet";
+    const count = mainImageCount(s);
+    if (count === 0) return "No photo is flagged as the main image";
+    if (count > 1) return `${count} photos are flagged as main — pick exactly one`;
+    return undefined;
+  },
   facilities: (s) => {
     const list = amenity(s, "facilities");
     return `${Array.isArray(list) ? list.length : 0} of 10 amenities selected`;
