@@ -1,4 +1,5 @@
 import type { PropertySectionKey } from "@/config/propertySectionOrder";
+import { calculateBedCapacity, type BedEntry } from "@/lib/bedConfig";
 
 /**
  * Field-level readiness registry.
@@ -105,6 +106,45 @@ const checkTime = (subject: RequirementSubject, edge: "in" | "out"): unknown => 
 const imageList = (subject: RequirementSubject): unknown[] =>
   Array.isArray(subject.images) ? subject.images : [];
 
+type RoomRequirementRow = {
+  id?: string | null;
+  name?: string | null;
+  description?: string | null;
+  floor?: number | null;
+  bathrooms?: number | null;
+  toilets?: number | null;
+  maxPeople?: number | null;
+  max_guests?: number | null;
+  bedConfiguration?: unknown;
+  bed_configuration?: unknown;
+  images?: unknown;
+  amenities?: unknown;
+};
+
+const roomRows = (subject: RequirementSubject): RoomRequirementRow[] => {
+  const rooms = amenity(subject, "room_types");
+  return Array.isArray(rooms) ? (rooms as RoomRequirementRow[]) : [];
+};
+
+const numericAtLeast = (value: unknown, minimum: number): boolean => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= minimum;
+};
+
+const bedCapacity = (raw: unknown): number => {
+  if (typeof raw === "string") return calculateBedCapacity(raw);
+  if (!Array.isArray(raw)) return 0;
+  const entries: BedEntry[] = raw.flatMap((entry) => {
+    if (!entry || typeof entry !== "object") return [];
+    const candidate = entry as { type?: unknown; count?: unknown };
+    if (typeof candidate.type !== "string") return [];
+    const count = Number(candidate.count);
+    if (!Number.isFinite(count) || count <= 0) return [];
+    return [{ type: candidate.type, count }];
+  });
+  return calculateBedCapacity(entries);
+};
+
 
 const isRuDistributed = (subject: RequirementSubject): boolean =>
   filled(subject.rentalsunited_property_id) || filled(subject.rentalsunited_building_id);
@@ -129,12 +169,12 @@ export const PROPERTY_FIELD_REQUIREMENTS: FieldRequirement[] = [
   },
   {
     key: "description",
-    label: "Description (min 100 characters)",
+    label: "Description (min 700 characters)",
     tier: "mandatory",
     section: "general",
     target: ["#description", '[data-field="description"]'],
-    hint: "Must be at least 100 characters to pass the content check.",
-    isSatisfied: (s) => str(s.description).length >= 100,
+    hint: "Must be at least 700 characters to pass channel certification.",
+    isSatisfied: (s) => str(s.description).length >= 700,
   },
   {
     key: "address",
@@ -212,12 +252,12 @@ export const PROPERTY_FIELD_REQUIREMENTS: FieldRequirement[] = [
   /* ---------- Media (images) ---------- */
   {
     key: "images",
-    label: "At least 3 gallery images",
+    label: "At least 10 gallery images",
     tier: "mandatory",
     section: "images",
     target: ['[data-field="images"]', "#property-images"],
-    hint: "Upload 3 or more images (min 1024×768).",
-    isSatisfied: (s) => imageList(s).length >= 3,
+    hint: "Upload 10 or more measured images (min 1024×768).",
+    isSatisfied: (s) => imageList(s).length >= 10,
   },
   {
     key: "hero_image",
@@ -315,6 +355,54 @@ export const PROPERTY_FIELD_REQUIREMENTS: FieldRequirement[] = [
       const rooms = amenity(s, "room_types");
       return Array.isArray(rooms) ? rooms.length > 0 : false;
     },
+  },
+  {
+    key: "room_descriptions",
+    label: "Every unit description has 700+ characters",
+    tier: "mandatory",
+    section: "rooms",
+    target: ['[data-field="room_description"]'],
+    hint: "Open the named unit and add at least 700 characters of original description.",
+    isSatisfied: (s) => roomRows(s).length > 0 && roomRows(s).every((room) => str(room.description).length >= 700),
+  },
+  {
+    key: "room_floors",
+    label: "Floor captured for every unit",
+    tier: "mandatory",
+    section: "rooms",
+    target: ['[data-field="floor"]'],
+    hint: "Choose 0 for ground floor; blank is not accepted.",
+    isSatisfied: (s) => roomRows(s).length > 0 && roomRows(s).every((room) => room.floor !== null && room.floor !== undefined),
+  },
+  {
+    key: "room_bathrooms",
+    label: "At least 1 bathroom per unit",
+    tier: "mandatory",
+    section: "rooms",
+    target: ['[data-field="bathrooms"]'],
+    hint: "Each unit must explicitly capture its own bathroom count.",
+    isSatisfied: (s) => roomRows(s).length > 0 && roomRows(s).every((room) => numericAtLeast(room.bathrooms, 1)),
+  },
+  {
+    key: "room_toilets",
+    label: "At least 1 toilet per unit",
+    tier: "mandatory",
+    section: "rooms",
+    target: ['[data-field="toilets"]'],
+    hint: "Blank and zero both block channel onboarding.",
+    isSatisfied: (s) => roomRows(s).length > 0 && roomRows(s).every((room) => numericAtLeast(room.toilets, 1)),
+  },
+  {
+    key: "room_beds",
+    label: "Beds cover maximum occupancy",
+    tier: "mandatory",
+    section: "rooms",
+    target: ['[data-field="bed_configuration"]'],
+    hint: "Authored sleeping places must cover every guest in the unit's maximum occupancy.",
+    isSatisfied: (s) => roomRows(s).length > 0 && roomRows(s).every((room) => {
+      const maximum = Number(room.maxPeople ?? room.max_guests ?? 0);
+      return maximum >= 1 && bedCapacity(room.bedConfiguration ?? room.bed_configuration) === maximum;
+    }),
   },
 
   /* ---------- Rates & Policies ---------- */
@@ -478,7 +566,7 @@ export const CHECK_TO_FIELD_KEYS: Record<string, string[]> = {
   commercial: ["banking"],
   location: ["address", "city", "country", "geo", "postal_code"],
   contact: ["contact_email", "contact_phone", "emergency_contact"],
-  rooms: ["rooms"],
+  rooms: ["rooms", "room_descriptions", "room_floors", "room_bathrooms", "room_toilets", "room_beds"],
   policies: ["master_policy", "payment_methods"],
   rentalsunited_geo: ["geo"],
   rentalsunited_location_currency: ["ru_currency"],
@@ -495,8 +583,16 @@ export const CHECK_TO_FIELD_KEYS: Record<string, string[]> = {
   has_cancellation_policies: ["master_policy"],
   has_payment_methods: ["payment_methods"],
   has_legal_rep: ["rep_nationality", "rep_country_of_residence"],
-  has_floor: ["rooms"],
-  unit_description: ["rooms"],
+  can_sleep_max_ok: ["room_beds"],
+  has_floor: ["room_floors"],
+  has_bathrooms: ["room_bathrooms"],
+  has_toilets: ["room_toilets"],
+  has_bedroom: ["room_beds"],
+  has_bathroom_room: ["room_bathrooms"],
+  beds_cover_half: ["room_beds"],
+  beds_meet_max_guests: ["room_beds"],
+  beds_distributed: ["room_beds"],
+  unit_description: ["room_descriptions"],
   unit_name_clean: ["rooms"],
   images_meet_min_size: ["images"],
 };

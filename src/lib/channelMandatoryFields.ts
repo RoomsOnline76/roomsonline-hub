@@ -42,6 +42,11 @@ export const CHANNEL_MANDATORY_FIELDS: ChannelMandatoryField[] = [
   { field: "room_name", check: "unit_name_clean", reason: "Unit name — no emoji, special characters or ALL CAPS" },
   { field: "room_description", check: "unit_description", reason: "Unit description of at least 700 characters" },
   { field: "floor", check: "has_floor", reason: "Floor is required for every unit" },
+  { field: "bathrooms", check: "has_bathrooms", reason: "Every unit must have at least 1 bathroom" },
+  { field: "toilets", check: "has_toilets", reason: "Every unit must have at least 1 toilet; blank and zero are rejected" },
+  { field: "bed_configuration", check: "beds_meet_max_guests", reason: "Authored beds must sleep the unit's full maximum occupancy" },
+  { field: "room_images", check: "meets_minimum_images", reason: "Each listing needs at least 10 channel-ready photos" },
+  { field: "room_amenities", check: "meets_minimum_amenities", reason: "Each listing needs at least 10 mapped amenities" },
 ];
 
 const BY_FIELD = new Map(CHANNEL_MANDATORY_FIELDS.map((f) => [f.field, f]));

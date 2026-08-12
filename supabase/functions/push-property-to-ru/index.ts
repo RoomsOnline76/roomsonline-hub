@@ -627,10 +627,10 @@ function buildValidation(payload: Record<string, any>): Record<string, unknown> 
     total_beds: totalBeds,
     // Sleeping places implied by the bed configuration (a double sleeps 2).
     total_bed_capacity: totalBedCapacity,
-    // RU White-Label minimum: sleeping places must cover >= 50% of CanSleepMax.
+    // Certification requires authored sleeping places to cover CanSleepMax.
     beds_cover_half: totalBedCapacity >= Math.ceil(Math.max(1, maxGuests) * RU_BED_COVERAGE),
     // Advisory only: sleeping places cover every guest.
-    beds_meet_max_guests: totalBedCapacity >= Math.max(1, maxGuests),
+    beds_meet_max_guests: totalBedCapacity === Math.max(1, maxGuests),
     max_guests: maxGuests,
     // Composition: RU treats bathrooms and toilets as mandatory counts (blank/zero rejected).
     has_bathrooms: (amenities || []).some((a: any) => a?.id === 81 && (a.count || 0) > 0),
@@ -981,6 +981,8 @@ function resolveUnitComposition(
     if (unit) {
       match = list.find((rt) =>
         (rt?.pmsRoomId && norm(rt.pmsRoomId) === norm(unit.id)) ||
+        (rt?.linkedRolosId && norm(rt.linkedRolosId) === norm(unit.id)) ||
+        (unit.linked_rolos_id && rt?.id && norm(rt.id) === norm(unit.linked_rolos_id)) ||
         (rt?.id && norm(rt.id) === norm(unit.id)) ||
         (rt?.name && norm(rt.name) === norm(unit.name))
       ) || null;
@@ -993,10 +995,15 @@ function resolveUnitComposition(
     return Number.isFinite(n) && n > 0 ? n : 0;
   };
 
-  const bathrooms =
-    num(unit?.bathrooms) || num(match?.bathrooms) || num(property.bathrooms);
-  const toilets =
-    num(match?.toilets) || num((match as any)?.separateToilets) || num(property.toilets);
+  // A multi-unit listing must explicitly author composition on the matching canonical
+  // room entry. Never let a property-wide value hide a blank or unmatched unit field.
+  const requiresExplicitUnitComposition = list.length > 1;
+  const bathrooms = requiresExplicitUnitComposition
+    ? num(match?.bathrooms)
+    : num(match?.bathrooms) || num(unit?.bathrooms) || num(property.bathrooms);
+  const toilets = requiresExplicitUnitComposition
+    ? num(match?.toilets ?? match?.separateToilets)
+    : num(match?.toilets ?? match?.separateToilets) || num(property.toilets);
   const separateKitchen =
     match?.separateKitchen === true || match?.separate_kitchen === true
       ? true
@@ -1022,7 +1029,7 @@ function buildUnitPayload(
   const lng = unit.longitude || property.longitude || 0;
   const street = unit.address_street || property.address || 'Not specified';
   const zipCode = resolveZipCode(unit.address_postal_code, property);
-  const maxGuests = unit.max_guests || 2;
+  const maxGuests = Number(unit.max_guests) || 0;
   const { space, isDefault: spaceIsDefault } = resolvePropertySize(property, unit.room_size);
   const paymentMethods = mapPaymentMethods(property.amenities);
   const cancellationPolicies = mapCancellationPolicies(amenities as Record<string, unknown>);
@@ -1104,7 +1111,7 @@ function buildUnitPayload(
       }
     }
   }
-  if (!beds) beds = unit.beds || unit.bedrooms || Math.max(1, maxGuests);
+  if (!beds) beds = Number(unit.beds) || 0;
   const descText = unit.description || property.description || unit.name;
 
   // Build CompositionRoomsAmenities using RU's REAL global dictionary
@@ -1134,15 +1141,6 @@ function buildUnitPayload(
         amenities: [{ id: ruBedId, count: bedEntry.count || 1 }],
       });
     });
-  } else {
-    // Fallback: emit `bedrooms` count of generic 257 blocks (default double bed)
-    const bedroomCount = Math.max(1, Number(unit.bedrooms) || 1);
-    for (let i = 0; i < bedroomCount; i++) {
-      rooms.push({
-        room_id: RU_BEDROOM_ID,
-        amenities: [{ id: RU_DEFAULT_BED_ID, count: Math.max(1, Math.ceil(maxGuests / bedroomCount / 2)) }],
-      });
-    }
   }
 
   // NOTE: Bathroom (81) and Kitchen (101) blocks are intentionally OMITTED.
@@ -1237,30 +1235,22 @@ function buildSinglePropertyPayload(property: PropertyRow, roomTypes: RoomTypeRo
       rooms.push(...built.rooms);
       continue;
     }
-    // No bed configuration on this room type: derive from beds / bedrooms / capacity.
-    const bedroomCount = Math.max(1, Number(rt.bedrooms) || 1);
-    const bedTotal = Math.max(bedroomCount, Number(rt.beds) || 0, Math.ceil((rt.max_guests || 2) / 2));
-    const perRoom = Math.max(1, Math.ceil(bedTotal / bedroomCount));
-    for (let i = 0; i < bedroomCount; i++) rooms.push({ room_id: 257, amenities: [{ id: RU_DEFAULT_BED_ID, count: perRoom }] });
+    // Do not invent beds from occupancy. Missing authored bed data must remain a
+    // readiness blocker rather than producing a payload that appears compliant.
+    const bedroomCount = Math.max(0, Number(rt.bedrooms) || 0);
+    const bedTotal = Math.max(0, Number(rt.beds) || 0);
+    if (bedroomCount > 0 && bedTotal > 0) {
+      const perRoom = Math.max(1, Math.ceil(bedTotal / bedroomCount));
+      for (let i = 0; i < bedroomCount; i++) rooms.push({ room_id: 257, amenities: [{ id: RU_DEFAULT_BED_ID, count: perRoom }] });
+    }
   }
-  if (rooms.length === 0) {
-    const bedroomCount = Math.max(1, Number(property.bedrooms) || 1);
-    const perRoom = Math.max(1, Math.ceil(Math.max(2, maxGuests) / 2 / bedroomCount));
-    for (let i = 0; i < bedroomCount; i++) rooms.push({ room_id: 257, amenities: [{ id: RU_DEFAULT_BED_ID, count: perRoom }] });
-  }
-  // RU minimum: beds must cover >= 50% of CanSleepMax. Top up the first bedroom block
-  // when the authored data falls short so a valid payload is never rejected outright;
-  // the readiness scorecard still reports the underlying gap.
-  const emittedBeds = rooms.reduce((sum, r) => sum + r.amenities.reduce((s, a) => s + (a.count || 1), 0), 0);
-  const requiredBeds = Math.ceil(maxGuests * 0.5);
-  if (emittedBeds < requiredBeds && rooms[0]) rooms[0].amenities[0].count += requiredBeds - emittedBeds;
   let allImages = mapImages(property.images as unknown[] | null, (property as any).ru_image_tags);
   for (const rt of roomTypes) allImages = allImages.concat(mapImages(rt.images as unknown[] | null, (rt as any).ru_image_tags));
   const seenUrls = new Set<string>();
   allImages = allImages.filter(img => { if (seenUrls.has(img.url)) return false; seenUrls.add(img.url); return true; });
   allImages = restampRuImages(allImages);
   const totalBeds = rooms.reduce((sum, r) => sum + r.amenities.reduce((sm, a) => sm + (a.count || 1), 0), 0);
-  const numberOfBeds = totalBeds > 0 ? totalBeds : (property.bedrooms || Math.max(1, maxGuests));
+  const numberOfBeds = totalBeds;
   return {
     name: property.name,
     property_type_id: objectTypeId,
