@@ -187,7 +187,16 @@ Deno.serve(async (req) => {
             const dateTo = toDay(payload.DateTo ?? payload.date_to, iso(to));
             for (const apiAction of ['get_availability', 'get_prices'] as const) {
               const { data, error } = await admin.functions.invoke('rentalsunited-api', {
-                body: { action: apiAction, ru_property_id: Number(ruPropertyId), date_from: dateFrom, date_to: dateTo },
+                body: {
+                  action: apiAction,
+                  ru_property_id: Number(ruPropertyId),
+                  date_from: dateFrom,
+                  date_to: dateTo,
+                  // The notification's Publisher is the RU sub-user (OwnerID) that owns the
+                  // property. Without it the pull runs on master creds and RU answers
+                  // "Property does not exist".
+                  ...(publisher ? { owner_id: publisher } : {}),
+                },
               });
               if (error) throw error;
               if (data?.success === false) throw new Error(data?.error?.message ?? `${apiAction} failed`);
