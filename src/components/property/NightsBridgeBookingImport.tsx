@@ -371,7 +371,13 @@ export function NightsBridgeBookingImport({ propertyId, propertyName }: Props) {
                       <TableCell className="text-xs">
                         {p.room_name ?? "—"}
                         {p.room_name && !p.room_matched && (
-                          <Badge variant="destructive" className="ml-1 text-[10px]">unmatched</Badge>
+                          overrides[p.room_name] === SKIP ? (
+                            <Badge variant="outline" className="ml-1 text-[10px] text-muted-foreground">
+                              unassigned
+                            </Badge>
+                          ) : (
+                            <Badge variant="destructive" className="ml-1 text-[10px]">unmatched</Badge>
+                          )
                         )}
                       </TableCell>
                       <TableCell className="text-xs">
