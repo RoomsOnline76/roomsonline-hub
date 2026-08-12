@@ -3730,11 +3730,27 @@ Deno.serve(async (req) => {
 
     if (!dry_run && !phaseGate.ready_for_push) {
       if (!forcePush) {
-        return new Response(JSON.stringify(phaseBlockedResponse(phaseGate)), {
+        const blockedBody = phaseBlockedResponse(phaseGate);
+        // A refused push used to leave no trace, so nobody could tell WHY phase 2 blocked.
+        console.warn(
+          `[push-property-to-ru] PHASE_BLOCKED at ${blockedBody.phase} for property ${property_id}: ${(blockedBody.blockers ?? []).join(' | ')}`,
+        );
+        try {
+          await supabase.from('ru_sync_runs').insert({
+            property_id,
+            action: 'phase_blocked',
+            success: false,
+            error_code: 'PHASE_BLOCKED',
+            error_message: (blockedBody.blockers ?? []).join('; ').slice(0, 2000),
+            details: { phase: blockedBody.phase, phase_order: blockedBody.phase_order, blockers: blockedBody.blockers },
+          });
+        } catch (_e) { /* evidence only */ }
+        return new Response(JSON.stringify(blockedBody), {
           status: 422,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
+
       console.warn(
         `[push-property-to-ru] FORCE PUSH overriding phase gate at ${phaseGate.current_phase} for property ${property_id}`,
       );

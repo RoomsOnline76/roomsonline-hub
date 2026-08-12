@@ -130,6 +130,9 @@ export function RuOnboardingPipeline({ propertyId, readOnly = false, standalone 
   const [lastMcq, setLastMcq] = useState<LastMcq | null>(null);
   const [salesChannel, setSalesChannel] = useState<SalesChannel | null>(null);
   const [readiness, setReadiness] = useState<Readiness | null>(null);
+  /** Blockers returned by the last refused live push, kept so the card can show them. */
+  const [pushBlock, setPushBlock] = useState<{ phase: PhaseKey; reasons: string[] } | null>(null);
+
   const [availabilitySource, setAvailabilitySource] = useState<"channel" | "local">("local");
   const [resolvingChannel, setResolvingChannel] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -253,6 +256,13 @@ export function RuOnboardingPipeline({ propertyId, readOnly = false, standalone 
     if (fnError || !data?.success) {
       // PHASE_BLOCKED returns `blockers`; NOT_READY returns `gaps` — show either.
       const reasons: string[] = [...(data?.blockers ?? []), ...(data?.gaps ?? [])].map(String);
+      // Keep them on screen: a toast alone left the blocking phase looking clean.
+      setPushBlock(
+        reasons.length
+          ? { phase: (data?.phase as PhaseKey) ?? ((data?.gaps ?? []).length ? "p2_readiness" : "p3_push"), reasons }
+          : null,
+
+      );
       toast.error(
         reasons.length
           ? `${data?.error?.message ?? "Push blocked"} — ${reasons.slice(0, 3).join(" · ")}`
@@ -263,8 +273,10 @@ export function RuOnboardingPipeline({ propertyId, readOnly = false, standalone 
       );
 
     } else {
+      setPushBlock(null);
       toast.success("Property, inventory and rates pushed to Rentals United");
     }
+
     await load();
   }, [propertyId, load]);
 
@@ -470,6 +482,19 @@ export function RuOnboardingPipeline({ propertyId, readOnly = false, standalone 
                       ))}
                     </ul>
                   )}
+                  {/* Reasons the last live push was refused — shown on the phase that blocked it,
+                      so a green card can never hide an outstanding requirement. */}
+                  {pushBlock && pushBlock.phase === phase.key && phase.blockers.length === 0 && (
+                    <div className="mt-2 rounded-md border border-destructive/40 bg-destructive/5 p-2">
+                      <p className="text-xs font-medium text-destructive">Last push was refused here:</p>
+                      <ul className="mt-1 list-disc space-y-1 pl-5 text-sm text-destructive">
+                        {pushBlock.reasons.map((b, i) => (
+                          <li key={`pb-${i}`}>{b}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
                   {phase.status === "pending" && idx > 0 && (
                     <p className="mt-2 text-sm text-muted-foreground">
                       Locked until phase {phase.order - 1} is complete.

@@ -1204,9 +1204,12 @@ Deno.serve(async (req) => {
       if (ruIds.length === 0 && singleRuId > 0) ruIds.push(singleRuId);
 
 
-      if (opts.probe_ari === false) {
-        // ARI not probed in this context — omit the checks entirely.
-      } else if (ruIds.length > 0) {
+      // Phase 2 must mean the SAME thing everywhere: when the live channel calendar is not
+      // read (probing off, or nothing published yet) the two mandatory rules are still scored
+      // on the ROL'OS calendar — exactly as the live push gate does. Skipping them made the
+      // pipeline card green while the push refused with PHASE_BLOCKED.
+      if (opts.probe_ari !== false && ruIds.length > 0) {
+
         const from = isoDate(0);
         const to = isoDate(365);
         // White-label listings live on the owning sub-user account: reading them with the
