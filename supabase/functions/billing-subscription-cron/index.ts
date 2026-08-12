@@ -356,7 +356,19 @@ async function ensureInvoiceAndEmail(supabase: any, resend: Resend, opts: {
     }
   }
 
+  // Try the mandate first — renewals on an authorised mandate never ask the
+  // owner for money. The paid tax invoice is emailed by the settlement path.
+  const auto = await attemptAutoCharge(supabase, cfg, scope, entityId, invoice.id);
+  if (auto.charged) {
+    return { auto_charged: true, invoice_id: invoice.id };
+  }
+  if (auto.attempted && !auto.charged && auto.error !== "amount_changed_requires_reauth" && (auto.failures || 0) < 3) {
+    // Transient decline — retry on the next run before troubling the owner.
+    return { skipped: true, reason: "auto_charge_retry", invoice_id: invoice.id, error: auto.error };
+  }
+
   if (!ownerEmail) return { skipped: true, reason: "no_owner_email", invoice_id: invoice.id };
+
 
   const payUrl = `${SITE_URL}/subscribe/pay/${invoice.payfast_token}`;
   const { data: invFull } = await supabase.from("subscription_invoices").select("amount, currency, period_start, period_end").eq("id", invoice.id).single();
