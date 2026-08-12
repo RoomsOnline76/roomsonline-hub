@@ -123,5 +123,56 @@ export function useChannelReconciliation() {
     );
   }, []);
 
-  return { result, running, error, reconcile, purgeOrphan, clearStale };
+  /**
+   * Resolves everything the last pass classified as orphan or stale, one row at
+   * a time so a single failure never aborts the rest. Matched (billable)
+   * listings are never touched.
+   */
+  const cleanupAll = useCallback(async (): Promise<CleanupOutcome> => {
+    const snapshot = result;
+    if (!snapshot) return { cleaned: 0, total: 0, failures: [] };
+
+    const erroredOwners = new Set(snapshot.accounts.filter((a) => a.error).map((a) => a.owner_id));
+    const orphans = snapshot.orphans.filter((o) => !erroredOwners.has(o.owner_id));
+    const stale = snapshot.stale;
+    const total = orphans.length + stale.length;
+
+    const failed: CleanupOutcome["failures"] = [];
+    const failMap: Record<string, string> = {};
+    let done = 0;
+    let cleaned = 0;
+    setCleanup({ done: 0, total });
+
+    for (const o of orphans) {
+      try {
+        await purgeOrphan(o);
+        cleaned++;
+      } catch (e) {
+        const reason = e instanceof Error ? e.message : "Could not remove the listing";
+        failed.push({ key: o.listing_id, label: `${o.name} #${o.listing_id}`, reason });
+        failMap[o.listing_id] = reason;
+      }
+      done++;
+      setCleanup({ done, total });
+    }
+
+    for (const s of stale) {
+      try {
+        await clearStale(s);
+        cleaned++;
+      } catch (e) {
+        const reason = e instanceof Error ? e.message : "Could not clear the local id";
+        failed.push({ key: s.record_id, label: `${s.label} #${s.listing_id}`, reason });
+        failMap[s.record_id] = reason;
+      }
+      done++;
+      setCleanup({ done, total });
+    }
+
+    setFailures(failMap);
+    setCleanup(null);
+    return { cleaned, total, failures: failed };
+  }, [result, purgeOrphan, clearStale]);
+
+  return { result, running, error, reconcile, purgeOrphan, clearStale, cleanupAll, cleanup, failures };
 }
