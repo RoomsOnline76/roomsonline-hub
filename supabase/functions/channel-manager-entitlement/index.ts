@@ -37,7 +37,7 @@ interface Body {
   unit_id?: string;
   /** purge_listing: RU OwnerID that owns the listing. */
   owner_id?: string | null;
-  /** purge_listing: the channel already reports it archived — skip the push. */
+  /** purge_listing: legacy hint, ignored — presence is now verified upstream. */
   already_archived?: boolean;
 
   /** clear_local_listing: "property" | "unit" record kind holding the stale id. */
@@ -130,10 +130,31 @@ async function resolveRuOwnerId(
   return viaPortfolio?.ru_owner_id ? String(viaPortfolio.ru_owner_id) : null;
 }
 
+/**
+ * Operation label + trace stamped on every channel exchange we cause, so the
+ * durable exchange log can be filtered by the ROL'OS operation (reconcile /
+ * cleanup) instead of only by the low-level adapter action.
+ */
+interface ChannelLogCtx {
+  trace_id: string;
+  parent_action: string;
+}
+
+const logCtx = (traceId: string, operation: string): ChannelLogCtx => ({
+  trace_id: traceId,
+  parent_action: operation,
+});
+
 /** Push one listing's active/archived state to RU and report a real failure. */
 async function pushListingStatus(
   admin: ReturnType<typeof createClient>,
-  args: { propertyId: string; ruPropertyId: string; archive: boolean; ownerId: string | null },
+  args: {
+    propertyId: string;
+    ruPropertyId: string;
+    archive: boolean;
+    ownerId: string | null;
+    ctx?: ChannelLogCtx;
+  },
 ): Promise<string | null> {
   const { data: ruRes, error: ruErr } = await admin.functions.invoke("rentalsunited-api", {
     body: {
@@ -141,6 +162,7 @@ async function pushListingStatus(
       property_id: args.propertyId,
       ru_property_id: args.ruPropertyId,
       ...(args.ownerId ? { owner_id: args.ownerId } : {}),
+      ...(args.ctx ?? {}),
       metadata: { is_active: !args.archive, is_archived: args.archive },
     },
   });
@@ -152,6 +174,89 @@ async function pushListingStatus(
   if (warning) return `Rentals United warning: ${warning}`;
   return null;
 }
+
+interface ChannelListing {
+  id: string;
+  name: string;
+  is_active?: boolean;
+  is_archived?: boolean;
+}
+
+/** Read every listing one channel account holds. Errors are returned, never thrown. */
+async function pullOwnerListings(
+  admin: ReturnType<typeof createClient>,
+  ownerId: string,
+  ctx: ChannelLogCtx,
+): Promise<{ listings: ChannelListing[]; error: string | null }> {
+  const { data, error } = await admin.functions.invoke("rentalsunited-api", {
+    body: { action: "list_properties", owner_id: Number(ownerId), ...ctx },
+  });
+  const res = (data || {}) as {
+    success?: boolean;
+    error?: { message?: string } | string;
+    properties?: ChannelListing[];
+  };
+  if (error || res.success === false) {
+    const message =
+      error?.message ||
+      (typeof res.error === "string" ? res.error : res.error?.message) ||
+      "Channel account could not be read";
+    return { listings: [], error: message };
+  }
+  return { listings: res.properties || [], error: null };
+}
+
+/**
+ * Is this listing id still returned by the account? Archived listings stay in
+ * the feed, so "present" here means present in any form — that is the state a
+ * cleanup has to actually change.
+ */
+async function verifyListingPresence(
+  admin: ReturnType<typeof createClient>,
+  args: { listingId: string; ownerId: string | null; ctx: ChannelLogCtx },
+): Promise<{ present: boolean | null; archived: boolean; error: string | null }> {
+  if (!args.ownerId) return { present: null, archived: false, error: "No channel account could be resolved" };
+  const { listings, error } = await pullOwnerListings(admin, args.ownerId, args.ctx);
+  if (error) return { present: null, archived: false, error };
+  const hit = listings.find((l) => String(l.id) === args.listingId);
+  return { present: !!hit, archived: hit?.is_archived === true, error: null };
+}
+
+/**
+ * Remove one listing for real: try a hard deletion first and fall back to
+ * archiving only when the account does not support deletion. The caller still
+ * has to verify — neither call is trusted on its envelope alone.
+ */
+async function removeListingUpstream(
+  admin: ReturnType<typeof createClient>,
+  args: { propertyId: string; listingId: string; ownerId: string | null; ctx: ChannelLogCtx },
+): Promise<{ method: "deleted" | "archived" | "none"; error: string | null }> {
+  const { data, error } = await admin.functions.invoke("rentalsunited-api", {
+    body: {
+      action: "delete_property",
+      property_id: args.propertyId || undefined,
+      ru_property_id: Number(args.listingId),
+      ...(args.ownerId ? { owner_id: args.ownerId } : {}),
+      ...args.ctx,
+    },
+  });
+  const res = (data || {}) as { success?: boolean; error?: string };
+  if (!error && res.success === true) return { method: "deleted", error: null };
+
+  // Deletion unsupported or rejected — archive so the listing at least stops
+  // billing, and let the verification step report what actually happened.
+  const failure = await pushListingStatus(admin, {
+    propertyId: args.propertyId,
+    ruPropertyId: args.listingId,
+    archive: true,
+    ownerId: args.ownerId,
+    ctx: { ...args.ctx, parent_action: `${args.ctx.parent_action}:archive_fallback` },
+  });
+  if (failure) return { method: "none", error: failure };
+  return { method: "archived", error: null };
+}
+
+
 
 
 
@@ -181,6 +286,12 @@ Deno.serve(async (req) => {
     if (!allowed) return bad("Insufficient permissions", 403);
 
     const actorEmail = userData.user.email ?? null;
+
+    // One trace per request: the caller may pass its own so a whole "clean up
+    // all" run reads as a single chain in the exchange log.
+    const traceId = req.headers.get("x-rol-trace-id") || crypto.randomUUID();
+
+
 
     const raw = (await req.json().catch(() => null)) as Body | null;
     const scopes = [
@@ -285,7 +396,11 @@ Deno.serve(async (req) => {
           (a: { ru_owner_id: string | null }) => String(a.ru_owner_id) === ownerId,
         ) as { owner_email: string | null } | undefined;
         const { data: listRes, error: listErr } = await admin.functions.invoke("rentalsunited-api", {
-          body: { action: "list_properties", owner_id: Number(ownerId) },
+          body: {
+            action: "list_properties",
+            owner_id: Number(ownerId),
+            ...logCtx(traceId, "channel-reconcile:pull_listings"),
+          },
         });
         const res = (listRes || {}) as {
           success?: boolean;
@@ -385,7 +500,9 @@ Deno.serve(async (req) => {
       );
     }
 
-    // ── Purge a single orphan listing id upstream ─────────────────────
+    // ── Remove a single listing id upstream: verify → delete → verify ─
+    //    A Status 0 envelope is never treated as proof. The local id is only
+    //    cleared once the account stops returning the listing.
     if (raw.scope === "purge_listing") {
       const listingId = String(raw.entity_id);
       let ownerId = raw.owner_id ? String(raw.owner_id) : null;
@@ -398,47 +515,94 @@ Deno.serve(async (req) => {
           .maybeSingle();
         ownerId = acct?.ru_owner_id ? String(acct.ru_owner_id) : null;
       }
-      // Any local record pointing at this id is cleared once the archive lands.
       const { data: ownerProp } = await admin
         .from("properties")
         .select("id")
         .eq("rentalsunited_property_id", listingId)
         .maybeSingle();
-      // Re-archiving something the channel already reports as archived is a
-      // wasted call that looks like a failed clean-up, so honour the caller's
-      // "already archived" flag and only clear the local id.
-      if (raw.already_archived !== true) {
-        const failure = await pushListingStatus(admin, {
-          propertyId: ownerProp?.id ?? "",
-          ruPropertyId: listingId,
-          archive: true,
+      const propertyId = ownerProp?.id ?? "";
+
+      // 1. Is it actually still there?
+      const before = await verifyListingPresence(admin, {
+        listingId,
+        ownerId,
+        ctx: logCtx(traceId, "channel-cleanup:verify"),
+      });
+      if (before.error) return bad(before.error, 502);
+
+      let outcome: "already_gone" | "deleted" | "refused" = "already_gone";
+      let method: "deleted" | "archived" | "none" = "none";
+      let detail = `listing ${listingId} was no longer held by the channel account`;
+
+      if (before.present) {
+        // 2. Remove it for real.
+        const removal = await removeListingUpstream(admin, {
+          propertyId,
+          listingId,
           ownerId,
+          ctx: logCtx(traceId, "channel-cleanup:delete"),
         });
-        if (failure) return bad(failure, 502);
+        if (removal.error) return bad(removal.error, 502);
+        method = removal.method;
+
+        // 3. Confirm against the account, not against the reply.
+        const after = await verifyListingPresence(admin, {
+          listingId,
+          ownerId,
+          ctx: logCtx(traceId, "channel-cleanup:verify_after"),
+        });
+        if (after.error) return bad(after.error, 502);
+
+        if (after.present) {
+          outcome = "refused";
+          detail = `listing ${listingId} is still returned by the channel account after a ${method} request${
+            after.archived ? " (archived, not removed)" : ""
+          }`;
+        } else {
+          outcome = "deleted";
+          detail = `listing ${listingId} confirmed removed from the channel account (${method})`;
+        }
       }
 
-      await admin.from("properties").update({ rentalsunited_property_id: null }).eq("rentalsunited_property_id", listingId);
-      await admin
-        .from("hostfully_room_types")
-        .update({ rentalsunited_property_id: null })
-        .eq("rentalsunited_property_id", listingId);
+      // The local id is only released on a confirmed absence.
+      if (outcome !== "refused") {
+        await admin
+          .from("properties")
+          .update({ rentalsunited_property_id: null })
+          .eq("rentalsunited_property_id", listingId);
+        await admin
+          .from("hostfully_room_types")
+          .update({ rentalsunited_property_id: null })
+          .eq("rentalsunited_property_id", listingId);
+      }
+
       await admin.from("ru_archive_events").insert({
         property_id: ownerProp?.id ?? null,
-        property_name: `Orphan listing purge (#${listingId})`,
+        property_name: `Listing cleanup (#${listingId})`,
         direction: "archived",
         unit_count: 0,
-        listing_count: 1,
-        reason: raw.reason ?? "Orphan listing removed during channel reconciliation",
+        listing_count: outcome === "refused" ? 0 : 1,
+        reason: raw.reason ?? "Listing removed during channel reconciliation",
         actor_user_id: userData.user.id,
         actor_email: actorEmail,
-        ru_status: "updated",
-        detail: `listing ${listingId} archived at the channel manager`,
+        ru_status: outcome === "refused" ? "ru_failed" : "updated",
+        detail,
       });
 
-      return new Response(JSON.stringify({ success: true, listing_id: listingId }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({
+          success: outcome !== "refused",
+          listing_id: listingId,
+          outcome,
+          method,
+          trace_id: traceId,
+          detail,
+          ...(outcome === "refused" ? { error: detail } : {}),
+        }),
+        { status: outcome === "refused" ? 409 : 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
+
 
     // ── Clear a stale local listing id (already gone upstream) ────────
     if (raw.scope === "clear_local_listing") {
@@ -482,17 +646,34 @@ Deno.serve(async (req) => {
 
       for (const dup of dupes) {
         const listingId = dup.rentalsunited_property_id as string;
-        const failure = await pushListingStatus(admin, {
+        const removal = await removeListingUpstream(admin, {
           propertyId: dup.property_id,
-          ruPropertyId: listingId,
-          archive: true,
+          listingId,
           ownerId,
+          ctx: logCtx(traceId, "channel-cleanup:delete"),
         });
-        if (failure) {
+        if (removal.error) {
           failed += 1;
-          results.push({ name: dup.name, listing_id: listingId, status: "ru_failed", detail: failure });
+          results.push({ name: dup.name, listing_id: listingId, status: "ru_failed", detail: removal.error });
           continue;
         }
+        // Confirm against the account before releasing the local id.
+        const after = await verifyListingPresence(admin, {
+          listingId,
+          ownerId,
+          ctx: logCtx(traceId, "channel-cleanup:verify_after"),
+        });
+        if (after.present) {
+          failed += 1;
+          results.push({
+            name: dup.name,
+            listing_id: listingId,
+            status: "ru_failed",
+            detail: `still returned by the channel account after a ${removal.method} request`,
+          });
+          continue;
+        }
+
         const { error: clearErr } = await admin
           .from("hostfully_room_types")
           .update({ rentalsunited_property_id: null })

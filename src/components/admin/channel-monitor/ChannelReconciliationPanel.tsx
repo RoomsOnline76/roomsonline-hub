@@ -24,7 +24,7 @@ interface Props {
 }
 
 export function ChannelReconciliationPanel({ billableListings, onChanged }: Props) {
-  const { result, running, error, reconcile, purgeOrphan, clearStale, cleanupAll, cleanup, failures } =
+  const { result, running, error, reconcile, purgeListing, clearStale, cleanupAll, cleanup, failures, refused } =
     useChannelReconciliation();
   const [busyId, setBusyId] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -35,18 +35,29 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
     [result],
   );
 
-  const cleanableOrphans = useMemo(
-    () => (result?.orphans || []).filter((o) => !erroredOwners.has(o.owner_id)),
+  // Archived listings still exist on the account, so a cleanup has to delete
+  // them too — hiding them is what left 24 ghosts behind last time.
+  const cleanableListings = useMemo(
+    () =>
+      [...(result?.orphans || []), ...(result?.archived_orphans || [])].filter(
+        (o) => !erroredOwners.has(o.owner_id),
+      ),
     [result, erroredOwners],
   );
-  const cleanableTotal = cleanableOrphans.length + (result?.stale.length || 0);
+  const cleanableTotal = cleanableListings.length + (result?.stale.length || 0);
 
   const handlePurge = useCallback(
-    async (orphan: ReconOrphan) => {
-      setBusyId(orphan.listing_id);
+    async (listing: { listing_id: string; owner_id: string; name: string }) => {
+      setBusyId(listing.listing_id);
       try {
-        await purgeOrphan(orphan);
-        toast.success(`Listing #${orphan.listing_id} removed from the channel`);
+        const outcome = await purgeListing(listing);
+        if (outcome === "refused") {
+          toast.error(`The channel account still returns listing #${listing.listing_id}`);
+        } else if (outcome === "already_gone") {
+          toast.success(`Listing #${listing.listing_id} was already gone — local id cleared`);
+        } else {
+          toast.success(`Listing #${listing.listing_id} confirmed removed from the channel`);
+        }
         await onChanged();
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Could not remove the listing");
@@ -54,7 +65,7 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
         setBusyId(null);
       }
     },
-    [purgeOrphan, onChanged],
+    [purgeListing, onChanged],
   );
 
   const handleClear = useCallback(
@@ -76,11 +87,12 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
   const handleCleanupAll = useCallback(async () => {
     setConfirmOpen(false);
     const outcome = await cleanupAll();
-    if (outcome.failures.length === 0) {
+    const problems = outcome.failures.length + outcome.refused;
+    if (problems === 0) {
       toast.success(`Cleaned ${outcome.cleaned} of ${outcome.total}`);
     } else {
       toast.error(
-        `Cleaned ${outcome.cleaned} of ${outcome.total} — ${outcome.failures.length} could not be removed`,
+        `Cleaned ${outcome.cleaned} of ${outcome.total} — ${outcome.refused} refused by the channel, ${outcome.failures.length} failed`,
       );
     }
     await onChanged();
@@ -88,6 +100,7 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
 
   const gap = result ? result.channel_listing_count - billableListings : 0;
   const cleaning = cleanup !== null;
+
 
   return (
     <Card>
@@ -194,13 +207,29 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
                 </button>
                 <p className="text-xs text-muted-foreground">
                   The channel keeps archived listings in its data feed and only hides them in its own portal. They
-                  carry no cost and need no action.
+                  carry no cost, but cleanup still deletes them and verifies they are gone.
                 </p>
                 {showArchived && (
                   <ul className="divide-y rounded-md border">
                     {result.archived_orphans.map((a) => (
-                      <li key={a.listing_id} className="px-3 py-2 text-sm">
-                        {a.name} <span className="text-muted-foreground">#{a.listing_id} · archived</span>
+                      <li key={a.listing_id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+                        <span className="min-w-0 truncate">
+                          {a.name} <span className="text-muted-foreground">#{a.listing_id} · archived</span>
+                          {(refused[a.listing_id] || failures[a.listing_id]) && (
+                            <span className="block text-xs text-destructive">
+                              {refused[a.listing_id] || failures[a.listing_id]}
+                            </span>
+                          )}
+                        </span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={busyId === a.listing_id || cleaning}
+                          onClick={() => void handlePurge(a)}
+                        >
+                          <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                          Delete from channel
+                        </Button>
                       </li>
                     ))}
                   </ul>
@@ -220,8 +249,10 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
                           #{o.listing_id}
                           {o.is_archived ? " · archived upstream" : ""}
                         </span>
-                        {failures[o.listing_id] && (
-                          <span className="block text-xs text-destructive">{failures[o.listing_id]}</span>
+                        {(refused[o.listing_id] || failures[o.listing_id]) && (
+                          <span className="block text-xs text-destructive">
+                            {refused[o.listing_id] || failures[o.listing_id]}
+                          </span>
                         )}
                       </span>
                       <Button
@@ -231,8 +262,9 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
                         onClick={() => void handlePurge(o)}
                       >
                         <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-                        Remove from channel
+                        Delete from channel
                       </Button>
+
                     </li>
                   ))}
                 </ul>
@@ -276,9 +308,10 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
             <AlertDialogDescription asChild>
               <div className="space-y-2 text-sm">
                 <p>
-                  {cleanableOrphans.length} orphan listing{cleanableOrphans.length === 1 ? "" : "s"} will be removed
-                  from the channel account (archived upstream, local ids cleared).
+                  {cleanableListings.length} channel listing{cleanableListings.length === 1 ? "" : "s"} (live and
+                  archived) will be deleted upstream, then re-read to confirm the account no longer returns them.
                 </p>
+
                 <p>
                   {result?.stale.length || 0} stale local id{(result?.stale.length || 0) === 1 ? "" : "s"} will be
                   cleared — no channel call needed.

@@ -55,12 +55,6 @@ export interface ChannelReconciliation {
   stale: ReconStale[];
 }
 
-/**
- * Pulls every listing the channel accounts actually hold and classifies it
- * against local records. Deliberately separate from `useChannelCostMonitor`:
- * that hook is an instant local read, this one talks to the channel manager and
- * only runs when an admin asks for it.
- */
 export interface CleanupProgress {
   done: number;
   total: number;
@@ -69,20 +63,50 @@ export interface CleanupProgress {
 export interface CleanupOutcome {
   cleaned: number;
   total: number;
+  /** Rows the channel account still returns after a removal request. */
+  refused: number;
   failures: { key: string; label: string; reason: string }[];
 }
 
+/** What actually happened to one listing at the channel account. */
+export type PurgeOutcome = "already_gone" | "deleted" | "refused";
+
+/** Reads the JSON body an edge function returned alongside a non-2xx status. */
+async function readFunctionError(fnError: unknown): Promise<string | null> {
+  const ctx = (fnError as { context?: Response } | null)?.context;
+  if (!ctx || typeof ctx.clone !== "function") return null;
+  try {
+    const body = (await ctx.clone().json()) as { detail?: string; error?: string };
+    return body.detail || body.error || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Pulls every listing the channel accounts actually hold and classifies it
+ * against local records. Deliberately separate from `useChannelCostMonitor`:
+ * that hook is an instant local read, this one talks to the channel manager and
+ * only runs when an admin asks for it.
+ *
+ * Cleanup is verify → delete → verify: a listing is only treated as removed once
+ * the account stops returning it, never on the strength of a success envelope.
+ */
 export function useChannelReconciliation() {
   const [result, setResult] = useState<ChannelReconciliation | null>(null);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [cleanup, setCleanup] = useState<CleanupProgress | null>(null);
   const [failures, setFailures] = useState<Record<string, string>>({});
+  const [refused, setRefused] = useState<Record<string, string>>({});
 
   const reconcile = useCallback(async (opts?: { keepFailures?: boolean }) => {
     setRunning(true);
     setError(null);
-    if (!opts?.keepFailures) setFailures({});
+    if (!opts?.keepFailures) {
+      setFailures({});
+      setRefused({});
+    }
     try {
       const { data, error: fnError } = await supabase.functions.invoke("channel-manager-entitlement", {
         body: { scope: "reconcile", entity_id: "all" },
@@ -109,37 +133,73 @@ export function useChannelReconciliation() {
     }
   }, []);
 
-  const purgeOrphan = useCallback(async (orphan: ReconOrphan) => {
-    const { data, error: fnError } = await supabase.functions.invoke("channel-manager-entitlement", {
-      body: {
-        scope: "purge_listing",
-        entity_id: orphan.listing_id,
-        owner_id: orphan.owner_id,
-        already_archived: orphan.is_archived === true,
-        reason: "Orphan listing removed during channel reconciliation",
-      },
-    });
-    if (fnError) throw fnError;
-    const payload = (data || {}) as { success?: boolean; error?: string };
-    if (payload.success === false) throw new Error(payload.error || "Could not remove the listing");
-    // The listing is gone upstream, so the channel counter (and the account it
-    // belonged to) must drop with it — otherwise the footer keeps reporting a
-    // billing gap that no longer exists.
-    setResult((prev) =>
-      prev
-        ? {
-            ...prev,
-            channel_listing_count: Math.max(0, prev.channel_listing_count - 1),
-            accounts: prev.accounts.map((a) =>
-              a.owner_id === orphan.owner_id
-                ? { ...a, listing_count: Math.max(0, a.listing_count - 1) }
-                : a,
-            ),
-            orphans: prev.orphans.filter((o) => o.listing_id !== orphan.listing_id),
-          }
-        : prev,
-    );
-  }, []);
+  /**
+   * Removes one listing id at the channel account. Throws only on a real
+   * failure; a `refused` outcome (still present after the removal request) is
+   * returned so the caller can keep the row visible and honestly labelled.
+   */
+  const purgeListing = useCallback(
+    async (listing: { listing_id: string; owner_id: string; name?: string }): Promise<PurgeOutcome> => {
+      const { data, error: fnError } = await supabase.functions.invoke("channel-manager-entitlement", {
+        body: {
+          scope: "purge_listing",
+          entity_id: listing.listing_id,
+          owner_id: listing.owner_id,
+          reason: "Listing removed during channel reconciliation",
+        },
+      });
+
+      if (fnError) {
+        const detail = await readFunctionError(fnError);
+        // 409 is the deliberate "channel refused the removal" answer.
+        const status = (fnError as { context?: Response }).context?.status;
+        if (status === 409) {
+          const reason = detail || "The channel account still returns this listing";
+          setRefused((prev) => ({ ...prev, [listing.listing_id]: reason }));
+          return "refused";
+        }
+        throw new Error(detail || fnError.message);
+      }
+
+      const payload = (data || {}) as { success?: boolean; error?: string; outcome?: PurgeOutcome; detail?: string };
+      if (payload.success === false || payload.outcome === "refused") {
+        const reason = payload.detail || payload.error || "The channel account still returns this listing";
+        setRefused((prev) => ({ ...prev, [listing.listing_id]: reason }));
+        return "refused";
+      }
+
+      // Confirmed gone upstream, so the channel counter (and the account it
+      // belonged to) must drop with it — otherwise the footer keeps reporting a
+      // billing gap that no longer exists.
+      setResult((prev) =>
+        prev
+          ? {
+              ...prev,
+              channel_listing_count: Math.max(0, prev.channel_listing_count - 1),
+              accounts: prev.accounts.map((a) =>
+                a.owner_id === listing.owner_id
+                  ? { ...a, listing_count: Math.max(0, a.listing_count - 1) }
+                  : a,
+              ),
+              orphans: prev.orphans.filter((o) => o.listing_id !== listing.listing_id),
+              archived_orphans: prev.archived_orphans.filter((o) => o.listing_id !== listing.listing_id),
+              archived_count:
+                prev.archived_orphans.some((o) => o.listing_id === listing.listing_id)
+                  ? Math.max(0, prev.archived_count - 1)
+                  : prev.archived_count,
+            }
+          : prev,
+      );
+      return payload.outcome ?? "deleted";
+    },
+    [],
+  );
+
+  /** Kept for callers that still pass a full orphan row. */
+  const purgeOrphan = useCallback(
+    (orphan: ReconOrphan) => purgeListing(orphan),
+    [purgeListing],
+  );
 
   const clearStale = useCallback(async (row: ReconStale) => {
     const { data, error: fnError } = await supabase.functions.invoke("channel-manager-entitlement", {
@@ -154,33 +214,40 @@ export function useChannelReconciliation() {
   }, []);
 
   /**
-   * Resolves everything the last pass classified as orphan or stale, one row at
-   * a time so a single failure never aborts the rest. Matched (billable)
-   * listings are never touched.
+   * Resolves everything the last pass classified as orphan (live or archived) or
+   * stale, one row at a time so a single failure never aborts the rest. Matched
+   * (billable) listings are never touched.
    */
   const cleanupAll = useCallback(async (): Promise<CleanupOutcome> => {
     const snapshot = result;
-    if (!snapshot) return { cleaned: 0, total: 0, failures: [] };
+    if (!snapshot) return { cleaned: 0, total: 0, refused: 0, failures: [] };
 
     const erroredOwners = new Set(snapshot.accounts.filter((a) => a.error).map((a) => a.owner_id));
-    const orphans = snapshot.orphans.filter((o) => !erroredOwners.has(o.owner_id));
+    const listings: Array<{ listing_id: string; owner_id: string; name: string }> = [
+      ...snapshot.orphans,
+      ...snapshot.archived_orphans,
+    ]
+      .filter((o) => !erroredOwners.has(o.owner_id))
+      .map((o) => ({ listing_id: o.listing_id, owner_id: o.owner_id, name: o.name }));
     const stale = snapshot.stale;
-    const total = orphans.length + stale.length;
+    const total = listings.length + stale.length;
 
     const failed: CleanupOutcome["failures"] = [];
     const failMap: Record<string, string> = {};
     let done = 0;
     let cleaned = 0;
+    let refusedCount = 0;
     setCleanup({ done: 0, total });
 
-    for (const o of orphans) {
+    for (const listing of listings) {
       try {
-        await purgeOrphan(o);
-        cleaned++;
+        const outcome = await purgeListing(listing);
+        if (outcome === "refused") refusedCount++;
+        else cleaned++;
       } catch (e) {
         const reason = e instanceof Error ? e.message : "Could not remove the listing";
-        failed.push({ key: o.listing_id, label: `${o.name} #${o.listing_id}`, reason });
-        failMap[o.listing_id] = reason;
+        failed.push({ key: listing.listing_id, label: `${listing.name} #${listing.listing_id}`, reason });
+        failMap[listing.listing_id] = reason;
       }
       done++;
       setCleanup({ done, total });
@@ -204,8 +271,20 @@ export function useChannelReconciliation() {
     // Re-read the channel so every counter (and the billing-gap footer) reflects
     // the post-cleanup truth rather than our optimistic local decrements.
     if (cleaned > 0) await reconcile({ keepFailures: true });
-    return { cleaned, total, failures: failed };
-  }, [result, purgeOrphan, clearStale, reconcile]);
+    return { cleaned, total, refused: refusedCount, failures: failed };
+  }, [result, purgeListing, clearStale, reconcile]);
 
-  return { result, running, error, reconcile, purgeOrphan, clearStale, cleanupAll, cleanup, failures };
+  return {
+    result,
+    running,
+    error,
+    reconcile,
+    purgeListing,
+    purgeOrphan,
+    clearStale,
+    cleanupAll,
+    cleanup,
+    failures,
+    refused,
+  };
 }

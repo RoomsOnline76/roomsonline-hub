@@ -57,8 +57,9 @@ export function RuApiLogPanel({ properties }: RuApiLogPanelProps) {
   const [detail, setDetail] = useState<RuApiLogDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
-  const { rows, actions, stats, loading, loadingMore, hasMore, error, refresh, loadMore, loadDetail } =
+  const { rows, actions, operations, owners, stats, loading, loadingMore, hasMore, error, refresh, loadMore, loadDetail } =
     useRuApiLog(filters);
+
 
 
   const propertyNames = useMemo(
@@ -233,9 +234,44 @@ export function RuApiLogPanel({ properties }: RuApiLogPanelProps) {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All properties</SelectItem>
+                  <SelectItem value="account">Account-level only</SelectItem>
                   {properties.map((p) => (
                     <SelectItem key={p.id} value={p.id}>
                       {p.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="w-[190px]">
+              <Label className="text-xs">Operation</Label>
+              <Select value={filters.operation} onValueChange={(v) => patch({ operation: v })}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All operations</SelectItem>
+                  {operations.map((o) => (
+                    <SelectItem key={o} value={o}>
+                      {o}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="w-[170px]">
+              <Label className="text-xs">Channel account</Label>
+              <Select value={filters.ownerId} onValueChange={(v) => patch({ ownerId: v })}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All accounts</SelectItem>
+                  {owners.map((o) => (
+                    <SelectItem key={o} value={o}>
+                      {o}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -258,6 +294,7 @@ export function RuApiLogPanel({ properties }: RuApiLogPanelProps) {
                 </SelectContent>
               </Select>
             </div>
+
 
             <div className="w-[150px]">
               <Label className="text-xs">Outcome</Label>
@@ -355,7 +392,10 @@ export function RuApiLogPanel({ properties }: RuApiLogPanelProps) {
                         )}
                       </td>
                       <td className="px-3 py-2">
-                        {propertyNames.get(row.property_id ?? "") ?? row.ru_property_id ?? "—"}
+                        {propertyNames.get(row.property_id ?? "") ??
+                          row.ru_property_id ??
+                          (row.ru_owner_id ? `Account ${row.ru_owner_id}` : "—")}
+
                       </td>
                       <td className="px-3 py-2">
                         <Badge variant={row.success ? "secondary" : "destructive"}>

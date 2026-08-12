@@ -1273,6 +1273,20 @@ function buildSetPropertyStatusXml(creds: RUCredentials, propertyId: number, isA
 </Push_SetPropertiesStatus_RQ>`;
 }
 
+/**
+ * Hard removal of a listing. RU has shipped this verb under two names across
+ * account generations, so the caller probes both and keeps whichever the account
+ * honours — archiving is only a fallback when neither is recognised.
+ */
+function buildDeletePropertyXml(creds: RUCredentials, propertyId: number, verb: string): string {
+  return `<${verb}>
+  ${buildAuthXml(creds)}
+  <PropertyID>${propertyId}</PropertyID>
+</${verb}>`;
+}
+
+
+
 function buildBuildingCompositionXml(unitTypes?: RUBuildingUnitType[]): string {
   if (!unitTypes || unitTypes.length === 0) return '';
 
@@ -2871,6 +2885,47 @@ Deno.serve(async (req) => {
       if (!ok) return ruErrorResponse(status);
       return jsonResponse({ success: true, auth_mode: authMode, message: 'Property status updated', raw_xml: response });
     }
+
+    // ── delete_property ──
+    // Hard removal. Never throws on an unrecognised verb: the caller needs to
+    // know "the account does not support deletion" as data so it can fall back
+    // to archiving and report that honestly instead of claiming a removal.
+    if (action === 'delete_property') {
+      if (!ru_property_id) return errorResponse('MISSING_PARAM', 'ru_property_id is required');
+      const verbs = ['Push_DeleteProperty_RQ', 'Push_RemoveProperty_RQ'];
+      const attempts: Array<{ verb: string; status_id: string | null; message: string | null }> = [];
+      for (const verb of verbs) {
+        const xml = buildDeletePropertyXml(scopedCreds, ru_property_id, verb);
+        let response: string;
+        try {
+          response = await callRentalsUnited(scopedCreds, xml);
+        } catch (err) {
+          attempts.push({ verb, status_id: null, message: err instanceof Error ? err.message : String(err) });
+          continue;
+        }
+        const { ok, status } = handleRUStatus(response);
+        attempts.push({ verb, status_id: status?.id ?? null, message: status?.message ?? null });
+        if (ok) {
+          return jsonResponse({
+            success: true,
+            auth_mode: authMode,
+            verb,
+            attempts,
+            message: `Listing removal accepted (${verb})`,
+            raw_xml: response,
+          });
+        }
+      }
+      return jsonResponse({
+        success: false,
+        supported: false,
+        auth_mode: authMode,
+        attempts,
+        error: 'The channel account did not accept a listing deletion request',
+      });
+    }
+
+
 
     // ── get_location_by_coordinates ──
     if (action === 'get_location_by_coordinates') {
