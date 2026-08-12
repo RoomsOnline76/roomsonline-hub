@@ -10,7 +10,10 @@ interface PropertySectionRailProps {
   /** Section keys that currently have activation blockers */
   blockerKeys?: Set<string>;
   /** Outstanding readiness-field counts per section key (pink/blue badges) */
-  requirementCounts?: Record<string, { mandatory: number; recommended: number }>;
+  requirementCounts?: Record<
+    string,
+    { mandatory: number; recommended: number; mandatoryLabels?: string[]; recommendedLabels?: string[] }
+  >;
   /** Collapsed (icon-only) mode */
   collapsed?: boolean;
   /** When provided, renders the collapse/expand toggle */
@@ -99,7 +102,11 @@ export const PropertySectionRail: React.FC<PropertySectionRailProps> = ({
                       <span className={cn("ml-auto flex items-center gap-1", collapsed && "lg:hidden")}>
                         {counts.mandatory > 0 && (
                           <span
-                            title={`${counts.mandatory} mandatory field(s) outstanding`}
+                            title={
+                              counts.mandatoryLabels && counts.mandatoryLabels.length > 0
+                                ? `Outstanding: ${counts.mandatoryLabels.join(" · ")}`
+                                : `${counts.mandatory} mandatory field(s) outstanding`
+                            }
                             className="pf-req-count-mandatory rounded border px-1 text-[9px] font-semibold leading-4"
                           >
                             {counts.mandatory}
@@ -107,7 +114,11 @@ export const PropertySectionRail: React.FC<PropertySectionRailProps> = ({
                         )}
                         {counts.recommended > 0 && (
                           <span
-                            title={`${counts.recommended} nice-to-have field(s) outstanding`}
+                            title={
+                              counts.recommendedLabels && counts.recommendedLabels.length > 0
+                                ? `Nice to have: ${counts.recommendedLabels.join(" · ")}`
+                                : `${counts.recommended} nice-to-have field(s) outstanding`
+                            }
                             className="pf-req-count-recommended rounded border px-1 text-[9px] font-semibold leading-4"
                           >
                             {counts.recommended}

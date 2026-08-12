@@ -127,7 +127,12 @@ export default function PMSPropertySetup() {
       Object.fromEntries(
         Object.entries(outstandingBySection).map(([k, v]) => [
           k,
-          { mandatory: v.mandatory, recommended: v.recommended },
+          {
+            mandatory: v.mandatory,
+            recommended: v.recommended,
+            mandatoryLabels: v.mandatoryLabels,
+            recommendedLabels: v.recommendedLabels,
+          },
         ]),
       ),
     [outstandingBySection],

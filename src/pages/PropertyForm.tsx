@@ -2154,7 +2154,12 @@ export default function PropertyForm({
       Object.fromEntries(
         Object.entries(requirementOutstandingBySection).map(([k, v]) => [
           k,
-          { mandatory: v.mandatory, recommended: v.recommended },
+          {
+            mandatory: v.mandatory,
+            recommended: v.recommended,
+            mandatoryLabels: v.mandatoryLabels,
+            recommendedLabels: v.recommendedLabels,
+          },
         ]),
       ),
     [requirementOutstandingBySection],
