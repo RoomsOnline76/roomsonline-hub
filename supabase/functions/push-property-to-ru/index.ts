@@ -1037,8 +1037,15 @@ function buildUnitPayload(
   currencyId?: number,
 ) {
   const amenities = property.amenities || {};
-  const unitType = (unit.property_type || property.property_type || 'apartment').toLowerCase().replace(/[\s-]+/g, '_');
-  const objectTypeId = PROPERTY_TYPE_MAP[unitType] || 12; // default chalet
+  const authoredUnitType = unit.property_type || property.property_type || null;
+  const unitType = (authoredUnitType || 'apartment').toLowerCase().replace(/[\s-]+/g, '_');
+  // An unmapped type used to publish silently as Chalet (12). The value is still sent so the
+  // XML stays schema-valid, but it is flagged so the readiness gate blocks the push.
+  const mappedObjectTypeId = PROPERTY_TYPE_MAP[unitType];
+  const objectTypeId = mappedObjectTypeId || 12;
+  const objectTypeIsDefault = !mappedObjectTypeId;
+  const currencyAuthored = resolveAuthoredCurrency(property.amenities);
+
 
   const lat = unit.latitude || property.latitude || 0;
   const lng = unit.longitude || property.longitude || 0;
