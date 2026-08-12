@@ -1,5 +1,5 @@
 import type { PropertySectionKey } from "@/config/propertySectionOrder";
-import { calculateBedCapacity, parseBedConfiguration } from "@/lib/bedConfig";
+import { calculateBedCapacity, type BedEntry } from "@/lib/bedConfig";
 
 /**
  * Field-level readiness registry.
@@ -131,7 +131,19 @@ const numericAtLeast = (value: unknown, minimum: number): boolean => {
   return Number.isFinite(parsed) && parsed >= minimum;
 };
 
-const bedCapacity = (raw: unknown): number => calculateBedCapacity(parseBedConfiguration(raw));
+const bedCapacity = (raw: unknown): number => {
+  if (typeof raw === "string") return calculateBedCapacity(raw);
+  if (!Array.isArray(raw)) return 0;
+  const entries: BedEntry[] = raw.flatMap((entry) => {
+    if (!entry || typeof entry !== "object") return [];
+    const candidate = entry as { type?: unknown; count?: unknown };
+    if (typeof candidate.type !== "string") return [];
+    const count = Number(candidate.count);
+    if (!Number.isFinite(count) || count <= 0) return [];
+    return [{ type: candidate.type, count }];
+  });
+  return calculateBedCapacity(entries);
+};
 
 
 const isRuDistributed = (subject: RequirementSubject): boolean =>
