@@ -26,6 +26,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
+import { usePropertyReadiness } from "@/hooks/usePropertyReadiness";
 
 interface QualityCheckResult {
   id: string;
@@ -100,25 +101,42 @@ function QualityGateIndicatorInner({
 }: QualityGateIndicatorProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
-  const { 
-    data: readiness, 
-    isLoading, 
-    refetch,
-    isRefetching 
-  } = useQuery({
-    queryKey: ['activation-readiness', propertyId],
-    queryFn: async () => {
-      const { data, error } = await supabase.functions.invoke('check-activation-readiness', {
-        body: { property_id: propertyId }
-      });
-      if (error) throw error;
-      return data as ActivationReadinessResponse;
-    },
-    staleTime: 1000 * 60 * 5,
-    gcTime: 1000 * 60 * 10,
-    refetchOnWindowFocus: false
+  /**
+   * Single source of truth: the same readiness model the property editor and the
+   * channel wizard use, so a list row can never report a different count from the
+   * editor. Image measurement and the channel report are left to the editor —
+   * list rows reuse whatever is already cached.
+   */
+  const {
+    items,
+    passed,
+    mandatoryScore,
+    hasData,
+    isLoading,
+    isFetching: isRefetching,
+    refresh,
+  } = usePropertyReadiness(propertyId, { channelChecks: false, measureImages: false });
+
+  const refetch = refresh;
+
+  const toResult = (item: (typeof items)[number], severity: QualityCheckResult["severity"]): QualityCheckResult => ({
+    id: item.key,
+    name: item.label,
+    passed: item.satisfied,
+    message: item.message ?? item.requirement?.hint ?? item.fix ?? item.label,
+    fix: item.fix ?? item.requirement?.hint,
+    field: item.key,
+    severity,
   });
 
+  const blockers = items
+    .filter((i) => i.tier === "mandatory" && !i.satisfied)
+    .map((i) => toResult(i, "blocker"));
+  const warnings = items
+    .filter((i) => i.tier === "recommended" && !i.satisfied)
+    .map((i) => toResult(i, "warning"));
+  const checks = items.map((i) => toResult(i, i.tier === "mandatory" ? "blocker" : "info"));
+  const score = mandatoryScore;
 
   if (isLoading) {
     return (
@@ -129,11 +147,10 @@ function QualityGateIndicatorInner({
     );
   }
 
-  if (!readiness) {
+  if (!hasData) {
     return null;
   }
 
-  const { passed, score, blockers, warnings, checks } = readiness;
   const totalIssues = blockers.length + warnings.length;
 
   // Determine overall status color
