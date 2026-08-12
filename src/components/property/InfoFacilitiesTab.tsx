@@ -72,6 +72,51 @@ export function InfoFacilitiesTab(props: InfoFacilitiesTabProps) {
     selectedBreakfastOptions, setSelectedBreakfastOptions,
   } = props;
 
+  const [writingDescription, setWritingDescription] = useState(false);
+  const descriptionLength = useMemo(() => (formData.description ?? "").trim().length, [formData.description]);
+  const descriptionTooShort = descriptionLength < MIN_DESCRIPTION_CHARS;
+
+  const writeWithTobi = useCallback(async () => {
+    setWritingDescription(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("editorial-ai-assist", {
+        body: {
+          action: "generate_property_description",
+          minChars: MIN_DESCRIPTION_CHARS,
+          propertyContext: {
+            name: formData.name,
+            property_type: formData.property_type,
+            star_rating: starRating,
+            description: formData.description,
+            country: formData.country,
+            city: formData.city,
+            suburb: formData.suburb,
+            restaurants_cafes: formData.restaurants_cafes,
+            public_transport: formData.public_transport,
+            closest_airport: formData.closest_airport,
+            facilities: selectedFacilities,
+          },
+        },
+      });
+      if (error) throw error;
+      const text: string = (data?.description ?? "").trim();
+      if (!text) throw new Error("TOBI returned no text");
+      handleInputChange("description", text);
+      setIsDirty(true);
+      toast.success(
+        text.length >= MIN_DESCRIPTION_CHARS
+          ? `TOBI wrote ${text.length} characters — review and save.`
+          : `TOBI wrote ${text.length} characters — still under the ${MIN_DESCRIPTION_CHARS} minimum, please expand.`,
+      );
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "TOBI could not write the description");
+    } finally {
+      setWritingDescription(false);
+    }
+  }, [formData, starRating, selectedFacilities, handleInputChange, setIsDirty]);
+
+
+
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
       <Card>
