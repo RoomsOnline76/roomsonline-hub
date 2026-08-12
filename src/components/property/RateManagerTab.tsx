@@ -105,8 +105,11 @@ export function RateManagerTab({
 
 
   // ── Render ─────────────────────────────────────────────────────────────
+  // The calendar needs a fixed viewport; policies & charges should grow to fit
+  // their content so nothing is clipped inside a nested scroll frame.
+  const isRatesSurface = view === "rates";
   return (
-    <div className="flex gap-3 h-[calc(100vh-230px)] min-h-[520px]">
+    <div className={`flex gap-3 ${isRatesSurface ? "h-[calc(100vh-230px)] min-h-[520px]" : "min-h-[520px]"}`}>
       {/* Left Sidebar - Room Types List (rates surface only) */}
       {view === "rates" && (
         <div className="w-44 shrink-0 overflow-y-auto border-r bg-muted/30 p-1.5 space-y-px">
