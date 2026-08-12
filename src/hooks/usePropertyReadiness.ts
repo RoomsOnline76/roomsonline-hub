@@ -180,9 +180,19 @@ export function usePropertyReadiness(propertyId?: string | null) {
     const out: Record<string, SectionReadinessCounts> = {};
     for (const item of items) {
       if (item.satisfied) continue;
-      const bucket = (out[item.section] ??= { mandatory: 0, recommended: 0 });
-      if (item.tier === "mandatory") bucket.mandatory += 1;
-      else bucket.recommended += 1;
+      const bucket = (out[item.section] ??= {
+        mandatory: 0,
+        recommended: 0,
+        mandatoryLabels: [],
+        recommendedLabels: [],
+      });
+      if (item.tier === "mandatory") {
+        bucket.mandatory += 1;
+        bucket.mandatoryLabels.push(item.label);
+      } else {
+        bucket.recommended += 1;
+        bucket.recommendedLabels.push(item.label);
+      }
     }
     return out;
   }, [items]);
