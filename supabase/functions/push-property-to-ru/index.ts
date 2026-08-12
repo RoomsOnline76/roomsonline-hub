@@ -1233,9 +1233,14 @@ function buildUnitPayload(
 function buildSinglePropertyPayload(property: PropertyRow, roomTypes: RoomTypeRow[], locationId: number, currencyId?: number) {
   const primaryRoom = roomTypes[0] || null;
   const amenities = property.amenities || {};
-  const objectTypeId = PROPERTY_TYPE_MAP[
-    (primaryRoom?.property_type || property.property_type || 'apartment').toLowerCase().replace(/[\s-]+/g, '_')
-  ] || 1;
+  const authoredSingleType = primaryRoom?.property_type || property.property_type || null;
+  const mappedSingleTypeId = PROPERTY_TYPE_MAP[
+    (authoredSingleType || 'apartment').toLowerCase().replace(/[\s-]+/g, '_')
+  ];
+  const objectTypeId = mappedSingleTypeId || 1;
+  const objectTypeIsDefault = !mappedSingleTypeId;
+  const currencyAuthored = resolveAuthoredCurrency(property.amenities);
+
   const lat = primaryRoom?.latitude || property.latitude || 0;
   const lng = primaryRoom?.longitude || property.longitude || 0;
   const street = primaryRoom?.address_street || property.address || 'Not specified';
