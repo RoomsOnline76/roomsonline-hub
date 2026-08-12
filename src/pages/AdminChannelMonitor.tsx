@@ -7,6 +7,16 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useChannelCostMonitor, type ChannelPropertyRow, type ChannelUnitRow } from "@/hooks/useChannelCostMonitor";
@@ -42,6 +52,7 @@ export default function AdminChannelMonitor() {
   const [target, setTarget] = useState<{ row: ChannelPropertyRow; mode: "archive" | "reactivate" } | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [busyUnitId, setBusyUnitId] = useState<string | null>(null);
+  const [purgeTarget, setPurgeTarget] = useState<{ row: ChannelPropertyRow; unit?: ChannelUnitRow } | null>(null);
 
   const rawTab = params.get("tab") as TabKey | null;
   const tab: TabKey = rawTab && TAB_KEYS.includes(rawTab) ? rawTab : "cost";
@@ -88,16 +99,9 @@ export default function AdminChannelMonitor() {
     [data],
   );
 
-  const handlePurgeDuplicate = useCallback(
+  const runPurgeDuplicate = useCallback(
     async (row: ChannelPropertyRow, unit?: ChannelUnitRow) => {
-      const label = unit ? unit.name : `${row.duplicateListings} duplicate listings`;
-      if (
-        !window.confirm(
-          `Remove ${label} from the channel manager? The listing is archived upstream and the link is cleared permanently.`,
-        )
-      ) {
-        return;
-      }
+      setPurgeTarget(null);
       if (unit) setBusyUnitId(unit.id);
       else setBusyId(row.id);
       try {
@@ -268,7 +272,7 @@ export default function AdminChannelMonitor() {
                   onToggleUnit={handleToggleUnit}
                   onArchive={(row) => setTarget({ row, mode: "archive" })}
                   onReactivate={(row) => void runPropertyToggle(row, "reactivate")}
-                  onPurgeDuplicate={(row, unit) => void handlePurgeDuplicate(row, unit)}
+                  onPurgeDuplicate={(row, unit) => setPurgeTarget({ row, unit })}
                 />
                 <ChannelArchiveLog events={data.events} />
               </>
@@ -312,6 +316,35 @@ export default function AdminChannelMonitor() {
         onCancel={() => setTarget(null)}
         onConfirm={handleConfirm}
       />
+
+      <AlertDialog open={!!purgeTarget} onOpenChange={(open) => !open && setPurgeTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove duplicate listings?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {purgeTarget?.unit
+                ? `"${purgeTarget.unit.name}" will be archived at the channel manager and its listing link cleared permanently.`
+                : `${purgeTarget?.row.duplicateListings ?? 0} duplicate listing${
+                    (purgeTarget?.row.duplicateListings ?? 0) === 1 ? "" : "s"
+                  } for ${purgeTarget?.row.name ?? ""} will be archived at the channel manager and their listing links cleared permanently. Live listings are not affected.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={!!busyId || !!busyUnitId}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={!!busyId || !!busyUnitId}
+              onClick={(e) => {
+                e.preventDefault();
+                if (purgeTarget) void runPurgeDuplicate(purgeTarget.row, purgeTarget.unit);
+              }}
+            >
+              Remove from channel
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
     </AppLayout>
   );
 }
