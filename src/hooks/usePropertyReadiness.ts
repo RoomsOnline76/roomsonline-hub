@@ -65,6 +65,8 @@ export interface ReadinessItem {
   /** True when a DOM field exists to paint / step to. */
   paintable: boolean;
   hint?: string;
+  /** Measured explanation of the shortfall ("Description is 444 of 700 characters"). */
+  detail?: string;
   /** Backend-only extras. */
   message?: string;
   fix?: string;
@@ -83,6 +85,18 @@ export interface SectionReadinessCounts {
    */
   mandatoryLabels: string[];
   recommendedLabels: string[];
+  /** Full outstanding items so a tooltip can print the exact error, not just the label. */
+  mandatoryItems: SectionReadinessDetail[];
+  recommendedItems: SectionReadinessDetail[];
+}
+
+export interface SectionReadinessDetail {
+  key: string;
+  label: string;
+  /** Measured shortfall text, falling back to the requirement hint. */
+  detail?: string;
+  paintable: boolean;
+  surface?: "rolos" | "admin";
 }
 
 export interface MeasuredImageDims {
@@ -272,6 +286,7 @@ export function usePropertyReadiness(
       satisfied: r.satisfied,
       paintable: true,
       hint: r.hint,
+      detail: r.detail,
       requirement: r,
     }));
 
@@ -285,6 +300,7 @@ export function usePropertyReadiness(
         satisfied: c.passed,
         paintable: false,
         message: c.message,
+        detail: c.message ?? c.fix,
         fix: c.fix,
         sectionLabel: c.section_label,
         surface: c.surface,
@@ -321,13 +337,24 @@ export function usePropertyReadiness(
         recommended: 0,
         mandatoryLabels: [],
         recommendedLabels: [],
+        mandatoryItems: [],
+        recommendedItems: [],
       });
+      const entry: SectionReadinessDetail = {
+        key: item.key,
+        label: item.label,
+        detail: item.detail ?? item.hint,
+        paintable: item.paintable,
+        surface: item.surface,
+      };
       if (item.tier === "mandatory") {
         bucket.mandatory += 1;
         bucket.mandatoryLabels.push(item.label);
+        bucket.mandatoryItems.push(entry);
       } else {
         bucket.recommended += 1;
         bucket.recommendedLabels.push(item.label);
+        bucket.recommendedItems.push(entry);
       }
     }
     return out;
