@@ -29,6 +29,8 @@ import { getRoomUrl } from "@/lib/config";
 import { parseBedConfiguration, BED_TYPES, BedEntry, calculateBedCapacity, sleepsPerBed, formatBedConfiguration } from "@/lib/bedConfig";
 import { cn } from "@/lib/utils";
 import { isFieldPopulatedByPMS, getPMSDisplayName } from "@/lib/pmsFieldConfig";
+import { ChannelFieldHint } from "@/components/property/ChannelFieldHint";
+import { checkChannelName } from "@/lib/channelFieldRules";
 import { TagInput } from "@/components/TagInput";
 import { HostfullyRoomDetails } from "@/components/pms/HostfullyRoomDetails";
 import { ACCOMMODATION_LABEL_OPTIONS, ACCOMMODATION_TYPES, type AccommodationLabelKey } from "@/lib/accommodationLabels";
@@ -567,7 +569,11 @@ export function RoomManagerTab({
                   className={cn("h-7 text-xs", getRoomPmsFieldClass(selectedRoomType, "name"))}
                   disabled={isRoomFieldPmsSynced(selectedRoomType, "name")}
                 />
+                <ChannelFieldHint
+                  feedback={checkChannelName(roomTypes.find((r) => r.id === selectedRoomType)?.name || "")}
+                />
               </div>
+
               <div className="space-y-1">
                 <Label className="text-xs whitespace-nowrap">
                   # {ACCOMMODATION_TYPES[accommodationLabel as AccommodationLabelKey]?.plural || "Units"}

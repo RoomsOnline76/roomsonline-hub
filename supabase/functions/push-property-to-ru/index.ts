@@ -3152,11 +3152,28 @@ Deno.serve(async (req) => {
 
     const { data: roomTypes } = await supabase
       .from('hostfully_room_types')
-      .select('id, name, description, max_guests, bedrooms, bathrooms, beds, bed_configuration, linked_rolos_id, amenities, images, ru_image_tags, check_in_time, check_out_time, check_in_instructions, cleaning_fee, security_deposit, address_street, address_postal_code, latitude, longitude, property_type, cancellation_policy, room_size, rentalsunited_property_id')
+      .select('id, name, description, max_guests, bedrooms, bathrooms, beds, bed_configuration, linked_rolos_id, amenities, images, ru_image_tags, check_in_time, check_out_time, check_in_instructions, cleaning_fee, security_deposit, address_street, address_postal_code, latitude, longitude, property_type, cancellation_policy, room_size, rentalsunited_property_id, created_at, updated_at')
       .eq('property_id', property_id)
       .eq('is_active', true);
 
-    const activeRoomTypes = (roomTypes || []) as RoomTypeRow[];
+    // Guard against legacy duplicate unit rows (e.g. an old ALL-CAPS copy of the same
+    // chalet with a stale short description). Only the most recently edited row per
+    // case-insensitive name is evaluated / pushed, matching what the editor shows.
+    const dedupedRoomTypes = (() => {
+      const byName = new Map<string, RoomTypeRow>();
+      for (const rt of (roomTypes || []) as RoomTypeRow[]) {
+        const key = String((rt as any).name || '').trim().toLowerCase();
+        if (!key) { byName.set(`__id:${(rt as any).id}`, rt); continue; }
+        const existing = byName.get(key);
+        if (!existing) { byName.set(key, rt); continue; }
+        const ts = (r: RoomTypeRow) => Date.parse(String((r as any).updated_at || (r as any).created_at || 0)) || 0;
+        const len = (r: RoomTypeRow) => String((r as any).description || '').length;
+        const better = ts(rt) > ts(existing) || (ts(rt) === ts(existing) && len(rt) > len(existing));
+        if (better) byName.set(key, rt);
+      }
+      return Array.from(byName.values());
+    })();
+    const activeRoomTypes = dedupedRoomTypes;
     const isMultiUnit = activeRoomTypes.length > 0;
 
     const lat = property.latitude || activeRoomTypes[0]?.latitude || 0;
