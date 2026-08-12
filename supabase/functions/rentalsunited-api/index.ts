@@ -856,6 +856,22 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
   const objectTypeIdXml = prop.object_type_id && prop.object_type_id > 0
     ? `\n    <ObjectTypeID>${prop.object_type_id}</ObjectTypeID>` : '';
 
+  /**
+   * Gate #10 — optional <Distances>. Per the schema note above, the slot right after
+   * <Coordinates> accepts 'Distances, CompositionRooms, CompositionRoomsAmenities', so the
+   * block goes in ahead of the composition rooms. Omitted entirely when nothing maps.
+   */
+  const distanceEntries = Array.isArray(prop.distances)
+    ? prop.distances.filter((d) => Number(d?.destination_id) > 0 && Number(d?.value) > 0)
+    : [];
+  const distancesXml = distanceEntries.length > 0
+    ? `\n    <Distances>\n${distanceEntries
+        .map((d) => `      <Distance DestinationID="${Number(d.destination_id)}" DistanceUnit="1">${(Math.round(Number(d.value) * 10) / 10).toFixed(1)}</Distance>`)
+        .join('\n')}\n    </Distances>`
+    : '';
+
+
+
   return `<Push_PutProperty_RQ>
   ${buildAuthXml(creds)}
   <Property>
