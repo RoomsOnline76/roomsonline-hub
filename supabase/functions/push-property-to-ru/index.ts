@@ -42,6 +42,7 @@ import { parseRuPriceSeasons } from '../_shared/ruPriceParsing.ts';
 import { parseRuAvailabilityDays } from '../_shared/ruAvailabilityParsing.ts';
 import { invokeRuWithRetry } from '../_shared/ruInvokeRetry.ts';
 import { summarizeRuExchanges } from '../_shared/ruApiLog.ts';
+import { loadPropertyDistances } from '../_shared/ruDistances.ts';
 import {
   decideRuCurrency,
   verifyAndRecordCurrency,
@@ -3455,7 +3456,7 @@ Deno.serve(async (req) => {
 
         const scored = await Promise.all(
           activeRoomTypes.map(async (rt) => {
-            const payload = buildUnitPayload(property as PropertyRow, rt, locationId, undefined, currencyId) as Record<string, any>;
+            const payload = { ...buildUnitPayload(property as PropertyRow, rt, locationId, undefined, currencyId), distances: propertyDistances } as Record<string, any>;
             // Probe image dimensions exactly like the dry run does — without this the
             // sizes stay "unverified" and readiness falsely reports every photo as too small.
             await applyImageVerification(payload);
@@ -3967,7 +3968,7 @@ Deno.serve(async (req) => {
       // Dry run: validate each unit
       if (dry_run) {
         const units = await Promise.all(activeRoomTypes.map(async (rt) => {
-          const payload = buildUnitPayload(property as PropertyRow, rt, locationId, undefined, currencyId) as Record<string, any>;
+          const payload = { ...buildUnitPayload(property as PropertyRow, rt, locationId, undefined, currencyId), distances: propertyDistances } as Record<string, any>;
           await applyImageVerification(payload);
           return {
             room_type_id: rt.id,
@@ -4098,7 +4099,7 @@ Deno.serve(async (req) => {
         for (const unit of filteredUnits) {
           const existingUnitRuId = unit.rentalsunited_property_id ? parseInt(unit.rentalsunited_property_id, 10) : 0;
           // buildingId=0 → adapter omits <BuildingID> entirely
-          const unitPayload = buildUnitPayload(property as PropertyRow, unit, locationId, 0, currencyId);
+          const unitPayload = { ...buildUnitPayload(property as PropertyRow, unit, locationId, 0, currencyId), distances: propertyDistances };
           unitPayload.owner_id = ruOwnerId;
           const unitImageIssues = await applyImageVerification(unitPayload as unknown as Record<string, any>);
           if (unitImageIssues.length > 0) {
@@ -4398,7 +4399,7 @@ Deno.serve(async (req) => {
       const unitResults: any[] = [];
       for (const unit of unitsToPush) {
         const existingUnitRuId = unit.rentalsunited_property_id ? parseInt(unit.rentalsunited_property_id, 10) : 0;
-        const unitPayload = buildUnitPayload(property as PropertyRow, unit, locationId, buildingId, currencyId);
+        const unitPayload = { ...buildUnitPayload(property as PropertyRow, unit, locationId, buildingId, currencyId), distances: propertyDistances };
         const unitImageIssues = await applyImageVerification(unitPayload as unknown as Record<string, any>);
         if (unitImageIssues.length > 0) {
           console.warn(`[push-property-to-ru] Unit "${unit.name}": dropped ${unitImageIssues.length} image(s) Rentals United would reject`, unitImageIssues.map(i => i.reason));
@@ -4593,7 +4594,7 @@ Deno.serve(async (req) => {
     }
 
     // ── SINGLE PROPERTY FLOW (legacy) ────────────────────────
-    const ruPayload = buildSinglePropertyPayload(property as PropertyRow, activeRoomTypes, locationId, currencyId);
+    const ruPayload = { ...buildSinglePropertyPayload(property as PropertyRow, activeRoomTypes, locationId, currencyId), distances: propertyDistances };
     ruPayload.owner_id = ruOwnerId;
     const singleImageIssues = await applyImageVerification(ruPayload as unknown as Record<string, any>);
     if (singleImageIssues.length > 0) {
