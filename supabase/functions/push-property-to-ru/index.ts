@@ -3917,7 +3917,7 @@ Deno.serve(async (req) => {
           success: false,
           error_code: 'PHASE_GATE_BYPASSED',
           error_message: `Phase gate bypassed at ${phaseGate.current_phase}`,
-          details: { phases: phaseGate.phases },
+          details: { phases: phaseGate.phases, acting_user_id: forceActorId },
         });
       } catch (_e) { /* audit only */ }
     }
