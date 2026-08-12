@@ -11,7 +11,13 @@ import { StarRating } from "@/components/StarRating";
 import { ACCOMMODATION_LABEL_OPTIONS, getAccommodationLabel } from "@/lib/accommodationLabels";
 import { getPMSFieldClass, getPMSDisplayName, isFieldPopulatedByPMS } from "@/lib/pmsFieldConfig";
 import { cn } from "@/lib/utils";
-import { X, Save, Cloud } from "lucide-react";
+import { X, Save, Cloud, Sparkles, Loader2, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { useCallback, useMemo, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+
+export const MIN_DESCRIPTION_CHARS = 800;
+
 
 const FACILITIES = {
   general: ["Wheelchair Accessible","Non-Smoking Rooms","Designated Smoking Area","Garden","Terrace/Patio","Fireplace Lounge","Lift/Elevator"],
@@ -66,6 +72,51 @@ export function InfoFacilitiesTab(props: InfoFacilitiesTabProps) {
     selectedBreakfastOptions, setSelectedBreakfastOptions,
   } = props;
 
+  const [writingDescription, setWritingDescription] = useState(false);
+  const descriptionLength = useMemo(() => (formData.description ?? "").trim().length, [formData.description]);
+  const descriptionTooShort = descriptionLength < MIN_DESCRIPTION_CHARS;
+
+  const writeWithTobi = useCallback(async () => {
+    setWritingDescription(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("editorial-ai-assist", {
+        body: {
+          action: "generate_property_description",
+          minChars: MIN_DESCRIPTION_CHARS,
+          propertyContext: {
+            name: formData.name,
+            property_type: formData.property_type,
+            star_rating: starRating,
+            description: formData.description,
+            country: formData.country,
+            city: formData.city,
+            suburb: formData.suburb,
+            restaurants_cafes: formData.restaurants_cafes,
+            public_transport: formData.public_transport,
+            closest_airport: formData.closest_airport,
+            facilities: selectedFacilities,
+          },
+        },
+      });
+      if (error) throw error;
+      const text: string = (data?.description ?? "").trim();
+      if (!text) throw new Error("TOBI returned no text");
+      handleInputChange("description", text);
+      setIsDirty(true);
+      toast.success(
+        text.length >= MIN_DESCRIPTION_CHARS
+          ? `TOBI wrote ${text.length} characters — review and save.`
+          : `TOBI wrote ${text.length} characters — still under the ${MIN_DESCRIPTION_CHARS} minimum, please expand.`,
+      );
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "TOBI could not write the description");
+    } finally {
+      setWritingDescription(false);
+    }
+  }, [formData, starRating, selectedFacilities, handleInputChange, setIsDirty]);
+
+
+
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
       <Card>
@@ -90,10 +141,41 @@ export function InfoFacilitiesTab(props: InfoFacilitiesTabProps) {
         </CardHeader>
         <CardContent className="py-2 px-4">
           <div className="space-y-1">
-            <Label htmlFor="description" className="text-xs">Description</Label>
-            <Textarea id="description" value={formData.description} onChange={(e) => handleInputChange("description", e.target.value)} placeholder="Describe your property..." rows={3} disabled={isFieldPopulatedByPMS("description", selectedPMS)} className={cn("resize-none text-xs", getPMSFieldClass("description", selectedPMS), isFieldPopulatedByPMS("description", selectedPMS) && "cursor-not-allowed")} />
+            <div className="flex items-center justify-between gap-2">
+              <Label htmlFor="description" className="text-xs">Description</Label>
+              <div className="flex items-center gap-2">
+                <span className={cn("text-[10px] tabular-nums", descriptionTooShort ? "text-destructive" : "text-muted-foreground")}>
+                  {descriptionLength} / {MIN_DESCRIPTION_CHARS} characters
+                </span>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-6 px-2 text-[10px]"
+                  disabled={writingDescription || isFieldPopulatedByPMS("description", selectedPMS)}
+                  onClick={writeWithTobi}
+                >
+                  {writingDescription
+                    ? <><Loader2 className="h-3 w-3 mr-1 animate-spin" />TOBI is writing…</>
+                    : <><Sparkles className="h-3 w-3 mr-1" />Write with TOBI</>}
+                </Button>
+              </div>
+            </div>
+            <Textarea id="description" value={formData.description} onChange={(e) => handleInputChange("description", e.target.value)} placeholder="Describe your property..." rows={6} disabled={isFieldPopulatedByPMS("description", selectedPMS)} className={cn("resize-none text-xs", descriptionTooShort && "border-destructive focus-visible:ring-destructive", getPMSFieldClass("description", selectedPMS), isFieldPopulatedByPMS("description", selectedPMS) && "cursor-not-allowed")} />
+            {descriptionTooShort ? (
+              <p className="flex items-center gap-1 text-[10px] text-destructive">
+                <AlertTriangle className="h-3 w-3" />
+                {MIN_DESCRIPTION_CHARS - descriptionLength} more characters needed — distribution channels require at least {MIN_DESCRIPTION_CHARS} characters.
+              </p>
+            ) : (
+              <p className="flex items-center gap-1 text-[10px] text-emerald-600 dark:text-emerald-400">
+                <CheckCircle2 className="h-3 w-3" />
+                Meets the {MIN_DESCRIPTION_CHARS}-character minimum for channel distribution.
+              </p>
+            )}
           </div>
         </CardContent>
+
       </Card>
 
       <Card>
