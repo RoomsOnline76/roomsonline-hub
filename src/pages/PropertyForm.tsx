@@ -5816,11 +5816,11 @@ export default function PropertyForm({
                 </CardHeader>
                 <CardContent className="py-2 px-4">
                   <div className="space-y-1">
-                    <Label htmlFor="description" className="text-xs">
+                    <Label htmlFor="description_general" className="text-xs">
                       Description
                     </Label>
                     <Textarea
-                      id="description"
+                      id="description_general"
                       value={formData.description}
                       onChange={(e) => handleInputChange("description", e.target.value)}
                       placeholder="Describe your property, its unique features, amenities, and what makes it special..."
