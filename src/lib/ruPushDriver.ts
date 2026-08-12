@@ -1,0 +1,109 @@
+import { supabase } from "@/integrations/supabase/client";
+
+/**
+ * Resumable driver for `push-property-to-ru`.
+ *
+ * A standalone-unit property costs one content push plus availability/price pushes and both
+ * read-backs per unit, so properties with many units used to exhaust the worker mid-run and the
+ * trailing units failed with "Failed to send a request to the Edge Function". The function now
+ * pushes a slice per invocation and returns `remaining_unit_ids`; this helper walks that sequence
+ * until nothing is outstanding and merges the per-unit results into one shape the UI can render.
+ */
+
+export interface RuPushUnitResult {
+  name?: string;
+  room_type_id?: string;
+  success?: boolean;
+  error?: string;
+  transport_failure?: boolean;
+  rentalsunited_property_id?: string;
+  ari?: unknown;
+  diagnostics?: unknown;
+  [key: string]: unknown;
+}
+
+export interface RuPushResult {
+  success: boolean;
+  error?: { code?: string; message?: string };
+  units?: RuPushUnitResult[];
+  multi_unit?: boolean;
+  standalone_units?: boolean;
+  remaining_unit_ids?: string[];
+  [key: string]: unknown;
+}
+
+interface RuPushOptions {
+  /** Units per invocation. Omit to use the function's default. */
+  batchSize?: number;
+  /** Restrict the push to specific room type ids. */
+  onlyUnitIds?: string[];
+  dryRun?: boolean;
+  subscribeRlnm?: boolean;
+  /** Called after every chunk so the UI can show live progress. */
+  onProgress?: (progress: { pushed: number; total: number; units: RuPushUnitResult[] }) => void;
+}
+
+const MAX_CHUNKS = 20;
+
+export async function pushPropertyToRu(propertyId: string, options: RuPushOptions = {}): Promise<RuPushResult> {
+  const { batchSize, onlyUnitIds, dryRun, subscribeRlnm, onProgress } = options;
+
+  let remaining: string[] | undefined = onlyUnitIds;
+  let batchId: string | undefined;
+  const mergedUnits: RuPushUnitResult[] = [];
+  let last: RuPushResult | null = null;
+
+  for (let chunk = 0; chunk < MAX_CHUNKS; chunk++) {
+    const { data, error } = await supabase.functions.invoke("push-property-to-ru", {
+      body: {
+        property_id: propertyId,
+        ...(dryRun ? { dry_run: true } : {}),
+        ...(subscribeRlnm ? { subscribe_rlnm: true } : {}),
+        ...(remaining && remaining.length > 0 ? { only_unit_ids: remaining } : {}),
+        ...(batchSize ? { batch_size: batchSize } : {}),
+        ...(batchId ? { batch_id: batchId } : {}),
+      },
+    });
+    if (error) throw new Error(error.message);
+
+    const result = (data ?? {}) as RuPushResult;
+    last = result;
+    batchId = (result.batch_id as string | undefined) ?? batchId;
+
+    for (const unit of result.units ?? []) {
+      const idx = mergedUnits.findIndex((u) => u.room_type_id && u.room_type_id === unit.room_type_id);
+      if (idx >= 0) mergedUnits[idx] = unit;
+      else mergedUnits.push(unit);
+    }
+
+    const nextRemaining = (result.remaining_unit_ids ?? []) as string[];
+    if (mergedUnits.length > 0) {
+      onProgress?.({
+        pushed: mergedUnits.filter((u) => u.success).length,
+        total: mergedUnits.length + nextRemaining.length,
+        units: [...mergedUnits],
+      });
+    }
+
+    // Non-chunked flows (single unit, building mode, dry run, blocked gate) answer in one shot.
+    if (!result.resume || nextRemaining.length === 0) {
+      return mergedUnits.length > 0 ? { ...result, units: mergedUnits, remaining_unit_ids: [] } : result;
+    }
+    // No forward progress in this chunk — stop instead of looping on the same units.
+    if (remaining && nextRemaining.length >= remaining.length && chunk > 0) {
+      return { ...result, units: mergedUnits, remaining_unit_ids: nextRemaining };
+    }
+    remaining = nextRemaining;
+  }
+
+  return {
+    ...(last ?? {}),
+    success: false,
+    units: mergedUnits,
+    remaining_unit_ids: remaining ?? [],
+    error: {
+      code: "RU_PUSH_INTERRUPTED",
+      message: `Push stopped after ${MAX_CHUNKS} batches with ${(remaining ?? []).length} unit(s) outstanding — retry to continue.`,
+    },
+  };
+}
