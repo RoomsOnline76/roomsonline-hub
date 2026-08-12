@@ -3176,8 +3176,26 @@ Deno.serve(async (req) => {
       }
       return Array.from(byName.values());
     })();
-    const activeRoomTypes = dedupedRoomTypes;
+    // The Rooms tab (properties.amenities.room_types) is the canonical unit list. Keep the
+    // readiness wizard, the push payload and the editor in agreement: only units the Rooms
+    // tab still lists are evaluated, and they carry the Rooms-tab name/casing.
+    const activeRoomTypes = (() => {
+      const canonical = ((property.amenities as any)?.room_types || []) as Array<{ name?: string | null }>;
+      const canonicalNames = new Map<string, string>();
+      for (const rt of canonical) {
+        const name = String(rt?.name || '').trim();
+        if (name) canonicalNames.set(name.toLowerCase(), name);
+      }
+      if (canonicalNames.size === 0) return dedupedRoomTypes;
+      return dedupedRoomTypes
+        .filter((rt) => canonicalNames.has(String((rt as any).name || '').trim().toLowerCase()))
+        .map((rt) => ({
+          ...rt,
+          name: canonicalNames.get(String((rt as any).name || '').trim().toLowerCase()) ?? (rt as any).name,
+        })) as RoomTypeRow[];
+    })();
     const isMultiUnit = activeRoomTypes.length > 0;
+
 
     const lat = property.latitude || activeRoomTypes[0]?.latitude || 0;
     const lng = property.longitude || activeRoomTypes[0]?.longitude || 0;
