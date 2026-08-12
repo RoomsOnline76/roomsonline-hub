@@ -1,6 +1,19 @@
 import { supabase } from "@/integrations/supabase/client";
 
 /**
+ * Outcome of a delta. `reason: "gate_pending"` means the change is real and still owed to the
+ * channel: it was parked because the listing does not currently satisfy the mandatory channel
+ * gate, and it re-fires automatically as soon as readiness clears. No manual push required.
+ */
+export interface ChannelSyncOutcome {
+  queued?: boolean;
+  accepted?: boolean;
+  reason?: string;
+  error?: string;
+  blockers?: string[];
+}
+
+/**
  * Static content delta to the Channel Manager.
  *
  * Rentals United requires static content (name, type, description, amenities, photos, bed
@@ -20,7 +33,7 @@ export async function queueChannelContentSync(
   propertyId: string | null | undefined,
   trigger: string,
   options: { force?: boolean; wait?: boolean } = {},
-): Promise<{ queued?: boolean; accepted?: boolean; reason?: string; error?: string } | null> {
+): Promise<ChannelSyncOutcome | null> {
   if (!propertyId) return null;
   try {
     const { data, error } = await supabase.functions.invoke("ru-static-delta", {
@@ -65,7 +78,7 @@ export async function queueChannelRatesSync(
   propertyId: string | null | undefined,
   trigger: string,
   options: { force?: boolean; wait?: boolean } = {},
-): Promise<{ queued?: boolean; accepted?: boolean; reason?: string; error?: string } | null> {
+): Promise<ChannelSyncOutcome | null> {
   if (!propertyId) return null;
   try {
     const { data, error } = await supabase.functions.invoke("ru-ari-delta", {
