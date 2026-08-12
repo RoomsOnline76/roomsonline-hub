@@ -395,6 +395,11 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
       return;
     }
     toast.success(ratePlanId ? "Rate plan updated" : "Rate plan created");
+    // Prices changed — push rates & availability to the Channel Manager. Fire-and-forget:
+    // a channel failure never turns into a save failure.
+    void queueChannelRatesSync(propertyId, ratePlanId ? "rate_plan_update" : "rate_plan_create").then((result) => {
+      if (result?.queued && !result?.error) toast.info("Rates queued for the Channel Manager");
+    });
     setLegacyRefresh((n) => n + 1);
     onSaved();
   }, [draft, propertyId, ratePlanId, onSaved, noun]);
