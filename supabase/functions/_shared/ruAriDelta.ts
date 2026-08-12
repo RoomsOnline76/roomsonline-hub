@@ -17,9 +17,17 @@ export const RU_ARI_DELTA_DEBOUNCE_MS = 5 * 60 * 1000;
 
 export interface RuAriDeltaOutcome {
   queued: boolean;
-  reason?: "not_connected" | "debounced" | "error" | "no_property";
+  reason?: "not_connected" | "debounced" | "error" | "no_property" | "gate_pending";
   error?: string;
+  blockers?: string[];
 }
+
+/** ru_sync_runs.action used to park an ARI delta refused by the readiness / phase gate. */
+export const RU_ARI_DELTA_PENDING_ACTION = "ari_delta_pending";
+
+/** Gate refusals that mean "correct data, not yet allowed" rather than a hard failure. */
+const GATE_CODES = ["PHASE_BLOCKED", "READINESS_UNVERIFIED", "READINESS_FAILED"];
+
 
 async function isRuConnected(supabase: any, propertyId: string): Promise<boolean> {
   const [{ data: prop }, { data: units }] = await Promise.all([
