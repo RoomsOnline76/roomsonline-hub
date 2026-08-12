@@ -52,7 +52,9 @@ export const AI_MODELS = {
 
   // --- Prose / editorial ---
   editorial: AI_TIER.prose,
+  property_description: AI_TIER.prose,
   content_enrichment: AI_TIER.prose,
+
   itinerary_narrative: AI_TIER.prose,
   experience_curation: AI_TIER.prose,
   experience_engine: AI_TIER.prose,
