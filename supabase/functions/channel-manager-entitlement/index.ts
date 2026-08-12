@@ -812,7 +812,8 @@ Deno.serve(async (req) => {
       await admin.from("ru_archive_events").insert({
         property_id: unit.property_id,
         property_name: unit.name,
-        direction: unitArchive ? "archived" : "reactivated",
+        direction: unitArchive ? (keptActive ? "delisted" : "archived") : "reactivated",
+
         unit_count: 1,
         listing_count: unit.rentalsunited_property_id ? 1 : 0,
         reason: raw.reason ?? null,
