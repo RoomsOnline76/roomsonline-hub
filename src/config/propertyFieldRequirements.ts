@@ -223,6 +223,9 @@ export const UNIT_ROW_RULES = {
     const maximum = Number(room.maxPeople ?? room.max_guests ?? 0);
     return maximum >= 1 && bedCapacity(room.bedConfiguration ?? room.bed_configuration) >= maximum;
   },
+  /** The channel requires at least one bedroom in the composition block. */
+  bedroomComposition: (room: RoomRequirementRow) => hasBedroomComposition(room),
+
   images: (room: RoomRequirementRow) => (Array.isArray(room.images) ? room.images.length : 0) >= 10,
   amenities: (room: RoomRequirementRow) =>
     (Array.isArray(room.amenities) ? room.amenities.length : 0) >= 10,
