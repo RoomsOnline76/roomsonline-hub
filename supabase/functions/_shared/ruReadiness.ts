@@ -183,6 +183,17 @@ export function evaluateUnitChecks(
     "Property → General → Name");
   add("has_object_type_id", "Content", "Property type (ObjectTypeID)", !!v.has_object_type_id,
     "No property type selected", "Property → General → Property type");
+  // An unmapped ROL'OS type used to publish silently as Chalet. The channel type decides how
+  // the listing is merchandised, so a guess must block instead.
+  add("object_type_authored", "Content", "Property type maps to a channel type",
+    v.object_type_is_default !== true,
+    `The ROL'OS type${v.object_type_source ? ` "${v.object_type_source}"` : ""} does not map to a Channel Manager property type — the channel would receive an assumed Chalet. Pick a supported type`,
+    "Rooms → Unit → Property type");
+  add("currency_authored", "Content", "Currency is authored (not assumed)",
+    v.currency_is_default !== true,
+    "No currency is set for this property — the channel would receive an assumed ZAR. Set the currency in Billing & banking",
+    "Property → Billing & banking → Currency");
+
   add("can_sleep_max_ok", "Content", "Max guests ≥ 1", !!v.can_sleep_max_ok,
     "CanSleepMax must be at least 1", "Rooms → Unit → Max guests");
   add("has_description", "Content", "Description present", v.has_description !== false,
