@@ -72,6 +72,13 @@ export function RuReadinessScorecard({ propertyId, standalone = true, onReport }
     void load();
   }, [load]);
 
+  // Nothing to act on at 100% — keep the checklist folded away and re-open it the moment a
+  // requirement slips, so the owner only ever sees the long list when it needs work.
+  const satisfied = !!report && !report.blocked && report.score >= 100;
+  useEffect(() => {
+    setDetailsOpen(!satisfied);
+  }, [satisfied]);
+
   const scoreTone = !report
     ? "text-muted-foreground"
     : report.blocked
