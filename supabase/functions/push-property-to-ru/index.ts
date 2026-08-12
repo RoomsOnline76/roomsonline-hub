@@ -766,6 +766,21 @@ function mapCurrencyToRUId(amenities: Record<string, unknown> | null, country?: 
   return 48;
 }
 
+/**
+ * Was the currency actually authored on the property, or is `mapCurrencyToRUId` about to
+ * guess it from the country (or fall through to ZAR)? A guessed currency prices the whole
+ * listing, so the readiness scorer blocks the push on it instead of publishing an assumption.
+ */
+function resolveAuthoredCurrency(amenities: Record<string, unknown> | null): { iso: string | null; authored: boolean } {
+  const banking = ((amenities as any)?.banking || {}) as Record<string, unknown>;
+  const iso = String(
+    (banking.currency as string) || ((amenities as any)?.currency as string) || '',
+  ).trim().toUpperCase();
+  if (iso && RU_CURRENCY_BY_ISO[iso]) return { iso, authored: true };
+  return { iso: iso || null, authored: false };
+}
+
+
 // ── Country → default city LocationID fallback ───────────────
 // Used when Pull_GetLocationByCoordinates_RQ returns nothing usable. These IDs are real
 // RU LocationIDs harvested via Pull_ListLocations_RQ. Better to tag a property "Cape Town"
