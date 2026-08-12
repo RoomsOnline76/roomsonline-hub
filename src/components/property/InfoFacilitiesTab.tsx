@@ -19,6 +19,9 @@ import { markerFlags } from "@/lib/fieldMarkers";
 import { X, Save, Cloud, Sparkles, Loader2, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { LocalExperiencesManager } from "@/components/experiences/LocalExperiencesManager";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 
 export const MIN_DESCRIPTION_CHARS = 800;
@@ -80,6 +83,7 @@ export function InfoFacilitiesTab(props: InfoFacilitiesTabProps) {
   } = props;
 
   const [writingDescription, setWritingDescription] = useState(false);
+  const [attractionsOpen, setAttractionsOpen] = useState(false);
   const descriptionLength = useMemo(() => (formData.description ?? "").trim().length, [formData.description]);
   const descriptionTooShort = descriptionLength < MIN_DESCRIPTION_CHARS;
 
@@ -255,6 +259,38 @@ export function InfoFacilitiesTab(props: InfoFacilitiesTabProps) {
           </div>
         </CardContent>
       </Card>
+
+      {/*
+        Nearby attractions with distances. Recommended (never blocking): whatever is captured
+        here is pushed to the channel as its Distances block, so guests can rank the listing
+        by how close the beach, town centre or airport is.
+      */}
+      {formData?.id && (
+        <Card id="nearby-attractions" data-field="attraction_distances">
+          <Collapsible open={attractionsOpen} onOpenChange={setAttractionsOpen}>
+            <CollapsibleTrigger asChild>
+              <CardHeader className="py-2 px-4 cursor-pointer flex-row items-center justify-between space-y-0">
+                <CardTitle className="text-sm">Nearby attractions &amp; distances</CardTitle>
+                <ChevronDown className={cn("h-4 w-4 transition-transform", attractionsOpen && "rotate-180")} />
+              </CardHeader>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <CardContent className="py-2 px-4">
+                <p className="text-xs text-muted-foreground mb-3">
+                  Capture a distance in km for each place. Three or more distances satisfy the
+                  recommended channel check and are pushed with the listing.
+                </p>
+                <LocalExperiencesManager
+                  propertyId={String(formData.id)}
+                  propertyName={String(formData.name ?? "")}
+                  propertyCity={formData.city ?? undefined}
+                  propertyCountry={formData.country ?? undefined}
+                />
+              </CardContent>
+            </CollapsibleContent>
+          </Collapsible>
+        </Card>
+      )}
 
       <div className="flex justify-end gap-2">
         <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={() => handleNavigate("/admin/property-overview")}>Cancel</Button>

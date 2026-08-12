@@ -163,7 +163,7 @@ export function usePropertyReadiness(
     queryKey: ["property-readiness", propertyId],
     queryFn: async () => {
       if (!propertyId) return null;
-      const [{ data: property, error }, { data: policyRows }, { data: contactRows }, backend] = await Promise.all([
+      const [{ data: property, error }, { data: policyRows }, { data: contactRows }, { data: attractionRows }, backend] = await Promise.all([
         supabase.from("properties").select("*").eq("id", propertyId).maybeSingle(),
         // Master policy truth lives in the policy library, not in amenities.
         supabase
@@ -175,6 +175,12 @@ export function usePropertyReadiness(
           .from("property_contact_details")
           .select("role, name, email, phone")
           .eq("property_id", propertyId),
+        // Nearby attractions with a distance — a recommended, never-blocking channel field.
+        supabase
+          .from("local_experiences")
+          .select("title, category, distance_km, is_active")
+          .eq("property_id", propertyId)
+          .eq("is_active", true),
         supabase.functions
           .invoke("check-activation-readiness", { body: { property_id: propertyId } })
           .then((res) => (res.error ? null : (res.data as ReadinessBackendResponse)))
@@ -186,6 +192,7 @@ export function usePropertyReadiness(
         ...(property as Record<string, unknown>),
         policy_rows: policyRows ?? [],
         contact_rows: contactRows ?? [],
+        attraction_rows: attractionRows ?? [],
       } as RequirementSubject;
       return { subject, backend };
     },

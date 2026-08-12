@@ -14,6 +14,11 @@ import {
   parseLnmSubscriptions,
 } from '../_shared/ruLnm.ts';
 import { extractAllBlocks, parseRuReservation } from '../_shared/ruReservationParsing.ts';
+import {
+  isGenericDestination,
+  normalizeDestinationName,
+  type RuDistanceEntry,
+} from '../_shared/ruDistances.ts';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { logRuExchange, newRuTraceId, type RuApiLogContext } from '../_shared/ruApiLog.ts';
@@ -163,6 +168,11 @@ interface RUPropertyPayload {
   check_out_until?: string;
   check_in_place?: string;
   building_id?: number;
+  /**
+   * Gate #10 nice-to-have: distances to nearby attractions. Emitted only when non-empty —
+   * an empty <Distances/> wrapper is rejected by the channel parser.
+   */
+  distances?: RuDistanceEntry[];
 }
 
 const PAYMENT_METHOD_LABELS: Record<number, string> = {
@@ -846,6 +856,22 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
   const objectTypeIdXml = prop.object_type_id && prop.object_type_id > 0
     ? `\n    <ObjectTypeID>${prop.object_type_id}</ObjectTypeID>` : '';
 
+  /**
+   * Gate #10 — optional <Distances>. Per the schema note above, the slot right after
+   * <Coordinates> accepts 'Distances, CompositionRooms, CompositionRoomsAmenities', so the
+   * block goes in ahead of the composition rooms. Omitted entirely when nothing maps.
+   */
+  const distanceEntries = Array.isArray(prop.distances)
+    ? prop.distances.filter((d) => Number(d?.destination_id) > 0 && Number(d?.value) > 0)
+    : [];
+  const distancesXml = distanceEntries.length > 0
+    ? `\n    <Distances>\n${distanceEntries
+        .map((d) => `      <Distance DestinationID="${Number(d.destination_id)}" DistanceUnit="1">${(Math.round(Number(d.value) * 10) / 10).toFixed(1)}</Distance>`)
+        .join('\n')}\n    </Distances>`
+    : '';
+
+
+
   return `<Push_PutProperty_RQ>
   ${buildAuthXml(creds)}
   <Property>
@@ -867,7 +893,7 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
     <Coordinates>
       <Longitude>${prop.longitude}</Longitude>
       <Latitude>${prop.latitude}</Latitude>
-    </Coordinates>${roomsXml ? `\n    ${roomsXml}` : ''}
+    </Coordinates>${distancesXml}${roomsXml ? `\n    ${roomsXml}` : ''}
     <Amenities>
       ${amenitiesXml}
     </Amenities>
@@ -2807,6 +2833,80 @@ Deno.serve(async (req) => {
         raw_xml: response,
       });
     }
+
+    // ── list_destinations (attraction/distance dictionary) ──
+    // The <Distances> block in Push_PutProperty_RQ references destination ids from a
+    // channel-owned dictionary. Verified live: Pull_ListDestinations_RQ answers with ~33 800
+    // <Destination DestinationID="…">Name</Destination> entries, most of them city specific.
+    // We cache the whole list and flag the generic, location-agnostic entries (Beach, Sea,
+    // Airport, Restaurant, …) — only those are ever mapped, so no id is invented locally.
+    if (action === 'list_destinations') {
+      const xml = `<?xml version="1.0" encoding="utf-8"?>\n<Pull_ListDestinations_RQ>\n  ${buildAuthXml(creds)}\n</Pull_ListDestinations_RQ>`;
+      const response = await callRentalsUnited(creds, xml);
+      const { ok, status } = handleRUStatus(response);
+      if (!ok) return ruErrorResponse(status);
+
+      const entries: Array<{ ru_destination_id: number; name: string }> = [];
+      const re = /<Destination\s+DestinationID="(\d+)"\s*>([\s\S]*?)<\/Destination>/g;
+      let m: RegExpExecArray | null;
+      while ((m = re.exec(response)) !== null) {
+        const id = parseInt(m[1], 10);
+        const name = m[2].replace(/&amp;/g, '&').trim();
+        if (Number.isFinite(id) && name) entries.push({ ru_destination_id: id, name });
+      }
+
+      /**
+       * The list is flat and unscoped: hosts have created their own entries over the years, so
+       * a generic name such as "Beach" appears hundreds of times with different ids. The
+       * lowest id per generic name is the original platform entry, so only that one is flagged
+       * generic and therefore mappable — the rest stay in the cache as reference data.
+       */
+      const lowestGenericId = new Map<string, number>();
+      for (const e of entries) {
+        if (!isGenericDestination(e.name)) continue;
+        const slug = normalizeDestinationName(e.name);
+        const current = lowestGenericId.get(slug);
+        if (current === undefined || e.ru_destination_id < current) lowestGenericId.set(slug, e.ru_destination_id);
+      }
+      const rows = entries.map((e) => ({
+        ru_destination_id: e.ru_destination_id,
+        name: e.name,
+        slug: normalizeDestinationName(e.name),
+        is_generic: lowestGenericId.get(normalizeDestinationName(e.name)) === e.ru_destination_id,
+        synced_at: new Date().toISOString(),
+      }));
+
+      let synced = 0;
+      let sync_error: string | null = null;
+      try {
+        const supabase = createClient(
+          Deno.env.get('SUPABASE_URL')!,
+          Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+        );
+        for (let i = 0; i < rows.length; i += 1000) {
+          const { error: upErr } = await supabase
+            .from('ru_destinations')
+            .upsert(rows.slice(i, i + 1000), { onConflict: 'ru_destination_id' });
+          if (upErr) { sync_error = upErr.message; break; }
+          synced += Math.min(1000, rows.length - i);
+        }
+      } catch (err) {
+        sync_error = err instanceof Error ? err.message : 'Unknown cache error';
+      }
+
+      return jsonResponse({
+        success: true,
+        auth_mode: 'master_channel_manager',
+        raw_sample: body?.debug ? response.slice(0, 3000) : undefined,
+        destination_count: rows.length,
+        generic_count: rows.filter((r) => r.is_generic).length,
+        synced,
+        sync_error,
+      });
+    }
+
+
+
 
 
     // ── get_long_stay_discounts (verification) ──

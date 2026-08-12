@@ -193,6 +193,21 @@ const roomRows = (subject: RequirementSubject): RoomRequirementRow[] => {
   return Array.isArray(rooms) ? (rooms as RoomRequirementRow[]) : [];
 };
 
+/**
+ * Nearby attractions that carry a usable distance. Supplied by the readiness hook from
+ * `local_experiences`; only these rows can ever be pushed as channel Distances.
+ */
+const attractionsWithDistance = (
+  subject: RequirementSubject,
+): Array<{ title?: string | null; distance_km?: number | string | null }> => {
+  const rows = (subject as Record<string, unknown>).attraction_rows;
+  if (!Array.isArray(rows)) return [];
+  return (rows as Array<{ title?: string | null; distance_km?: number | string | null; is_active?: boolean | null }>)
+    .filter((r) => r?.is_active !== false && Number(r?.distance_km) > 0);
+};
+
+
+
 const numericAtLeast = (value: unknown, minimum: number): boolean => {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed >= minimum;
@@ -564,6 +579,23 @@ export const PROPERTY_FIELD_REQUIREMENTS: FieldRequirement[] = [
       numericAtLeast(amenity(s, "property_size_sqm"), 1) ||
       (roomRows(s).length > 0 && roomRows(s).every(UNIT_ROW_RULES.size)),
   },
+  {
+    key: "attraction_distances",
+    label: "Distances to nearby attractions",
+    tier: "recommended",
+    section: "info-facilities",
+    target: ['[data-field="attraction_distances"]', "#nearby-attractions"],
+    hint: "Capture at least three nearby places with a distance in km — channels push these as Distances and guests rank listings by them.",
+    isSatisfied: (s) => attractionsWithDistance(s).length >= 3,
+    describeShortfall: (s) => {
+      const n = attractionsWithDistance(s).length;
+      return n === 0
+        ? "No nearby attraction has a distance captured — add at least three."
+        : `${n} attraction${n === 1 ? "" : "s"} with a distance — add ${3 - n} more.`;
+    },
+  },
+
+
 
 
 

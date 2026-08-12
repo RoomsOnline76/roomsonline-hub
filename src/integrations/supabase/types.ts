@@ -13591,6 +13591,39 @@ export type Database = {
           },
         ]
       }
+      ru_destinations: {
+        Row: {
+          created_at: string
+          id: string
+          is_generic: boolean
+          name: string
+          ru_destination_id: number
+          slug: string
+          synced_at: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_generic?: boolean
+          name: string
+          ru_destination_id: number
+          slug: string
+          synced_at?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_generic?: boolean
+          name?: string
+          ru_destination_id?: number
+          slug?: string
+          synced_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       ru_discounts: {
         Row: {
           created_at: string
