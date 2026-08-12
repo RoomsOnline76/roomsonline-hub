@@ -4,7 +4,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { AlertTriangle, CheckCircle2, Copy, Loader2, Save } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Copy, Loader2, Save, Sparkles } from "lucide-react";
 import type { SiblingProperty } from "@/hooks/usePortfolioSiblings";
 
 /** Channel gate: Rentals United rejects arrival instructions under 20 characters. */
