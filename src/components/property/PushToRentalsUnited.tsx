@@ -25,6 +25,8 @@ import {
   RefreshCw,
 } from "lucide-react";
 import type { RuReadinessReport } from "@/components/pms/channels/RuReadinessScorecard";
+import { usePropertyReadiness } from "@/hooks/usePropertyReadiness";
+
 import {
   RuChannelContentChecklist,
   type RuContentFlags,
@@ -160,6 +162,21 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
     gated: false,
     reason: null,
   });
+
+  /**
+   * Registry-backed readiness — the same truth the wizard and the server gate use.
+   * This is the primary client gate: unknown, still loading, or failed = blocked.
+   */
+  const gate = usePropertyReadiness(propertyId);
+  const gateBlocked = !gate.hasData || gate.passed !== true;
+  const gateReason = !gate.hasData
+    ? gate.isLoading || gate.isFetching
+      ? "Checking channel readiness…"
+      : "Channel readiness could not be scored — reload before syncing"
+    : gate.passed !== true
+      ? `${gate.mandatoryOutstanding} mandatory requirement(s) outstanding — complete the checklist below before syncing`
+      : null;
+
 
   useEffect(() => {
     // Load property RU IDs and owner email
@@ -334,7 +351,11 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
     }
   };
 
-  const runDryRun = async () => {
+  /**
+   * Server dry run. Returns the outcome so the live push can require a clean run
+   * from the same session instead of treating validation as optional.
+   */
+  const runDryRun = async (opts: { silent?: boolean } = {}): Promise<{ ok: boolean; gaps: string[]; message?: string }> => {
 
     setDryRunning(true);
     setError(null);
@@ -349,7 +370,10 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
         body: { property_id: propertyId, dry_run: true },
       });
       if (fnErr) throw new Error(fnErr.message);
-      if (!data.success) { setError(data.error); return; }
+      if (!data.success) {
+        setError(data.error);
+        return { ok: false, gaps: (data.gaps ?? []) as string[], message: data.error?.message };
+      }
 
       setIsMultiUnit(!!data.multi_unit);
       setValidation(data.validation);
@@ -359,20 +383,37 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
       setLastChecked(new Date().toLocaleTimeString());
 
       const v = data.validation;
-      if (v.meets_minimum_images && v.meets_minimum_amenities && v.has_coordinates) {
-        toast.success(data.multi_unit ? `All ${v.total_units} units ready to push` : "Property is ready to publish to the Channel Manager");
-      } else {
-        toast.warning("Property needs attention before publishing to the Channel Manager");
+      const gaps = (data.gaps ?? []) as string[];
+      const ok =
+        gaps.length === 0
+        && !!v?.meets_minimum_images
+        && !!v?.meets_minimum_amenities
+        && !!v?.has_coordinates;
+      if (!opts.silent) {
+        if (ok) {
+          toast.success(data.multi_unit ? `All ${v.total_units} units ready to push` : "Property is ready to publish to the Channel Manager");
+        } else {
+          toast.warning("Property needs attention before publishing to the Channel Manager");
+        }
       }
+      return { ok, gaps };
     } catch (err) {
-      setError({ code: "EXCEPTION", message: err instanceof Error ? err.message : "Unknown error" });
-      toast.error("Failed to validate property");
+      const message = err instanceof Error ? err.message : "Unknown error";
+      setError({ code: "EXCEPTION", message });
+      if (!opts.silent) toast.error("Failed to validate property");
+      return { ok: false, gaps: [], message };
     } finally {
       setDryRunning(false);
     }
   };
 
   const pushToRU = async () => {
+    // Fail closed on the registry gate — never rely on the button's disabled state alone.
+    if (gateBlocked) {
+      toast.error(gateReason ?? "Channel readiness is not satisfied");
+      return;
+    }
+
     setLoading(true);
     setError(null);
     setDiagnostics(null);
@@ -380,6 +421,17 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
     setBuildingDiagnostics(null);
 
     try {
+      // Mandatory server dry run: the live push only starts after a clean run this session.
+      const check = await runDryRun({ silent: true });
+      if (!check.ok) {
+        const detail = check.gaps.length
+          ? `${check.gaps.length} requirement(s) outstanding — ${check.gaps.slice(0, 3).join(" · ")}`
+          : check.message ?? "Validation failed";
+        toast.error(`Push blocked by the pre-flight check: ${detail}`, { duration: 12000 });
+        return;
+      }
+
+
       // Resumable batches keep long multi-unit pushes inside the worker budget.
       const data = await pushPropertyToRu(propertyId, {
         onProgress: ({ units }) => setUnitResults(units as any[]),
@@ -564,7 +616,7 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
               {resolvingIds ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
               {resolvingIds ? "Fetching..." : "Fetch Channel Manager IDs"}
             </Button>
-            <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={runDryRun} disabled={dryRunning || loading}>
+            <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={() => void runDryRun()} disabled={dryRunning || loading}>
               {dryRunning ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle className="h-3 w-3" />}
               {dryRunning ? "Checking..." : "Validate"}
             </Button>
@@ -576,15 +628,18 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
                 loading ||
                 dryRunning ||
                 identityGate.gated ||
+                gateBlocked ||
                 readiness?.blocked === true ||
                 (validation !== null && !isReady)
               }
               title={
                 identityGate.gated
                   ? identityGate.reason ?? "Link the distribution account and capture its API keys on the Identity tab first"
-                  : readiness?.blocked
-                    ? "Complete the channel readiness checklist below before syncing"
-                    : undefined
+                  : gateBlocked
+                    ? gateReason ?? "Complete the channel readiness checklist below before syncing"
+                    : readiness?.blocked
+                      ? "Complete the channel readiness checklist below before syncing"
+                      : undefined
               }
             >
               {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
@@ -592,11 +647,14 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
                 ? "Pushing..."
                 : identityGate.gated
                   ? "Keys required"
-                  : readiness?.blocked
-                    ? "Sync blocked"
-                    : isMultiUnit
-                      ? "Push Building + Units"
-                      : "Publish to Channel Manager"}
+                  : !gate.hasData && (gate.isLoading || gate.isFetching)
+                    ? "Checking readiness…"
+                    : gateBlocked || readiness?.blocked
+                      ? "Sync blocked"
+                      : isMultiUnit
+                        ? "Push Building + Units"
+                        : "Publish to Channel Manager"}
+
             </Button>
 
           </div>

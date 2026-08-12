@@ -2624,6 +2624,42 @@ Deno.serve(async (req) => {
     /** Admin override: allows a live push even when mandatory WL checks fail. */
     const forcePush = reqBody.force === true;
     /**
+     * The force override bypasses both compliance gates, so it is not something a plain
+     * client may ask for: it requires a caller JWT that resolves to admin / dev /
+     * fearless_leader. Internal server-to-server callers never set `force`.
+     */
+    let forceActorId: string | null = null;
+    if (forcePush) {
+      const jwt = (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '').trim();
+      if (jwt) {
+        try {
+          const { data: userData } = await supabase.auth.getUser(jwt);
+          forceActorId = userData?.user?.id ?? null;
+        } catch (_e) { forceActorId = null; }
+      }
+      let permitted = false;
+      if (forceActorId) {
+        for (const role of ['admin', 'dev', 'fearless_leader']) {
+          const { data: hasRole } = await supabase.rpc('has_role', { _user_id: forceActorId, _role: role });
+          if (hasRole === true) { permitted = true; break; }
+        }
+      }
+      if (!permitted) {
+        console.warn(`[push-property-to-ru] FORCE_NOT_PERMITTED for property ${reqBody.property_id} (actor=${forceActorId ?? 'anonymous'})`);
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: {
+              code: 'FORCE_NOT_PERMITTED',
+              message: 'Overriding the channel readiness gate requires an admin, developer or fearless leader account.',
+            },
+          }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
+    }
+
+    /**
      * Static content delta (Push_PutProperty_RQ only).
      * RU requires static content to be re-pushed whenever it changes in the PMS, not just on
      * the weekly cron. A delta must not re-push availability/prices/discounts as well: those
@@ -3398,6 +3434,9 @@ Deno.serve(async (req) => {
     // OwnerID comes from the portfolio sub-account when one exists, otherwise
     // from a property-scoped sub-account, otherwise the master account.
     let precomputedGaps: string[] = [];
+    /** Non-null when scoring threw — the live push is refused instead of assuming "no gaps". */
+    let readinessScoringError: string | null = null;
+
     try {
       // An ARI-only refresh never writes static content, so content scoring is skipped.
       if (isMultiUnit && action !== 'refresh_ari') {
@@ -3424,8 +3463,34 @@ Deno.serve(async (req) => {
         precomputedGaps = [...precomputedGaps, ...windowGaps];
       }
     } catch (e) {
-      console.warn('[push-property-to-ru] Readiness pre-scoring failed:', e instanceof Error ? e.message : e);
+      // Fail CLOSED: an unscored property is an unproven property. Letting the gate see an
+      // empty gap list here is what allowed a live push to proceed with zero verification.
+      readinessScoringError = e instanceof Error ? e.message : String(e);
+      console.error('[push-property-to-ru] Readiness pre-scoring failed:', readinessScoringError);
     }
+
+    if (readinessScoringError && !dry_run && action !== 'refresh_ari' && !forcePush) {
+      try {
+        await supabase.from('ru_sync_runs').insert({
+          property_id,
+          action: 'readiness_unverified',
+          success: false,
+          error_code: 'READINESS_UNVERIFIED',
+          error_message: readinessScoringError.slice(0, 2000),
+        });
+      } catch (_e) { /* evidence only */ }
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: {
+            code: 'READINESS_UNVERIFIED',
+            message: `Channel readiness could not be verified, so the push was refused: ${readinessScoringError}`,
+          },
+        }),
+        { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
+
 
 
     const phaseGate = await evaluatePhases(supabase, property as any, { readinessGaps: precomputedGaps });
@@ -3852,7 +3917,7 @@ Deno.serve(async (req) => {
           success: false,
           error_code: 'PHASE_GATE_BYPASSED',
           error_message: `Phase gate bypassed at ${phaseGate.current_phase}`,
-          details: { phases: phaseGate.phases },
+          details: { phases: phaseGate.phases, acting_user_id: forceActorId },
         });
       } catch (_e) { /* audit only */ }
     }
@@ -4546,7 +4611,13 @@ Deno.serve(async (req) => {
 
     // ── Readiness gate: no live push while mandatory WL requirements fail ──
     if (!forcePush) {
-      const gaps = mandatoryGaps([{ name: property.name, validation: singleValidation as any }]);
+      // Content rules AND the bookable-window/MinStay rules — the same set the multi-unit
+      // gate uses, so a single-unit property cannot slip through a narrower gate.
+      const gaps = [
+        ...mandatoryGaps([{ name: property.name, validation: singleValidation as any }]),
+        ...precomputedGaps,
+      ];
+
       if (gaps.length > 0) {
         return new Response(
           JSON.stringify({
