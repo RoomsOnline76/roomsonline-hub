@@ -40,6 +40,9 @@ export const ArrivalPolicyPanel: React.FC<ArrivalPolicyPanelProps> = ({ property
   const [text, setText] = useState("");
   const [saved, setSaved] = useState("");
   const [overrides, setOverrides] = useState<RoomOverride[]>([]);
+  const [unitDrafts, setUnitDrafts] = useState<Record<string, string>>({});
+  const [savingUnit, setSavingUnit] = useState<string | null>(null);
+
 
 
   const load = useCallback(async () => {
