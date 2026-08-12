@@ -1,4 +1,6 @@
 import { useMemo, useState } from "react";
+import { useChannelPropertyTypes } from "@/hooks/useChannelPropertyTypes";
+import { normalizeChannelPropertyType, channelPropertyTypeLabel } from "@/config/channelPropertyTypes";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -205,6 +207,20 @@ export function GeneralTab(props: GeneralTabProps) {
   const [placeSearchOpen, setPlaceSearchOpen] = useState(false);
 
   // Live channel-constraint feedback for the channel-mandatory inputs on this tab.
+  const channelTypes = useChannelPropertyTypes();
+  /**
+   * The channel type list, plus the currently stored value when it predates the list —
+   * a legacy type must stay visible instead of silently blanking the field.
+   */
+  const channelTypeOptions = useMemo(() => {
+    const current = normalizeChannelPropertyType(formData.property_type);
+    const options = channelTypes.options.map((o) => ({ value: o.value, label: o.label }));
+    if (current && !options.some((o) => o.value === current)) {
+      options.unshift({ value: current, label: `${channelPropertyTypeLabel(current)} (legacy)` });
+    }
+    return options;
+  }, [channelTypes.options, formData.property_type]);
+
   const nameFeedback = useMemo(() => checkChannelName(formData.name), [formData.name]);
   const streetFeedback = useMemo(() => checkChannelStreet(formData.address), [formData.address]);
   const cityFeedback = useMemo(() => checkChannelPlace(formData.city, "City"), [formData.city]);
@@ -559,8 +575,10 @@ export function GeneralTab(props: GeneralTabProps) {
                   <Select value={formData.property_type} onValueChange={(v) => handleInputChange("property_type", v)}>
                     <SelectTrigger id="property_type" className="h-7 text-xs"><SelectValue placeholder="Select" /></SelectTrigger>
                     <SelectContent>
-                      {["hotel","boutique_hotel","guesthouse","bnb","lodge","game_lodge","safari_lodge","resort","villa","apartment","self_catering","chalet","cottage","cabin","backpackers"].map(t => (
-                        <SelectItem key={t} value={t}>{t.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</SelectItem>
+                      {/* Options come from the channel's own property-type list so the master
+                          type (and every unit inheriting it) is always publishable. */}
+                      {channelTypeOptions.map(t => (
+                        <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>

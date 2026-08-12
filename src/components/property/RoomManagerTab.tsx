@@ -33,11 +33,11 @@ import { ChannelFieldHint } from "@/components/property/ChannelFieldHint";
 import { checkChannelName } from "@/lib/channelFieldRules";
 import { channelMandatoryClass } from "@/lib/channelMandatoryFields";
 import {
-  CHANNEL_PROPERTY_TYPES,
   CHANGEOVER_CODES,
-  isMappedChannelPropertyType,
   normalizeChannelPropertyType,
+  resolveUnitChannelType,
 } from "@/config/channelPropertyTypes";
+import { useChannelPropertyTypes } from "@/hooks/useChannelPropertyTypes";
 import { TagInput } from "@/components/TagInput";
 import { HostfullyRoomDetails } from "@/components/pms/HostfullyRoomDetails";
 import { ACCOMMODATION_LABEL_OPTIONS, ACCOMMODATION_TYPES, type AccommodationLabelKey } from "@/lib/accommodationLabels";
@@ -53,6 +53,8 @@ export interface RoomManagerTabProps {
   propertyId: string | null;
   propertySlug: string;
   propertyWebsiteUrl?: string | null;
+  /** Master channel property type authored in Identity & Location — units inherit it. */
+  propertyChannelType?: string | null;
   routeId: string | undefined; // useParams().id
 
   roomTypes: any[];
@@ -89,7 +91,7 @@ export function RoomManagerTab({
   propertyId,
   propertySlug,
   propertyWebsiteUrl,
-
+  propertyChannelType,
   routeId,
   roomTypes,
   setRoomTypes,
@@ -110,6 +112,7 @@ export function RoomManagerTab({
   const { toast } = useToast();
   const [isRoomImageUploading, setIsRoomImageUploading] = useState(false);
   const [aiUnitAmenityOpen, setAiUnitAmenityOpen] = useState(false);
+  const channelTypes = useChannelPropertyTypes();
 
   const roomImageAudit = useImageDimensionAudit(
     (roomTypes.find((r) => r.id === selectedRoomType)?.images || []) as string[],
@@ -980,38 +983,100 @@ export function RoomManagerTab({
                     />
                     {Number(roomTypes.find((r) => r.id === selectedRoomType)?.toilets) < 1 && <p className="text-[10px] text-destructive">Required: at least 1 toilet. Blank and zero block channel onboarding.</p>}
                   </div>
+                  {(() => {
+                    const resolvedType = resolveUnitChannelType(
+                      selectedRoom?.channelPropertyType,
+                      propertyChannelType,
+                      channelTypes.isMapped,
+                    );
+                    return (
                   <div className="space-y-1">
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Label className="text-xs whitespace-nowrap cursor-help underline decoration-dotted">Channel property type</Label>
-                        </TooltipTrigger>
-                        <TooltipContent className="max-w-xs text-xs">
-                          The type the Channel Manager publishes for this unit. Free-text PMS types are not mapped — an unmapped value publishes as an assumed Chalet.
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
+                    <div className="flex items-center justify-between gap-1">
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Label className="text-xs whitespace-nowrap cursor-help underline decoration-dotted">Channel property type</Label>
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-xs text-xs">
+                            The type the Channel Manager publishes for this unit. It inherits the property type
+                            set in Identity &amp; Location unless you override it here. Options come from the
+                            channel's own type list.
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-5 px-1 text-[10px]"
+                        disabled={channelTypes.refresh.isPending}
+                        onClick={() =>
+                          channelTypes.refresh.mutate(undefined, {
+                            onSuccess: (data) =>
+                              toast({
+                                title: "Channel type list refreshed",
+                                description: `${data?.type_count ?? 0} types pulled from the channel.`,
+                              }),
+                            onError: (err: any) =>
+                              toast({
+                                title: "Could not refresh type list",
+                                description: err?.message ?? "Unknown error",
+                                variant: "destructive",
+                              }),
+                          })
+                        }
+                      >
+                        {channelTypes.refresh.isPending
+                          ? <Loader2 className="h-3 w-3 animate-spin" />
+                          : <RefreshCw className="h-3 w-3" />}
+                        <span className="ml-1">Refresh list</span>
+                      </Button>
+                    </div>
                     <Select
-                      value={normalizeChannelPropertyType(selectedRoom?.channelPropertyType) || undefined}
-                      onValueChange={(v) => updateRoomTypeField(selectedRoomType, "channelPropertyType", v)}
+                      value={
+                        normalizeChannelPropertyType(selectedRoom?.channelPropertyType) &&
+                        channelTypes.isMapped(selectedRoom?.channelPropertyType)
+                          ? normalizeChannelPropertyType(selectedRoom?.channelPropertyType)
+                          : "inherit"
+                      }
+                      onValueChange={(v) =>
+                        updateRoomTypeField(selectedRoomType, "channelPropertyType", v === "inherit" ? "" : v)
+                      }
                     >
                       <SelectTrigger
                         data-field="channel_property_type"
                         className={cn("h-7 w-full text-xs", channelMandatoryClass("channel_property_type"))}
-                        data-channel-satisfied={isMappedChannelPropertyType(selectedRoom?.channelPropertyType) ? "1" : "0"}
+                        data-channel-satisfied={resolvedType.isMapped ? "1" : "0"}
                       >
                         <SelectValue placeholder="Required — select type" />
                       </SelectTrigger>
                       <SelectContent>
-                        {CHANNEL_PROPERTY_TYPES.map((opt) => (
+                        <SelectItem value="inherit" className="text-xs">
+                          {resolvedType.inherited && resolvedType.isMapped
+                            ? `Use property type (${channelTypes.label(resolvedType.value)})`
+                            : "Use property type"}
+                        </SelectItem>
+                        {channelTypes.options.map((opt) => (
                           <SelectItem key={opt.value} value={opt.value} className="text-xs">{opt.label}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
-                    {!isMappedChannelPropertyType(selectedRoom?.channelPropertyType) && (
-                      <p className="text-[10px] text-destructive">Required: pick a supported channel property type.</p>
+                    {resolvedType.isMapped ? (
+                      resolvedType.inherited && (
+                        <p className="text-[10px] text-muted-foreground">
+                          Inherited from the property type — publishes as {channelTypes.label(resolvedType.value)}.
+                        </p>
+                      )
+                    ) : (
+                      <p className="text-[10px] text-destructive">
+                        Required: the property type is not a supported channel type — set it in Identity &amp;
+                        Location or pick a type for this unit.
+                      </p>
                     )}
                   </div>
+                    );
+                  })()}
+
                   <div className="space-y-1">
                     <TooltipProvider>
                       <Tooltip>

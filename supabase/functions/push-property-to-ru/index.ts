@@ -92,6 +92,44 @@ const PROPERTY_TYPE_MAP: Record<string, number> = {
   self_catering: 12, lodge: 11, resort: 7, farm_stay: 12, boutique_hotel: 7,
 };
 
+/**
+ * Live RU property-type dictionary (`ru_property_types`, filled by
+ * `rentalsunited-api?action=list_property_types`), keyed by ROL'OS slug.
+ *
+ * The static map above stays as the fallback for legacy slugs, so a type RU has
+ * added since the last sync still maps as long as the cache has it.
+ */
+let RU_TYPE_ID_BY_SLUG: Record<string, number> = {};
+
+async function loadRuPropertyTypeMap(supabase: any): Promise<void> {
+  try {
+    const { data, error } = await supabase
+      .from('ru_property_types')
+      .select('ru_type_id, slug, is_active')
+      .eq('is_active', true);
+    if (error) {
+      console.warn(`[push-property-to-ru] Could not load ru_property_types: ${error.message}`);
+      return;
+    }
+    const map: Record<string, number> = {};
+    for (const row of data ?? []) {
+      const slug = String(row.slug ?? '').trim();
+      const id = Number(row.ru_type_id);
+      if (slug && Number.isFinite(id) && id > 0) map[slug] = id;
+    }
+    RU_TYPE_ID_BY_SLUG = map;
+    console.log(`[push-property-to-ru] Loaded ${Object.keys(map).length} RU property types from cache`);
+  } catch (err) {
+    console.warn(`[push-property-to-ru] ru_property_types load failed: ${err instanceof Error ? err.message : err}`);
+  }
+}
+
+/** Resolve a ROL'OS type slug to an RU ObjectTypeID: live dictionary first, static map second. */
+function resolveRuTypeId(slug: string): number | undefined {
+  return RU_TYPE_ID_BY_SLUG[slug] ?? PROPERTY_TYPE_MAP[slug];
+}
+
+
 
 /**
  * RU bed-type amenity IDs (verified against the live RU amenity dictionary in `ru_amenities`).
@@ -1050,7 +1088,7 @@ function buildUnitPayload(
   const unitType = (authoredUnitType || 'apartment').toLowerCase().replace(/[\s-]+/g, '_');
   // An unmapped type used to publish silently as Chalet (12). The value is still sent so the
   // XML stays schema-valid, but it is flagged so the readiness gate blocks the push.
-  const mappedObjectTypeId = PROPERTY_TYPE_MAP[unitType];
+  const mappedObjectTypeId = resolveRuTypeId(unitType);
   const objectTypeId = mappedObjectTypeId || 12;
   const objectTypeIsDefault = !mappedObjectTypeId;
   const currencyAuthored = resolveAuthoredCurrency(property.amenities);
@@ -1243,9 +1281,9 @@ function buildSinglePropertyPayload(property: PropertyRow, roomTypes: RoomTypeRo
   const primaryRoom = roomTypes[0] || null;
   const amenities = property.amenities || {};
   const authoredSingleType = primaryRoom?.property_type || property.property_type || null;
-  const mappedSingleTypeId = PROPERTY_TYPE_MAP[
-    (authoredSingleType || 'apartment').toLowerCase().replace(/[\s-]+/g, '_')
-  ];
+  const mappedSingleTypeId = resolveRuTypeId(
+    (authoredSingleType || 'apartment').toLowerCase().replace(/[\s-]+/g, '_'),
+  );
   const objectTypeId = mappedSingleTypeId || 1;
   const objectTypeIsDefault = !mappedSingleTypeId;
   const currencyAuthored = resolveAuthoredCurrency(property.amenities);
@@ -2500,6 +2538,9 @@ Deno.serve(async (req) => {
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
   const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
   const supabase = createClient(supabaseUrl, supabaseKey);
+  // Refresh the RU type dictionary before any payload is built so ObjectTypeIDs come from
+  // the live channel list rather than the static fallback map.
+  await loadRuPropertyTypeMap(supabase);
 
   /** Start of this run — bounds the exchange-log linkage written to ru_sync_runs. */
   const runStartedAtIso = new Date().toISOString();
