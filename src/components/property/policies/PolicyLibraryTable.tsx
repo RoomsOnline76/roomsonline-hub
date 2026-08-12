@@ -24,12 +24,23 @@ export interface PolicyMetric {
   days: number;
 }
 
+export interface ArrivalLibraryEntry {
+  chars: number;
+  unitCount: number;
+  overrideCount: number;
+  minChars: number;
+  targetChars: number;
+  onEdit: () => void;
+}
+
 interface Props {
   policies: ReservationPolicy[];
   links: PolicyRateLink[];
   metrics: Record<string, PolicyMetric>;
   specials: SpecialPolicyUsage[];
   reportRange: string;
+  /** The property-wide arrival policy, pinned as the first row of the library. */
+  arrival?: ArrivalLibraryEntry;
   onEdit: (p: ReservationPolicy) => void;
   onSetMaster: (id: string) => void;
   onSetDefault: (id: string) => void;
@@ -45,6 +56,7 @@ export const PolicyLibraryTable: React.FC<Props> = ({
   links,
   metrics,
   specials,
+  arrival,
   onEdit,
   onSetMaster,
   onSetDefault,
@@ -53,15 +65,6 @@ export const PolicyLibraryTable: React.FC<Props> = ({
   onPushToLinked,
   onOpenSpecials,
 }) => {
-  if (!policies.length) {
-    return (
-      <div className="rounded-md border border-dashed py-6 text-center space-y-1.5">
-        <ShieldCheck className="h-6 w-6 text-muted-foreground mx-auto" />
-        <p className="text-[11px] text-muted-foreground">No policies in the library yet.</p>
-      </div>
-    );
-  }
-
   const inheritingSpecials = specials.filter((s) => !s.cancellation_policy_id);
 
   const guardedDelete = (p: ReservationPolicy, specialCount: number, linkCount: number) => {
@@ -72,8 +75,19 @@ export const PolicyLibraryTable: React.FC<Props> = ({
     onDelete(p.id);
   };
 
+  const arrivalStatus = !arrival
+    ? null
+    : arrival.chars === 0
+      ? { tone: "destructive" as const, label: "Not written yet" }
+      : arrival.chars < arrival.minChars
+        ? { tone: "destructive" as const, label: `Below the ${arrival.minChars}-character channel minimum` }
+        : arrival.chars < arrival.targetChars
+          ? { tone: "muted" as const, label: `Meets the channel minimum — under the ${arrival.targetChars}-character target` }
+          : { tone: "ok" as const, label: "Meets the channel and editorial requirements" };
+
   return (
     <div className="overflow-x-auto rounded-md border">
+
       <Table>
         <TableHeader>
           <TableRow className="bg-muted/40 hover:bg-muted/40">
