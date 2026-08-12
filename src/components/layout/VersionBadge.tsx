@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { buildLabel, displayedBuild, versionLabel } from "@/lib/appVersion";
+import { buildLabel, buildStamp, displayedBuild, versionLabel } from "@/lib/appVersion";
 
 interface VersionBadgeProps {
   /** Collapsed sidebars show only the build number. */
@@ -18,7 +18,7 @@ export function VersionBadge({ collapsed = false, className }: VersionBadgeProps
         "text-[10px] font-mono uppercase tracking-wider text-muted-foreground/70 text-center",
         className,
       )}
-      title={buildLabel()}
+      title={buildStamp()}
     >
       {collapsed ? `${versionLabel()}·${displayedBuild()}` : buildLabel()}
     </p>

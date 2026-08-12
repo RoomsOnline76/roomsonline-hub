@@ -3,8 +3,23 @@ import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
 
+/**
+ * Build sequence. The badge used to read a hand-edited constant, so it froze between
+ * releases. Each build (and each dev-server start) re-evaluates this config, so the
+ * sequence is derived here from wall-clock hours since a fixed epoch and baked into the
+ * bundle — it advances on its own with every build, no manual bump required.
+ */
+const BUILD_SEQ_BASE = 961;
+const BUILD_SEQ_EPOCH_MS = Date.UTC(2026, 7, 12, 20, 0, 0); // 2026-08-12T20:00Z == base
+const buildSeq =
+  BUILD_SEQ_BASE + Math.max(0, Math.floor((Date.now() - BUILD_SEQ_EPOCH_MS) / 3_600_000));
+
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
+  define: {
+    __APP_BUILD_SEQ__: JSON.stringify(buildSeq),
+    __APP_BUILD_TIME__: JSON.stringify(new Date().toISOString()),
+  },
   server: {
     host: "::",
     port: 8080,

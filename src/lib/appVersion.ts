@@ -6,8 +6,19 @@
  * visible build number is permanently an integer between 1 and 69 inclusive.
  */
 
-/** Internal sequential build number — increment on each release. Never displayed. */
-export const SEQUENTIAL_BUILD = 961;
+/**
+ * Internal sequential build number — never displayed.
+ *
+ * Injected by `vite.config.ts` (`__APP_BUILD_SEQ__`) so it advances with every build instead
+ * of being a constant someone has to remember to bump. The literal is only a fallback for
+ * environments without the define (unit tests, plain `tsx` scripts).
+ */
+export const SEQUENTIAL_BUILD =
+  typeof __APP_BUILD_SEQ__ === "number" && Number.isFinite(__APP_BUILD_SEQ__) ? __APP_BUILD_SEQ__ : 961;
+
+/** ISO timestamp of the running build, for tooltips and diagnostics. */
+export const BUILD_TIME =
+  typeof __APP_BUILD_TIME__ === "string" ? __APP_BUILD_TIME__ : new Date(0).toISOString();
 
 /** Major version — bumped manually for milestone releases. */
 export const VERSION_MAJOR = 1;
@@ -34,4 +45,13 @@ export function versionLabel(sequential: number = SEQUENTIAL_BUILD): string {
 /** `ROL'OS v1.13 · Build 64` */
 export function buildLabel(sequential: number = SEQUENTIAL_BUILD): string {
   return `ROL'OS ${versionLabel(sequential)} · Build ${displayedBuild(sequential)}`;
+}
+
+/** `ROL'OS v1.13 · Build 64 · 12 Aug 2026 20:17` — used as the badge tooltip. */
+export function buildStamp(sequential: number = SEQUENTIAL_BUILD): string {
+  const when = new Date(BUILD_TIME);
+  const stamped = Number.isNaN(when.getTime())
+    ? null
+    : when.toLocaleString("en-ZA", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  return stamped ? `${buildLabel(sequential)} · ${stamped}` : buildLabel(sequential);
 }
