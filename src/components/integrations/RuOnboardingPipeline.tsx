@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -126,6 +127,7 @@ const statusBadge = (status: PhaseStatus) => {
 };
 
 export function RuOnboardingPipeline({ propertyId, readOnly = false, standalone = true }: Props) {
+  const navigate = useNavigate();
   const [gate, setGate] = useState<Gate | null>(null);
   const [lastMcq, setLastMcq] = useState<LastMcq | null>(null);
   const [salesChannel, setSalesChannel] = useState<SalesChannel | null>(null);
@@ -477,9 +479,26 @@ export function RuOnboardingPipeline({ propertyId, readOnly = false, standalone 
                   )}
                   {phase.blockers.length > 0 && (
                     <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-destructive">
-                      {phase.blockers.map((b, i) => (
-                        <li key={`${phase.key}-${i}`}>{b}</li>
-                      ))}
+                      {phase.blockers.map((b, i) => {
+                        const isMinStay = /min\s*stay/i.test(b);
+                        const unit = b.includes(":") ? b.split(":", 1)[0].trim() : "";
+                        return (
+                          <li key={`${phase.key}-${i}`}>
+                            {b}
+                            {isMinStay && !readOnly && (
+                              <Button
+                                type="button"
+                                variant="link"
+                                size="sm"
+                                className="ml-1 h-auto p-0 text-destructive underline"
+                                onClick={() => navigate(`/admin/properties/${propertyId}?section=rooms&focus=min_stay_set${unit ? `&room=${encodeURIComponent(unit)}` : ""}`)}
+                              >
+                                Fix in Rooms
+                              </Button>
+                            )}
+                          </li>
+                        );
+                      })}
                     </ul>
                   )}
                   {/* Reasons the last live push was refused — shown on the phase that blocked it,

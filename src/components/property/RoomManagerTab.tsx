@@ -3,7 +3,7 @@
  * Manages room type CRUD, bed configuration, facilities, amenities, images, and agreements.
  */
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { RoomTypeDataViewer, RateTypeItem } from "@/components/ExpandableDataViewer";
 import RUAmenityPicker from "@/components/property/RUAmenityPicker";
 
@@ -111,10 +111,18 @@ export function RoomManagerTab({
   handleNewMealType,
 }: RoomManagerTabProps) {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const [isRoomImageUploading, setIsRoomImageUploading] = useState(false);
   const [aiUnitAmenityOpen, setAiUnitAmenityOpen] = useState(false);
   const channelTypes = useChannelPropertyTypes();
+
+  useEffect(() => {
+    const requestedRoom = searchParams.get("room")?.trim().toLowerCase();
+    if (!requestedRoom) return;
+    const match = roomTypes.find((room) => String(room.name ?? "").trim().toLowerCase() === requestedRoom);
+    if (match?.id) setSelectedRoomType(String(match.id));
+  }, [roomTypes, searchParams, setSelectedRoomType]);
 
   const roomImageAudit = useImageDimensionAudit(
     (roomTypes.find((r) => r.id === selectedRoomType)?.images || []) as string[],
