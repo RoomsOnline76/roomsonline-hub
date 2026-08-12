@@ -234,6 +234,14 @@ export function evaluateUnitChecks(
     "No kitchen is declared in the composition or amenities", "Rooms → Unit → Facilities → Kitchen");
   add("has_bathroom_room", "Rooms & beds", "Bathroom declared", v.has_bathroom_room !== false,
     "No bathroom is declared in the composition or amenities", "Rooms → Unit → Facilities → Bathrooms");
+  // RU composition treats bathrooms and toilets as mandatory counts — zero or blank is rejected.
+  add("has_bathrooms", "Rooms & beds", "Number of bathrooms ≥ 1", v.has_bathrooms !== false,
+    `Bathrooms are ${v.bathrooms_count ?? 0} — the Channel Manager rejects a blank or zero bathroom count`,
+    "Rooms → Unit → Facilities → Bathrooms");
+  add("has_toilets", "Rooms & beds", "Number of toilets ≥ 1", v.has_toilets !== false,
+    `Toilets are ${v.toilets_count ?? 0} — the Channel Manager rejects a blank or zero toilet count`,
+    "Rooms → Unit → Facilities → Toilets");
+
   add("beds_distributed", "Rooms & beds", "Beds distributed between bedrooms", v.beds_distributed !== false,
     `${v.bedrooms_with_beds ?? 0} of ${v.bedroom_blocks ?? 0} bedrooms carry beds — spread the bed configuration across the bedrooms`,
     "Rooms → Unit → Bed configuration");
