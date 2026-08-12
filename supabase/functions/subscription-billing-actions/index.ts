@@ -131,39 +131,53 @@ const money = (v: number, c = "ZAR") => `${c} ${Number(v || 0).toFixed(2)}`;
 function reminderHtml(o: {
   entityName: string;
   setupAmount: number;
-  setupUrl: string | null;
   monthlyAmount: number;
   dueBy: string | null;
-  subscriptionUrl: string | null;
+  payUrl: string | null;
+  accountUrl: string;
   currency: string;
 }) {
   const rows: string[] = [];
-  if (o.setupAmount > 0)
-    rows.push(
-      `<tr><td style="padding:6px 0;color:#666">Once-off setup (due now)</td><td style="padding:6px 0;text-align:right;font-weight:600">${money(o.setupAmount, o.currency)}</td></tr>`,
-    );
-  rows.push(
-    `<tr><td style="padding:6px 0;color:#666">Monthly subscription${o.dueBy ? ` (due by ${o.dueBy})` : ""}</td><td style="padding:6px 0;text-align:right;font-weight:600">${money(o.monthlyAmount, o.currency)}</td></tr>`,
-  );
-  const btn = (href: string, label: string) =>
-    `<a href="${href}" style="background:#E91E8C;color:#fff;text-decoration:none;padding:12px 22px;border-radius:6px;display:inline-block;font-weight:600;margin:4px">${label}</a>`;
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Payments due</title></head><body style="font-family:Arial,sans-serif;background:#fff;padding:24px;color:#1A1A2E">
-  <div style="max-width:560px;margin:0 auto;border:1px solid #eee;border-radius:8px;padding:24px">
-    <h2 style="color:#E91E8C;margin-top:0">Payments due &mdash; ${o.entityName}</h2>
-    <p>Your signed agreement is in place. There are two separate payments:</p>
-    <table style="width:100%;margin:16px 0;border-collapse:collapse">${rows.join("")}</table>
-    <p style="text-align:center;margin:20px 0">
-      ${o.setupUrl ? btn(o.setupUrl, "Pay setup fee") : ""}
-      ${o.subscriptionUrl ? btn(o.subscriptionUrl, "Start subscription") : ""}
-    </p>
-    ${
-      o.dueBy
-        ? `<p style="color:#666;font-size:13px">The monthly subscription can be started from ${addDays(o.dueBy, -START_WINDOW_DAYS)} and must be settled by <strong>${o.dueBy}</strong>.</p>`
-        : ""
-    }
-    <p style="color:#666;font-size:13px">Cancel any time &mdash; no lock-in, no cancellation fee.</p>
+  const row = (label: string, amount: number) =>
+    `<tr><td style="padding:10px 0;border-bottom:1px solid #EDE8E1;color:#5A5A6E;font-size:14px">${label}</td><td style="padding:10px 0;border-bottom:1px solid #EDE8E1;text-align:right;font-weight:600;color:#1A1A2E;font-size:15px">${money(amount, o.currency)}</td></tr>`;
+  if (o.setupAmount > 0) rows.push(row("Once-off setup", o.setupAmount));
+  if (o.monthlyAmount > 0)
+    rows.push(row(`Monthly subscription${o.dueBy ? ` &middot; by ${o.dueBy}` : ""}`, o.monthlyAmount));
+  const total = (o.setupAmount || 0) + (o.monthlyAmount || 0);
+  const openCount = rows.length;
+
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>A gentle reminder from Rooms Online</title></head><body style="margin:0;background:#ffffff;font-family:'Instrument Sans',Helvetica,Arial,sans-serif;color:#1A1A2E">
+  <div style="max-width:600px;margin:0 auto;padding:32px 20px">
+    <div style="background:#FBF8F3;border:1px solid #EDE8E1;border-radius:14px;padding:32px 30px">
+      <p style="margin:0 0 6px;letter-spacing:2px;text-transform:uppercase;font-size:11px;color:#E91E8C;font-weight:600">Rooms Online &middot; ROL'OS</p>
+      <h1 style="margin:0 0 18px;font-family:Georgia,'Times New Roman',serif;font-weight:400;font-size:30px;line-height:1.2;color:#1A1A2E">Thank you for partnering with us</h1>
+      <p style="margin:0 0 14px;font-size:15px;line-height:1.65;color:#3A3A4E">We are genuinely grateful that you chose Rooms Online for <strong>${o.entityName}</strong>, and that you trust us with your guests and your bookings. It is a pleasure working alongside you.</p>
+      <p style="margin:0 0 22px;font-size:15px;line-height:1.65;color:#3A3A4E">This is simply a friendly reminder that ${openCount > 1 ? "the following payments are" : "the following payment is"} still open on your account &mdash; nothing more than that.</p>
+
+      <table role="presentation" style="width:100%;border-collapse:collapse;margin:0 0 8px">${rows.join("")}
+        <tr><td style="padding:12px 0;font-size:14px;color:#1A1A2E;font-weight:600">Total open</td><td style="padding:12px 0;text-align:right;font-size:18px;font-weight:700;color:#E91E8C">${money(total, o.currency)}</td></tr>
+      </table>
+
+      ${
+        o.payUrl
+          ? `<p style="text-align:center;margin:24px 0 10px"><a href="${o.payUrl}" style="background:#E91E8C;color:#ffffff;text-decoration:none;padding:15px 30px;border-radius:8px;display:inline-block;font-weight:600;font-size:15px">Complete your payment</a></p>
+             <p style="text-align:center;margin:0 0 18px;font-size:13px;color:#7A7A8E">One click, secure checkout &mdash; no login needed.</p>`
+          : ""
+      }
+      <p style="text-align:center;margin:0 0 22px;font-size:14px"><a href="${o.accountUrl}" style="color:#E91E8C;text-decoration:underline">View your ROL Account &amp; invoices</a></p>
+
+      ${
+        o.dueBy
+          ? `<p style="margin:0 0 12px;font-size:13px;line-height:1.6;color:#7A7A8E">Your monthly subscription can be settled from ${addDays(o.dueBy, -START_WINDOW_DAYS)} and ideally by <strong style="color:#3A3A4E">${o.dueBy}</strong>.</p>`
+          : ""
+      }
+      <p style="margin:0 0 12px;font-size:13px;line-height:1.6;color:#7A7A8E">No lock-in and no cancellation fee &mdash; you may cancel at any time. If anything here looks wrong, or you would prefer a different arrangement, simply reply to this email and we will gladly sort it out with you.</p>
+      <p style="margin:22px 0 0;font-size:15px;line-height:1.6;color:#3A3A4E">With appreciation,<br /><strong>The Rooms Online team</strong></p>
+    </div>
+    <p style="margin:16px 0 0;text-align:center;font-size:12px;color:#9A9AAE">${o.entityName} &middot; Rooms Online &middot; connect@roomsonline.co.za</p>
   </div></body></html>`;
 }
+
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -913,6 +927,60 @@ Deno.serve(async (req) => {
 
 
     if (action === "send_due_reminder") {
+      // A reminder is only ever sent for money that is genuinely still open.
+      // Anything already settled must never reappear as "due".
+      const testRecipient = isStaff ? String(body.test_recipient || "").trim() : "";
+      // Preview mode renders the layout for a review copy without raising or
+      // stamping anything, even when the account owes nothing.
+      const preview = !!testRecipient && body.preview === true;
+      const paidThrough = cfg.current_period_end ? String(cfg.current_period_end).slice(0, 10) : null;
+      const subscriptionCovered = !!paidThrough && paidThrough >= today();
+      const setupDue = openSetup ? Number(openSetup.amount) || 0 : setupBalance;
+      let monthlyDue = openSubscription
+        ? Number(openSubscription.amount) || 0
+        : subscriptionCovered
+        ? 0
+        : fee;
+      if (monthlyDue > 0 && !openSubscription && !canStart && !testRecipient) monthlyDue = 0;
+
+      if (setupDue <= 0 && monthlyDue <= 0 && !preview)
+        return json({ success: true, skipped: "nothing_outstanding" });
+      if (preview && setupDue <= 0 && monthlyDue <= 0) monthlyDue = fee;
+
+
+
+
+      // Make sure the owner always has a working payment link: raise the
+      // outstanding invoice when it has not been raised yet.
+      let payInvoice: any = openSetup ?? openSubscription ?? paidSetup ?? lastPaidSub ?? null;
+      if (!preview && setupDue > 0 && !openSetup) payInvoice = (await ensureSetupInvoice()) ?? payInvoice;
+      if (!preview && !openSetup && !openSubscription && monthlyDue > 0 && paidStart && fee > 0) {
+
+        const periodStart = today() > paidStart ? today() : paidStart;
+        const periodEnd = addMonth(periodStart);
+        const insert: any = {
+          amount: fee,
+          currency,
+          subscription_amount: fee,
+          once_off_amount: 0,
+          line_items: [
+            { kind: "monthly_subscription", description: `Monthly subscription (${periodStart} - ${periodEnd})`, amount: fee },
+          ],
+          period_start: periodStart,
+          period_end: periodEnd,
+          status: "pending",
+          invoice_kind: "activation",
+          owner_id: ownerId,
+        };
+        insert[entityCol] = entityId;
+        const { data: created } = await supabase
+          .from("subscription_invoices")
+          .insert(insert)
+          .select("id, invoice_number, amount, payfast_token")
+          .maybeSingle();
+        payInvoice = created ?? null;
+      }
+
       const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
       // Staff copies: admin / fearless leader / dev
       const { data: staffRoles } = await supabase
@@ -927,15 +995,17 @@ Deno.serve(async (req) => {
 
       const html = reminderHtml({
         entityName,
-        setupAmount: openSetup ? Number(openSetup.amount) : setupTotal,
-        setupUrl: payUrl(openSetup?.payfast_token),
-        monthlyAmount: openSubscription ? Number(openSubscription.amount) : fee,
-        dueBy: paidStart,
-        subscriptionUrl: payUrl(openSubscription?.payfast_token),
+        setupAmount: setupDue,
+        monthlyAmount: monthlyDue,
+        dueBy: monthlyDue > 0 ? nextDue : null,
+        payUrl: payUrl(payInvoice?.payfast_token),
+        accountUrl: `${SITE_URL}/admin/account`,
         currency,
       });
-      const subject = `Setup & subscription payment due${paidStart ? ` by ${paidStart}` : ""} - ${entityName}`;
-      const recipients = [...new Set([ownerEmail, ...staffEmails].filter(Boolean))] as string[];
+      const subject = `A gentle reminder about your ROL'OS payment - ${entityName}`;
+      const recipients = testRecipient
+        ? [testRecipient]
+        : ([...new Set([ownerEmail, ...staffEmails].filter(Boolean))] as string[]);
       if (!recipients.length) return json({ error: "no_recipients" }, 400);
       const res = await resend.emails.send({ from: FROM_EMAIL, to: recipients, subject, html });
       if (res.error) {
@@ -943,14 +1013,15 @@ Deno.serve(async (req) => {
         console.error("[subscription-billing-actions] reminder send failed", msg);
         return json({ error: `email_send_failed: ${msg}` }, 400);
       }
-      if (openSubscription || openSetup) {
+      if (!testRecipient && (openSubscription || openSetup)) {
         await supabase
           .from("subscription_invoices")
           .update({ email_sent_at: new Date().toISOString() })
           .in("id", [openSetup?.id, openSubscription?.id].filter(Boolean) as string[]);
       }
-      return json({ success: true, sent_to: recipients });
+      return json({ success: true, sent_to: recipients, setup_due: setupDue, monthly_due: monthlyDue });
     }
+
 
     if (action === "deliver_invoice") {
       const invoiceId = String(body.invoice_id || "");

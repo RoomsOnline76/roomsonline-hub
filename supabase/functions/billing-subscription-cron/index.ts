@@ -462,7 +462,16 @@ Deno.serve(async (req) => {
         body: JSON.stringify({ action: "send_due_reminder", scope, entity_id: entityId }),
       });
       const body = await res.json().catch(() => ({}));
-      results.push({ scope, entity_id: entityId, due_reminder: res.ok, detail: body });
+      // "nothing_outstanding" is a healthy outcome: no money is open, so no
+      // reminder was sent. It must never be recorded as a failure.
+      results.push({
+        scope,
+        entity_id: entityId,
+        due_reminder: res.ok,
+        skipped: (body as any)?.skipped ?? null,
+        detail: body,
+      });
+
     } catch (e) {
       results.push({ scope, entity_id: entityId, due_reminder: false, error: String(e) });
     }
