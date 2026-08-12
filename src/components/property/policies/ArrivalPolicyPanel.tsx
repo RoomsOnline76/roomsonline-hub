@@ -246,6 +246,23 @@ export const ArrivalPolicyPanel: React.FC<ArrivalPolicyPanelProps> = ({ property
         )}
 
         <div className="ml-auto flex items-center gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-7 text-xs"
+            disabled={drafting || saving}
+            onClick={handleDraftWithTobi}
+            title="TOBI drafts arrival instructions from this property's own details"
+          >
+            {drafting ? (
+              <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+            ) : (
+              <Sparkles className="h-3.5 w-3.5 mr-1" />
+            )}
+            {trimmed.length > 0 ? "Improve with TOBI" : "Write with TOBI"}
+          </Button>
+
           {siblings.length > 0 && (
             <Button
               type="button"
