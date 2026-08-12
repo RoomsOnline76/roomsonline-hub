@@ -1179,10 +1179,17 @@ function buildUnitPayload(
   return {
     name: unit.name,
     property_type_id: objectTypeId,
+    object_type_is_default: objectTypeIsDefault,
+    object_type_source: authoredUnitType,
     can_sleep_max: maxGuests,
     standard_guests: Math.ceil(maxGuests * 0.7),
     number_of_beds: beds,
     currency_id: currencyId ?? mapCurrencyToRUId(property.amenities, property.country),
+    currency_is_default: !currencyAuthored.authored,
+    currency_iso: currencyAuthored.iso,
+    unmapped_bed_labels: unmappedUnitBedLabels,
+    changeover_is_default: !isChangeoverAuthored(unit.amenities as Record<string, any> | null, amenities as Record<string, any>),
+
     owner_id: 0, // placeholder — always overwritten with the resolved sub-account OwnerID
     no_of_units: 1,
     floor: unitFloor,
