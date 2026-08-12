@@ -29,15 +29,28 @@ export const RU_STATIC_DELTA_ACTION = 'static_delta';
  */
 export const RU_STATIC_DELTA_SKIP_ACTION = 'static_delta_skipped';
 
+/**
+ * ru_sync_runs.action used when the delta was refused by the readiness / phase gate. The change
+ * is real and still owed to the channel, so it is parked here and automatically re-fired the
+ * moment readiness clears — the operator never has to press a manual sync button.
+ */
+export const RU_STATIC_DELTA_PENDING_ACTION = 'static_delta_pending';
+
+/** Gate refusals that mean "correct content, not yet allowed" rather than a hard failure. */
+export const RU_GATE_ERROR_CODES = ['PHASE_BLOCKED', 'READINESS_UNVERIFIED', 'READINESS_FAILED'];
+
 /** A multi-unit property is pushed in resumable chunks; walk at most this many chunks. */
 const RU_STATIC_DELTA_MAX_CHUNKS = 12;
 
 export interface RuStaticDeltaOutcome {
   queued: boolean;
-  reason?: 'not_connected' | 'unchanged' | 'debounced' | 'error' | 'no_property';
+  reason?: 'not_connected' | 'unchanged' | 'debounced' | 'error' | 'no_property' | 'gate_pending';
   content_hash?: string;
   error?: string;
+  /** Readiness blockers that parked this delta (only with reason `gate_pending`). */
+  blockers?: string[];
 }
+
 
 
 /** Property columns that end up inside Push_PutProperty_RQ. */
