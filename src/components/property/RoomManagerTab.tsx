@@ -33,7 +33,7 @@ import { listDeclaresKitchen } from "@/config/propertyFieldRequirements";
 import { ruToken } from "@/lib/ruAmenities";
 import { ImageQualityMarker } from "@/components/property/ImageQualityMarker";
 import RuImageTagPicker from "@/components/property/RuImageTagPicker";
-import { normalizeRuImageTagMap } from "@/lib/ruImageTags";
+import { findMainImageUrl, normalizeRuImageTagMap, setMainImageUrl } from "@/lib/ruImageTags";
 
 import { getRoomUrl } from "@/lib/config";
 import { parseBedConfiguration, BED_TYPES, BedEntry, calculateBedCapacity, sleepsPerBed, formatBedConfiguration, authoredBedroomCount } from "@/lib/bedConfig";
@@ -1720,23 +1720,23 @@ export function RoomManagerTab({
                       #{index + 1}
                     </span>
                     <ImageQualityMarker entry={roomImageAudit.results[imageUrl]} />
-                    {index === 0 ? (
-                      <div className="absolute top-2 left-2 bg-primary rounded-full p-1.5" title="Primary room image">
+                    {roomMainImageUrl === imageUrl ? (
+                      <div className="absolute top-2 left-2 bg-primary rounded-full p-1.5" title="Main room image">
                         <Heart className="h-3 w-3 text-white fill-white" />
                       </div>
                     ) : (
                       <button type="button"
                         onClick={() => {
                           const currentRoom = roomTypes.find((r) => r.id === selectedRoomType);
-                          if (currentRoom?.images) {
-                            const newImages = [...currentRoom.images];
-                            const [selected] = newImages.splice(index, 1);
-                            newImages.unshift(selected);
-                            updateRoomTypeField(selectedRoomType, "images", newImages);
-                          }
+                          const map = normalizeRuImageTagMap(currentRoom?.ruImageTags);
+                          updateRoomTypeField(
+                            selectedRoomType,
+                            "ruImageTags",
+                            setMainImageUrl(map, ensureArray(currentRoom?.images) as string[], imageUrl),
+                          );
                         }}
                         className="absolute top-2 left-2 bg-muted-foreground/60 hover:bg-primary rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity"
-                        title="Set as primary room image"
+                        title="Set as main room image"
                       >
                         <Heart className="h-3 w-3 text-white" />
                       </button>
@@ -1750,7 +1750,7 @@ export function RoomManagerTab({
                   </div>
                   <RuImageTagPicker
                     value={normalizeRuImageTagMap(roomTypes.find((r) => r.id === selectedRoomType)?.ruImageTags)[imageUrl] || []}
-                    isMain={index === 0}
+                    isMain={roomMainImageUrl === imageUrl}
                     onChange={(next) => {
                       const currentRoom = roomTypes.find((r) => r.id === selectedRoomType);
                       const map = normalizeRuImageTagMap(currentRoom?.ruImageTags);
