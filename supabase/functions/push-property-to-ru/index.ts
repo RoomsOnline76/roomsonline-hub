@@ -682,8 +682,13 @@ function buildValidation(payload: Record<string, any>): Record<string, unknown> 
     || (amenities || []).some((a: any) => [94, 101].includes(Number(a?.id)));
   const hasBathroomRoom = rooms.some((r) => Number(r.room_id) === 81)
     || (amenities || []).some((a: any) => Number(a?.id) === 81 && (a.count || 0) > 0);
-  const bedsDistributed = bedroomBlocks.length <= 1 ? bedroomsWithBeds >= Math.min(1, bedroomBlocks.length)
-    : bedroomsWithBeds >= 2;
+  // Distribution: every bedroom block must hold a bed, and the blocks must cover the
+  // bedrooms the unit declares — a 3-bedroom unit sending one bedroom block is rejected.
+  const declaredBedrooms = Math.max(0, Number(payload.declared_bedrooms) || 0);
+  const bedsDistributed = bedroomBlocks.length >= 1
+    && bedroomsWithBeds === bedroomBlocks.length
+    && bedroomBlocks.length >= Math.max(1, declaredBedrooms);
+
 
   const nameCheck = checkRuPropertyName(payload.name);
   const descriptionText = (payload.descriptions?.[0]?.text || '').trim();
