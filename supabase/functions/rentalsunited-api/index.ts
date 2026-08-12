@@ -2855,11 +2855,24 @@ Deno.serve(async (req) => {
         if (Number.isFinite(id) && name) entries.push({ ru_destination_id: id, name });
       }
 
+      /**
+       * The list is flat and unscoped: hosts have created their own entries over the years, so
+       * a generic name such as "Beach" appears hundreds of times with different ids. The
+       * lowest id per generic name is the original platform entry, so only that one is flagged
+       * generic and therefore mappable — the rest stay in the cache as reference data.
+       */
+      const lowestGenericId = new Map<string, number>();
+      for (const e of entries) {
+        if (!isGenericDestination(e.name)) continue;
+        const slug = normalizeDestinationName(e.name);
+        const current = lowestGenericId.get(slug);
+        if (current === undefined || e.ru_destination_id < current) lowestGenericId.set(slug, e.ru_destination_id);
+      }
       const rows = entries.map((e) => ({
         ru_destination_id: e.ru_destination_id,
         name: e.name,
         slug: normalizeDestinationName(e.name),
-        is_generic: isGenericDestination(e.name),
+        is_generic: lowestGenericId.get(normalizeDestinationName(e.name)) === e.ru_destination_id,
         synced_at: new Date().toISOString(),
       }));
 
