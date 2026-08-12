@@ -187,16 +187,52 @@ export const ArrivalPolicyPanel: React.FC<ArrivalPolicyPanelProps> = ({ property
       const { error } = await supabase
         .from("hostfully_room_types")
         .update({ check_in_instructions: null })
-        .in("id", overrides.map((o) => o.id));
+        .in("id", overrides.filter((o) => String(o.check_in_instructions ?? "").trim().length > 0).map((o) => o.id));
       if (error) throw error;
-      setOverrides([]);
-      toast.success("Room-level arrival instructions cleared — the property policy is now the only source");
+      setOverrides((prev) => prev.map((o) => ({ ...o, check_in_instructions: null })));
+      setUnitDrafts({});
+      toast.success("Unit arrival instructions cleared — every unit now inherits the property policy");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Could not clear room overrides");
+      toast.error(e instanceof Error ? e.message : "Could not clear unit instructions");
     } finally {
       setClearing(false);
     }
   };
+
+  /** Per-unit save. An empty value stores NULL, which makes the unit inherit the master policy. */
+  const handleSaveUnit = async (unit: RoomOverride) => {
+    const value = String(unitDrafts[unit.id] ?? "").trim();
+    if (value.length > 0 && value.length < MIN_ARRIVAL_CHARS) {
+      toast.error(`At least ${MIN_ARRIVAL_CHARS} characters are required — or clear the field to inherit the property policy`);
+      return;
+    }
+    setSavingUnit(unit.id);
+    try {
+      const { error } = await supabase
+        .from("hostfully_room_types")
+        .update({ check_in_instructions: value.length ? value : null })
+        .eq("id", unit.id);
+      if (error) throw error;
+      setOverrides((prev) =>
+        prev.map((o) => (o.id === unit.id ? { ...o, check_in_instructions: value.length ? value : null } : o)),
+      );
+      setUnitDrafts((prev) => {
+        const next = { ...prev };
+        delete next[unit.id];
+        return next;
+      });
+      toast.success(
+        value.length
+          ? `${unit.name ?? "Unit"} now uses its own arrival instructions`
+          : `${unit.name ?? "Unit"} inherits the property arrival policy`,
+      );
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not save the unit arrival instructions");
+    } finally {
+      setSavingUnit(null);
+    }
+  };
+
 
   if (loading) {
     return (
