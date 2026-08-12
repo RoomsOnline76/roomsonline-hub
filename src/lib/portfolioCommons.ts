@@ -71,7 +71,68 @@ export const PORTFOLIO_COMMONS_GROUPS: CommonsGroup[] = [
     tier: "recommended",
     requirementKeys: [],
   },
+  {
+    key: "policies",
+    label: "Cancellation & reservation policy terms",
+    description:
+      "The authored cancellation ladder plus the reservation policy rules used in checkout and channel pushes.",
+    tier: "recommended",
+    requirementKeys: ["cancellation_policy"],
+  },
+  {
+    key: "arrival_changeover",
+    label: "Arrival, departure & changeover rules",
+    description:
+      "Arrival instructions, the master changeover rule and per-day changeover overrides the channel push reads.",
+    tier: "recommended",
+    requirementKeys: ["changeover_rules", "arrival_policy"],
+  },
+  {
+    key: "classification",
+    label: "Star rating, accommodation label & property class",
+    description: "Property type, star rating, accommodation label and the self-catering flag units inherit.",
+    tier: "recommended",
+    requirementKeys: ["property_type", "star_rating"],
+  },
+  {
+    key: "narrative",
+    label: "Brand voice & area narrative defaults",
+    description:
+      "Brand voice and AI tone, area/neighbourhood facts (transport, airport, restaurants) and additional source URLs used by TOBI writers.",
+    tier: "recommended",
+    requirementKeys: [],
+  },
+  {
+    key: "meals",
+    label: "Meal plans & breakfast options",
+    description: "Meal types and breakfast options offered across the portfolio (merged, never removed).",
+    tier: "recommended",
+    requirementKeys: [],
+  },
+  {
+    key: "facilities",
+    label: "Facilities & safety baseline",
+    description: "Portfolio-wide facility and safety selections, merged additively so nothing is ever removed.",
+    tier: "recommended",
+    requirementKeys: ["facilities"],
+  },
+  {
+    key: "payments",
+    label: "Payment & invoicing mode",
+    description: "Payment mode (paid vs reservation-only), payment providers and custom-provider permission.",
+    tier: "recommended",
+    requirementKeys: [],
+  },
+  {
+    key: "channel_content",
+    label: "Channel push defaults & accepted payment methods",
+    description:
+      "Whether the Channel Manager push is enabled and the guest payment methods published to channels.",
+    tier: "mandatory",
+    requirementKeys: ["ru_payment_methods"],
+  },
 ];
+
 
 /* ------------------------------------------------------------------ */
 /* Field registry                                                      */
