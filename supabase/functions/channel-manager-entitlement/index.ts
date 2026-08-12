@@ -130,10 +130,31 @@ async function resolveRuOwnerId(
   return viaPortfolio?.ru_owner_id ? String(viaPortfolio.ru_owner_id) : null;
 }
 
+/**
+ * Operation label + trace stamped on every channel exchange we cause, so the
+ * durable exchange log can be filtered by the ROL'OS operation (reconcile /
+ * cleanup) instead of only by the low-level adapter action.
+ */
+interface ChannelLogCtx {
+  trace_id: string;
+  parent_action: string;
+}
+
+const logCtx = (traceId: string, operation: string): ChannelLogCtx => ({
+  trace_id: traceId,
+  parent_action: operation,
+});
+
 /** Push one listing's active/archived state to RU and report a real failure. */
 async function pushListingStatus(
   admin: ReturnType<typeof createClient>,
-  args: { propertyId: string; ruPropertyId: string; archive: boolean; ownerId: string | null },
+  args: {
+    propertyId: string;
+    ruPropertyId: string;
+    archive: boolean;
+    ownerId: string | null;
+    ctx?: ChannelLogCtx;
+  },
 ): Promise<string | null> {
   const { data: ruRes, error: ruErr } = await admin.functions.invoke("rentalsunited-api", {
     body: {
@@ -141,6 +162,7 @@ async function pushListingStatus(
       property_id: args.propertyId,
       ru_property_id: args.ruPropertyId,
       ...(args.ownerId ? { owner_id: args.ownerId } : {}),
+      ...(args.ctx ?? {}),
       metadata: { is_active: !args.archive, is_archived: args.archive },
     },
   });
@@ -152,6 +174,89 @@ async function pushListingStatus(
   if (warning) return `Rentals United warning: ${warning}`;
   return null;
 }
+
+interface ChannelListing {
+  id: string;
+  name: string;
+  is_active?: boolean;
+  is_archived?: boolean;
+}
+
+/** Read every listing one channel account holds. Errors are returned, never thrown. */
+async function pullOwnerListings(
+  admin: ReturnType<typeof createClient>,
+  ownerId: string,
+  ctx: ChannelLogCtx,
+): Promise<{ listings: ChannelListing[]; error: string | null }> {
+  const { data, error } = await admin.functions.invoke("rentalsunited-api", {
+    body: { action: "list_properties", owner_id: Number(ownerId), ...ctx },
+  });
+  const res = (data || {}) as {
+    success?: boolean;
+    error?: { message?: string } | string;
+    properties?: ChannelListing[];
+  };
+  if (error || res.success === false) {
+    const message =
+      error?.message ||
+      (typeof res.error === "string" ? res.error : res.error?.message) ||
+      "Channel account could not be read";
+    return { listings: [], error: message };
+  }
+  return { listings: res.properties || [], error: null };
+}
+
+/**
+ * Is this listing id still returned by the account? Archived listings stay in
+ * the feed, so "present" here means present in any form — that is the state a
+ * cleanup has to actually change.
+ */
+async function verifyListingPresence(
+  admin: ReturnType<typeof createClient>,
+  args: { listingId: string; ownerId: string | null; ctx: ChannelLogCtx },
+): Promise<{ present: boolean | null; archived: boolean; error: string | null }> {
+  if (!args.ownerId) return { present: null, archived: false, error: "No channel account could be resolved" };
+  const { listings, error } = await pullOwnerListings(admin, args.ownerId, args.ctx);
+  if (error) return { present: null, archived: false, error };
+  const hit = listings.find((l) => String(l.id) === args.listingId);
+  return { present: !!hit, archived: hit?.is_archived === true, error: null };
+}
+
+/**
+ * Remove one listing for real: try a hard deletion first and fall back to
+ * archiving only when the account does not support deletion. The caller still
+ * has to verify — neither call is trusted on its envelope alone.
+ */
+async function removeListingUpstream(
+  admin: ReturnType<typeof createClient>,
+  args: { propertyId: string; listingId: string; ownerId: string | null; ctx: ChannelLogCtx },
+): Promise<{ method: "deleted" | "archived" | "none"; error: string | null }> {
+  const { data, error } = await admin.functions.invoke("rentalsunited-api", {
+    body: {
+      action: "delete_property",
+      property_id: args.propertyId || undefined,
+      ru_property_id: Number(args.listingId),
+      ...(args.ownerId ? { owner_id: args.ownerId } : {}),
+      ...args.ctx,
+    },
+  });
+  const res = (data || {}) as { success?: boolean; error?: string };
+  if (!error && res.success === true) return { method: "deleted", error: null };
+
+  // Deletion unsupported or rejected — archive so the listing at least stops
+  // billing, and let the verification step report what actually happened.
+  const failure = await pushListingStatus(admin, {
+    propertyId: args.propertyId,
+    ruPropertyId: args.listingId,
+    archive: true,
+    ownerId: args.ownerId,
+    ctx: { ...args.ctx, parent_action: `${args.ctx.parent_action}:archive_fallback` },
+  });
+  if (failure) return { method: "none", error: failure };
+  return { method: "archived", error: null };
+}
+
+
 
 
 
