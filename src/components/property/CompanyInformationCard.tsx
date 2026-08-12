@@ -363,8 +363,6 @@ export function CompanyInformationCard({
 
   useEffect(() => {
     const country = propertyCountry?.trim();
-    // eslint-disable-next-line no-console
-    console.log("[CI:autoFill] run", { country, flag: autofilledCountry.current, nat: (profileRef.current?.legal_rep as any)?.nationality_id, onChangeId: onCompanyProfileChange });
     if (!country || autofilledCountry.current === country) return;
     // Mark this country as "seen" before any early return. The effect re-runs
     // whenever the parent passes a fresh onChange identity (the inline arrow in
