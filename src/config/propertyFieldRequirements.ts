@@ -111,6 +111,8 @@ type RoomRequirementRow = {
   name?: string | null;
   description?: string | null;
   floor?: number | null;
+  roomSize?: number | null;
+  room_size?: number | null;
   bathrooms?: number | null;
   toilets?: number | null;
   maxPeople?: number | null;
