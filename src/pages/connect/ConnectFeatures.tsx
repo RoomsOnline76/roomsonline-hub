@@ -212,7 +212,7 @@ export default function ConnectFeatures() {
           <div className="text-center mt-8">
             <Link to={connectPath("/connect/get-started")}>
               <Button size="lg" className="gap-2">
-                Start 60-Day Free Trial <ArrowRight className="h-4 w-4" />
+                Get Started Free <ArrowRight className="h-4 w-4" />
               </Button>
             </Link>
           </div>

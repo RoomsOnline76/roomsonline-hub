@@ -14,7 +14,7 @@ const fadeUp = {
 };
 
 const STATS = [
-  { value: "60-Day", label: "Free Trial" },
+  { value: "R 0", label: "Monthly Fee" },
   { value: "R 0", label: "Setup Fee" },
   { value: "24/7", label: "TOBI Assistant" },
   { value: "Flexible", label: "Negotiable Plans" },
@@ -71,7 +71,7 @@ export default function ConnectHome() {
           >
             <motion.div variants={fadeUp} transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}>
               <span className="inline-block px-3 py-1 text-xs font-medium rounded-full bg-primary/10 text-primary mb-6">
-                60-Day Free Trial — No Credit Card Required
+                Free to run — you only pay a booking fee
               </span>
             </motion.div>
 
@@ -102,7 +102,7 @@ export default function ConnectHome() {
             >
               <Link to={connectPath("/connect/get-started")} className="w-full sm:w-auto">
                 <Button size="lg" className="gap-2 font-medium px-6 w-full sm:w-auto">
-                  Start My Free Trial <ArrowRight className="h-4 w-4" />
+                  Get Started Free <ArrowRight className="h-4 w-4" />
                 </Button>
               </Link>
               <Link to={connectPath("/connect/features")} className="w-full sm:w-auto">

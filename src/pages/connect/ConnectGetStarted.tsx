@@ -150,7 +150,7 @@ export default function ConnectGetStarted() {
                   <Textarea id="message" value={form.message} onChange={(e) => setForm(f => ({ ...f, message: e.target.value }))} rows={4} className="mt-1" />
                 </div>
                 <Button type="submit" size="lg" disabled={submitting} className="w-full gap-2">
-                  {submitting ? "Submitting..." : "Start My Free Trial"} <Send className="h-4 w-4" />
+                  {submitting ? "Submitting..." : "Get Started Free"} <Send className="h-4 w-4" />
                 </Button>
                 <p className="text-xs text-muted-foreground text-center">
                   No credit card required. Every property is different — we'll build a plan that fits your budget.

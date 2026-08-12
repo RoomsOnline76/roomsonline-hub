@@ -38,7 +38,7 @@ const FAQ_CATEGORIES = [
     items: [
       {
         q: "How do I get API access?",
-        a: "Submit a request through our Get Started page. You'll receive your property ID and API key within 24 hours. All plans include full API access — no per-call fees.",
+        a: "Submit a request through our Get Started page. You will receive your property ID and API key within 24 hours. Full API access is included for every property — no per-call fees and no API add-on.",
       },
       {
         q: "What authentication does the API use?",
@@ -84,7 +84,7 @@ const FAQ_CATEGORIES = [
       },
       {
         q: "Can I manage multiple properties?",
-        a: "Yes. Professional plans support up to 3 properties, and Enterprise plans offer unlimited properties with portfolio-level analytics and aggregated KPIs.",
+        a: "Yes — unlimited properties, with portfolio-level analytics and aggregated KPIs. There are no plan tiers and no per-property subscription.",
       },
       {
         q: "Do you support OTA channel management?",
