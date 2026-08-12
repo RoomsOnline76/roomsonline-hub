@@ -193,6 +193,21 @@ const roomRows = (subject: RequirementSubject): RoomRequirementRow[] => {
   return Array.isArray(rooms) ? (rooms as RoomRequirementRow[]) : [];
 };
 
+/**
+ * Nearby attractions that carry a usable distance. Supplied by the readiness hook from
+ * `local_experiences`; only these rows can ever be pushed as channel Distances.
+ */
+const attractionsWithDistance = (
+  subject: RequirementSubject,
+): Array<{ title?: string | null; distance_km?: number | string | null }> => {
+  const rows = (subject as Record<string, unknown>).attraction_rows;
+  if (!Array.isArray(rows)) return [];
+  return (rows as Array<{ title?: string | null; distance_km?: number | string | null; is_active?: boolean | null }>)
+    .filter((r) => r?.is_active !== false && Number(r?.distance_km) > 0);
+};
+
+
+
 const numericAtLeast = (value: unknown, minimum: number): boolean => {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed >= minimum;
