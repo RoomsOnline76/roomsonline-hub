@@ -346,7 +346,6 @@ export function CompanyInformationCard({
    */
   const profileRef = useRef(companyProfile);
   profileRef.current = companyProfile;
-  const autofilledCountry = useRef<string | null>(null);
 
   useEffect(() => {
     const current = profileRef.current;
@@ -362,48 +361,6 @@ export function CompanyInformationCard({
       legal_rep: { ...currentRep, ...patch } as RuCompanyProfile["legal_rep"],
     });
   }, [propertyCity, propertyPostalCode, onCompanyProfileChange]);
-
-  useEffect(() => {
-    const country = propertyCountry?.trim();
-    if (!country || autofilledCountry.current === country) return;
-    // Mark this country as "seen" before any early return. The effect re-runs
-    // whenever the parent passes a fresh onChange identity (the inline arrow in
-    // PropertyForm is not memoised), and without this flag a manual clear of
-    // nationality/residence would be silently re-populated from the property's
-    // country on the next render. Recording it here means a clear sticks — only
-    // an actual change of the property's country re-triggers auto-fill.
-    autofilledCountry.current = country;
-    const current = profileRef.current;
-    const currentRep = (current.legal_rep ?? {}) as Record<string, string | number | undefined>;
-    const needsNationality = !Number(currentRep.nationality_id);
-    const needsResidence = !Number(currentRep.country_of_residence_id);
-    if (!needsNationality && !needsResidence) return;
-    let cancelled = false;
-    void (async () => {
-      const { data } = await supabase
-        .from("ru_locations")
-        .select("id, name")
-        .in("location_type_id", RU_COUNTRY_TYPE_FILTER)
-        .ilike("name", country)
-        .order("depth", { ascending: true })
-        .limit(1);
-      const match = (data ?? [])[0] as { id: number } | undefined;
-      if (cancelled || !match) return;
-      const latest = profileRef.current;
-      const latestRep = (latest.legal_rep ?? {}) as Record<string, string | number | undefined>;
-      const patch: Record<string, string | number> = {};
-      if (!Number(latestRep.nationality_id)) patch.nationality_id = match.id;
-      if (!Number(latestRep.country_of_residence_id)) patch.country_of_residence_id = match.id;
-      if (Object.keys(patch).length === 0) return;
-      onCompanyProfileChange({
-        ...latest,
-        legal_rep: { ...latestRep, ...patch } as RuCompanyProfile["legal_rep"],
-      });
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [propertyCountry, onCompanyProfileChange]);
 
   /**
    * Pre-fill the RU account contact person from the contract fields already on

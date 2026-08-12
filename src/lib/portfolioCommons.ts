@@ -542,7 +542,8 @@ export async function backfillCommonsFromPortfolio(
 /**
  * Auto-share hook: called after a property save. When the portfolio has
  * auto-share enabled, completed common data is pushed into siblings' blanks
- * (never overwriting) and blanks on this property are filled from siblings.
+ * without overwriting. Pulling into this property remains an explicit action,
+ * so intentionally cleared values cannot be silently restored after save.
  */
 export async function runAutoShare(propertyId: string): Promise<CommonsWriteResult | null> {
   const portfolioIds = await fetchPortfolioIds(propertyId);
@@ -551,11 +552,5 @@ export async function runAutoShare(propertyId: string): Promise<CommonsWriteResu
 
   const groupKeys = PORTFOLIO_COMMONS_GROUPS.map((g) => g.key);
   const siblingIds = await fetchSiblingIds(propertyId, portfolioIds);
-  const pushed = await shareCommonsToSiblings(propertyId, siblingIds, groupKeys, { overwrite: false });
-  const pulled = await backfillCommonsFromPortfolio(propertyId, groupKeys);
-  return {
-    updatedProperties: pushed.updatedProperties + pulled.updatedProperties,
-    updatedGroups: [...new Set([...pushed.updatedGroups, ...pulled.updatedGroups])],
-    contactsWritten: pushed.contactsWritten + pulled.contactsWritten,
-  };
+  return shareCommonsToSiblings(propertyId, siblingIds, groupKeys, { overwrite: false });
 }
