@@ -799,17 +799,12 @@ export function RoomManagerTab({
                     {...markerFlags(!roomDescriptionTooShort)}
                   />
                   {!roomDescriptionPmsSynced && (
-                    roomDescriptionTooShort ? (
-                      <p className="flex items-center gap-1 text-[10px] text-destructive">
-                        <AlertTriangle className="h-3 w-3" />
-                        {MIN_ROOM_DESCRIPTION_CHARS - roomDescriptionLength} more characters needed — distribution channels require at least {MIN_ROOM_DESCRIPTION_CHARS} characters.
-                      </p>
-                    ) : (
-                      <p className="flex items-center gap-1 text-[10px] text-emerald-600">
-                        <CheckCircle2 className="h-3 w-3" />
-                        Description meets the {MIN_ROOM_DESCRIPTION_CHARS}-character minimum for channel distribution.
-                      </p>
-                    )
+                    <DescriptionShortfallHint
+                      value={selectedRoom?.description || ""}
+                      required={MIN_ROOM_DESCRIPTION_CHARS}
+                      recommended={RECOMMENDED_DESCRIPTION_CHARS}
+                      subject="unit"
+                    />
                   )}
                 </div>
 
