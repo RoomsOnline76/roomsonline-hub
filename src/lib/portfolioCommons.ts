@@ -147,6 +147,11 @@ interface FieldSpec {
   location: Location;
   /** Merge object values key-by-key instead of replacing wholesale. */
   deep?: boolean;
+  /**
+   * Array values: union the source and target entries instead of replacing.
+   * Nothing a property already offers is ever removed by a share.
+   */
+  union?: boolean;
 }
 
 const FIELDS: FieldSpec[] = [
@@ -180,7 +185,43 @@ const FIELDS: FieldSpec[] = [
   // distribution
   { group: "distribution", path: "ru_location_id", location: "column" },
   { group: "distribution", path: "ru_payment_methods", location: "amenities", deep: true },
+
+  // policies — cancellation ladder (rule rows handled separately)
+  { group: "policies", path: "cancellation_policies", location: "amenities", deep: true },
+
+  // arrival_changeover
+  { group: "arrival_changeover", path: "changeover", location: "amenities" },
+  { group: "arrival_changeover", path: "changeover_rules", location: "amenities", deep: true },
+  { group: "arrival_changeover", path: "house_rules.check_in_instructions", location: "amenities" },
+
+  // classification
+  { group: "classification", path: "property_type", location: "column" },
+  { group: "classification", path: "star_rating", location: "amenities" },
+  { group: "classification", path: "accommodation_label", location: "amenities" },
+  { group: "classification", path: "self_catering", location: "amenities" },
+
+  // narrative (brand kit handled separately)
+  { group: "narrative", path: "property_info", location: "amenities", deep: true },
+  { group: "narrative", path: "additional_source_urls", location: "amenities", union: true },
+
+  // meals
+  { group: "meals", path: "meal_types", location: "amenities", union: true },
+  { group: "meals", path: "breakfast_options", location: "amenities", union: true },
+
+  // facilities
+  { group: "facilities", path: "facilities", location: "amenities", union: true },
+
+  // payments
+  { group: "payments", path: "payment_mode", location: "column" },
+  { group: "payments", path: "payment_provider", location: "column" },
+  { group: "payments", path: "payment_providers", location: "column", union: true },
+  { group: "payments", path: "allow_custom_payment_provider", location: "column" },
+
+  // channel_content
+  { group: "channel_content", path: "ru_push_enabled", location: "column" },
+  { group: "channel_content", path: "payment_methods", location: "amenities", union: true },
 ];
+
 
 /** Contact roles treated as portfolio-common. */
 const COMMON_CONTACT_ROLES = ["reservations", "after_hours", "emergency", "other"] as const;
