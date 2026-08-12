@@ -1980,6 +1980,16 @@ async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRo
     summary: `${availCoverage.days_total}/${expectedWindowDays} days covered (${availCoverage.days_from_seasons} from seasons, ${availCoverage.days_filled} filled, ${availCoverage.overlaps_resolved} overlapping day(s) resolved)`,
   };
   console.log(`[pushARI] RU ${ruPropertyId} availability window: ${result.availability_coverage.summary}`);
+  if (availCoverage.days_filled > 0) {
+    // Filler days carry an assumed min-stay of 1 because RU rejects gaps in the 365-day window.
+    // Closing those days would strand inventory, so they publish — but never silently.
+    (result as any).availability_warnings = [
+      ...(((result as any).availability_warnings as string[]) || []),
+      `${availCoverage.days_filled} day(s) had no authored season and were published with an assumed minimum stay of 1 night. Extend the seasons in Rate Manager → Calendar to cover the full 365-day window.`,
+    ];
+    console.warn(`[pushARI] RU ${ruPropertyId}: ${availCoverage.days_filled} filler day(s) used an assumed min-stay of 1`);
+  }
+
 
   // Resolve changeover rules (per-day-of-week or default)
   const changeoverConfig = resolveChangeoverRules(unit, amenities);
