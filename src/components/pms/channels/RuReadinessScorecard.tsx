@@ -148,41 +148,43 @@ export function RuReadinessScorecard({ propertyId, standalone = true, onReport }
         </Alert>
       )}
 
-      <div className="grid gap-4 md:grid-cols-2">
-        {(report?.groups ?? []).map((g) => (
-          <div key={g.group} className="rounded-lg border border-border p-3">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-sm font-medium">{g.group}</p>
-              <Badge variant={g.passed === g.total ? "secondary" : "destructive"} className="text-[10px]">
-                {g.passed}/{g.total}
-              </Badge>
+      {detailsOpen && (
+        <div className="grid gap-4 md:grid-cols-2">
+          {(report?.groups ?? []).map((g) => (
+            <div key={g.group} className="rounded-lg border border-border p-3">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-sm font-medium">{g.group}</p>
+                <Badge variant={g.passed === g.total ? "secondary" : "destructive"} className="text-[10px]">
+                  {g.passed}/{g.total}
+                </Badge>
+              </div>
+              <ul className="space-y-1.5">
+                {(report?.checks ?? [])
+                  .filter((c) => c.group === g.group)
+                  .map((c, i) => (
+                    <li key={`${c.key}-${c.unit ?? ""}-${i}`} className="flex items-start gap-2 text-xs">
+                      {c.passed ? (
+                        <CheckCircle2 className="h-3.5 w-3.5 mt-0.5 text-primary shrink-0" />
+                      ) : (
+                        <XCircle className="h-3.5 w-3.5 mt-0.5 text-destructive shrink-0" />
+                      )}
+                      <span className={c.passed ? "text-muted-foreground" : ""}>
+                        {c.unit ? <span className="font-medium">{c.unit}: </span> : null}
+                        {c.label}
+                        {!c.passed && c.detail ? (
+                          <span className="block text-destructive">{c.detail}</span>
+                        ) : null}
+                        {!c.passed && c.fix_hint ? (
+                          <span className="block text-muted-foreground">Fix in: {c.fix_hint}</span>
+                        ) : null}
+                      </span>
+                    </li>
+                  ))}
+              </ul>
             </div>
-            <ul className="space-y-1.5">
-              {(report?.checks ?? [])
-                .filter((c) => c.group === g.group)
-                .map((c, i) => (
-                  <li key={`${c.key}-${c.unit ?? ""}-${i}`} className="flex items-start gap-2 text-xs">
-                    {c.passed ? (
-                      <CheckCircle2 className="h-3.5 w-3.5 mt-0.5 text-primary shrink-0" />
-                    ) : (
-                      <XCircle className="h-3.5 w-3.5 mt-0.5 text-destructive shrink-0" />
-                    )}
-                    <span className={c.passed ? "text-muted-foreground" : ""}>
-                      {c.unit ? <span className="font-medium">{c.unit}: </span> : null}
-                      {c.label}
-                      {!c.passed && c.detail ? (
-                        <span className="block text-destructive">{c.detail}</span>
-                      ) : null}
-                      {!c.passed && c.fix_hint ? (
-                        <span className="block text-muted-foreground">Fix in: {c.fix_hint}</span>
-                      ) : null}
-                    </span>
-                  </li>
-                ))}
-            </ul>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
       {!report && !loading && (
         <p className="text-sm text-muted-foreground">No readiness report yet — press Re-check.</p>
