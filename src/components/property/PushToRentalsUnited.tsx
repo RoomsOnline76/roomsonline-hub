@@ -25,7 +25,10 @@ import {
   RefreshCw,
 } from "lucide-react";
 import type { RuReadinessReport } from "@/components/pms/channels/RuReadinessScorecard";
-import { RuChannelContentChecklist } from "@/components/property/RuChannelContentChecklist";
+import {
+  RuChannelContentChecklist,
+  type RuContentFlags,
+} from "@/components/property/RuChannelContentChecklist";
 
 interface PushToRentalsUnitedProps {
   propertyId: string;
