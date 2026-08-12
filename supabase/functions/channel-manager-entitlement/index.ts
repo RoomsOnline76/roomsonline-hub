@@ -165,11 +165,82 @@ Deno.serve(async (req) => {
     const actorEmail = userData.user.email ?? null;
 
     const raw = (await req.json().catch(() => null)) as Body | null;
-    if (!raw || (raw.scope !== "property" && raw.scope !== "portfolio" && raw.scope !== "unit")) {
-      return bad("scope must be 'property', 'portfolio' or 'unit'");
+    const scopes = ["property", "portfolio", "unit", "purge_duplicates"];
+    if (!raw || !scopes.includes(raw.scope)) {
+      return bad("scope must be 'property', 'portfolio', 'unit' or 'purge_duplicates'");
     }
-    if (!raw.entity_id || typeof raw.enabled !== "boolean") {
-      return bad("entity_id and enabled are required");
+    if (!raw.entity_id) return bad("entity_id is required");
+    if (raw.scope !== "purge_duplicates" && typeof raw.enabled !== "boolean") {
+      return bad("enabled is required");
+    }
+
+    // ── Purge duplicate listings: deactivated unit records that still hold a
+    //    channel listing id. Archive the listing upstream, then clear the id so
+    //    the record can never bill or be re-activated onto the channel again. ──
+    if (raw.scope === "purge_duplicates") {
+      let query = admin
+        .from("hostfully_room_types")
+        .select("id, name, property_id, rentalsunited_property_id")
+        .eq("property_id", raw.entity_id)
+        .eq("is_active", false)
+        .not("rentalsunited_property_id", "is", null);
+      if (raw.unit_id) query = query.eq("id", raw.unit_id);
+
+      const { data: dupes, error: dupErr } = await query;
+      if (dupErr) return bad(dupErr.message, 500);
+      if (!dupes || dupes.length === 0) {
+        return new Response(JSON.stringify({ success: true, purged: 0, failed: 0, results: [] }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const ownerId = await resolveRuOwnerId(admin, raw.entity_id);
+      const results: { name: string; listing_id: string; status: string; detail?: string }[] = [];
+      let purged = 0;
+      let failed = 0;
+
+      for (const dup of dupes) {
+        const listingId = dup.rentalsunited_property_id as string;
+        const failure = await pushListingStatus(admin, {
+          propertyId: dup.property_id,
+          ruPropertyId: listingId,
+          archive: true,
+          ownerId,
+        });
+        if (failure) {
+          failed += 1;
+          results.push({ name: dup.name, listing_id: listingId, status: "ru_failed", detail: failure });
+          continue;
+        }
+        const { error: clearErr } = await admin
+          .from("hostfully_room_types")
+          .update({ rentalsunited_property_id: null })
+          .eq("id", dup.id);
+        if (clearErr) {
+          failed += 1;
+          results.push({ name: dup.name, listing_id: listingId, status: "ru_failed", detail: clearErr.message });
+          continue;
+        }
+        purged += 1;
+        results.push({ name: dup.name, listing_id: listingId, status: "purged" });
+      }
+
+      await admin.from("ru_archive_events").insert({
+        property_id: raw.entity_id,
+        property_name: `Duplicate purge (${purged} listing${purged === 1 ? "" : "s"})`,
+        direction: "archived",
+        unit_count: dupes.length,
+        listing_count: purged,
+        reason: raw.reason ?? "Duplicate listing purge from channel cost monitor",
+        actor_user_id: userData.user.id,
+        actor_email: actorEmail,
+        ru_status: failed > 0 ? "ru_failed" : "updated",
+        detail: results.map((r) => `${r.name}#${r.listing_id}:${r.status}`).join(", ").slice(0, 900),
+      });
+
+      return new Response(JSON.stringify({ success: failed === 0, purged, failed, results }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     // ── Single unit listing toggle (from the cost monitor unit rows) ───
