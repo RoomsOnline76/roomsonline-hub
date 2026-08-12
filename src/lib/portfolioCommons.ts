@@ -810,6 +810,7 @@ export async function backfillCommonsFromPortfolio(
     const partial = await applyGroups(source, [target], [groupKey], { overwrite: false });
     partial.updatedGroups.forEach((g) => touched.add(g));
     result.contactsWritten += partial.contactsWritten;
+    result.rowsWritten += partial.rowsWritten;
   }
 
   result.updatedGroups = [...touched];
