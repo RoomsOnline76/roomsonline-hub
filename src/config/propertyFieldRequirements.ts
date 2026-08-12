@@ -135,6 +135,10 @@ type RoomRequirementRow = {
   max_guests?: number | null;
   bedConfiguration?: unknown;
   bed_configuration?: unknown;
+  /** Derived bedroom / bed counts the push falls back to when no configuration is authored. */
+  bedrooms?: number | null;
+  beds?: number | null;
+
   images?: unknown;
   amenities?: unknown;
   /** Channel Manager property type (ObjectTypeID source). */
