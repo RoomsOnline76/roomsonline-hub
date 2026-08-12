@@ -284,6 +284,42 @@ export function normalizeRuImageTagMap(value: unknown): RuImageTagMap {
   return out;
 }
 
+/** Explicit main-image designation: tag 1 (Main) on exactly one gallery URL. */
+export function mainImageState(
+  map: RuImageTagMap | undefined,
+  urls: string[],
+): { url: string | null; count: number } {
+  const gallery = new Set(urls.filter(Boolean));
+  const flagged = Object.entries(map || {})
+    .filter(([url, ids]) => gallery.has(url) && (ids || []).includes(RU_TAG_MAIN))
+    .map(([url]) => url);
+  return { url: flagged[0] ?? null, count: flagged.length };
+}
+
+/** The single URL flagged Main, or null when none / more than one is flagged. */
+export function findMainImageUrl(
+  map: RuImageTagMap | undefined,
+  urls: string[],
+): string | null {
+  const state = mainImageState(map, urls);
+  return state.count === 1 ? state.url : null;
+}
+
+/** Strip Main from every image, then flag `url` as Main. */
+export function setMainImageUrl(
+  map: RuImageTagMap | undefined,
+  urls: string[],
+  url: string,
+): RuImageTagMap {
+  const out: RuImageTagMap = {};
+  for (const [key, ids] of Object.entries(map || {})) {
+    const rest = (ids || []).filter((id) => id !== RU_TAG_MAIN);
+    if (rest.length) out[key] = rest;
+  }
+  if (url) out[url] = [RU_TAG_MAIN, ...(out[url] || [])];
+  return out;
+}
+
 /** Drop tag entries whose image is no longer in the gallery. */
 export function pruneRuImageTagMap(map: RuImageTagMap, urls: string[]): RuImageTagMap {
   const keep = new Set(urls);

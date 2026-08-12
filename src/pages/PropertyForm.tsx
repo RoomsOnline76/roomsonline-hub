@@ -168,6 +168,8 @@ import {
   normalizeRuImageTagMap,
   pruneRuImageTagMap,
   RU_TAG_MAIN,
+  findMainImageUrl,
+  setMainImageUrl,
 } from "@/lib/ruImageTags";
 
 
@@ -872,6 +874,11 @@ export default function PropertyForm({
   const propertyImageAudit = useImageDimensionAudit(uploadedImages);
   /** Rentals United photo tags, keyed by image URL: { "<url>": [4, 83] } */
   const [imageTags, setImageTags] = useState<RuImageTagMap>({});
+  // Explicit main photo: the single gallery URL tagged Main (channel ImageTypeID 1).
+  const mainImageUrl = useMemo(
+    () => findMainImageUrl(imageTags, uploadedImages),
+    [imageTags, uploadedImages],
+  );
 
   const [isDragging, setIsDragging] = useState(false);
 
@@ -6392,7 +6399,7 @@ export default function PropertyForm({
                       className="mb-2"
                       urls={uploadedImages}
                       results={propertyImageAudit.results}
-                      hasMainImage={uploadedImages.length > 0}
+                      hasMainImage={!!mainImageUrl}
                     />
                     <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
                       {uploadedImages.map((imageUrl, index) => (
@@ -6401,24 +6408,20 @@ export default function PropertyForm({
                             <img src={imageUrl} alt={`Property ${index + 1}`} className="w-full h-full object-cover" />
                             <ImageQualityMarker entry={propertyImageAudit.results[imageUrl]} />
 
-                            {/* Primary badge or set as primary button */}
-                            {index === 0 ? (
-                              <div className="absolute top-1 left-1 bg-primary rounded-full p-1" title="Primary image">
+                            {/* Explicit main-image flag (channel ImageTypeID 1) */}
+                            {mainImageUrl === imageUrl ? (
+                              <div className="absolute top-1 left-1 bg-primary rounded-full p-1" title="Main image">
                                 <Heart className="h-3 w-3 text-white fill-white" />
                               </div>
                             ) : (
                               <button
                                 type="button"
                                 onClick={() => {
-                                  // Move this image to first position
-                                  const newImages = [...uploadedImages];
-                                  const [selected] = newImages.splice(index, 1);
-                                  newImages.unshift(selected);
-                                  setUploadedImages(newImages);
+                                  setImageTags((prev) => setMainImageUrl(prev, uploadedImages, imageUrl));
                                   setIsDirty(true);
                                 }}
                                 className="absolute top-1 left-1 bg-muted-foreground/60 hover:bg-primary rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                                title="Set as primary image"
+                                title="Set as main image"
                               >
                                 <Heart className="h-3 w-3 text-white" />
                               </button>
@@ -6433,7 +6436,7 @@ export default function PropertyForm({
                           </div>
                           <RuImageTagPicker
                             value={imageTags[imageUrl] || []}
-                            isMain={index === 0}
+                            isMain={mainImageUrl === imageUrl}
                             onChange={(next) => {
                               setImageTags((prev) => ({ ...prev, [imageUrl]: next }));
                               setIsDirty(true);
