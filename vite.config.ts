@@ -1,18 +1,30 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
+import { execSync } from "child_process";
 import { componentTagger } from "lovable-tagger";
 
 /**
- * Build sequence. The badge used to read a hand-edited constant, so it froze between
- * releases. Each build (and each dev-server start) re-evaluates this config, so the
- * sequence is derived here from wall-clock hours since a fixed epoch and baked into the
- * bundle — it advances on its own with every build, no manual bump required.
+ * Build sequence — advances once per prompt/build, never on the clock.
+ *
+ * Every prompt that changes the project produces exactly one commit, so the commit count is
+ * the natural "builds so far" counter. It is anchored to a known display value so the badge
+ * continues from where the previous (hour-based) scheme left off, and the displayed number is
+ * then the modulo-69 of this sequence (see `src/lib/appVersion.ts`).
  */
-const BUILD_SEQ_BASE = 961;
-const BUILD_SEQ_EPOCH_MS = Date.UTC(2026, 7, 12, 20, 0, 0); // 2026-08-12T20:00Z == base
-const buildSeq =
-  BUILD_SEQ_BASE + Math.max(0, Math.floor((Date.now() - BUILD_SEQ_EPOCH_MS) / 3_600_000));
+const ANCHOR_COMMITS = 13519; // commit count at the anchor below
+const ANCHOR_SEQ = 962; // sequential build displayed at that commit count
+const commitCount = (() => {
+  try {
+    const out = execSync("git rev-list --count HEAD", { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+    const n = Number.parseInt(out.trim(), 10);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  } catch {
+    return null;
+  }
+})();
+const buildSeq = commitCount === null ? ANCHOR_SEQ : ANCHOR_SEQ + (commitCount - ANCHOR_COMMITS);
+
 
 /**
  * Serve the build stamp as a virtual module rather than a `define`: `define` is not applied to
