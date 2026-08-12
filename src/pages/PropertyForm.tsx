@@ -48,7 +48,6 @@ import { Beds24PropertyLookup } from "@/components/property/Beds24PropertyLookup
 import {
   isMappedChannelPropertyType,
   normalizeChannelPropertyType,
-  isChangeoverAuthored,
   type ChangeoverDowKey,
 } from "@/config/channelPropertyTypes";
 import ChangeoverRulesCard from "@/components/property/policies/ChangeoverRulesCard";
