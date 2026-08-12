@@ -24,6 +24,9 @@ export interface ChannelIdentifierField {
 
 export interface ChannelRegistryEntry {
   key: string;
+  /** Display label shown in the UI (falls back to a title-cased key). */
+  label?: string;
+
   /** How the connection is established. */
   connection_mode: ChannelConnectionMode;
   /** RU sales-channel name used to resolve the ChannelID via Pull_ListSalesChannels_RQ. */
