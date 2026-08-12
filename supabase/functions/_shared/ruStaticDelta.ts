@@ -21,12 +21,24 @@ export const RU_STATIC_DELTA_DEBOUNCE_MS = 60 * 1000;
 /** ru_sync_runs.action used for static content deltas. */
 export const RU_STATIC_DELTA_ACTION = 'static_delta';
 
+/**
+ * ru_sync_runs.action used for deltas that deliberately did nothing (not listed, paused,
+ * unchanged fingerprint). Logged under a separate action so it can never be mistaken for a
+ * delivered push by the fingerprint/debounce lookup, while still answering the operator
+ * question "did my save reach the channel?".
+ */
+export const RU_STATIC_DELTA_SKIP_ACTION = 'static_delta_skipped';
+
+/** A multi-unit property is pushed in resumable chunks; walk at most this many chunks. */
+const RU_STATIC_DELTA_MAX_CHUNKS = 12;
+
 export interface RuStaticDeltaOutcome {
   queued: boolean;
   reason?: 'not_connected' | 'unchanged' | 'debounced' | 'error' | 'no_property';
   content_hash?: string;
   error?: string;
 }
+
 
 /** Property columns that end up inside Push_PutProperty_RQ. */
 const PROPERTY_STATIC_COLUMNS = [
