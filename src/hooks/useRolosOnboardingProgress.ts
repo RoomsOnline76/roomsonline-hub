@@ -24,6 +24,14 @@ import {
 
 const ROLOS_PMS_VALUES = new Set(["roomsonline", "rolos", "rol_os", "rolos_pms"]);
 
+export interface DistributionFailure {
+  label: string;
+  detail?: string;
+  /** Unit the failure belongs to (multi-unit properties). */
+  unit?: string;
+  mandatory: boolean;
+}
+
 export interface DistributionCheck {
   key: DistributionCheckKey;
   label: string;
@@ -32,7 +40,13 @@ export interface DistributionCheck {
   unknown?: boolean;
   detail?: string;
   hint?: string;
+  /**
+   * Individual failing points behind this check, kept separate so the wizard can
+   * route each one to the editor section (and unit) that actually owns it.
+   */
+  failures?: DistributionFailure[];
 }
+
 
 export interface MacroProgress {
   macro: MacroDef;
