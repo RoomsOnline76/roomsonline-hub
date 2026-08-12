@@ -130,6 +130,9 @@ export function RuOnboardingPipeline({ propertyId, readOnly = false, standalone 
   const [lastMcq, setLastMcq] = useState<LastMcq | null>(null);
   const [salesChannel, setSalesChannel] = useState<SalesChannel | null>(null);
   const [readiness, setReadiness] = useState<Readiness | null>(null);
+  /** Blockers returned by the last refused live push, kept so the card can show them. */
+  const [pushBlock, setPushBlock] = useState<{ phase: PhaseKey; reasons: string[] } | null>(null);
+
   const [availabilitySource, setAvailabilitySource] = useState<"channel" | "local">("local");
   const [resolvingChannel, setResolvingChannel] = useState(false);
   const [loading, setLoading] = useState(false);
