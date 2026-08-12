@@ -429,7 +429,7 @@ interface RowProps {
   progress: MacroProgress;
   open: boolean;
   onToggle: () => void;
-  onGoToField: (section: string, focus?: string) => void;
+  onGoToField: (section: string, focus?: string, unit?: string) => void;
   onPushOwner: () => void;
   onSignoff: (next: boolean) => void;
   onSignoffItem: (itemKey: string, next: boolean) => void;
