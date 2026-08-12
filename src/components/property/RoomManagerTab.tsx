@@ -460,20 +460,25 @@ export function RoomManagerTab({
         {[...roomTypes].sort((a, b) => a.name.localeCompare(b.name)).map((room) => (
           <div
             key={room.id}
+            /* Channel-wizard blockers deep-link to a named unit — these hooks let
+               the requirement painter find, select and pulse the right row. */
+            data-room-name={room.name}
+            data-room-select="1"
             className={cn(
               "flex items-center justify-between p-2 rounded-md transition-colors text-xs",
               selectedRoomType === room.id ? "bg-primary text-primary-foreground" : "hover:bg-muted",
               room.pms_synced && !isRolProperty && selectedRoomType !== room.id ? "bg-primary/5 border border-primary/20" : "",
               room.is_active === false && selectedRoomType !== room.id ? "opacity-50" : "",
             )}
+            onClick={() => setSelectedRoomType(room.id)}
           >
             <span
               className={cn("font-medium flex-1 cursor-pointer truncate", room.is_active === false && "line-through")}
-              onClick={() => setSelectedRoomType(room.id)}
             >
               {room.name}
               {room.pms_synced && !isRolProperty && <Cloud className="inline h-2.5 w-2.5 ml-1 opacity-50" />}
             </span>
+
             <div className="flex gap-0.5 items-center">
               <Switch
                 checked={room.is_active !== false}
