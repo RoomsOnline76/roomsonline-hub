@@ -316,8 +316,19 @@ export function evaluateUnitChecks(
   // ── Policies & payments ──
   add("has_payment_methods", "Policies & payments", "At least 1 payment method", !!v.has_payment_methods,
     "No payment method configured", "Property → Policies → Payment methods");
+  // A blank configuration used to publish an assumed "cash + card" pair. Commercial terms
+  // may never be invented, so an unauthored set blocks the push.
+  add("payment_methods_authored", "Policies & payments", "Payment methods are authored (not assumed)",
+    v.payment_methods_is_default !== true,
+    "No payment methods are configured — the channel would receive an assumed cash + card pair. Select the methods this property really accepts",
+    "Property → Policies → Payment methods");
   add("has_cancellation_policies", "Policies & payments", "At least 1 cancellation policy", !!v.has_cancellation_policies,
     "No cancellation policy configured", "Property → Policies → Cancellation");
+  add("cancellation_policies_authored", "Policies & payments", "Cancellation policy is authored (not assumed)",
+    v.cancellation_policies_is_default !== true,
+    "No cancellation policy is configured — the channel would receive an assumed 0–30 days / 100% rule. Author the real policy before publishing",
+    "Property → Policies → Cancellation");
+
 
   return checks;
 }
