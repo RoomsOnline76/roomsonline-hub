@@ -1407,6 +1407,7 @@ Deno.serve(async (req) => {
             name_issues: (v.name_issues as string[] | undefined) ?? [],
             description_chars: num("description_length"),
             description_meets_cert: bool("description_meets_cert"),
+            attraction_distances: num("attraction_distance_count"),
             images_count: num("images_count"),
             images_meeting_cert_size: num("images_meeting_cert_size"),
             images_unmeasured: num("images_size_unverified"),
