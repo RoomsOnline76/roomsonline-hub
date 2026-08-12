@@ -79,7 +79,7 @@ import { useImageDimensionAudit } from "@/hooks/useImageDimensionAudit";
 import { ImageQualityMarker } from "@/components/property/ImageQualityMarker";
 import { z } from "zod";
 import { getRoomUrl } from "@/lib/config";
-import { parseBedConfiguration, BED_TYPES, BedEntry } from "@/lib/bedConfig";
+import { parseBedConfiguration, BED_TYPES, BedEntry, authoredBedroomCount } from "@/lib/bedConfig";
 import {
   Home,
   Building2,
