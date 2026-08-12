@@ -201,6 +201,20 @@ export function useRuApiLog(filters: RuApiLogFilters) {
     return { total: rows.length, failures, withResponseId, avgMs, truncated: hasMore, totalCount };
   }, [rows, hasMore, totalCount]);
 
-  return { rows, actions, stats, loading, loadingMore, hasMore, error, refresh: load, loadMore, loadDetail };
+  return {
+    rows,
+    actions,
+    operations,
+    owners,
+    stats,
+    loading,
+    loadingMore,
+    hasMore,
+    error,
+    refresh: load,
+    loadMore,
+    loadDetail,
+  };
+
 
 }
