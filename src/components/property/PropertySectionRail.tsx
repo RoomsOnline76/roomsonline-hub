@@ -50,6 +50,76 @@ export const PropertySectionRail: React.FC<PropertySectionRailProps> = ({
 }) => {
   const handleSelect = useCallback((key: string) => onSelect(key), [onSelect]);
 
+  /**
+   * Shortfall panel: prints the EXACT error per outstanding item (measured text from
+   * the readiness model), not only the field label, and lets the owner jump to it.
+   */
+  const renderCountBadge = (
+    sectionKey: string,
+    tier: "mandatory" | "recommended",
+    count: number,
+    items: SectionReadinessDetail[],
+  ) => (
+    <Popover>
+      <PopoverTrigger asChild>
+        <span
+          role="button"
+          tabIndex={0}
+          onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => e.stopPropagation()}
+          title={
+            tier === "mandatory"
+              ? `${count} mandatory item(s) outstanding — click for details`
+              : `${count} nice-to-have item(s) outstanding — click for details`
+          }
+          className={cn(
+            tier === "mandatory" ? "pf-req-count-mandatory" : "pf-req-count-recommended",
+            "cursor-pointer rounded border px-1 text-[9px] font-semibold leading-4",
+          )}
+        >
+          {count}
+        </span>
+      </PopoverTrigger>
+      <PopoverContent align="start" side="right" className="w-80 p-0">
+        <p className="border-b border-border px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          {tier === "mandatory" ? "Outstanding — blocks activation" : "Nice to have"} ({count})
+        </p>
+        <ul className="max-h-72 divide-y divide-border overflow-y-auto">
+          {items.length === 0 && (
+            <li className="px-3 py-2 text-xs text-muted-foreground">
+              {count} item(s) outstanding on this page.
+            </li>
+          )}
+          {items.map((item) => (
+            <li key={item.key}>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSelectRequirement?.(sectionKey, item);
+                }}
+                className="w-full px-3 py-2 text-left transition-colors hover:bg-muted/60"
+              >
+                <p
+                  className={cn(
+                    "text-xs font-medium",
+                    tier === "mandatory" ? "text-destructive" : "text-foreground",
+                  )}
+                >
+                  {item.label}
+                </p>
+                {item.detail && (
+                  <p className="mt-0.5 text-[10px] leading-snug text-muted-foreground">{item.detail}</p>
+                )}
+              </button>
+            </li>
+          ))}
+        </ul>
+      </PopoverContent>
+    </Popover>
+  );
+
+
   return (
     <nav className={cn("space-y-3", className)}>
       {onToggleCollapsed && (
