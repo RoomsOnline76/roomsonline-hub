@@ -248,5 +248,90 @@ export async function queueRuStaticDelta(
     console.error('[ruStaticDelta] Failed', message);
     return { queued: false, reason: 'error', error: message };
   }
-
 }
+
+/** Visibility row for a delta that intentionally did nothing. */
+async function logSkip(
+  supabase: any,
+  propertyId: string,
+  trigger: string,
+  reason: string,
+  contentHash: string | null,
+): Promise<void> {
+  try {
+    await supabase.from('ru_sync_runs').insert({
+      property_id: propertyId,
+      action: RU_STATIC_DELTA_SKIP_ACTION,
+      success: true,
+      error_message: null,
+      details: { trigger, skipped: true, reason, content_hash: contentHash },
+    });
+  } catch (err) {
+    console.warn('[ruStaticDelta] skip log insert failed', err);
+  }
+}
+
+/**
+ * Deliver the content push, walking the resumable chunk sequence.
+ *
+ * `push-property-to-ru` pushes a slice of a multi-unit property per invocation and reports the
+ * units still outstanding, so a single call to a 9-unit property returns `success: false` with
+ * `resume: true` even though nothing failed. A content delta must finish the sequence, otherwise
+ * every save on a multi-unit listing looks like a failure and no fingerprint is ever stored.
+ */
+async function pushStaticContent(
+  supabase: any,
+  propertyId: string,
+): Promise<{ success: boolean; errorMessage: string | null; chunks: number; units: unknown[] }> {
+  let remaining: string[] | null = null;
+  let batchId: string | null = null;
+  const units: unknown[] = [];
+
+  for (let chunk = 1; chunk <= RU_STATIC_DELTA_MAX_CHUNKS; chunk++) {
+    try {
+      const { data, error } = await supabase.functions.invoke('push-property-to-ru', {
+        body: {
+          property_id: propertyId,
+          action: 'static_only',
+          ...(remaining && remaining.length > 0 ? { only_unit_ids: remaining } : {}),
+          ...(batchId ? { batch_id: batchId } : {}),
+        },
+      });
+      if (error) {
+        return { success: false, errorMessage: error.message ?? 'Channel push transport failed', chunks: chunk, units };
+      }
+      if (Array.isArray(data?.units)) units.push(...data.units);
+      if (typeof data?.batch_id === 'string') batchId = data.batch_id;
+
+      const nextRemaining = Array.isArray(data?.remaining_unit_ids) ? (data.remaining_unit_ids as string[]) : [];
+      if (data?.resume === true && nextRemaining.length > 0) {
+        remaining = nextRemaining;
+        continue;
+      }
+      if (data?.success === true) {
+        return { success: true, errorMessage: null, chunks: chunk, units };
+      }
+      return {
+        success: false,
+        errorMessage: data?.error?.message ?? 'The channel rejected the content push',
+        chunks: chunk,
+        units,
+      };
+    } catch (err) {
+      return {
+        success: false,
+        errorMessage: err instanceof Error ? err.message : 'Unknown error',
+        chunks: chunk,
+        units,
+      };
+    }
+  }
+
+  return {
+    success: false,
+    errorMessage: `Content push did not finish within ${RU_STATIC_DELTA_MAX_CHUNKS} chunks — retry the outstanding units.`,
+    chunks: RU_STATIC_DELTA_MAX_CHUNKS,
+    units,
+  };
+}
+
