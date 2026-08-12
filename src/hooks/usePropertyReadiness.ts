@@ -1,6 +1,7 @@
-import { useCallback, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { measureImageUrl } from "@/lib/imageValidation";
 import {
   evaluateRequirements,
   type RequirementStatus,
@@ -84,7 +85,66 @@ export interface SectionReadinessCounts {
   recommendedLabels: string[];
 }
 
-export function usePropertyReadiness(propertyId?: string | null) {
+export interface MeasuredImageDims {
+  width: number;
+  height: number;
+  valid: boolean;
+}
+
+/**
+ * Session-wide measurement cache. Image URLs are stored as plain strings (no
+ * dimensions on the row), so the only way to judge the channel 1024x768 rule is
+ * to measure. Caching keeps tab switches and list rows from re-downloading.
+ */
+const imageDimensionCache = new Map<string, MeasuredImageDims>();
+const measuring = new Set<string>();
+
+/** Channel-report checks a browser cannot compute; keyed by RU check id. */
+const channelChecksQueryKey = (propertyId?: string | null) => ["property-channel-checks", propertyId];
+
+type ChannelCheckMap = Record<string, boolean | undefined>;
+
+export interface UsePropertyReadinessOptions {
+  /**
+   * Fetch the channel report (bookable window, MinStay, kitchen). Editor surfaces
+   * enable this; long list rows reuse whatever is already cached so they cost nothing
+   * yet still agree with the editor when the data is there.
+   */
+  channelChecks?: boolean;
+  /** Measure gallery images. Disabled on list rows to avoid mass image downloads. */
+  measureImages?: boolean;
+}
+
+/** Every image URL the property is judged on: gallery + unit galleries. */
+function collectImageUrls(subject: RequirementSubject | null): string[] {
+  if (!subject) return [];
+  const urls: string[] = [];
+  const push = (value: unknown) => {
+    if (typeof value === "string" && /^https?:\/\//.test(value)) urls.push(value);
+    else if (value && typeof value === "object") {
+      const row = value as { url?: unknown; src?: unknown; image_url?: unknown };
+      for (const candidate of [row.url, row.src, row.image_url]) {
+        if (typeof candidate === "string" && /^https?:\/\//.test(candidate)) urls.push(candidate);
+      }
+    }
+  };
+  if (Array.isArray(subject.images)) subject.images.forEach(push);
+  const rooms = (subject.amenities as { room_types?: unknown } | null)?.room_types;
+  if (Array.isArray(rooms)) {
+    for (const room of rooms) {
+      const imgs = (room as { images?: unknown } | null)?.images;
+      if (Array.isArray(imgs)) imgs.forEach(push);
+    }
+  }
+  return Array.from(new Set(urls));
+}
+
+export function usePropertyReadiness(
+  propertyId?: string | null,
+  options: UsePropertyReadinessOptions = {},
+) {
+  const { channelChecks = true, measureImages = true } = options;
+  const queryClient = useQueryClient();
   const query = useQuery({
     queryKey: ["property-readiness", propertyId],
     queryFn: async () => {
@@ -123,8 +183,84 @@ export function usePropertyReadiness(propertyId?: string | null) {
     refetchOnWindowFocus: false,
   });
 
-  const subject = query.data?.subject ?? null;
+  const baseSubject = query.data?.subject ?? null;
   const backend = query.data?.backend ?? null;
+
+  /**
+   * Channel-reported checks. Pre-publish the function scores the ROL'OS calendar; once
+   * the listing is live it verifies the channel calendar. Either way this is the same
+   * truth the wizard uses, so the editor and the wizard cannot disagree.
+   */
+  const channelQuery = useQuery({
+    queryKey: channelChecksQueryKey(propertyId),
+    enabled: !!propertyId && channelChecks,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+    queryFn: async (): Promise<ChannelCheckMap> => {
+      const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
+        body: { action: "property_readiness", property_id: propertyId },
+      });
+      if (error || !data?.success) return {};
+      const readiness = data.readiness as
+        | { checks?: Array<{ key?: string; passed?: boolean }>; content_quality?: { units?: Array<Record<string, unknown>> } }
+        | null;
+      const map: ChannelCheckMap = {};
+      for (const key of ["bookable_window", "min_stay_set"] as const) {
+        const rows = (readiness?.checks ?? []).filter((c) => c.key === key);
+        // Multi-unit reports repeat a check per unit — the weakest unit decides.
+        if (rows.length > 0) map[key] = rows.every((r) => r.passed === true);
+      }
+      const units = readiness?.content_quality?.units ?? [];
+      if (units.length > 0) map.has_kitchen = units.every((u) => u.has_kitchen === true);
+      return map;
+    },
+  });
+
+  const channelCheckMap: ChannelCheckMap =
+    channelQuery.data ??
+    (queryClient.getQueryData<ChannelCheckMap>(channelChecksQueryKey(propertyId)) ?? {});
+
+  /** Measure any gallery image we have not measured yet in this session. */
+  const imageUrls = useMemo(() => collectImageUrls(baseSubject), [baseSubject]);
+  const [measuredVersion, setMeasuredVersion] = useState(0);
+
+  useEffect(() => {
+    if (!measureImages || imageUrls.length === 0) return;
+    let cancelled = false;
+    const pending = imageUrls.filter((url) => !imageDimensionCache.has(url) && !measuring.has(url));
+    if (pending.length === 0) return;
+    pending.forEach((url) => measuring.add(url));
+    void Promise.all(
+      pending.map(async (url) => {
+        const dims = await measureImageUrl(url);
+        measuring.delete(url);
+        // An unreadable image (0x0) stays unmeasured: pending, not a false failure.
+        if (dims.width > 0 && dims.height > 0) {
+          imageDimensionCache.set(url, { width: dims.width, height: dims.height, valid: dims.valid });
+        }
+      }),
+    ).then(() => {
+      if (!cancelled) setMeasuredVersion((v) => v + 1);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [imageUrls, measureImages]);
+
+  const imageDimensions = useMemo(() => {
+    void measuredVersion;
+    const map: Record<string, MeasuredImageDims> = {};
+    for (const url of imageUrls) {
+      const dims = imageDimensionCache.get(url);
+      if (dims) map[url] = dims;
+    }
+    return map;
+  }, [imageUrls, measuredVersion]);
+
+  const subject: RequirementSubject | null = useMemo(() => {
+    if (!baseSubject) return null;
+    return { ...baseSubject, image_dimensions: imageDimensions, channel_checks: channelCheckMap };
+  }, [baseSubject, channelCheckMap, imageDimensions]);
 
   const items: ReadinessItem[] = useMemo(() => {
     if (!subject) return [];
@@ -199,7 +335,8 @@ export function usePropertyReadiness(propertyId?: string | null) {
 
   const refresh = useCallback(() => {
     void query.refetch();
-  }, [query]);
+    if (channelChecks) void channelQuery.refetch();
+  }, [channelChecks, channelQuery, query]);
 
   return {
     subject,
