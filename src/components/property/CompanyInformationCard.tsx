@@ -364,12 +364,18 @@ export function CompanyInformationCard({
   useEffect(() => {
     const country = propertyCountry?.trim();
     if (!country || autofilledCountry.current === country) return;
+    // Mark this country as "seen" before any early return. The effect re-runs
+    // whenever the parent passes a fresh onChange identity (the inline arrow in
+    // PropertyForm is not memoised), and without this flag a manual clear of
+    // nationality/residence would be silently re-populated from the property's
+    // country on the next render. Recording it here means a clear sticks — only
+    // an actual change of the property's country re-triggers auto-fill.
+    autofilledCountry.current = country;
     const current = profileRef.current;
     const currentRep = (current.legal_rep ?? {}) as Record<string, string | number | undefined>;
     const needsNationality = !Number(currentRep.nationality_id);
     const needsResidence = !Number(currentRep.country_of_residence_id);
     if (!needsNationality && !needsResidence) return;
-    autofilledCountry.current = country;
     let cancelled = false;
     void (async () => {
       const { data } = await supabase
