@@ -323,15 +323,18 @@ export default function ConnectHome() {
           >
             <h2 className="text-xl sm:text-2xl md:text-3xl font-bold mb-3">Stop Losing Bookings. Start Managing Smarter.</h2>
             <p className="text-muted-foreground mb-6 max-w-lg mx-auto">
-              60-day free trial. No credit card. No setup fees. Full access from day one.
-              Pricing is flexible — we'll build a plan that fits your budget.
+              Free for your first 60 days — and still free to run after that. No subscription,
+              no setup fee, no credit card. PMS, white label, revenue management, channel
+              integration and the API are all included. You only pay a booking fee on the
+              bookings we deliver.
             </p>
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-3">
               <Link to={connectPath("/connect/get-started")} className="w-full sm:w-auto">
                 <Button size="lg" className="gap-2 font-medium w-full sm:w-auto">
-                  Start My Free Trial <ArrowRight className="h-4 w-4" />
+                  Get Started Free <ArrowRight className="h-4 w-4" />
                 </Button>
               </Link>
+
               <Link to={connectPath("/connect/pricing")} className="w-full sm:w-auto">
                 <Button variant="outline" size="lg" className="gap-2 font-medium w-full sm:w-auto">
                   See Pricing
