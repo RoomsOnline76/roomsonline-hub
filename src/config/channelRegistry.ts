@@ -214,7 +214,16 @@ export const RU_CHECK_DEEPLINK: Record<string, { focus: string; tab: string }> =
   has_coordinates: { focus: "geo", tab: "general" },
   has_payment_methods: { focus: "master_policy", tab: "policies" },
   has_cancellation_policies: { focus: "master_policy", tab: "policies" },
+  // Checks that block a push because a value would otherwise be assumed for the channel.
+  payment_methods_authored: { focus: "master_policy", tab: "policies" },
+  cancellation_policies_authored: { focus: "master_policy", tab: "policies" },
+  changeover_authored: { focus: "master_policy", tab: "policies" },
+  currency_authored: { focus: "banking", tab: "billing" },
+  object_type_authored: { focus: "property_type", tab: "general" },
+  beds_authored: { focus: "rooms", tab: "rooms" },
+  ru_location_authored: { focus: "address", tab: "general" },
 };
+
 
 /** Build the property-editor deep link for a failing RU check. */
 export function ruCheckDeepLink(propertyId: string, checkKey: string): string {
