@@ -24,6 +24,14 @@ import {
 
 const ROLOS_PMS_VALUES = new Set(["roomsonline", "rolos", "rol_os", "rolos_pms"]);
 
+export interface DistributionFailure {
+  label: string;
+  detail?: string;
+  /** Unit the failure belongs to (multi-unit properties). */
+  unit?: string;
+  mandatory: boolean;
+}
+
 export interface DistributionCheck {
   key: DistributionCheckKey;
   label: string;
@@ -32,7 +40,13 @@ export interface DistributionCheck {
   unknown?: boolean;
   detail?: string;
   hint?: string;
+  /**
+   * Individual failing points behind this check, kept separate so the wizard can
+   * route each one to the editor section (and unit) that actually owns it.
+   */
+  failures?: DistributionFailure[];
 }
+
 
 export interface MacroProgress {
   macro: MacroDef;
@@ -208,16 +222,24 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
       // Only mandatory failures may hold a step open — advisory quality advice is
       // reported in the detail line but never blocks the wizard.
       const blocking = failed.filter((f) => f.mandatory !== false);
+      const shown = blocking.length ? blocking : failed;
       put(key, label, blocking.length === 0, {
         detail:
           failed.length === 0
             ? `${g.passed}/${g.total} checks passed`
-            : (blocking.length ? blocking : failed)
+            : shown
                 .slice(0, 4)
                 .map((f) => `${f.unit ? `${f.unit}: ` : ""}${f.detail ?? f.label}`)
                 .join(" · "),
+        failures: shown.map((f) => ({
+          label: f.label,
+          detail: f.detail,
+          unit: f.unit,
+          mandatory: f.mandatory !== false,
+        })),
       });
     };
+
 
 
     // Macro 1 — identity

@@ -22,14 +22,21 @@ import { ROLOS_SIGNOFF_CHECKLIST } from "@/config/rolosOnboardingMacros";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { focusRequirementField } from "@/lib/requirementFocus";
+import { focusRequirementField, focusUnitCard } from "@/lib/requirementFocus";
 import {
   CHECK_TO_FIELD_KEYS,
   PROPERTY_FIELD_REQUIREMENTS,
 } from "@/config/propertyFieldRequirements";
+import { resolveMcqRequirement } from "@/lib/mcqRequirements";
 
 
-import { useRolosOnboardingProgress, type MacroProgress } from "@/hooks/useRolosOnboardingProgress";
+import {
+  useRolosOnboardingProgress,
+  type MacroProgress,
+  type DistributionCheck,
+  type DistributionFailure,
+} from "@/hooks/useRolosOnboardingProgress";
+
 
 /**
  * Floating ROL'OS Channel Readiness wizard.
@@ -54,12 +61,18 @@ function StatusIcon({ complete, locked }: { complete: boolean; locked: boolean }
   return <Circle className="h-4 w-4 shrink-0 text-primary" />;
 }
 
+interface BlockerTarget {
+  section: string;
+  fieldKey?: string;
+  unit?: string;
+}
+
 /**
  * Maps a wizard/channel-gate check id onto the editor section + registry field
  * key that owns it, so every blocker in the wizard is a link that lands on the
  * exact control (which the requirement painter then pulses).
  */
-function resolveCheckTarget(checkKey: string): { section: string; fieldKey?: string } | null {
+function resolveCheckTarget(checkKey: string): BlockerTarget | null {
   const fieldKeys = CHECK_TO_FIELD_KEYS[checkKey];
   if (!fieldKeys?.length) return null;
   for (const key of fieldKeys) {
@@ -68,6 +81,34 @@ function resolveCheckTarget(checkKey: string): { section: string; fieldKey?: str
   }
   return null;
 }
+
+/**
+ * Resolve an individual failing point. Unit-scoped failures always route to the
+ * Rooms tab (and the named unit), because the content that fails — unit name,
+ * unit description, unit arrival instructions — is only editable there, even
+ * though the property-level catalogue would send them to General.
+ */
+function resolveFailureTarget(failure: DistributionFailure, checkKey: string): BlockerTarget {
+  const req = resolveMcqRequirement(`${failure.label} ${failure.detail ?? ""}`);
+  if (failure.unit) {
+    return { section: "rooms", unit: failure.unit };
+  }
+  if (req) return { section: req.section, fieldKey: req.focusKey };
+  return resolveCheckTarget(checkKey) ?? { section: "general" };
+}
+
+/** First blocking failure across the step's state checks, if any. */
+function firstBlockingTarget(stateChecks: DistributionCheck[]): BlockerTarget | null {
+  for (const c of stateChecks) {
+    if (c.ok || c.unknown) continue;
+    const blocking = (c.failures ?? []).filter((f) => f.mandatory);
+    if (blocking.length > 0) return resolveFailureTarget(blocking[0], c.key);
+    const target = resolveCheckTarget(c.key);
+    if (target) return target;
+  }
+  return null;
+}
+
 
 
 export function RolosOnboardingWizard({ propertyId, className }: Props) {
@@ -146,7 +187,7 @@ export function RolosOnboardingWizard({ propertyId, className }: Props) {
   }, [propertyId]);
 
   const goToField = useCallback(
-    (section: string, focus?: string) => {
+    (section: string, focus?: string, unit?: string) => {
       const next = new URLSearchParams(searchParams);
       const sameSection = next.get("section") === section;
       next.set("section", section);
@@ -158,6 +199,11 @@ export function RolosOnboardingWizard({ propertyId, className }: Props) {
       navigate(`${location.pathname}?${next.toString()}`, { replace: false });
 
       window.setTimeout(() => {
+        // Unit-scoped blockers land on the exact room/unit card.
+        if (unit) {
+          focusUnitCard(unit);
+          return;
+        }
         if (focus) {
           focusRequirementField(focus);
           return;
@@ -167,6 +213,7 @@ export function RolosOnboardingWizard({ propertyId, className }: Props) {
     },
     [location.pathname, navigate, searchParams],
   );
+
 
 
   const pushOwner = useCallback(async () => {
@@ -382,7 +429,7 @@ interface RowProps {
   progress: MacroProgress;
   open: boolean;
   onToggle: () => void;
-  onGoToField: (section: string, focus?: string) => void;
+  onGoToField: (section: string, focus?: string, unit?: string) => void;
   onPushOwner: () => void;
   onSignoff: (next: boolean) => void;
   onSignoffItem: (itemKey: string, next: boolean) => void;
@@ -411,6 +458,8 @@ function MacroRow({
   const { macro, complete, locked, score, fieldItems, stateChecks } = progress;
   const outstandingFields = fieldItems.filter((i) => !i.satisfied);
   const firstOutstandingField = outstandingFields.find((item) => item.tier === "mandatory") ?? outstandingFields[0];
+  const blockerTarget = firstBlockingTarget(stateChecks);
+
 
   return (
     <div className={locked ? "opacity-60" : undefined}>
@@ -442,7 +491,8 @@ function MacroRow({
           {stateChecks.length > 0 && (
             <ul className="space-y-1">
               {stateChecks.map((c) => {
-                const target = c.ok ? null : resolveCheckTarget(c.key);
+                const failures = c.ok ? [] : (c.failures ?? []);
+                const target = c.ok || failures.length > 0 ? null : resolveCheckTarget(c.key);
                 return (
                   <li key={c.key} className="flex items-start gap-2 text-[11px]">
                     {c.ok ? (
@@ -450,11 +500,11 @@ function MacroRow({
                     ) : (
                       <Circle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                     )}
-                    <span className="min-w-0">
+                    <span className="min-w-0 flex-1">
                       {target ? (
                         <button
                           type="button"
-                          onClick={() => onGoToField(target.section, target.fieldKey)}
+                          onClick={() => onGoToField(target.section, target.fieldKey, target.unit)}
                           className="text-left font-medium text-primary underline decoration-dotted underline-offset-2 hover:no-underline"
                         >
                           {c.label} — fix it
@@ -462,13 +512,39 @@ function MacroRow({
                       ) : (
                         <span className={c.ok ? "text-muted-foreground" : "font-medium"}>{c.label}</span>
                       )}
-                      {c.detail && <span className="block text-[10px] text-muted-foreground">{c.detail}</span>}
+                      {failures.length === 0 && c.detail && (
+                        <span className="block text-[10px] text-muted-foreground">{c.detail}</span>
+                      )}
+                      {failures.length > 0 && (
+                        <span className="mt-1 block space-y-1">
+                          {failures.map((f, i) => {
+                            const ft = resolveFailureTarget(f, c.key);
+                            return (
+                              <button
+                                key={`${f.label}-${f.unit ?? ""}-${i}`}
+                                type="button"
+                                onClick={() => onGoToField(ft.section, ft.fieldKey, ft.unit)}
+                                className="flex w-full items-start gap-1.5 rounded-md border border-border/60 px-1.5 py-1 text-left text-[10px] leading-snug text-muted-foreground transition-colors hover:border-primary hover:text-primary"
+                              >
+                                <span className="min-w-0 flex-1">
+                                  {f.unit && <span className="font-medium">{f.unit}: </span>}
+                                  {f.detail ?? f.label}
+                                </span>
+                                <span className="shrink-0 text-[9px] uppercase tracking-wide">
+                                  {f.unit ? "Rooms" : "Fix"} →
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </span>
+                      )}
                     </span>
                   </li>
                 );
               })}
             </ul>
           )}
+
 
 
           {outstandingFields.length > 0 && (
@@ -511,16 +587,24 @@ function MacroRow({
                 size="sm"
                 variant="outline"
                 className="h-7 text-[11px]"
-                onClick={() =>
+                onClick={() => {
+                  // A step's real blocker may live on another page (unit content is
+                  // edited on Rooms), so state-check failures win over the macro's
+                  // own section.
+                  if (blockerTarget) {
+                    onGoToField(blockerTarget.section, blockerTarget.fieldKey, blockerTarget.unit);
+                    return;
+                  }
                   onGoToField(
                     firstOutstandingField?.section ?? (macro.section as string),
                     firstOutstandingField?.paintable ? firstOutstandingField.key : undefined,
-                  )
-                }
+                  );
+                }}
               >
                 Open step
               </Button>
             )}
+
 
             {macro.action === "ensure_owner" && isPlatformUser && !complete && (
               <Button

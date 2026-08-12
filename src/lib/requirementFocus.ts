@@ -208,4 +208,66 @@ export function focusFieldTargets(targets: string[], attempt = 0): void {
   if (focusable && isVisible(focusable)) focusable.focus({ preventScroll: true });
 }
 
+/**
+ * Focus a room/unit card by its name. Channel content failures are reported per
+ * unit ("SEESTER: Description is 444 characters"), so the wizard needs to land
+ * on that exact chalet type instead of the top of the Rooms tab.
+ *
+ * Matching is case-insensitive and falls back to a heading text scan, because
+ * PMS-synced units render their name in a card header rather than an input.
+ */
+export function focusUnitCard(unitName: string, attempt = 0): void {
+  const needle = unitName.trim().toLowerCase();
+  if (!needle) return;
+
+  let el =
+    document.querySelector<HTMLElement>(`[data-room-name="${CSS.escape(unitName.trim())}"]`) ?? null;
+
+  if (!el) {
+    const cards = Array.from(document.querySelectorAll<HTMLElement>("[data-room-name]"));
+    el = cards.find((c) => (c.dataset.roomName ?? "").trim().toLowerCase() === needle) ?? null;
+  }
+
+  if (!el) {
+    // Heading scan: any element whose own text is the unit name.
+    const headings = Array.from(
+      document.querySelectorAll<HTMLElement>("h1, h2, h3, h4, h5, p, span, div"),
+    );
+    const hit = headings.find(
+      (h) => h.children.length === 0 && (h.textContent ?? "").trim().toLowerCase() === needle,
+    );
+    if (hit) el = (hit.closest<HTMLElement>("[data-room-card], .rounded-lg, .rounded-md") ?? hit);
+  }
+
+  if (!el) {
+    if (attempt < 12) window.setTimeout(() => focusUnitCard(unitName, attempt + 1), 250);
+    return;
+  }
+
+  if (!isVisible(el)) {
+    revealAncestors(el);
+    if (!isVisible(el) && attempt < 8) {
+      window.setTimeout(() => focusUnitCard(unitName, attempt + 1), 250);
+      return;
+    }
+  }
+
+  // Selectable rows (the unit picker) must actually open the unit's editor.
+  if (el.dataset.roomSelect === "1") el.click();
+
+  let paint: HTMLElement = el;
+  while (!isVisible(paint) && paint.parentElement) paint = paint.parentElement;
+
+
+  paint.classList.add("pf-req-field", "pf-req-mandatory");
+  paint.scrollIntoView({ behavior: "smooth", block: "center" });
+  paint.classList.remove("pf-req-pulse");
+  void paint.offsetWidth;
+  paint.classList.add("pf-req-pulse");
+  window.setTimeout(() => {
+    paint.classList.remove("pf-req-pulse", "pf-req-mandatory");
+  }, 2400);
+}
+
+
 
