@@ -57,8 +57,9 @@ export function RuApiLogPanel({ properties }: RuApiLogPanelProps) {
   const [detail, setDetail] = useState<RuApiLogDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
-  const { rows, actions, stats, loading, loadingMore, hasMore, error, refresh, loadMore, loadDetail } =
+  const { rows, actions, operations, owners, stats, loading, loadingMore, hasMore, error, refresh, loadMore, loadDetail } =
     useRuApiLog(filters);
+
 
 
   const propertyNames = useMemo(
