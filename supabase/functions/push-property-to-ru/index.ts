@@ -1211,8 +1211,9 @@ function buildUnitPayload(
 
   // Bedrooms: one block per bed_configuration entry (= one physical bedroom)
   const unmappedUnitBedLabels: string[] = [];
-  if (Array.isArray(unit.bed_configuration) && unit.bed_configuration.length > 0) {
-    unit.bed_configuration.forEach((bedEntry: any) => {
+  if (unitBedConfig.length > 0) {
+    unitBedConfig.forEach((bedEntry) => {
+
       const resolvedBed = resolveBedAmenityId(bedEntry.type).id;
       // Unmapped labels still send a double so the XML stays valid, but the label is reported
       // and the readiness gate blocks the push — sleeping arrangements are never guessed.
