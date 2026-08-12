@@ -31,10 +31,10 @@ const CHANNEL_MANAGER_OPTIONS = CHANNEL_REGISTRY
   .filter(c => !["nightsbridge"].includes(c.key))
   .map(c => ({
     key: c.key,
-    name:
-      VISIBLE_PMS_SYSTEMS.find(s => s.key === c.key)?.name ??
-      c.key.replace(/_/g, " ").replace(/\b\w/g, m => m.toUpperCase()),
-  }));
+    name: c.label ?? VISIBLE_PMS_SYSTEMS.find(s => s.key === c.key)?.name ?? getChannelRegistryLabel(c.key),
+  }))
+  .sort((a, b) => a.name.localeCompare(b.name));
+
 
 
 const PROPERTY_TYPE_LABELS: Record<string, string> = {
