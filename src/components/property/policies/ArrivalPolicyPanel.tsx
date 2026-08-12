@@ -248,10 +248,13 @@ export const ArrivalPolicyPanel: React.FC<ArrivalPolicyPanelProps> = ({ property
   const handleClearOverrides = async () => {
     setClearing(true);
     try {
+      const ids = overrides
+        .filter((o) => String(o.check_in_instructions ?? "").trim().length > 0)
+        .flatMap((o) => o.ids);
       const { error } = await supabase
         .from("hostfully_room_types")
         .update({ check_in_instructions: null })
-        .in("id", overrides.filter((o) => String(o.check_in_instructions ?? "").trim().length > 0).map((o) => o.id));
+        .in("id", ids);
       if (error) throw error;
       setOverrides((prev) => prev.map((o) => ({ ...o, check_in_instructions: null })));
       setUnitDrafts({});
@@ -273,10 +276,12 @@ export const ArrivalPolicyPanel: React.FC<ArrivalPolicyPanelProps> = ({ property
     }
     setSavingUnit(unit.id);
     try {
+      // Write to every duplicate record for this unit name — the wizard and the channel
+      // push may read any of them, so a single-row update would look like "not saved".
       const { error } = await supabase
         .from("hostfully_room_types")
         .update({ check_in_instructions: value.length ? value : null })
-        .eq("id", unit.id);
+        .in("id", unit.ids.length ? unit.ids : [unit.id]);
       if (error) throw error;
       setOverrides((prev) =>
         prev.map((o) => (o.id === unit.id ? { ...o, check_in_instructions: value.length ? value : null } : o)),
@@ -296,6 +301,60 @@ export const ArrivalPolicyPanel: React.FC<ArrivalPolicyPanelProps> = ({ property
       toast.error(e instanceof Error ? e.message : "Could not save the unit arrival instructions");
     } finally {
       setSavingUnit(null);
+    }
+  };
+
+  /**
+   * TOBI drafts unit-specific arrival detail (which door, which parking bay, where the key
+   * lives) seeded with the master policy. Fact-bound: no invented codes or key-safe numbers.
+   */
+  const handleDraftUnitWithTobi = async (unit: RoomOverride) => {
+    setDraftingUnit(unit.id);
+    try {
+      const { data: prop, error } = await supabase
+        .from("properties")
+        .select("name, property_type, address, city, postal_code, country, amenities")
+        .eq("id", propertyId)
+        .maybeSingle();
+      if (error) throw error;
+
+      const amenities = (prop?.amenities ?? {}) as Record<string, any>;
+      const houseRules = (amenities.house_rules ?? {}) as Record<string, any>;
+      const current = String(unitDrafts[unit.id] ?? unit.check_in_instructions ?? "").trim();
+
+      const { data, error: fnError } = await supabase.functions.invoke("editorial-ai-assist", {
+        body: {
+          action: "generate_arrival_policy",
+          minChars: MIN_ARRIVAL_CHARS,
+          propertyContext: {
+            name: prop?.name,
+            property_type: prop?.property_type,
+            street_address: prop?.address,
+            suburb: amenities.suburb ?? null,
+            city: prop?.city,
+            postal_code: prop?.postal_code,
+            country: prop?.country,
+            check_in_time: houseRules.check_in_time ?? houseRules.check_in_from,
+            check_out_time: houseRules.check_out_time ?? houseRules.check_out_until,
+            parking: amenities.parking ?? houseRules.parking,
+            unit_name: unit.name ?? null,
+            property_arrival_policy: saved.trim() || null,
+            current: current || null,
+          },
+        },
+      });
+      if (fnError) throw fnError;
+      if (data?.error) throw new Error(data.error);
+
+      const draft = String(data?.description ?? "").trim();
+      if (!draft) throw new Error("TOBI returned an empty draft — please try again.");
+      setUnitDrafts((prev) => ({ ...prev, [unit.id]: draft }));
+      onDirty?.();
+      toast.success(`TOBI drafted ${draft.length} characters for ${unit.name ?? "the unit"} — review, then save`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "TOBI could not write the unit arrival instructions");
+    } finally {
+      setDraftingUnit(null);
     }
   };
 
