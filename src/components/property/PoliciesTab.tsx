@@ -218,7 +218,7 @@ export const PoliciesTab: React.FC<PoliciesTabProps> = ({ propertyId, onOpenSpec
               : "One arrival policy for this property — pushed to channels, guest confirmations and invoices."
           }
         >
-          <ArrivalPolicyPanel propertyId={propertyId} siblings={siblings} onChanged={arrival.refetch} />
+          <ArrivalPolicyPanel propertyId={propertyId} siblings={siblings} onChanged={arrival.refetch} onDirty={onDirty} />
         </FormSection>
       </div>
 
