@@ -567,7 +567,11 @@ export function RoomManagerTab({
                   className={cn("h-7 text-xs", getRoomPmsFieldClass(selectedRoomType, "name"))}
                   disabled={isRoomFieldPmsSynced(selectedRoomType, "name")}
                 />
+                <ChannelFieldHint
+                  feedback={checkChannelName(roomTypes.find((r) => r.id === selectedRoomType)?.name || "")}
+                />
               </div>
+
               <div className="space-y-1">
                 <Label className="text-xs whitespace-nowrap">
                   # {ACCOMMODATION_TYPES[accommodationLabel as AccommodationLabelKey]?.plural || "Units"}
