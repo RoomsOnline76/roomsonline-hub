@@ -1273,6 +1273,20 @@ function buildSetPropertyStatusXml(creds: RUCredentials, propertyId: number, isA
 </Push_SetPropertiesStatus_RQ>`;
 }
 
+/**
+ * Hard removal of a listing. RU has shipped this verb under two names across
+ * account generations, so the caller probes both and keeps whichever the account
+ * honours — archiving is only a fallback when neither is recognised.
+ */
+function buildDeletePropertyXml(creds: RUCredentials, propertyId: number, verb: string): string {
+  return `<${verb}>
+  ${buildAuthXml(creds)}
+  <PropertyID>${propertyId}</PropertyID>
+</${verb}>`;
+}
+
+
+
 function buildBuildingCompositionXml(unitTypes?: RUBuildingUnitType[]): string {
   if (!unitTypes || unitTypes.length === 0) return '';
 
