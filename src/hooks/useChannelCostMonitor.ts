@@ -28,9 +28,15 @@ export interface ChannelPropertyRow {
   state: ChannelSyncState;
   /** Billable listings: active units carrying a listing (or the building listing when unit-less). */
   listings: number;
-  /** Inactive units that still carry a listing id. */
-  archivedUnits: number;
+  /**
+   * Deactivated unit records that still carry a channel listing id — duplicates
+   * that were never removed at the channel manager and can still bill.
+   */
+  duplicateListings: number;
+  /** Live units only. Deactivated mirrors never appear here. */
   units: ChannelUnitRow[];
+  /** Deactivated mirrors that still hold a channel listing id, pending removal. */
+  duplicates: ChannelUnitRow[];
   buildingListingId: string | null;
   archivedAt: string | null;
   lastPushAt: string | null;
