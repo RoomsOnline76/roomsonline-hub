@@ -137,11 +137,21 @@ export const ArrivalPolicyPanel: React.FC<ArrivalPolicyPanelProps> = ({ property
       ...amenities,
       house_rules: { ...houseRules, check_in_instructions: value },
     };
-    const { error: upErr } = await supabase
+    // Row-level security can silently match zero rows (e.g. a scoped admin editing a
+    // property outside their scope). Postgres reports no error for that, so the panel
+    // would toast "saved" while nothing persisted. Ask for the affected row back and
+    // treat an empty result as a hard failure.
+    const { data: updated, error: upErr } = await supabase
       .from("properties")
       .update({ amenities: next })
-      .eq("id", targetId);
+      .eq("id", targetId)
+      .select("id");
     if (upErr) throw upErr;
+    if (!updated || updated.length === 0) {
+      throw new Error(
+        "The arrival policy was not saved — your account does not have permission to update this property.",
+      );
+    }
   }, []);
 
   const trimmed = useMemo(() => text.trim(), [text]);
@@ -162,8 +172,20 @@ export const ArrivalPolicyPanel: React.FC<ArrivalPolicyPanelProps> = ({ property
     setSaving(true);
     try {
       await writeArrivalPolicy(propertyId, trimmed);
-      setSaved(trimmed);
-      setText(trimmed);
+      // Read the value back so the panel only reports "saved" for what the database holds.
+      const { data: verify } = await supabase
+        .from("properties")
+        .select("amenities")
+        .eq("id", propertyId)
+        .maybeSingle();
+      const stored = String(
+        ((verify?.amenities ?? {}) as Record<string, any>)?.house_rules?.check_in_instructions ?? "",
+      ).trim();
+      if (stored !== trimmed) {
+        throw new Error("The arrival policy did not persist — please reload the property and try again.");
+      }
+      setSaved(stored);
+      setText(stored);
       toast.success("Arrival policy saved");
       await onChanged?.();
     } catch (e) {
@@ -251,11 +273,17 @@ export const ArrivalPolicyPanel: React.FC<ArrivalPolicyPanelProps> = ({ property
       const ids = overrides
         .filter((o) => String(o.check_in_instructions ?? "").trim().length > 0)
         .flatMap((o) => o.ids);
-      const { error } = await supabase
+      const { data: cleared, error } = await supabase
         .from("hostfully_room_types")
         .update({ check_in_instructions: null })
-        .in("id", ids);
+        .in("id", ids)
+        .select("id");
       if (error) throw error;
+      if (ids.length > 0 && (!cleared || cleared.length === 0)) {
+        throw new Error(
+          "Nothing was cleared — your account does not have permission to update these units.",
+        );
+      }
       setOverrides((prev) => prev.map((o) => ({ ...o, check_in_instructions: null })));
       setUnitDrafts({});
       toast.success("Unit arrival instructions cleared — every unit now inherits the property policy");
@@ -278,11 +306,17 @@ export const ArrivalPolicyPanel: React.FC<ArrivalPolicyPanelProps> = ({ property
     try {
       // Write to every duplicate record for this unit name — the wizard and the channel
       // push may read any of them, so a single-row update would look like "not saved".
-      const { error } = await supabase
+      const { data: savedRows, error } = await supabase
         .from("hostfully_room_types")
         .update({ check_in_instructions: value.length ? value : null })
-        .in("id", unit.ids.length ? unit.ids : [unit.id]);
+        .in("id", unit.ids.length ? unit.ids : [unit.id])
+        .select("id");
       if (error) throw error;
+      if (!savedRows || savedRows.length === 0) {
+        throw new Error(
+          `${unit.name ?? "This unit"} was not saved — your account does not have permission to update it.`,
+        );
+      }
       setOverrides((prev) =>
         prev.map((o) => (o.id === unit.id ? { ...o, check_in_instructions: value.length ? value : null } : o)),
       );
