@@ -11,6 +11,8 @@ import { StarRating } from "@/components/StarRating";
 import { ACCOMMODATION_LABEL_OPTIONS, getAccommodationLabel } from "@/lib/accommodationLabels";
 import { getPMSFieldClass, getPMSDisplayName, isFieldPopulatedByPMS } from "@/lib/pmsFieldConfig";
 import { cn } from "@/lib/utils";
+import { ChannelFieldHint } from "@/components/property/ChannelFieldHint";
+import { checkChannelDescription } from "@/lib/channelFieldRules";
 import { X, Save, Cloud, Sparkles, Loader2, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
