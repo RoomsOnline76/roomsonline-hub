@@ -300,7 +300,14 @@ async function logSkip(
 async function pushStaticContent(
   supabase: any,
   propertyId: string,
-): Promise<{ success: boolean; errorMessage: string | null; chunks: number; units: unknown[] }> {
+): Promise<{
+  success: boolean;
+  errorMessage: string | null;
+  errorCode: string | null;
+  blockers: string[];
+  chunks: number;
+  units: unknown[];
+}> {
   let remaining: string[] | null = null;
   let batchId: string | null = null;
   const units: unknown[] = [];
@@ -316,7 +323,14 @@ async function pushStaticContent(
         },
       });
       if (error) {
-        return { success: false, errorMessage: error.message ?? 'Channel push transport failed', chunks: chunk, units };
+        return {
+          success: false,
+          errorMessage: error.message ?? 'Channel push transport failed',
+          errorCode: null,
+          blockers: [],
+          chunks: chunk,
+          units,
+        };
       }
       if (Array.isArray(data?.units)) units.push(...data.units);
       if (typeof data?.batch_id === 'string') batchId = data.batch_id;
@@ -327,11 +341,18 @@ async function pushStaticContent(
         continue;
       }
       if (data?.success === true) {
-        return { success: true, errorMessage: null, chunks: chunk, units };
+        return { success: true, errorMessage: null, errorCode: null, blockers: [], chunks: chunk, units };
       }
+      const blockers = Array.isArray(data?.blockers)
+        ? (data.blockers as unknown[]).map((b) => String(b))
+        : Array.isArray(data?.gaps)
+          ? (data.gaps as unknown[]).map((b) => String(b))
+          : [];
       return {
         success: false,
         errorMessage: data?.error?.message ?? 'The channel rejected the content push',
+        errorCode: typeof data?.error?.code === 'string' ? data.error.code : null,
+        blockers,
         chunks: chunk,
         units,
       };
@@ -339,6 +360,8 @@ async function pushStaticContent(
       return {
         success: false,
         errorMessage: err instanceof Error ? err.message : 'Unknown error',
+        errorCode: null,
+        blockers: [],
         chunks: chunk,
         units,
       };
@@ -348,6 +371,8 @@ async function pushStaticContent(
   return {
     success: false,
     errorMessage: `Content push did not finish within ${RU_STATIC_DELTA_MAX_CHUNKS} chunks — retry the outstanding units.`,
+    errorCode: null,
+    blockers: [],
     chunks: RU_STATIC_DELTA_MAX_CHUNKS,
     units,
   };
