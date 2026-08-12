@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { InsightPanelTrigger } from "@/components/InsightPanel";
 import { useAuth } from "@/hooks/useAuth";
+import { applyAdminScope } from "@/lib/adminScope";
 import { SalesRepDashboard } from "@/components/dashboard/SalesRepDashboard";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
@@ -36,7 +37,7 @@ const PIE_COLORS = [
 ];
 
 const Dashboard = () => {
-  const { user, isAdmin, isDev, isFearlessLeader, isSalesRep, salesRepId } = useAuth();
+  const { user, isAdmin, isDev, isFearlessLeader, isSalesRep, salesRepId, scopedPropertyIds } = useAuth();
   const [period, setPeriod] = useState("this_month");
   const [comparePrevYear, setComparePrevYear] = useState(true);
   const [selectedPropertyId, setSelectedPropertyId] = useState<string>("all");
