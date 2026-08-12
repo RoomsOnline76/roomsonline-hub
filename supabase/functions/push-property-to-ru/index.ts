@@ -93,40 +93,17 @@ const PROPERTY_TYPE_MAP: Record<string, number> = {
 };
 
 /**
- * Live RU property-type dictionary (`ru_property_types`, filled by
- * `rentalsunited-api?action=list_property_types`), keyed by ROL'OS slug.
+ * ObjectTypeIDs come from the curated PROPERTY_TYPE_MAP above.
  *
- * The static map above stays as the fallback for legacy slugs, so a type RU has
- * added since the last sync still maps as long as the cache has it.
+ * There is no RU pull endpoint for the ObjectType dictionary: `Pull_ListPropTypes_RQ`
+ * returns bedroom *layouts* (Studio, One Bedroom, …), a different field whose ids overlap
+ * ObjectTypeIDs numerically. Resolving listing kinds from that cache would publish the
+ * wrong type, so the static map is authoritative here.
  */
-let RU_TYPE_ID_BY_SLUG: Record<string, number> = {};
 
-async function loadRuPropertyTypeMap(supabase: any): Promise<void> {
-  try {
-    const { data, error } = await supabase
-      .from('ru_property_types')
-      .select('ru_type_id, slug, is_active')
-      .eq('is_active', true);
-    if (error) {
-      console.warn(`[push-property-to-ru] Could not load ru_property_types: ${error.message}`);
-      return;
-    }
-    const map: Record<string, number> = {};
-    for (const row of data ?? []) {
-      const slug = String(row.slug ?? '').trim();
-      const id = Number(row.ru_type_id);
-      if (slug && Number.isFinite(id) && id > 0) map[slug] = id;
-    }
-    RU_TYPE_ID_BY_SLUG = map;
-    console.log(`[push-property-to-ru] Loaded ${Object.keys(map).length} RU property types from cache`);
-  } catch (err) {
-    console.warn(`[push-property-to-ru] ru_property_types load failed: ${err instanceof Error ? err.message : err}`);
-  }
-}
-
-/** Resolve a ROL'OS type slug to an RU ObjectTypeID: live dictionary first, static map second. */
+/** Resolve a ROL'OS type slug to an RU ObjectTypeID. */
 function resolveRuTypeId(slug: string): number | undefined {
-  return RU_TYPE_ID_BY_SLUG[slug] ?? PROPERTY_TYPE_MAP[slug];
+  return PROPERTY_TYPE_MAP[slug];
 }
 
 
@@ -2538,9 +2515,6 @@ Deno.serve(async (req) => {
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
   const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
   const supabase = createClient(supabaseUrl, supabaseKey);
-  // Refresh the RU type dictionary before any payload is built so ObjectTypeIDs come from
-  // the live channel list rather than the static fallback map.
-  await loadRuPropertyTypeMap(supabase);
 
   /** Start of this run — bounds the exchange-log linkage written to ru_sync_runs. */
   const runStartedAtIso = new Date().toISOString();
