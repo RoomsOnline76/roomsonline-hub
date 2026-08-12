@@ -4,8 +4,17 @@ import { supabase } from "@/integrations/supabase/client";
 export interface ReconAccount {
   owner_id: string;
   owner_email: string | null;
+  /** Live (non-archived) listings the account holds. */
   listing_count: number;
   error: string | null;
+  /** True when this is the master/parent account, which may never hold listings. */
+  is_master?: boolean;
+}
+
+export interface ReconArchived {
+  listing_id: string;
+  name: string;
+  owner_id: string;
 }
 
 export interface ReconMatched {
@@ -37,7 +46,10 @@ export interface ReconStale {
 export interface ChannelReconciliation {
   reconciled_at: string;
   accounts: ReconAccount[];
+  /** Live listings only — archived ones never bill and are reported apart. */
   channel_listing_count: number;
+  archived_count: number;
+  archived_orphans: ReconArchived[];
   matched: ReconMatched[];
   orphans: ReconOrphan[];
   stale: ReconStale[];
@@ -82,6 +94,8 @@ export function useChannelReconciliation() {
         reconciled_at: payload.reconciled_at,
         accounts: payload.accounts || [],
         channel_listing_count: payload.channel_listing_count || 0,
+        archived_count: payload.archived_count || 0,
+        archived_orphans: payload.archived_orphans || [],
         matched: payload.matched || [],
         orphans: payload.orphans || [],
         stale: payload.stale || [],
@@ -101,6 +115,7 @@ export function useChannelReconciliation() {
         scope: "purge_listing",
         entity_id: orphan.listing_id,
         owner_id: orphan.owner_id,
+        already_archived: orphan.is_archived === true,
         reason: "Orphan listing removed during channel reconciliation",
       },
     });
