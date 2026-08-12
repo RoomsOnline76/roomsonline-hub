@@ -6,6 +6,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { AlertTriangle, CheckCircle2, Copy, Loader2, Save, Sparkles } from "lucide-react";
 import type { SiblingProperty } from "@/hooks/usePortfolioSiblings";
+import {
+  ARRIVAL_POLICY_SAVED_EVENT,
+  clearArrivalPolicyDraft,
+  setArrivalPolicyDraft,
+} from "@/lib/arrivalPolicyDraft";
 
 /** Channel gate: Rentals United rejects arrival instructions under 20 characters. */
 const MIN_ARRIVAL_CHARS = 20;
@@ -124,6 +129,19 @@ export const ArrivalPolicyPanel: React.FC<ArrivalPolicyPanelProps> = ({ property
     void load();
   }, [load]);
 
+  // The property form can persist the arrival policy through its own Save bar.
+  // Re-read when it does so this panel stops showing an "unsaved" state.
+  useEffect(() => {
+    const onSaved = (event: Event) => {
+      const detail = (event as CustomEvent<{ propertyId?: string }>).detail;
+      if (detail?.propertyId && detail.propertyId !== propertyId) return;
+      clearArrivalPolicyDraft(propertyId);
+      void load();
+    };
+    window.addEventListener(ARRIVAL_POLICY_SAVED_EVENT, onSaved);
+    return () => window.removeEventListener(ARRIVAL_POLICY_SAVED_EVENT, onSaved);
+  }, [load, propertyId]);
+
   const writeArrivalPolicy = useCallback(async (targetId: string, value: string) => {
     const { data, error } = await supabase
       .from("properties")
@@ -137,11 +155,21 @@ export const ArrivalPolicyPanel: React.FC<ArrivalPolicyPanelProps> = ({ property
       ...amenities,
       house_rules: { ...houseRules, check_in_instructions: value },
     };
-    const { error: upErr } = await supabase
+    // Row-level security can silently match zero rows (e.g. a scoped admin editing a
+    // property outside their scope). Postgres reports no error for that, so the panel
+    // would toast "saved" while nothing persisted. Ask for the affected row back and
+    // treat an empty result as a hard failure.
+    const { data: updated, error: upErr } = await supabase
       .from("properties")
       .update({ amenities: next })
-      .eq("id", targetId);
+      .eq("id", targetId)
+      .select("id");
     if (upErr) throw upErr;
+    if (!updated || updated.length === 0) {
+      throw new Error(
+        "The arrival policy was not saved — your account does not have permission to update this property.",
+      );
+    }
   }, []);
 
   const trimmed = useMemo(() => text.trim(), [text]);
@@ -153,17 +181,32 @@ export const ArrivalPolicyPanel: React.FC<ArrivalPolicyPanelProps> = ({ property
   const applyText = useCallback(
     (value: string) => {
       setText(value);
+      // Publish the draft so the property form's Save bar persists the same text.
+      setArrivalPolicyDraft(propertyId, value);
       onDirty?.();
     },
-    [onDirty],
+    [onDirty, propertyId],
   );
 
   const handleSave = async () => {
     setSaving(true);
     try {
       await writeArrivalPolicy(propertyId, trimmed);
-      setSaved(trimmed);
-      setText(trimmed);
+      // Read the value back so the panel only reports "saved" for what the database holds.
+      const { data: verify } = await supabase
+        .from("properties")
+        .select("amenities")
+        .eq("id", propertyId)
+        .maybeSingle();
+      const stored = String(
+        ((verify?.amenities ?? {}) as Record<string, any>)?.house_rules?.check_in_instructions ?? "",
+      ).trim();
+      if (stored !== trimmed) {
+        throw new Error("The arrival policy did not persist — please reload the property and try again.");
+      }
+      setSaved(stored);
+      setText(stored);
+      clearArrivalPolicyDraft(propertyId);
       toast.success("Arrival policy saved");
       await onChanged?.();
     } catch (e) {
@@ -234,6 +277,7 @@ export const ArrivalPolicyPanel: React.FC<ArrivalPolicyPanelProps> = ({ property
       if (dirty) await writeArrivalPolicy(propertyId, trimmed);
       for (const sibling of siblings) await writeArrivalPolicy(sibling.id, trimmed);
       setSaved(trimmed);
+      clearArrivalPolicyDraft(propertyId);
       toast.success(
         `Arrival policy applied to ${siblings.length} portfolio propert${siblings.length === 1 ? "y" : "ies"}`,
       );
@@ -251,11 +295,17 @@ export const ArrivalPolicyPanel: React.FC<ArrivalPolicyPanelProps> = ({ property
       const ids = overrides
         .filter((o) => String(o.check_in_instructions ?? "").trim().length > 0)
         .flatMap((o) => o.ids);
-      const { error } = await supabase
+      const { data: cleared, error } = await supabase
         .from("hostfully_room_types")
         .update({ check_in_instructions: null })
-        .in("id", ids);
+        .in("id", ids)
+        .select("id");
       if (error) throw error;
+      if (ids.length > 0 && (!cleared || cleared.length === 0)) {
+        throw new Error(
+          "Nothing was cleared — your account does not have permission to update these units.",
+        );
+      }
       setOverrides((prev) => prev.map((o) => ({ ...o, check_in_instructions: null })));
       setUnitDrafts({});
       toast.success("Unit arrival instructions cleared — every unit now inherits the property policy");
@@ -278,11 +328,17 @@ export const ArrivalPolicyPanel: React.FC<ArrivalPolicyPanelProps> = ({ property
     try {
       // Write to every duplicate record for this unit name — the wizard and the channel
       // push may read any of them, so a single-row update would look like "not saved".
-      const { error } = await supabase
+      const { data: savedRows, error } = await supabase
         .from("hostfully_room_types")
         .update({ check_in_instructions: value.length ? value : null })
-        .in("id", unit.ids.length ? unit.ids : [unit.id]);
+        .in("id", unit.ids.length ? unit.ids : [unit.id])
+        .select("id");
       if (error) throw error;
+      if (!savedRows || savedRows.length === 0) {
+        throw new Error(
+          `${unit.name ?? "This unit"} was not saved — your account does not have permission to update it.`,
+        );
+      }
       setOverrides((prev) =>
         prev.map((o) => (o.id === unit.id ? { ...o, check_in_instructions: value.length ? value : null } : o)),
       );
@@ -568,6 +624,12 @@ export const ArrivalPolicyPanel: React.FC<ArrivalPolicyPanelProps> = ({ property
                   placeholder="Blank = use the property arrival policy. Add unit-specific access here (gate code, key box, which chalet door)."
                   className={`text-xs ${unitTooShort ? "border-destructive focus-visible:ring-destructive" : ""}`}
                 />
+                {unitDirty && !unitTooShort && (
+                  <p className="text-[10px] text-amber-600">
+                    Unsaved — press <span className="font-medium">Save</span> on this unit. The property Save bar does
+                    not store unit-level instructions.
+                  </p>
+                )}
                 {unitTooShort && (
                   <p className="text-[10px] text-destructive">
                     At least {MIN_ARRIVAL_CHARS} characters — or clear the field to inherit the property policy.
