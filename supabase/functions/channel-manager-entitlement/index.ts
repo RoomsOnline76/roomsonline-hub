@@ -500,7 +500,9 @@ Deno.serve(async (req) => {
       );
     }
 
-    // ── Purge a single orphan listing id upstream ─────────────────────
+    // ── Remove a single listing id upstream: verify → delete → verify ─
+    //    A Status 0 envelope is never treated as proof. The local id is only
+    //    cleared once the account stops returning the listing.
     if (raw.scope === "purge_listing") {
       const listingId = String(raw.entity_id);
       let ownerId = raw.owner_id ? String(raw.owner_id) : null;
@@ -513,47 +515,94 @@ Deno.serve(async (req) => {
           .maybeSingle();
         ownerId = acct?.ru_owner_id ? String(acct.ru_owner_id) : null;
       }
-      // Any local record pointing at this id is cleared once the archive lands.
       const { data: ownerProp } = await admin
         .from("properties")
         .select("id")
         .eq("rentalsunited_property_id", listingId)
         .maybeSingle();
-      // Re-archiving something the channel already reports as archived is a
-      // wasted call that looks like a failed clean-up, so honour the caller's
-      // "already archived" flag and only clear the local id.
-      if (raw.already_archived !== true) {
-        const failure = await pushListingStatus(admin, {
-          propertyId: ownerProp?.id ?? "",
-          ruPropertyId: listingId,
-          archive: true,
+      const propertyId = ownerProp?.id ?? "";
+
+      // 1. Is it actually still there?
+      const before = await verifyListingPresence(admin, {
+        listingId,
+        ownerId,
+        ctx: logCtx(traceId, "channel-cleanup:verify"),
+      });
+      if (before.error) return bad(before.error, 502);
+
+      let outcome: "already_gone" | "deleted" | "refused" = "already_gone";
+      let method: "deleted" | "archived" | "none" = "none";
+      let detail = `listing ${listingId} was no longer held by the channel account`;
+
+      if (before.present) {
+        // 2. Remove it for real.
+        const removal = await removeListingUpstream(admin, {
+          propertyId,
+          listingId,
           ownerId,
+          ctx: logCtx(traceId, "channel-cleanup:delete"),
         });
-        if (failure) return bad(failure, 502);
+        if (removal.error) return bad(removal.error, 502);
+        method = removal.method;
+
+        // 3. Confirm against the account, not against the reply.
+        const after = await verifyListingPresence(admin, {
+          listingId,
+          ownerId,
+          ctx: logCtx(traceId, "channel-cleanup:verify_after"),
+        });
+        if (after.error) return bad(after.error, 502);
+
+        if (after.present) {
+          outcome = "refused";
+          detail = `listing ${listingId} is still returned by the channel account after a ${method} request${
+            after.archived ? " (archived, not removed)" : ""
+          }`;
+        } else {
+          outcome = "deleted";
+          detail = `listing ${listingId} confirmed removed from the channel account (${method})`;
+        }
       }
 
-      await admin.from("properties").update({ rentalsunited_property_id: null }).eq("rentalsunited_property_id", listingId);
-      await admin
-        .from("hostfully_room_types")
-        .update({ rentalsunited_property_id: null })
-        .eq("rentalsunited_property_id", listingId);
+      // The local id is only released on a confirmed absence.
+      if (outcome !== "refused") {
+        await admin
+          .from("properties")
+          .update({ rentalsunited_property_id: null })
+          .eq("rentalsunited_property_id", listingId);
+        await admin
+          .from("hostfully_room_types")
+          .update({ rentalsunited_property_id: null })
+          .eq("rentalsunited_property_id", listingId);
+      }
+
       await admin.from("ru_archive_events").insert({
         property_id: ownerProp?.id ?? null,
-        property_name: `Orphan listing purge (#${listingId})`,
+        property_name: `Listing cleanup (#${listingId})`,
         direction: "archived",
         unit_count: 0,
-        listing_count: 1,
-        reason: raw.reason ?? "Orphan listing removed during channel reconciliation",
+        listing_count: outcome === "refused" ? 0 : 1,
+        reason: raw.reason ?? "Listing removed during channel reconciliation",
         actor_user_id: userData.user.id,
         actor_email: actorEmail,
-        ru_status: "updated",
-        detail: `listing ${listingId} archived at the channel manager`,
+        ru_status: outcome === "refused" ? "ru_failed" : "updated",
+        detail,
       });
 
-      return new Response(JSON.stringify({ success: true, listing_id: listingId }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({
+          success: outcome !== "refused",
+          listing_id: listingId,
+          outcome,
+          method,
+          trace_id: traceId,
+          detail,
+          ...(outcome === "refused" ? { error: detail } : {}),
+        }),
+        { status: outcome === "refused" ? 409 : 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
+
 
     // ── Clear a stale local listing id (already gone upstream) ────────
     if (raw.scope === "clear_local_listing") {
