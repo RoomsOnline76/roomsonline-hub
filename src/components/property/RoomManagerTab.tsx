@@ -32,6 +32,8 @@ import { isFieldPopulatedByPMS, getPMSDisplayName } from "@/lib/pmsFieldConfig";
 import { ChannelFieldHint } from "@/components/property/ChannelFieldHint";
 import { checkChannelName } from "@/lib/channelFieldRules";
 import { channelMandatoryClass } from "@/lib/channelMandatoryFields";
+import { markerFlags } from "@/lib/fieldMarkers";
+import { UNIT_ROW_RULES } from "@/config/propertyFieldRequirements";
 import {
   CHANGEOVER_CODES,
   normalizeChannelPropertyType,
@@ -589,7 +591,7 @@ export function RoomManagerTab({
                   value={roomTypes.find((r) => r.id === selectedRoomType)?.name || ""}
                   onChange={(e) => updateRoomTypeName(selectedRoomType, e.target.value)}
                   className={cn("h-7 text-xs", channelMandatoryClass("room_name"), getRoomPmsFieldClass(selectedRoomType, "name"))}
-                  data-channel-satisfied={checkChannelName(roomTypes.find((r) => r.id === selectedRoomType)?.name || "").status === "ok" ? "1" : "0"}
+                  {...markerFlags(checkChannelName(selectedRoom?.name || "").status === "ok" && !!(selectedRoom?.name || "").trim())}
                   disabled={isRoomFieldPmsSynced(selectedRoomType, "name")}
                 />
                 <ChannelFieldHint
@@ -681,7 +683,7 @@ export function RoomManagerTab({
                   <Textarea
                     data-field="room_description"
                     className={cn("text-xs min-h-[60px]", channelMandatoryClass("room_description"), roomDescriptionTooShort && "border-destructive focus-visible:ring-destructive")}
-                    data-channel-satisfied={roomDescriptionTooShort ? "0" : "1"}
+                    {...markerFlags(!roomDescriptionTooShort)}
                     placeholder="Room description..."
                     value={selectedRoom?.description || ""}
                     onChange={(e) => updateRoomTypeField(selectedRoomType, "description", e.target.value)}
@@ -776,7 +778,7 @@ export function RoomManagerTab({
                     value={selectedRoom?.description || ""}
                     onChange={(e) => updateRoomTypeField(selectedRoomType, "description", e.target.value)}
                     disabled={roomDescriptionPmsSynced}
-                    data-channel-satisfied={roomDescriptionTooShort ? "0" : "1"}
+                    {...markerFlags(!roomDescriptionTooShort)}
                   />
                   {!roomDescriptionPmsSynced && (
                     roomDescriptionTooShort ? (
@@ -809,7 +811,7 @@ export function RoomManagerTab({
                   <div
                     data-field="bed_configuration"
                     className={cn("border rounded-md p-2 space-y-2", channelMandatoryClass("bed_configuration"))}
-                    data-channel-satisfied={calculateBedCapacity(parseBedConfiguration(selectedRoom?.bedConfiguration)) >= Number(selectedRoom?.maxPeople || 1) ? "1" : "0"}
+                    {...markerFlags(UNIT_ROW_RULES.beds({ bedConfiguration: selectedRoom?.bedConfiguration, maxPeople: selectedRoom?.maxPeople }))}
                   >
                     {(() => {
                       const currentRoom = roomTypes.find((r) => r.id === selectedRoomType);
@@ -899,7 +901,7 @@ export function RoomManagerTab({
                     <Input type="number" min={1}
                       data-field="room_size"
                       className={cn("h-7 w-full text-xs", channelMandatoryClass("room_size"))}
-                      data-channel-satisfied={Number(roomTypes.find((r) => r.id === selectedRoomType)?.roomSize || 0) > 0 ? "1" : "0"}
+                      {...markerFlags(UNIT_ROW_RULES.size({ roomSize: selectedRoom?.roomSize }))}
                       value={roomTypes.find((r) => r.id === selectedRoomType)?.roomSize || ""}
                       onChange={(e) => updateRoomTypeField(selectedRoomType, "roomSize", parseInt(e.target.value) || 0)}
                     />
@@ -930,7 +932,7 @@ export function RoomManagerTab({
                       <SelectTrigger
                         data-field="floor"
                         className={cn("h-7 w-full text-xs", channelMandatoryClass("floor"))}
-                        data-channel-satisfied={roomTypes.find((r) => r.id === selectedRoomType)?.floor == null ? "0" : "1"}
+                        {...markerFlags(UNIT_ROW_RULES.floor({ floor: selectedRoom?.floor }))}
                       >
                         <SelectValue placeholder="Select floor" />
                       </SelectTrigger>
@@ -957,7 +959,7 @@ export function RoomManagerTab({
                     <Input type="number" min={1}
                       data-field="bathrooms"
                       className={cn("h-7 w-full text-xs", channelMandatoryClass("bathrooms"))}
-                      data-channel-satisfied={Number(roomTypes.find((r) => r.id === selectedRoomType)?.bathrooms) >= 1 ? "1" : "0"}
+                      {...markerFlags(UNIT_ROW_RULES.bathrooms({ bathrooms: selectedRoom?.bathrooms }))}
                       value={(() => { const value = roomTypes.find((r) => r.id === selectedRoomType)?.bathrooms; return value === null || value === undefined ? "" : String(value); })()}
                       onChange={(e) => updateRoomTypeField(selectedRoomType, "bathrooms", e.target.value === "" ? null : Number(e.target.value))}
                     />
@@ -977,7 +979,7 @@ export function RoomManagerTab({
                     <Input type="number" min={1} placeholder="Required"
                       data-field="toilets"
                       className={cn("h-7 w-full text-xs", channelMandatoryClass("toilets"))}
-                      data-channel-satisfied={Number(roomTypes.find((r) => r.id === selectedRoomType)?.toilets) >= 1 ? "1" : "0"}
+                      {...markerFlags(UNIT_ROW_RULES.toilets({ toilets: selectedRoom?.toilets }))}
                       value={(() => { const t = roomTypes.find((r) => r.id === selectedRoomType)?.toilets; return t === null || t === undefined ? "" : String(t); })()}
                       onChange={(e) => updateRoomTypeField(selectedRoomType, "toilets", e.target.value === "" ? null : Number(e.target.value))}
                     />
@@ -1017,7 +1019,7 @@ export function RoomManagerTab({
                       <SelectTrigger
                         data-field="channel_property_type"
                         className={cn("h-7 w-full text-xs", channelMandatoryClass("channel_property_type"))}
-                        data-channel-satisfied={resolvedType.isMapped ? "1" : "0"}
+                        {...markerFlags(resolvedType.isMapped)}
                       >
                         <SelectValue placeholder="Required — select type" />
                       </SelectTrigger>
@@ -1112,7 +1114,7 @@ export function RoomManagerTab({
                     <Input type="number"
                       data-field="max_guests"
                       className={cn("h-7 w-full text-xs", channelMandatoryClass("max_guests"), getRoomPmsFieldClass(selectedRoomType, "maxPeople"))}
-                      data-channel-satisfied={Number(roomTypes.find((r) => r.id === selectedRoomType)?.maxPeople) >= 1 ? "1" : "0"}
+                      {...markerFlags(UNIT_ROW_RULES.maxGuests({ maxPeople: selectedRoom?.maxPeople }))}
                       value={roomTypes.find((r) => r.id === selectedRoomType)?.maxPeople || 2}
                       onChange={(e) => updateRoomTypeField(selectedRoomType, "maxPeople", parseInt(e.target.value) || 1)}
                       disabled={isRoomFieldPmsSynced(selectedRoomType, "maxPeople")}
@@ -1520,7 +1522,7 @@ export function RoomManagerTab({
             <div
               data-field="room_amenities"
               className={channelMandatoryClass("room_amenities")}
-              data-channel-satisfied={ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.amenities).length >= 10 ? "1" : "0"}
+              {...markerFlags(ensureArray(selectedRoom?.amenities).length >= 10)}
             >
               <RUAmenityPicker
                 value={ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.amenities) as string[]}
@@ -1667,7 +1669,7 @@ export function RoomManagerTab({
             <div
               data-field="room_images"
               className={cn("grid grid-cols-6 gap-4", channelMandatoryClass("room_images"))}
-              data-channel-satisfied={(roomTypes.find((r) => r.id === selectedRoomType)?.images || []).length >= 10 ? "1" : "0"}
+              {...markerFlags((selectedRoom?.images || []).length >= 10)}
             >
               {/* Upload slot */}
               <div
