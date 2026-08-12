@@ -3146,6 +3146,21 @@ export default function PropertyForm({
 
       schema.parse(formData);
 
+      // The Arrival policy editor (Policies tab) is the sole author of
+      // amenities.house_rules.check_in_instructions and writes it directly. Read the stored
+      // value back here so this save preserves it instead of rebuilding house_rules without it.
+      let storedArrivalInstructions: string | null = null;
+      if (isEditMode && propertyId) {
+        const { data: existingArrival } = await supabase
+          .from("properties")
+          .select("amenities")
+          .eq("id", propertyId)
+          .maybeSingle();
+        const existingHouseRules = ((existingArrival?.amenities as any)?.house_rules ?? {}) as Record<string, unknown>;
+        const existingText = String(existingHouseRules.check_in_instructions ?? "").trim();
+        storedArrivalInstructions = existingText.length > 0 ? existingText : null;
+      }
+
       // Prepare data for database
       const propertyData = {
         name: formData.name,
@@ -3320,6 +3335,8 @@ export default function PropertyForm({
             check_out_from: formData.check_out_from,
             check_out_to: formData.check_out_to,
             children_policy: formData.children_policy,
+            // Authored in the Policies tab → Arrival policy; preserved verbatim here.
+            check_in_instructions: storedArrivalInstructions,
             infant_age_from: formData.infant_age_from,
             infant_age_to: formData.infant_age_to,
             children_age_from: formData.children_age_from,

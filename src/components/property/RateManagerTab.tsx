@@ -168,7 +168,13 @@ export function RateManagerTab({
 
           {/* ── Policies Sub-tab ──────────────────────────────────────────── */}
           <TabsContent value="policies" className="p-4 space-y-5">
-            {propertyId && <PoliciesTab propertyId={propertyId} onOpenSpecials={onOpenSpecials} />}
+            {propertyId && (
+              <PoliciesTab
+                propertyId={propertyId}
+                onOpenSpecials={onOpenSpecials}
+                onDirty={() => setIsDirty(true)}
+              />
+            )}
             {!propertyId && <p className="text-xs text-muted-foreground">Save the property first to configure policies.</p>}
             {policiesExtra && (
               <section className="pf-section">

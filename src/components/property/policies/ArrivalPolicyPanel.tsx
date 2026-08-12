@@ -16,6 +16,12 @@ interface RoomOverride {
   id: string;
   name: string | null;
   check_in_instructions: string | null;
+  /**
+   * Every active record that carries this unit name. Legacy imports left duplicate rows
+   * (e.g. "Albatros" and "ALBATROS"); a save must reach all of them or the channel wizard
+   * and the push keep reading a blank copy.
+   */
+  ids: string[];
 }
 
 interface ArrivalPolicyPanelProps {
@@ -23,6 +29,8 @@ interface ArrivalPolicyPanelProps {
   siblings: SiblingProperty[];
   /** Fired after any save so the Policy library row stays in step with the editor. */
   onChanged?: () => void | Promise<void>;
+  /** Fired on any local edit (typing or a TOBI draft) so the property form shows its Save bar. */
+  onDirty?: () => void;
 }
 
 /**
@@ -33,7 +41,7 @@ interface ArrivalPolicyPanelProps {
  * pro-forma invoice already fall back to. Room-level instructions override it, so overrides
  * are surfaced here and can be cleared to keep one source of truth.
  */
-export const ArrivalPolicyPanel: React.FC<ArrivalPolicyPanelProps> = ({ propertyId, siblings, onChanged }) => {
+export const ArrivalPolicyPanel: React.FC<ArrivalPolicyPanelProps> = ({ propertyId, siblings, onChanged, onDirty }) => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [copying, setCopying] = useState(false);
@@ -44,6 +52,7 @@ export const ArrivalPolicyPanel: React.FC<ArrivalPolicyPanelProps> = ({ property
   const [overrides, setOverrides] = useState<RoomOverride[]>([]);
   const [unitDrafts, setUnitDrafts] = useState<Record<string, string>>({});
   const [savingUnit, setSavingUnit] = useState<string | null>(null);
+  const [draftingUnit, setDraftingUnit] = useState<string | null>(null);
 
 
 
@@ -74,7 +83,7 @@ export const ArrivalPolicyPanel: React.FC<ArrivalPolicyPanelProps> = ({ property
         const name = String(rt?.name ?? "").trim();
         if (name) canonicalNames.set(name.toLowerCase(), name);
       }
-      const active = ((rooms ?? []) as Array<RoomOverride & { is_active?: boolean | null }>).filter(
+      const active = ((rooms ?? []) as Array<Omit<RoomOverride, "ids"> & { is_active?: boolean | null }>).filter(
         (r) => r.is_active === true,
       );
       const byName = new Map<string, RoomOverride>();
@@ -85,9 +94,17 @@ export const ArrivalPolicyPanel: React.FC<ArrivalPolicyPanelProps> = ({ property
         if (canonicalNames.size > 0 && !canonicalNames.has(key)) continue;
         const display = canonicalNames.get(key) ?? raw;
         const existing = byName.get(key);
+        if (!existing) {
+          byName.set(key, { ...room, name: display, ids: [room.id] });
+          continue;
+        }
+        // Track every duplicate record so a save reaches all of them.
+        const ids = existing.ids.includes(room.id) ? existing.ids : [...existing.ids, room.id];
         // Prefer the record that already carries unit-specific instructions.
-        if (!existing || (!existing.check_in_instructions && room.check_in_instructions)) {
-          byName.set(key, { ...room, name: display });
+        if (!existing.check_in_instructions && room.check_in_instructions) {
+          byName.set(key, { ...room, name: display, ids });
+        } else {
+          byName.set(key, { ...existing, ids });
         }
       }
       setOverrides(
@@ -131,6 +148,15 @@ export const ArrivalPolicyPanel: React.FC<ArrivalPolicyPanelProps> = ({ property
   const tooShort = trimmed.length > 0 && trimmed.length < MIN_ARRIVAL_CHARS;
   const belowTarget = trimmed.length >= MIN_ARRIVAL_CHARS && trimmed.length < TARGET_ARRIVAL_CHARS;
   const dirty = text !== saved;
+
+  /** Local edit: keep the panel state and flag the property form so its Save bar appears. */
+  const applyText = useCallback(
+    (value: string) => {
+      setText(value);
+      onDirty?.();
+    },
+    [onDirty],
+  );
 
   const handleSave = async () => {
     setSaving(true);
@@ -191,7 +217,7 @@ export const ArrivalPolicyPanel: React.FC<ArrivalPolicyPanelProps> = ({ property
 
       const draft = String(data?.description ?? "").trim();
       if (!draft) throw new Error("TOBI returned an empty draft — please try again.");
-      setText(draft);
+      applyText(draft);
       toast.success(`TOBI drafted ${draft.length} characters — review it, then save`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "TOBI could not write the arrival policy");
@@ -222,10 +248,13 @@ export const ArrivalPolicyPanel: React.FC<ArrivalPolicyPanelProps> = ({ property
   const handleClearOverrides = async () => {
     setClearing(true);
     try {
+      const ids = overrides
+        .filter((o) => String(o.check_in_instructions ?? "").trim().length > 0)
+        .flatMap((o) => o.ids);
       const { error } = await supabase
         .from("hostfully_room_types")
         .update({ check_in_instructions: null })
-        .in("id", overrides.filter((o) => String(o.check_in_instructions ?? "").trim().length > 0).map((o) => o.id));
+        .in("id", ids);
       if (error) throw error;
       setOverrides((prev) => prev.map((o) => ({ ...o, check_in_instructions: null })));
       setUnitDrafts({});
@@ -247,10 +276,12 @@ export const ArrivalPolicyPanel: React.FC<ArrivalPolicyPanelProps> = ({ property
     }
     setSavingUnit(unit.id);
     try {
+      // Write to every duplicate record for this unit name — the wizard and the channel
+      // push may read any of them, so a single-row update would look like "not saved".
       const { error } = await supabase
         .from("hostfully_room_types")
         .update({ check_in_instructions: value.length ? value : null })
-        .eq("id", unit.id);
+        .in("id", unit.ids.length ? unit.ids : [unit.id]);
       if (error) throw error;
       setOverrides((prev) =>
         prev.map((o) => (o.id === unit.id ? { ...o, check_in_instructions: value.length ? value : null } : o)),
@@ -273,6 +304,60 @@ export const ArrivalPolicyPanel: React.FC<ArrivalPolicyPanelProps> = ({ property
     }
   };
 
+  /**
+   * TOBI drafts unit-specific arrival detail (which door, which parking bay, where the key
+   * lives) seeded with the master policy. Fact-bound: no invented codes or key-safe numbers.
+   */
+  const handleDraftUnitWithTobi = async (unit: RoomOverride) => {
+    setDraftingUnit(unit.id);
+    try {
+      const { data: prop, error } = await supabase
+        .from("properties")
+        .select("name, property_type, address, city, postal_code, country, amenities")
+        .eq("id", propertyId)
+        .maybeSingle();
+      if (error) throw error;
+
+      const amenities = (prop?.amenities ?? {}) as Record<string, any>;
+      const houseRules = (amenities.house_rules ?? {}) as Record<string, any>;
+      const current = String(unitDrafts[unit.id] ?? unit.check_in_instructions ?? "").trim();
+
+      const { data, error: fnError } = await supabase.functions.invoke("editorial-ai-assist", {
+        body: {
+          action: "generate_arrival_policy",
+          minChars: MIN_ARRIVAL_CHARS,
+          propertyContext: {
+            name: prop?.name,
+            property_type: prop?.property_type,
+            street_address: prop?.address,
+            suburb: amenities.suburb ?? null,
+            city: prop?.city,
+            postal_code: prop?.postal_code,
+            country: prop?.country,
+            check_in_time: houseRules.check_in_time ?? houseRules.check_in_from,
+            check_out_time: houseRules.check_out_time ?? houseRules.check_out_until,
+            parking: amenities.parking ?? houseRules.parking,
+            unit_name: unit.name ?? null,
+            property_arrival_policy: saved.trim() || null,
+            current: current || null,
+          },
+        },
+      });
+      if (fnError) throw fnError;
+      if (data?.error) throw new Error(data.error);
+
+      const draft = String(data?.description ?? "").trim();
+      if (!draft) throw new Error("TOBI returned an empty draft — please try again.");
+      setUnitDrafts((prev) => ({ ...prev, [unit.id]: draft }));
+      onDirty?.();
+      toast.success(`TOBI drafted ${draft.length} characters for ${unit.name ?? "the unit"} — review, then save`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "TOBI could not write the unit arrival instructions");
+    } finally {
+      setDraftingUnit(null);
+    }
+  };
+
 
   if (loading) {
     return (
@@ -286,7 +371,7 @@ export const ArrivalPolicyPanel: React.FC<ArrivalPolicyPanelProps> = ({ property
     <div className="space-y-2" data-field="arrival_policy">
       <Textarea
         value={text}
-        onChange={(e) => setText(e.target.value)}
+        onChange={(e) => applyText(e.target.value)}
         rows={6}
         placeholder="How guests arrive: directions from the main road, gate or access codes, where to collect keys, who to call, and what happens on a late arrival."
         className={`text-xs ${tooShort ? "border-destructive focus-visible:ring-destructive" : ""}`}
@@ -432,11 +517,30 @@ export const ArrivalPolicyPanel: React.FC<ArrivalPolicyPanelProps> = ({ property
                         size="sm"
                         variant="ghost"
                         className="h-6 text-[10px]"
-                        onClick={() => setUnitDrafts((prev) => ({ ...prev, [unit.id]: "" }))}
+                        onClick={() => {
+                          setUnitDrafts((prev) => ({ ...prev, [unit.id]: "" }));
+                          onDirty?.();
+                        }}
                       >
                         Use property policy
                       </Button>
                     )}
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-6 text-[10px]"
+                      disabled={draftingUnit === unit.id || savingUnit === unit.id}
+                      onClick={() => void handleDraftUnitWithTobi(unit)}
+                      title="TOBI drafts arrival detail for this unit, seeded with the property policy"
+                    >
+                      {draftingUnit === unit.id ? (
+                        <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                      ) : (
+                        <Sparkles className="h-3 w-3 mr-1" />
+                      )}
+                      {draftTrimmed.length > 0 ? "Improve with TOBI" : "Write with TOBI"}
+                    </Button>
                     <Button
                       type="button"
                       size="sm"
@@ -456,7 +560,10 @@ export const ArrivalPolicyPanel: React.FC<ArrivalPolicyPanelProps> = ({ property
                 </div>
                 <Textarea
                   value={draft}
-                  onChange={(e) => setUnitDrafts((prev) => ({ ...prev, [unit.id]: e.target.value }))}
+                  onChange={(e) => {
+                    setUnitDrafts((prev) => ({ ...prev, [unit.id]: e.target.value }));
+                    onDirty?.();
+                  }}
                   rows={3}
                   placeholder="Blank = use the property arrival policy. Add unit-specific access here (gate code, key box, which chalet door)."
                   className={`text-xs ${unitTooShort ? "border-destructive focus-visible:ring-destructive" : ""}`}
