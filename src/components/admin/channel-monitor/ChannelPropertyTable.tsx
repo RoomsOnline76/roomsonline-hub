@@ -18,7 +18,8 @@ interface Props {
   onArchive: (row: ChannelPropertyRow) => void;
   onReactivate: (row: ChannelPropertyRow) => void;
   onToggleUnit: (row: ChannelPropertyRow, unit: ChannelUnitRow, activate: boolean) => void;
-
+  /** Remove one duplicate listing (or all of them when unit is omitted) from the channel manager. */
+  onPurgeDuplicate: (row: ChannelPropertyRow, unit?: ChannelUnitRow) => void;
 }
 
 const STATE_LABELS: Record<ChannelSyncState, string> = {
@@ -27,7 +28,16 @@ const STATE_LABELS: Record<ChannelSyncState, string> = {
   archived: "Archived",
 };
 
-export function ChannelPropertyTable({ rows, fx, busyPropertyId, busyUnitId, onArchive, onReactivate, onToggleUnit }: Props) {
+export function ChannelPropertyTable({
+  rows,
+  fx,
+  busyPropertyId,
+  busyUnitId,
+  onArchive,
+  onReactivate,
+  onToggleUnit,
+  onPurgeDuplicate,
+}: Props) {
   const [search, setSearch] = useState("");
   const [stateFilter, setStateFilter] = useState<"all" | ChannelSyncState>("all");
   const [portfolioFilter, setPortfolioFilter] = useState<string>("all");
