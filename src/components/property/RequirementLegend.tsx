@@ -48,7 +48,48 @@ export const RequirementLegend: React.FC<RequirementLegendProps> = ({
     };
   }, [macros, overall.readyToConnect, propertyId]);
 
-  if (mandatoryTotal === 0 && recommendedTotal === 0 && !channel) return null;
+  /**
+   * The legend must count exactly what the wizard counts. When the wizard is
+   * available we derive the field totals from the macro steps (deduplicated by
+   * requirement key) instead of the raw readiness registry, so the strip can
+   * never report "all complete" while the wizard still lists due fields.
+   */
+  const counts = useMemo(() => {
+    if (!propertyId || macros.length === 0) {
+      return {
+        mandatoryOutstanding,
+        mandatoryTotal,
+        recommendedOutstanding,
+        recommendedTotal,
+      };
+    }
+    const seen = new Set<string>();
+    let mT = 0;
+    let mO = 0;
+    let rT = 0;
+    let rO = 0;
+    for (const m of macros) {
+      for (const item of m.fieldItems) {
+        if (seen.has(item.key)) continue;
+        seen.add(item.key);
+        if (item.tier === "mandatory") {
+          mT += 1;
+          if (!item.satisfied) mO += 1;
+        } else {
+          rT += 1;
+          if (!item.satisfied) rO += 1;
+        }
+      }
+    }
+    return {
+      mandatoryOutstanding: mO,
+      mandatoryTotal: mT,
+      recommendedOutstanding: rO,
+      recommendedTotal: rT,
+    };
+  }, [macros, mandatoryOutstanding, mandatoryTotal, propertyId, recommendedOutstanding, recommendedTotal]);
+
+  if (counts.mandatoryTotal === 0 && counts.recommendedTotal === 0 && !channel) return null;
 
   return (
     <div
@@ -62,20 +103,25 @@ export const RequirementLegend: React.FC<RequirementLegendProps> = ({
         <span className="pf-req-legend-dot pf-req-legend-mandatory" aria-hidden />
         <span className="font-medium">Mandatory fields</span>
         <span className="text-muted-foreground">
-          {mandatoryOutstanding === 0
-            ? "all complete"
-            : `${mandatoryOutstanding} of ${mandatoryTotal} outstanding`}
+          {isLoading
+            ? "checking…"
+            : counts.mandatoryOutstanding === 0
+              ? "all complete"
+              : `${counts.mandatoryOutstanding} of ${counts.mandatoryTotal} outstanding`}
         </span>
       </span>
       <span className="flex items-center gap-1.5">
         <span className="pf-req-legend-dot pf-req-legend-recommended" aria-hidden />
         <span className="font-medium">Nice to have</span>
         <span className="text-muted-foreground">
-          {recommendedOutstanding === 0
-            ? "all complete"
-            : `${recommendedOutstanding} of ${recommendedTotal} outstanding`}
+          {isLoading
+            ? "checking…"
+            : counts.recommendedOutstanding === 0
+              ? "all complete"
+              : `${counts.recommendedOutstanding} of ${counts.recommendedTotal} outstanding`}
         </span>
       </span>
+
 
       {channel && (
         <TooltipProvider delayDuration={100}>
