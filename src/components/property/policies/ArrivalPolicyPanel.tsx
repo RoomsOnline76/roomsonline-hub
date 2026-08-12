@@ -83,7 +83,7 @@ export const ArrivalPolicyPanel: React.FC<ArrivalPolicyPanelProps> = ({ property
         const name = String(rt?.name ?? "").trim();
         if (name) canonicalNames.set(name.toLowerCase(), name);
       }
-      const active = ((rooms ?? []) as Array<RoomOverride & { is_active?: boolean | null }>).filter(
+      const active = ((rooms ?? []) as Array<Omit<RoomOverride, "ids"> & { is_active?: boolean | null }>).filter(
         (r) => r.is_active === true,
       );
       const byName = new Map<string, RoomOverride>();
@@ -94,9 +94,17 @@ export const ArrivalPolicyPanel: React.FC<ArrivalPolicyPanelProps> = ({ property
         if (canonicalNames.size > 0 && !canonicalNames.has(key)) continue;
         const display = canonicalNames.get(key) ?? raw;
         const existing = byName.get(key);
+        if (!existing) {
+          byName.set(key, { ...room, name: display, ids: [room.id] });
+          continue;
+        }
+        // Track every duplicate record so a save reaches all of them.
+        const ids = existing.ids.includes(room.id) ? existing.ids : [...existing.ids, room.id];
         // Prefer the record that already carries unit-specific instructions.
-        if (!existing || (!existing.check_in_instructions && room.check_in_instructions)) {
-          byName.set(key, { ...room, name: display });
+        if (!existing.check_in_instructions && room.check_in_instructions) {
+          byName.set(key, { ...room, name: display, ids });
+        } else {
+          byName.set(key, { ...existing, ids });
         }
       }
       setOverrides(
