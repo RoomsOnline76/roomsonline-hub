@@ -222,6 +222,7 @@ export const RU_CHECK_DEEPLINK: Record<string, { focus: string; tab: string }> =
   object_type_authored: { focus: "property_type", tab: "general" },
   beds_authored: { focus: "rooms", tab: "rooms" },
   ru_location_authored: { focus: "address", tab: "general" },
+  ru_location_selected: { focus: "address", tab: "general" },
 };
 
 
