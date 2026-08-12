@@ -384,23 +384,22 @@ export const PROPERTY_FIELD_REQUIREMENTS: FieldRequirement[] = [
   },
   {
     key: "hero_image",
-    label: "Hero image designated",
-    tier: "recommended",
+    label: "Main photo flagged",
+    tier: "mandatory",
     section: "images",
     target: ['[data-field="images"]', "#property-images"],
-    hint: "Mark one image as the hero / featured image.",
+    hint: "Flag one photo as the main image — the channel rejects the listing without it.",
     isSatisfied: (s) => {
       const imgs = imageList(s);
       if (imgs.length === 0) return false;
-      return imgs.some(
-        (img) =>
-          typeof img === "string" ||
-          (img as Record<string, unknown>)?.type === "hero" ||
-          (img as Record<string, unknown>)?.is_main === true ||
-          (img as Record<string, unknown>)?.is_hero === true,
-      );
+      return imgs.some((img) => {
+        if (typeof img === "string") return false;
+        const rec = img as Record<string, unknown>;
+        return rec?.type === "hero" || rec?.is_main === true || rec?.is_hero === true;
+      });
     },
   },
+
 
   /* ---------- Contacts ---------- */
   {

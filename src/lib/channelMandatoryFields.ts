@@ -49,6 +49,8 @@ export const CHANNEL_MANDATORY_FIELDS: ChannelMandatoryField[] = [
   { field: "toilets", check: "has_toilets", reason: "Every unit must have at least 1 toilet; blank and zero are rejected" },
   { field: "bed_configuration", check: "beds_meet_max_guests", reason: "Authored beds must sleep the unit's full maximum occupancy" },
   { field: "room_images", check: "meets_minimum_images", reason: "Each listing needs at least 10 channel-ready photos" },
+  { field: "hero_image", check: "has_main_image", reason: "One photo must be flagged as the main image — the channel rejects a listing without it" },
+
   { field: "room_amenities", check: "meets_minimum_amenities", reason: "Each listing needs at least 10 mapped amenities" },
   { field: "channel_property_type", check: "object_type_authored", reason: "Channel property type — an unmapped value publishes as an assumed Chalet" },
   { field: "changeover_rules", check: "changeover_authored", reason: "Changeover rule — without it the channel receives an assumed arrival/departure any day" },
