@@ -35,16 +35,19 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
     [result],
   );
 
-  // Archived listings still exist on the account, so a cleanup has to delete
-  // them too — hiding them is what left 24 ghosts behind last time.
+  // Only real discrepancies are cleanable: live listings on the account with no
+  // local match, plus stale local ids. Archived listings are already gone from
+  // the portal and carry no cost, so a matched account has nothing to clean up.
   const cleanableListings = useMemo(
-    () =>
-      [...(result?.orphans || []), ...(result?.archived_orphans || [])].filter(
-        (o) => !erroredOwners.has(o.owner_id),
-      ),
+    () => (result?.orphans || []).filter((o) => !erroredOwners.has(o.owner_id)),
     [result, erroredOwners],
   );
   const cleanableTotal = cleanableListings.length + (result?.stale.length || 0);
+  const archivedCleanable = useMemo(
+    () => (result?.archived_orphans || []).filter((a) => !erroredOwners.has(a.owner_id)),
+    [result, erroredOwners],
+  );
+
 
   const handlePurge = useCallback(
     async (listing: { listing_id: string; owner_id: string; name: string }) => {
