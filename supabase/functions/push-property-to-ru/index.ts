@@ -2624,6 +2624,42 @@ Deno.serve(async (req) => {
     /** Admin override: allows a live push even when mandatory WL checks fail. */
     const forcePush = reqBody.force === true;
     /**
+     * The force override bypasses both compliance gates, so it is not something a plain
+     * client may ask for: it requires a caller JWT that resolves to admin / dev /
+     * fearless_leader. Internal server-to-server callers never set `force`.
+     */
+    let forceActorId: string | null = null;
+    if (forcePush) {
+      const jwt = (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '').trim();
+      if (jwt) {
+        try {
+          const { data: userData } = await supabase.auth.getUser(jwt);
+          forceActorId = userData?.user?.id ?? null;
+        } catch (_e) { forceActorId = null; }
+      }
+      let permitted = false;
+      if (forceActorId) {
+        for (const role of ['admin', 'dev', 'fearless_leader']) {
+          const { data: hasRole } = await supabase.rpc('has_role', { _user_id: forceActorId, _role: role });
+          if (hasRole === true) { permitted = true; break; }
+        }
+      }
+      if (!permitted) {
+        console.warn(`[push-property-to-ru] FORCE_NOT_PERMITTED for property ${reqBody.property_id} (actor=${forceActorId ?? 'anonymous'})`);
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: {
+              code: 'FORCE_NOT_PERMITTED',
+              message: 'Overriding the channel readiness gate requires an admin, developer or fearless leader account.',
+            },
+          }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
+    }
+
+    /**
      * Static content delta (Push_PutProperty_RQ only).
      * RU requires static content to be re-pushed whenever it changes in the PMS, not just on
      * the weekly cron. A delta must not re-push availability/prices/discounts as well: those
