@@ -251,9 +251,14 @@ export function RuOnboardingPipeline({ propertyId, readOnly = false, standalone 
 
   const pushToRu = useCallback(async () => {
     setBusy("p3_push");
-    const { data, error: fnError } = await supabase.functions.invoke("push-property-to-ru", {
-      body: { property_id: propertyId },
-    });
+    // Resumable batches: a 9-unit property cannot be pushed in a single invocation.
+    let data: Awaited<ReturnType<typeof pushPropertyToRu>> | null = null;
+    let fnError: Error | null = null;
+    try {
+      data = await pushPropertyToRu(propertyId);
+    } catch (err) {
+      fnError = err instanceof Error ? err : new Error("Push failed");
+    }
     setBusy(null);
     if (fnError || !data?.success) {
       // PHASE_BLOCKED returns `blockers`; NOT_READY returns `gaps` — show either.
