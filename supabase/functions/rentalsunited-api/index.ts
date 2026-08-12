@@ -2810,34 +2810,61 @@ Deno.serve(async (req) => {
 
     // ── list_destinations (attraction/distance dictionary) ──
     // The <Distances> block in Push_PutProperty_RQ references destination ids from a
-    // channel-owned dictionary. We probe the documented method names in order and return
-    // the first one the channel answers, so no destination id is ever invented locally.
+    // channel-owned dictionary. Verified live: Pull_ListDestinations_RQ answers with ~33 800
+    // <Destination DestinationID="…">Name</Destination> entries, most of them city specific.
+    // We cache the whole list and flag the generic, location-agnostic entries (Beach, Sea,
+    // Airport, Restaurant, …) — only those are ever mapped, so no id is invented locally.
     if (action === 'list_destinations') {
-      const candidates = ['Pull_ListDestinations_RQ', 'Pull_ListLocationTypes_RQ', 'Pull_ListDistances_RQ'];
-      const attempts: Array<{ method: string; status_id: string; status_message: string; sample: string }> = [];
-      for (const method of candidates) {
-        const xml = `<?xml version="1.0" encoding="utf-8"?>\n<${method}>\n  ${buildAuthXml(creds)}\n</${method}>`;
-        let response = '';
-        try {
-          response = await callRentalsUnited(creds, xml);
-        } catch (err) {
-          attempts.push({ method, status_id: 'transport', status_message: err instanceof Error ? err.message : 'error', sample: '' });
-          continue;
-        }
-        const { ok, status } = handleRUStatus(response);
-        attempts.push({ method, status_id: status.id, status_message: status.message, sample: response.slice(0, 4000) });
-        if (ok) {
-          return jsonResponse({
-            success: true,
-            auth_mode: 'master_channel_manager',
-            method,
-            attempts,
-            raw_xml: response,
-          });
-        }
+      const xml = `<?xml version="1.0" encoding="utf-8"?>\n<Pull_ListDestinations_RQ>\n  ${buildAuthXml(creds)}\n</Pull_ListDestinations_RQ>`;
+      const response = await callRentalsUnited(creds, xml);
+      const { ok, status } = handleRUStatus(response);
+      if (!ok) return ruErrorResponse(status);
+
+      const entries: Array<{ ru_destination_id: number; name: string }> = [];
+      const re = /<Destination\s+DestinationID="(\d+)"\s*>([\s\S]*?)<\/Destination>/g;
+      let m: RegExpExecArray | null;
+      while ((m = re.exec(response)) !== null) {
+        const id = parseInt(m[1], 10);
+        const name = m[2].replace(/&amp;/g, '&').trim();
+        if (Number.isFinite(id) && name) entries.push({ ru_destination_id: id, name });
       }
-      return jsonResponse({ success: false, error: { code: 'NO_DESTINATION_DICTIONARY', message: 'The channel did not answer any known destination dictionary method.' }, attempts });
+
+      const rows = entries.map((e) => ({
+        ru_destination_id: e.ru_destination_id,
+        name: e.name,
+        slug: normalizeDestinationName(e.name),
+        is_generic: isGenericDestination(e.name),
+        synced_at: new Date().toISOString(),
+      }));
+
+      let synced = 0;
+      let sync_error: string | null = null;
+      try {
+        const supabase = createClient(
+          Deno.env.get('SUPABASE_URL')!,
+          Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+        );
+        for (let i = 0; i < rows.length; i += 1000) {
+          const { error: upErr } = await supabase
+            .from('ru_destinations')
+            .upsert(rows.slice(i, i + 1000), { onConflict: 'ru_destination_id' });
+          if (upErr) { sync_error = upErr.message; break; }
+          synced += Math.min(1000, rows.length - i);
+        }
+      } catch (err) {
+        sync_error = err instanceof Error ? err.message : 'Unknown cache error';
+      }
+
+      return jsonResponse({
+        success: true,
+        auth_mode: 'master_channel_manager',
+        destination_count: rows.length,
+        generic_count: rows.filter((r) => r.is_generic).length,
+        synced,
+        sync_error,
+      });
     }
+
 
 
 
