@@ -79,7 +79,7 @@ import { useImageDimensionAudit } from "@/hooks/useImageDimensionAudit";
 import { ImageQualityMarker } from "@/components/property/ImageQualityMarker";
 import { z } from "zod";
 import { getRoomUrl } from "@/lib/config";
-import { parseBedConfiguration, BED_TYPES, BedEntry } from "@/lib/bedConfig";
+import { parseBedConfiguration, BED_TYPES, BedEntry, authoredBedroomCount } from "@/lib/bedConfig";
 import {
   Home,
   Building2,
@@ -3522,6 +3522,10 @@ export default function PropertyForm({
               daily_rate: baseRate,
               is_active: room.is_active !== false,
               bed_configuration: room.bedConfiguration || null,
+              // Declared bedrooms must match the authored bedroom groups — the channel
+              // compares the two and rejects a unit whose beds sit in fewer bedrooms.
+              bedrooms: Number(room.bedrooms) || authoredBedroomCount(room.bedConfiguration) || null,
+
               amenities: room.amenities || null,
               images: room.images || null,
               ru_image_tags: pruneRuImageTagMap(

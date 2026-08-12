@@ -1,9 +1,30 @@
 // Bed configuration types and utilities
 
+/**
+ * A bed, optionally placed in a named sleeping space.
+ *
+ * The channel reviews beds PER BEDROOM, so every entry can carry the slot it belongs to.
+ * Legacy rows have no `room` — those fold into bedroom 1 so nothing is lost on read.
+ */
 export interface BedEntry {
   type: string;
   count: number;
+  room?: BedRoomSlot;
 }
+
+/** Where a bed sits. Only `bedroom` slots count as bedrooms for the channel. */
+export interface BedRoomSlot {
+  /** 1-based index within its kind: Bedroom 1, Bedroom 2, Living area 1. */
+  index: number;
+  kind: "bedroom" | "living";
+}
+
+/** A sleeping space with the beds authored inside it. */
+export interface BedRoomGroup {
+  slot: BedRoomSlot;
+  beds: BedEntry[];
+}
+
 
 export const BED_TYPES = [
   { value: "king", label: "King" },
@@ -103,3 +124,93 @@ export function formatBedConfiguration(config: string | BedEntry[] | undefined):
 export function hasBedConfiguration(config: string | BedEntry[] | undefined): boolean {
   return parseBedConfiguration(config).length > 0;
 }
+
+/** Read a stored slot, tolerating loose JSON coming back from the database. */
+function readSlot(raw: unknown): BedRoomSlot | null {
+  if (!raw || typeof raw !== "object") return null;
+  const candidate = raw as { index?: unknown; kind?: unknown };
+  const index = Number(candidate.index);
+  const kind = candidate.kind === "living" ? "living" : candidate.kind === "bedroom" ? "bedroom" : null;
+  if (!kind || !Number.isFinite(index) || index < 1) return null;
+  return { index: Math.floor(index), kind };
+}
+
+/**
+ * Group an authored bed configuration into sleeping spaces.
+ *
+ * Legacy shapes (a bare string, or a flat array with no slots) fold into Bedroom 1 so the
+ * editor never renders empty and no authored bed is silently dropped. Slot indexes are
+ * re-sequenced per kind, so removing "Bedroom 2" leaves 1, 2, 3 rather than a gap.
+ */
+export function groupBedsByRoom(config: string | BedEntry[] | undefined): BedRoomGroup[] {
+  const beds = parseBedConfiguration(config);
+  if (beds.length === 0) return [];
+
+  const buckets = new Map<string, BedRoomGroup>();
+  for (const bed of beds) {
+    const slot = readSlot(bed.room) ?? { index: 1, kind: "bedroom" as const };
+    const key = `${slot.kind}:${slot.index}`;
+    const existing = buckets.get(key);
+    const entry: BedEntry = { type: bed.type, count: bed.count, room: slot };
+    if (existing) existing.beds.push(entry);
+    else buckets.set(key, { slot, beds: [entry] });
+  }
+
+  const ordered = [...buckets.values()].sort((a, b) => {
+    if (a.slot.kind !== b.slot.kind) return a.slot.kind === "bedroom" ? -1 : 1;
+    return a.slot.index - b.slot.index;
+  });
+
+  // Re-sequence so indexes are always contiguous within their kind.
+  const counters: Record<BedRoomSlot["kind"], number> = { bedroom: 0, living: 0 };
+  return ordered.map((group) => {
+    counters[group.slot.kind] += 1;
+    const slot: BedRoomSlot = { kind: group.slot.kind, index: counters[group.slot.kind] };
+    return { slot, beds: group.beds.map((bed) => ({ ...bed, room: slot })) };
+  });
+}
+
+/** Flatten sleeping spaces back into the stored `bed_configuration` array. */
+export function flattenBedGroups(groups: BedRoomGroup[]): BedEntry[] {
+  const counters: Record<BedRoomSlot["kind"], number> = { bedroom: 0, living: 0 };
+  return groups.flatMap((group) => {
+    counters[group.slot.kind] += 1;
+    const slot: BedRoomSlot = { kind: group.slot.kind, index: counters[group.slot.kind] };
+    return group.beds
+      .filter((bed) => bed.type && (bed.count || 0) > 0)
+      .map((bed) => ({ type: bed.type, count: bed.count, room: slot }));
+  });
+}
+
+/** Human label for a sleeping space, e.g. "Bedroom 2" / "Living area". */
+export function bedRoomSlotLabel(slot: BedRoomSlot, livingCount = 1): string {
+  if (slot.kind === "bedroom") return `Bedroom ${slot.index}`;
+  return livingCount > 1 ? `Living area ${slot.index}` : "Living area";
+}
+
+/** Bedrooms that hold at least one bed — what the channel counts as a bedroom block. */
+export function authoredBedroomCount(config: string | BedEntry[] | undefined): number {
+  return groupBedsByRoom(config).filter(
+    (group) => group.slot.kind === "bedroom" && group.beds.some((bed) => (bed.count || 0) > 0),
+  ).length;
+}
+
+/**
+ * Are the beds distributed across the unit's bedrooms?
+ *
+ * Mirrors the channel content review: every authored bedroom must hold a bed, and the
+ * authored bedrooms must cover the bedroom count declared on the unit.
+ */
+export function areBedsDistributed(
+  config: string | BedEntry[] | undefined,
+  declaredBedrooms: unknown,
+): boolean {
+  const groups = groupBedsByRoom(config);
+  const bedrooms = groups.filter((group) => group.slot.kind === "bedroom");
+  if (bedrooms.length === 0) return false;
+  if (bedrooms.some((group) => !group.beds.some((bed) => (bed.count || 0) > 0))) return false;
+  const declared = Number(declaredBedrooms);
+  const required = Number.isFinite(declared) && declared >= 1 ? Math.floor(declared) : 1;
+  return bedrooms.length >= required;
+}
+

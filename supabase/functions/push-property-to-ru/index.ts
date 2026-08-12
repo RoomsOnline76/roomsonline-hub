@@ -224,14 +224,25 @@ export function resolveBedAmenityId(rawLabel: unknown): { id: number | null; nor
  * while ROL'OS read green. Convert the string into the equivalent entries instead of
  * dropping it; unmapped labels are still reported and still block the push.
  */
-export function normalizeBedConfiguration(bedConfiguration: unknown): { type: string; count: number }[] {
+export function normalizeBedConfiguration(
+  bedConfiguration: unknown,
+): { type: string; count: number; room?: { index: number; kind: string } }[] {
   if (Array.isArray(bedConfiguration)) {
     return (bedConfiguration as Record<string, unknown>[])
       .filter((entry) => entry && typeof entry === 'object')
-      .map((entry) => ({
-        type: String(entry?.type ?? ''),
-        count: Math.max(1, Number(entry?.count) || 1),
-      }));
+      .map((entry) => {
+        const slot = entry?.room as Record<string, unknown> | undefined;
+        return {
+          type: String(entry?.type ?? ''),
+          count: Math.max(1, Number(entry?.count) || 1),
+          room: slot
+            ? {
+                index: Math.max(1, Number(slot?.index) || 1),
+                kind: slot?.kind === 'living' ? 'living' : 'bedroom',
+              }
+            : undefined,
+        };
+      });
   }
   if (typeof bedConfiguration === 'string' && bedConfiguration.trim()) {
     return bedConfiguration
@@ -243,25 +254,61 @@ export function normalizeBedConfiguration(bedConfiguration: unknown): { type: st
   return [];
 }
 
-/** Aggregate a bed_configuration array into RU bedroom blocks + total bed count. */
+/** RU composition room ids used for sleeping spaces. */
+const RU_ROOM_BEDROOM = 257;
+const RU_ROOM_LIVING_BEDROOM = 372;
+
+/**
+ * Group beds into their authored sleeping spaces.
+ *
+ * Beds carry `room: { index, kind }`. Legacy entries with no slot fold into bedroom 1 in
+ * authored order — one bedroom per entry — which preserves the previous behaviour for rows
+ * that were never grouped. Living-area sleepers go to 372 so they never claim a bedroom.
+ */
+export function bedGroupsFromConfiguration(bedConfiguration: unknown): {
+  groups: { kind: string; index: number; beds: { type: string; count: number }[] }[];
+  totalBeds: number;
+} {
+  const normalized = normalizeBedConfiguration(bedConfiguration);
+  const groups: { kind: string; index: number; beds: { type: string; count: number }[] }[] = [];
+  let totalBeds = 0;
+  normalized.forEach((entry, i) => {
+    const kind = entry.room?.kind ?? 'bedroom';
+    const index = entry.room?.index ?? i + 1;
+    let group = groups.find((g) => g.kind === kind && g.index === index);
+    if (!group) {
+      group = { kind, index, beds: [] };
+      groups.push(group);
+    }
+    group.beds.push({ type: entry.type, count: entry.count });
+    totalBeds += entry.count;
+  });
+  return { groups, totalBeds };
+}
+
+/** Aggregate a bed_configuration into RU composition blocks + total bed count. */
 function bedBlocksFromConfiguration(
   bedConfiguration: unknown,
 ): { rooms: { room_id: number; amenities: { id: number; count: number }[] }[]; totalBeds: number; unmapped: string[] } {
   const rooms: { room_id: number; amenities: { id: number; count: number }[] }[] = [];
   const unmapped: string[] = [];
-  let totalBeds = 0;
-  const normalized = normalizeBedConfiguration(bedConfiguration);
-  if (normalized.length === 0) return { rooms, totalBeds, unmapped };
-  for (const entry of normalized as Record<string, unknown>[]) {
-
-    const count = Math.max(1, Number(entry?.count) || 1);
-    const { id } = resolveBedAmenityId(entry?.type);
-    if (id == null && entry?.type) unmapped.push(String(entry.type));
-    rooms.push({ room_id: 257, amenities: [{ id: id ?? RU_DEFAULT_BED_ID, count }] });
-    totalBeds += count;
+  const { groups, totalBeds } = bedGroupsFromConfiguration(bedConfiguration);
+  for (const group of groups) {
+    const amenities: { id: number; count: number }[] = [];
+    for (const bed of group.beds) {
+      const { id } = resolveBedAmenityId(bed.type);
+      if (id == null && bed.type) unmapped.push(String(bed.type));
+      amenities.push({ id: id ?? RU_DEFAULT_BED_ID, count: bed.count });
+    }
+    if (amenities.length === 0) continue;
+    rooms.push({
+      room_id: group.kind === 'living' ? RU_ROOM_LIVING_BEDROOM : RU_ROOM_BEDROOM,
+      amenities,
+    });
   }
   return { rooms, totalBeds, unmapped };
 }
+
 
 
 const PAYMENT_METHOD_MAP: Record<string, number> = {
@@ -635,8 +682,13 @@ function buildValidation(payload: Record<string, any>): Record<string, unknown> 
     || (amenities || []).some((a: any) => [94, 101].includes(Number(a?.id)));
   const hasBathroomRoom = rooms.some((r) => Number(r.room_id) === 81)
     || (amenities || []).some((a: any) => Number(a?.id) === 81 && (a.count || 0) > 0);
-  const bedsDistributed = bedroomBlocks.length <= 1 ? bedroomsWithBeds >= Math.min(1, bedroomBlocks.length)
-    : bedroomsWithBeds >= 2;
+  // Distribution: every bedroom block must hold a bed, and the blocks must cover the
+  // bedrooms the unit declares — a 3-bedroom unit sending one bedroom block is rejected.
+  const declaredBedrooms = Math.max(0, Number(payload.declared_bedrooms) || 0);
+  const bedsDistributed = bedroomBlocks.length >= 1
+    && bedroomsWithBeds === bedroomBlocks.length
+    && bedroomBlocks.length >= Math.max(1, declaredBedrooms);
+
 
   const nameCheck = checkRuPropertyName(payload.name);
   const descriptionText = (payload.descriptions?.[0]?.text || '').trim();
@@ -1209,21 +1261,14 @@ function buildUnitPayload(
   const RU_KITCHEN_ID = 101;
   const rooms: { room_id: number; amenities: { id: number; count: number }[] }[] = [];
 
-  // Bedrooms: one block per bed_configuration entry (= one physical bedroom)
+  // Bedrooms: one block per AUTHORED sleeping space (a bedroom with two beds is one block)
   const unmappedUnitBedLabels: string[] = [];
   if (unitBedConfig.length > 0) {
-    unitBedConfig.forEach((bedEntry) => {
-
-      const resolvedBed = resolveBedAmenityId(bedEntry.type).id;
-      // Unmapped labels still send a double so the XML stays valid, but the label is reported
-      // and the readiness gate blocks the push — sleeping arrangements are never guessed.
-      if (resolvedBed == null && bedEntry?.type) unmappedUnitBedLabels.push(String(bedEntry.type));
-      rooms.push({
-        room_id: RU_BEDROOM_ID,
-        amenities: [{ id: resolvedBed ?? RU_DEFAULT_BED_ID, count: bedEntry.count || 1 }],
-      });
-    });
+    const built = bedBlocksFromConfiguration(unit.bed_configuration);
+    unmappedUnitBedLabels.push(...built.unmapped);
+    rooms.push(...built.rooms);
   }
+
 
 
   // NOTE: Bathroom (81) and Kitchen (101) blocks are intentionally OMITTED.
@@ -1244,6 +1289,9 @@ function buildUnitPayload(
     currency_is_default: !currencyAuthored.authored,
     currency_iso: currencyAuthored.iso,
     unmapped_bed_labels: unmappedUnitBedLabels,
+    // Declared bedrooms — the scorer requires one bedroom composition block per declared bedroom.
+    declared_bedrooms: Math.max(0, Number((unit as { bedrooms?: unknown }).bedrooms) || 0),
+
     changeover_is_default: !isChangeoverAuthored(unit.amenities as Record<string, any> | null, amenities as Record<string, any>, (unit as { id?: unknown }).id),
 
     owner_id: 0, // placeholder — always overwritten with the resolved sub-account OwnerID

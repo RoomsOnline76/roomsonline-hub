@@ -3,7 +3,7 @@ import {
   isChangeoverAuthored,
   isMappedChannelPropertyType,
 } from "@/config/channelPropertyTypes";
-import { calculateBedCapacity, type BedEntry } from "@/lib/bedConfig";
+import { areBedsDistributed, calculateBedCapacity, type BedEntry } from "@/lib/bedConfig";
 import { checkChannelName } from "@/lib/channelFieldRules";
 import { MIN_IMAGE_HEIGHT, MIN_IMAGE_WIDTH } from "@/lib/imageValidation";
 
@@ -225,6 +225,16 @@ export const UNIT_ROW_RULES = {
   },
   /** The channel requires at least one bedroom in the composition block. */
   bedroomComposition: (room: RoomRequirementRow) => hasBedroomComposition(room),
+  /**
+   * Beds must be spread across the unit's bedrooms — the channel rejects a multi-bedroom
+   * unit that parks every bed in one room. Mirrors `areBedsDistributed` used by the push.
+   */
+  bedsDistributed: (room: RoomRequirementRow) =>
+    areBedsDistributed(
+      (room.bedConfiguration ?? room.bed_configuration) as BedEntry[] | string | undefined,
+      room.bedrooms,
+    ),
+
 
   images: (room: RoomRequirementRow) => (Array.isArray(room.images) ? room.images.length : 0) >= 10,
   amenities: (room: RoomRequirementRow) =>
@@ -618,6 +628,18 @@ export const PROPERTY_FIELD_REQUIREMENTS: FieldRequirement[] = [
       "Every unit needs at least one bedroom in its composition — author the beds per bedroom in the bed configuration. A single legacy bed label (e.g. \"king-twin\") sends no bedroom to the channel.",
     isSatisfied: (s) => roomRows(s).length > 0 && roomRows(s).every(UNIT_ROW_RULES.bedroomComposition),
   },
+  {
+    key: "room_beds_distributed",
+    label: "Beds distributed between bedrooms",
+    tier: "mandatory",
+    section: "rooms",
+    target: ['[data-field="bed_configuration"]'],
+    hint:
+      "Author the beds inside each bedroom. Every bedroom must hold a bed and the authored bedrooms must cover the unit's declared bedroom count — the channel rejects a multi-bedroom unit with all its beds in one room.",
+    isSatisfied: (s) => roomRows(s).length > 0 && roomRows(s).every(UNIT_ROW_RULES.bedsDistributed),
+  },
+
+
 
 
 
@@ -838,7 +860,7 @@ export const CHECK_TO_FIELD_KEYS: Record<string, string[]> = {
   commercial: ["banking"],
   location: ["address", "city", "country", "geo", "postal_code"],
   contact: ["contact_email", "contact_phone", "emergency_contact"],
-  rooms: ["rooms", "room_descriptions", "room_floors", "room_size", "room_bathrooms", "room_toilets", "room_beds", "room_bedroom_composition"],
+  rooms: ["rooms", "room_descriptions", "room_floors", "room_size", "room_bathrooms", "room_toilets", "room_beds", "room_bedroom_composition", "room_beds_distributed"],
   policies: ["master_policy", "payment_methods", "changeover_rules"],
   rentalsunited_geo: ["geo"],
   rentalsunited_location_currency: ["ru_currency"],
@@ -864,7 +886,7 @@ export const CHECK_TO_FIELD_KEYS: Record<string, string[]> = {
   has_bathroom_room: ["room_bathrooms"],
   beds_cover_half: ["room_beds"],
   beds_meet_max_guests: ["room_beds"],
-  beds_distributed: ["room_bedroom_composition"],
+  beds_distributed: ["room_beds_distributed"],
   unit_description: ["room_descriptions"],
   unit_name_clean: ["rooms"],
   images_meet_min_size: ["images", "image_dimensions"],

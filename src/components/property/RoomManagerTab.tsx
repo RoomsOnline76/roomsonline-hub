@@ -26,7 +26,9 @@ import RuImageTagPicker from "@/components/property/RuImageTagPicker";
 import { normalizeRuImageTagMap } from "@/lib/ruImageTags";
 
 import { getRoomUrl } from "@/lib/config";
-import { parseBedConfiguration, BED_TYPES, BedEntry, calculateBedCapacity, sleepsPerBed, formatBedConfiguration } from "@/lib/bedConfig";
+import { parseBedConfiguration, BED_TYPES, BedEntry, calculateBedCapacity, sleepsPerBed, formatBedConfiguration, authoredBedroomCount } from "@/lib/bedConfig";
+import { BedComposition } from "@/components/property/BedComposition";
+
 import { cn } from "@/lib/utils";
 import { isFieldPopulatedByPMS, getPMSDisplayName } from "@/lib/pmsFieldConfig";
 import { ChannelFieldHint } from "@/components/property/ChannelFieldHint";
@@ -813,94 +815,68 @@ export function RoomManagerTab({
                   />
                 </div>
 
-                {/* Bed Configuration Section */}
+                {/* Bed Configuration Section — beds authored per bedroom */}
                 <div className="space-y-1">
-                  <Label className="text-xs">Beds</Label>
+                  <Label className="text-xs">Beds per bedroom</Label>
                   <div
                     data-field="bed_configuration"
                     className={cn("border rounded-md p-2 space-y-2", channelMandatoryClass("bed_configuration"))}
-                    {...markerFlags(UNIT_ROW_RULES.beds({ bedConfiguration: selectedRoom?.bedConfiguration, maxPeople: selectedRoom?.maxPeople }))}
+                    {...markerFlags(
+                      UNIT_ROW_RULES.beds({
+                        bedConfiguration: selectedRoom?.bedConfiguration,
+                        maxPeople: selectedRoom?.maxPeople,
+                      }) &&
+                        UNIT_ROW_RULES.bedsDistributed({
+                          bedConfiguration: selectedRoom?.bedConfiguration,
+                          bedrooms: (selectedRoom as any)?.bedrooms,
+                        }),
+                    )}
                   >
                     {(() => {
                       const currentRoom = roomTypes.find((r) => r.id === selectedRoomType);
-                      const bedConfig = parseBedConfiguration(currentRoom?.bedConfiguration);
-                      const capacity = calculateBedCapacity(bedConfig);
                       const maxSynced = isRoomFieldPmsSynced(selectedRoomType, "maxPeople");
                       const applyBeds = (newConfig: BedEntry[]) => {
                         updateRoomTypeField(selectedRoomType, "bedConfiguration", newConfig);
+                        const authored = authoredBedroomCount(newConfig);
+                        if (authored > 0) {
+                          updateRoomTypeField(selectedRoomType, "bedrooms", authored);
+                        }
                         const newCapacity = calculateBedCapacity(newConfig);
                         if (!maxSynced && newCapacity > 0) {
                           updateRoomTypeField(selectedRoomType, "maxPeople", newCapacity);
                         }
                       };
+                      const capacity = calculateBedCapacity(parseBedConfiguration(currentRoom?.bedConfiguration));
                       return (
                         <>
-                          <div className="flex flex-wrap gap-2 items-center">
-                          {bedConfig.map((bed, index) => (
-                            <div key={index} className="flex items-center gap-1 bg-muted/50 rounded px-2 py-1">
-                              <Select
-                                value={bed.type}
-                                onValueChange={(value) => {
-                                  const newConfig = [...bedConfig];
-                                  newConfig[index] = { ...bed, type: value };
-                                  applyBeds(newConfig);
-                                }}
-                              >
-                                <SelectTrigger className="w-[110px] h-6 text-xs border-0 bg-transparent">
-                                  <SelectValue placeholder="Bed type" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {BED_TYPES.map((bt) => (
-                                    <SelectItem key={bt.value} value={bt.value}>
-                                      {bt.label} (sleeps {sleepsPerBed(bt.value)})
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                              <Button type="button" variant="ghost" size="icon" className="h-5 w-5"
-                                onClick={() => applyBeds(bedConfig.map((b, i) => i === index ? { ...b, count: Math.max(1, b.count - 1) } : b))}
-                                disabled={bed.count <= 1}
-                              >
-                                <Minus className="h-3 w-3" />
-                              </Button>
-                              <span className="w-4 text-center text-xs font-medium">{bed.count}</span>
-                              <Button type="button" variant="ghost" size="icon" className="h-5 w-5"
-                                onClick={() => applyBeds(bedConfig.map((b, i) => i === index ? { ...b, count: b.count + 1 } : b))}
-                              >
-                                <Plus className="h-3 w-3" />
-                              </Button>
-                              <span className="text-[10px] text-muted-foreground whitespace-nowrap">
-                                {bed.count} bed{bed.count !== 1 ? "s" : ""} · sleeps {sleepsPerBed(bed.type) * bed.count}
-                              </span>
-                              <Button type="button" variant="ghost" size="icon" className="h-5 w-5 text-destructive hover:text-destructive"
-                                onClick={() => applyBeds(bedConfig.filter((_, i) => i !== index))}
-                              >
-                                <X className="h-3 w-3" />
-                              </Button>
-                            </div>
-                          ))}
-                          <Button type="button" variant="outline" size="sm" className="h-6 text-xs"
-                            onClick={() => applyBeds([...bedConfig, { type: "king", count: 1 }])}
-                          >
-                            <Plus className="h-3 w-3 mr-1" />Add
-                          </Button>
-                          </div>
-                          <p className="text-[10px] text-muted-foreground">
-                            The number is how many beds of that type. Sleeping capacity from beds:{" "}
-                            <span className="font-medium text-foreground">{capacity} guest{capacity !== 1 ? "s" : ""}</span>
-                            {!maxSynced && capacity > 0 && (currentRoom?.maxPeople || 0) !== capacity && (
-                              <Button type="button" variant="link" size="sm" className="h-4 px-1 text-[10px]"
+                          <BedComposition
+                            value={currentRoom?.bedConfiguration}
+                            declaredBedrooms={(currentRoom as any)?.bedrooms}
+                            onChange={applyBeds}
+                            onDeclaredBedroomsChange={(bedrooms) =>
+                              updateRoomTypeField(selectedRoomType, "bedrooms", bedrooms)
+                            }
+                          />
+                          {!maxSynced && capacity > 0 && (currentRoom?.maxPeople || 0) !== capacity && (
+                            <p className="text-[10px] text-muted-foreground">
+                              Max guests is {currentRoom?.maxPeople || 0}.
+                              <Button
+                                type="button"
+                                variant="link"
+                                size="sm"
+                                className="h-4 px-1 text-[10px]"
                                 onClick={() => updateRoomTypeField(selectedRoomType, "maxPeople", capacity)}
                               >
-                                Apply to Max ({capacity})
+                                Apply beds capacity ({capacity})
                               </Button>
-                            )}
-                          </p>
+                            </p>
+                          )}
                         </>
                       );
                     })()}
                   </div>
                 </div>
+
 
 
                 <div className="grid grid-cols-3 gap-x-3 gap-y-2 sm:grid-cols-4 lg:grid-cols-8">
