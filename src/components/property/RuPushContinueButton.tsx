@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowRight, Loader2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { pushPropertyToRu } from "@/lib/ruPushDriver";
 import { usePropertyReadiness } from "@/hooks/usePropertyReadiness";
 
 interface RuPushContinueButtonProps {
