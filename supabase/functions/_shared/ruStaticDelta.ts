@@ -352,11 +352,22 @@ async function pushStaticContent(
         },
       });
       if (error) {
+        // A 422 gate refusal arrives here as an "error" — recover the structured body so the
+        // delta can be parked and re-armed instead of reported as a transport failure.
+        const body = await readInvokeErrorBody(error);
+        const gateCode = typeof (body?.error as { code?: string } | undefined)?.code === 'string'
+          ? (body!.error as { code: string }).code
+          : null;
+        const gateBlockers = Array.isArray(body?.blockers)
+          ? (body!.blockers as unknown[]).map((b) => String(b))
+          : [];
         return {
           success: false,
-          errorMessage: error.message ?? 'Channel push transport failed',
-          errorCode: null,
-          blockers: [],
+          errorMessage: (body?.error as { message?: string } | undefined)?.message
+            ?? error.message
+            ?? 'Channel push transport failed',
+          errorCode: gateCode,
+          blockers: gateBlockers,
           chunks: chunk,
           units,
         };
