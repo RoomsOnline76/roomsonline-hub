@@ -172,7 +172,14 @@ export function RolosOnboardingWizard({ propertyId, className }: Props) {
     isLoading,
     isFetching,
     propertyName,
+    soleUnitName,
+    unitNames,
   } = useRolosOnboardingProgress(propertyId);
+
+  const unitScope = useMemo(
+    () => ({ sole: soleUnitName ?? null, all: unitNames ?? [] }),
+    [soleUnitName, unitNames],
+  );
 
   const [collapsed, setCollapsed] = useState(() => {
     try {
@@ -449,6 +456,7 @@ export function RolosOnboardingWizard({ propertyId, className }: Props) {
                 busyAction={busyAction}
                 isPlatformUser={isPlatformUser}
                 onOpenChannels={() => navigate(`/pms/channels?property=${propertyId}`)}
+                units={unitScope}
               />
             ))}
           </div>
@@ -472,6 +480,8 @@ interface RowProps {
   busyAction: string | null;
   isPlatformUser: boolean;
   onOpenChannels: () => void;
+  /** Unit names, used to route unit-owned failures that arrive without a unit. */
+  units: { sole: string | null; all: string[] };
 }
 
 function MacroRow({
@@ -487,12 +497,13 @@ function MacroRow({
   busyAction,
   isPlatformUser,
   onOpenChannels,
+  units,
 }: RowProps) {
 
   const { macro, complete, locked, score, fieldItems, stateChecks } = progress;
   const outstandingFields = fieldItems.filter((i) => !i.satisfied);
   const firstOutstandingField = outstandingFields.find((item) => item.tier === "mandatory") ?? outstandingFields[0];
-  const blockerTarget = firstBlockingTarget(stateChecks);
+  const blockerTarget = firstBlockingTarget(stateChecks, units);
 
 
   return (
@@ -552,7 +563,7 @@ function MacroRow({
                       {failures.length > 0 && (
                         <span className="mt-1 block space-y-1">
                           {failures.map((f, i) => {
-                            const ft = resolveFailureTarget(f, c.key);
+                            const ft = resolveFailureTarget(f, c.key, units);
                             return (
                               <button
                                 key={`${f.label}-${f.unit ?? ""}-${i}`}
