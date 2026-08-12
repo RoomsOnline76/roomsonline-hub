@@ -548,6 +548,8 @@ export interface CommonsWriteResult {
   updatedProperties: number;
   updatedGroups: string[];
   contactsWritten: number;
+  /** Rows written per row-based group (contacts, policies, brand kit). */
+  rowsWritten: number;
 }
 
 interface ApplyOptions {
@@ -565,6 +567,7 @@ async function applyGroups(
   const touchedGroups = new Set<string>();
   let updatedProperties = 0;
   let contactsWritten = 0;
+  let rowsWritten = 0;
 
   for (const target of targets) {
     const amenities = { ...target.amenities };
@@ -578,15 +581,23 @@ async function applyGroups(
 
       if (field.location === "column") {
         const current = target.row[field.path];
-        if (!overwrite && !isBlank(current)) continue;
-        columnUpdates[field.path] = value;
+        const next = field.union ? unionValues(value, current) : value;
+        if (!field.union && !overwrite && !isBlank(current)) continue;
+        if (JSON.stringify(next) === JSON.stringify(current ?? null)) continue;
+        columnUpdates[field.path] = next;
         dirty = true;
         touchedGroups.add(field.group);
         continue;
       }
 
       const current = getPath(amenities, field.path);
-      const next = field.deep ? mergeValues(value, current, overwrite) : overwrite || isBlank(current) ? value : current;
+      const next = field.union
+        ? unionValues(value, current)
+        : field.deep
+          ? mergeValues(value, current, overwrite)
+          : overwrite || isBlank(current)
+            ? value
+            : current;
       if (JSON.stringify(next) === JSON.stringify(current)) continue;
       setPath(amenities, field.path, next);
       dirty = true;
@@ -605,7 +616,26 @@ async function applyGroups(
       const written = await applyContacts(source, target, overwrite);
       if (written > 0) {
         contactsWritten += written;
+        rowsWritten += written;
         touchedGroups.add("contacts");
+        dirty = true;
+      }
+    }
+
+    if (groupKeys.includes("policies")) {
+      const written = await applyPolicies(source, target, overwrite);
+      if (written > 0) {
+        rowsWritten += written;
+        touchedGroups.add("policies");
+        dirty = true;
+      }
+    }
+
+    if (groupKeys.includes("narrative")) {
+      const written = await applyBrandKit(source, target, overwrite);
+      if (written > 0) {
+        rowsWritten += written;
+        touchedGroups.add("narrative");
         dirty = true;
       }
     }
@@ -613,8 +643,76 @@ async function applyGroups(
     if (dirty) updatedProperties += 1;
   }
 
-  return { updatedProperties, updatedGroups: [...touchedGroups], contactsWritten };
+  return { updatedProperties, updatedGroups: [...touchedGroups], contactsWritten, rowsWritten };
 }
+
+/** Copy the authored cancellation / reservation policy rows, matching on policy type. */
+async function applyPolicies(
+  source: PropertySnapshot,
+  target: PropertySnapshot,
+  overwrite: boolean,
+): Promise<number> {
+  const rows = commonPolicies(source);
+  if (rows.length === 0) return 0;
+  let written = 0;
+
+  for (const row of rows) {
+    const existing = target.policies.find((p) => p.policy_type === row.policy_type);
+    if (existing && !overwrite) continue;
+    if (existing) {
+      if (JSON.stringify(existing.rule) === JSON.stringify(row.rule)) continue;
+      const { error } = await supabase
+        .from("rolos_policies")
+        .update({ rule: row.rule as Json })
+        .eq("id", existing.id!);
+      if (error) throw error;
+    } else {
+      const { error } = await supabase
+        .from("rolos_policies")
+        .insert({ property_id: target.id, policy_type: row.policy_type, rule: row.rule as Json });
+      if (error) throw error;
+    }
+    written += 1;
+  }
+
+  return written;
+}
+
+/** Copy brand voice / AI tone into the sibling's brand kit config. */
+async function applyBrandKit(
+  source: PropertySnapshot,
+  target: PropertySnapshot,
+  overwrite: boolean,
+): Promise<number> {
+  const shared = commonBrandKit(source);
+  if (Object.keys(shared).length === 0) return 0;
+
+  const current = target.brandKit?.config ?? {};
+  const next = { ...current };
+  let changed = false;
+  for (const [key, value] of Object.entries(shared)) {
+    if (!overwrite && !isBlank(current[key])) continue;
+    if (JSON.stringify(current[key]) === JSON.stringify(value)) continue;
+    next[key] = value;
+    changed = true;
+  }
+  if (!changed) return 0;
+
+  if (target.brandKit?.id) {
+    const { error } = await supabase
+      .from("rolos_experience_configs")
+      .update({ config: next as Json })
+      .eq("id", target.brandKit.id);
+    if (error) throw error;
+  } else {
+    const { error } = await supabase
+      .from("rolos_experience_configs")
+      .insert({ property_id: target.id, experience_type: "brand_kit", config: next as Json });
+    if (error) throw error;
+  }
+  return 1;
+}
+
 
 /** Copy the portfolio-common contact rows, matching on role. */
 async function applyContacts(
