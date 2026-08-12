@@ -111,6 +111,8 @@ type RoomRequirementRow = {
   name?: string | null;
   description?: string | null;
   floor?: number | null;
+  roomSize?: number | null;
+  room_size?: number | null;
   bathrooms?: number | null;
   toilets?: number | null;
   maxPeople?: number | null;
@@ -343,6 +345,30 @@ export const PROPERTY_FIELD_REQUIREMENTS: FieldRequirement[] = [
     target: ['[data-field="star_rating"]', "#star_rating"],
     isSatisfied: (s) => Number(amenity(s, "star_rating") ?? 0) > 0,
   },
+  {
+    key: "property_floor",
+    label: "Floor (property-level channel fallback)",
+    tier: "mandatory",
+    section: "info-facilities",
+    target: ['[data-field="property_floor"]'],
+    hint: "Set the property floor here, or capture a floor on every unit in the Rooms tab.",
+    isSatisfied: (s) =>
+      Number.isFinite(Number(amenity(s, "property_floor"))) ||
+      (roomRows(s).length > 0 && roomRows(s).every((room) => room.floor !== null && room.floor !== undefined)),
+  },
+  {
+    key: "property_size_sqm",
+    label: "Property size in m² (channel Space)",
+    tier: "mandatory",
+    section: "info-facilities",
+    target: ['[data-field="property_size_sqm"]'],
+    hint: "Set the property size here, or capture a size on every unit in the Rooms tab — the channel otherwise receives an invented 50 m².",
+    isSatisfied: (s) =>
+      numericAtLeast(amenity(s, "property_size_sqm"), 1) ||
+      (roomRows(s).length > 0 && roomRows(s).every((room) => numericAtLeast(room.roomSize ?? room.room_size, 1))),
+  },
+
+
 
   /* ---------- Rooms ---------- */
   {
@@ -374,6 +400,18 @@ export const PROPERTY_FIELD_REQUIREMENTS: FieldRequirement[] = [
     hint: "Choose 0 for ground floor; blank is not accepted.",
     isSatisfied: (s) => roomRows(s).length > 0 && roomRows(s).every((room) => room.floor !== null && room.floor !== undefined),
   },
+  {
+    key: "room_size",
+    label: "Size in m² captured for every unit",
+    tier: "mandatory",
+    section: "rooms",
+    target: ['[data-field="room_size"]'],
+    hint: "Blank or zero makes the channel receive an invented 50 m² — capture the real size, or set a property-level size in Info & Facilities.",
+    isSatisfied: (s) =>
+      numericAtLeast(amenity(s, "property_size_sqm"), 1) ||
+      (roomRows(s).length > 0 && roomRows(s).every((room) => numericAtLeast(room.roomSize ?? room.room_size, 1))),
+  },
+
   {
     key: "room_bathrooms",
     label: "At least 1 bathroom per unit",
@@ -566,7 +604,7 @@ export const CHECK_TO_FIELD_KEYS: Record<string, string[]> = {
   commercial: ["banking"],
   location: ["address", "city", "country", "geo", "postal_code"],
   contact: ["contact_email", "contact_phone", "emergency_contact"],
-  rooms: ["rooms", "room_descriptions", "room_floors", "room_bathrooms", "room_toilets", "room_beds"],
+  rooms: ["rooms", "room_descriptions", "room_floors", "room_size", "room_bathrooms", "room_toilets", "room_beds"],
   policies: ["master_policy", "payment_methods"],
   rentalsunited_geo: ["geo"],
   rentalsunited_location_currency: ["ru_currency"],
@@ -584,7 +622,8 @@ export const CHECK_TO_FIELD_KEYS: Record<string, string[]> = {
   has_payment_methods: ["payment_methods"],
   has_legal_rep: ["rep_nationality", "rep_country_of_residence"],
   can_sleep_max_ok: ["room_beds"],
-  has_floor: ["room_floors"],
+  has_floor: ["room_floors", "property_floor"],
+  has_space: ["room_size", "property_size_sqm"],
   has_bathrooms: ["room_bathrooms"],
   has_toilets: ["room_toilets"],
   has_bedroom: ["room_beds"],

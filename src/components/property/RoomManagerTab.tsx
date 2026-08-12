@@ -883,11 +883,21 @@ export function RoomManagerTab({
                 <div className="grid grid-cols-3 gap-x-3 gap-y-2 sm:grid-cols-4 lg:grid-cols-8">
                   <div className="space-y-1">
                     <Label className="text-xs whitespace-nowrap">Size (m²)</Label>
-                    <Input type="number" className="h-7 w-full text-xs"
-                      value={roomTypes.find((r) => r.id === selectedRoomType)?.roomSize || 0}
+                    <Input type="number" min={1}
+                      data-field="room_size"
+                      className={cn("h-7 w-full text-xs", channelMandatoryClass("room_size"))}
+                      data-channel-satisfied={Number(roomTypes.find((r) => r.id === selectedRoomType)?.roomSize || 0) > 0 ? "1" : "0"}
+                      value={roomTypes.find((r) => r.id === selectedRoomType)?.roomSize || ""}
                       onChange={(e) => updateRoomTypeField(selectedRoomType, "roomSize", parseInt(e.target.value) || 0)}
                     />
+                    {Number(roomTypes.find((r) => r.id === selectedRoomType)?.roomSize || 0) < 1 && (
+                      <p className="flex items-center gap-1 text-[10px] text-destructive">
+                        <AlertTriangle className="h-3 w-3 shrink-0" />
+                        Required — blank or zero makes the channel receive an invented 50 m².
+                      </p>
+                    )}
                   </div>
+
                   <div className="space-y-1 lg:col-span-2">
                     <TooltipProvider>
                       <Tooltip>
