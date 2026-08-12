@@ -175,7 +175,13 @@ export function ChannelPropertyTable({
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right tabular-nums">{row.listings}</TableCell>
-                    <TableCell className="text-right tabular-nums text-muted-foreground">{row.archivedUnits}</TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {row.duplicateListings > 0 ? (
+                        <span className="font-medium text-destructive">{row.duplicateListings}</span>
+                      ) : (
+                        <span className="text-muted-foreground">0</span>
+                      )}
+                    </TableCell>
                     <TableCell className="text-right tabular-nums">
                       {formatEur(row.monthlyCostEur)}
                       {fx && (
