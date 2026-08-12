@@ -886,7 +886,7 @@ export const CHECK_TO_FIELD_KEYS: Record<string, string[]> = {
   has_bathroom_room: ["room_bathrooms"],
   beds_cover_half: ["room_beds"],
   beds_meet_max_guests: ["room_beds"],
-  beds_distributed: ["room_bedroom_composition"],
+  beds_distributed: ["room_beds_distributed"],
   unit_description: ["room_descriptions"],
   unit_name_clean: ["rooms"],
   images_meet_min_size: ["images", "image_dimensions"],
