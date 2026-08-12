@@ -163,7 +163,7 @@ export function InfoFacilitiesTab(props: InfoFacilitiesTabProps) {
                 </Button>
               </div>
             </div>
-            <Textarea id="description" value={formData.description} onChange={(e) => handleInputChange("description", e.target.value)} placeholder="Describe your property..." rows={6} disabled={isFieldPopulatedByPMS("description", selectedPMS)} className={cn("resize-none text-xs", descriptionTooShort && "border-destructive focus-visible:ring-destructive", getPMSFieldClass("description", selectedPMS), isFieldPopulatedByPMS("description", selectedPMS) && "cursor-not-allowed")} />
+            <Textarea id="description" data-field="description" value={formData.description} onChange={(e) => handleInputChange("description", e.target.value)} placeholder="Describe your property..." rows={6} disabled={isFieldPopulatedByPMS("description", selectedPMS)} className={cn("resize-none text-xs", channelMandatoryClass("description"), descriptionTooShort && "border-destructive focus-visible:ring-destructive", getPMSFieldClass("description", selectedPMS), isFieldPopulatedByPMS("description", selectedPMS) && "cursor-not-allowed")} {...markerFlags(!descriptionTooShort)} />
             {descriptionTooShort ? (
               <p className="flex items-center gap-1 text-[10px] text-destructive">
                 <AlertTriangle className="h-3 w-3" />
