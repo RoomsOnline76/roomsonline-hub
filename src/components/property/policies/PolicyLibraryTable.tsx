@@ -99,6 +99,82 @@ export const PolicyLibraryTable: React.FC<Props> = ({
           </TableRow>
         </TableHeader>
         <TableBody>
+          {arrival && arrivalStatus && (
+            <TableRow className="border-b-2 bg-muted/10 hover:bg-muted/20">
+              <TableCell className="align-top py-2">
+                <div className="flex flex-col gap-0.5">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-xs font-medium">Arrival policy</span>
+                    <Badge className="text-[9px] gap-1 px-1.5 py-0">
+                      <Crown className="h-2.5 w-2.5" /> Master
+                    </Badge>
+                  </div>
+                  <span className="text-[10px] leading-tight text-muted-foreground">
+                    How guests arrive and let themselves in — pushed to channels, guest confirmations and invoices.
+                  </span>
+                </div>
+              </TableCell>
+
+              <TableCell className="align-top py-2">
+                <div className="text-[11px] leading-tight">
+                  {arrival.chars.toLocaleString()} character{arrival.chars === 1 ? "" : "s"}
+                </div>
+                <div
+                  className={
+                    arrivalStatus.tone === "destructive"
+                      ? "text-[10px] leading-tight text-destructive"
+                      : "text-[10px] leading-tight text-muted-foreground"
+                  }
+                >
+                  {arrivalStatus.label}
+                </div>
+              </TableCell>
+
+              <TableCell className="align-top py-2">
+                <div className="text-[11px] leading-tight text-muted-foreground space-y-0.5">
+                  <div>All units{arrival.unitCount > 0 ? ` (${arrival.unitCount})` : ""}</div>
+                  {arrival.overrideCount > 0 ? (
+                    <div>
+                      {arrival.overrideCount} unit override{arrival.overrideCount === 1 ? "" : "s"} — the rest inherit
+                      this policy
+                    </div>
+                  ) : (
+                    <div>No unit overrides — every unit inherits this policy</div>
+                  )}
+                </div>
+              </TableCell>
+
+              <TableCell className="align-top py-2">
+                <span className="text-[11px] text-muted-foreground">—</span>
+              </TableCell>
+
+              <TableCell className="align-top py-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-7 p-0"
+                  title="Edit the arrival policy"
+                  onClick={arrival.onEdit}
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </Button>
+              </TableCell>
+            </TableRow>
+          )}
+
+          {policies.length === 0 && (
+            <TableRow>
+              <TableCell colSpan={5} className="py-6 text-center">
+                <ShieldCheck className="h-6 w-6 text-muted-foreground mx-auto" />
+                <p className="text-[11px] text-muted-foreground pt-1.5">
+                  No cancellation or prepayment policies in the library yet.
+                </p>
+              </TableCell>
+            </TableRow>
+          )}
+
+
           {policies.map((p) => {
             const policyLinks = links.filter((l) => l.policy_id === p.id);
             const ratePlanCount = policyLinks.filter((l) => l.rate_plan_id).length;
