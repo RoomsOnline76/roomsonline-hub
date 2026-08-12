@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { mainImageState, normalizeRuImageTagMap } from "../_shared/ruImageTags.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -123,7 +124,7 @@ Deno.serve(async (req) => {
     checks.push(contentCheck);
 
     // ============= CHECK 3: Media Requirements =============
-    const mediaCheck = checkMediaRequirements(images, listingIntent);
+    const mediaCheck = checkMediaRequirements(images, listingIntent, (property as any).ru_image_tags);
     checks.push(mediaCheck);
 
     // ============= CHECK 4: Commercial Fields =============
