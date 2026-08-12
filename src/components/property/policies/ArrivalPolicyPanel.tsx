@@ -4,7 +4,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { AlertTriangle, CheckCircle2, Copy, Loader2, Save } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Copy, Loader2, Save, Sparkles } from "lucide-react";
 import type { SiblingProperty } from "@/hooks/usePortfolioSiblings";
 
 /** Channel gate: Rentals United rejects arrival instructions under 20 characters. */
@@ -36,9 +36,11 @@ export const ArrivalPolicyPanel: React.FC<ArrivalPolicyPanelProps> = ({ property
   const [saving, setSaving] = useState(false);
   const [copying, setCopying] = useState(false);
   const [clearing, setClearing] = useState(false);
+  const [drafting, setDrafting] = useState(false);
   const [text, setText] = useState("");
   const [saved, setSaved] = useState("");
   const [overrides, setOverrides] = useState<RoomOverride[]>([]);
+
 
   const load = useCallback(async () => {
     if (!propertyId) return;
@@ -107,6 +109,60 @@ export const ArrivalPolicyPanel: React.FC<ArrivalPolicyPanelProps> = ({ property
       setSaving(false);
     }
   };
+
+  /**
+   * TOBI drafts the arrival instructions from the property's own facts. The prompt is
+   * fact-bound — TOBI is never allowed to invent gate codes, key-safe numbers or road
+   * names, so anything unknown is phrased as "sent with your confirmation".
+   */
+  const handleDraftWithTobi = async () => {
+    setDrafting(true);
+    try {
+      const { data: prop, error } = await supabase
+        .from("properties")
+        .select("name, property_type, address, city, postal_code, country, amenities")
+        .eq("id", propertyId)
+        .maybeSingle();
+      if (error) throw error;
+
+      const amenities = (prop?.amenities ?? {}) as Record<string, any>;
+      const houseRules = (amenities.house_rules ?? {}) as Record<string, any>;
+      const surroundings = (amenities.surroundings ?? {}) as Record<string, any>;
+
+      const { data, error: fnError } = await supabase.functions.invoke("editorial-ai-assist", {
+        body: {
+          action: "generate_arrival_policy",
+          minChars: TARGET_ARRIVAL_CHARS,
+          propertyContext: {
+            name: prop?.name,
+            property_type: prop?.property_type,
+            street_address: prop?.address,
+            suburb: amenities.suburb ?? null,
+            city: prop?.city,
+            postal_code: prop?.postal_code,
+            country: prop?.country,
+            check_in_time: houseRules.check_in_time ?? houseRules.check_in_from,
+            check_out_time: houseRules.check_out_time ?? houseRules.check_out_until,
+            parking: amenities.parking ?? houseRules.parking,
+            closest_airport: surroundings.closest_airport ?? amenities.closest_airport,
+            current: trimmed || null,
+          },
+        },
+      });
+      if (fnError) throw fnError;
+      if (data?.error) throw new Error(data.error);
+
+      const draft = String(data?.description ?? "").trim();
+      if (!draft) throw new Error("TOBI returned an empty draft — please try again.");
+      setText(draft);
+      toast.success(`TOBI drafted ${draft.length} characters — review it, then save`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "TOBI could not write the arrival policy");
+    } finally {
+      setDrafting(false);
+    }
+  };
+
 
   const handleCopyToPortfolio = async () => {
     if (!siblings.length) return;
@@ -190,6 +246,23 @@ export const ArrivalPolicyPanel: React.FC<ArrivalPolicyPanelProps> = ({ property
         )}
 
         <div className="ml-auto flex items-center gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-7 text-xs"
+            disabled={drafting || saving}
+            onClick={handleDraftWithTobi}
+            title="TOBI drafts arrival instructions from this property's own details"
+          >
+            {drafting ? (
+              <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+            ) : (
+              <Sparkles className="h-3.5 w-3.5 mr-1" />
+            )}
+            {trimmed.length > 0 ? "Improve with TOBI" : "Write with TOBI"}
+          </Button>
+
           {siblings.length > 0 && (
             <Button
               type="button"
