@@ -256,6 +256,12 @@ export function RuOnboardingPipeline({ propertyId, readOnly = false, standalone 
     if (fnError || !data?.success) {
       // PHASE_BLOCKED returns `blockers`; NOT_READY returns `gaps` — show either.
       const reasons: string[] = [...(data?.blockers ?? []), ...(data?.gaps ?? [])].map(String);
+      // Keep them on screen: a toast alone left the blocking phase looking clean.
+      setPushBlock(
+        reasons.length
+          ? { phase: (data?.phase as PhaseKey) ?? "p3_push", reasons }
+          : null,
+      );
       toast.error(
         reasons.length
           ? `${data?.error?.message ?? "Push blocked"} — ${reasons.slice(0, 3).join(" · ")}`
@@ -266,8 +272,10 @@ export function RuOnboardingPipeline({ propertyId, readOnly = false, standalone 
       );
 
     } else {
+      setPushBlock(null);
       toast.success("Property, inventory and rates pushed to Rentals United");
     }
+
     await load();
   }, [propertyId, load]);
 
