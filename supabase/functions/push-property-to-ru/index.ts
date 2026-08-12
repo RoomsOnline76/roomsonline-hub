@@ -3434,6 +3434,9 @@ Deno.serve(async (req) => {
     // OwnerID comes from the portfolio sub-account when one exists, otherwise
     // from a property-scoped sub-account, otherwise the master account.
     let precomputedGaps: string[] = [];
+    /** Non-null when scoring threw — the live push is refused instead of assuming "no gaps". */
+    let readinessScoringError: string | null = null;
+
     try {
       // An ARI-only refresh never writes static content, so content scoring is skipped.
       if (isMultiUnit && action !== 'refresh_ari') {
