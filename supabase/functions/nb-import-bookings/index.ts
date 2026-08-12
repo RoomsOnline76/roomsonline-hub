@@ -76,7 +76,7 @@ Deno.serve(async (req) => {
     const propertyId = String(body?.property_id ?? "").trim();
     if (!/^[0-9a-f-]{36}$/i.test(propertyId)) return json({ ok: false, error: "A valid property_id is required" }, 400);
 
-    const dryRun = body?.dry_run !== false && Boolean(body?.dry_run);
+    const dryRun = body?.dry_run === true;
     const fileName = String(body?.file_name ?? "").trim();
     const fileB64 = String(body?.file_base64 ?? "");
     const defaultCurrency = String(body?.default_currency ?? "ZAR").toUpperCase().slice(0, 3);
