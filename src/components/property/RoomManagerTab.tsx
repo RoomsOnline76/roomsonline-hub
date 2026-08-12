@@ -706,21 +706,57 @@ export function RoomManagerTab({
                 )}
 
                 <div className="space-y-1">
-                  <Label className="text-xs flex items-center gap-1">
-                    Description
-                    {isRoomFieldPmsSynced(selectedRoomType, "description") && (
-                      <Badge variant="outline" className="text-[10px] h-4 px-1 bg-primary/10">
-                        <Cloud className="h-2.5 w-2.5" />
-                      </Badge>
-                    )}
-                  </Label>
+                  <div className="flex items-center justify-between gap-2">
+                    <Label className="text-xs flex items-center gap-1">
+                      Description
+                      {roomDescriptionPmsSynced && (
+                        <Badge variant="outline" className="text-[10px] h-4 px-1 bg-primary/10">
+                          <Cloud className="h-2.5 w-2.5" />
+                        </Badge>
+                      )}
+                    </Label>
+                    <div className="flex items-center gap-2">
+                      <span className={cn("text-[10px] tabular-nums", roomDescriptionTooShort ? "text-destructive" : "text-muted-foreground")}>
+                        {roomDescriptionLength} / {MIN_ROOM_DESCRIPTION_CHARS} characters
+                      </span>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-6 px-2 text-[10px]"
+                        disabled={writingRoomDescription || roomDescriptionPmsSynced}
+                        onClick={writeRoomDescriptionWithTobi}
+                      >
+                        {writingRoomDescription
+                          ? <><Loader2 className="h-3 w-3 mr-1 animate-spin" />TOBI is writing…</>
+                          : <><Sparkles className="h-3 w-3 mr-1" />Write with TOBI</>}
+                      </Button>
+                    </div>
+                  </div>
                   <Textarea
                     rows={2}
-                    className={cn("min-h-[52px] w-full text-xs", getRoomPmsFieldClass(selectedRoomType, "description"))}
-                    value={roomTypes.find((r) => r.id === selectedRoomType)?.description || ""}
+                    className={cn(
+                      "min-h-[52px] w-full text-xs",
+                      getRoomPmsFieldClass(selectedRoomType, "description"),
+                      !roomDescriptionPmsSynced && roomDescriptionTooShort && "border-destructive focus-visible:ring-destructive",
+                    )}
+                    value={selectedRoom?.description || ""}
                     onChange={(e) => updateRoomTypeField(selectedRoomType, "description", e.target.value)}
-                    disabled={isRoomFieldPmsSynced(selectedRoomType, "description")}
+                    disabled={roomDescriptionPmsSynced}
                   />
+                  {!roomDescriptionPmsSynced && (
+                    roomDescriptionTooShort ? (
+                      <p className="flex items-center gap-1 text-[10px] text-destructive">
+                        <AlertTriangle className="h-3 w-3" />
+                        {MIN_ROOM_DESCRIPTION_CHARS - roomDescriptionLength} more characters needed — distribution channels require at least {MIN_ROOM_DESCRIPTION_CHARS} characters.
+                      </p>
+                    ) : (
+                      <p className="flex items-center gap-1 text-[10px] text-emerald-600">
+                        <CheckCircle2 className="h-3 w-3" />
+                        Description meets the {MIN_ROOM_DESCRIPTION_CHARS}-character minimum for channel distribution.
+                      </p>
+                    )
+                  )}
                 </div>
 
                 <div className="space-y-1">
