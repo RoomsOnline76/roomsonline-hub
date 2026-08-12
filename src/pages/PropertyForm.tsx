@@ -45,6 +45,13 @@ import { HyperGuestSyncReflectionButton } from "@/components/property/HyperGuest
 import { HyperGuestPropertyLookup } from "@/components/property/HyperGuestPropertyLookup";
 import { GooglePlaceIdPastePopover } from "@/components/property/GooglePlaceIdPastePopover";
 import { Beds24PropertyLookup } from "@/components/property/Beds24PropertyLookup";
+import {
+  isMappedChannelPropertyType,
+  normalizeChannelPropertyType,
+  isChangeoverAuthored,
+  type ChangeoverDowKey,
+} from "@/config/channelPropertyTypes";
+import ChangeoverRulesCard from "@/components/property/policies/ChangeoverRulesCard";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { isRolosPms } from "@/lib/pmsUtils";
 import { useAuth } from "@/hooks/useAuth";
@@ -854,6 +861,9 @@ export default function PropertyForm({
   /** Property-level Floor / Space fallbacks for channel pushes. */
   const [propertyFloor, setPropertyFloor] = useState<number | null>(null);
   const [propertySizeSqm, setPropertySizeSqm] = useState<number | null>(null);
+  /** Channel changeover: master rule (0-3) + optional per-day overrides. */
+  const [changeoverMaster, setChangeoverMaster] = useState<number | null>(null);
+  const [changeoverRules, setChangeoverRules] = useState<Partial<Record<ChangeoverDowKey, number>>>({});
   const [cancellationPolicies, setCancellationPolicies] = useState([
     { forfeit: "10", type: "% of Total", days: "999" },
     { forfeit: "100", type: "% of Total", days: "30" },
@@ -2499,6 +2509,19 @@ export default function PropertyForm({
               : Number((data as any).toilets),
           );
           setSeparateKitchen(!!(data as any).separate_kitchen);
+
+          // Channel changeover rules (master + per-day overrides).
+          const changeoverRaw = amenities?.changeover;
+          setChangeoverMaster(
+            changeoverRaw === null || changeoverRaw === undefined || changeoverRaw === ""
+              ? null
+              : Number(changeoverRaw),
+          );
+          setChangeoverRules(
+            amenities?.changeover_rules && typeof amenities.changeover_rules === "object"
+              ? (amenities.changeover_rules as Partial<Record<ChangeoverDowKey, number>>)
+              : {},
+          );
 
           // Load google maps link if available
           if (amenities?.address_details?.google_maps_link) {
