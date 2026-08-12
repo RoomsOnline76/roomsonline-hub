@@ -2173,6 +2173,8 @@ export default function PropertyForm({
             recommended: v.recommended,
             mandatoryLabels: v.mandatoryLabels,
             recommendedLabels: v.recommendedLabels,
+            mandatoryItems: v.mandatoryItems,
+            recommendedItems: v.recommendedItems,
           },
         ]),
       ),
@@ -4212,6 +4214,10 @@ export default function PropertyForm({
               onSelect={handleTabChange}
               blockerKeys={tabsWithBlockers}
               requirementCounts={requirementCounts}
+              onSelectRequirement={(section, item) => {
+                handleTabChange(section);
+                if (item.paintable) window.setTimeout(() => focusRequirementField(item.key), 350);
+              }}
               collapsed={railCollapsed}
               onToggleCollapsed={toggleRailCollapsed}
             />

@@ -132,6 +132,8 @@ export default function PMSPropertySetup() {
             recommended: v.recommended,
             mandatoryLabels: v.mandatoryLabels,
             recommendedLabels: v.recommendedLabels,
+            mandatoryItems: v.mandatoryItems,
+            recommendedItems: v.recommendedItems,
           },
         ]),
       ),
@@ -206,6 +208,10 @@ export default function PMSPropertySetup() {
           activeKey={activeTab}
           onSelect={(key) => handleSelectTab(key as TabKey)}
           requirementCounts={requirementCounts}
+          onSelectRequirement={(section, item) => {
+            handleSelectTab(section as TabKey);
+            if (item.paintable) window.setTimeout(() => focusRequirementField(item.key), 350);
+          }}
           collapsed={railCollapsed}
           onToggleCollapsed={toggleRailCollapsed}
         />
