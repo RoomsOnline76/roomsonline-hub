@@ -216,6 +216,33 @@ export function resolveBedAmenityId(rawLabel: unknown): { id: number | null; nor
   return { id: direct ?? null, normalized: label };
 }
 
+/**
+ * Normalise a stored bed_configuration into array entries.
+ *
+ * Legacy rows keep a single string label ("king-twin", "queen"). Those units used to emit
+ * ZERO bedroom composition blocks, so RU content quality failed on "at least one bedroom"
+ * while ROL'OS read green. Convert the string into the equivalent entries instead of
+ * dropping it; unmapped labels are still reported and still block the push.
+ */
+export function normalizeBedConfiguration(bedConfiguration: unknown): { type: string; count: number }[] {
+  if (Array.isArray(bedConfiguration)) {
+    return (bedConfiguration as Record<string, unknown>[])
+      .filter((entry) => entry && typeof entry === 'object')
+      .map((entry) => ({
+        type: String(entry?.type ?? ''),
+        count: Math.max(1, Number(entry?.count) || 1),
+      }));
+  }
+  if (typeof bedConfiguration === 'string' && bedConfiguration.trim()) {
+    return bedConfiguration
+      .split(/[,+]/)
+      .map((part) => part.trim())
+      .filter((part) => part.length > 0)
+      .map((part) => ({ type: part, count: 1 }));
+  }
+  return [];
+}
+
 /** Aggregate a bed_configuration array into RU bedroom blocks + total bed count. */
 function bedBlocksFromConfiguration(
   bedConfiguration: unknown,
@@ -223,8 +250,10 @@ function bedBlocksFromConfiguration(
   const rooms: { room_id: number; amenities: { id: number; count: number }[] }[] = [];
   const unmapped: string[] = [];
   let totalBeds = 0;
-  if (!Array.isArray(bedConfiguration)) return { rooms, totalBeds, unmapped };
-  for (const entry of bedConfiguration as Record<string, unknown>[]) {
+  const normalized = normalizeBedConfiguration(bedConfiguration);
+  if (normalized.length === 0) return { rooms, totalBeds, unmapped };
+  for (const entry of normalized as Record<string, unknown>[]) {
+
     const count = Math.max(1, Number(entry?.count) || 1);
     const { id } = resolveBedAmenityId(entry?.type);
     if (id == null && entry?.type) unmapped.push(String(entry.type));
