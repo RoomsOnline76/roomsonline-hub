@@ -87,19 +87,28 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
     [clearStale, onChanged],
   );
 
-  const handleCleanupAll = useCallback(async () => {
-    setConfirmOpen(false);
-    const outcome = await cleanupAll();
-    const problems = outcome.failures.length + outcome.refused;
-    if (problems === 0) {
-      toast.success(`Cleaned ${outcome.cleaned} of ${outcome.total}`);
-    } else {
-      toast.error(
-        `Cleaned ${outcome.cleaned} of ${outcome.total} — ${outcome.refused} refused by the channel, ${outcome.failures.length} failed`,
-      );
-    }
-    await onChanged();
-  }, [cleanupAll, onChanged]);
+  const runCleanup = useCallback(
+    async (scope: "actionable" | "archived") => {
+      setConfirmOpen(false);
+      const outcome = await cleanupAll(scope);
+      const problems = outcome.failures.length + outcome.refused;
+      if (outcome.total === 0) {
+        toast.success("Nothing to clean up — the account already matches");
+      } else if (problems === 0) {
+        toast.success(`Cleaned ${outcome.cleaned} of ${outcome.total}`);
+      } else {
+        toast.error(
+          `Cleaned ${outcome.cleaned} of ${outcome.total} — ${outcome.refused} refused by the channel, ${outcome.failures.length} failed`,
+        );
+      }
+      await onChanged();
+    },
+    [cleanupAll, onChanged],
+  );
+
+  const handleCleanupAll = useCallback(() => runCleanup("actionable"), [runCleanup]);
+  const handleDeleteArchived = useCallback(() => runCleanup("archived"), [runCleanup]);
+
 
   const gap = result ? result.channel_listing_count - billableListings : 0;
   const cleaning = cleanup !== null;
