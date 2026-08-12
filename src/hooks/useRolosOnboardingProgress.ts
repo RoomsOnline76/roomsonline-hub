@@ -113,7 +113,10 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
   const distribution = useQuery({
     queryKey: ["rolos-onboarding-distribution", propertyId],
     enabled: !!propertyId,
-    staleTime: 60_000,
+    // Channel readiness must be re-derived every time the property editor mounts:
+    // a mandatory field deleted in a previous visit has to re-block the wizard.
+    staleTime: 0,
+    refetchOnMount: "always",
     refetchOnWindowFocus: false,
     queryFn: async () => {
       const id = propertyId as string;
