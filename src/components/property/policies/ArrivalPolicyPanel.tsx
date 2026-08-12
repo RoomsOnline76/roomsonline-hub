@@ -16,6 +16,12 @@ interface RoomOverride {
   id: string;
   name: string | null;
   check_in_instructions: string | null;
+  /**
+   * Every active record that carries this unit name. Legacy imports left duplicate rows
+   * (e.g. "Albatros" and "ALBATROS"); a save must reach all of them or the channel wizard
+   * and the push keep reading a blank copy.
+   */
+  ids: string[];
 }
 
 interface ArrivalPolicyPanelProps {
@@ -23,6 +29,8 @@ interface ArrivalPolicyPanelProps {
   siblings: SiblingProperty[];
   /** Fired after any save so the Policy library row stays in step with the editor. */
   onChanged?: () => void | Promise<void>;
+  /** Fired on any local edit (typing or a TOBI draft) so the property form shows its Save bar. */
+  onDirty?: () => void;
 }
 
 /**
@@ -33,7 +41,7 @@ interface ArrivalPolicyPanelProps {
  * pro-forma invoice already fall back to. Room-level instructions override it, so overrides
  * are surfaced here and can be cleared to keep one source of truth.
  */
-export const ArrivalPolicyPanel: React.FC<ArrivalPolicyPanelProps> = ({ propertyId, siblings, onChanged }) => {
+export const ArrivalPolicyPanel: React.FC<ArrivalPolicyPanelProps> = ({ propertyId, siblings, onChanged, onDirty }) => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [copying, setCopying] = useState(false);
@@ -44,6 +52,7 @@ export const ArrivalPolicyPanel: React.FC<ArrivalPolicyPanelProps> = ({ property
   const [overrides, setOverrides] = useState<RoomOverride[]>([]);
   const [unitDrafts, setUnitDrafts] = useState<Record<string, string>>({});
   const [savingUnit, setSavingUnit] = useState<string | null>(null);
+  const [draftingUnit, setDraftingUnit] = useState<string | null>(null);
 
 
 
