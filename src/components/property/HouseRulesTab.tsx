@@ -8,6 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator";
 import { getPMSFieldClass, isFieldPopulatedByPMS } from "@/lib/pmsFieldConfig";
 import { cn } from "@/lib/utils";
+import { ChannelFieldHint } from "@/components/property/ChannelFieldHint";
+import { checkChannelTime } from "@/lib/channelFieldRules";
 import { X, Check, Save, Cloud, Minus, Plus } from "lucide-react";
 
 interface HouseRulesTabProps {
@@ -146,6 +148,7 @@ export function HouseRulesTab(props: HouseRulesTabProps) {
                 <CardContent className="py-1.5 px-3 space-y-1">
                   <div className="flex items-center gap-1"><Label className="text-xs text-muted-foreground w-8">From</Label><Input type="time" value={formData[fromField]} onChange={(e) => handleInputChange(fromField, e.target.value)} disabled={isFieldPopulatedByPMS(fromField, selectedPMS)} className={cn("h-6 text-xs flex-1", getPMSFieldClass(fromField, selectedPMS))} /></div>
                   <div className="flex items-center gap-1"><Label className="text-xs text-muted-foreground w-8">To</Label><Input type="time" value={formData[toField]} onChange={(e) => handleInputChange(toField, e.target.value)} disabled={isFieldPopulatedByPMS(toField, selectedPMS)} className={cn("h-6 text-xs flex-1", getPMSFieldClass(toField, selectedPMS))} /></div>
+                  <ChannelFieldHint feedback={checkChannelTime(formData[fromField], `${title} from time`)} />
                 </CardContent>
               </Card>
             ))}
