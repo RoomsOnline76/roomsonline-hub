@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef } from "react";
-import type { RequirementStatus, SectionRequirementCounts } from "@/config/propertyFieldRequirements";
+import type { RequirementStatus } from "@/config/propertyFieldRequirements";
 import {
   clearRequirementDecoration,
   decorateRequirements,
 } from "@/lib/requirementFocus";
-import { usePropertyReadiness } from "@/hooks/usePropertyReadiness";
+import { usePropertyReadiness, type SectionReadinessCounts } from "@/hooks/usePropertyReadiness";
 
 interface UsePropertyFieldRequirementsOptions {
   propertyId?: string | null;
@@ -78,7 +78,7 @@ export function usePropertyFieldRequirements({
     };
   }, [containerRef, paint, sectionStatuses]);
 
-  const outstandingBySection: Record<string, SectionRequirementCounts> =
+  const outstandingBySection: Record<string, SectionReadinessCounts> =
     readiness.outstandingBySection;
 
   return {
