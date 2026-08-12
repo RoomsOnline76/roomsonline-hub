@@ -339,15 +339,18 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
             <AlertDialogDescription asChild>
               <div className="space-y-2 text-sm">
                 <p>
-                  {cleanableListings.length} channel listing{cleanableListings.length === 1 ? "" : "s"} (live and
-                  archived) will be deleted upstream, then re-read to confirm the account no longer returns them.
+                  {cleanableListings.length} live channel listing{cleanableListings.length === 1 ? "" : "s"} with no
+                  local match will be deleted upstream, then re-read to confirm the account no longer returns them.
                 </p>
 
                 <p>
                   {result?.stale.length || 0} stale local id{(result?.stale.length || 0) === 1 ? "" : "s"} will be
                   cleared — no channel call needed.
                 </p>
-                <p>Billable matched listings are not touched. Every removal is logged for audit.</p>
+                <p>
+                  Matched billable listings and archived listings are not touched. Every removal is logged for audit.
+                </p>
+
                 {erroredOwners.size > 0 && (
                   <p className="text-destructive">
                     {erroredOwners.size} account{erroredOwners.size === 1 ? "" : "s"} did not answer, so the picture is
