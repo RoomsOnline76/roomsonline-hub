@@ -456,9 +456,9 @@ export function RoomManagerTab({
 
   // ── Render ───────────────────────────────────────────────────────────────
   return (
-    <div className="flex gap-2 h-[calc(100vh-220px)]">
+    <div className="flex gap-2 items-start">
       {/* Left Sidebar - Room Types List */}
-      <div className="w-56 border-r bg-muted/30 p-2 space-y-1">
+      <div className="w-56 shrink-0 self-stretch border-r bg-muted/30 p-2 space-y-1 md:sticky md:top-2 md:max-h-[calc(100vh-140px)] md:overflow-y-auto">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-1">
             <h3 className="font-semibold text-xs">
@@ -564,7 +564,7 @@ export function RoomManagerTab({
 
 
       {/* Main Content - Room Type Details */}
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 min-w-0">
         <Tabs defaultValue="room-type" className="w-full">
           <TabsList className="h-8">
             <TabsTrigger value="room-type" className="text-xs h-7">
