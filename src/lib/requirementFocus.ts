@@ -127,7 +127,7 @@ export function decorateRequirements(statuses: RequirementStatus[], root: Parent
     if (!seen.has(el)) {
       el.classList.remove(...CLASSES);
       el.removeAttribute(REQ_ATTR);
-      el.removeAttribute("data-req-tier");
+      if (el.getAttribute("data-req-live") !== "1") el.removeAttribute("data-req-tier");
       el.removeAttribute("data-req-satisfied");
     }
   });
