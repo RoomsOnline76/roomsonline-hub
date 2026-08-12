@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { syncRestrictionsToChannels } from "@/lib/restrictionSync";
 import { format, eachDayOfInterval, getDay } from "date-fns";
 
 interface BulkRateRuleDialogProps {
@@ -152,6 +153,9 @@ export function BulkRateRuleDialog({
       if (error) throw error;
 
       toast.success(`Set rate to ${rate} for ${filteredDates.length} dates`);
+      // Rates changed — the Channel Manager update fires itself (parked and retried if the
+      // listing is currently short of the mandatory readiness gate).
+      if (propertyId) void syncRestrictionsToChannels([propertyId], "rate");
       onRuleCreated?.();
       onOpenChange(false);
     } catch (error: any) {
