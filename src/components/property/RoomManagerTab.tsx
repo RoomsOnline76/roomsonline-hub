@@ -2,7 +2,7 @@
  * RoomManagerTab — Extracted from PropertyForm.tsx (Sub-phase 1A)
  * Manages room type CRUD, bed configuration, facilities, amenities, images, and agreements.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { RoomTypeDataViewer, RateTypeItem } from "@/components/ExpandableDataViewer";
 import RUAmenityPicker from "@/components/property/RUAmenityPicker";
@@ -26,7 +26,7 @@ import RuImageTagPicker from "@/components/property/RuImageTagPicker";
 import { normalizeRuImageTagMap } from "@/lib/ruImageTags";
 
 import { getRoomUrl } from "@/lib/config";
-import { parseBedConfiguration, BED_TYPES, BedEntry, calculateBedCapacity, sleepsPerBed } from "@/lib/bedConfig";
+import { parseBedConfiguration, BED_TYPES, BedEntry, calculateBedCapacity, sleepsPerBed, formatBedConfiguration } from "@/lib/bedConfig";
 import { cn } from "@/lib/utils";
 import { isFieldPopulatedByPMS, getPMSDisplayName } from "@/lib/pmsFieldConfig";
 import { TagInput } from "@/components/TagInput";
@@ -34,6 +34,7 @@ import { HostfullyRoomDetails } from "@/components/pms/HostfullyRoomDetails";
 import { ACCOMMODATION_LABEL_OPTIONS, ACCOMMODATION_TYPES, type AccommodationLabelKey } from "@/lib/accommodationLabels";
 import {
   Home, Plus, Minus, X, Copy, Cloud, Upload, Heart, Trash2, RefreshCw, Info, DollarSign, Sparkles,
+  Loader2, AlertTriangle, CheckCircle2,
 } from "lucide-react";
 import AiAmenityDialog from "@/components/property/AiAmenityDialog";
 
@@ -60,6 +61,8 @@ export interface RoomManagerTabProps {
   mealTypeSuggestions: string[];
   handleNewMealType: (mealType: string) => Promise<void>;
 }
+
+export const MIN_ROOM_DESCRIPTION_CHARS = 700;
 
 // ─── Helpers (moved from PropertyForm) ──────────────────────────────────────
 const SUPPORTED_ROOM_IMAGE_TYPES = [
@@ -292,6 +295,61 @@ export function RoomManagerTab({
     if (isRoomFieldPmsSynced(roomId, fieldName)) return "bg-primary/5 border-primary/20";
     return "";
   };
+
+  // ── TOBI room description ────────────────────────────────────────────────
+  const [writingRoomDescription, setWritingRoomDescription] = useState(false);
+  const selectedRoom = useMemo(
+    () => roomTypes.find((r) => r.id === selectedRoomType) || null,
+    [roomTypes, selectedRoomType],
+  );
+  const roomDescriptionLength = (selectedRoom?.description ?? "").trim().length;
+  const roomDescriptionTooShort = roomDescriptionLength < MIN_ROOM_DESCRIPTION_CHARS;
+  const roomDescriptionPmsSynced = isRoomFieldPmsSynced(selectedRoomType, "description");
+
+  const writeRoomDescriptionWithTobi = useCallback(async () => {
+    if (!selectedRoom) return;
+    setWritingRoomDescription(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("editorial-ai-assist", {
+        body: {
+          action: "generate_room_description",
+          minChars: MIN_ROOM_DESCRIPTION_CHARS,
+          propertyContext: {
+            name: selectedRoom.name,
+            description: selectedRoom.description,
+            maxPeople: selectedRoom.maxPeople,
+            bedConfiguration: formatBedConfiguration(selectedRoom.bedConfiguration),
+            roomSize: selectedRoom.roomSize,
+            facilities: selectedRoom.facilities,
+            amenities: selectedRoom.amenities,
+            propertyType: accommodationLabel
+              ? ACCOMMODATION_LABEL_OPTIONS.find((o) => o.value === accommodationLabel)?.label
+              : undefined,
+          },
+        },
+      });
+      if (error) throw error;
+      const text: string = (data?.description ?? "").trim();
+      if (!text) throw new Error("TOBI returned no text");
+      updateRoomTypeField(selectedRoom.id, "description", text);
+      toast({
+        title: text.length >= MIN_ROOM_DESCRIPTION_CHARS ? "TOBI wrote the description" : "Description still too short",
+        description: text.length >= MIN_ROOM_DESCRIPTION_CHARS
+          ? `${text.length} characters — review and save.`
+          : `TOBI wrote ${text.length} characters — still under the ${MIN_ROOM_DESCRIPTION_CHARS} minimum, please expand.`,
+      });
+    } catch (err) {
+      toast({
+        title: "TOBI could not write the description",
+        description: err instanceof Error ? err.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setWritingRoomDescription(false);
+    }
+  }, [selectedRoom, accommodationLabel, updateRoomTypeField, toast]);
+
+
 
   const handleRoomImageUpload = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -571,13 +629,43 @@ export function RoomManagerTab({
                   </div>
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Description</Label>
+                  <div className="flex items-center justify-between gap-2">
+                    <Label className="text-xs">Description</Label>
+                    <div className="flex items-center gap-2">
+                      <span className={cn("text-[10px] tabular-nums", roomDescriptionTooShort ? "text-destructive" : "text-muted-foreground")}>
+                        {roomDescriptionLength} / {MIN_ROOM_DESCRIPTION_CHARS} characters
+                      </span>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-6 px-2 text-[10px]"
+                        disabled={writingRoomDescription}
+                        onClick={writeRoomDescriptionWithTobi}
+                      >
+                        {writingRoomDescription
+                          ? <><Loader2 className="h-3 w-3 mr-1 animate-spin" />TOBI is writing…</>
+                          : <><Sparkles className="h-3 w-3 mr-1" />Write with TOBI</>}
+                      </Button>
+                    </div>
+                  </div>
                   <Textarea
-                    className="text-xs min-h-[60px]"
+                    className={cn("text-xs min-h-[60px]", roomDescriptionTooShort && "border-destructive focus-visible:ring-destructive")}
                     placeholder="Room description..."
-                    value={roomTypes.find((r) => r.id === selectedRoomType)?.description || ""}
+                    value={selectedRoom?.description || ""}
                     onChange={(e) => updateRoomTypeField(selectedRoomType, "description", e.target.value)}
                   />
+                  {roomDescriptionTooShort ? (
+                    <p className="flex items-center gap-1 text-[10px] text-destructive">
+                      <AlertTriangle className="h-3 w-3" />
+                      {MIN_ROOM_DESCRIPTION_CHARS - roomDescriptionLength} more characters needed — distribution channels require at least {MIN_ROOM_DESCRIPTION_CHARS} characters.
+                    </p>
+                  ) : (
+                    <p className="flex items-center gap-1 text-[10px] text-emerald-600">
+                      <CheckCircle2 className="h-3 w-3" />
+                      Description meets the {MIN_ROOM_DESCRIPTION_CHARS}-character minimum for channel distribution.
+                    </p>
+                  )}
                 </div>
               </div>
             )}
@@ -618,21 +706,57 @@ export function RoomManagerTab({
                 )}
 
                 <div className="space-y-1">
-                  <Label className="text-xs flex items-center gap-1">
-                    Description
-                    {isRoomFieldPmsSynced(selectedRoomType, "description") && (
-                      <Badge variant="outline" className="text-[10px] h-4 px-1 bg-primary/10">
-                        <Cloud className="h-2.5 w-2.5" />
-                      </Badge>
-                    )}
-                  </Label>
+                  <div className="flex items-center justify-between gap-2">
+                    <Label className="text-xs flex items-center gap-1">
+                      Description
+                      {roomDescriptionPmsSynced && (
+                        <Badge variant="outline" className="text-[10px] h-4 px-1 bg-primary/10">
+                          <Cloud className="h-2.5 w-2.5" />
+                        </Badge>
+                      )}
+                    </Label>
+                    <div className="flex items-center gap-2">
+                      <span className={cn("text-[10px] tabular-nums", roomDescriptionTooShort ? "text-destructive" : "text-muted-foreground")}>
+                        {roomDescriptionLength} / {MIN_ROOM_DESCRIPTION_CHARS} characters
+                      </span>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-6 px-2 text-[10px]"
+                        disabled={writingRoomDescription || roomDescriptionPmsSynced}
+                        onClick={writeRoomDescriptionWithTobi}
+                      >
+                        {writingRoomDescription
+                          ? <><Loader2 className="h-3 w-3 mr-1 animate-spin" />TOBI is writing…</>
+                          : <><Sparkles className="h-3 w-3 mr-1" />Write with TOBI</>}
+                      </Button>
+                    </div>
+                  </div>
                   <Textarea
                     rows={2}
-                    className={cn("min-h-[52px] w-full text-xs", getRoomPmsFieldClass(selectedRoomType, "description"))}
-                    value={roomTypes.find((r) => r.id === selectedRoomType)?.description || ""}
+                    className={cn(
+                      "min-h-[52px] w-full text-xs",
+                      getRoomPmsFieldClass(selectedRoomType, "description"),
+                      !roomDescriptionPmsSynced && roomDescriptionTooShort && "border-destructive focus-visible:ring-destructive",
+                    )}
+                    value={selectedRoom?.description || ""}
                     onChange={(e) => updateRoomTypeField(selectedRoomType, "description", e.target.value)}
-                    disabled={isRoomFieldPmsSynced(selectedRoomType, "description")}
+                    disabled={roomDescriptionPmsSynced}
                   />
+                  {!roomDescriptionPmsSynced && (
+                    roomDescriptionTooShort ? (
+                      <p className="flex items-center gap-1 text-[10px] text-destructive">
+                        <AlertTriangle className="h-3 w-3" />
+                        {MIN_ROOM_DESCRIPTION_CHARS - roomDescriptionLength} more characters needed — distribution channels require at least {MIN_ROOM_DESCRIPTION_CHARS} characters.
+                      </p>
+                    ) : (
+                      <p className="flex items-center gap-1 text-[10px] text-emerald-600">
+                        <CheckCircle2 className="h-3 w-3" />
+                        Description meets the {MIN_ROOM_DESCRIPTION_CHARS}-character minimum for channel distribution.
+                      </p>
+                    )
+                  )}
                 </div>
 
                 <div className="space-y-1">
