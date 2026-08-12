@@ -642,6 +642,9 @@ function buildValidation(payload: Record<string, any>): Record<string, unknown> 
     has_floor: typeof payload.floor === 'number',
     floor_is_default: payload.floor_is_default === true,
     has_detailed_location_id: (payload.detailed_location_id || 0) > 1,
+    // Authored in ROL'OS (Identity & Location → Channel Manager location) vs guessed from
+    // coordinates. A guessed location still pushes, but the owner must confirm it.
+    ru_location_authored: payload.location_authored !== false,
     has_payment_methods: (payload.payment_methods || []).length >= 1,
     payment_methods_is_default: payload.payment_methods_is_default === true,
     has_cancellation_policies: (payload.cancellation_policies || []).length >= 1,
@@ -3121,7 +3124,7 @@ Deno.serve(async (req) => {
 
     const { data: property, error: propErr } = await supabase
       .from('properties')
-      .select('id, name, description, property_type, address, city, country, postal_code, latitude, longitude, max_guests, bedrooms, bathrooms, toilets, separate_kitchen, amenities, images, ru_image_tags, rentalsunited_property_id, rentalsunited_building_id, owner_email, external_system, ru_archived')
+      .select('id, name, description, property_type, address, city, country, postal_code, latitude, longitude, max_guests, bedrooms, bathrooms, toilets, separate_kitchen, amenities, images, ru_image_tags, ru_location_id, rentalsunited_property_id, rentalsunited_building_id, owner_email, external_system, ru_archived')
       .eq('id', property_id)
       .single();
 
@@ -3201,6 +3204,9 @@ Deno.serve(async (req) => {
     }
 
 
+    // Did the owner actually pick the Channel Manager location, or did we guess it?
+    const locationAuthored = !!forceLocationId || Number((property as any).ru_location_id) > 1;
+
     if (!locationId || locationId <= 1) {
       return new Response(
         JSON.stringify({ success: false, error: { code: 'LOCATION_UNRESOLVED', message: `Could not resolve a Rentals United LocationID for this property. Coordinates: (${lat}, ${lng}), country: "${country || 'unset'}". Set valid coordinates or a supported country (ZA/NA/BW) before pushing.` } }),
@@ -3241,6 +3247,7 @@ Deno.serve(async (req) => {
             // Probe image dimensions exactly like the dry run does — without this the
             // sizes stay "unverified" and readiness falsely reports every photo as too small.
             await applyImageVerification(payload);
+            payload.location_authored = locationAuthored;
             return { name: rt.name, validation: buildValidation(payload) as any };
           }),
         );
@@ -3712,7 +3719,7 @@ Deno.serve(async (req) => {
             room_type_id: rt.id,
             name: rt.name,
             ru_property_id: rt.rentalsunited_property_id || null,
-            validation: buildValidation(payload),
+            validation: buildValidation({ ...payload, location_authored: locationAuthored }),
           };
         }));
 
@@ -3746,6 +3753,7 @@ Deno.serve(async (req) => {
               space_is_default: units.some(u => (u.validation as any).space_is_default === true),
               floor_is_default: units.some(u => (u.validation as any).floor_is_default === true),
               has_detailed_location_id: everyFlag('has_detailed_location_id'),
+              ru_location_authored: everyFlag('ru_location_authored'),
               has_payment_methods: everyFlag('has_payment_methods'),
               payment_methods_is_default: units.some(u => (u.validation as any).payment_methods_is_default === true),
               has_cancellation_policies: everyFlag('has_cancellation_policies'),
@@ -4282,7 +4290,7 @@ Deno.serve(async (req) => {
       console.warn(`[push-property-to-ru] Stored RU property ID ${storedRuId} equals OwnerID — ignoring as a mis-capture`);
     }
 
-    const singleValidation = buildValidation(ruPayload as unknown as Record<string, any>);
+    const singleValidation = buildValidation({ ...(ruPayload as unknown as Record<string, any>), location_authored: locationAuthored });
 
     if (dry_run) {
       return new Response(

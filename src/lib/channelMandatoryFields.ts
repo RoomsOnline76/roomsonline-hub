@@ -33,7 +33,7 @@ export const CHANNEL_MANDATORY_FIELDS: ChannelMandatoryField[] = [
   { field: "arrival_instructions", check: "arrival_instructions", reason: "Arrival instructions must be populated" },
   { field: "cancellation_policy", check: "has_cancellation_policies", reason: "At least one cancellation policy" },
   { field: "payment_methods", check: "has_payment_methods", reason: "At least one payment method" },
-  { field: "ru_location_id", check: "has_detailed_location_id", reason: "Channel Manager location decides the listing location and currency" },
+  { field: "ru_location_id", check: "ru_location_selected", reason: "Channel Manager location decides the listing location and currency — it must be picked explicitly, not guessed from coordinates" },
   { field: "rep_nationality", check: "has_legal_rep", reason: "Legal representative nationality is required by the channel" },
   { field: "rep_country_of_residence", check: "has_legal_rep", reason: "Legal representative country of residence is required by the channel" },
   { field: "rep_first_name", check: "has_legal_rep", reason: "Legal representative first name is required by the channel" },
