@@ -217,6 +217,22 @@ export async function queueRuStaticDelta(
     const startedAt = Date.now();
     const { success, errorMessage, chunks, units } = await pushStaticContent(supabase, propertyId);
 
+    // The push itself writes bookkeeping back onto the rows it just sent (newly issued channel
+    // listing ids in particular), which would make the pre-push fingerprint stale the moment it
+    // is stored — every later save would then look like a change and re-push. Record the
+    // *post-push* fingerprint so the snapshot matches what the channel now holds.
+    let storedHash = contentHash;
+    if (success) {
+      try {
+        const after = await loadSnapshot(supabase, propertyId);
+        if (after.property) {
+          storedHash = await sha256(stableStringify({ property: after.property, units: after.units }));
+        }
+      } catch (rehashErr) {
+        console.warn('[ruStaticDelta] post-push rehash failed', rehashErr);
+      }
+    }
+
     // Log unconditionally: the hash is only recorded on success so a failed delta is retried
     // by the next save (or the weekly cron) instead of being silently treated as delivered.
     try {
@@ -228,7 +244,8 @@ export async function queueRuStaticDelta(
         elapsed_ms: Date.now() - startedAt,
         details: {
           trigger,
-          content_hash: success ? contentHash : null,
+          content_hash: success ? storedHash : null,
+          pushed_hash: contentHash,
           forced: options.force === true,
           chunks,
           units,
@@ -237,6 +254,7 @@ export async function queueRuStaticDelta(
     } catch (logErr) {
       console.warn('[ruStaticDelta] log insert failed', logErr);
     }
+
 
     if (!success) {
       console.warn(`[ruStaticDelta] Static push failed for ${propertyId}: ${errorMessage}`);
