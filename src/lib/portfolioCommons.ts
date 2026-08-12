@@ -71,7 +71,68 @@ export const PORTFOLIO_COMMONS_GROUPS: CommonsGroup[] = [
     tier: "recommended",
     requirementKeys: [],
   },
+  {
+    key: "policies",
+    label: "Cancellation & reservation policy terms",
+    description:
+      "The authored cancellation ladder plus the reservation policy rules used in checkout and channel pushes.",
+    tier: "recommended",
+    requirementKeys: ["cancellation_policy"],
+  },
+  {
+    key: "arrival_changeover",
+    label: "Arrival, departure & changeover rules",
+    description:
+      "Arrival instructions, the master changeover rule and per-day changeover overrides the channel push reads.",
+    tier: "recommended",
+    requirementKeys: ["changeover_rules", "arrival_policy"],
+  },
+  {
+    key: "classification",
+    label: "Star rating, accommodation label & property class",
+    description: "Property type, star rating, accommodation label and the self-catering flag units inherit.",
+    tier: "recommended",
+    requirementKeys: ["property_type", "star_rating"],
+  },
+  {
+    key: "narrative",
+    label: "Brand voice & area narrative defaults",
+    description:
+      "Brand voice and AI tone, area/neighbourhood facts (transport, airport, restaurants) and additional source URLs used by TOBI writers.",
+    tier: "recommended",
+    requirementKeys: [],
+  },
+  {
+    key: "meals",
+    label: "Meal plans & breakfast options",
+    description: "Meal types and breakfast options offered across the portfolio (merged, never removed).",
+    tier: "recommended",
+    requirementKeys: [],
+  },
+  {
+    key: "facilities",
+    label: "Facilities & safety baseline",
+    description: "Portfolio-wide facility and safety selections, merged additively so nothing is ever removed.",
+    tier: "recommended",
+    requirementKeys: ["facilities"],
+  },
+  {
+    key: "payments",
+    label: "Payment & invoicing mode",
+    description: "Payment mode (paid vs reservation-only), payment providers and custom-provider permission.",
+    tier: "recommended",
+    requirementKeys: [],
+  },
+  {
+    key: "channel_content",
+    label: "Channel push defaults & accepted payment methods",
+    description:
+      "Whether the Channel Manager push is enabled and the guest payment methods published to channels.",
+    tier: "mandatory",
+    requirementKeys: ["ru_payment_methods"],
+  },
 ];
+
 
 /* ------------------------------------------------------------------ */
 /* Field registry                                                      */
@@ -86,6 +147,11 @@ interface FieldSpec {
   location: Location;
   /** Merge object values key-by-key instead of replacing wholesale. */
   deep?: boolean;
+  /**
+   * Array values: union the source and target entries instead of replacing.
+   * Nothing a property already offers is ever removed by a share.
+   */
+  union?: boolean;
 }
 
 const FIELDS: FieldSpec[] = [
@@ -119,7 +185,43 @@ const FIELDS: FieldSpec[] = [
   // distribution
   { group: "distribution", path: "ru_location_id", location: "column" },
   { group: "distribution", path: "ru_payment_methods", location: "amenities", deep: true },
+
+  // policies — cancellation ladder (rule rows handled separately)
+  { group: "policies", path: "cancellation_policies", location: "amenities", deep: true },
+
+  // arrival_changeover
+  { group: "arrival_changeover", path: "changeover", location: "amenities" },
+  { group: "arrival_changeover", path: "changeover_rules", location: "amenities", deep: true },
+  { group: "arrival_changeover", path: "house_rules.check_in_instructions", location: "amenities" },
+
+  // classification
+  { group: "classification", path: "property_type", location: "column" },
+  { group: "classification", path: "star_rating", location: "amenities" },
+  { group: "classification", path: "accommodation_label", location: "amenities" },
+  { group: "classification", path: "self_catering", location: "amenities" },
+
+  // narrative (brand kit handled separately)
+  { group: "narrative", path: "property_info", location: "amenities", deep: true },
+  { group: "narrative", path: "additional_source_urls", location: "amenities", union: true },
+
+  // meals
+  { group: "meals", path: "meal_types", location: "amenities", union: true },
+  { group: "meals", path: "breakfast_options", location: "amenities", union: true },
+
+  // facilities
+  { group: "facilities", path: "facilities", location: "amenities", union: true },
+
+  // payments
+  { group: "payments", path: "payment_mode", location: "column" },
+  { group: "payments", path: "payment_provider", location: "column" },
+  { group: "payments", path: "payment_providers", location: "column", union: true },
+  { group: "payments", path: "allow_custom_payment_provider", location: "column" },
+
+  // channel_content
+  { group: "channel_content", path: "ru_push_enabled", location: "column" },
+  { group: "channel_content", path: "payment_methods", location: "amenities", union: true },
 ];
+
 
 /** Contact roles treated as portfolio-common. */
 const COMMON_CONTACT_ROLES = ["reservations", "after_hours", "emergency", "other"] as const;
@@ -139,6 +241,25 @@ const isBlank = (value: unknown): boolean => {
 
 const asRecord = (value: unknown): Record<string, unknown> =>
   value && typeof value === "object" && !Array.isArray(value) ? { ...(value as Record<string, unknown>) } : {};
+
+/**
+ * Additive union of two lists. Facilities, meal plans and payment methods are
+ * offerings — a share may add what the portfolio has in common but must never
+ * remove something a property already offers.
+ */
+const unionValues = (source: unknown, target: unknown): unknown[] => {
+  const toList = (value: unknown): unknown[] => (Array.isArray(value) ? value : isBlank(value) ? [] : [value]);
+  const out = [...toList(target)];
+  const seen = new Set(out.map((entry) => JSON.stringify(entry)));
+  for (const entry of toList(source)) {
+    const key = JSON.stringify(entry);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(entry);
+  }
+  return out;
+};
+
 
 const getPath = (root: unknown, path: string): unknown => {
   let cursor: unknown = root;
@@ -187,7 +308,25 @@ interface PropertySnapshot extends CommonsProperty {
   row: Record<string, unknown>;
   amenities: Record<string, unknown>;
   contacts: ContactRow[];
+  /** Reservation / cancellation rule rows (row-based, keyed on policy_type). */
+  policies: PolicyRow[];
+  /** Brand kit experience config (brand voice + AI tone). */
+  brandKit: BrandKitRow | null;
 }
+
+interface PolicyRow {
+  id?: string;
+  property_id?: string;
+  policy_type: string;
+  rule: unknown;
+}
+
+interface BrandKitRow {
+  id?: string;
+  property_id?: string;
+  config: Record<string, unknown>;
+}
+
 
 interface ContactRow {
   id?: string;
@@ -222,32 +361,51 @@ export interface CommonsState {
 /* Reads                                                               */
 /* ------------------------------------------------------------------ */
 
-const PROPERTY_COLUMNS = "id, name, slug, amenities, country, timezone, ru_location_id";
+const PROPERTY_COLUMNS =
+  "id, name, slug, amenities, country, timezone, ru_location_id, property_type, ru_push_enabled, payment_mode, payment_provider, payment_providers, allow_custom_payment_provider";
 
 async function fetchSnapshots(ids: string[]): Promise<PropertySnapshot[]> {
   if (ids.length === 0) return [];
-  const [{ data: rows, error }, { data: contacts, error: contactError }] = await Promise.all([
+  const [
+    { data: rows, error },
+    { data: contacts, error: contactError },
+    { data: policies, error: policyError },
+    { data: brandKits, error: brandKitError },
+  ] = await Promise.all([
     supabase.from("properties").select(PROPERTY_COLUMNS).in("id", ids),
     supabase
       .from("property_contact_details")
       .select("id, property_id, role, name, email, phone, hours, is_public, sort_order")
       .in("property_id", ids),
+    supabase.from("rolos_policies").select("id, property_id, policy_type, rule").in("property_id", ids),
+    supabase
+      .from("rolos_experience_configs")
+      .select("id, property_id, config")
+      .eq("experience_type", "brand_kit")
+      .in("property_id", ids),
   ]);
   if (error) throw error;
   if (contactError) throw contactError;
+  if (policyError) throw policyError;
+  if (brandKitError) throw brandKitError;
 
   return (rows ?? []).map((row) => {
     const record = row as unknown as Record<string, unknown>;
+    const id = String(record.id);
+    const kit = ((brandKits ?? []) as unknown as BrandKitRow[]).find((k) => k.property_id === id);
     return {
-      id: String(record.id),
+      id,
       name: (record.name as string) ?? "Unnamed property",
       slug: (record.slug as string) ?? null,
       row: record,
       amenities: asRecord(record.amenities),
-      contacts: ((contacts ?? []) as unknown as ContactRow[]).filter((c) => c.property_id === row.id),
+      contacts: ((contacts ?? []) as unknown as ContactRow[]).filter((c) => c.property_id === id),
+      policies: ((policies ?? []) as unknown as PolicyRow[]).filter((p) => p.property_id === id),
+      brandKit: kit ? { id: kit.id, property_id: kit.property_id, config: asRecord(kit.config) } : null,
     };
   });
 }
+
 
 function readGroupValues(snapshot: PropertySnapshot, groupKey: string): Record<string, unknown> {
   const out: Record<string, unknown> = {};
@@ -267,10 +425,32 @@ function commonContacts(snapshot: PropertySnapshot): ContactRow[] {
   );
 }
 
+/** Policy rows treated as portfolio-common (cancellation ladder + reservation rules). */
+function commonPolicies(snapshot: PropertySnapshot): PolicyRow[] {
+  return snapshot.policies.filter((p) => !isBlank(p.policy_type) && !isBlank(p.rule));
+}
+
+/** Brand voice / AI tone keys shared across a portfolio. */
+const BRAND_KIT_KEYS = ["brand_voice", "ai_email_tone"] as const;
+
+function commonBrandKit(snapshot: PropertySnapshot): Record<string, unknown> {
+  const config = snapshot.brandKit?.config ?? {};
+  const out: Record<string, unknown> = {};
+  for (const key of BRAND_KIT_KEYS) {
+    if (!isBlank(config[key])) out[key] = config[key];
+  }
+  return out;
+}
+
 function groupHasData(snapshot: PropertySnapshot, groupKey: string): boolean {
   if (groupKey === "contacts") return commonContacts(snapshot).length > 0;
+  if (groupKey === "policies")
+    return commonPolicies(snapshot).length > 0 || Object.keys(readGroupValues(snapshot, groupKey)).length > 0;
+  if (groupKey === "narrative")
+    return Object.keys(commonBrandKit(snapshot)).length > 0 || Object.keys(readGroupValues(snapshot, groupKey)).length > 0;
   return Object.keys(readGroupValues(snapshot, groupKey)).length > 0;
 }
+
 
 /** Portfolio ids this property belongs to. */
 async function fetchPortfolioIds(propertyId: string): Promise<string[]> {
@@ -368,6 +548,8 @@ export interface CommonsWriteResult {
   updatedProperties: number;
   updatedGroups: string[];
   contactsWritten: number;
+  /** Rows written per row-based group (contacts, policies, brand kit). */
+  rowsWritten: number;
 }
 
 interface ApplyOptions {
@@ -385,6 +567,7 @@ async function applyGroups(
   const touchedGroups = new Set<string>();
   let updatedProperties = 0;
   let contactsWritten = 0;
+  let rowsWritten = 0;
 
   for (const target of targets) {
     const amenities = { ...target.amenities };
@@ -398,15 +581,23 @@ async function applyGroups(
 
       if (field.location === "column") {
         const current = target.row[field.path];
-        if (!overwrite && !isBlank(current)) continue;
-        columnUpdates[field.path] = value;
+        const next = field.union ? unionValues(value, current) : value;
+        if (!field.union && !overwrite && !isBlank(current)) continue;
+        if (JSON.stringify(next) === JSON.stringify(current ?? null)) continue;
+        columnUpdates[field.path] = next;
         dirty = true;
         touchedGroups.add(field.group);
         continue;
       }
 
       const current = getPath(amenities, field.path);
-      const next = field.deep ? mergeValues(value, current, overwrite) : overwrite || isBlank(current) ? value : current;
+      const next = field.union
+        ? unionValues(value, current)
+        : field.deep
+          ? mergeValues(value, current, overwrite)
+          : overwrite || isBlank(current)
+            ? value
+            : current;
       if (JSON.stringify(next) === JSON.stringify(current)) continue;
       setPath(amenities, field.path, next);
       dirty = true;
@@ -425,7 +616,26 @@ async function applyGroups(
       const written = await applyContacts(source, target, overwrite);
       if (written > 0) {
         contactsWritten += written;
+        rowsWritten += written;
         touchedGroups.add("contacts");
+        dirty = true;
+      }
+    }
+
+    if (groupKeys.includes("policies")) {
+      const written = await applyPolicies(source, target, overwrite);
+      if (written > 0) {
+        rowsWritten += written;
+        touchedGroups.add("policies");
+        dirty = true;
+      }
+    }
+
+    if (groupKeys.includes("narrative")) {
+      const written = await applyBrandKit(source, target, overwrite);
+      if (written > 0) {
+        rowsWritten += written;
+        touchedGroups.add("narrative");
         dirty = true;
       }
     }
@@ -433,8 +643,76 @@ async function applyGroups(
     if (dirty) updatedProperties += 1;
   }
 
-  return { updatedProperties, updatedGroups: [...touchedGroups], contactsWritten };
+  return { updatedProperties, updatedGroups: [...touchedGroups], contactsWritten, rowsWritten };
 }
+
+/** Copy the authored cancellation / reservation policy rows, matching on policy type. */
+async function applyPolicies(
+  source: PropertySnapshot,
+  target: PropertySnapshot,
+  overwrite: boolean,
+): Promise<number> {
+  const rows = commonPolicies(source);
+  if (rows.length === 0) return 0;
+  let written = 0;
+
+  for (const row of rows) {
+    const existing = target.policies.find((p) => p.policy_type === row.policy_type);
+    if (existing && !overwrite) continue;
+    if (existing) {
+      if (JSON.stringify(existing.rule) === JSON.stringify(row.rule)) continue;
+      const { error } = await supabase
+        .from("rolos_policies")
+        .update({ rule: row.rule as Json })
+        .eq("id", existing.id!);
+      if (error) throw error;
+    } else {
+      const { error } = await supabase
+        .from("rolos_policies")
+        .insert({ property_id: target.id, policy_type: row.policy_type, rule: row.rule as Json });
+      if (error) throw error;
+    }
+    written += 1;
+  }
+
+  return written;
+}
+
+/** Copy brand voice / AI tone into the sibling's brand kit config. */
+async function applyBrandKit(
+  source: PropertySnapshot,
+  target: PropertySnapshot,
+  overwrite: boolean,
+): Promise<number> {
+  const shared = commonBrandKit(source);
+  if (Object.keys(shared).length === 0) return 0;
+
+  const current = target.brandKit?.config ?? {};
+  const next = { ...current };
+  let changed = false;
+  for (const [key, value] of Object.entries(shared)) {
+    if (!overwrite && !isBlank(current[key])) continue;
+    if (JSON.stringify(current[key]) === JSON.stringify(value)) continue;
+    next[key] = value;
+    changed = true;
+  }
+  if (!changed) return 0;
+
+  if (target.brandKit?.id) {
+    const { error } = await supabase
+      .from("rolos_experience_configs")
+      .update({ config: next as Json })
+      .eq("id", target.brandKit.id);
+    if (error) throw error;
+  } else {
+    const { error } = await supabase
+      .from("rolos_experience_configs")
+      .insert({ property_id: target.id, experience_type: "brand_kit", config: next as Json });
+    if (error) throw error;
+  }
+  return 1;
+}
+
 
 /** Copy the portfolio-common contact rows, matching on role. */
 async function applyContacts(
@@ -495,7 +773,7 @@ export async function shareCommonsToSiblings(
   options: ApplyOptions = {},
 ): Promise<CommonsWriteResult> {
   if (targetIds.length === 0 || groupKeys.length === 0)
-    return { updatedProperties: 0, updatedGroups: [], contactsWritten: 0 };
+    return { updatedProperties: 0, updatedGroups: [], contactsWritten: 0, rowsWritten: 0 };
   const snapshots = await fetchSnapshots([propertyId, ...targetIds]);
   const source = snapshots.find((s) => s.id === propertyId);
   if (!source) throw new Error("Source property not found");
@@ -513,13 +791,13 @@ export async function backfillCommonsFromPortfolio(
   const portfolioIds = await fetchPortfolioIds(propertyId);
   const siblingIds = await fetchSiblingIds(propertyId, portfolioIds);
   if (siblingIds.length === 0 || groupKeys.length === 0)
-    return { updatedProperties: 0, updatedGroups: [], contactsWritten: 0 };
+    return { updatedProperties: 0, updatedGroups: [], contactsWritten: 0, rowsWritten: 0 };
 
   const snapshots = await fetchSnapshots([propertyId, ...siblingIds]);
   const self = snapshots.find((s) => s.id === propertyId);
   if (!self) throw new Error("Property not found");
 
-  const result: CommonsWriteResult = { updatedProperties: 0, updatedGroups: [], contactsWritten: 0 };
+  const result: CommonsWriteResult = { updatedProperties: 0, updatedGroups: [], contactsWritten: 0, rowsWritten: 0 };
   const touched = new Set<string>();
 
   for (const groupKey of groupKeys) {
@@ -532,6 +810,7 @@ export async function backfillCommonsFromPortfolio(
     const partial = await applyGroups(source, [target], [groupKey], { overwrite: false });
     partial.updatedGroups.forEach((g) => touched.add(g));
     result.contactsWritten += partial.contactsWritten;
+    result.rowsWritten += partial.rowsWritten;
   }
 
   result.updatedGroups = [...touched];
