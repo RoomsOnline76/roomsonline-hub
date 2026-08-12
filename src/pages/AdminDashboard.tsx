@@ -21,6 +21,8 @@ import { format, subDays } from "date-fns";
 import { NarrativeSummary } from "@/components/dashboard/NarrativeSummary";
 import { SystemAlertsPanel } from "@/components/dashboard/SystemAlertsPanel";
 import { ALL_REVENUE_PAYMENT_STATUSES } from "@/lib/revenueStatuses";
+import { applyAdminScope } from '@/lib/adminScope';
+import { useAuth } from '@/hooks/useAuth';
 
 interface DashboardStats {
   paidBookings: number;
@@ -45,10 +47,13 @@ export default function AdminDashboard() {
   const navigate = useNavigate();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const { scopedPropertyIds } = useAuth();
+  const scopeKey = scopedPropertyIds.join(',');
 
   useEffect(() => {
     loadDashboardStats();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scopeKey]);
 
   const loadDashboardStats = async () => {
     try {
@@ -70,7 +75,11 @@ export default function AdminDashboard() {
         supabase.from('properties').select('*', { count: 'exact', head: true }),
         // Trading properties only — stale inventory (connected/contracted but not
         // processing anything) must never inflate the operational counts.
-        supabase.from('properties').select('*', { count: 'exact', head: true }).eq('is_trading', true).eq('is_sandbox', false),
+        applyAdminScope(
+          supabase.from('properties').select('*', { count: 'exact', head: true }).eq('is_trading', true).eq('is_sandbox', false),
+          'id',
+          scopedPropertyIds,
+        ),
         supabase.from('access_requests').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
         supabase
           .from('bookings')

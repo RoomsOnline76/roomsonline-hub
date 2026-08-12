@@ -14,10 +14,9 @@ export const SCOPED_ADMIN_NAV_ITEM_IDS = new Set<string>([
   "admin-dashboard",
   "all-bookings",
   "onboarding",
-  "revenue-pulse",
   "channel-monitor",
   "properties",
-  "all-properties",
+  "property-pulse",
 ]);
 
 /** Nav sections a scoped admin may see. */
@@ -36,11 +35,10 @@ const SCOPED_ADMIN_ROUTE_PREFIXES = [
   "/admin/bookings",
   "/admin/all-bookings",
   "/admin/onboarding",
+  "/dashboard/reports",
   "/admin/channel-monitor",
   "/admin/property-overview",
-  "/admin/all-properties",
   "/admin/properties/",
-  "/pulse",
   "/pms",
   "/dashboard/reports",
   "/auth",
