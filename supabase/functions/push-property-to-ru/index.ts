@@ -1297,10 +1297,17 @@ function buildSinglePropertyPayload(property: PropertyRow, roomTypes: RoomTypeRo
   return {
     name: property.name,
     property_type_id: objectTypeId,
+    object_type_is_default: objectTypeIsDefault,
+    object_type_source: authoredSingleType,
     can_sleep_max: maxGuests,
     standard_guests: Math.ceil(maxGuests * 0.7),
     number_of_beds: numberOfBeds,
     currency_id: currencyId ?? mapCurrencyToRUId(property.amenities, property.country),
+    currency_is_default: !currencyAuthored.authored,
+    currency_iso: currencyAuthored.iso,
+    beds_are_default: bedsDerivedFromCounts,
+    changeover_is_default: !isChangeoverAuthored((primaryRoom?.amenities as Record<string, any>) || null, amenities as Record<string, any>),
+
     owner_id: 0, no_of_units: 1, floor: buildingFloor, floor_is_default: buildingFloorIsDefault, space, space_is_default: spaceIsDefault, street,
     detailed_location_id: locationId, zip_code: zipCode,
     latitude: lat, longitude: lng,
