@@ -1167,14 +1167,15 @@ function buildUnitPayload(
   }
 
 
-  // Calculate beds from bed_configuration if available
+  // Calculate beds from bed_configuration if available (legacy string configs normalised)
   let beds = 0;
+  const unitBedConfig = normalizeBedConfiguration(unit.bed_configuration);
   const bedAmenities: { id: number; count: number }[] = [];
-  if (Array.isArray(unit.bed_configuration) && unit.bed_configuration.length > 0) {
-    beds = unit.bed_configuration.reduce((sum: number, b: any) => sum + (b.count || 0), 0);
+  if (unitBedConfig.length > 0) {
+    beds = unitBedConfig.reduce((sum: number, b) => sum + (b.count || 0), 0);
     // Map bed types to RU bed amenity IDs
     const seenBedIds = new Set<number>();
-    for (const bedEntry of unit.bed_configuration) {
+    for (const bedEntry of unitBedConfig) {
       const ruBedId = resolveBedAmenityId(bedEntry.type).id;
       if (ruBedId && !seenBedIds.has(ruBedId)) {
         seenBedIds.add(ruBedId);
@@ -1186,6 +1187,7 @@ function buildUnitPayload(
       }
     }
   }
+
   if (!beds) beds = Number(unit.beds) || 0;
   const descText = unit.description || property.description || unit.name;
 
