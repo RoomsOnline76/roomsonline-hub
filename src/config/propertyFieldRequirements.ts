@@ -401,6 +401,18 @@ export const PROPERTY_FIELD_REQUIREMENTS: FieldRequirement[] = [
     isSatisfied: (s) => roomRows(s).length > 0 && roomRows(s).every((room) => room.floor !== null && room.floor !== undefined),
   },
   {
+    key: "room_size",
+    label: "Size in m² captured for every unit",
+    tier: "mandatory",
+    section: "rooms",
+    target: ['[data-field="room_size"]'],
+    hint: "Blank or zero makes the channel receive an invented 50 m² — capture the real size, or set a property-level size in Info & Facilities.",
+    isSatisfied: (s) =>
+      numericAtLeast(amenity(s, "property_size_sqm"), 1) ||
+      (roomRows(s).length > 0 && roomRows(s).every((room) => numericAtLeast(room.roomSize ?? room.room_size, 1))),
+  },
+
+  {
     key: "room_bathrooms",
     label: "At least 1 bathroom per unit",
     tier: "mandatory",
