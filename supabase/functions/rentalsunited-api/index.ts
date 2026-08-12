@@ -2808,6 +2808,39 @@ Deno.serve(async (req) => {
       });
     }
 
+    // ── list_destinations (attraction/distance dictionary) ──
+    // The <Distances> block in Push_PutProperty_RQ references destination ids from a
+    // channel-owned dictionary. We probe the documented method names in order and return
+    // the first one the channel answers, so no destination id is ever invented locally.
+    if (action === 'list_destinations') {
+      const candidates = ['Pull_ListDestinations_RQ', 'Pull_ListLocationTypes_RQ', 'Pull_ListDistances_RQ'];
+      const attempts: Array<{ method: string; status_id: string; status_message: string; sample: string }> = [];
+      for (const method of candidates) {
+        const xml = `<?xml version="1.0" encoding="utf-8"?>\n<${method}>\n  ${buildAuthXml(creds)}\n</${method}>`;
+        let response = '';
+        try {
+          response = await callRentalsUnited(creds, xml);
+        } catch (err) {
+          attempts.push({ method, status_id: 'transport', status_message: err instanceof Error ? err.message : 'error', sample: '' });
+          continue;
+        }
+        const { ok, status } = handleRUStatus(response);
+        attempts.push({ method, status_id: status.id, status_message: status.message, sample: response.slice(0, 4000) });
+        if (ok) {
+          return jsonResponse({
+            success: true,
+            auth_mode: 'master_channel_manager',
+            method,
+            attempts,
+            raw_xml: response,
+          });
+        }
+      }
+      return jsonResponse({ success: false, error: { code: 'NO_DESTINATION_DICTIONARY', message: 'The channel did not answer any known destination dictionary method.' }, attempts });
+    }
+
+
+
 
     // ── get_long_stay_discounts (verification) ──
     if (action === 'get_long_stay_discounts') {
