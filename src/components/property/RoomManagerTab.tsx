@@ -26,7 +26,9 @@ import RuImageTagPicker from "@/components/property/RuImageTagPicker";
 import { normalizeRuImageTagMap } from "@/lib/ruImageTags";
 
 import { getRoomUrl } from "@/lib/config";
-import { parseBedConfiguration, BED_TYPES, BedEntry, calculateBedCapacity, sleepsPerBed, formatBedConfiguration } from "@/lib/bedConfig";
+import { parseBedConfiguration, BED_TYPES, BedEntry, calculateBedCapacity, sleepsPerBed, formatBedConfiguration, authoredBedroomCount } from "@/lib/bedConfig";
+import { BedComposition } from "@/components/property/BedComposition";
+
 import { cn } from "@/lib/utils";
 import { isFieldPopulatedByPMS, getPMSDisplayName } from "@/lib/pmsFieldConfig";
 import { ChannelFieldHint } from "@/components/property/ChannelFieldHint";
