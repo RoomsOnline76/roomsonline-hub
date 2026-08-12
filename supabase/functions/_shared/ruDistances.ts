@@ -22,25 +22,28 @@ export interface RuDistanceEntry {
 
 /** Generic dictionary names we look for. Order matters: first match wins per attraction. */
 export const GENERIC_DESTINATION_KEYWORDS: Array<{ slug: string; keywords: string[] }> = [
+  // Named venues first: a title like "Maritime Museum at Darling Harbour" is a museum, not a port.
   { slug: "beach", keywords: ["beach", "strand"] },
-  { slug: "sea", keywords: ["sea", "ocean", "tidal pool", "coast"] },
-  { slug: "marina", keywords: ["marina"] },
-  { slug: "port", keywords: ["port", "harbour", "harbor", "hawe"] },
-  { slug: "golf course", keywords: ["golf"] },
   { slug: "museum", keywords: ["museum", "gallery", "heritage"] },
   { slug: "zoo", keywords: ["zoo", "aquarium"] },
-  { slug: "park", keywords: ["park", "nature reserve", "trail", "hike", "hiking"] },
+  { slug: "golf course", keywords: ["golf"] },
   { slug: "restaurant", keywords: ["restaurant", "bistro", "eatery", "dining", "cafe", "coffee"] },
-  { slug: "market", keywords: ["market"] },
   { slug: "supermarket", keywords: ["supermarket", "grocer", "spar", "checkers", "woolworths"] },
+  { slug: "market", keywords: ["market"] },
   { slug: "shopping centre", keywords: ["shopping", "mall"] },
+  { slug: "park", keywords: ["park", "nature reserve", "trail", "hike", "hiking"] },
+  // Then the generic infrastructure destinations.
+  { slug: "sea", keywords: ["sea", "ocean", "tidal pool", "coast", "lagoon"] },
+  { slug: "marina", keywords: ["marina"] },
+  { slug: "port", keywords: ["port", "harbour", "harbor"] },
   { slug: "town centre", keywords: ["town centre", "town center", "village"] },
   { slug: "city centre", keywords: ["city centre", "city center", "downtown", "cbd"] },
   { slug: "airport", keywords: ["airport", "airfield"] },
   { slug: "railway station", keywords: ["railway", "train station"] },
   { slug: "bus stop", keywords: ["bus stop", "bus station"] },
-  { slug: "ski-lift", keywords: ["ski lift", "ski-lift", "ski"] },
+  { slug: "ski-lift", keywords: ["ski lift", "ski-lift"] },
 ];
+
 
 /** Category fallback when the attraction title carries no recognisable keyword. */
 const CATEGORY_FALLBACK_SLUG: Record<string, string> = {
