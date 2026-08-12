@@ -3375,6 +3375,18 @@ Deno.serve(async (req) => {
     })();
     const isMultiUnit = activeRoomTypes.length > 0;
 
+    /**
+     * Gate #10 — distances to nearby attractions (nice-to-have, never blocking). Resolved once
+     * for the whole push from the property's authored attractions plus the cached channel
+     * destination dictionary; an empty result simply omits the <Distances> block.
+     */
+    const propertyDistances = await loadPropertyDistances(supabase, property_id);
+    if (propertyDistances.length > 0) {
+      console.log(`[push-property-to-ru] Distances mapped: ${propertyDistances.map((d) => `${d.destination_name}=${d.value}km`).join(', ')}`);
+    }
+
+
+
 
     const lat = property.latitude || activeRoomTypes[0]?.latitude || 0;
     const lng = property.longitude || activeRoomTypes[0]?.longitude || 0;
