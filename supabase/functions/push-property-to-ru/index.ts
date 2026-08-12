@@ -3460,8 +3460,34 @@ Deno.serve(async (req) => {
         precomputedGaps = [...precomputedGaps, ...windowGaps];
       }
     } catch (e) {
-      console.warn('[push-property-to-ru] Readiness pre-scoring failed:', e instanceof Error ? e.message : e);
+      // Fail CLOSED: an unscored property is an unproven property. Letting the gate see an
+      // empty gap list here is what allowed a live push to proceed with zero verification.
+      readinessScoringError = e instanceof Error ? e.message : String(e);
+      console.error('[push-property-to-ru] Readiness pre-scoring failed:', readinessScoringError);
     }
+
+    if (readinessScoringError && !dry_run && action !== 'refresh_ari' && !forcePush) {
+      try {
+        await supabase.from('ru_sync_runs').insert({
+          property_id,
+          action: 'readiness_unverified',
+          success: false,
+          error_code: 'READINESS_UNVERIFIED',
+          error_message: readinessScoringError.slice(0, 2000),
+        });
+      } catch (_e) { /* evidence only */ }
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: {
+            code: 'READINESS_UNVERIFIED',
+            message: `Channel readiness could not be verified, so the push was refused: ${readinessScoringError}`,
+          },
+        }),
+        { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
+
 
 
     const phaseGate = await evaluatePhases(supabase, property as any, { readinessGaps: precomputedGaps });
