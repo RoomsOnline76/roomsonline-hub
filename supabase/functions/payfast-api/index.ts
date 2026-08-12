@@ -364,10 +364,10 @@ async function payfastApiRequest(
       ...headerParams,
       signature,
       Accept: "application/json",
-      ...(method === "POST" ? { "Content-Type": "application/x-www-form-urlencoded" } : {}),
+      ...(method !== "GET" ? { "Content-Type": "application/x-www-form-urlencoded" } : {}),
     },
   };
-  if (method === "POST") {
+  if (method !== "GET") {
     init.body = new URLSearchParams(bodyParams).toString();
   }
 
