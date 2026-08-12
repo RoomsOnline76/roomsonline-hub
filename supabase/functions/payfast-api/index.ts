@@ -345,7 +345,7 @@ function payfastTimestamp(): string {
 }
 
 async function payfastApiRequest(
-  method: "GET" | "POST",
+  method: "GET" | "POST" | "PUT",
   path: string,
   bodyParams: Record<string, string>,
   creds: PayfastApiCreds,
