@@ -1155,15 +1155,20 @@ function buildUnitPayload(
   const rooms: { room_id: number; amenities: { id: number; count: number }[] }[] = [];
 
   // Bedrooms: one block per bed_configuration entry (= one physical bedroom)
+  const unmappedUnitBedLabels: string[] = [];
   if (Array.isArray(unit.bed_configuration) && unit.bed_configuration.length > 0) {
     unit.bed_configuration.forEach((bedEntry: any) => {
-      const ruBedId = resolveBedAmenityId(bedEntry.type).id ?? RU_DEFAULT_BED_ID; // default = double bed (RU id 61)
+      const resolvedBed = resolveBedAmenityId(bedEntry.type).id;
+      // Unmapped labels still send a double so the XML stays valid, but the label is reported
+      // and the readiness gate blocks the push — sleeping arrangements are never guessed.
+      if (resolvedBed == null && bedEntry?.type) unmappedUnitBedLabels.push(String(bedEntry.type));
       rooms.push({
         room_id: RU_BEDROOM_ID,
-        amenities: [{ id: ruBedId, count: bedEntry.count || 1 }],
+        amenities: [{ id: resolvedBed ?? RU_DEFAULT_BED_ID, count: bedEntry.count || 1 }],
       });
     });
   }
+
 
   // NOTE: Bathroom (81) and Kitchen (101) blocks are intentionally OMITTED.
   // RU's parser interprets <Amenities/> with no children as amenity id:0 and rejects with
