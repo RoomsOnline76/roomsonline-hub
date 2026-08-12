@@ -225,6 +225,16 @@ export const UNIT_ROW_RULES = {
   },
   /** The channel requires at least one bedroom in the composition block. */
   bedroomComposition: (room: RoomRequirementRow) => hasBedroomComposition(room),
+  /**
+   * Beds must be spread across the unit's bedrooms — the channel rejects a multi-bedroom
+   * unit that parks every bed in one room. Mirrors `areBedsDistributed` used by the push.
+   */
+  bedsDistributed: (room: RoomRequirementRow) =>
+    areBedsDistributed(
+      (room.bedConfiguration ?? room.bed_configuration) as BedEntry[] | string | undefined,
+      room.bedrooms,
+    ),
+
 
   images: (room: RoomRequirementRow) => (Array.isArray(room.images) ? room.images.length : 0) >= 10,
   amenities: (room: RoomRequirementRow) =>
