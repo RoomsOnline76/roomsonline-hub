@@ -2613,6 +2613,14 @@ export default function PropertyForm({
                 roomSize: room.roomSize || room.room_size || 0,
                 floor: room.floor ?? null,
                 bathrooms: room.bathrooms || 1,
+                // Toilets and the separate-kitchen flag are edited per unit and are
+                // channel-mandatory. They used to be dropped here, so a saved value
+                // looked like it stuck and then vanished on the next property load.
+                toilets:
+                  room.toilets ?? room.number_of_toilets ?? room.toilet_count ?? null,
+                separateKitchen:
+                  room.separateKitchen ?? room.separate_kitchen ?? false,
+                mealTypes: room.mealTypes || room.meal_types || [],
                 maxPeople: room.maxPeople || room.max_guests || room.max_people || 2,
                 maxAdults: room.maxAdults || room.max_adults || room.max_guests || 2,
                 minGuests: room.minGuests || room.min_guests || 1,

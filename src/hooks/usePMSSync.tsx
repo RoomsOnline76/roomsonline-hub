@@ -794,7 +794,26 @@ export function usePMSSync({
               .single();
 
             const currentAmenities = (currentPropData?.amenities as Record<string, unknown>) || {};
-            const amenitiesRoomTypes = refreshedRooms.map(hr => ({
+            /**
+             * Fields authored in ROL'OS that have no PMS column (toilets, floor,
+             * separate kitchen, meal types) must survive a sync — rebuilding the
+             * array from the PMS table alone silently erased them.
+             */
+            const existingRoomTypes = Array.isArray(currentAmenities.room_types)
+              ? (currentAmenities.room_types as Array<Record<string, unknown>>)
+              : [];
+            const findExisting = (id: string, name: string) =>
+              existingRoomTypes.find((r) => String(r?.id) === String(id)) ??
+              existingRoomTypes.find(
+                (r) => String(r?.name ?? "").trim().toLowerCase() === String(name ?? "").trim().toLowerCase(),
+              );
+            const amenitiesRoomTypes = refreshedRooms.map(hr => {
+              const prev = findExisting(hr.id, hr.name) ?? {};
+              return {
+              toilets: (prev as { toilets?: unknown }).toilets ?? null,
+              floor: (prev as { floor?: unknown }).floor ?? null,
+              separateKitchen: (prev as { separateKitchen?: unknown }).separateKitchen ?? false,
+              mealTypes: (prev as { mealTypes?: unknown }).mealTypes ?? [],
               id: hr.id,
               pmsRoomId: hr.hostfully_room_id,
               pmsRoomType: hr.property_type || hr.name,
@@ -829,7 +848,8 @@ export function usePMSSync({
               splitPercent: 0,
               pms_synced_fields: hr.pms_synced_fields || [],
               lastSyncedAt: hr.last_synced_at,
-            }));
+              };
+            });
 
             const { error: amenitySyncError } = await supabase
               .from("properties")
