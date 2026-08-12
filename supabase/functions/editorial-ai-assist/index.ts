@@ -148,7 +148,64 @@ RULES
       });
     }
 
+    // TOBI: long-form room/unit description for the Rooms tab (min 700 characters)
+    if (action === "generate_room_description") {
+      const ctx = propertyContext || {};
+      const minChars = Number(body.minChars) > 0 ? Number(body.minChars) : 700;
 
+      const roomPrompt = `You are a luxury hospitality copywriter writing the description for a single room or unit type within an accommodation property.
+
+ROOM / UNIT: ${ctx.name || "Room"}
+PARENT PROPERTY: ${ctx.propertyName || "Unknown"} (${ctx.propertyType || "Accommodation"})
+LOCATION: ${[ctx.city, ctx.country].filter(Boolean).join(", ") || "Not specified"}
+SLEEPS: ${ctx.maxPeople ?? "Not specified"}
+BED CONFIGURATION: ${ctx.bedConfiguration || "Not specified"}
+ROOM SIZE: ${ctx.roomSize ? `${ctx.roomSize} m²` : "Not specified"}
+FACILITIES: ${ctx.facilities?.length ? ctx.facilities.join(", ") : "None listed"}
+AMENITIES: ${ctx.amenities?.length ? ctx.amenities.join(", ") : "None listed"}
+EXISTING DRAFT (improve and expand, keep any true facts): ${ctx.description || "none"}
+
+RULES
+- Write ${minChars}-1100 characters of flowing prose in 2-3 paragraphs separated by blank lines.
+- Warm, editorial, specific. No clichés ("hidden gem", "nestled", "best-kept secret"), no bullet lists, no headings, no emojis.
+- Only use facts given above — never invent facilities, sizes, views or features that aren't listed.
+- Cover: the space itself, the sleeping arrangement, the in-room facilities and amenities, and who it suits.
+- Return ONLY the description text.`;
+
+      const roomRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: AI_MODELS.property_description,
+          temperature: 0.5,
+          messages: [{ role: "user", content: roomPrompt }],
+        }),
+      });
+
+      if (!roomRes.ok) {
+        if (roomRes.status === 429) {
+          return new Response(JSON.stringify({ error: "TOBI is busy right now — please try again shortly." }), {
+            status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        if (roomRes.status === 402) {
+          return new Response(JSON.stringify({ error: "TOBI is temporarily unavailable — credits exhausted." }), {
+            status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        const detail = await roomRes.text();
+        console.error("room description AI error:", roomRes.status, detail.slice(0, 400));
+        return new Response(JSON.stringify({ error: "TOBI could not write the room description." }), {
+          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const roomJson = await roomRes.json();
+      const roomDescription = (roomJson?.choices?.[0]?.message?.content ?? "").trim();
+      return new Response(JSON.stringify({ description: roomDescription, characters: roomDescription.length, min_characters: minChars }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     // Original property editorial content generation
 
