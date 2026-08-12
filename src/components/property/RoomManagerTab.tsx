@@ -101,6 +101,58 @@ export function RoomManagerTab({
   const { toast } = useToast();
   const [isRoomImageUploading, setIsRoomImageUploading] = useState(false);
   const [aiUnitAmenityOpen, setAiUnitAmenityOpen] = useState(false);
+  const [writingRoomDescription, setWritingRoomDescription] = useState(false);
+
+  const selectedRoom = useMemo(
+    () => roomTypes.find((r) => r.id === selectedRoomType) || null,
+    [roomTypes, selectedRoomType],
+  );
+  const roomDescriptionLength = (selectedRoom?.description ?? "").trim().length;
+  const roomDescriptionTooShort = roomDescriptionLength < MIN_ROOM_DESCRIPTION_CHARS;
+  const roomDescriptionPmsSynced = isRoomFieldPmsSynced(selectedRoomType, "description");
+
+  const writeRoomDescriptionWithTobi = useCallback(async () => {
+    if (!selectedRoom) return;
+    setWritingRoomDescription(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("editorial-ai-assist", {
+        body: {
+          action: "generate_room_description",
+          minChars: MIN_ROOM_DESCRIPTION_CHARS,
+          propertyContext: {
+            name: selectedRoom.name,
+            description: selectedRoom.description,
+            maxPeople: selectedRoom.maxPeople,
+            bedConfiguration: formatBedConfiguration(selectedRoom.bedConfiguration),
+            roomSize: selectedRoom.roomSize,
+            facilities: selectedRoom.facilities,
+            amenities: selectedRoom.amenities,
+            propertyType: accommodationLabel
+              ? ACCOMMODATION_LABEL_OPTIONS.find((o) => o.value === accommodationLabel)?.label
+              : undefined,
+          },
+        },
+      });
+      if (error) throw error;
+      const text: string = (data?.description ?? "").trim();
+      if (!text) throw new Error("TOBI returned no text");
+      updateRoomTypeField(selectedRoom.id, "description", text);
+      toast({
+        title: text.length >= MIN_ROOM_DESCRIPTION_CHARS ? "TOBI wrote the description" : "Description still too short",
+        description: text.length >= MIN_ROOM_DESCRIPTION_CHARS
+          ? `${text.length} characters — review and save.`
+          : `TOBI wrote ${text.length} characters — still under the ${MIN_ROOM_DESCRIPTION_CHARS} minimum, please expand.`,
+      });
+    } catch (err) {
+      toast({
+        title: "TOBI could not write the description",
+        description: err instanceof Error ? err.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setWritingRoomDescription(false);
+    }
+  }, [selectedRoom, accommodationLabel, updateRoomTypeField, toast]);
 
   const roomImageAudit = useImageDimensionAudit(
     (roomTypes.find((r) => r.id === selectedRoomType)?.images || []) as string[],
