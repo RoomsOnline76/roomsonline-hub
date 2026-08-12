@@ -83,14 +83,21 @@ export default function AdminChannelMonitor() {
           },
         });
         if (error) throw new Error(error.message);
-        const failed = (res as { failed?: number } | null)?.failed ?? 0;
+        const payload = res as { failed?: number; results?: Array<{ kept_active?: boolean }> } | null;
+        const failed = payload?.failed ?? 0;
+        const keptActive = payload?.results?.[0]?.kept_active === true;
         if (failed > 0) {
           toast.warning(
             `${unit.name} updated locally, but the channel manager rejected the status change.`,
           );
+        } else if (!activate && keptActive) {
+          toast.success(
+            `${unit.name} delisted from the channel — still active and sellable in ROL'OS (it is on the property's Rooms tab).`,
+          );
         } else {
           toast.success(`${unit.name} ${activate ? "re-activated" : "deactivated"}`);
         }
+
         await data.refresh();
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Action failed");
