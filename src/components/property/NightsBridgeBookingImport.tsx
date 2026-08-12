@@ -126,7 +126,9 @@ export function NightsBridgeBookingImport({ propertyId, propertyName }: Props) {
             file_name: file.name,
             file_base64: fileBase64,
             dry_run: dryRun,
-            room_overrides: overrides,
+            room_overrides: Object.fromEntries(
+              Object.entries(overrides).filter(([, v]) => v && v !== SKIP),
+            ),
           },
         });
         if (error) throw new Error(error.message);
