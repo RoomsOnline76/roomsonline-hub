@@ -78,7 +78,7 @@ export const ROLOS_ONBOARDING_MACROS: MacroDef[] = [
     tasks: [
       { kind: "fields", sections: ["general", "contacts"], label: "Identity, company & contact fields" },
       { kind: "state", key: "timezone_format" },
-      { kind: "state", key: "content_quality", optional: true },
+      { kind: "state", key: "content_quality" },
     ],
     notes: [
       "Portfolio properties: enable Portfolio Commons auto-share so legal, banking and contact data propagate to siblings.",

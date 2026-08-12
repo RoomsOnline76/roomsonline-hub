@@ -111,6 +111,9 @@ export function usePropertyReadiness(propertyId?: string | null) {
     },
     enabled: !!propertyId,
     staleTime: 15_000,
+    // Always re-score on mount so a field cleared earlier in the session cannot
+    // leave a stale "all clear" behind when the property is re-opened.
+    refetchOnMount: "always",
     refetchOnWindowFocus: false,
   });
 

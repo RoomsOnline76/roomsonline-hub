@@ -187,12 +187,13 @@ export function evaluateUnitChecks(
     v.has_arrival_instructions !== false,
     `Arrival instructions are ${v.arrival_instructions_length ?? 0} characters — at least ${RU_MIN_ARRIVAL_INSTRUCTIONS} are required`,
     "Property → House rules → Check-in instructions");
-  // Space / floor are advisory: RU accepts an estimate, but we report when the
-  // value being sent is our default rather than real property data.
+  // Space stays advisory (RU accepts an estimate), but Floor is authored data the
+  // channel review checks — a blank Floor must block the push instead of silently
+  // shipping the ground-floor default.
   add("has_space", "Content", "Property size (Space)", !!v.has_space && v.space_is_default !== true,
     "Size in m² is not set — sending the default estimate of 50 m²", "Rooms → Unit → Size", false);
   add("has_floor", "Content", "Floor number", v.has_floor !== false && v.floor_is_default !== true,
-    "Floor number is not set — sending the default (ground floor)", "Rooms → Unit → Floor", false);
+    "Floor number is not set — set the unit's floor (0 = ground) before publishing", "Rooms → Unit → Floor");
   add("meets_minimum_amenities", "Content", `Amenities (≥ ${RU_MIN_AMENITIES})`, !!v.meets_minimum_amenities,
     `Only ${v.amenities_count ?? 0} amenities mapped — the Channel Manager requires ${RU_MIN_AMENITIES}`,
     "Property → Amenities");
