@@ -79,6 +79,7 @@ export function RuPushContinueButton({ propertyId, className }: RuPushContinueBu
       toast.error(err instanceof Error ? err.message : "Publish to Channel Manager failed");
     } finally {
       setPushing(false);
+      setProgress(null);
     }
   }, [alreadyPushed, goToSetup, propertyId, queryClient]);
 
