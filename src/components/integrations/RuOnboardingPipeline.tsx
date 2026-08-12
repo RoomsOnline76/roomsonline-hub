@@ -259,8 +259,9 @@ export function RuOnboardingPipeline({ propertyId, readOnly = false, standalone 
       // Keep them on screen: a toast alone left the blocking phase looking clean.
       setPushBlock(
         reasons.length
-          ? { phase: (data?.phase as PhaseKey) ?? "p3_push", reasons }
+          ? { phase: (data?.phase as PhaseKey) ?? ((data?.gaps ?? []).length ? "p2_readiness" : "p3_push"), reasons }
           : null,
+
       );
       toast.error(
         reasons.length
