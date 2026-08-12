@@ -158,6 +158,7 @@ export function ChangeoverRulesCard({
           </div>
         )}
       </CardContent>
+      )}
     </Card>
   );
 }
