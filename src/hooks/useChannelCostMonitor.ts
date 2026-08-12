@@ -76,7 +76,8 @@ export interface ChannelCostMonitorData {
   activeProperties: number;
   archivedProperties: number;
   pausedProperties: number;
-  archivedUnits: number;
+  /** Deactivated unit records still holding a channel listing id across all properties. */
+  duplicateListings: number;
   unitsArchivedThisMonth: number;
   forecast: ForecastResult;
   nextStep: ForecastResult | null;
