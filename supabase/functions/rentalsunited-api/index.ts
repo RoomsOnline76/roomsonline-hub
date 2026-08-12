@@ -893,7 +893,7 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
     <Coordinates>
       <Longitude>${prop.longitude}</Longitude>
       <Latitude>${prop.latitude}</Latitude>
-    </Coordinates>${roomsXml ? `\n    ${roomsXml}` : ''}
+    </Coordinates>${distancesXml}${roomsXml ? `\n    ${roomsXml}` : ''}
     <Amenities>
       ${amenitiesXml}
     </Amenities>
