@@ -95,6 +95,27 @@ export async function queueRuAriDelta(
       console.log(`[ruAriDelta] ${trigger} delta skipped for ${propertyId}: ${code}`);
       return { queued: false, reason: "not_connected" };
     }
+    if (code && GATE_CODES.includes(code)) {
+      // The rates/availability are real and still owed to the channel — park the delta so the
+      // readiness re-arm fires it automatically once the blockers clear.
+      const blockers = Array.isArray(data?.blockers)
+        ? (data.blockers as unknown[]).map((b) => String(b))
+        : Array.isArray(data?.gaps)
+          ? (data.gaps as unknown[]).map((b) => String(b))
+          : [];
+      try {
+        await supabase.from("ru_sync_runs").insert({
+          property_id: propertyId,
+          action: RU_ARI_DELTA_PENDING_ACTION,
+          success: false,
+          error_message: data?.error?.message ?? "Parked behind the channel readiness gate",
+          details: { trigger, gate_pending: true, error_code: code, blockers },
+        });
+      } catch (logErr) {
+        console.warn("[ruAriDelta] pending log insert failed", logErr);
+      }
+      return { queued: false, reason: "gate_pending", error: data?.error?.message, blockers };
+    }
     if (error || data?.success === false) {
       const message = error?.message || data?.error?.message || "ARI delta failed";
       console.warn(`[ruAriDelta] ${trigger} delta failed for ${propertyId}: ${message}`);
