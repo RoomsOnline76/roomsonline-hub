@@ -23,6 +23,11 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { focusRequirementField } from "@/lib/requirementFocus";
+import {
+  CHECK_TO_FIELD_KEYS,
+  PROPERTY_FIELD_REQUIREMENTS,
+} from "@/config/propertyFieldRequirements";
+
 
 import { useRolosOnboardingProgress, type MacroProgress } from "@/hooks/useRolosOnboardingProgress";
 
