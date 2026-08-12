@@ -89,7 +89,31 @@ export const RequirementLegend: React.FC<RequirementLegendProps> = ({
     };
   }, [macros, mandatoryOutstanding, mandatoryTotal, propertyId, recommendedOutstanding, recommendedTotal]);
 
+  /**
+   * A bare count ("1 outstanding") is unactionable, so the legend also names the
+   * outstanding mandatory fields. Each chip routes to the control that owns it.
+   */
+  const outstandingFields = useMemo(() => {
+    const seen = new Set<string>();
+    const out: { key: string; label: string; hint?: string; section?: string }[] = [];
+    for (const m of macros) {
+      for (const item of m.fieldItems) {
+        if (item.tier !== "mandatory" || item.satisfied) continue;
+        if (seen.has(item.key)) continue;
+        seen.add(item.key);
+        out.push({
+          key: item.key,
+          label: item.label,
+          hint: item.requirement?.hint ?? item.fix ?? item.message,
+          section: item.sectionLabel ?? item.section,
+        });
+      }
+    }
+    return out;
+  }, [macros]);
+
   if (counts.mandatoryTotal === 0 && counts.recommendedTotal === 0 && !channel) return null;
+
 
   return (
     <div
