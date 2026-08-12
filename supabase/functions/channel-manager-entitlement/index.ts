@@ -37,7 +37,7 @@ interface Body {
   unit_id?: string;
   /** purge_listing: RU OwnerID that owns the listing. */
   owner_id?: string | null;
-  /** purge_listing: the channel already reports it archived — skip the push. */
+  /** purge_listing: legacy hint, ignored — presence is now verified upstream. */
   already_archived?: boolean;
 
   /** clear_local_listing: "property" | "unit" record kind holding the stale id. */
