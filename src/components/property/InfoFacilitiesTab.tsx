@@ -13,6 +13,8 @@ import { getPMSFieldClass, getPMSDisplayName, isFieldPopulatedByPMS } from "@/li
 import { cn } from "@/lib/utils";
 import { ChannelFieldHint } from "@/components/property/ChannelFieldHint";
 import { checkChannelDescription } from "@/lib/channelFieldRules";
+import { channelMandatoryClass } from "@/lib/channelMandatoryFields";
+import { markerFlags } from "@/lib/fieldMarkers";
 import { X, Save, Cloud, Sparkles, Loader2, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
