@@ -273,18 +273,30 @@ export function RuOnboardingPipeline({ propertyId, readOnly = false, standalone 
           : null,
 
       );
+      // Unit-level rejections carry their reason per unit — surface those instead of the generic
+      // "one or more units failed" so the owner knows which unit needs work.
+      const unitFailures = (data?.units ?? [])
+        .filter((u) => u.success === false)
+        .map((u) => `${u.name ?? "Unit"} — ${u.error ?? "failed"}`);
       toast.error(
         reasons.length
           ? `${data?.error?.message ?? "Push blocked"} — ${reasons.slice(0, 3).join(" · ")}`
-          : fnError
-            ? await extractFunctionError(fnError, "Push failed")
-            : data?.error?.message ?? "Push failed",
+          : unitFailures.length
+            ? `${data?.error?.message ?? "Push failed"} — ${unitFailures.slice(0, 3).join(" · ")}`
+            : fnError
+              ? fnError.message
+              : data?.error?.message ?? "Push failed",
         { duration: 12000 },
       );
 
     } else {
       setPushBlock(null);
-      toast.success("Property, inventory and rates pushed to Rentals United");
+      const pushed = (data?.units ?? []).filter((u) => u.success).length;
+      toast.success(
+        pushed > 0
+          ? `Property, ${pushed} unit(s) and rates pushed to Rentals United`
+          : "Property, inventory and rates pushed to Rentals United",
+      );
     }
 
     await load();
