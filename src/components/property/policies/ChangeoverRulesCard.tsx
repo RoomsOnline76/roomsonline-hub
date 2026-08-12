@@ -8,11 +8,12 @@
  * A property-level master rule is mandatory; per-day overrides and per-unit overrides
  * (authored in the Rooms tab) are optional refinements.
  */
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { AlertTriangle, CalendarClock, CheckCircle2 } from "lucide-react";
+import { AlertTriangle, CalendarClock, CheckCircle2, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { channelMandatoryClass } from "@/lib/channelMandatoryFields";
 import {
