@@ -767,7 +767,11 @@ export function CompanyInformationCard({
                   );
                 })}
                 {CONTACT_FIELDS.map((f) => (
-                  <div key={String(f.key)} className="flex flex-col gap-1">
+                  <div
+                    key={String(f.key)}
+                    className="flex flex-col gap-1"
+                    data-field={`company.${String(f.key)}`}
+                  >
                     <Label className="text-xs">
                       {f.label}
                       <Req />
@@ -776,11 +780,13 @@ export function CompanyInformationCard({
                       type={f.type ?? "text"}
                       value={str(companyProfile[f.key])}
                       onChange={(e) => setField(f.key, e.target.value)}
-                      className="h-7 text-xs"
+                      className="h-7 text-xs channel-required"
+                      data-channel-satisfied={str(companyProfile[f.key]).trim() ? "1" : "0"}
                     />
                     {f.hint && <Hint>{f.hint}</Hint>}
                   </div>
                 ))}
+
 
 
               </div>
