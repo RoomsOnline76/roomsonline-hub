@@ -340,6 +340,15 @@ export function RoomManagerTab({
     () => roomTypes.find((r) => r.id === selectedRoomType) || null,
     [roomTypes, selectedRoomType],
   );
+  // Explicit main photo for this unit (channel ImageTypeID 1).
+  const roomMainImageUrl = useMemo(
+    () =>
+      findMainImageUrl(
+        normalizeRuImageTagMap(selectedRoom?.ruImageTags),
+        ensureArray(selectedRoom?.images) as string[],
+      ),
+    [selectedRoom],
+  );
   const roomDescriptionLength = (selectedRoom?.description ?? "").trim().length;
   const roomDescriptionTooShort = roomDescriptionLength < MIN_ROOM_DESCRIPTION_CHARS;
   const roomDescriptionPmsSynced = isRoomFieldPmsSynced(selectedRoomType, "description");
