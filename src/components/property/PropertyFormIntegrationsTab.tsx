@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { PushToRentalsUnited } from "./PushToRentalsUnited";
 import { RuReadinessScorecard, type RuReadinessReport } from "@/components/pms/channels/RuReadinessScorecard";
 import { RuOnboardingPipeline } from "@/components/integrations/RuOnboardingPipeline";
+import { NightsBridgeBookingImport } from "./NightsBridgeBookingImport";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { DirectLinkTab } from "@/components/integrations/DirectLinkTab";
@@ -54,6 +55,9 @@ export function PropertyFormIntegrationsTab({ property }: PropertyFormIntegratio
 
       {/* Payment Provider */}
       <GatedPaymentProviderSelect propertyId={property.id} bypassGate={isAdmin} />
+
+      {/* NightsBridge export ingestion (history + future reservations) */}
+      <NightsBridgeBookingImport propertyId={property.id} propertyName={property.name} />
 
       {/* Header */}
       <Card className="bg-primary/5 border-primary/20">
