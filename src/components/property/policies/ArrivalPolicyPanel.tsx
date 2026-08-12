@@ -21,6 +21,8 @@ interface RoomOverride {
 interface ArrivalPolicyPanelProps {
   propertyId: string;
   siblings: SiblingProperty[];
+  /** Fired after any save so the Policy library row stays in step with the editor. */
+  onChanged?: () => void | Promise<void>;
 }
 
 /**
@@ -31,7 +33,7 @@ interface ArrivalPolicyPanelProps {
  * pro-forma invoice already fall back to. Room-level instructions override it, so overrides
  * are surfaced here and can be cleared to keep one source of truth.
  */
-export const ArrivalPolicyPanel: React.FC<ArrivalPolicyPanelProps> = ({ propertyId, siblings }) => {
+export const ArrivalPolicyPanel: React.FC<ArrivalPolicyPanelProps> = ({ propertyId, siblings, onChanged }) => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [copying, setCopying] = useState(false);
@@ -137,6 +139,7 @@ export const ArrivalPolicyPanel: React.FC<ArrivalPolicyPanelProps> = ({ property
       setSaved(trimmed);
       setText(trimmed);
       toast.success("Arrival policy saved");
+      await onChanged?.();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not save the arrival policy");
     } finally {
@@ -208,6 +211,7 @@ export const ArrivalPolicyPanel: React.FC<ArrivalPolicyPanelProps> = ({ property
       toast.success(
         `Arrival policy applied to ${siblings.length} portfolio propert${siblings.length === 1 ? "y" : "ies"}`,
       );
+      await onChanged?.();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not apply to the portfolio");
     } finally {
@@ -226,6 +230,7 @@ export const ArrivalPolicyPanel: React.FC<ArrivalPolicyPanelProps> = ({ property
       setOverrides((prev) => prev.map((o) => ({ ...o, check_in_instructions: null })));
       setUnitDrafts({});
       toast.success("Unit arrival instructions cleared — every unit now inherits the property policy");
+      await onChanged?.();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not clear unit instructions");
     } finally {
@@ -260,6 +265,7 @@ export const ArrivalPolicyPanel: React.FC<ArrivalPolicyPanelProps> = ({ property
           ? `${unit.name ?? "Unit"} now uses its own arrival instructions`
           : `${unit.name ?? "Unit"} inherits the property arrival policy`,
       );
+      await onChanged?.();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not save the unit arrival instructions");
     } finally {
