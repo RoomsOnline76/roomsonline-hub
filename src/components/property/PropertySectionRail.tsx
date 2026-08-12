@@ -2,6 +2,8 @@ import React, { useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import type { RailGroup } from "@/config/propertySectionOrder";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import type { SectionReadinessDetail } from "@/hooks/usePropertyReadiness";
 
 interface PropertySectionRailProps {
   groups: RailGroup[];
@@ -12,8 +14,18 @@ interface PropertySectionRailProps {
   /** Outstanding readiness-field counts per section key (pink/blue badges) */
   requirementCounts?: Record<
     string,
-    { mandatory: number; recommended: number; mandatoryLabels?: string[]; recommendedLabels?: string[] }
+    {
+      mandatory: number;
+      recommended: number;
+      mandatoryLabels?: string[];
+      recommendedLabels?: string[];
+      /** Outstanding items with their exact error text. */
+      mandatoryItems?: SectionReadinessDetail[];
+      recommendedItems?: SectionReadinessDetail[];
+    }
   >;
+  /** Clicking a line inside the shortfall panel: switch section and focus the field. */
+  onSelectRequirement?: (section: string, item: SectionReadinessDetail) => void;
   /** Collapsed (icon-only) mode */
   collapsed?: boolean;
   /** When provided, renders the collapse/expand toggle */
@@ -31,11 +43,82 @@ export const PropertySectionRail: React.FC<PropertySectionRailProps> = ({
   onSelect,
   blockerKeys,
   requirementCounts,
+  onSelectRequirement,
   collapsed = false,
   onToggleCollapsed,
   className,
 }) => {
   const handleSelect = useCallback((key: string) => onSelect(key), [onSelect]);
+
+  /**
+   * Shortfall panel: prints the EXACT error per outstanding item (measured text from
+   * the readiness model), not only the field label, and lets the owner jump to it.
+   */
+  const renderCountBadge = (
+    sectionKey: string,
+    tier: "mandatory" | "recommended",
+    count: number,
+    items: SectionReadinessDetail[],
+  ) => (
+    <Popover>
+      <PopoverTrigger asChild>
+        <span
+          role="button"
+          tabIndex={0}
+          onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => e.stopPropagation()}
+          title={
+            tier === "mandatory"
+              ? `${count} mandatory item(s) outstanding — click for details`
+              : `${count} nice-to-have item(s) outstanding — click for details`
+          }
+          className={cn(
+            tier === "mandatory" ? "pf-req-count-mandatory" : "pf-req-count-recommended",
+            "cursor-pointer rounded border px-1 text-[9px] font-semibold leading-4",
+          )}
+        >
+          {count}
+        </span>
+      </PopoverTrigger>
+      <PopoverContent align="start" side="right" className="w-80 p-0">
+        <p className="border-b border-border px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          {tier === "mandatory" ? "Outstanding — blocks activation" : "Nice to have"} ({count})
+        </p>
+        <ul className="max-h-72 divide-y divide-border overflow-y-auto">
+          {items.length === 0 && (
+            <li className="px-3 py-2 text-xs text-muted-foreground">
+              {count} item(s) outstanding on this page.
+            </li>
+          )}
+          {items.map((item) => (
+            <li key={item.key}>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSelectRequirement?.(sectionKey, item);
+                }}
+                className="w-full px-3 py-2 text-left transition-colors hover:bg-muted/60"
+              >
+                <p
+                  className={cn(
+                    "text-xs font-medium",
+                    tier === "mandatory" ? "text-destructive" : "text-foreground",
+                  )}
+                >
+                  {item.label}
+                </p>
+                {item.detail && (
+                  <p className="mt-0.5 text-[10px] leading-snug text-muted-foreground">{item.detail}</p>
+                )}
+              </button>
+            </li>
+          ))}
+        </ul>
+      </PopoverContent>
+    </Popover>
+  );
+
 
   return (
     <nav className={cn("space-y-3", className)}>
@@ -100,30 +183,30 @@ export const PropertySectionRail: React.FC<PropertySectionRailProps> = ({
                     <span className={cn("font-medium", collapsed && "lg:hidden")}>{s.label}</span>
                     {counts && (counts.mandatory > 0 || counts.recommended > 0) && (
                       <span className={cn("ml-auto flex items-center gap-1", collapsed && "lg:hidden")}>
-                        {counts.mandatory > 0 && (
-                          <span
-                            title={
-                              counts.mandatoryLabels && counts.mandatoryLabels.length > 0
-                                ? `Outstanding: ${counts.mandatoryLabels.join(" · ")}`
-                                : `${counts.mandatory} mandatory field(s) outstanding`
-                            }
-                            className="pf-req-count-mandatory rounded border px-1 text-[9px] font-semibold leading-4"
-                          >
-                            {counts.mandatory}
-                          </span>
-                        )}
-                        {counts.recommended > 0 && (
-                          <span
-                            title={
-                              counts.recommendedLabels && counts.recommendedLabels.length > 0
-                                ? `Nice to have: ${counts.recommendedLabels.join(" · ")}`
-                                : `${counts.recommended} nice-to-have field(s) outstanding`
-                            }
-                            className="pf-req-count-recommended rounded border px-1 text-[9px] font-semibold leading-4"
-                          >
-                            {counts.recommended}
-                          </span>
-                        )}
+                        {counts.mandatory > 0 &&
+                          renderCountBadge(
+                            s.key,
+                            "mandatory",
+                            counts.mandatory,
+                            counts.mandatoryItems ??
+                              (counts.mandatoryLabels ?? []).map((label) => ({
+                                key: label,
+                                label,
+                                paintable: false,
+                              })),
+                          )}
+                        {counts.recommended > 0 &&
+                          renderCountBadge(
+                            s.key,
+                            "recommended",
+                            counts.recommended,
+                            counts.recommendedItems ??
+                              (counts.recommendedLabels ?? []).map((label) => ({
+                                key: label,
+                                label,
+                                paintable: false,
+                              })),
+                          )}
                       </span>
                     )}
                   </div>

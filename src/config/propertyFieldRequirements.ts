@@ -3,7 +3,12 @@ import {
   isChangeoverAuthored,
   isMappedChannelPropertyType,
 } from "@/config/channelPropertyTypes";
-import { areBedsDistributed, calculateBedCapacity, type BedEntry } from "@/lib/bedConfig";
+import {
+  areBedsDistributed,
+  authoredBedroomCount,
+  calculateBedCapacity,
+  type BedEntry,
+} from "@/lib/bedConfig";
 import { checkChannelName } from "@/lib/channelFieldRules";
 import { MIN_IMAGE_HEIGHT, MIN_IMAGE_WIDTH } from "@/lib/imageValidation";
 
@@ -70,6 +75,11 @@ export interface FieldRequirement {
   isSatisfied: (subject: RequirementSubject) => boolean;
   /** Only evaluate/paint when this returns true (e.g. RU-only fields). */
   appliesTo?: (subject: RequirementSubject) => boolean;
+  /**
+   * Optional measured explanation of the shortfall, used when the requirement fails.
+   * Falls back to `REQUIREMENT_SHORTFALLS[key]` when not defined here.
+   */
+  describeShortfall?: (subject: RequirementSubject) => string | undefined;
 }
 
 const str = (v: unknown): string => (typeof v === "string" ? v.trim() : v == null ? "" : String(v).trim());
@@ -827,11 +837,173 @@ export function applicableRequirements(subject: RequirementSubject): FieldRequir
 
 export interface RequirementStatus extends FieldRequirement {
   satisfied: boolean;
+  /**
+   * Measured, human explanation of WHY the requirement fails ("Description is 444
+   * characters — needs 700"). Only present for unsatisfied requirements that can be
+   * measured; surfaces are expected to fall back to `hint` when it is absent.
+   */
+  detail?: string;
 }
 
+/* ------------------------------------------------------------------ *
+ * Shortfall descriptions
+ *
+ * The label says WHICH field is short; these say BY HOW MUCH, naming the
+ * offending unit for per-unit rules. Kept next to the registry so the rail,
+ * checksheet and channel checklist all read the same wording.
+ * ------------------------------------------------------------------ */
+
+const unitName = (room: RoomRequirementRow, index: number): string =>
+  str(room.name) || `Unit ${index + 1}`;
+
+/** Describe the units that fail `rule`, capped so a tooltip stays readable. */
+const failingUnits = (
+  subject: RequirementSubject,
+  rule: (room: RoomRequirementRow) => boolean,
+  describe: (room: RoomRequirementRow) => string,
+  max = 3,
+): string | undefined => {
+  const rows = roomRows(subject);
+  if (rows.length === 0) return "No units captured yet";
+  const failed = rows
+    .map((room, index) => ({ room, index }))
+    .filter(({ room }) => !rule(room));
+  if (failed.length === 0) return undefined;
+  const shown = failed
+    .slice(0, max)
+    .map(({ room, index }) => `${unitName(room, index)}: ${describe(room)}`);
+  const rest = failed.length - shown.length;
+  return rest > 0 ? `${shown.join(" · ")} · +${rest} more unit(s)` : shown.join(" · ");
+};
+
+const num = (value: unknown): number => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+export const REQUIREMENT_SHORTFALLS: Record<
+  string,
+  (subject: RequirementSubject) => string | undefined
+> = {
+  name_hygiene: (s) => checkChannelName(str(s.name)).issue || undefined,
+  description: (s) => `${str(s.description).length} of 700 characters`,
+  geo: (s) =>
+    !filled(s.latitude) && !filled(s.longitude)
+      ? "No map pin — latitude and longitude are both empty"
+      : !filled(s.latitude)
+        ? "Latitude is empty"
+        : "Longitude is empty",
+  images: (s) => `${imageList(s).length} of 10 gallery images`,
+  image_dimensions: (s) => {
+    const measured = measuredImages(s);
+    const bad = measured.filter((img) => !img.valid);
+    if (bad.length === 0) return undefined;
+    const worst = bad[0];
+    return `${bad.length} photo(s) below ${MIN_IMAGE_WIDTH}×${MIN_IMAGE_HEIGHT}px (smallest ${worst.width}×${worst.height}px)`;
+  },
+  hero_image: (s) =>
+    imageList(s).length === 0 ? "No images uploaded yet" : "No photo is flagged as the main image",
+  facilities: (s) => {
+    const list = amenity(s, "facilities");
+    return `${Array.isArray(list) ? list.length : 0} of 10 amenities selected`;
+  },
+  property_floor: (s) =>
+    failingUnits(s, UNIT_ROW_RULES.floor, () => "no floor captured") ??
+    "No property floor and no unit floors",
+  property_size_sqm: (s) =>
+    failingUnits(s, UNIT_ROW_RULES.size, () => "no size in m²") ??
+    "No property size in m² captured",
+  rooms: () => "No room type / unit has been created",
+  room_descriptions: (s) =>
+    failingUnits(
+      s,
+      UNIT_ROW_RULES.description,
+      (room) => `${str(room.description).length} of 700 characters`,
+    ),
+  room_floors: (s) => failingUnits(s, UNIT_ROW_RULES.floor, () => "floor is blank"),
+  room_size: (s) => failingUnits(s, UNIT_ROW_RULES.size, () => "size in m² is blank or zero"),
+  room_bathrooms: (s) =>
+    failingUnits(s, UNIT_ROW_RULES.bathrooms, (room) => `${num(room.bathrooms)} bathrooms`),
+  room_toilets: (s) =>
+    failingUnits(s, UNIT_ROW_RULES.toilets, (room) => `${num(room.toilets)} toilets`),
+  room_channel_type: (s) =>
+    failingUnits(
+      s,
+      (room) =>
+        isMappedChannelPropertyType(room.channelPropertyType ?? room.property_type) ||
+        isMappedChannelPropertyType(s.property_type),
+      (room) =>
+        `"${str(room.channelPropertyType ?? room.property_type) || "no type"}" is not a supported channel type`,
+    ),
+  room_beds: (s) =>
+    failingUnits(
+      s,
+      UNIT_ROW_RULES.beds,
+      (room) =>
+        `beds sleep ${bedCapacity(room.bedConfiguration ?? room.bed_configuration)} of ${num(
+          room.maxPeople ?? room.max_guests,
+        )} guests`,
+    ),
+  room_bedroom_composition: (s) =>
+    failingUnits(s, UNIT_ROW_RULES.bedroomComposition, () => "no bedroom authored in the bed configuration"),
+  room_beds_distributed: (s) =>
+    failingUnits(
+      s,
+      UNIT_ROW_RULES.bedsDistributed,
+      (room) => {
+        const authored = authoredBedroomCount(
+          (room.bedConfiguration ?? room.bed_configuration) as BedEntry[] | string | undefined,
+        );
+        const declared = num(room.bedrooms);
+        return declared > 0
+          ? `beds authored in ${authored} of ${declared} bedrooms`
+          : "beds are not spread across bedrooms";
+      },
+    ),
+  room_kitchen: () => "No kitchen or kitchenette declared in the unit facilities",
+  min_stay_set: (s) =>
+    failingUnits(s, UNIT_ROW_RULES.minStay, () => "no minimum stay set") ??
+    "The channel reports no minimum stay on the open days",
+  max_stay_set: (s) =>
+    failingUnits(s, UNIT_ROW_RULES.maxStay, () => "maximum stay not reviewed (use 0 for no maximum)"),
+  bookable_window: () => "The channel found no 3 consecutive open, priced nights",
+  check_times: (s) =>
+    !filled(checkTime(s, "in")) && !filled(checkTime(s, "out"))
+      ? "Check-in and check-out times are both empty"
+      : !filled(checkTime(s, "in"))
+        ? "Check-in time is empty"
+        : "Check-out time is empty",
+  arrival_instructions: (s) => {
+    const longest = Math.max(
+      str(amenity(s, "house_rules.check_in_instructions")).length,
+      str(amenity(s, "check_in_instructions")).length,
+      str(amenity(s, "arrival_instructions")).length,
+    );
+    return `${longest} of 20 characters of arrival instructions`;
+  },
+  changeover_rules: () => "No changeover rule on the property and not every unit overrides it",
+  master_policy: () => "No master cancellation policy chosen (pick one, or explicitly “None”)",
+  payment_methods: () => "No accepted payment method captured",
+  postal_code: () => "Postal / ZIP code is empty",
+  ru_location_id: () => "No Channel Manager location selected",
+  ru_currency: () => "No currency resolvable from banking details",
+};
+
 export function evaluateRequirements(subject: RequirementSubject): RequirementStatus[] {
-  return applicableRequirements(subject).map((r) => ({ ...r, satisfied: r.isSatisfied(subject) }));
+  return applicableRequirements(subject).map((r) => {
+    const satisfied = r.isSatisfied(subject);
+    let detail: string | undefined;
+    if (!satisfied) {
+      try {
+        detail = (r.describeShortfall ?? REQUIREMENT_SHORTFALLS[r.key])?.(subject) || undefined;
+      } catch {
+        detail = undefined;
+      }
+    }
+    return { ...r, satisfied, detail };
+  });
 }
+
 
 export interface SectionRequirementCounts {
   mandatory: number;
