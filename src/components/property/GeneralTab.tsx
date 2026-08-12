@@ -541,8 +541,10 @@ export function GeneralTab(props: GeneralTabProps) {
                 <p className="col-span-full text-[11px] text-muted-foreground">{CHANNEL_MANDATORY_LEGEND}</p>
                 <div className="flex flex-col gap-1">
                   <Label htmlFor="name" className="text-xs">Name *</Label>
-                  <Input id="name" value={formData.name} onChange={(e) => handleInputChange("name", e.target.value)} placeholder="Property name" required disabled={isFieldPopulatedByPMS("name", selectedPMS)} className={cn("h-7 text-xs", getPMSFieldClass("name", selectedPMS), channelMandatoryClass("name"), isFieldPopulatedByPMS("name", selectedPMS) && "cursor-not-allowed")} />
+                  <Input id="name" value={formData.name} onChange={(e) => handleInputChange("name", e.target.value)} placeholder="Property name" required disabled={isFieldPopulatedByPMS("name", selectedPMS)} className={cn("h-7 text-xs", getPMSFieldClass("name", selectedPMS), channelMandatoryClass("name"), nameFeedback.status === "error" && "border-destructive focus-visible:ring-destructive", isFieldPopulatedByPMS("name", selectedPMS) && "cursor-not-allowed")} />
+                  <ChannelFieldHint feedback={nameFeedback} />
                 </div>
+
                 <div className="flex flex-col gap-1">
                   <Label htmlFor="property_type" className="text-xs flex items-center">Type *<ContextualHelp table="properties" field="property_type" /></Label>
                   <Select value={formData.property_type} onValueChange={(v) => handleInputChange("property_type", v)}>
