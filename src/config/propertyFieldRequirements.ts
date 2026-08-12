@@ -1,5 +1,7 @@
 import type { PropertySectionKey } from "@/config/propertySectionOrder";
 import { calculateBedCapacity, type BedEntry } from "@/lib/bedConfig";
+import { checkChannelName } from "@/lib/channelFieldRules";
+import { MIN_IMAGE_HEIGHT, MIN_IMAGE_WIDTH } from "@/lib/imageValidation";
 
 /**
  * Field-level readiness registry.
@@ -33,6 +35,16 @@ export interface RequirementSubject {
   images?: unknown;
   amenities?: Record<string, unknown> | null;
   external_system?: string | null;
+  /**
+   * Browser-measured dimensions per image URL. Only measured entries are judged —
+   * an unmeasured photo is "pending", never counted as outstanding.
+   */
+  image_dimensions?: Record<string, { width: number; height: number; valid: boolean }> | null;
+  /**
+   * Pass/fail for channel-report checks a browser cannot compute (bookable window,
+   * MinStay, kitchen composition). `undefined` = not reported yet → treated as pending.
+   */
+  channel_checks?: Record<string, boolean | undefined> | null;
   rentalsunited_property_id?: string | number | null;
   rentalsunited_building_id?: string | number | null;
   [key: string]: unknown;
@@ -148,6 +160,40 @@ const bedCapacity = (raw: unknown): number => {
 };
 
 
+
+const measuredImages = (
+  subject: RequirementSubject,
+): Array<{ url: string; width: number; height: number; valid: boolean }> => {
+  const map = subject.image_dimensions ?? {};
+  return Object.entries(map).map(([url, dims]) => ({ url, ...dims }));
+};
+
+/** A channel-report check result, or `undefined` when the report has not landed. */
+const channelCheck = (subject: RequirementSubject, key: string): boolean | undefined =>
+  subject.channel_checks?.[key];
+
+const KITCHEN_RE = /kitchen|kitchenette|self[-\s]?cater|scullery/i;
+
+/** Kitchen declared on the unit (composition/amenities) or property facilities. */
+const hasKitchen = (subject: RequirementSubject): boolean => {
+  const reported = channelCheck(subject, "has_kitchen");
+  if (reported !== undefined) return reported;
+  const listHasKitchen = (list: unknown): boolean =>
+    Array.isArray(list) &&
+    list.some((entry) => {
+      if (typeof entry === "string") return KITCHEN_RE.test(entry);
+      if (entry && typeof entry === "object") {
+        const row = entry as { name?: unknown; label?: unknown; type?: unknown };
+        return [row.name, row.label, row.type].some((v) => typeof v === "string" && KITCHEN_RE.test(v));
+      }
+      return false;
+    });
+  if (listHasKitchen(amenity(subject, "facilities"))) return true;
+  if (listHasKitchen(amenity(subject, "amenities_list"))) return true;
+  const rooms = roomRows(subject);
+  return rooms.length > 0 && rooms.every((room) => listHasKitchen(room.amenities));
+};
+
 const isRuDistributed = (subject: RequirementSubject): boolean =>
   filled(subject.rentalsunited_property_id) || filled(subject.rentalsunited_building_id);
 
@@ -160,6 +206,16 @@ export const PROPERTY_FIELD_REQUIREMENTS: FieldRequirement[] = [
     section: "general",
     target: ["#name"],
     isSatisfied: (s) => filled(s.name),
+  },
+  {
+    key: "name_hygiene",
+    label: "Listing name passes channel name rules",
+    tier: "mandatory",
+    section: "general",
+    target: ["#name", '[data-field="name"]'],
+    hint: "Plain text, 3+ characters. No emoji, no special characters (< > [ ] | * # @ ! ?), not ALL CAPS.",
+    // An empty name is already reported by the `name` requirement — do not double-count it.
+    isSatisfied: (s) => !filled(s.name) || checkChannelName(str(s.name)).status !== "error",
   },
   {
     key: "property_type",
@@ -260,6 +316,15 @@ export const PROPERTY_FIELD_REQUIREMENTS: FieldRequirement[] = [
     target: ['[data-field="images"]', "#property-images"],
     hint: "Upload 10 or more measured images (min 1024×768).",
     isSatisfied: (s) => imageList(s).length >= 10,
+  },
+  {
+    key: "image_dimensions",
+    label: `Every photo is at least ${MIN_IMAGE_WIDTH}×${MIN_IMAGE_HEIGHT}px`,
+    tier: "mandatory",
+    section: "images",
+    target: ['[data-field="images"]', "#property-images"],
+    hint: `Replace or re-upload any photo below ${MIN_IMAGE_WIDTH}×${MIN_IMAGE_HEIGHT}px — the channel rejects the listing.`,
+    isSatisfied: (s) => measuredImages(s).every((img) => img.valid),
   },
   {
     key: "hero_image",
@@ -443,6 +508,37 @@ export const PROPERTY_FIELD_REQUIREMENTS: FieldRequirement[] = [
     }),
   },
 
+  {
+    key: "room_kitchen",
+    label: "Kitchen declared for every unit",
+    tier: "mandatory",
+    section: "rooms",
+    target: ['[data-field="room_amenities"]'],
+    hint: "Self-catering listings must declare a kitchen or kitchenette in the unit facilities.",
+    isSatisfied: hasKitchen,
+  },
+
+  /* ---------- Availability (channel-reported) ---------- */
+  {
+    key: "bookable_window",
+    label: "3 consecutive bookable days with a price",
+    tier: "mandatory",
+    section: "rates",
+    target: ['[data-field="season_calendar"]', "#season-calendar"],
+    hint: "Open at least 3 consecutive nights on the calendar and make sure they carry a price.",
+    // Only judged once the channel report lands; unknown = pending, never a false block.
+    isSatisfied: (s) => channelCheck(s, "bookable_window") !== false,
+  },
+  {
+    key: "min_stay_set",
+    label: "Minimum stay authored",
+    tier: "mandatory",
+    section: "rate-plans",
+    target: ['[data-field="min_stay"]', "#min_stay"],
+    hint: "Authored on the calendar, stay restrictions or an active rate plan.",
+    isSatisfied: (s) => channelCheck(s, "min_stay_set") !== false,
+  },
+
   /* ---------- Rates & Policies ---------- */
   {
     key: "master_policy",
@@ -609,7 +705,7 @@ export const CHECK_TO_FIELD_KEYS: Record<string, string[]> = {
   rentalsunited_geo: ["geo"],
   rentalsunited_location_currency: ["ru_currency"],
   // Channel gate check ids (see supabase/functions/_shared/ruReadiness.ts)
-  name_clean: ["name"],
+  name_clean: ["name", "name_hygiene"],
   description_meets_cert: ["description"],
   has_street: ["address"],
   has_zip_code: ["postal_code"],
@@ -633,6 +729,9 @@ export const CHECK_TO_FIELD_KEYS: Record<string, string[]> = {
   beds_distributed: ["room_beds"],
   unit_description: ["room_descriptions"],
   unit_name_clean: ["rooms"],
-  images_meet_min_size: ["images"],
+  images_meet_min_size: ["images", "image_dimensions"],
+  has_kitchen: ["room_kitchen"],
+  bookable_window: ["bookable_window"],
+  min_stay_set: ["min_stay_set"],
 };
 
