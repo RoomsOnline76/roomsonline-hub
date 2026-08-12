@@ -1,3 +1,5 @@
+import { readInvokeErrorBody } from './ruInvokeBody.ts';
+
 // Event-driven Rentals United STATIC CONTENT delta (Push_PutProperty_RQ).
 //
 // RU requires static content (name, type, descriptions, amenities, photos, bed composition,

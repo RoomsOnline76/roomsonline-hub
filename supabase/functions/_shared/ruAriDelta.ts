@@ -12,6 +12,8 @@
 //
 // Failures are logged and swallowed: a channel refresh must never break the booking flow.
 
+import { readInvokeErrorBody } from "./ruInvokeBody.ts";
+
 /** Minimum gap between two deltas for the same property. */
 export const RU_ARI_DELTA_DEBOUNCE_MS = 5 * 60 * 1000;
 
@@ -90,7 +92,10 @@ export async function queueRuAriDelta(
     const { data, error } = await supabase.functions.invoke("push-property-to-ru", {
       body: { property_id: propertyId, action: "refresh_ari", trigger },
     });
-    const code: string | undefined = data?.error?.code;
+    // A 422 gate refusal surfaces as an "error" with the structured body on error.context.
+    const errorBody = error ? await readInvokeErrorBody(error) : null;
+    const payload = (data ?? errorBody ?? {}) as Record<string, any>;
+    const code: string | undefined = payload?.error?.code;
     if (code && ["RU_NOT_LISTED", "RU_NOT_CONFIGURED", "RU_LISTING_STALE", "CHANNEL_MANAGER_DISABLED"].includes(code)) {
       console.log(`[ruAriDelta] ${trigger} delta skipped for ${propertyId}: ${code}`);
       return { queued: false, reason: "not_connected" };
@@ -98,26 +103,26 @@ export async function queueRuAriDelta(
     if (code && GATE_CODES.includes(code)) {
       // The rates/availability are real and still owed to the channel — park the delta so the
       // readiness re-arm fires it automatically once the blockers clear.
-      const blockers = Array.isArray(data?.blockers)
-        ? (data.blockers as unknown[]).map((b) => String(b))
-        : Array.isArray(data?.gaps)
-          ? (data.gaps as unknown[]).map((b) => String(b))
+      const blockers = Array.isArray(payload?.blockers)
+        ? (payload.blockers as unknown[]).map((b) => String(b))
+        : Array.isArray(payload?.gaps)
+          ? (payload.gaps as unknown[]).map((b) => String(b))
           : [];
       try {
         await supabase.from("ru_sync_runs").insert({
           property_id: propertyId,
           action: RU_ARI_DELTA_PENDING_ACTION,
           success: false,
-          error_message: data?.error?.message ?? "Parked behind the channel readiness gate",
+          error_message: payload?.error?.message ?? "Parked behind the channel readiness gate",
           details: { trigger, gate_pending: true, error_code: code, blockers },
         });
       } catch (logErr) {
         console.warn("[ruAriDelta] pending log insert failed", logErr);
       }
-      return { queued: false, reason: "gate_pending", error: data?.error?.message, blockers };
+      return { queued: false, reason: "gate_pending", error: payload?.error?.message, blockers };
     }
-    if (error || data?.success === false) {
-      const message = error?.message || data?.error?.message || "ARI delta failed";
+    if (error || payload?.success === false) {
+      const message = payload?.error?.message || error?.message || "ARI delta failed";
       console.warn(`[ruAriDelta] ${trigger} delta failed for ${propertyId}: ${message}`);
       return { queued: true, reason: "error", error: message };
     }
