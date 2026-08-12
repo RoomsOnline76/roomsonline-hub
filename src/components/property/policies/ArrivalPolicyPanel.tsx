@@ -517,11 +517,30 @@ export const ArrivalPolicyPanel: React.FC<ArrivalPolicyPanelProps> = ({ property
                         size="sm"
                         variant="ghost"
                         className="h-6 text-[10px]"
-                        onClick={() => setUnitDrafts((prev) => ({ ...prev, [unit.id]: "" }))}
+                        onClick={() => {
+                          setUnitDrafts((prev) => ({ ...prev, [unit.id]: "" }));
+                          onDirty?.();
+                        }}
                       >
                         Use property policy
                       </Button>
                     )}
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-6 text-[10px]"
+                      disabled={draftingUnit === unit.id || savingUnit === unit.id}
+                      onClick={() => void handleDraftUnitWithTobi(unit)}
+                      title="TOBI drafts arrival detail for this unit, seeded with the property policy"
+                    >
+                      {draftingUnit === unit.id ? (
+                        <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                      ) : (
+                        <Sparkles className="h-3 w-3 mr-1" />
+                      )}
+                      {draftTrimmed.length > 0 ? "Improve with TOBI" : "Write with TOBI"}
+                    </Button>
                     <Button
                       type="button"
                       size="sm"
@@ -541,7 +560,10 @@ export const ArrivalPolicyPanel: React.FC<ArrivalPolicyPanelProps> = ({ property
                 </div>
                 <Textarea
                   value={draft}
-                  onChange={(e) => setUnitDrafts((prev) => ({ ...prev, [unit.id]: e.target.value }))}
+                  onChange={(e) => {
+                    setUnitDrafts((prev) => ({ ...prev, [unit.id]: e.target.value }));
+                    onDirty?.();
+                  }}
                   rows={3}
                   placeholder="Blank = use the property arrival policy. Add unit-specific access here (gate code, key box, which chalet door)."
                   className={`text-xs ${unitTooShort ? "border-destructive focus-visible:ring-destructive" : ""}`}
