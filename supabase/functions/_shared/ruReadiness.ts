@@ -61,7 +61,22 @@ export interface RuUnitValidation {
   floor_is_default?: boolean;
   has_detailed_location_id?: boolean;
   has_payment_methods?: boolean;
+  payment_methods_is_default?: boolean;
   has_cancellation_policies?: boolean;
+  cancellation_policies_is_default?: boolean;
+  /** Currency was guessed from the country (or the ZAR final fallback) instead of authored. */
+  currency_is_default?: boolean;
+  currency_iso?: string | null;
+  /** Property/unit type did not map to a channel ObjectTypeID and fell back to a default. */
+  object_type_is_default?: boolean;
+  object_type_source?: string | null;
+  /** Bed strings that could not be mapped to a channel bed amenity. */
+  beds_unmapped?: string[];
+  /** Bed blocks were derived from bedroom/occupancy counts instead of an authored configuration. */
+  beds_are_default?: boolean;
+  /** No changeover rule authored on the unit or the property — the default code was assumed. */
+  changeover_is_default?: boolean;
+
   beds_meet_max_guests?: boolean;
   beds_cover_half?: boolean;
   total_beds?: number;
