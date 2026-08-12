@@ -29,6 +29,8 @@ import { getRoomUrl } from "@/lib/config";
 import { parseBedConfiguration, BED_TYPES, BedEntry, calculateBedCapacity, sleepsPerBed, formatBedConfiguration } from "@/lib/bedConfig";
 import { cn } from "@/lib/utils";
 import { isFieldPopulatedByPMS, getPMSDisplayName } from "@/lib/pmsFieldConfig";
+import { ChannelFieldHint } from "@/components/property/ChannelFieldHint";
+import { checkChannelName } from "@/lib/channelFieldRules";
 import { TagInput } from "@/components/TagInput";
 import { HostfullyRoomDetails } from "@/components/pms/HostfullyRoomDetails";
 import { ACCOMMODATION_LABEL_OPTIONS, ACCOMMODATION_TYPES, type AccommodationLabelKey } from "@/lib/accommodationLabels";
