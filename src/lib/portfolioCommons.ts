@@ -308,7 +308,25 @@ interface PropertySnapshot extends CommonsProperty {
   row: Record<string, unknown>;
   amenities: Record<string, unknown>;
   contacts: ContactRow[];
+  /** Reservation / cancellation rule rows (row-based, keyed on policy_type). */
+  policies: PolicyRow[];
+  /** Brand kit experience config (brand voice + AI tone). */
+  brandKit: BrandKitRow | null;
 }
+
+interface PolicyRow {
+  id?: string;
+  property_id?: string;
+  policy_type: string;
+  rule: unknown;
+}
+
+interface BrandKitRow {
+  id?: string;
+  property_id?: string;
+  config: Record<string, unknown>;
+}
+
 
 interface ContactRow {
   id?: string;
