@@ -252,8 +252,12 @@ export function focusUnitCard(unitName: string, attempt = 0): void {
     }
   }
 
+  // Selectable rows (the unit picker) must actually open the unit's editor.
+  if (el.dataset.roomSelect === "1") el.click();
+
   let paint: HTMLElement = el;
   while (!isVisible(paint) && paint.parentElement) paint = paint.parentElement;
+
 
   paint.classList.add("pf-req-field", "pf-req-mandatory");
   paint.scrollIntoView({ behavior: "smooth", block: "center" });
