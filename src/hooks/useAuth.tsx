@@ -148,7 +148,7 @@ export function useAuth() {
 
   // Scoped admins are admins confined to specific properties. The scope rows
   // are readable by their own owner, so a plain table read is enough.
-  const { data: scopeRows } = useQuery({
+  const { data: scopeRows, isPending: scopePending } = useQuery({
     queryKey: ["admin-scope", userId],
     enabled: !!userId && isAdmin,
     queryFn: async () => {
@@ -166,6 +166,9 @@ export function useAuth() {
 
   const scopedPropertyIds = useMemo(() => scopeRows ?? [], [scopeRows]);
   const isScopedAdmin = scopedPropertyIds.length > 0;
+  // Pages must not query before the scope is known, or a scoped admin briefly
+  // sees the unrestricted result set.
+  const scopeResolved = !userId || !isAdmin || !scopePending;
 
   const userRole: UserRole = useMemo(
     () => computeUserRole(isDev, isFearlessLeader, isAdmin, isSalesRep),
@@ -218,6 +221,7 @@ export function useAuth() {
     isSalesRep,
     isScopedAdmin,
     scopedPropertyIds,
+    scopeResolved,
 
     salesRepId: context?.sales_rep_id ?? null,
     profile: context?.profile ?? null,

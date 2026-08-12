@@ -281,7 +281,7 @@ const StatusBadge = ({ status, isNightsBridge }: { status: OnboardingStatus; isN
 
 export default function AdminOnboarding() {
   const navigate = useNavigate();
-  const { scopedPropertyIds } = useAuth();
+  const { scopedPropertyIds, scopeResolved } = useAuth();
   const [propertyRows, setPropertyRows] = useState<PropertyOnboardingRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -301,9 +301,10 @@ export default function AdminOnboarding() {
   const [extending, setExtending] = useState(false);
 
   useEffect(() => {
+    if (!scopeResolved) return;
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scopedPropertyIds.join(",")]);
+  }, [scopeResolved, scopedPropertyIds.join(",")]);
 
   const loadData = async () => {
     try {

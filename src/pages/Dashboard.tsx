@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { InsightPanelTrigger } from "@/components/InsightPanel";
 import { useAuth } from "@/hooks/useAuth";
+import { applyAdminScope } from "@/lib/adminScope";
 import { SalesRepDashboard } from "@/components/dashboard/SalesRepDashboard";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
@@ -36,7 +37,7 @@ const PIE_COLORS = [
 ];
 
 const Dashboard = () => {
-  const { user, isAdmin, isDev, isFearlessLeader, isSalesRep, salesRepId } = useAuth();
+  const { user, isAdmin, isDev, isFearlessLeader, isSalesRep, salesRepId, scopedPropertyIds } = useAuth();
   const [period, setPeriod] = useState("this_month");
   const [comparePrevYear, setComparePrevYear] = useState(true);
   const [selectedPropertyId, setSelectedPropertyId] = useState<string>("all");
@@ -116,7 +117,7 @@ const Dashboard = () => {
   // properties flagged as trading (and not sandbox) may drive counts, occupancy
   // denominators, ADR and RevPAR — stale inventory would flatten every metric.
   const { data: properties = [] } = useQuery({
-    queryKey: ["dashboard-properties", isAdmin, profile?.email],
+    queryKey: ["dashboard-properties", isAdmin, profile?.email, scopedPropertyIds.join(",")],
     queryFn: async () => {
       let query = supabase.from("properties").select("id, name, owner_email, owner_name, property_type, bedrooms, max_guests, external_system, created_at, is_active, is_trading, is_sandbox")
         .eq("is_active", true)
@@ -125,11 +126,14 @@ const Dashboard = () => {
       if (!isAdmin && profile?.email) {
         query = query.eq("owner_email", profile.email);
       }
+      // Scoped admins (e.g. certification auditors) only ever see their properties.
+      query = applyAdminScope(query, "id", scopedPropertyIds);
       const { data } = await query;
       return data || [];
     },
     enabled: !!user && (isAdmin || !!profile?.email),
   });
+
 
   // Real room inventory for active properties: cascade rolos_rooms → rolos_room_types → hostfully_room_types → bedrooms
   const activePropertyIds = useMemo(() => properties.map((p: any) => p.id), [properties]);
