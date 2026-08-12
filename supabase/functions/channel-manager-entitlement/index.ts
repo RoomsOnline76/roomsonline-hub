@@ -287,6 +287,12 @@ Deno.serve(async (req) => {
 
     const actorEmail = userData.user.email ?? null;
 
+    // One trace per request: the caller may pass its own so a whole "clean up
+    // all" run reads as a single chain in the exchange log.
+    const traceId = req.headers.get("x-rol-trace-id") || crypto.randomUUID();
+
+
+
     const raw = (await req.json().catch(() => null)) as Body | null;
     const scopes = [
       "property",
