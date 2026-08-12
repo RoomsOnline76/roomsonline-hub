@@ -343,14 +343,15 @@ export default function ConnectHome() {
             </div>
             <div className="mt-6 flex flex-wrap items-center justify-center gap-4 text-xs text-muted-foreground">
               <span className="flex items-center gap-1">
-                <CheckCircle2 className="h-3.5 w-3.5 text-primary" /> 60-day free trial
+                <CheckCircle2 className="h-3.5 w-3.5 text-primary" /> 60 days free
               </span>
               <span className="flex items-center gap-1">
-                <CheckCircle2 className="h-3.5 w-3.5 text-primary" /> No credit card
+                <CheckCircle2 className="h-3.5 w-3.5 text-primary" /> No subscription
               </span>
               <span className="flex items-center gap-1">
-                <CheckCircle2 className="h-3.5 w-3.5 text-primary" /> Negotiable pricing
+                <CheckCircle2 className="h-3.5 w-3.5 text-primary" /> Booking fee only
               </span>
+
               <span className="flex items-center gap-1">
                 <CheckCircle2 className="h-3.5 w-3.5 text-primary" /> Cancel anytime
               </span>
