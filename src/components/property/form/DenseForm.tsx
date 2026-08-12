@@ -1,4 +1,5 @@
 import React from "react";
+import { Check, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
