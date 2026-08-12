@@ -873,11 +873,17 @@ export function CompanyInformationCard({
               <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                 Channel Manager location<Req />
               </p>
-              <RuLocationPicker
-                value={ruLocationId}
-                onChange={(id) => onRuLocationIdChange(id)}
-                initialQuery={propertyCity ?? ""}
-              />
+              <div
+                data-field="ru_location_id"
+                className="channel-required"
+                data-channel-satisfied={ruLocationId ? "1" : "0"}
+              >
+                <RuLocationPicker
+                  value={ruLocationId}
+                  onChange={(id) => onRuLocationIdChange(id)}
+                  initialQuery={propertyCity ?? ""}
+                />
+              </div>
               <p className="text-[10px] leading-snug text-muted-foreground">
                 Attaches a real Channel Manager LocationID to this property and its company push. the Channel Manager owns the
                 currency on the LocationID, so an explicit selection here decides which currency the
@@ -895,7 +901,11 @@ export function CompanyInformationCard({
               </p>
               <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
                 {REP_FIELDS.map((f) => (
-                  <div key={f.key} className="flex flex-col gap-1">
+                  <div
+                    key={f.key}
+                    className="flex flex-col gap-1"
+                    data-field={`rep_${String(f.key)}`}
+                  >
                     <Label className="text-xs">
                       {f.label}
                       {f.required && <Req />}
@@ -905,7 +915,8 @@ export function CompanyInformationCard({
                       value={str(rep[f.key])}
                       placeholder={f.placeholder}
                       onChange={(e) => setRepField(f.key, e.target.value)}
-                      className="h-7 text-xs"
+                      className={f.required ? "h-7 text-xs channel-required" : "h-7 text-xs"}
+                      data-channel-satisfied={str(rep[f.key]).trim() ? "1" : "0"}
                     />
                     {f.hint && <Hint>{f.hint}</Hint>}
                   </div>
@@ -913,34 +924,45 @@ export function CompanyInformationCard({
 
               </div>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <div className="flex flex-col gap-1">
+                <div className="flex flex-col gap-1" data-field="rep_nationality">
                   <Label className="text-xs">
                     Nationality (Channel Manager location)
                     <Req />
                   </Label>
-                  <RuLocationPicker
-                    value={Number(rep.nationality_id) || null}
-                    onChange={(id) => setRepField("nationality_id", id)}
-                    typeFilter={RU_COUNTRY_TYPE_FILTER}
-                    placeholder="Search countries…"
-                    allowRefresh={false}
-                  />
+                  <div
+                    className="channel-required"
+                    data-channel-satisfied={Number(rep.nationality_id) ? "1" : "0"}
+                  >
+                    <RuLocationPicker
+                      value={Number(rep.nationality_id) || null}
+                      onChange={(id) => setRepField("nationality_id", id)}
+                      typeFilter={RU_COUNTRY_TYPE_FILTER}
+                      placeholder="Search countries…"
+                      allowRefresh={false}
+                    />
+                  </div>
                 </div>
-                <div className="flex flex-col gap-1">
+                <div className="flex flex-col gap-1" data-field="rep_country_of_residence">
                   <Label className="text-xs">
                     Country of residence (Channel Manager location)
                     <Req />
                   </Label>
-                  <RuLocationPicker
-                    value={Number(rep.country_of_residence_id) || null}
-                    onChange={(id) => setRepField("country_of_residence_id", id)}
-                    typeFilter={RU_COUNTRY_TYPE_FILTER}
-                    placeholder="Search countries…"
-                    allowRefresh={false}
-                  />
+                  <div
+                    className="channel-required"
+                    data-channel-satisfied={Number(rep.country_of_residence_id) ? "1" : "0"}
+                  >
+                    <RuLocationPicker
+                      value={Number(rep.country_of_residence_id) || null}
+                      onChange={(id) => setRepField("country_of_residence_id", id)}
+                      typeFilter={RU_COUNTRY_TYPE_FILTER}
+                      placeholder="Search countries…"
+                      allowRefresh={false}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
+
           </CardContent>
         </CollapsibleContent>
       </Card>
