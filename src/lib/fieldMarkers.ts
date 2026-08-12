@@ -71,3 +71,14 @@ export function forcedFieldMarker(
 export function hasLiveMarker(el: Element): boolean {
   return el.getAttribute("data-req-live") === "1";
 }
+
+/**
+ * Data flags only, for controls that already compose their border class through
+ * `cn(..., channelMandatoryClass(field))`. Spread next to the class:
+ *   className={cn("h-7", channelMandatoryClass("toilets"))} {...markerFlags(ok)}
+ */
+export function markerFlags(
+  satisfied: boolean | null | undefined,
+): { "data-channel-satisfied": "1" | "0"; "data-req-live": "1" } {
+  return { "data-channel-satisfied": satisfied ? "1" : "0", "data-req-live": "1" };
+}
