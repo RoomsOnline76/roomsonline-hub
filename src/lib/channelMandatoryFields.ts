@@ -47,7 +47,7 @@ export const CHANNEL_MANDATORY_FIELDS: ChannelMandatoryField[] = [
   { field: "property_size_sqm", check: "has_space", reason: "Property size in m² — the channel Space fallback used when a unit has no size of its own" },
   { field: "bathrooms", check: "has_bathrooms", reason: "Every unit must have at least 1 bathroom" },
   { field: "toilets", check: "has_toilets", reason: "Every unit must have at least 1 toilet; blank and zero are rejected" },
-  { field: "bed_configuration", check: "beds_meet_max_guests", reason: "Authored beds must sleep the unit's full maximum occupancy" },
+  { field: "bed_configuration", check: "beds_meet_max_guests", reason: "Authored beds per bedroom — the channel needs at least one bedroom in the composition and enough beds to sleep the unit's full maximum occupancy" },
   { field: "room_images", check: "meets_minimum_images", reason: "Each listing needs at least 10 channel-ready photos" },
   { field: "hero_image", check: "has_main_image", reason: "One photo must be flagged as the main image — the channel rejects a listing without it" },
 

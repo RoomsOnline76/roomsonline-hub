@@ -135,6 +135,10 @@ type RoomRequirementRow = {
   max_guests?: number | null;
   bedConfiguration?: unknown;
   bed_configuration?: unknown;
+  /** Derived bedroom / bed counts the push falls back to when no configuration is authored. */
+  bedrooms?: number | null;
+  beds?: number | null;
+
   images?: unknown;
   amenities?: unknown;
   /** Channel Manager property type (ObjectTypeID source). */
@@ -158,8 +162,14 @@ const numericAtLeast = (value: unknown, minimum: number): boolean => {
   return Number.isFinite(parsed) && parsed >= minimum;
 };
 
+/**
+ * Sleeping capacity implied by an AUTHORED bed configuration.
+ *
+ * Array-only on purpose: the channel push builds its bedroom composition blocks from an
+ * array `bed_configuration`, so a legacy string ("king-twin") emits no bedroom at all and
+ * must never score as satisfied here.
+ */
 const bedCapacity = (raw: unknown): number => {
-  if (typeof raw === "string") return calculateBedCapacity(raw);
   if (!Array.isArray(raw)) return 0;
   const entries: BedEntry[] = raw.flatMap((entry) => {
     if (!entry || typeof entry !== "object") return [];
@@ -171,6 +181,26 @@ const bedCapacity = (raw: unknown): number => {
   });
   return calculateBedCapacity(entries);
 };
+
+/**
+ * Would the channel push emit at least one bedroom composition block for this unit?
+ * Mirrors `push-property-to-ru`: an array bed configuration with a typed entry, or the
+ * derived fallback from bedroom + bed counts.
+ */
+const hasBedroomComposition = (room: RoomRequirementRow): boolean => {
+  const config = room.bedConfiguration ?? room.bed_configuration;
+  if (Array.isArray(config)) {
+    const authored = config.some((entry) => {
+      if (!entry || typeof entry !== "object") return false;
+      const candidate = entry as { type?: unknown; count?: unknown };
+      return typeof candidate.type === "string" && candidate.type.trim().length > 0
+        && (Number(candidate.count) || 0) >= 1;
+    });
+    if (authored) return true;
+  }
+  return numericAtLeast(room.bedrooms, 1) && numericAtLeast(room.beds, 1);
+};
+
 
 /**
  * Per-unit rules.
@@ -193,6 +223,9 @@ export const UNIT_ROW_RULES = {
     const maximum = Number(room.maxPeople ?? room.max_guests ?? 0);
     return maximum >= 1 && bedCapacity(room.bedConfiguration ?? room.bed_configuration) >= maximum;
   },
+  /** The channel requires at least one bedroom in the composition block. */
+  bedroomComposition: (room: RoomRequirementRow) => hasBedroomComposition(room),
+
   images: (room: RoomRequirementRow) => (Array.isArray(room.images) ? room.images.length : 0) >= 10,
   amenities: (room: RoomRequirementRow) =>
     (Array.isArray(room.amenities) ? room.amenities.length : 0) >= 10,
@@ -575,6 +608,18 @@ export const PROPERTY_FIELD_REQUIREMENTS: FieldRequirement[] = [
     hint: "Authored sleeping places must cover every guest in the unit's maximum occupancy.",
     isSatisfied: (s) => roomRows(s).length > 0 && roomRows(s).every(UNIT_ROW_RULES.beds),
   },
+  {
+    key: "room_bedroom_composition",
+    label: "Bedroom composition authored",
+    tier: "mandatory",
+    section: "rooms",
+    target: ['[data-field="bed_configuration"]'],
+    hint:
+      "Every unit needs at least one bedroom in its composition — author the beds per bedroom in the bed configuration. A single legacy bed label (e.g. \"king-twin\") sends no bedroom to the channel.",
+    isSatisfied: (s) => roomRows(s).length > 0 && roomRows(s).every(UNIT_ROW_RULES.bedroomComposition),
+  },
+
+
 
   {
     key: "room_kitchen",
@@ -793,7 +838,7 @@ export const CHECK_TO_FIELD_KEYS: Record<string, string[]> = {
   commercial: ["banking"],
   location: ["address", "city", "country", "geo", "postal_code"],
   contact: ["contact_email", "contact_phone", "emergency_contact"],
-  rooms: ["rooms", "room_descriptions", "room_floors", "room_size", "room_bathrooms", "room_toilets", "room_beds"],
+  rooms: ["rooms", "room_descriptions", "room_floors", "room_size", "room_bathrooms", "room_toilets", "room_beds", "room_bedroom_composition"],
   policies: ["master_policy", "payment_methods", "changeover_rules"],
   rentalsunited_geo: ["geo"],
   rentalsunited_location_currency: ["ru_currency"],
@@ -815,11 +860,11 @@ export const CHECK_TO_FIELD_KEYS: Record<string, string[]> = {
   has_space: ["room_size", "property_size_sqm"],
   has_bathrooms: ["room_bathrooms"],
   has_toilets: ["room_toilets"],
-  has_bedroom: ["room_beds"],
+  has_bedroom: ["room_bedroom_composition"],
   has_bathroom_room: ["room_bathrooms"],
   beds_cover_half: ["room_beds"],
   beds_meet_max_guests: ["room_beds"],
-  beds_distributed: ["room_beds"],
+  beds_distributed: ["room_bedroom_composition"],
   unit_description: ["room_descriptions"],
   unit_name_clean: ["rooms"],
   images_meet_min_size: ["images", "image_dimensions"],
