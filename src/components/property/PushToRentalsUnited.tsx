@@ -161,6 +161,21 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
     reason: null,
   });
 
+  /**
+   * Registry-backed readiness — the same truth the wizard and the server gate use.
+   * This is the primary client gate: unknown, still loading, or failed = blocked.
+   */
+  const gate = usePropertyReadiness(propertyId);
+  const gateBlocked = !gate.hasData || gate.passed !== true;
+  const gateReason = !gate.hasData
+    ? gate.isLoading || gate.isFetching
+      ? "Checking channel readiness…"
+      : "Channel readiness could not be scored — reload before syncing"
+    : gate.passed !== true
+      ? `${gate.mandatoryOutstanding} mandatory requirement(s) outstanding — complete the checklist below before syncing`
+      : null;
+
+
   useEffect(() => {
     // Load property RU IDs and owner email
     supabase
