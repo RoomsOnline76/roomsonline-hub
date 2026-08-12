@@ -3893,6 +3893,10 @@ export default function PropertyForm({
       // respects paused pushes, and is a no-op when nothing the channel cares about changed.
       if (isEditMode && savedPropertyId) {
         void queueChannelContentSync(savedPropertyId, "property_save");
+        // Seasons and their periods are saved with the property, and they decide what a night
+        // costs and when it is sellable — the static delta deliberately excludes ARI, so fire
+        // the rates & availability delta too.
+        void queueChannelRatesSync(savedPropertyId, "property_save_seasons");
       }
 
       // Stay on current page after save - don't navigate away for edits
