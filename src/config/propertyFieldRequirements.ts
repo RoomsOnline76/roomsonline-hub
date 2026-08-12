@@ -173,6 +173,9 @@ const channelCheck = (subject: RequirementSubject, key: string): boolean | undef
   subject.channel_checks?.[key];
 
 const KITCHEN_RE = /kitchen|kitchenette|self[-\s]?cater|scullery/i;
+/** Channel composition ids that represent a kitchen / kitchenette / studio kitchen. */
+const KITCHEN_CHANNEL_IDS = [94, 101, 517];
+const KITCHEN_ID_RE = new RegExp(`^ru:(${KITCHEN_CHANNEL_IDS.join("|")})$`, "i");
 
 /** Kitchen declared on the unit (composition/amenities) or property facilities. */
 const hasKitchen = (subject: RequirementSubject): boolean => {
@@ -181,9 +184,11 @@ const hasKitchen = (subject: RequirementSubject): boolean => {
   const listHasKitchen = (list: unknown): boolean =>
     Array.isArray(list) &&
     list.some((entry) => {
-      if (typeof entry === "string") return KITCHEN_RE.test(entry);
+      // Room/property facility lists store either plain labels or channel ids ("ru:101").
+      if (typeof entry === "string") return KITCHEN_ID_RE.test(entry.trim()) || KITCHEN_RE.test(entry);
       if (entry && typeof entry === "object") {
-        const row = entry as { name?: unknown; label?: unknown; type?: unknown };
+        const row = entry as { id?: unknown; name?: unknown; label?: unknown; type?: unknown };
+        if (KITCHEN_CHANNEL_IDS.includes(Number(row.id))) return true;
         return [row.name, row.label, row.type].some((v) => typeof v === "string" && KITCHEN_RE.test(v));
       }
       return false;
