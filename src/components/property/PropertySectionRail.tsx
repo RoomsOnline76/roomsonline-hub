@@ -2,6 +2,8 @@ import React, { useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import type { RailGroup } from "@/config/propertySectionOrder";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import type { SectionReadinessDetail } from "@/hooks/usePropertyReadiness";
 
 interface PropertySectionRailProps {
   groups: RailGroup[];
@@ -12,8 +14,18 @@ interface PropertySectionRailProps {
   /** Outstanding readiness-field counts per section key (pink/blue badges) */
   requirementCounts?: Record<
     string,
-    { mandatory: number; recommended: number; mandatoryLabels?: string[]; recommendedLabels?: string[] }
+    {
+      mandatory: number;
+      recommended: number;
+      mandatoryLabels?: string[];
+      recommendedLabels?: string[];
+      /** Outstanding items with their exact error text. */
+      mandatoryItems?: SectionReadinessDetail[];
+      recommendedItems?: SectionReadinessDetail[];
+    }
   >;
+  /** Clicking a line inside the shortfall panel: switch section and focus the field. */
+  onSelectRequirement?: (section: string, item: SectionReadinessDetail) => void;
   /** Collapsed (icon-only) mode */
   collapsed?: boolean;
   /** When provided, renders the collapse/expand toggle */
@@ -31,6 +43,7 @@ export const PropertySectionRail: React.FC<PropertySectionRailProps> = ({
   onSelect,
   blockerKeys,
   requirementCounts,
+  onSelectRequirement,
   collapsed = false,
   onToggleCollapsed,
   className,
