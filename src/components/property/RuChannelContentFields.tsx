@@ -42,7 +42,11 @@ export const RuChannelContentFields: React.FC<RuChannelContentFieldsProps> = ({
         onValueChange={(v) => onFloorChange(v === "none" ? null : parseInt(v))}
         disabled={disabled}
       >
-        <SelectTrigger className="h-8 text-xs">
+        <SelectTrigger
+          data-field="property_floor"
+          className={cn("h-8 text-xs", channelMandatoryClass("property_floor"))}
+          data-channel-satisfied={floor === null || floor === undefined ? "0" : "1"}
+        >
           <SelectValue placeholder="Select floor" />
         </SelectTrigger>
         <SelectContent>
@@ -57,7 +61,7 @@ export const RuChannelContentFields: React.FC<RuChannelContentFieldsProps> = ({
         </SelectContent>
       </Select>
       <p className="text-[10px] text-muted-foreground">
-        Used for channel pushes when a unit type has no floor of its own.
+        Mandatory for channel distribution. Set it here, or capture a floor on every unit in the Rooms tab.
       </p>
     </div>
 
@@ -68,15 +72,18 @@ export const RuChannelContentFields: React.FC<RuChannelContentFieldsProps> = ({
       <Input
         type="number"
         min={1}
-        className="h-8 text-xs"
+        data-field="property_size_sqm"
+        className={cn("h-8 text-xs", channelMandatoryClass("property_size_sqm"))}
+        data-channel-satisfied={sizeSqm && sizeSqm > 0 ? "1" : "0"}
         value={sizeSqm ?? ""}
         placeholder="e.g. 85"
         disabled={disabled}
         onChange={(e) => onSizeChange(e.target.value ? Number(e.target.value) : null)}
       />
       <p className="text-[10px] text-muted-foreground">
-        Fallback for the Channel Manager "Space". Room-level sizes in the Rooms tab take priority.
+        Mandatory for channel distribution — without it the channel receives an invented 50 m². Room-level sizes in the Rooms tab take priority.
       </p>
     </div>
   </div>
 );
+
