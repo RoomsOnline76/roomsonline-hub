@@ -1029,7 +1029,7 @@ function buildUnitPayload(
   const lng = unit.longitude || property.longitude || 0;
   const street = unit.address_street || property.address || 'Not specified';
   const zipCode = resolveZipCode(unit.address_postal_code, property);
-  const maxGuests = unit.max_guests || 2;
+  const maxGuests = Number(unit.max_guests) || 0;
   const { space, isDefault: spaceIsDefault } = resolvePropertySize(property, unit.room_size);
   const paymentMethods = mapPaymentMethods(property.amenities);
   const cancellationPolicies = mapCancellationPolicies(amenities as Record<string, unknown>);
@@ -1111,7 +1111,7 @@ function buildUnitPayload(
       }
     }
   }
-  if (!beds) beds = unit.beds || unit.bedrooms || Math.max(1, maxGuests);
+  if (!beds) beds = Number(unit.beds) || 0;
   const descText = unit.description || property.description || unit.name;
 
   // Build CompositionRoomsAmenities using RU's REAL global dictionary
@@ -1244,23 +1244,15 @@ function buildSinglePropertyPayload(property: PropertyRow, roomTypes: RoomTypeRo
       rooms.push(...built.rooms);
       continue;
     }
-    // No bed configuration on this room type: derive from beds / bedrooms / capacity.
-    const bedroomCount = Math.max(1, Number(rt.bedrooms) || 1);
-    const bedTotal = Math.max(bedroomCount, Number(rt.beds) || 0, Math.ceil((rt.max_guests || 2) / 2));
-    const perRoom = Math.max(1, Math.ceil(bedTotal / bedroomCount));
-    for (let i = 0; i < bedroomCount; i++) rooms.push({ room_id: 257, amenities: [{ id: RU_DEFAULT_BED_ID, count: perRoom }] });
+    // Do not invent beds from occupancy. Missing authored bed data must remain a
+    // readiness blocker rather than producing a payload that appears compliant.
+    const bedroomCount = Math.max(0, Number(rt.bedrooms) || 0);
+    const bedTotal = Math.max(0, Number(rt.beds) || 0);
+    if (bedroomCount > 0 && bedTotal > 0) {
+      const perRoom = Math.max(1, Math.ceil(bedTotal / bedroomCount));
+      for (let i = 0; i < bedroomCount; i++) rooms.push({ room_id: 257, amenities: [{ id: RU_DEFAULT_BED_ID, count: perRoom }] });
+    }
   }
-  if (rooms.length === 0) {
-    const bedroomCount = Math.max(1, Number(property.bedrooms) || 1);
-    const perRoom = Math.max(1, Math.ceil(Math.max(2, maxGuests) / 2 / bedroomCount));
-    for (let i = 0; i < bedroomCount; i++) rooms.push({ room_id: 257, amenities: [{ id: RU_DEFAULT_BED_ID, count: perRoom }] });
-  }
-  // RU minimum: beds must cover >= 50% of CanSleepMax. Top up the first bedroom block
-  // when the authored data falls short so a valid payload is never rejected outright;
-  // the readiness scorecard still reports the underlying gap.
-  const emittedBeds = rooms.reduce((sum, r) => sum + r.amenities.reduce((s, a) => s + (a.count || 1), 0), 0);
-  const requiredBeds = Math.ceil(maxGuests * 0.5);
-  if (emittedBeds < requiredBeds && rooms[0]) rooms[0].amenities[0].count += requiredBeds - emittedBeds;
   let allImages = mapImages(property.images as unknown[] | null, (property as any).ru_image_tags);
   for (const rt of roomTypes) allImages = allImages.concat(mapImages(rt.images as unknown[] | null, (rt as any).ru_image_tags));
   const seenUrls = new Set<string>();
