@@ -22,14 +22,21 @@ import { ROLOS_SIGNOFF_CHECKLIST } from "@/config/rolosOnboardingMacros";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { focusRequirementField } from "@/lib/requirementFocus";
+import { focusRequirementField, focusUnitCard } from "@/lib/requirementFocus";
 import {
   CHECK_TO_FIELD_KEYS,
   PROPERTY_FIELD_REQUIREMENTS,
 } from "@/config/propertyFieldRequirements";
+import { resolveMcqRequirement } from "@/lib/mcqRequirements";
 
 
-import { useRolosOnboardingProgress, type MacroProgress } from "@/hooks/useRolosOnboardingProgress";
+import {
+  useRolosOnboardingProgress,
+  type MacroProgress,
+  type DistributionCheck,
+  type DistributionFailure,
+} from "@/hooks/useRolosOnboardingProgress";
+
 
 /**
  * Floating ROL'OS Channel Readiness wizard.
