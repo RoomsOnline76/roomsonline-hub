@@ -18,9 +18,22 @@ import {
   normalizeRuTimeZone,
 } from "@/lib/ruTimeZones";
 
-// Separate PMS vs Channel Manager systems
-const PMS_OPTIONS = VISIBLE_PMS_SYSTEMS.filter(s => !s.isInternal && !['siteminder', 'rentalsunited'].includes(s.key));
-const CHANNEL_MANAGER_OPTIONS = VISIBLE_PMS_SYSTEMS.filter(s => ['siteminder', 'rentalsunited', 'profitroom'].includes(s.key));
+// PMS options: only systems that are actually live in ROL'OS today.
+const ACTIVE_PMS_KEYS = ["benson", "hostfully", "checkfront", "nightsbridge", "wetu"];
+const PMS_OPTIONS = ACTIVE_PMS_KEYS
+  .map(key => VISIBLE_PMS_SYSTEMS.find(s => s.key === key))
+  .filter((s): s is NonNullable<typeof s> => Boolean(s));
+
+// Channel Manager options: the channels distributed through our channel-manager account.
+const CHANNEL_MANAGER_OPTIONS = CHANNEL_REGISTRY
+  .filter(c => !["nightsbridge"].includes(c.key))
+  .map(c => ({
+    key: c.key,
+    name:
+      VISIBLE_PMS_SYSTEMS.find(s => s.key === c.key)?.name ??
+      c.key.replace(/_/g, " ").replace(/\b\w/g, m => m.toUpperCase()),
+  }));
+
 
 const PROPERTY_TYPE_LABELS: Record<string, string> = {
   apartment: "Apartments",
