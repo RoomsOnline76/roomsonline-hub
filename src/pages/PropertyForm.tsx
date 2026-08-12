@@ -793,6 +793,43 @@ export default function PropertyForm({
   const [selectedFacilities, setSelectedFacilities] = useState<string[]>([]);
   // TOBI description assistance (Info & Facilities tab)
   const [writingPropertyDescription, setWritingPropertyDescription] = useState(false);
+  const propertyDescriptionLength = (formData.description ?? "").trim().length;
+  const propertyDescriptionTooShort = propertyDescriptionLength < MIN_DESCRIPTION_CHARS;
+  const writePropertyDescriptionWithTobi = useCallback(async () => {
+    setWritingPropertyDescription(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("editorial-ai-assist", {
+        body: {
+          action: "generate_property_description",
+          minChars: MIN_DESCRIPTION_CHARS,
+          propertyContext: {
+            name: formData.name,
+            property_type: formData.property_type,
+            star_rating: starRating,
+            description: formData.description,
+            country: formData.country,
+            city: formData.city,
+            suburb: formData.suburb,
+            facilities: selectedFacilities,
+          },
+        },
+      });
+      if (error) throw error;
+      const text: string = (data?.description ?? "").trim();
+      if (!text) throw new Error("TOBI returned no text");
+      handleInputChange("description", text);
+      setIsDirty(true);
+      toast.success(
+        text.length >= MIN_DESCRIPTION_CHARS
+          ? `TOBI wrote ${text.length} characters — review and save.`
+          : `TOBI wrote ${text.length} characters — still under the ${MIN_DESCRIPTION_CHARS} minimum, please expand.`,
+      );
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "TOBI could not write the description");
+    } finally {
+      setWritingPropertyDescription(false);
+    }
+  }, [formData, starRating, selectedFacilities]);
   const [aiAmenityOpen, setAiAmenityOpen] = useState(false);
   const [selectedBreakfastOptions, setSelectedBreakfastOptions] = useState<string[]>([]);
   // Property composition — mandatory for Rentals United / channel pushes
