@@ -223,7 +223,7 @@ export default function ConnectFeatures() {
       <section className="py-10 sm:py-12 lg:py-16 border-t bg-muted/20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-2xl font-bold mb-3">Ready to Modernise Your Property?</h2>
-          <p className="text-muted-foreground mb-6">60-day free trial. No credit card. Negotiable pricing.</p>
+          <p className="text-muted-foreground mb-6">Free for 60 days, then still free to run. No subscription — you only pay a booking fee on bookings we deliver.</p>
           <div className="flex items-center justify-center gap-3">
             <Link to={connectPath("/connect/get-started")}><Button size="lg" className="gap-2">Get Started <ArrowRight className="h-4 w-4" /></Button></Link>
             <Link to={connectPath("/connect/pricing")}><Button variant="outline" size="lg">See Pricing</Button></Link>
