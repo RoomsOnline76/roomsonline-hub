@@ -470,6 +470,19 @@ export function RuOnboardingPipeline({ propertyId, readOnly = false, standalone 
                       ))}
                     </ul>
                   )}
+                  {/* Reasons the last live push was refused — shown on the phase that blocked it,
+                      so a green card can never hide an outstanding requirement. */}
+                  {pushBlock && pushBlock.phase === phase.key && phase.blockers.length === 0 && (
+                    <div className="mt-2 rounded-md border border-destructive/40 bg-destructive/5 p-2">
+                      <p className="text-xs font-medium text-destructive">Last push was refused here:</p>
+                      <ul className="mt-1 list-disc space-y-1 pl-5 text-sm text-destructive">
+                        {pushBlock.reasons.map((b, i) => (
+                          <li key={`pb-${i}`}>{b}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
                   {phase.status === "pending" && idx > 0 && (
                     <p className="mt-2 text-sm text-muted-foreground">
                       Locked until phase {phase.order - 1} is complete.
