@@ -168,6 +168,39 @@ const bedCapacity = (raw: unknown): number => {
   return calculateBedCapacity(entries);
 };
 
+/**
+ * Per-unit rules.
+ *
+ * The scoring registry answers "is this satisfied for EVERY unit" (a channel push
+ * blocks on the worst unit). The field markers in the editor need the answer for
+ * the ONE unit the owner has open, otherwise an unfinished sibling keeps the
+ * border dark on a unit that is actually complete. Both consume these rules, so
+ * the definition of "complete" can never drift between the two.
+ */
+export const UNIT_ROW_RULES = {
+  description: (room: RoomRequirementRow) => str(room.description).length >= 700,
+  floor: (room: RoomRequirementRow) => room.floor !== null && room.floor !== undefined,
+  size: (room: RoomRequirementRow) => numericAtLeast(room.roomSize ?? room.room_size, 1),
+  bathrooms: (room: RoomRequirementRow) => numericAtLeast(room.bathrooms, 1),
+  toilets: (room: RoomRequirementRow) => numericAtLeast(room.toilets, 1),
+  maxGuests: (room: RoomRequirementRow) => numericAtLeast(room.maxPeople ?? room.max_guests, 1),
+  /** Authored sleeping places must cover the unit's maximum occupancy. */
+  beds: (room: RoomRequirementRow) => {
+    const maximum = Number(room.maxPeople ?? room.max_guests ?? 0);
+    return maximum >= 1 && bedCapacity(room.bedConfiguration ?? room.bed_configuration) >= maximum;
+  },
+  images: (room: RoomRequirementRow) => (Array.isArray(room.images) ? room.images.length : 0) >= 10,
+  amenities: (room: RoomRequirementRow) =>
+    (Array.isArray(room.amenities) ? room.amenities.length : 0) >= 10,
+} as const;
+
+export type UnitRowRuleKey = keyof typeof UNIT_ROW_RULES;
+
+/** Evaluate a per-unit rule for a single unit row. */
+export function isUnitRowSatisfied(rule: UnitRowRuleKey, room: RoomRequirementRow | null | undefined): boolean {
+  if (!room) return false;
+  return UNIT_ROW_RULES[rule](room);
+}
 
 
 const measuredImages = (
@@ -433,7 +466,7 @@ export const PROPERTY_FIELD_REQUIREMENTS: FieldRequirement[] = [
     hint: "Set the property floor here, or capture a floor on every unit in the Rooms tab.",
     isSatisfied: (s) =>
       Number.isFinite(Number(amenity(s, "property_floor"))) ||
-      (roomRows(s).length > 0 && roomRows(s).every((room) => room.floor !== null && room.floor !== undefined)),
+      (roomRows(s).length > 0 && roomRows(s).every(UNIT_ROW_RULES.floor)),
   },
   {
     key: "property_size_sqm",
@@ -444,7 +477,7 @@ export const PROPERTY_FIELD_REQUIREMENTS: FieldRequirement[] = [
     hint: "Set the property size here, or capture a size on every unit in the Rooms tab — the channel otherwise receives an invented 50 m².",
     isSatisfied: (s) =>
       numericAtLeast(amenity(s, "property_size_sqm"), 1) ||
-      (roomRows(s).length > 0 && roomRows(s).every((room) => numericAtLeast(room.roomSize ?? room.room_size, 1))),
+      (roomRows(s).length > 0 && roomRows(s).every(UNIT_ROW_RULES.size)),
   },
 
 
@@ -468,7 +501,7 @@ export const PROPERTY_FIELD_REQUIREMENTS: FieldRequirement[] = [
     section: "rooms",
     target: ['[data-field="room_description"]'],
     hint: "Open the named unit and add at least 700 characters of original description.",
-    isSatisfied: (s) => roomRows(s).length > 0 && roomRows(s).every((room) => str(room.description).length >= 700),
+    isSatisfied: (s) => roomRows(s).length > 0 && roomRows(s).every(UNIT_ROW_RULES.description),
   },
   {
     key: "room_floors",
@@ -477,7 +510,7 @@ export const PROPERTY_FIELD_REQUIREMENTS: FieldRequirement[] = [
     section: "rooms",
     target: ['[data-field="floor"]'],
     hint: "Choose 0 for ground floor; blank is not accepted.",
-    isSatisfied: (s) => roomRows(s).length > 0 && roomRows(s).every((room) => room.floor !== null && room.floor !== undefined),
+    isSatisfied: (s) => roomRows(s).length > 0 && roomRows(s).every(UNIT_ROW_RULES.floor),
   },
   {
     key: "room_size",
@@ -488,7 +521,7 @@ export const PROPERTY_FIELD_REQUIREMENTS: FieldRequirement[] = [
     hint: "Blank or zero makes the channel receive an invented 50 m² — capture the real size, or set a property-level size in Info & Facilities.",
     isSatisfied: (s) =>
       numericAtLeast(amenity(s, "property_size_sqm"), 1) ||
-      (roomRows(s).length > 0 && roomRows(s).every((room) => numericAtLeast(room.roomSize ?? room.room_size, 1))),
+      (roomRows(s).length > 0 && roomRows(s).every(UNIT_ROW_RULES.size)),
   },
 
   {
@@ -498,7 +531,7 @@ export const PROPERTY_FIELD_REQUIREMENTS: FieldRequirement[] = [
     section: "rooms",
     target: ['[data-field="bathrooms"]'],
     hint: "Each unit must explicitly capture its own bathroom count.",
-    isSatisfied: (s) => roomRows(s).length > 0 && roomRows(s).every((room) => numericAtLeast(room.bathrooms, 1)),
+    isSatisfied: (s) => roomRows(s).length > 0 && roomRows(s).every(UNIT_ROW_RULES.bathrooms),
   },
   {
     key: "room_toilets",
@@ -507,7 +540,7 @@ export const PROPERTY_FIELD_REQUIREMENTS: FieldRequirement[] = [
     section: "rooms",
     target: ['[data-field="toilets"]'],
     hint: "Blank and zero both block channel onboarding.",
-    isSatisfied: (s) => roomRows(s).length > 0 && roomRows(s).every((room) => numericAtLeast(room.toilets, 1)),
+    isSatisfied: (s) => roomRows(s).length > 0 && roomRows(s).every(UNIT_ROW_RULES.toilets),
   },
   {
     key: "room_channel_type",
@@ -532,10 +565,7 @@ export const PROPERTY_FIELD_REQUIREMENTS: FieldRequirement[] = [
     section: "rooms",
     target: ['[data-field="bed_configuration"]'],
     hint: "Authored sleeping places must cover every guest in the unit's maximum occupancy.",
-    isSatisfied: (s) => roomRows(s).length > 0 && roomRows(s).every((room) => {
-      const maximum = Number(room.maxPeople ?? room.max_guests ?? 0);
-      return maximum >= 1 && bedCapacity(room.bedConfiguration ?? room.bed_configuration) === maximum;
-    }),
+    isSatisfied: (s) => roomRows(s).length > 0 && roomRows(s).every(UNIT_ROW_RULES.beds),
   },
 
   {

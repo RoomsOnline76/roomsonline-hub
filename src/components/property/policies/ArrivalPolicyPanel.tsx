@@ -11,6 +11,9 @@ import {
   clearArrivalPolicyDraft,
   setArrivalPolicyDraft,
 } from "@/lib/arrivalPolicyDraft";
+import { channelMandatoryClass } from "@/lib/channelMandatoryFields";
+import { markerFlags } from "@/lib/fieldMarkers";
+import { cn } from "@/lib/utils";
 
 /** Channel gate: Rentals United rejects arrival instructions under 20 characters. */
 const MIN_ARRIVAL_CHARS = 20;
@@ -426,11 +429,13 @@ export const ArrivalPolicyPanel: React.FC<ArrivalPolicyPanelProps> = ({ property
   return (
     <div className="space-y-2" data-field="arrival_policy">
       <Textarea
+        data-field="arrival_instructions"
         value={text}
         onChange={(e) => applyText(e.target.value)}
         rows={6}
         placeholder="How guests arrive: directions from the main road, gate or access codes, where to collect keys, who to call, and what happens on a late arrival."
-        className={`text-xs ${tooShort ? "border-destructive focus-visible:ring-destructive" : ""}`}
+        className={cn("text-xs", channelMandatoryClass("arrival_instructions"), tooShort && "border-destructive focus-visible:ring-destructive")}
+        {...markerFlags(!tooShort && trimmed.length >= MIN_ARRIVAL_CHARS)}
       />
 
       <div className="flex flex-wrap items-center gap-2">

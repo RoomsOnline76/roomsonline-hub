@@ -73,7 +73,7 @@ export function ChangeoverRulesCard({
           >
             <SelectTrigger
               data-field="changeover_rules"
-              data-channel-satisfied={authored ? "1" : "0"}
+              data-channel-satisfied={authored ? "1" : "0"} data-req-live="1"
               className={cn("h-8 text-xs", channelMandatoryClass("changeover_rules"))}
             >
               <SelectValue placeholder="Required — select a changeover rule" />

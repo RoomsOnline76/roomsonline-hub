@@ -13,6 +13,8 @@ import { getPMSFieldClass, getPMSDisplayName, isFieldPopulatedByPMS } from "@/li
 import { cn } from "@/lib/utils";
 import { ChannelFieldHint } from "@/components/property/ChannelFieldHint";
 import { checkChannelDescription } from "@/lib/channelFieldRules";
+import { channelMandatoryClass } from "@/lib/channelMandatoryFields";
+import { markerFlags } from "@/lib/fieldMarkers";
 import { X, Save, Cloud, Sparkles, Loader2, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -163,7 +165,7 @@ export function InfoFacilitiesTab(props: InfoFacilitiesTabProps) {
                 </Button>
               </div>
             </div>
-            <Textarea id="description" value={formData.description} onChange={(e) => handleInputChange("description", e.target.value)} placeholder="Describe your property..." rows={6} disabled={isFieldPopulatedByPMS("description", selectedPMS)} className={cn("resize-none text-xs", descriptionTooShort && "border-destructive focus-visible:ring-destructive", getPMSFieldClass("description", selectedPMS), isFieldPopulatedByPMS("description", selectedPMS) && "cursor-not-allowed")} />
+            <Textarea id="description" data-field="description" value={formData.description} onChange={(e) => handleInputChange("description", e.target.value)} placeholder="Describe your property..." rows={6} disabled={isFieldPopulatedByPMS("description", selectedPMS)} className={cn("resize-none text-xs", channelMandatoryClass("description"), descriptionTooShort && "border-destructive focus-visible:ring-destructive", getPMSFieldClass("description", selectedPMS), isFieldPopulatedByPMS("description", selectedPMS) && "cursor-not-allowed")} {...markerFlags(!descriptionTooShort)} />
             {descriptionTooShort ? (
               <p className="flex items-center gap-1 text-[10px] text-destructive">
                 <AlertTriangle className="h-3 w-3" />

@@ -47,7 +47,7 @@ export const RuChannelContentFields: React.FC<RuChannelContentFieldsProps> = ({
         <SelectTrigger
           data-field="property_floor"
           className={cn("h-8 text-xs", channelMandatoryClass("property_floor"))}
-          data-channel-satisfied={floor === null || floor === undefined ? "0" : "1"}
+          data-channel-satisfied={floor === null || floor === undefined ? "0" : "1"} data-req-live="1"
         >
           <SelectValue placeholder="Select floor" />
         </SelectTrigger>
@@ -76,7 +76,7 @@ export const RuChannelContentFields: React.FC<RuChannelContentFieldsProps> = ({
         min={1}
         data-field="property_size_sqm"
         className={cn("h-8 text-xs", channelMandatoryClass("property_size_sqm"))}
-        data-channel-satisfied={sizeSqm && sizeSqm > 0 ? "1" : "0"}
+        data-channel-satisfied={sizeSqm && sizeSqm > 0 ? "1" : "0"} data-req-live="1"
         value={sizeSqm ?? ""}
         placeholder="e.g. 85"
         disabled={disabled}

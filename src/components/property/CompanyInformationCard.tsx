@@ -576,7 +576,7 @@ export function CompanyInformationCard({
                     onChange={(e) => onRegisteredBusinessNameChange(e.target.value)}
                     placeholder="e.g., Safari Lodge (Pty) Ltd"
                     className="h-7 text-xs channel-required"
-                    data-channel-satisfied={registeredBusinessName.trim() ? "1" : "0"}
+                    data-channel-satisfied={registeredBusinessName.trim() ? "1" : "0"} data-req-live="1"
                   />
                 </div>
                 <div className="flex flex-col gap-1">
@@ -589,7 +589,7 @@ export function CompanyInformationCard({
                     onChange={(e) => onMobileNumberChange(e.target.value)}
                     placeholder="e.g., +27 82 123 4567"
                     className="h-7 text-xs channel-required"
-                    data-channel-satisfied={mobileNumber.trim() ? "1" : "0"}
+                    data-channel-satisfied={mobileNumber.trim() ? "1" : "0"} data-req-live="1"
                   />
                 </div>
                 <div className="flex flex-col gap-1">
@@ -602,7 +602,7 @@ export function CompanyInformationCard({
                     onChange={(e) => onKeyRepresentativeChange(e.target.value)}
                     placeholder="e.g., John Smith"
                     className="h-7 text-xs channel-required"
-                    data-channel-satisfied={keyRepresentative.trim() ? "1" : "0"}
+                    data-channel-satisfied={keyRepresentative.trim() ? "1" : "0"} data-req-live="1"
                   />
                 </div>
                 <div className="flex flex-col gap-1">
@@ -628,7 +628,7 @@ export function CompanyInformationCard({
                       onChange={(e) => onBankingChange("vat_number", e.target.value)}
                       placeholder="VAT number"
                       className="h-7 text-xs channel-required"
-                      data-channel-satisfied={banking.vat_number.trim() ? "1" : "0"}
+                      data-channel-satisfied={banking.vat_number.trim() ? "1" : "0"} data-req-live="1"
                     />
                   </div>
                 )}
@@ -642,7 +642,7 @@ export function CompanyInformationCard({
                   >
                     <SelectTrigger
                       className="h-7 text-xs channel-required"
-                      data-channel-satisfied={normalizedTimeZone ? "1" : "0"}
+                      data-channel-satisfied={normalizedTimeZone ? "1" : "0"} data-req-live="1"
                     >
                       <SelectValue placeholder="Select a time zone" />
                     </SelectTrigger>
@@ -688,7 +688,7 @@ export function CompanyInformationCard({
                       className={f.required ? "h-7 text-xs channel-required" : "h-7 text-xs"}
                       data-channel-satisfied={
                         str(companyProfile[f.key]).trim() ? "1" : "0"
-                      }
+                      } data-req-live="1"
                     />
                     {f.hint && <Hint>{f.hint}</Hint>}
                   </div>
@@ -737,7 +737,7 @@ export function CompanyInformationCard({
                       value={str(companyProfile[f.key])}
                       onChange={(e) => setField(f.key, e.target.value)}
                       className="h-7 text-xs channel-required"
-                      data-channel-satisfied={str(companyProfile[f.key]).trim() ? "1" : "0"}
+                      data-channel-satisfied={str(companyProfile[f.key]).trim() ? "1" : "0"} data-req-live="1"
                     />
                     {f.hint && <Hint>{f.hint}</Hint>}
                   </div>
@@ -769,7 +769,7 @@ export function CompanyInformationCard({
                   className="min-h-[50px] text-xs channel-required"
                   data-channel-satisfied={
                     str(companyProfile.describe_your_business).trim() ? "1" : "0"
-                  }
+                  } data-req-live="1"
                 />
               </div>
 
@@ -832,7 +832,7 @@ export function CompanyInformationCard({
               <div
                 data-field="ru_location_id"
                 className="channel-required"
-                data-channel-satisfied={ruLocationId ? "1" : "0"}
+                data-channel-satisfied={ruLocationId ? "1" : "0"} data-req-live="1"
               >
                 <RuLocationPicker
                   value={ruLocationId}
@@ -872,7 +872,7 @@ export function CompanyInformationCard({
                       placeholder={f.placeholder}
                       onChange={(e) => setRepField(f.key, e.target.value)}
                       className={f.required ? "h-7 text-xs channel-required" : "h-7 text-xs"}
-                      data-channel-satisfied={str(rep[f.key]).trim() ? "1" : "0"}
+                      data-channel-satisfied={str(rep[f.key]).trim() ? "1" : "0"} data-req-live="1"
                     />
                     {f.hint && <Hint>{f.hint}</Hint>}
                   </div>
@@ -887,7 +887,7 @@ export function CompanyInformationCard({
                   </Label>
                   <div
                     className="channel-required"
-                    data-channel-satisfied={Number(rep.nationality_id) ? "1" : "0"}
+                    data-channel-satisfied={Number(rep.nationality_id) ? "1" : "0"} data-req-live="1"
                   >
                     <RuLocationPicker
                       value={Number(rep.nationality_id) || null}
@@ -905,7 +905,7 @@ export function CompanyInformationCard({
                   </Label>
                   <div
                     className="channel-required"
-                    data-channel-satisfied={Number(rep.country_of_residence_id) ? "1" : "0"}
+                    data-channel-satisfied={Number(rep.country_of_residence_id) ? "1" : "0"} data-req-live="1"
                   >
                     <RuLocationPicker
                       value={Number(rep.country_of_residence_id) || null}
