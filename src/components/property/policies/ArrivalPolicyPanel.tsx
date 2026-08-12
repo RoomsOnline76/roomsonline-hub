@@ -11,6 +11,9 @@ import {
   clearArrivalPolicyDraft,
   setArrivalPolicyDraft,
 } from "@/lib/arrivalPolicyDraft";
+import { channelMandatoryClass } from "@/lib/channelMandatoryFields";
+import { markerFlags } from "@/lib/fieldMarkers";
+import { cn } from "@/lib/utils";
 
 /** Channel gate: Rentals United rejects arrival instructions under 20 characters. */
 const MIN_ARRIVAL_CHARS = 20;
