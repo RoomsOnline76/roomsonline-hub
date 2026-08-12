@@ -2884,6 +2884,7 @@ Deno.serve(async (req) => {
       return jsonResponse({
         success: true,
         auth_mode: 'master_channel_manager',
+        raw_sample: payload?.debug ? response.slice(0, 3000) : undefined,
         destination_count: rows.length,
         generic_count: rows.filter((r) => r.is_generic).length,
         synced,
