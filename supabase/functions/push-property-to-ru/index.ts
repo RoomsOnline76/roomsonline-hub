@@ -4611,7 +4611,13 @@ Deno.serve(async (req) => {
 
     // ── Readiness gate: no live push while mandatory WL requirements fail ──
     if (!forcePush) {
-      const gaps = mandatoryGaps([{ name: property.name, validation: singleValidation as any }]);
+      // Content rules AND the bookable-window/MinStay rules — the same set the multi-unit
+      // gate uses, so a single-unit property cannot slip through a narrower gate.
+      const gaps = [
+        ...mandatoryGaps([{ name: property.name, validation: singleValidation as any }]),
+        ...precomputedGaps,
+      ];
+
       if (gaps.length > 0) {
         return new Response(
           JSON.stringify({
