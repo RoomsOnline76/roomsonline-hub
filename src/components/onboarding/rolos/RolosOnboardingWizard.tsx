@@ -458,6 +458,8 @@ function MacroRow({
   const { macro, complete, locked, score, fieldItems, stateChecks } = progress;
   const outstandingFields = fieldItems.filter((i) => !i.satisfied);
   const firstOutstandingField = outstandingFields.find((item) => item.tier === "mandatory") ?? outstandingFields[0];
+  const blockerTarget = firstBlockingTarget(stateChecks);
+
 
   return (
     <div className={locked ? "opacity-60" : undefined}>
