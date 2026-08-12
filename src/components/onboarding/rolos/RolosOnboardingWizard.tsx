@@ -489,7 +489,8 @@ function MacroRow({
           {stateChecks.length > 0 && (
             <ul className="space-y-1">
               {stateChecks.map((c) => {
-                const target = c.ok ? null : resolveCheckTarget(c.key);
+                const failures = c.ok ? [] : (c.failures ?? []);
+                const target = c.ok || failures.length > 0 ? null : resolveCheckTarget(c.key);
                 return (
                   <li key={c.key} className="flex items-start gap-2 text-[11px]">
                     {c.ok ? (
@@ -497,11 +498,11 @@ function MacroRow({
                     ) : (
                       <Circle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                     )}
-                    <span className="min-w-0">
+                    <span className="min-w-0 flex-1">
                       {target ? (
                         <button
                           type="button"
-                          onClick={() => onGoToField(target.section, target.fieldKey)}
+                          onClick={() => onGoToField(target.section, target.fieldKey, target.unit)}
                           className="text-left font-medium text-primary underline decoration-dotted underline-offset-2 hover:no-underline"
                         >
                           {c.label} — fix it
@@ -509,13 +510,39 @@ function MacroRow({
                       ) : (
                         <span className={c.ok ? "text-muted-foreground" : "font-medium"}>{c.label}</span>
                       )}
-                      {c.detail && <span className="block text-[10px] text-muted-foreground">{c.detail}</span>}
+                      {failures.length === 0 && c.detail && (
+                        <span className="block text-[10px] text-muted-foreground">{c.detail}</span>
+                      )}
+                      {failures.length > 0 && (
+                        <span className="mt-1 block space-y-1">
+                          {failures.map((f, i) => {
+                            const ft = resolveFailureTarget(f, c.key);
+                            return (
+                              <button
+                                key={`${f.label}-${f.unit ?? ""}-${i}`}
+                                type="button"
+                                onClick={() => onGoToField(ft.section, ft.fieldKey, ft.unit)}
+                                className="flex w-full items-start gap-1.5 rounded-md border border-border/60 px-1.5 py-1 text-left text-[10px] leading-snug text-muted-foreground transition-colors hover:border-primary hover:text-primary"
+                              >
+                                <span className="min-w-0 flex-1">
+                                  {f.unit && <span className="font-medium">{f.unit}: </span>}
+                                  {f.detail ?? f.label}
+                                </span>
+                                <span className="shrink-0 text-[9px] uppercase tracking-wide">
+                                  {f.unit ? "Rooms" : "Fix"} →
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </span>
+                      )}
                     </span>
                   </li>
                 );
               })}
             </ul>
           )}
+
 
 
           {outstandingFields.length > 0 && (
