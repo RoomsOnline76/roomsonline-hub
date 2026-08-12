@@ -949,10 +949,10 @@ Deno.serve(async (req) => {
 
       // Make sure the owner always has a working payment link: raise the
       // outstanding invoice when it has not been raised yet.
-      let payInvoice: any = openSetup ?? null;
-      if (setupDue > 0 && !payInvoice) payInvoice = await ensureSetupInvoice();
-      if (!payInvoice && openSubscription) payInvoice = openSubscription;
-      if (!payInvoice && monthlyDue > 0 && paidStart && fee > 0) {
+      let payInvoice: any = openSetup ?? openSubscription ?? paidSetup ?? lastPaidSub ?? null;
+      if (!preview && setupDue > 0 && !openSetup) payInvoice = (await ensureSetupInvoice()) ?? payInvoice;
+      if (!preview && !openSetup && !openSubscription && monthlyDue > 0 && paidStart && fee > 0) {
+
         const periodStart = today() > paidStart ? today() : paidStart;
         const periodEnd = addMonth(periodStart);
         const insert: any = {
