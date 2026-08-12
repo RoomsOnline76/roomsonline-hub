@@ -17,6 +17,7 @@ import {
   Leaf,
   Heart
 } from 'lucide-react';
+import { queueChannelContentSync } from '@/lib/channelContentSync';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -156,6 +157,8 @@ export function LocalExperiencesManager({
       queryClient.invalidateQueries({ queryKey: ['local-experiences', propertyId] });
       setIsDialogOpen(false);
       setEditingExperience(null);
+      // Attraction distances are part of the channel content payload — push the change itself.
+      void queueChannelContentSync(propertyId, 'local_experience_save');
       toast({ title: 'Experience saved!' });
     },
     onError: (error) => {
@@ -178,6 +181,7 @@ export function LocalExperiencesManager({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['local-experiences', propertyId] });
+      void queueChannelContentSync(propertyId, 'local_experience_delete');
       toast({ title: 'Experience deleted' });
     }
   });

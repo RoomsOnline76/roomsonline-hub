@@ -15,6 +15,7 @@ import { summarizeReadiness, bookableWindowChecks, localBookableWindowChecks, cu
 import { computeLocalBookableWindow } from "../_shared/ruLocalWindow.ts";
 import { findRuBookableWindow, type RuBookableWindow } from "../_shared/ruContentQuality.ts";
 import { evaluatePhases, findOwnerAccount, resolvePortfolioId } from "../_shared/ruPhaseGate.ts";
+import { resumePendingRuDeltas } from "../_shared/ruPendingDeltas.ts";
 import { createRateResolver, describeCoverage } from "../_shared/rateResolution.ts";
 import { parseRuPricePoints, parseRuPriceSeasons } from "../_shared/ruPriceParsing.ts";
 
@@ -1491,6 +1492,15 @@ Deno.serve(async (req) => {
         return json({ success: false, error: { code: "NOT_FOUND", message: "Property not found" } }, 404);
       }
       const report = await scoreProperty(prop, { probe_ari: body.probe_ari !== false });
+      // Certification requires changes to reach the channel without operator action: any delta
+      // parked behind the gate is re-fired in the background as soon as readiness reads clean.
+      if (report && (report as { blocked?: boolean }).blocked === false) {
+        const resume = resumePendingRuDeltas(admin, propertyId, "readiness_cleared");
+        // deno-lint-ignore no-explicit-any
+        const runtime = (globalThis as any).EdgeRuntime;
+        if (runtime?.waitUntil) runtime.waitUntil(resume);
+        else resume.catch(() => {});
+      }
       return json({ success: true, property: report });
     }
 

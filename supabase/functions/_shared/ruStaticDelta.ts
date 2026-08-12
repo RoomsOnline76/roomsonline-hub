@@ -1,3 +1,5 @@
+import { readInvokeErrorBody } from './ruInvokeBody.ts';
+
 // Event-driven Rentals United STATIC CONTENT delta (Push_PutProperty_RQ).
 //
 // RU requires static content (name, type, descriptions, amenities, photos, bed composition,
@@ -29,15 +31,28 @@ export const RU_STATIC_DELTA_ACTION = 'static_delta';
  */
 export const RU_STATIC_DELTA_SKIP_ACTION = 'static_delta_skipped';
 
+/**
+ * ru_sync_runs.action used when the delta was refused by the readiness / phase gate. The change
+ * is real and still owed to the channel, so it is parked here and automatically re-fired the
+ * moment readiness clears — the operator never has to press a manual sync button.
+ */
+export const RU_STATIC_DELTA_PENDING_ACTION = 'static_delta_pending';
+
+/** Gate refusals that mean "correct content, not yet allowed" rather than a hard failure. */
+export const RU_GATE_ERROR_CODES = ['PHASE_BLOCKED', 'READINESS_UNVERIFIED', 'READINESS_FAILED'];
+
 /** A multi-unit property is pushed in resumable chunks; walk at most this many chunks. */
 const RU_STATIC_DELTA_MAX_CHUNKS = 12;
 
 export interface RuStaticDeltaOutcome {
   queued: boolean;
-  reason?: 'not_connected' | 'unchanged' | 'debounced' | 'error' | 'no_property';
+  reason?: 'not_connected' | 'unchanged' | 'debounced' | 'error' | 'no_property' | 'gate_pending';
   content_hash?: string;
   error?: string;
+  /** Readiness blockers that parked this delta (only with reason `gate_pending`). */
+  blockers?: string[];
 }
+
 
 
 /** Property columns that end up inside Push_PutProperty_RQ. */
@@ -215,7 +230,11 @@ export async function queueRuStaticDelta(
     }
 
     const startedAt = Date.now();
-    const { success, errorMessage, chunks, units } = await pushStaticContent(supabase, propertyId);
+    const { success, errorMessage, errorCode, blockers, chunks, units } = await pushStaticContent(
+      supabase,
+      propertyId,
+    );
+    const gatePending = !success && !!errorCode && RU_GATE_ERROR_CODES.includes(errorCode);
 
     // The push itself writes bookkeeping back onto the rows it just sent (newly issued channel
     // listing ids in particular), which would make the pre-push fingerprint stale the moment it
@@ -235,10 +254,11 @@ export async function queueRuStaticDelta(
 
     // Log unconditionally: the hash is only recorded on success so a failed delta is retried
     // by the next save (or the weekly cron) instead of being silently treated as delivered.
+    // A gate refusal is parked under its own action so the automatic re-arm can find it.
     try {
       await supabase.from('ru_sync_runs').insert({
         property_id: propertyId,
-        action: RU_STATIC_DELTA_ACTION,
+        action: gatePending ? RU_STATIC_DELTA_PENDING_ACTION : RU_STATIC_DELTA_ACTION,
         success,
         error_message: errorMessage,
         elapsed_ms: Date.now() - startedAt,
@@ -249,6 +269,7 @@ export async function queueRuStaticDelta(
           forced: options.force === true,
           chunks,
           units,
+          ...(gatePending ? { gate_pending: true, error_code: errorCode, blockers } : {}),
         },
       });
     } catch (logErr) {
@@ -256,6 +277,16 @@ export async function queueRuStaticDelta(
     }
 
 
+    if (gatePending) {
+      console.log(`[ruStaticDelta] Delta parked behind the readiness gate for ${propertyId}`);
+      return {
+        queued: false,
+        reason: 'gate_pending',
+        error: errorMessage ?? undefined,
+        blockers,
+        content_hash: contentHash,
+      };
+    }
     if (!success) {
       console.warn(`[ruStaticDelta] Static push failed for ${propertyId}: ${errorMessage}`);
       return { queued: false, reason: 'error', error: errorMessage ?? undefined, content_hash: contentHash };
@@ -300,7 +331,14 @@ async function logSkip(
 async function pushStaticContent(
   supabase: any,
   propertyId: string,
-): Promise<{ success: boolean; errorMessage: string | null; chunks: number; units: unknown[] }> {
+): Promise<{
+  success: boolean;
+  errorMessage: string | null;
+  errorCode: string | null;
+  blockers: string[];
+  chunks: number;
+  units: unknown[];
+}> {
   let remaining: string[] | null = null;
   let batchId: string | null = null;
   const units: unknown[] = [];
@@ -316,7 +354,25 @@ async function pushStaticContent(
         },
       });
       if (error) {
-        return { success: false, errorMessage: error.message ?? 'Channel push transport failed', chunks: chunk, units };
+        // A 422 gate refusal arrives here as an "error" — recover the structured body so the
+        // delta can be parked and re-armed instead of reported as a transport failure.
+        const body = await readInvokeErrorBody(error);
+        const gateCode = typeof (body?.error as { code?: string } | undefined)?.code === 'string'
+          ? (body!.error as { code: string }).code
+          : null;
+        const gateBlockers = Array.isArray(body?.blockers)
+          ? (body!.blockers as unknown[]).map((b) => String(b))
+          : [];
+        return {
+          success: false,
+          errorMessage: (body?.error as { message?: string } | undefined)?.message
+            ?? error.message
+            ?? 'Channel push transport failed',
+          errorCode: gateCode,
+          blockers: gateBlockers,
+          chunks: chunk,
+          units,
+        };
       }
       if (Array.isArray(data?.units)) units.push(...data.units);
       if (typeof data?.batch_id === 'string') batchId = data.batch_id;
@@ -327,11 +383,18 @@ async function pushStaticContent(
         continue;
       }
       if (data?.success === true) {
-        return { success: true, errorMessage: null, chunks: chunk, units };
+        return { success: true, errorMessage: null, errorCode: null, blockers: [], chunks: chunk, units };
       }
+      const blockers = Array.isArray(data?.blockers)
+        ? (data.blockers as unknown[]).map((b) => String(b))
+        : Array.isArray(data?.gaps)
+          ? (data.gaps as unknown[]).map((b) => String(b))
+          : [];
       return {
         success: false,
         errorMessage: data?.error?.message ?? 'The channel rejected the content push',
+        errorCode: typeof data?.error?.code === 'string' ? data.error.code : null,
+        blockers,
         chunks: chunk,
         units,
       };
@@ -339,6 +402,8 @@ async function pushStaticContent(
       return {
         success: false,
         errorMessage: err instanceof Error ? err.message : 'Unknown error',
+        errorCode: null,
+        blockers: [],
         chunks: chunk,
         units,
       };
@@ -348,6 +413,8 @@ async function pushStaticContent(
   return {
     success: false,
     errorMessage: `Content push did not finish within ${RU_STATIC_DELTA_MAX_CHUNKS} chunks — retry the outstanding units.`,
+    errorCode: null,
+    blockers: [],
     chunks: RU_STATIC_DELTA_MAX_CHUNKS,
     units,
   };

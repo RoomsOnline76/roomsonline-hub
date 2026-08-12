@@ -12,14 +12,24 @@
 //
 // Failures are logged and swallowed: a channel refresh must never break the booking flow.
 
+import { readInvokeErrorBody } from "./ruInvokeBody.ts";
+
 /** Minimum gap between two deltas for the same property. */
 export const RU_ARI_DELTA_DEBOUNCE_MS = 5 * 60 * 1000;
 
 export interface RuAriDeltaOutcome {
   queued: boolean;
-  reason?: "not_connected" | "debounced" | "error" | "no_property";
+  reason?: "not_connected" | "debounced" | "error" | "no_property" | "gate_pending";
   error?: string;
+  blockers?: string[];
 }
+
+/** ru_sync_runs.action used to park an ARI delta refused by the readiness / phase gate. */
+export const RU_ARI_DELTA_PENDING_ACTION = "ari_delta_pending";
+
+/** Gate refusals that mean "correct data, not yet allowed" rather than a hard failure. */
+const GATE_CODES = ["PHASE_BLOCKED", "READINESS_UNVERIFIED", "READINESS_FAILED"];
+
 
 async function isRuConnected(supabase: any, propertyId: string): Promise<boolean> {
   const [{ data: prop }, { data: units }] = await Promise.all([
@@ -82,13 +92,37 @@ export async function queueRuAriDelta(
     const { data, error } = await supabase.functions.invoke("push-property-to-ru", {
       body: { property_id: propertyId, action: "refresh_ari", trigger },
     });
-    const code: string | undefined = data?.error?.code;
+    // A 422 gate refusal surfaces as an "error" with the structured body on error.context.
+    const errorBody = error ? await readInvokeErrorBody(error) : null;
+    const payload = (data ?? errorBody ?? {}) as Record<string, any>;
+    const code: string | undefined = payload?.error?.code;
     if (code && ["RU_NOT_LISTED", "RU_NOT_CONFIGURED", "RU_LISTING_STALE", "CHANNEL_MANAGER_DISABLED"].includes(code)) {
       console.log(`[ruAriDelta] ${trigger} delta skipped for ${propertyId}: ${code}`);
       return { queued: false, reason: "not_connected" };
     }
-    if (error || data?.success === false) {
-      const message = error?.message || data?.error?.message || "ARI delta failed";
+    if (code && GATE_CODES.includes(code)) {
+      // The rates/availability are real and still owed to the channel — park the delta so the
+      // readiness re-arm fires it automatically once the blockers clear.
+      const blockers = Array.isArray(payload?.blockers)
+        ? (payload.blockers as unknown[]).map((b) => String(b))
+        : Array.isArray(payload?.gaps)
+          ? (payload.gaps as unknown[]).map((b) => String(b))
+          : [];
+      try {
+        await supabase.from("ru_sync_runs").insert({
+          property_id: propertyId,
+          action: RU_ARI_DELTA_PENDING_ACTION,
+          success: false,
+          error_message: payload?.error?.message ?? "Parked behind the channel readiness gate",
+          details: { trigger, gate_pending: true, error_code: code, blockers },
+        });
+      } catch (logErr) {
+        console.warn("[ruAriDelta] pending log insert failed", logErr);
+      }
+      return { queued: false, reason: "gate_pending", error: payload?.error?.message, blockers };
+    }
+    if (error || payload?.success === false) {
+      const message = payload?.error?.message || error?.message || "ARI delta failed";
       console.warn(`[ruAriDelta] ${trigger} delta failed for ${propertyId}: ${message}`);
       return { queued: true, reason: "error", error: message };
     }
