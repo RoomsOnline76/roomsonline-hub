@@ -860,7 +860,7 @@ export const CHECK_TO_FIELD_KEYS: Record<string, string[]> = {
   commercial: ["banking"],
   location: ["address", "city", "country", "geo", "postal_code"],
   contact: ["contact_email", "contact_phone", "emergency_contact"],
-  rooms: ["rooms", "room_descriptions", "room_floors", "room_size", "room_bathrooms", "room_toilets", "room_beds", "room_bedroom_composition"],
+  rooms: ["rooms", "room_descriptions", "room_floors", "room_size", "room_bathrooms", "room_toilets", "room_beds", "room_bedroom_composition", "room_beds_distributed"],
   policies: ["master_policy", "payment_methods", "changeover_rules"],
   rentalsunited_geo: ["geo"],
   rentalsunited_location_currency: ["ru_currency"],
