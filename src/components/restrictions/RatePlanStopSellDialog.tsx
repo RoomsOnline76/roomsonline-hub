@@ -10,6 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { Loader2, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { queueChannelRatesSync } from "@/lib/channelContentSync";
 import { format, eachDayOfInterval, getDay } from "date-fns";
 import {
   PropertyScopeSelector,
@@ -175,6 +176,9 @@ export function RatePlanStopSellDialog({
         if (error) throw error;
         toast.success(`Reopened ${dates.length} date(s) × ${targetRatePlanIds.length} rate plan(s)`);
       }
+
+      // Closing or reopening dates changes what the channel may sell.
+      for (const propId of targetPropertyIds) void queueChannelRatesSync(propId, "stop_sell_change");
 
       refetchClosures();
       queryClient.invalidateQueries({ queryKey: ["rate-plan-stop-sell"] });
