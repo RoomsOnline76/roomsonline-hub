@@ -456,9 +456,9 @@ export function RoomManagerTab({
 
   // ── Render ───────────────────────────────────────────────────────────────
   return (
-    <div className="flex gap-2 h-[calc(100vh-220px)]">
+    <div className="flex gap-2 items-start">
       {/* Left Sidebar - Room Types List */}
-      <div className="w-56 border-r bg-muted/30 p-2 space-y-1">
+      <div className="w-56 shrink-0 self-stretch border-r bg-muted/30 p-2 space-y-1 md:sticky md:top-2 md:max-h-[calc(100vh-140px)] md:overflow-y-auto">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-1">
             <h3 className="font-semibold text-xs">
