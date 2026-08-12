@@ -169,11 +169,34 @@ Deno.serve(async (req) => {
             const from = new Date();
             const to = new Date(from.getTime() + 365 * 86400000);
             const iso = (d: Date) => d.toISOString().slice(0, 10);
-            const dateFrom = String(payload.DateFrom ?? payload.date_from ?? iso(from));
-            const dateTo = String(payload.DateTo ?? payload.date_to ?? iso(to));
+            /**
+             * RU's LNM payload dates arrive in mixed shapes (`2026-08-12T00:00:00`,
+             * `8/12/2026 12:00:00 AM`, sometimes empty). Pull_ListPropertyAvailabilityCalendar_RQ
+             * only accepts `YYYY-MM-DD`; anything else returns
+             * "String was not recognized as a valid DateTime". Coerce to a bare day.
+             */
+            const toDay = (raw: unknown, fallback: string): string => {
+              const s = String(raw ?? '').trim();
+              if (!s) return fallback;
+              const isoMatch = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+              if (isoMatch) return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
+              const parsed = new Date(s);
+              return Number.isNaN(parsed.getTime()) ? fallback : iso(parsed);
+            };
+            const dateFrom = toDay(payload.DateFrom ?? payload.date_from, iso(from));
+            const dateTo = toDay(payload.DateTo ?? payload.date_to, iso(to));
             for (const apiAction of ['get_availability', 'get_prices'] as const) {
               const { data, error } = await admin.functions.invoke('rentalsunited-api', {
-                body: { action: apiAction, ru_property_id: Number(ruPropertyId), date_from: dateFrom, date_to: dateTo },
+                body: {
+                  action: apiAction,
+                  ru_property_id: Number(ruPropertyId),
+                  date_from: dateFrom,
+                  date_to: dateTo,
+                  // The notification's Publisher is the RU sub-user (OwnerID) that owns the
+                  // property. Without it the pull runs on master creds and RU answers
+                  // "Property does not exist".
+                  ...(publisher ? { owner_id: publisher } : {}),
+                },
               });
               if (error) throw error;
               if (data?.success === false) throw new Error(data?.error?.message ?? `${apiAction} failed`);
