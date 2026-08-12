@@ -619,7 +619,8 @@ export function CompanyInformationCard({
                     value={registeredBusinessName}
                     onChange={(e) => onRegisteredBusinessNameChange(e.target.value)}
                     placeholder="e.g., Safari Lodge (Pty) Ltd"
-                    className="h-7 text-xs"
+                    className="h-7 text-xs channel-required"
+                    data-channel-satisfied={registeredBusinessName.trim() ? "1" : "0"}
                   />
                 </div>
                 <div className="flex flex-col gap-1">
@@ -631,7 +632,8 @@ export function CompanyInformationCard({
                     value={mobileNumber}
                     onChange={(e) => onMobileNumberChange(e.target.value)}
                     placeholder="e.g., +27 82 123 4567"
-                    className="h-7 text-xs"
+                    className="h-7 text-xs channel-required"
+                    data-channel-satisfied={mobileNumber.trim() ? "1" : "0"}
                   />
                 </div>
                 <div className="flex flex-col gap-1">
@@ -643,7 +645,8 @@ export function CompanyInformationCard({
                     value={keyRepresentative}
                     onChange={(e) => onKeyRepresentativeChange(e.target.value)}
                     placeholder="e.g., John Smith"
-                    className="h-7 text-xs"
+                    className="h-7 text-xs channel-required"
+                    data-channel-satisfied={keyRepresentative.trim() ? "1" : "0"}
                   />
                 </div>
                 <div className="flex flex-col gap-1">
@@ -668,11 +671,12 @@ export function CompanyInformationCard({
                       value={banking.vat_number}
                       onChange={(e) => onBankingChange("vat_number", e.target.value)}
                       placeholder="VAT number"
-                      className="h-7 text-xs"
+                      className="h-7 text-xs channel-required"
+                      data-channel-satisfied={banking.vat_number.trim() ? "1" : "0"}
                     />
                   </div>
                 )}
-                <div className="flex flex-col gap-1">
+                <div className="flex flex-col gap-1" data-field="company.time_zone">
                   <Label className="text-xs">
                     Time zone<Req />
                   </Label>
@@ -680,10 +684,14 @@ export function CompanyInformationCard({
                     value={normalizedTimeZone}
                     onValueChange={(v) => setField("time_zone", v)}
                   >
-                    <SelectTrigger className="h-7 text-xs">
+                    <SelectTrigger
+                      className="h-7 text-xs channel-required"
+                      data-channel-satisfied={normalizedTimeZone ? "1" : "0"}
+                    >
                       <SelectValue placeholder="Select a time zone" />
                     </SelectTrigger>
                     <SelectContent className="max-h-72">
+
                       {RU_TIME_ZONE_GROUPS.map((group) => (
                         <SelectGroup key={group}>
                           <SelectLabel className="text-[10px] uppercase tracking-wide">
