@@ -5816,22 +5816,62 @@ export default function PropertyForm({
                 </CardHeader>
                 <CardContent className="py-2 px-4">
                   <div className="space-y-1">
-                    <Label htmlFor="description_general" className="text-xs">
-                      Description
-                    </Label>
+                    <div className="flex items-center justify-between gap-2">
+                      <Label htmlFor="description" className="text-xs">
+                        Description
+                      </Label>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={cn(
+                            "text-[10px] tabular-nums",
+                            propertyDescriptionTooShort ? "text-destructive" : "text-muted-foreground",
+                          )}
+                        >
+                          {propertyDescriptionLength} / {MIN_DESCRIPTION_CHARS} characters
+                        </span>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-6 px-2 text-[10px]"
+                          disabled={writingPropertyDescription || isFieldPopulatedByPMS("description", selectedPMS)}
+                          onClick={writePropertyDescriptionWithTobi}
+                        >
+                          {writingPropertyDescription ? (
+                            <>
+                              <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                              TOBI is writing…
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles className="h-3 w-3 mr-1" />
+                              Write with TOBI
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
                     <Textarea
-                      id="description_general"
+                      id="description"
                       value={formData.description}
                       onChange={(e) => handleInputChange("description", e.target.value)}
                       placeholder="Describe your property, its unique features, amenities, and what makes it special..."
-                      rows={3}
+                      rows={6}
                       disabled={isFieldPopulatedByPMS("description", selectedPMS)}
                       className={cn(
                         "resize-none text-xs",
+                        propertyDescriptionTooShort && "border-destructive focus-visible:ring-destructive",
                         getPMSFieldClass("description", selectedPMS),
                         isFieldPopulatedByPMS("description", selectedPMS) && "cursor-not-allowed",
                       )}
                     />
+                    {propertyDescriptionTooShort && (
+                      <p className="flex items-center gap-1 text-[10px] text-destructive">
+                        <AlertTriangle className="h-3 w-3" />
+                        {MIN_DESCRIPTION_CHARS - propertyDescriptionLength} more characters needed — distribution
+                        channels require at least {MIN_DESCRIPTION_CHARS} characters.
+                      </p>
+                    )}
                   </div>
                   <div className="mt-3 pt-3 border-t border-border">
                     <RuChannelContentFields
