@@ -207,6 +207,64 @@ RULES
       });
     }
 
+    // TOBI: arrival policy / how-to-arrive instructions for the Policies tab
+    if (action === "generate_arrival_policy") {
+      const ctx = propertyContext || {};
+      const minChars = Number(body.minChars) > 0 ? Number(body.minChars) : 200;
+
+      const arrivalPrompt = `You are a hospitality operations writer producing the arrival instructions a guest receives before they travel to an accommodation property.
+
+PROPERTY: ${ctx.name || "Unknown"} (${ctx.property_type || "Accommodation"})
+ADDRESS: ${[ctx.street_address, ctx.suburb, ctx.city, ctx.postal_code, ctx.country].filter(Boolean).join(", ") || "Not specified"}
+CHECK-IN: ${ctx.check_in_time || "Not specified"}   CHECK-OUT: ${ctx.check_out_time || "Not specified"}
+RECEPTION / CONTACT: ${ctx.contact_phone || "the property contact number on your confirmation"}
+PARKING: ${ctx.parking || "Not specified"}
+NEAREST AIRPORT: ${ctx.closest_airport || "Not specified"}
+EXISTING DRAFT (improve and expand, keep any true facts): ${ctx.current || "none"}
+
+RULES
+- Write ${minChars}-800 characters of clear, practical prose in 2-3 short paragraphs separated by blank lines.
+- Cover, in order: how to find the property and the final approach, gate or door access and key collection, who to contact on arrival, and what happens on a late or after-hours arrival.
+- Practical and calm — not marketing copy. No clichés, no bullet lists, no headings, no emojis.
+- Only use facts given above. Never invent gate codes, key-safe codes, lockbox numbers, unit numbers, road names or distances. Where a specific detail is unknown, tell the guest it will be sent with their confirmation or to contact the property.
+- Return ONLY the arrival instructions text.`;
+
+      const arrRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: AI_MODELS.property_description,
+          temperature: 0.5,
+          messages: [{ role: "user", content: arrivalPrompt }],
+        }),
+      });
+
+      if (!arrRes.ok) {
+        if (arrRes.status === 429) {
+          return new Response(JSON.stringify({ error: "TOBI is busy right now — please try again shortly." }), {
+            status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        if (arrRes.status === 402) {
+          return new Response(JSON.stringify({ error: "TOBI is temporarily unavailable — credits exhausted." }), {
+            status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        const detail = await arrRes.text();
+        console.error("arrival policy AI error:", arrRes.status, detail.slice(0, 400));
+        return new Response(JSON.stringify({ error: "TOBI could not write the arrival policy." }), {
+          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const arrJson = await arrRes.json();
+      const arrival = (arrJson?.choices?.[0]?.message?.content ?? "").trim();
+      return new Response(JSON.stringify({ description: arrival, characters: arrival.length, min_characters: minChars }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+
     // Original property editorial content generation
 
     // Build comprehensive property context
