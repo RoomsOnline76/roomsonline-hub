@@ -49,6 +49,22 @@ function StatusIcon({ complete, locked }: { complete: boolean; locked: boolean }
   return <Circle className="h-4 w-4 shrink-0 text-primary" />;
 }
 
+/**
+ * Maps a wizard/channel-gate check id onto the editor section + registry field
+ * key that owns it, so every blocker in the wizard is a link that lands on the
+ * exact control (which the requirement painter then pulses).
+ */
+function resolveCheckTarget(checkKey: string): { section: string; fieldKey?: string } | null {
+  const fieldKeys = CHECK_TO_FIELD_KEYS[checkKey];
+  if (!fieldKeys?.length) return null;
+  for (const key of fieldKeys) {
+    const req = PROPERTY_FIELD_REQUIREMENTS.find((r) => r.key === key);
+    if (req) return { section: req.section, fieldKey: req.key };
+  }
+  return null;
+}
+
+
 export function RolosOnboardingWizard({ propertyId, className }: Props) {
   const { user, isAdmin, isDev, isFearlessLeader } = useAuth();
   const isPlatformUser = isAdmin || isDev || isFearlessLeader;
