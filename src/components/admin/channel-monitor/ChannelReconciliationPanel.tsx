@@ -1,9 +1,19 @@
-import { useCallback, useState } from "react";
-import { RefreshCw, AlertTriangle, CheckCircle2, Trash2, Eraser } from "lucide-react";
+import { useCallback, useMemo, useState } from "react";
+import { RefreshCw, AlertTriangle, CheckCircle2, Trash2, Eraser, Sparkles, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useChannelReconciliation, type ReconOrphan, type ReconStale } from "@/hooks/useChannelReconciliation";
 
 interface Props {
@@ -14,8 +24,21 @@ interface Props {
 }
 
 export function ChannelReconciliationPanel({ billableListings, onChanged }: Props) {
-  const { result, running, error, reconcile, purgeOrphan, clearStale } = useChannelReconciliation();
+  const { result, running, error, reconcile, purgeOrphan, clearStale, cleanupAll, cleanup, failures } =
+    useChannelReconciliation();
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
+  const erroredOwners = useMemo(
+    () => new Set((result?.accounts || []).filter((a) => a.error).map((a) => a.owner_id)),
+    [result],
+  );
+
+  const cleanableOrphans = useMemo(
+    () => (result?.orphans || []).filter((o) => !erroredOwners.has(o.owner_id)),
+    [result, erroredOwners],
+  );
+  const cleanableTotal = cleanableOrphans.length + (result?.stale.length || 0);
 
   const handlePurge = useCallback(
     async (orphan: ReconOrphan) => {
@@ -49,7 +72,21 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
     [clearStale, onChanged],
   );
 
+  const handleCleanupAll = useCallback(async () => {
+    setConfirmOpen(false);
+    const outcome = await cleanupAll();
+    if (outcome.failures.length === 0) {
+      toast.success(`Cleaned ${outcome.cleaned} of ${outcome.total}`);
+    } else {
+      toast.error(
+        `Cleaned ${outcome.cleaned} of ${outcome.total} — ${outcome.failures.length} could not be removed`,
+      );
+    }
+    await onChanged();
+  }, [cleanupAll, onChanged]);
+
   const gap = result ? result.channel_listing_count - billableListings : 0;
+  const cleaning = cleanup !== null;
 
   return (
     <Card>
@@ -61,10 +98,32 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
             compares it, so nothing bills unseen.
           </CardDescription>
         </div>
-        <Button variant="outline" size="sm" onClick={() => void reconcile()} disabled={running}>
-          <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${running ? "animate-spin" : ""}`} />
-          Reconcile with channel
-        </Button>
+        <div className="flex shrink-0 items-center gap-2">
+          {result && (
+            <Button
+              variant="default"
+              size="sm"
+              disabled={running || cleaning || cleanableTotal === 0}
+              onClick={() => setConfirmOpen(true)}
+            >
+              {cleaning ? (
+                <>
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                  Cleaning {cleanup?.done} / {cleanup?.total}…
+                </>
+              ) : (
+                <>
+                  <Sparkles className="mr-1.5 h-3.5 w-3.5" />
+                  Clean up all ({cleanableTotal})
+                </>
+              )}
+            </Button>
+          )}
+          <Button variant="outline" size="sm" onClick={() => void reconcile()} disabled={running || cleaning}>
+            <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${running ? "animate-spin" : ""}`} />
+            Reconcile with channel
+          </Button>
+        </div>
       </CardHeader>
       <CardContent className="space-y-4">
         {error && <p className="text-sm text-destructive">{error}</p>}
@@ -117,17 +176,20 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
                 <ul className="divide-y rounded-md border">
                   {result.orphans.map((o) => (
                     <li key={o.listing_id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
-                      <span className="truncate">
+                      <span className="min-w-0 truncate">
                         {o.name}{" "}
                         <span className="text-muted-foreground">
                           #{o.listing_id}
                           {o.is_archived ? " · archived upstream" : ""}
                         </span>
+                        {failures[o.listing_id] && (
+                          <span className="block text-xs text-destructive">{failures[o.listing_id]}</span>
+                        )}
                       </span>
                       <Button
                         variant="outline"
                         size="sm"
-                        disabled={busyId === o.listing_id}
+                        disabled={busyId === o.listing_id || cleaning}
                         onClick={() => void handlePurge(o)}
                       >
                         <Trash2 className="mr-1.5 h-3.5 w-3.5" />
@@ -145,13 +207,16 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
                 <ul className="divide-y rounded-md border">
                   {result.stale.map((s) => (
                     <li key={s.record_id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
-                      <span className="truncate">
+                      <span className="min-w-0 truncate">
                         {s.label} <span className="text-muted-foreground">#{s.listing_id}</span>
+                        {failures[s.record_id] && (
+                          <span className="block text-xs text-destructive">{failures[s.record_id]}</span>
+                        )}
                       </span>
                       <Button
                         variant="outline"
                         size="sm"
-                        disabled={busyId === s.record_id}
+                        disabled={busyId === s.record_id || cleaning}
                         onClick={() => void handleClear(s)}
                       >
                         <Eraser className="mr-1.5 h-3.5 w-3.5" />
@@ -165,6 +230,37 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
           </>
         )}
       </CardContent>
+
+      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Clean up {cleanableTotal} reconciliation item{cleanableTotal === 1 ? "" : "s"}?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm">
+                <p>
+                  {cleanableOrphans.length} orphan listing{cleanableOrphans.length === 1 ? "" : "s"} will be removed
+                  from the channel account (archived upstream, local ids cleared).
+                </p>
+                <p>
+                  {result?.stale.length || 0} stale local id{(result?.stale.length || 0) === 1 ? "" : "s"} will be
+                  cleared — no channel call needed.
+                </p>
+                <p>Billable matched listings are not touched. Every removal is logged for audit.</p>
+                {erroredOwners.size > 0 && (
+                  <p className="text-destructive">
+                    {erroredOwners.size} account{erroredOwners.size === 1 ? "" : "s"} did not answer, so the picture is
+                    incomplete — cleanup is limited to the accounts that did.
+                  </p>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => void handleCleanupAll()}>Clean up all</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }
