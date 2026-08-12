@@ -425,10 +425,32 @@ function commonContacts(snapshot: PropertySnapshot): ContactRow[] {
   );
 }
 
+/** Policy rows treated as portfolio-common (cancellation ladder + reservation rules). */
+function commonPolicies(snapshot: PropertySnapshot): PolicyRow[] {
+  return snapshot.policies.filter((p) => !isBlank(p.policy_type) && !isBlank(p.rule));
+}
+
+/** Brand voice / AI tone keys shared across a portfolio. */
+const BRAND_KIT_KEYS = ["brand_voice", "ai_email_tone"] as const;
+
+function commonBrandKit(snapshot: PropertySnapshot): Record<string, unknown> {
+  const config = snapshot.brandKit?.config ?? {};
+  const out: Record<string, unknown> = {};
+  for (const key of BRAND_KIT_KEYS) {
+    if (!isBlank(config[key])) out[key] = config[key];
+  }
+  return out;
+}
+
 function groupHasData(snapshot: PropertySnapshot, groupKey: string): boolean {
   if (groupKey === "contacts") return commonContacts(snapshot).length > 0;
+  if (groupKey === "policies")
+    return commonPolicies(snapshot).length > 0 || Object.keys(readGroupValues(snapshot, groupKey)).length > 0;
+  if (groupKey === "narrative")
+    return Object.keys(commonBrandKit(snapshot)).length > 0 || Object.keys(readGroupValues(snapshot, groupKey)).length > 0;
   return Object.keys(readGroupValues(snapshot, groupKey)).length > 0;
 }
+
 
 /** Portfolio ids this property belongs to. */
 async function fetchPortfolioIds(propertyId: string): Promise<string[]> {
