@@ -632,9 +632,12 @@ function buildValidation(payload: Record<string, any>): Record<string, unknown> 
     // Advisory only: sleeping places cover every guest.
     beds_meet_max_guests: totalBedCapacity >= Math.max(1, maxGuests),
     max_guests: maxGuests,
-    // Composition: RU treats bathrooms and toilets as mandatory.
+    // Composition: RU treats bathrooms and toilets as mandatory counts (blank/zero rejected).
     has_bathrooms: (amenities || []).some((a: any) => a?.id === 81 && (a.count || 0) > 0),
     has_toilets: (amenities || []).some((a: any) => a?.id === 37 && (a.count || 0) > 0),
+    bathrooms_count: Number((amenities || []).find((a: any) => a?.id === 81)?.count || 0),
+    toilets_count: Number((amenities || []).find((a: any) => a?.id === 37)?.count || 0),
+
     has_coordinates: payload.latitude !== 0 && payload.longitude !== 0,
     has_zip_code: !!(payload.zip_code && payload.zip_code !== '0000'),
     has_space: (payload.space || 0) > 0,
