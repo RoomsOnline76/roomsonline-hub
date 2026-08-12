@@ -766,7 +766,7 @@ export function GeneralTab(props: GeneralTabProps) {
 
                     <Popover open={countryOpen} onOpenChange={setCountryOpen}>
                       <PopoverTrigger asChild>
-                        <Button variant="outline" role="combobox" aria-expanded={countryOpen} className={cn("h-7 text-xs w-full justify-between font-normal", getPMSFieldClass("country", selectedPMS))} disabled={isFieldPopulatedByPMS("country", selectedPMS)}>
+                        <Button variant="outline" role="combobox" aria-expanded={countryOpen} className={cn("h-7 text-xs w-full justify-between font-normal", getPMSFieldClass("country", selectedPMS), channelMandatoryClass("country"))} {...markerFlags(!!formData.country)} disabled={isFieldPopulatedByPMS("country", selectedPMS)}>
                           {formData.country || "Select country..."}<ChevronsUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
                         </Button>
                       </PopoverTrigger>
