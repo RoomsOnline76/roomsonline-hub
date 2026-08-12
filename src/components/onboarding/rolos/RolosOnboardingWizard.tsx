@@ -146,7 +146,7 @@ export function RolosOnboardingWizard({ propertyId, className }: Props) {
   }, [propertyId]);
 
   const goToField = useCallback(
-    (section: string, focus?: string) => {
+    (section: string, focus?: string, unit?: string) => {
       const next = new URLSearchParams(searchParams);
       const sameSection = next.get("section") === section;
       next.set("section", section);
@@ -158,6 +158,11 @@ export function RolosOnboardingWizard({ propertyId, className }: Props) {
       navigate(`${location.pathname}?${next.toString()}`, { replace: false });
 
       window.setTimeout(() => {
+        // Unit-scoped blockers land on the exact room/unit card.
+        if (unit) {
+          focusUnitCard(unit);
+          return;
+        }
         if (focus) {
           focusRequirementField(focus);
           return;
@@ -167,6 +172,7 @@ export function RolosOnboardingWizard({ propertyId, className }: Props) {
     },
     [location.pathname, navigate, searchParams],
   );
+
 
 
   const pushOwner = useCallback(async () => {
