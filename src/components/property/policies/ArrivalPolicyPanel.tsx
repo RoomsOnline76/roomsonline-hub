@@ -61,18 +61,31 @@ export const ArrivalPolicyPanel: React.FC<ArrivalPolicyPanelProps> = ({ property
       const current = String(amenities?.house_rules?.check_in_instructions ?? "");
       setText(current);
       setSaved(current);
-      // Only active units are listed, once each: case variants of the same unit name collapse.
-      // A blank value means "inherit the property arrival policy".
+      // The Rooms tab is the canonical unit list (properties.amenities.room_types).
+      // Keep this list identical: only units that exist there are shown, using their
+      // Rooms-tab name and casing. A blank value means "inherit the property policy".
+      const canonical = Array.isArray(amenities?.room_types)
+        ? (amenities.room_types as Array<{ name?: string | null }>)
+        : [];
+      const canonicalNames = new Map<string, string>();
+      for (const rt of canonical) {
+        const name = String(rt?.name ?? "").trim();
+        if (name) canonicalNames.set(name.toLowerCase(), name);
+      }
       const active = ((rooms ?? []) as Array<RoomOverride & { is_active?: boolean | null }>).filter(
         (r) => r.is_active === true,
       );
       const byName = new Map<string, RoomOverride>();
       for (const room of active) {
-        const key = String(room.name ?? "").trim().toLowerCase() || room.id;
+        const raw = String(room.name ?? "").trim();
+        const key = raw.toLowerCase() || room.id;
+        // Skip units the Rooms tab no longer lists.
+        if (canonicalNames.size > 0 && !canonicalNames.has(key)) continue;
+        const display = canonicalNames.get(key) ?? raw;
         const existing = byName.get(key);
         // Prefer the record that already carries unit-specific instructions.
         if (!existing || (!existing.check_in_instructions && room.check_in_instructions)) {
-          byName.set(key, room);
+          byName.set(key, { ...room, name: display });
         }
       }
       setOverrides(
