@@ -394,7 +394,11 @@ export const ArrivalPolicyPanel: React.FC<ArrivalPolicyPanelProps> = ({ property
             const unitDirty = draft !== stored;
             const unitTooShort = draftTrimmed.length > 0 && draftTrimmed.length < MIN_ARRIVAL_CHARS;
             const inherits = draftTrimmed.length === 0;
-            const effectiveLength = inherits ? trimmed.length : draftTrimmed.length;
+            // Only what is SAVED reaches the channel wizard / push, so count the saved
+            // property policy — never the unsaved draft in the textarea above.
+            const savedTrimmed = saved.trim();
+            const effectiveLength = inherits ? savedTrimmed.length : draftTrimmed.length;
+            const inheritsUnsaved = inherits && savedTrimmed !== trimmed;
 
             return (
               <div key={unit.id} className="rounded border border-border/60 bg-background p-2 space-y-1.5">
@@ -407,12 +411,14 @@ export const ArrivalPolicyPanel: React.FC<ArrivalPolicyPanelProps> = ({ property
                     <span className="flex items-center gap-1 text-[10px] text-destructive">
                       <AlertTriangle className="h-3 w-3" /> Effective instructions are {effectiveLength} characters —{" "}
                       {MIN_ARRIVAL_CHARS} required for channels
+                      {inheritsUnsaved ? " (save the property arrival policy above first)" : ""}
                     </span>
                   ) : (
                     <span className="flex items-center gap-1 text-[10px] text-emerald-600">
                       <CheckCircle2 className="h-3 w-3" /> {effectiveLength} characters will be sent
                     </span>
                   )}
+
                   <div className="ml-auto flex items-center gap-1">
                     {!inherits && (
                       <Button
