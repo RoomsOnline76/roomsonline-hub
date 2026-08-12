@@ -39,6 +39,8 @@ export interface RuCheck {
 }
 
 export interface RuUnitValidation {
+  /** Nearby attractions that carry a distance — pushed as the channel Distances block. */
+  attraction_distance_count?: number;
   images_count?: number;
   images_meeting_size?: number;
   images_size_unverified?: number;
@@ -202,6 +204,12 @@ export function evaluateUnitChecks(
     v.description_meets_recommended !== false,
     `Description is only ${v.description_length ?? 0} characters — 100+ is recommended for channel quality`,
     "Property → Description", false);
+  // Nice-to-have: distances to nearby attractions. Supported by the channel and pushed when
+  // available, so it is reported as advisory and never blocks a push or a phase.
+  add("attraction_distances", "Content", "Distances to nearby attractions (recommended)",
+    (v.attraction_distance_count ?? 0) >= 3,
+    `${v.attraction_distance_count ?? 0} nearby attraction(s) have a distance captured — 3+ are pushed to the channel as Distances`,
+    "Property → Facilities → Nearby attractions & distances", false);
   // Certification gate: the channel content review requires 700+ characters.
   add("description_meets_cert", "Content", `Description ≥ ${RU_CERT_MIN_DESCRIPTION} characters`,
     v.description_meets_cert !== false,
