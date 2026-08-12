@@ -47,13 +47,14 @@ export default function AdminDashboard() {
   const navigate = useNavigate();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
-  const { scopedPropertyIds } = useAuth();
+  const { scopedPropertyIds, scopeResolved } = useAuth();
   const scopeKey = scopedPropertyIds.join(',');
 
   useEffect(() => {
+    if (!scopeResolved) return;
     loadDashboardStats();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scopeKey]);
+  }, [scopeKey, scopeResolved]);
 
   const loadDashboardStats = async () => {
     try {
