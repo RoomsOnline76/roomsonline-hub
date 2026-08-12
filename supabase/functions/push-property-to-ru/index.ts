@@ -1317,73 +1317,12 @@ interface UnitContext {
   amenities?: Record<string, any> | null;
 }
 
-interface ResolvedRate {
-  price: number;
-  extra_guest_price?: number;
-}
+// NOTE: the legacy per-unit season-rate resolver used to fall back to "the lowest rate found
+// anywhere in the season" when a unit's own key was missing, which published a price the unit
+// never charged. All ARI pricing now goes through the shared rate resolver
+// (`createRateResolver`), which prices per unit and refuses to publish an unpriced night, so
+// the fallback resolver has been removed rather than kept as a silent safety net.
 
-function resolveUnitRateKey(seasonRates: Record<string, any>, seasonId: string, unit: UnitContext, amenities: Record<string, any>): ResolvedRate | null {
-  // Try multiple keys to find the rate for this specific unit
-  // The critical insight: season_rates uses amenity room_type IDs (timestamp-based like "1775237066341"),
-  // NOT hostfully_room_types UUIDs. We must match by name to find the amenity room_type entry.
-  const roomTypes = (amenities.room_types || []) as any[];
-  const candidateKeys = [unit.id];
-  if (unit.linked_rolos_id) candidateKeys.push(unit.linked_rolos_id);
-
-  // Find matching amenity room by name (case-insensitive), linked_rolos_id, or direct id match
-  for (const rt of roomTypes) {
-    const nameMatch = rt.name && unit.name && rt.name.toLowerCase() === unit.name.toLowerCase();
-    const idMatch = rt.id === unit.id;
-    const rolosMatch = unit.linked_rolos_id && rt.linked_rolos_id === unit.linked_rolos_id;
-    if (nameMatch || idMatch || rolosMatch) {
-      if (rt.id && !candidateKeys.includes(String(rt.id))) {
-        candidateKeys.push(String(rt.id));
-      }
-    }
-  }
-
-  console.log(`[resolveUnitRateKey] Unit "${unit.name}" candidate keys: [${candidateKeys.join(', ')}] for season ${seasonId}`);
-
-  // season_rates schema: { [roomTypeId]: { "[seasonId]-[rateTypeId]": { roomAmount, adultAmount, ... } } }
-  // OUTER key = room id, INNER key = `${seasonId}-${rateTypeId}`. Match outer first.
-  for (const [outerKey, rateData] of Object.entries(seasonRates)) {
-    if (typeof rateData !== 'object' || rateData === null) continue;
-    if (!candidateKeys.includes(String(outerKey))) continue;
-    let bestPrice = 0;
-    let bestExtra: number | undefined;
-    for (const [subKey, subData] of Object.entries(rateData as Record<string, any>)) {
-      if (!subKey.startsWith(seasonId + '-')) continue;
-      const amount = (subData as any)?.roomAmount;
-      if (typeof amount === 'number' && amount > bestPrice) {
-        bestPrice = amount;
-        const adultAmt = (subData as any)?.adultAmount;
-        bestExtra = typeof adultAmt === 'number' && adultAmt > 0 ? adultAmt : undefined;
-      }
-    }
-    if (bestPrice > 0) {
-      console.log(`[resolveUnitRateKey] Found rate ${bestPrice} (extra: ${bestExtra ?? 'none'}) for room "${outerKey}" season ${seasonId}`);
-      return { price: bestPrice, extra_guest_price: bestExtra };
-    }
-  }
-
-  // Fallback: find lowest rate for this season across all entries
-  let lowest = Infinity;
-  let lowestExtraGuest: number | undefined;
-  for (const [, rateData] of Object.entries(seasonRates)) {
-    if (typeof rateData !== 'object' || rateData === null) continue;
-    for (const [subKey, subData] of Object.entries(rateData as Record<string, any>)) {
-      if (subKey.startsWith(seasonId + '-') && typeof subData === 'object' && subData !== null) {
-        const amount = (subData as any).roomAmount;
-        if (typeof amount === 'number' && amount > 0 && amount < lowest) {
-          lowest = amount;
-          lowestExtraGuest = typeof (subData as any).adultAmount === 'number' && (subData as any).adultAmount > 0 ? (subData as any).adultAmount : undefined;
-        }
-      }
-    }
-  }
-  if (lowest < Infinity) console.log(`[resolveUnitRateKey] Fallback rate ${lowest} (extra guest: ${lowestExtraGuest ?? 'none'}) for season ${seasonId}`);
-  return lowest < Infinity ? { price: lowest, extra_guest_price: lowestExtraGuest } : null;
-}
 
 // ── Step 6: Per-night availability expansion ─────────────────
 // Maps day-of-week → RU changeover code (0=none, 1=check-in only, 2=check-out only, 3=both)
