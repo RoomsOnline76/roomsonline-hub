@@ -12,7 +12,8 @@ import { ACCOMMODATION_LABEL_OPTIONS, getAccommodationLabel } from "@/lib/accomm
 import { getPMSFieldClass, getPMSDisplayName, isFieldPopulatedByPMS } from "@/lib/pmsFieldConfig";
 import { cn } from "@/lib/utils";
 import { ChannelFieldHint } from "@/components/property/ChannelFieldHint";
-import { checkChannelDescription } from "@/lib/channelFieldRules";
+import { checkChannelDescription, CHANNEL_MIN_DESCRIPTION } from "@/lib/channelFieldRules";
+import { CharacterCounterHint, DescriptionShortfallHint } from "@/components/property/ContentRuleHint";
 import { channelMandatoryClass } from "@/lib/channelMandatoryFields";
 import { markerFlags } from "@/lib/fieldMarkers";
 import { X, Save, Cloud, Sparkles, Loader2, AlertTriangle, CheckCircle2 } from "lucide-react";
@@ -169,7 +170,7 @@ export function InfoFacilitiesTab(props: InfoFacilitiesTabProps) {
                 </Button>
               </div>
             </div>
-            <Textarea id="description" data-field="description" value={formData.description} onChange={(e) => handleInputChange("description", e.target.value)} placeholder="Describe your property..." rows={6} disabled={isFieldPopulatedByPMS("description", selectedPMS)} className={cn("resize-none text-xs", channelMandatoryClass("description"), descriptionTooShort && "border-destructive focus-visible:ring-destructive", getPMSFieldClass("description", selectedPMS), isFieldPopulatedByPMS("description", selectedPMS) && "cursor-not-allowed")} {...markerFlags(!descriptionTooShort)} />
+            <Textarea id="description" data-field="description" value={formData.description} onChange={(e) => handleInputChange("description", e.target.value)} placeholder="Describe your property..." rows={6} disabled={isFieldPopulatedByPMS("description", selectedPMS)} className={cn("resize-none text-xs", channelMandatoryClass("description"), descriptionLength < CHANNEL_MIN_DESCRIPTION && "border-destructive focus-visible:ring-destructive", getPMSFieldClass("description", selectedPMS), isFieldPopulatedByPMS("description", selectedPMS) && "cursor-not-allowed")} {...markerFlags(descriptionLength >= CHANNEL_MIN_DESCRIPTION)} />
             <DescriptionShortfallHint
               value={formData.description}
               required={CHANNEL_MIN_DESCRIPTION}
