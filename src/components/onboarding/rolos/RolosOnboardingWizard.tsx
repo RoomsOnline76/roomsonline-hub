@@ -138,18 +138,24 @@ export function RolosOnboardingWizard({ propertyId, className }: Props) {
 
   const [collapsed, setCollapsed] = useState(() => {
     try {
-      return localStorage.getItem(COLLAPSE_KEY) === "1";
+      // Collapse is a per-load preference only: a page refresh must always bring
+      // the wizard back so readiness is re-derived and visible.
+      localStorage.removeItem(COLLAPSE_KEY);
     } catch {
-      return false;
+      /* ignore */
     }
+    return false;
   });
   const [dismissed, setDismissed] = useState(false);
   const [openMacro, setOpenMacro] = useState<string | null>(null);
   const [busyAction, setBusyAction] = useState<string | null>(null);
 
+  // "Hide" only lasts for the current page view — refreshing the editor always
+  // re-opens the wizard.
   useEffect(() => {
+    setDismissed(false);
     try {
-      setDismissed(sessionStorage.getItem(`${DISMISS_KEY}:${propertyId ?? ""}`) === "1");
+      sessionStorage.removeItem(`${DISMISS_KEY}:${propertyId ?? ""}`);
     } catch {
       /* ignore */
     }
@@ -167,25 +173,13 @@ export function RolosOnboardingWizard({ propertyId, className }: Props) {
   }, [currentMacro, macros]);
 
   const toggleCollapsed = useCallback(() => {
-    setCollapsed((prev) => {
-      const next = !prev;
-      try {
-        localStorage.setItem(COLLAPSE_KEY, next ? "1" : "0");
-      } catch {
-        /* ignore */
-      }
-      return next;
-    });
+    setCollapsed((prev) => !prev);
   }, []);
 
   const dismiss = useCallback(() => {
     setDismissed(true);
-    try {
-      sessionStorage.setItem(`${DISMISS_KEY}:${propertyId ?? ""}`, "1");
-    } catch {
-      /* ignore */
-    }
-  }, [propertyId]);
+  }, []);
+
 
   const goToField = useCallback(
     (section: string, focus?: string, unit?: string) => {
