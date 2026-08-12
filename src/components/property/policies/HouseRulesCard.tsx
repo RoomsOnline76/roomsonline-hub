@@ -6,6 +6,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { Check, X, Cloud } from "lucide-react";
+import { channelMandatoryClass } from "@/lib/channelMandatoryFields";
+import { markerFlags } from "@/lib/fieldMarkers";
 import { cn } from "@/lib/utils";
 
 export interface HouseRulesCardProps {
@@ -151,10 +153,12 @@ export const HouseRulesCard: React.FC<HouseRulesCardProps> = ({
                 <Label className="text-xs text-muted-foreground w-8">From</Label>
                 <Input
                   type="time"
+                  data-field="check_in_from_input"
                   value={formData.check_in_from}
                   onChange={(e) => handleInputChange("check_in_from", e.target.value)}
                   disabled={isFieldPopulatedByPMS("check_in_from", selectedPMS)}
-                  className={cn("h-6 text-xs flex-1", getPMSFieldClass("check_in_from", selectedPMS))}
+                  className={cn("h-6 text-xs flex-1", getPMSFieldClass("check_in_from", selectedPMS), channelMandatoryClass("check_in_from"))}
+                  {...markerFlags(!!(formData.check_in_from || "").trim())}
                 />
               </div>
               <div className="flex items-center gap-1">
