@@ -11,7 +11,20 @@ interface Props {
  * minimum, or that could not be measured at all.
  */
 export function ImageQualityMarker({ entry }: Props) {
-  if (!entry || entry.status === "pass" || entry.status === "pending") return null;
+  if (!entry || entry.status === "pending") return null;
+
+  // Passing photos still show their measurement so owners can read the size
+  // without having to fail the rule first.
+  if (entry.status === "pass") {
+    return (
+      <div
+        title={`${entry.width}×${entry.height}px — meets the ${MIN_IMAGE_WIDTH}×${MIN_IMAGE_HEIGHT}px channel minimum.`}
+        className="absolute bottom-1 left-1 rounded bg-background/85 px-1.5 py-0.5 text-[9px] font-medium tabular-nums text-muted-foreground"
+      >
+        {entry.width}×{entry.height}
+      </div>
+    );
+  }
 
   const failed = entry.status === "fail";
   const label = failed
