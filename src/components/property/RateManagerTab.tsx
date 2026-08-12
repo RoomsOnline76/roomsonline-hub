@@ -109,10 +109,10 @@ export function RateManagerTab({
   // their content so nothing is clipped inside a nested scroll frame.
   const isRatesSurface = view === "rates";
   return (
-    <div className={`flex gap-3 ${isRatesSurface ? "h-[calc(100vh-230px)] min-h-[520px]" : "min-h-[520px]"}`}>
+    <div className="flex gap-3 items-start min-h-[520px]">
       {/* Left Sidebar - Room Types List (rates surface only) */}
       {view === "rates" && (
-        <div className="w-44 shrink-0 overflow-y-auto border-r bg-muted/30 p-1.5 space-y-px">
+        <div className="w-44 shrink-0 self-stretch border-r bg-muted/30 p-1.5 space-y-px md:sticky md:top-2 md:max-h-[calc(100vh-140px)] md:overflow-y-auto">
           <div className="flex items-center justify-between mb-2 px-1">
             <h3 className="font-semibold text-xs text-muted-foreground">
               {(accommodationLabel ? ACCOMMODATION_LABEL_OPTIONS.find((o) => o.value === accommodationLabel)?.label?.toUpperCase() : "ROOM")} TYPES
@@ -133,7 +133,7 @@ export function RateManagerTab({
       )}
 
       {/* Main Content */}
-      <div className="flex-1 overflow-auto">
+      <div className={`flex-1 min-w-0 ${isRatesSurface ? "overflow-x-auto" : ""}`}>
         <Tabs value={effectiveTab} className="w-full">
           {/* ── Seasons Calendar Sub-tab ───────────────────────────────────── */}
           <TabsContent value="seasons-calendar" className="p-4">
