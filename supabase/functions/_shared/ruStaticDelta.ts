@@ -179,7 +179,13 @@ export async function queueRuStaticDelta(
   try {
     const snapshot = await loadSnapshot(supabase, propertyId);
     if (!snapshot.property || !snapshot.ruConnected || !snapshot.pushEnabled) {
-      return { queued: false, reason: 'not_connected' };
+      const reason = !snapshot.property
+        ? 'no_property'
+        : !snapshot.ruConnected
+          ? 'not listed on the channel'
+          : 'pushes paused for this property';
+      await logSkip(supabase, propertyId, trigger, reason, null);
+      return { queued: false, reason: snapshot.property ? 'not_connected' : 'no_property' };
     }
 
     const contentHash = await sha256(
@@ -189,6 +195,7 @@ export async function queueRuStaticDelta(
 
     if (!options.force) {
       if (previous.hash && previous.hash === contentHash) {
+        await logSkip(supabase, propertyId, trigger, 'nothing the channel cares about changed', contentHash);
         return { queued: false, reason: 'unchanged', content_hash: contentHash };
       }
       // Content genuinely changed but the last push was very recent: wait out the window rather
@@ -201,25 +208,14 @@ export async function queueRuStaticDelta(
         // Re-check: another concurrent save may have pushed this exact content while we waited.
         const latest = await lastStaticRun(supabase, propertyId);
         if (latest.hash && latest.hash === contentHash) {
+          await logSkip(supabase, propertyId, trigger, 'a concurrent save already pushed this content', contentHash);
           return { queued: false, reason: 'unchanged', content_hash: contentHash };
         }
       }
     }
 
-
     const startedAt = Date.now();
-    let success = false;
-    let errorMessage: string | null = null;
-    try {
-      const { data, error } = await supabase.functions.invoke('push-property-to-ru', {
-        body: { property_id: propertyId, action: 'static_only' },
-      });
-      if (error) errorMessage = error.message ?? 'Unknown error';
-      else if (!data?.success) errorMessage = data?.error?.message ?? 'Unknown error';
-      else success = true;
-    } catch (err) {
-      errorMessage = err instanceof Error ? err.message : 'Unknown error';
-    }
+    const { success, errorMessage, chunks, units } = await pushStaticContent(supabase, propertyId);
 
     // Log unconditionally: the hash is only recorded on success so a failed delta is retried
     // by the next save (or the weekly cron) instead of being silently treated as delivered.
@@ -230,7 +226,13 @@ export async function queueRuStaticDelta(
         success,
         error_message: errorMessage,
         elapsed_ms: Date.now() - startedAt,
-        details: { trigger, content_hash: success ? contentHash : null, forced: options.force === true },
+        details: {
+          trigger,
+          content_hash: success ? contentHash : null,
+          forced: options.force === true,
+          chunks,
+          units,
+        },
       });
     } catch (logErr) {
       console.warn('[ruStaticDelta] log insert failed', logErr);
@@ -246,4 +248,5 @@ export async function queueRuStaticDelta(
     console.error('[ruStaticDelta] Failed', message);
     return { queued: false, reason: 'error', error: message };
   }
+
 }
