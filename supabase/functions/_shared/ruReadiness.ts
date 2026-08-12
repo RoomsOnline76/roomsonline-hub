@@ -96,6 +96,7 @@ export interface RuUnitValidation {
   beds_distributed?: boolean;
   arrival_instructions_length?: number;
   has_arrival_instructions?: boolean;
+  ru_location_authored?: boolean;
   has_check_in_from?: boolean;
   has_check_out_until?: boolean;
   check_in_from?: string | null;
@@ -276,6 +277,10 @@ export function evaluateUnitChecks(
   add("has_detailed_location_id", "Address & geo", "RU DetailedLocationID", !!v.has_detailed_location_id,
     "Channel Manager location could not be resolved from the address / coordinates",
     "Property → General → Address & coordinates");
+  add("ru_location_selected", "Address & geo", "Channel Manager location selected in ROL'OS",
+    v.ru_location_authored !== false,
+    "No Channel Manager location is selected — the listing location and currency were guessed from the coordinates. Pick the location in Identity & location → Channel Manager location",
+    "Property → Identity & location → Channel Manager location");
   add("has_coordinates", "Address & geo", "Geo-coordinates", !!v.has_coordinates,
     "Latitude / longitude are missing", "Property → General → Map location");
 
