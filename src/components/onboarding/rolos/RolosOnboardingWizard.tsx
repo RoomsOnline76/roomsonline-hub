@@ -420,21 +420,35 @@ function MacroRow({
 
           {stateChecks.length > 0 && (
             <ul className="space-y-1">
-              {stateChecks.map((c) => (
-                <li key={c.key} className="flex items-start gap-2 text-[11px]">
-                  {c.ok ? (
-                    <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-500" />
-                  ) : (
-                    <Circle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                  )}
-                  <span className="min-w-0">
-                    <span className={c.ok ? "text-muted-foreground" : "font-medium"}>{c.label}</span>
-                    {c.detail && <span className="block text-[10px] text-muted-foreground">{c.detail}</span>}
-                  </span>
-                </li>
-              ))}
+              {stateChecks.map((c) => {
+                const target = c.ok ? null : resolveCheckTarget(c.key);
+                return (
+                  <li key={c.key} className="flex items-start gap-2 text-[11px]">
+                    {c.ok ? (
+                      <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-500" />
+                    ) : (
+                      <Circle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                    )}
+                    <span className="min-w-0">
+                      {target ? (
+                        <button
+                          type="button"
+                          onClick={() => onGoToField(target.section, target.fieldKey)}
+                          className="text-left font-medium text-primary underline decoration-dotted underline-offset-2 hover:no-underline"
+                        >
+                          {c.label} — fix it
+                        </button>
+                      ) : (
+                        <span className={c.ok ? "text-muted-foreground" : "font-medium"}>{c.label}</span>
+                      )}
+                      {c.detail && <span className="block text-[10px] text-muted-foreground">{c.detail}</span>}
+                    </span>
+                  </li>
+                );
+              })}
             </ul>
           )}
+
 
           {outstandingFields.length > 0 && (
             <>
