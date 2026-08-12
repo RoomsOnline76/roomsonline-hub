@@ -165,7 +165,7 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
           .then((r) => r.data),
         supabase
           .from("hostfully_room_types")
-          .select("id, is_active, rentalsunited_property_id")
+          .select("id, name, is_active, rentalsunited_property_id")
           .eq("property_id", id)
           .then((r) => r.data ?? []),
       ]);
@@ -296,7 +296,7 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
     });
 
     // Macro 8 — publish
-    const units = (d?.units ?? []) as { is_active: boolean | null; rentalsunited_property_id: string | null }[];
+    const units = (d?.units ?? []) as { name?: string | null; is_active: boolean | null; rentalsunited_property_id: string | null }[];
     const activeUnits = units.filter((u) => u.is_active !== false);
     const unitsWithIds = activeUnits.filter((u) => !!String(u.rentalsunited_property_id ?? "").trim()).length;
     const propertyListingId = !!String(prop.rentalsunited_property_id ?? "").trim();
@@ -531,6 +531,20 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
     isLoading: readiness.isLoading || distribution.isLoading,
     isFetching: readiness.isFetching || distribution.isFetching,
     propertyName: String((d?.property as any)?.name ?? ""),
+    /**
+     * Name of the only active unit, when the property has exactly one. Single-unit
+     * listings report unit-owned failures without a unit prefix, so the wizard uses this
+     * to still open that unit's card.
+     */
+    soleUnitName: (() => {
+      const active = ((d?.units ?? []) as { name?: string | null; is_active: boolean | null }[])
+        .filter((u) => u.is_active !== false);
+      return active.length === 1 ? String(active[0]?.name ?? "").trim() || null : null;
+    })(),
+    unitNames: ((d?.units ?? []) as { name?: string | null; is_active: boolean | null }[])
+      .filter((u) => u.is_active !== false)
+      .map((u) => String(u.name ?? "").trim())
+      .filter(Boolean),
     readyForPush: d?.phase?.gate?.ready_for_push === true,
   };
 }

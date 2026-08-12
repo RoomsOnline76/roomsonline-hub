@@ -88,22 +88,60 @@ function resolveCheckTarget(checkKey: string): BlockerTarget | null {
  * unit description, unit arrival instructions — is only editable there, even
  * though the property-level catalogue would send them to General.
  */
-function resolveFailureTarget(failure: DistributionFailure, checkKey: string): BlockerTarget {
-  const req = resolveMcqRequirement(`${failure.label} ${failure.detail ?? ""}`);
-  if (failure.unit) {
+/**
+ * Checks whose failures are always authored on a unit (room type), even when the report
+ * did not name one — a single-unit property reports them without a prefix.
+ */
+const UNIT_OWNED_CHECKS = new Set([
+  "content_quality",
+  "rooms_beds",
+  "photos",
+  "availability_365",
+  "pricing_365",
+  "ari_availability",
+  "ari_prices",
+  "bookable_window",
+  "min_stay_set",
+]);
+
+/** Pull a "UNIT NAME: message" prefix off a failure line. */
+function unitFromMessage(text: string, knownUnits: string[]): string | undefined {
+  const prefix = text.split(":")[0]?.trim();
+  if (!prefix || prefix.length > 60) return undefined;
+  const hit = knownUnits.find((u) => u.toLowerCase() === prefix.toLowerCase());
+  return hit;
+}
+
+function resolveFailureTarget(
+  failure: DistributionFailure,
+  checkKey: string,
+  units: { sole: string | null; all: string[] },
+): BlockerTarget {
+  const text = `${failure.label} ${failure.detail ?? ""}`;
+  const req = resolveMcqRequirement(text);
+  // Routing unit, in order: the reported unit → a "NAME:" prefix in the message →
+  // the property's only unit when the failing check is unit-owned.
+  const unit =
+    failure.unit ||
+    unitFromMessage(failure.detail ?? failure.label, units.all) ||
+    (UNIT_OWNED_CHECKS.has(checkKey) ? units.sole ?? undefined : undefined);
+  if (unit) {
     const mapped = resolveCheckTarget(checkKey);
-    return { section: "rooms", unit: failure.unit, fieldKey: mapped?.fieldKey };
+    return { section: "rooms", unit, fieldKey: mapped?.fieldKey };
   }
   if (req) return { section: req.section, fieldKey: req.focusKey };
   return resolveCheckTarget(checkKey) ?? { section: "general" };
 }
 
 /** First blocking failure across the step's state checks, if any. */
-function firstBlockingTarget(stateChecks: DistributionCheck[]): BlockerTarget | null {
+function firstBlockingTarget(
+  stateChecks: DistributionCheck[],
+  units: { sole: string | null; all: string[] },
+): BlockerTarget | null {
   for (const c of stateChecks) {
     if (c.ok || c.unknown) continue;
     const blocking = (c.failures ?? []).filter((f) => f.mandatory);
-    if (blocking.length > 0) return resolveFailureTarget(blocking[0], c.key);
+    if (blocking.length > 0) return resolveFailureTarget(blocking[0], c.key, units);
     const target = resolveCheckTarget(c.key);
     if (target) return target;
   }
@@ -134,7 +172,14 @@ export function RolosOnboardingWizard({ propertyId, className }: Props) {
     isLoading,
     isFetching,
     propertyName,
+    soleUnitName,
+    unitNames,
   } = useRolosOnboardingProgress(propertyId);
+
+  const unitScope = useMemo(
+    () => ({ sole: soleUnitName ?? null, all: unitNames ?? [] }),
+    [soleUnitName, unitNames],
+  );
 
   const [collapsed, setCollapsed] = useState(() => {
     try {
@@ -411,6 +456,7 @@ export function RolosOnboardingWizard({ propertyId, className }: Props) {
                 busyAction={busyAction}
                 isPlatformUser={isPlatformUser}
                 onOpenChannels={() => navigate(`/pms/channels?property=${propertyId}`)}
+                units={unitScope}
               />
             ))}
           </div>
@@ -434,6 +480,8 @@ interface RowProps {
   busyAction: string | null;
   isPlatformUser: boolean;
   onOpenChannels: () => void;
+  /** Unit names, used to route unit-owned failures that arrive without a unit. */
+  units: { sole: string | null; all: string[] };
 }
 
 function MacroRow({
@@ -449,12 +497,13 @@ function MacroRow({
   busyAction,
   isPlatformUser,
   onOpenChannels,
+  units,
 }: RowProps) {
 
   const { macro, complete, locked, score, fieldItems, stateChecks } = progress;
   const outstandingFields = fieldItems.filter((i) => !i.satisfied);
   const firstOutstandingField = outstandingFields.find((item) => item.tier === "mandatory") ?? outstandingFields[0];
-  const blockerTarget = firstBlockingTarget(stateChecks);
+  const blockerTarget = firstBlockingTarget(stateChecks, units);
 
 
   return (
@@ -514,7 +563,7 @@ function MacroRow({
                       {failures.length > 0 && (
                         <span className="mt-1 block space-y-1">
                           {failures.map((f, i) => {
-                            const ft = resolveFailureTarget(f, c.key);
+                            const ft = resolveFailureTarget(f, c.key, units);
                             return (
                               <button
                                 key={`${f.label}-${f.unit ?? ""}-${i}`}

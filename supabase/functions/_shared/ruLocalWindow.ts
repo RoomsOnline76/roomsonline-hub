@@ -28,6 +28,18 @@ export interface RuLocalWindow {
   /** Unit fields are the primary stay-authoring surface in the property editor. */
   units_with_min_stay: number;
   units_with_max_stay: number;
+  /**
+   * The weakest unit in the window — the one a "worst unit wins" failure is really about,
+   * so the wizard can open that unit's card instead of the top of the Rooms tab.
+   */
+  worst_unit: {
+    name: string;
+    longest_run: number;
+    open_days: number;
+    unpriced_open_days: number;
+  } | null;
+  /** Active units with no MinStay authored on the room type. */
+  units_without_min_stay: string[];
 }
 
 const EMPTY = (from: string, to: string): RuLocalWindow => ({
@@ -44,6 +56,8 @@ const EMPTY = (from: string, to: string): RuLocalWindow => ({
   unit_count: 0,
   units_with_min_stay: 0,
   units_with_max_stay: 0,
+  worst_unit: null,
+  units_without_min_stay: [],
 });
 
 /**
@@ -93,10 +107,14 @@ export async function computeLocalBookableWindow(
     // active mirror rows, so readiness must inspect them before dated/plan fallbacks.
     const { data: stayRows } = await admin
       .from("hostfully_room_types")
-      .select("id, min_stay, max_stay, is_active")
+      .select("id, name, min_stay, max_stay, is_active")
       .eq("property_id", propertyId)
       .eq("is_active", true);
-    const activeStayRows = (stayRows ?? []) as Array<{ min_stay?: unknown; max_stay?: unknown }>;
+    const activeStayRows = (stayRows ?? []) as Array<{ name?: unknown; min_stay?: unknown; max_stay?: unknown }>;
+    result.units_without_min_stay = activeStayRows
+      .filter((row) => !(Number(row.min_stay ?? 0) > 0))
+      .map((row) => String(row.name ?? "").trim())
+      .filter(Boolean);
     result.units_with_min_stay = activeStayRows.filter((row) => Number(row.min_stay ?? 0) > 0).length;
     result.units_with_max_stay = activeStayRows.filter((row) => Number(row.max_stay ?? 0) > 0).length;
 
@@ -143,6 +161,7 @@ export async function computeLocalBookableWindow(
     let bestStart: string | null = null;
     let bestOpen = 0;
     let bestUnpriced = 0;
+    let worst: RuLocalWindow["worst_unit"] = null;
 
     for (const unit of units) {
       const label = String(unit.name ?? "").trim().toLowerCase();
@@ -157,6 +176,7 @@ export async function computeLocalBookableWindow(
       let runStart: string | null = null;
       let open = 0;
       let unpriced = 0;
+      let unitBestRun = 0;
       for (const date of allDates) {
         const isOpen = !blockedAll.has(date) && !unitBlocked.has(date);
         if (!isOpen) {
@@ -174,6 +194,7 @@ export async function computeLocalBookableWindow(
         }
         run = run === 0 ? 1 : run + 1;
         if (run === 1) runStart = date;
+        if (run > unitBestRun) unitBestRun = run;
         if (run > bestRun) {
           bestRun = run;
           bestStart = runStart;
@@ -181,7 +202,17 @@ export async function computeLocalBookableWindow(
       }
       if (open > bestOpen) bestOpen = open;
       if (unpriced > bestUnpriced) bestUnpriced = unpriced;
+
+      // Track the weakest unit for routing (scoring below stays "any unit can sell").
+      const candidate = {
+        name: String(unit.name ?? "").trim() || "Unit",
+        longest_run: unitBestRun,
+        open_days: open,
+        unpriced_open_days: unpriced,
+      };
+      if (!worst || candidate.longest_run < worst.longest_run) worst = candidate;
     }
+    result.worst_unit = worst;
 
     result.longest_run = bestRun;
     result.start = bestStart;

@@ -225,16 +225,32 @@ export function focusFieldTargets(targets: string[], attempt = 0): void {
  * Matching is case-insensitive and falls back to a heading text scan, because
  * PMS-synced units render their name in a card header rather than an input.
  */
+/** Normalise a unit name for matching: lowercase, punctuation and spacing collapsed. */
+function normaliseUnitName(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[\u2018\u2019\u201c\u201d]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
 export function focusUnitCard(unitName: string, attempt = 0): void {
-  const needle = unitName.trim().toLowerCase();
+  const raw = unitName.trim();
+  const needle = normaliseUnitName(raw);
   if (!needle) return;
 
-  let el =
-    document.querySelector<HTMLElement>(`[data-room-name="${CSS.escape(unitName.trim())}"]`) ?? null;
+  let el = document.querySelector<HTMLElement>(`[data-room-name="${CSS.escape(raw)}"]`) ?? null;
 
   if (!el) {
     const cards = Array.from(document.querySelectorAll<HTMLElement>("[data-room-name]"));
-    el = cards.find((c) => (c.dataset.roomName ?? "").trim().toLowerCase() === needle) ?? null;
+    const named = cards.map((c) => ({ c, n: normaliseUnitName(c.dataset.roomName ?? "") }));
+    el =
+      named.find((x) => x.n === needle)?.c ??
+      // Tolerate minor drift between the report name and the editor label
+      // ("SEESTER 2" vs "Seester2", "Chalet A — Sea view" vs "Chalet A").
+      named.find((x) => x.n && (x.n.startsWith(needle) || needle.startsWith(x.n)))?.c ??
+      named.find((x) => x.n && (x.n.includes(needle) || needle.includes(x.n)))?.c ??
+      null;
   }
 
   if (!el) {
@@ -242,11 +258,19 @@ export function focusUnitCard(unitName: string, attempt = 0): void {
     const headings = Array.from(
       document.querySelectorAll<HTMLElement>("h1, h2, h3, h4, h5, p, span, div"),
     );
-    const hit = headings.find(
-      (h) => h.children.length === 0 && (h.textContent ?? "").trim().toLowerCase() === needle,
-    );
+    const hit =
+      headings.find(
+        (h) => h.children.length === 0 && normaliseUnitName(h.textContent ?? "") === needle,
+      ) ??
+      headings.find(
+        (h) =>
+          h.children.length === 0 &&
+          normaliseUnitName(h.textContent ?? "").startsWith(needle) &&
+          needle.length > 3,
+      );
     if (hit) el = (hit.closest<HTMLElement>("[data-room-card], .rounded-lg, .rounded-md") ?? hit);
   }
+
 
   if (!el) {
     if (attempt < 12) window.setTimeout(() => focusUnitCard(unitName, attempt + 1), 250);

@@ -367,14 +367,18 @@ export function summarizeReadiness(
   const multi = units.length > 1;
   const checks: RuCheck[] = [];
   for (const u of units) {
-    const unitName = multi ? (u.name ?? "Unit") : null;
-    checks.push(...evaluateUnitChecks(u.validation, unitName));
+    // The unit name is ALWAYS attached — it is the routing key the wizard uses to open
+    // the failing unit card. Only the human-readable prefix is reserved for multi-unit
+    // properties, where naming the unit adds information.
+    checks.push(...evaluateUnitChecks(u.validation, u.name ?? "Unit"));
   }
   checks.push(...extraChecks);
 
-  const gaps = checks
-    .filter((c) => !c.passed)
-    .map((c) => `${c.unit ? `${c.unit}: ` : ""}${c.detail ?? c.label}`);
+  /** Prefix the unit name only when the property actually has siblings. */
+  const describe = (c: RuCheck) =>
+    `${multi && c.unit ? `${c.unit}: ` : ""}${c.detail ?? c.label}`;
+
+  const gaps = checks.filter((c) => !c.passed).map(describe);
 
   const total = checks.length;
   const passed = checks.filter((c) => c.passed).length;
@@ -410,10 +414,8 @@ export function summarizeReadiness(
     mandatory_passed: mandatoryPassed,
     blocked: mandatoryPassed < mandatory.length,
     gaps,
-    blocking_gaps: checks.filter((c) => c.mandatory && !c.passed)
-      .map((c) => `${c.unit ? `${c.unit}: ` : ""}${c.detail ?? c.label}`),
-    advisory_gaps: checks.filter((c) => !c.mandatory && !c.passed)
-      .map((c) => `${c.unit ? `${c.unit}: ` : ""}${c.detail ?? c.label}`),
+    blocking_gaps: checks.filter((c) => c.mandatory && !c.passed).map(describe),
+    advisory_gaps: checks.filter((c) => !c.mandatory && !c.passed).map(describe),
     checks,
     groups,
   };
@@ -421,9 +423,7 @@ export function summarizeReadiness(
 
 /** Convenience helper used by push-property-to-ru to gate live pushes. */
 export function mandatoryGaps(units: RuUnitInput[]): string[] {
-  const summary = summarizeReadiness(units);
-  return summary.checks.filter((c) => c.mandatory && !c.passed)
-    .map((c) => `${c.unit ? `${c.unit}: ` : ""}${c.detail ?? c.label}`);
+  return summarizeReadiness(units).blocking_gaps;
 }
 
 /**
@@ -439,9 +439,12 @@ export function localBookableWindowChecks(
     min_stay_set: boolean;
     open_days: number;
     unpriced_open_days: number;
+    /** Active units with no MinStay authored — named so the fix opens the right card. */
+    units_without_min_stay?: string[];
   },
   unit?: string,
 ): RuCheck[] {
+  const minStayUnits = window.units_without_min_stay ?? [];
   return [
     {
       key: "bookable_window",
@@ -463,11 +466,15 @@ export function localBookableWindowChecks(
       label: "MinStay authored in ROL'OS",
       mandatory: true,
       passed: window.min_stay_set,
-      unit,
+      unit: minStayUnits.length === 1 ? minStayUnits[0] : unit,
       fix_hint: "Edit Property → Rooms → Room Type → Min Stay",
       ...(window.min_stay_set
         ? {}
-        : { detail: "No minimum stay is authored on the affected Room Type or its dated/Rate Plan fallback" }),
+        : {
+          detail: minStayUnits.length > 0
+            ? `No minimum stay authored on ${minStayUnits.slice(0, 3).join(", ")}${minStayUnits.length > 3 ? ` +${minStayUnits.length - 3} more` : ""}`
+            : "No minimum stay is authored on the affected Room Type or its dated/Rate Plan fallback",
+        }),
     },
   ];
 }

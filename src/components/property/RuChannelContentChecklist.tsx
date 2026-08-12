@@ -4,7 +4,8 @@ import { Badge } from "@/components/ui/badge";
 import { CheckCircle, AlertTriangle, XCircle, Clock, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getSectionLabel } from "@/config/propertySectionOrder";
-import { focusRequirementField } from "@/lib/requirementFocus";
+import { focusRequirementField, focusUnitCard } from "@/lib/requirementFocus";
+import { unitFromShortfall } from "@/config/propertyFieldRequirements";
 import { usePropertyReadiness, type ReadinessItem } from "@/hooks/usePropertyReadiness";
 
 /**
@@ -155,8 +156,11 @@ export const RuChannelContentChecklist: React.FC<Props> = ({
         );
       }
       if (focusKey) window.setTimeout(() => focusRequirementField(focusKey), 350);
+      // Per-unit shortfalls name their unit — open that card instead of the top of Rooms.
+      const unit = subject ? unitFromShortfall(item.detail ?? item.message, subject) : undefined;
+      if (unit) window.setTimeout(() => focusUnitCard(unit), 400);
     },
-    [navigate, onNavigateSection, propertyId, setSearchParams],
+    [navigate, onNavigateSection, propertyId, setSearchParams, subject],
   );
 
   if (isLoading || !hasData) {

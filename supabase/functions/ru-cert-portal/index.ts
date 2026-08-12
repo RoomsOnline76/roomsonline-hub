@@ -1204,6 +1204,22 @@ Deno.serve(async (req) => {
       const ruIds: number[] = (data?.units ?? [])
         .map((u: { ru_property_id: string | null }) => Number(u.ru_property_id))
         .filter((n: number) => Number.isFinite(n) && n > 0);
+      // Channel IDs cannot be focused in the editor — keep the unit name beside every ID so
+      // each failing check can name (and open) the unit it belongs to.
+      const unitNameByRuId = new Map<number, string>();
+      for (const u of (data?.units ?? []) as { ru_property_id?: string | null; name?: string | null }[]) {
+        const id = Number(u.ru_property_id);
+        if (Number.isFinite(id) && id > 0) unitNameByRuId.set(id, String(u.name ?? "").trim() || `Unit ${id}`);
+      }
+      const soleUnitName = (data?.units ?? []).length === 1
+        ? String((data.units[0] as { name?: string | null }).name ?? "").trim() || p.name
+        : (units.length === 1 ? String(units[0].name ?? "").trim() || p.name : null);
+      const nameFor = (id: number) => unitNameByRuId.get(id) ?? `RU ${id}`;
+      const describeUnits = (ids: number[]) =>
+        ids.length === 0 ? "the listing" : ids.map((id) => `${nameFor(id)} (RU ${id})`).join(", ");
+      /** Unit routing key when exactly one unit is responsible. */
+      const singleFailingUnit = (ids: number[]): string | undefined =>
+        ids.length === 1 ? nameFor(ids[0]) : (ids.length === 0 ? soleUnitName ?? undefined : undefined);
       const singleRuId = Number(p.rentalsunited_property_id ?? data?.ru_property_id ?? 0);
       if (ruIds.length === 0 && singleRuId > 0) ruIds.push(singleRuId);
 
@@ -1238,6 +1254,7 @@ Deno.serve(async (req) => {
           const bookableWindow = findRuBookableWindow(avbXml, priceXml);
           return {
             ru_property_id: ruId,
+            unit_name: nameFor(ruId),
             open_days: openDays,
             price_points: prices.length,
             availability_ok: !!avbRes.data?.success && openDays > 0,
@@ -1270,17 +1287,22 @@ Deno.serve(async (req) => {
 
         // MinStay + "3 consecutive bookable, priced days" — scored on the weakest unit so a
         // single unsellable unit cannot pass behind a healthy sibling.
-        const worstWindow = unitProbes.reduce<RuBookableWindow | null>((worst, probe) => {
+        const worstProbe = unitProbes.reduce<typeof unitProbes[number] | null>((worst, probe) => {
+          if (!worst) return probe;
           const w = probe.bookable_window;
-          if (!worst) return w;
-          if (w.longest_run < worst.longest_run) return w;
-          if (!w.min_stay_set && worst.min_stay_set) return w;
+          const cur = worst.bookable_window;
+          if (w.longest_run < cur.longest_run) return probe;
+          if (!w.min_stay_set && cur.min_stay_set) return probe;
           return worst;
         }, null);
+        const worstWindow = worstProbe?.bookable_window ?? null;
         if (worstWindow && liveAvailabilityResponded) {
-          extraChecks.push(...bookableWindowChecks(worstWindow));
+          // Worst unit wins — and the check carries that unit's name so the wizard opens it.
+          extraChecks.push(...bookableWindowChecks(worstWindow, worstProbe?.unit_name ?? soleUnitName ?? undefined));
         } else {
-          extraChecks.push(...localBookableWindowChecks(localWindow));
+          extraChecks.push(
+            ...localBookableWindowChecks(localWindow, localWindow.worst_unit?.name ?? soleUnitName ?? undefined),
+          );
         }
 
 
@@ -1290,11 +1312,12 @@ Deno.serve(async (req) => {
           label: "Availability pushed for the next 365 days",
           mandatory: true,
           passed: availabilityReady,
+          unit: availabilityReady ? undefined : singleFailingUnit(failedAvailabilityIds),
           ...(hasAvailability
             ? { detail: `Verified on ${unitProbes.length} RU unit(s)` }
             : availabilityReady
-              ? { detail: `Local 365-day payload is ready and the latest inventory push succeeded; live channel verification is pending for RU units ${failedAvailabilityIds.join(", ")}` }
-              : { detail: `RU units ${failedAvailabilityIds.join(", ")}: no open availability day in the next 365 days` }),
+              ? { detail: `Local 365-day payload is ready and the latest inventory push succeeded; live channel verification is pending for ${describeUnits(failedAvailabilityIds)}` }
+              : { detail: `${describeUnits(failedAvailabilityIds)}: no open availability day in the next 365 days` }),
           fix_hint: "Rate Manager → Calendar / availability",
         });
         extraChecks.push({
@@ -1303,11 +1326,12 @@ Deno.serve(async (req) => {
           label: livePricesVerified ? "Rates verified on RU for the next 365 days" : "Local rates ready to push for the next 365 days",
           mandatory: true,
           passed: pricingReady,
+          unit: pricingReady ? undefined : singleFailingUnit(failedPriceIds),
           ...(pricingReady
             ? { detail: livePricesVerified
               ? `Verified on ${unitProbes.length} RU unit(s)${localCoverage ? ` — local rates: ${localCoverage.summary}` : ""}`
-              : `Ready to push from ROLOS (${localCoverage?.summary ?? "complete local coverage"}); RU verification pending for ${failedPriceIds.join(", ")}` }
-            : { detail: `RU units ${failedPriceIds.join(", ")}: prices missing or non-positive${localCoverage ? ` — local rates: ${localCoverage.summary}` : ""}` }),
+              : `Ready to push from ROLOS (${localCoverage?.summary ?? "complete local coverage"}); RU verification pending for ${describeUnits(failedPriceIds)}` }
+            : { detail: `${describeUnits(failedPriceIds)}: prices missing or non-positive${localCoverage ? ` — local rates: ${localCoverage.summary}` : ""}` }),
           fix_hint: "Calendar seasons & rates (first), then Rate Manager → Rates rack rate",
         });
 
@@ -1330,11 +1354,14 @@ Deno.serve(async (req) => {
         const localPricingReady = localCoverage ? localCoverage.complete !== false : true;
         // Pre-publish the channel calendar cannot be read, so the SAME two rules
         // (3 consecutive priced days + MinStay) are scored on the ROL'OS calendar.
-        extraChecks.push(...localBookableWindowChecks(localWindow));
+        extraChecks.push(
+          ...localBookableWindowChecks(localWindow, localWindow.worst_unit?.name ?? soleUnitName ?? undefined),
+        );
         extraChecks.push({
           key: "ari_availability", group: "Availability 365d",
           label: "Availability ready to push for the next 365 days",
           mandatory: false, passed: localWindow.open_days > 0,
+          unit: localWindow.open_days > 0 ? undefined : localWindow.worst_unit?.name ?? soleUnitName ?? undefined,
           detail: localWindow.open_days > 0
             ? `${localWindow.open_days} open day(s) in the local calendar — verified on Rentals United after the first push`
             : "No open day in the local calendar for the next 365 days",
