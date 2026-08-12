@@ -49,10 +49,23 @@ export interface ChannelReconciliation {
  * that hook is an instant local read, this one talks to the channel manager and
  * only runs when an admin asks for it.
  */
+export interface CleanupProgress {
+  done: number;
+  total: number;
+}
+
+export interface CleanupOutcome {
+  cleaned: number;
+  total: number;
+  failures: { key: string; label: string; reason: string }[];
+}
+
 export function useChannelReconciliation() {
   const [result, setResult] = useState<ChannelReconciliation | null>(null);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [cleanup, setCleanup] = useState<CleanupProgress | null>(null);
+  const [failures, setFailures] = useState<Record<string, string>>({});
 
   const reconcile = useCallback(async () => {
     setRunning(true);
