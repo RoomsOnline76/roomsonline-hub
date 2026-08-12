@@ -238,37 +238,66 @@ export function ChannelPropertyTable({
                                 <span className="truncate">{u.name}</span>
                                 <span className="flex items-center gap-2">
                                   <span className="font-mono text-muted-foreground">{u.listingId}</span>
-                                  <Badge
-                                    variant={u.isActive ? "default" : "outline"}
-                                    className="h-4 px-1.5 text-[9px]"
-                                  >
-                                    {u.isActive ? "Billing" : "Inactive"}
+                                  <Badge variant="default" className="h-4 px-1.5 text-[9px]">
+                                    Billing
                                   </Badge>
                                   <Button
                                     size="sm"
                                     variant="ghost"
                                     className="h-6 px-1.5 text-[10px]"
                                     disabled={busyUnitId === u.id}
-                                    onClick={() => onToggleUnit(row, u, !u.isActive)}
+                                    onClick={() => onToggleUnit(row, u, false)}
                                   >
-                                    {u.isActive ? (
-                                      <>
-                                        <Archive className="mr-1 h-3 w-3" />
-                                        Deactivate
-                                      </>
-                                    ) : (
-                                      <>
-                                        <RotateCcw className="mr-1 h-3 w-3" />
-                                        Re-activate
-                                      </>
-                                    )}
+                                    <Archive className="mr-1 h-3 w-3" />
+                                    Deactivate
                                   </Button>
                                 </span>
                               </div>
                             ))}
-
                           </div>
                         )}
+
+                        {row.duplicates.length > 0 && (
+                          <div className="mt-3 rounded-md border border-destructive/40 bg-destructive/5 p-2.5">
+                            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                              <p className="text-[11px] font-medium text-destructive">
+                                {row.duplicates.length} duplicate listing{row.duplicates.length === 1 ? "" : "s"} still
+                                exist at the channel manager — these are deleted units and can still bill.
+                              </p>
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                className="h-6 px-2 text-[10px]"
+                                disabled={busy}
+                                onClick={() => onPurgeDuplicate(row)}
+                              >
+                                <Trash2 className="mr-1 h-3 w-3" />
+                                Remove all duplicates
+                              </Button>
+                            </div>
+                            <div className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
+                              {row.duplicates.map((u) => (
+                                <div key={u.id} className="flex items-center justify-between gap-2 text-xs">
+                                  <span className="truncate text-muted-foreground">{u.name}</span>
+                                  <span className="flex items-center gap-2">
+                                    <span className="font-mono text-muted-foreground">{u.listingId}</span>
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      className="h-6 px-1.5 text-[10px] text-destructive hover:text-destructive"
+                                      disabled={busyUnitId === u.id || busy}
+                                      onClick={() => onPurgeDuplicate(row, u)}
+                                    >
+                                      <Trash2 className="mr-1 h-3 w-3" />
+                                      Remove from channel
+                                    </Button>
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
                         {row.archivedAt && (
                           <p className="mt-2 text-[11px] text-muted-foreground">
                             Archived {new Date(row.archivedAt).toLocaleString()}
