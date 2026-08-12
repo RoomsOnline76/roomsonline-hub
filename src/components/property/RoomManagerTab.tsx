@@ -26,7 +26,7 @@ import RuImageTagPicker from "@/components/property/RuImageTagPicker";
 import { normalizeRuImageTagMap } from "@/lib/ruImageTags";
 
 import { getRoomUrl } from "@/lib/config";
-import { parseBedConfiguration, BED_TYPES, BedEntry, calculateBedCapacity, sleepsPerBed } from "@/lib/bedConfig";
+import { parseBedConfiguration, BED_TYPES, BedEntry, calculateBedCapacity, sleepsPerBed, formatBedConfiguration } from "@/lib/bedConfig";
 import { cn } from "@/lib/utils";
 import { isFieldPopulatedByPMS, getPMSDisplayName } from "@/lib/pmsFieldConfig";
 import { TagInput } from "@/components/TagInput";
@@ -34,6 +34,7 @@ import { HostfullyRoomDetails } from "@/components/pms/HostfullyRoomDetails";
 import { ACCOMMODATION_LABEL_OPTIONS, ACCOMMODATION_TYPES, type AccommodationLabelKey } from "@/lib/accommodationLabels";
 import {
   Home, Plus, Minus, X, Copy, Cloud, Upload, Heart, Trash2, RefreshCw, Info, DollarSign, Sparkles,
+  Loader2, AlertTriangle, CheckCircle2,
 } from "lucide-react";
 import AiAmenityDialog from "@/components/property/AiAmenityDialog";
 
