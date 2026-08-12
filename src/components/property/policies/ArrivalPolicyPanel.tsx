@@ -217,7 +217,7 @@ export const ArrivalPolicyPanel: React.FC<ArrivalPolicyPanelProps> = ({ property
 
       const draft = String(data?.description ?? "").trim();
       if (!draft) throw new Error("TOBI returned an empty draft — please try again.");
-      setText(draft);
+      applyText(draft);
       toast.success(`TOBI drafted ${draft.length} characters — review it, then save`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "TOBI could not write the arrival policy");
