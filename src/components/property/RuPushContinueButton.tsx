@@ -23,6 +23,7 @@ export function RuPushContinueButton({ propertyId, className }: RuPushContinueBu
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [pushing, setPushing] = useState(false);
+  const [progress, setProgress] = useState<string | null>(null);
   // The push gate uses the shared model with the channel report on: a field-only
   // "100%" must never be enough to publish.
   const { mandatoryScore, mandatoryOutstanding, hasData } = usePropertyReadiness(propertyId, {
