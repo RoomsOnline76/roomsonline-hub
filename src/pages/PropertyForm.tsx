@@ -791,6 +791,8 @@ export default function PropertyForm({
   const [isSandbox, setIsSandbox] = useState(false);
   const [adminSubTab, setAdminSubTab] = useState<string>(() => searchParams.get("sub") || "overview");
   const [selectedFacilities, setSelectedFacilities] = useState<string[]>([]);
+  // TOBI description assistance (Info & Facilities tab)
+  const [writingPropertyDescription, setWritingPropertyDescription] = useState(false);
   const [aiAmenityOpen, setAiAmenityOpen] = useState(false);
   const [selectedBreakfastOptions, setSelectedBreakfastOptions] = useState<string[]>([]);
   // Property composition — mandatory for Rentals United / channel pushes
