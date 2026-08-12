@@ -289,9 +289,10 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
             <AlertDialogDescription asChild>
               <div className="space-y-2 text-sm">
                 <p>
-                  {cleanableOrphans.length} orphan listing{cleanableOrphans.length === 1 ? "" : "s"} will be removed
-                  from the channel account (archived upstream, local ids cleared).
+                  {cleanableListings.length} channel listing{cleanableListings.length === 1 ? "" : "s"} (live and
+                  archived) will be deleted upstream, then re-read to confirm the account no longer returns them.
                 </p>
+
                 <p>
                   {result?.stale.length || 0} stale local id{(result?.stale.length || 0) === 1 ? "" : "s"} will be
                   cleared — no channel call needed.
