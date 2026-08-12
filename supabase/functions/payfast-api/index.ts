@@ -1483,6 +1483,143 @@ Deno.serve(async (req) => {
       }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
+    // ── AUTOMATIC RENEWAL: charge an existing mandate ─────────────────────────
+    // Called by the billing cron (service role). Charges the stored mandate and
+    // settles the invoice on success, so a healthy subscription never triggers a
+    // payment request to the owner.
+    if (action === "charge_subscription_mandate" || action === "cancel_subscription_mandate") {
+      const callerToken = (req.headers.get("Authorization") || "").replace("Bearer ", "").trim();
+      const isSystemCaller = !!callerToken && callerToken === supabaseServiceKey;
+      let staff = false;
+      if (!isSystemCaller && callerToken) {
+        const { data: authData } = await supabase.auth.getUser(callerToken);
+        const uid = authData?.user?.id;
+        if (uid) {
+          const { data: roles } = await supabase
+            .from("user_roles")
+            .select("role")
+            .eq("user_id", uid)
+            .in("role", ["admin", "dev", "fearless_leader"]);
+          staff = !!roles?.length;
+        }
+      }
+      if (!isSystemCaller && !staff) {
+        return new Response(JSON.stringify({ success: false, error: "forbidden" }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      if (!merchantId || !passphrase) {
+        return new Response(JSON.stringify({ success: false, error: "payfast_api_not_configured" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      const creds: PayfastApiCreds = { merchantId, passphrase, isSandbox };
+
+      if (action === "cancel_subscription_mandate") {
+        const mandateToken = String(body?.mandate_token || "").trim();
+        if (!mandateToken) {
+          return new Response(JSON.stringify({ success: false, error: "mandate_token is required" }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        }
+        const result = await cancelMandate(mandateToken, creds);
+        return new Response(JSON.stringify({ success: result.ok, error: result.error }),
+          { status: result.ok ? 200 : 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+
+      const invoiceId = String(body?.invoice_id || "").trim();
+      if (!invoiceId) {
+        return new Response(JSON.stringify({ success: false, error: "invoice_id is required" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      const { data: inv } = await supabase
+        .from("subscription_invoices")
+        .select("*, properties(name), property_portfolios(name)")
+        .eq("id", invoiceId)
+        .maybeSingle();
+      if (!inv) {
+        return new Response(JSON.stringify({ success: false, error: "invoice_not_found" }),
+          { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      if (inv.status === "paid") {
+        return new Response(JSON.stringify({ success: true, already_paid: true }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      const target = cfgTargetForInvoice(inv);
+      const { data: cfg } = await supabase
+        .from(target.table)
+        .select("mandate_token, mandate_status, mandate_amount, auto_charge_failures")
+        .eq(target.keyCol, target.keyVal)
+        .maybeSingle();
+      const mandateToken = String((cfg as any)?.mandate_token || "").trim();
+      if (!mandateToken || String((cfg as any)?.mandate_status || "") !== "active") {
+        return new Response(JSON.stringify({ success: false, error: "no_active_mandate" }),
+          { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      const amount = Number(inv.amount) || 0;
+      const mandateAmount = Number((cfg as any)?.mandate_amount) || 0;
+      // PayFast cannot reprice a live mandate — a changed amount must be
+      // re-authorised by the owner instead of silently charged.
+      if (mandateAmount > 0 && Math.abs(mandateAmount - amount) > 0.01) {
+        await supabase
+          .from(target.table)
+          .update({ mandate_requires_reauth: true, last_auto_charge_status: "amount_changed" })
+          .eq(target.keyCol, target.keyVal);
+        return new Response(JSON.stringify({ success: false, error: "amount_changed_requires_reauth" }),
+          { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+
+      const entityName = (inv.properties as any)?.name || (inv.property_portfolios as any)?.name || "Subscription";
+      const charge = await chargeMandate(
+        mandateToken,
+        Math.round(amount * 100),
+        `Rooms Online — ${entityName}`,
+        `Subscription ${inv.period_start} to ${inv.period_end}`,
+        creds,
+      );
+      const nowIso = new Date().toISOString();
+      if (!charge.ok) {
+        const failures = (Number((cfg as any)?.auto_charge_failures) || 0) + 1;
+        await supabase
+          .from(target.table)
+          .update({
+            last_auto_charge_at: nowIso,
+            last_auto_charge_status: "failed",
+            last_auto_charge_error: charge.error ?? null,
+            auto_charge_failures: failures,
+            ...(failures >= 3 ? { mandate_status: "failing" } : {}),
+          })
+          .eq(target.keyCol, target.keyVal);
+        await supabase.from("subscription_invoice_events").insert({
+          invoice_id: invoiceId, event_type: "auto_charge", status: "error", detail: charge.error ?? "charge failed",
+        });
+        return new Response(JSON.stringify({ success: false, error: charge.error, failures }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+
+      await settleSubscriptionInvoice(supabase, invoiceId, "paid", charge.pfPaymentId, {
+        source: "mandate_adhoc",
+        mandate_token: mandateToken,
+      });
+      await supabase
+        .from("subscription_invoices")
+        .update({ auto_charged: true, mandate_token: mandateToken })
+        .eq("id", invoiceId);
+      await supabase
+        .from(target.table)
+        .update({
+          last_auto_charge_at: nowIso,
+          last_auto_charge_status: "paid",
+          last_auto_charge_error: null,
+          auto_charge_failures: 0,
+        })
+        .eq(target.keyCol, target.keyVal);
+      await supabase.from("subscription_invoice_events").insert({
+        invoice_id: invoiceId, event_type: "auto_charge", status: "success", detail: charge.pfPaymentId ?? "charged",
+      });
+      return new Response(JSON.stringify({ success: true, invoice_id: invoiceId, pf_payment_id: charge.pfPaymentId }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+
+
     // VERIFY SUBSCRIPTION / SETUP-FEE PAYMENT — return-path safety net when an
     // ITN is delayed or never delivered. Confirms against PayFast's transaction
     // history API before marking the invoice paid.
