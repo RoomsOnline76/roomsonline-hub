@@ -2521,7 +2521,7 @@ Deno.serve(async (req) => {
 
   try {
     const reqBody = await req.json();
-    const { property_id, dry_run, subscribe_rlnm, standalone_units, only_unit_ids, action } = reqBody;
+    const { property_id, dry_run, subscribe_rlnm, standalone_units, only_unit_ids, action, batch_size, batch_id: incomingBatchId } = reqBody;
     /**
      * Building containers are OPT-IN only.
      * Every RU push used to run the building flow (Push_PutBuilding_RQ) first, and RU created a
