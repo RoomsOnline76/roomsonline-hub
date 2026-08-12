@@ -54,16 +54,17 @@ export const ArrivalPolicyPanel: React.FC<ArrivalPolicyPanelProps> = ({ property
         supabase
           .from("hostfully_room_types")
           .select("id, name, check_in_instructions, is_active")
-          .eq("property_id", propertyId),
+          .eq("property_id", propertyId)
+          .eq("is_active", true),
       ]);
       const amenities = (prop?.amenities ?? {}) as Record<string, any>;
       const current = String(amenities?.house_rules?.check_in_instructions ?? "");
       setText(current);
       setSaved(current);
-      // Every unit is listed once: archived duplicates and case variants of the same
-      // unit name are collapsed. A blank value means "inherit the property arrival policy".
+      // Only active units are listed, once each: case variants of the same unit name collapse.
+      // A blank value means "inherit the property arrival policy".
       const active = ((rooms ?? []) as Array<RoomOverride & { is_active?: boolean | null }>).filter(
-        (r) => r.is_active !== false,
+        (r) => r.is_active === true,
       );
       const byName = new Map<string, RoomOverride>();
       for (const room of active) {
