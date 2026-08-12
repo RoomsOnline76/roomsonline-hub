@@ -470,7 +470,7 @@ function checkContentCompleteness(property: any, amenities: Record<string, unkno
   };
 }
 
-function checkMediaRequirements(images: any[], listingIntent: string): QualityCheckResult {
+function checkMediaRequirements(images: any[], listingIntent: string, imageTags?: unknown): QualityCheckResult {
   const minImages = 3;
   const imageCount = images.length;
   
@@ -486,24 +486,29 @@ function checkMediaRequirements(images: any[], listingIntent: string): QualityCh
     };
   }
 
-  // Hero image: ROLOS stores images either as plain URL strings (first = hero)
-  // or as objects. Only object-shaped galleries can miss a hero designation.
-  const hasHero = images.some(
-    (img: any) =>
-      typeof img === 'string' ||
-      img?.type === 'hero' ||
-      img?.is_main === true ||
-      img?.is_hero === true,
-  );
-  if (!hasHero) {
+  // Main image must be explicitly designated: RU tag 1 on exactly one gallery photo
+  // (legacy object-shaped galleries may carry is_main / is_hero / type: 'hero').
+  const legacyMain = images.filter(
+    (img: any) => img && typeof img !== 'string' &&
+      (img.type === 'hero' || img.is_main === true || img.is_hero === true),
+  ).length;
+  const urls = images
+    .map((img: any) => (typeof img === 'string' ? img : String(img?.url ?? '')))
+    .filter(Boolean);
+  const mainCount = legacyMain > 0
+    ? legacyMain
+    : mainImageState(normalizeRuImageTagMap(imageTags), urls).count;
+  if (mainCount !== 1) {
     return {
       id: 'media',
       name: 'Media Requirements',
       passed: false,
-      message: 'No hero image designated',
-      fix: 'Mark one image as the hero/featured image',
+      message: mainCount === 0
+        ? 'No main image designated'
+        : `${mainCount} photos are flagged as main`,
+      fix: 'Flag exactly one photo as the main image',
       field: 'images',
-      severity: 'warning'
+      severity: 'blocker'
     };
   }
 
@@ -512,7 +517,7 @@ function checkMediaRequirements(images: any[], listingIntent: string): QualityCh
     id: 'media',
     name: 'Media Requirements',
     passed: true,
-    message: `${imageCount} images uploaded with hero image set`,
+    message: `${imageCount} images uploaded with main image set`,
     severity: 'blocker'
   };
 }

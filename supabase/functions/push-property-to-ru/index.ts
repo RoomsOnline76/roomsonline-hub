@@ -21,6 +21,7 @@ import { resolveMcqChannelId } from '../_shared/ruMcq.ts';
 import { resolveRuAmenityIds } from '../_shared/ruAmenityMap.ts';
 import {
   normalizeRuImageTagMap,
+  findMainImageUrl,
   resolvePrimaryRuTag,
   resolveSecondaryRuTags,
   RU_TAG_INTERIOR,
@@ -418,18 +419,25 @@ function resolveZipCode(unitZip: string | null | undefined, property: { postal_c
 function mapImages(images: unknown[] | null, tagMap?: unknown): RuImage[] {
   if (!Array.isArray(images) || images.length === 0) return [];
   const tags: RuImageTagMap = normalizeRuImageTagMap(tagMap);
-  return images.map((img, i) => {
+  const urls = images
+    .map((img) => (typeof img === 'string' ? img : ((img as Record<string, unknown>)?.url as string) || ''))
+    .filter(Boolean);
+  // The owner's explicit main-photo flag (tag 1) wins; fall back to the first
+  // gallery photo only when no photo carries the flag.
+  const mainUrl = findMainImageUrl(tags, urls) ?? urls[0] ?? '';
+  return images.map((img) => {
     const rec = (typeof img === 'string' ? null : img) as Record<string, unknown> | null;
     const url = typeof img === 'string' ? img : (rec?.url as string) || '';
-    // Authored tags win; the gallery's first photo is always Main (1) and untagged
-    // photos keep RU's Interior (3) default instead of being silently overwritten.
+    // Authored tags win; untagged photos keep RU's Interior (3) default instead of
+    // being silently overwritten.
     const authored = tags[url] || [];
-    const primary = resolvePrimaryRuTag(authored, i === 0);
+    const isMain = !!url && url === mainUrl;
+    const primary = resolvePrimaryRuTag(authored, isMain);
     return {
       url,
       type_id: primary,
       extra_type_ids: resolveSecondaryRuTags(authored, primary),
-      is_main: i === 0,
+      is_main: isMain,
       width: toDimension(rec?.width),
       height: toDimension(rec?.height),
     };
@@ -438,17 +446,20 @@ function mapImages(images: unknown[] | null, tagMap?: unknown): RuImage[] {
 
 /**
  * Re-stamp the main flag after ordering/dedup without discarding authored tags:
- * index 0 becomes Main (1); every other photo keeps its resolved tag.
+ * the photo the owner flagged Main keeps Main (1) — index 0 is used only when no
+ * photo carries the flag. Every other photo keeps its resolved tag.
  */
 function restampRuImages(images: RuImage[]): RuImage[] {
+  const flagged = images.findIndex((img) => img.is_main);
+  const mainIndex = flagged >= 0 ? flagged : 0;
   return images.map((img, index) => {
-    const authored = index === 0
+    const authored = index === mainIndex
       ? []
       : [img.type_id, ...(img.extra_type_ids || [])].filter((id) => id && id !== RU_TAG_MAIN);
-    const primary = index === 0 ? RU_TAG_MAIN : (authored[0] ?? RU_TAG_INTERIOR);
+    const primary = index === mainIndex ? RU_TAG_MAIN : (authored[0] ?? RU_TAG_INTERIOR);
     return {
       ...img,
-      is_main: index === 0,
+      is_main: index === mainIndex,
       type_id: primary,
       extra_type_ids: resolveSecondaryRuTags(authored, primary),
     };
