@@ -157,6 +157,19 @@ export const PoliciesTab: React.FC<PoliciesTabProps> = ({ propertyId, onOpenSpec
       </FormSection>
 
       <FormSection
+        title="Arrival policy"
+        description={
+          siblings.length > 0
+            ? "One arrival policy for this property — pushed to channels, guest confirmations and invoices. Apply it across the portfolio to keep a single source."
+            : "One arrival policy for this property — pushed to channels, guest confirmations and invoices."
+        }
+      >
+        <ArrivalPolicyPanel propertyId={propertyId} siblings={siblings} />
+      </FormSection>
+
+
+
+      <FormSection
         title="Policy library"
         description={
           reportRange
