@@ -32,6 +32,12 @@ import { isFieldPopulatedByPMS, getPMSDisplayName } from "@/lib/pmsFieldConfig";
 import { ChannelFieldHint } from "@/components/property/ChannelFieldHint";
 import { checkChannelName } from "@/lib/channelFieldRules";
 import { channelMandatoryClass } from "@/lib/channelMandatoryFields";
+import {
+  CHANNEL_PROPERTY_TYPES,
+  CHANGEOVER_CODES,
+  isMappedChannelPropertyType,
+  normalizeChannelPropertyType,
+} from "@/config/channelPropertyTypes";
 import { TagInput } from "@/components/TagInput";
 import { HostfullyRoomDetails } from "@/components/pms/HostfullyRoomDetails";
 import { ACCOMMODATION_LABEL_OPTIONS, ACCOMMODATION_TYPES, type AccommodationLabelKey } from "@/lib/accommodationLabels";
@@ -127,6 +133,10 @@ export function RoomManagerTab({
       bathrooms: 1,
       toilets: 1 as number | null,
       separateKitchen: false,
+      // Channel-mandatory: the type the Channel Manager maps to ObjectTypeID.
+      channelPropertyType: "",
+      // null = inherit the property master changeover rule.
+      changeover: null as number | null,
 
       maxPeople: 2,
       maxAdults: 2,
@@ -969,6 +979,70 @@ export function RoomManagerTab({
                       onChange={(e) => updateRoomTypeField(selectedRoomType, "toilets", e.target.value === "" ? null : Number(e.target.value))}
                     />
                     {Number(roomTypes.find((r) => r.id === selectedRoomType)?.toilets) < 1 && <p className="text-[10px] text-destructive">Required: at least 1 toilet. Blank and zero block channel onboarding.</p>}
+                  </div>
+                  <div className="space-y-1">
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Label className="text-xs whitespace-nowrap cursor-help underline decoration-dotted">Channel property type</Label>
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs text-xs">
+                          The type the Channel Manager publishes for this unit. Free-text PMS types are not mapped — an unmapped value publishes as an assumed Chalet.
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                    <Select
+                      value={normalizeChannelPropertyType(selectedRoom?.channelPropertyType) || undefined}
+                      onValueChange={(v) => updateRoomTypeField(selectedRoomType, "channelPropertyType", v)}
+                    >
+                      <SelectTrigger
+                        data-field="channel_property_type"
+                        className={cn("h-7 w-full text-xs", channelMandatoryClass("channel_property_type"))}
+                        data-channel-satisfied={isMappedChannelPropertyType(selectedRoom?.channelPropertyType) ? "1" : "0"}
+                      >
+                        <SelectValue placeholder="Required — select type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {CHANNEL_PROPERTY_TYPES.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value} className="text-xs">{opt.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {!isMappedChannelPropertyType(selectedRoom?.channelPropertyType) && (
+                      <p className="text-[10px] text-destructive">Required: pick a supported channel property type.</p>
+                    )}
+                  </div>
+                  <div className="space-y-1">
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Label className="text-xs whitespace-nowrap cursor-help underline decoration-dotted">Changeover (this unit)</Label>
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs text-xs">
+                          Optional override. Leave on “Use property rule” to inherit the master changeover rule authored in Policies.
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                    <Select
+                      value={
+                        selectedRoom?.changeover === null || selectedRoom?.changeover === undefined || selectedRoom?.changeover === ""
+                          ? "inherit"
+                          : String(selectedRoom?.changeover)
+                      }
+                      onValueChange={(v) =>
+                        updateRoomTypeField(selectedRoomType, "changeover", v === "inherit" ? null : Number(v))
+                      }
+                    >
+                      <SelectTrigger className="h-7 w-full text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="inherit" className="text-xs">Use property rule</SelectItem>
+                        {CHANGEOVER_CODES.map((c) => (
+                          <SelectItem key={c.value} value={String(c.value)} className="text-xs">{c.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="space-y-1">
                     <TooltipProvider>

@@ -50,6 +50,8 @@ export const CHANNEL_MANDATORY_FIELDS: ChannelMandatoryField[] = [
   { field: "bed_configuration", check: "beds_meet_max_guests", reason: "Authored beds must sleep the unit's full maximum occupancy" },
   { field: "room_images", check: "meets_minimum_images", reason: "Each listing needs at least 10 channel-ready photos" },
   { field: "room_amenities", check: "meets_minimum_amenities", reason: "Each listing needs at least 10 mapped amenities" },
+  { field: "channel_property_type", check: "object_type_authored", reason: "Channel property type — an unmapped value publishes as an assumed Chalet" },
+  { field: "changeover_rules", check: "changeover_authored", reason: "Changeover rule — without it the channel receives an assumed arrival/departure any day" },
 ];
 
 const BY_FIELD = new Map(CHANNEL_MANDATORY_FIELDS.map((f) => [f.field, f]));

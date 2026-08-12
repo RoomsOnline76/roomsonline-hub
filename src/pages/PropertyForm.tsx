@@ -45,6 +45,12 @@ import { HyperGuestSyncReflectionButton } from "@/components/property/HyperGuest
 import { HyperGuestPropertyLookup } from "@/components/property/HyperGuestPropertyLookup";
 import { GooglePlaceIdPastePopover } from "@/components/property/GooglePlaceIdPastePopover";
 import { Beds24PropertyLookup } from "@/components/property/Beds24PropertyLookup";
+import {
+  isMappedChannelPropertyType,
+  normalizeChannelPropertyType,
+  type ChangeoverDowKey,
+} from "@/config/channelPropertyTypes";
+import ChangeoverRulesCard from "@/components/property/policies/ChangeoverRulesCard";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { isRolosPms } from "@/lib/pmsUtils";
 import { useAuth } from "@/hooks/useAuth";
@@ -854,6 +860,9 @@ export default function PropertyForm({
   /** Property-level Floor / Space fallbacks for channel pushes. */
   const [propertyFloor, setPropertyFloor] = useState<number | null>(null);
   const [propertySizeSqm, setPropertySizeSqm] = useState<number | null>(null);
+  /** Channel changeover: master rule (0-3) + optional per-day overrides. */
+  const [changeoverMaster, setChangeoverMaster] = useState<number | null>(null);
+  const [changeoverRules, setChangeoverRules] = useState<Partial<Record<ChangeoverDowKey, number>>>({});
   const [cancellationPolicies, setCancellationPolicies] = useState([
     { forfeit: "10", type: "% of Total", days: "999" },
     { forfeit: "100", type: "% of Total", days: "30" },
@@ -2500,6 +2509,19 @@ export default function PropertyForm({
           );
           setSeparateKitchen(!!(data as any).separate_kitchen);
 
+          // Channel changeover rules (master + per-day overrides).
+          const changeoverRaw = amenities?.changeover;
+          setChangeoverMaster(
+            changeoverRaw === null || changeoverRaw === undefined || changeoverRaw === ""
+              ? null
+              : Number(changeoverRaw),
+          );
+          setChangeoverRules(
+            amenities?.changeover_rules && typeof amenities.changeover_rules === "object"
+              ? (amenities.changeover_rules as Partial<Record<ChangeoverDowKey, number>>)
+              : {},
+          );
+
           // Load google maps link if available
           if (amenities?.address_details?.google_maps_link) {
             setGoogleMapsLink(amenities.address_details.google_maps_link);
@@ -2620,6 +2642,14 @@ export default function PropertyForm({
                   room.toilets ?? room.number_of_toilets ?? room.toilet_count ?? null,
                 separateKitchen:
                   room.separateKitchen ?? room.separate_kitchen ?? false,
+                // Channel property type (ObjectTypeID) — authored in ROL'OS, distinct from
+                // the free-text PMS type. Legacy rows kept it in `property_type`.
+                channelPropertyType: normalizeChannelPropertyType(
+                  room.channelPropertyType ?? room.channel_property_type ?? room.property_type,
+                ),
+                // Per-unit changeover override; null means "inherit the property rule".
+                changeover:
+                  room.changeover ?? room.changeover_code ?? null,
                 mealTypes: room.mealTypes || room.meal_types || [],
                 maxPeople: room.maxPeople || room.max_guests || room.max_people || 2,
                 maxAdults: room.maxAdults || room.max_adults || room.max_guests || 2,
@@ -3344,6 +3374,15 @@ export default function PropertyForm({
           payment_methods: paymentMethods,
           property_floor: propertyFloor,
           property_size_sqm: propertySizeSqm,
+          // Master changeover rule + per-day overrides, and the per-unit map the
+          // channel push reads when a unit overrides the property rule.
+          changeover: changeoverMaster,
+          changeover_rules: changeoverRules,
+          changeover_by_unit: Object.fromEntries(
+            roomTypes
+              .filter((r: any) => r?.id && r?.changeover !== null && r?.changeover !== undefined && r?.changeover !== "")
+              .map((r: any) => [r.id, Number(r.changeover)]),
+          ),
           house_rules: {
             items_non_refundable: formData.items_non_refundable,
             smoking_allowed: formData.smoking_allowed,
@@ -3479,7 +3518,12 @@ export default function PropertyForm({
               max_stay: room.maxStay || null,
               room_size: room.roomSize || null,
               bathrooms: room.bathrooms || null,
-              property_type: room.pmsRoomType || null,
+              // The channel maps ObjectTypeID from this column, so the authored channel
+              // type wins over the free-text PMS type.
+              property_type:
+                (room.channelPropertyType && isMappedChannelPropertyType(room.channelPropertyType)
+                  ? normalizeChannelPropertyType(room.channelPropertyType)
+                  : null) || room.pmsRoomType || null,
               linked_rate_type_ids: room.linkedRateTypes || null,
               // Use existing id if it looks like a UUID, otherwise don't set
               ...(room.id && room.id.length === 36 ? { id: room.id } : {}),
@@ -7111,6 +7155,21 @@ export default function PropertyForm({
                       setIsDirty(true);
                     }}
                   />
+                  <ChangeoverRulesCard
+                    master={changeoverMaster}
+                    onMasterChange={(next) => {
+                      setChangeoverMaster(next);
+                      setIsDirty(true);
+                    }}
+                    rules={changeoverRules}
+                    onRulesChange={(next) => {
+                      setChangeoverRules(next);
+                      setIsDirty(true);
+                    }}
+                    unitOverrides={roomTypes
+                      .filter((r: any) => r?.changeover !== null && r?.changeover !== undefined && r?.changeover !== "")
+                      .map((r: any) => ({ name: r.name || "Unit", changeover: Number(r.changeover) }))}
+                  />
                   <HouseRulesCard
                     formData={formData as any}
                     setFormData={setFormData as any}
@@ -7193,6 +7252,21 @@ export default function PropertyForm({
                       setPaymentMethods(next);
                       setIsDirty(true);
                     }}
+                  />
+                  <ChangeoverRulesCard
+                    master={changeoverMaster}
+                    onMasterChange={(next) => {
+                      setChangeoverMaster(next);
+                      setIsDirty(true);
+                    }}
+                    rules={changeoverRules}
+                    onRulesChange={(next) => {
+                      setChangeoverRules(next);
+                      setIsDirty(true);
+                    }}
+                    unitOverrides={roomTypes
+                      .filter((r: any) => r?.changeover !== null && r?.changeover !== undefined && r?.changeover !== "")
+                      .map((r: any) => ({ name: r.name || "Unit", changeover: Number(r.changeover) }))}
                   />
                   <HouseRulesCard
                     formData={formData as any}

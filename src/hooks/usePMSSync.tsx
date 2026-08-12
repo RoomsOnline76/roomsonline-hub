@@ -810,10 +810,11 @@ export function usePMSSync({
             const amenitiesRoomTypes = refreshedRooms.map(hr => {
               const prev = findExisting(hr.id, hr.name) ?? {};
               return {
-              toilets: (prev as { toilets?: unknown }).toilets ?? null,
-              floor: (prev as { floor?: unknown }).floor ?? null,
-              separateKitchen: (prev as { separateKitchen?: unknown }).separateKitchen ?? false,
-              mealTypes: (prev as { mealTypes?: unknown }).mealTypes ?? [],
+              toilets: (prev.toilets as number | null) ?? null,
+              floor: (prev.floor as number | null) ?? null,
+              separateKitchen: (prev.separateKitchen as boolean | undefined) ?? false,
+              mealTypes: (prev.mealTypes as string[] | undefined) ?? [],
+              changeover: (prev.changeover as number | null) ?? null,
               id: hr.id,
               pmsRoomId: hr.hostfully_room_id,
               pmsRoomType: hr.property_type || hr.name,
