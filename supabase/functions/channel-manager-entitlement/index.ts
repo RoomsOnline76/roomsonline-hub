@@ -14,7 +14,17 @@ const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 const NOTIFY_RECIPIENTS = ["dev@roomsonline.co.za", "carike@roomsonline.co.za"];
 
 interface Body {
-  scope: "property" | "portfolio" | "unit" | "purge_duplicates";
+  scope:
+    | "property"
+    | "portfolio"
+    | "unit"
+    | "purge_duplicates"
+    /** Read-only: pull every listing the channel account holds and classify it. */
+    | "reconcile"
+    /** Archive one listing id upstream (orphans that no local record points at). */
+    | "purge_listing"
+    /** Clear a local listing id the channel account no longer returns. */
+    | "clear_local_listing";
   entity_id: string;
   enabled?: boolean;
   /** Free-text audit note captured in the confirmation dialog. */
@@ -25,7 +35,12 @@ interface Body {
   notify?: boolean;
   /** purge_duplicates: limit the purge to a single deactivated unit record. */
   unit_id?: string;
+  /** purge_listing: RU OwnerID that owns the listing. */
+  owner_id?: string | null;
+  /** clear_local_listing: "property" | "unit" record kind holding the stale id. */
+  record_kind?: "property" | "unit";
 }
+
 
 function bad(message: string, status = 400) {
   return new Response(JSON.stringify({ error: message }), {
