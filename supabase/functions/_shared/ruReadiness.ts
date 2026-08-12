@@ -229,9 +229,9 @@ export function evaluateUnitChecks(
     v.beds_cover_half !== false,
     `Beds sleep ${sleeps} of ${v.max_guests ?? 0} max guests — the Channel Manager requires ${Math.round(RU_BED_COVERAGE * 100)}%`,
     "Rooms → Unit → Bed configuration");
-  add("beds_meet_max_guests", "Rooms & beds", "Sleeping places cover 100% of max guests",
+  add("beds_meet_max_guests", "Rooms & beds", "Sleeping places equal max guests",
     v.beds_meet_max_guests !== false,
-    `Beds sleep ${sleeps} people but the unit takes ${v.max_guests ?? 0} guests — authored bed capacity must cover maximum occupancy`,
+    `Beds sleep ${sleeps} people but the unit takes ${v.max_guests ?? 0} guests — certification requires these values to match`,
     "Rooms → Unit → Bed configuration");
   // Certification composition strictness.
   add("has_bedroom", "Rooms & beds", "At least 1 bedroom in the composition", v.has_bedroom !== false,

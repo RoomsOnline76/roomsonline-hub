@@ -91,7 +91,8 @@ function resolveCheckTarget(checkKey: string): BlockerTarget | null {
 function resolveFailureTarget(failure: DistributionFailure, checkKey: string): BlockerTarget {
   const req = resolveMcqRequirement(`${failure.label} ${failure.detail ?? ""}`);
   if (failure.unit) {
-    return { section: "rooms", unit: failure.unit };
+    const mapped = resolveCheckTarget(checkKey);
+    return { section: "rooms", unit: failure.unit, fieldKey: mapped?.fieldKey };
   }
   if (req) return { section: req.section, fieldKey: req.focusKey };
   return resolveCheckTarget(checkKey) ?? { section: "general" };
@@ -202,6 +203,7 @@ export function RolosOnboardingWizard({ propertyId, className }: Props) {
         // Unit-scoped blockers land on the exact room/unit card.
         if (unit) {
           focusUnitCard(unit);
+          if (focus) window.setTimeout(() => focusRequirementField(focus), 350);
           return;
         }
         if (focus) {

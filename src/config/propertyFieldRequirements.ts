@@ -398,7 +398,7 @@ export const PROPERTY_FIELD_REQUIREMENTS: FieldRequirement[] = [
     hint: "Authored sleeping places must cover every guest in the unit's maximum occupancy.",
     isSatisfied: (s) => roomRows(s).length > 0 && roomRows(s).every((room) => {
       const maximum = Number(room.maxPeople ?? room.max_guests ?? 0);
-      return maximum >= 1 && bedCapacity(room.bedConfiguration ?? room.bed_configuration) >= maximum;
+      return maximum >= 1 && bedCapacity(room.bedConfiguration ?? room.bed_configuration) === maximum;
     }),
   },
 

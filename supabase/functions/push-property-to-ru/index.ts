@@ -630,7 +630,7 @@ function buildValidation(payload: Record<string, any>): Record<string, unknown> 
     // RU White-Label minimum: sleeping places must cover >= 50% of CanSleepMax.
     beds_cover_half: totalBedCapacity >= Math.ceil(Math.max(1, maxGuests) * RU_BED_COVERAGE),
     // Advisory only: sleeping places cover every guest.
-    beds_meet_max_guests: totalBedCapacity >= Math.max(1, maxGuests),
+    beds_meet_max_guests: totalBedCapacity === Math.max(1, maxGuests),
     max_guests: maxGuests,
     // Composition: RU treats bathrooms and toilets as mandatory counts (blank/zero rejected).
     has_bathrooms: (amenities || []).some((a: any) => a?.id === 81 && (a.count || 0) > 0),
@@ -1141,15 +1141,6 @@ function buildUnitPayload(
         amenities: [{ id: ruBedId, count: bedEntry.count || 1 }],
       });
     });
-  } else {
-    // Fallback: emit `bedrooms` count of generic 257 blocks (default double bed)
-    const bedroomCount = Math.max(1, Number(unit.bedrooms) || 1);
-    for (let i = 0; i < bedroomCount; i++) {
-      rooms.push({
-        room_id: RU_BEDROOM_ID,
-        amenities: [{ id: RU_DEFAULT_BED_ID, count: Math.max(1, Math.ceil(maxGuests / bedroomCount / 2)) }],
-      });
-    }
   }
 
   // NOTE: Bathroom (81) and Kitchen (101) blocks are intentionally OMITTED.
@@ -1259,7 +1250,7 @@ function buildSinglePropertyPayload(property: PropertyRow, roomTypes: RoomTypeRo
   allImages = allImages.filter(img => { if (seenUrls.has(img.url)) return false; seenUrls.add(img.url); return true; });
   allImages = restampRuImages(allImages);
   const totalBeds = rooms.reduce((sum, r) => sum + r.amenities.reduce((sm, a) => sm + (a.count || 1), 0), 0);
-  const numberOfBeds = totalBeds > 0 ? totalBeds : (property.bedrooms || Math.max(1, maxGuests));
+  const numberOfBeds = totalBeds;
   return {
     name: property.name,
     property_type_id: objectTypeId,
