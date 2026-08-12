@@ -794,8 +794,102 @@ async function settleSubscriptionInvoice(
   return true;
 }
 
+// ── Recurring mandates (automatic monthly renewal) ────────────────────────────
+// The first subscription payment is taken as a tokenised transaction
+// (subscription_type=2). PayFast returns a token on the ITN, which we store as
+// the property's / portfolio's mandate. Every renewal after that is charged
+// automatically against that token — the owner is never asked to pay again
+// unless the mandate is gone or the amount changed (PayFast cannot reprice a
+// live mandate, so a new amount always means cancel + re-authorise).
 
+function cfgTargetForInvoice(inv: any): { table: string; keyCol: string; keyVal: string } {
+  return {
+    table: inv.property_id ? "property_billing_configs" : "portfolio_billing_configs",
+    keyCol: inv.property_id ? "property_id" : "portfolio_id",
+    keyVal: inv.property_id || inv.portfolio_id,
+  };
+}
 
+/** Persist the mandate token PayFast hands back on the first tokenised payment. */
+async function storeMandateFromItn(supabase: any, invoiceId: string, token: string) {
+  const { data: inv } = await supabase
+    .from("subscription_invoices")
+    .select("id, property_id, portfolio_id, amount, invoice_kind")
+    .eq("id", invoiceId)
+    .maybeSingle();
+  if (!inv || String(inv.invoice_kind || "") === "once_off") return;
+  const { table, keyCol, keyVal } = cfgTargetForInvoice(inv);
+  if (!keyVal) return;
+  await supabase
+    .from(table)
+    .update({
+      mandate_token: token,
+      mandate_status: "active",
+      mandate_amount: Number(inv.amount) || null,
+      mandate_created_at: new Date().toISOString(),
+      mandate_cancelled_at: null,
+      mandate_requires_reauth: false,
+      auto_charge_failures: 0,
+      last_auto_charge_status: "authorised",
+      last_auto_charge_error: null,
+    })
+    .eq(keyCol, keyVal);
+  await supabase
+    .from("subscription_invoices")
+    .update({ mandate_token: token })
+    .eq("id", invoiceId);
+  console.log("[PayFast] Mandate stored for", keyCol, keyVal);
+}
+
+/** Charge an existing mandate (PayFast ad-hoc token payment). */
+async function chargeMandate(
+  token: string,
+  amountCents: number,
+  itemName: string,
+  itemDescription: string,
+  creds: PayfastApiCreds,
+): Promise<{ ok: boolean; pfPaymentId: string | null; error?: string; status: number }> {
+  const { status, body } = await payfastApiRequest(
+    "POST",
+    `/subscriptions/${encodeURIComponent(token)}/adhoc`,
+    {
+      amount: String(Math.round(amountCents)),
+      item_name: itemName.slice(0, 100),
+      item_description: itemDescription.slice(0, 255),
+    },
+    creds,
+  );
+  if (status < 200 || status >= 300) {
+    return { ok: false, pfPaymentId: null, status, error: `PayFast ${status}: ${body.slice(0, 300)}` };
+  }
+  let pfPaymentId: string | null = null;
+  try {
+    const json = JSON.parse(body);
+    const resp = json?.data?.response ?? json?.data ?? json?.response;
+    if (resp && typeof resp === "object") {
+      const key = Object.keys(resp).find((k) => /pf.*payment.*id/i.test(k));
+      if (key) pfPaymentId = String((resp as any)[key]);
+    }
+  } catch { /* non-JSON body */ }
+  return { ok: true, pfPaymentId, status };
+}
+
+/** Cancel a mandate at PayFast (used when the monthly amount changes). */
+async function cancelMandate(
+  token: string,
+  creds: PayfastApiCreds,
+): Promise<{ ok: boolean; error?: string }> {
+  const { status, body } = await payfastApiRequest(
+    "PUT",
+    `/subscriptions/${encodeURIComponent(token)}/cancel`,
+    {},
+    creds,
+  );
+  if (status < 200 || status >= 300) {
+    return { ok: false, error: `PayFast ${status}: ${body.slice(0, 300)}` };
+  }
+  return { ok: true };
+}
 
 
 // Server-side validation with PayFast
