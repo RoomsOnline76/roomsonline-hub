@@ -242,6 +242,8 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
         toast.error(error.message);
         return;
       }
+      // Activating or retiring a plan changes the sellable price at the channel.
+      void queueChannelRatesSync(plan.property_id, "rate_plan_toggle");
       fetchData();
     };
 
@@ -259,6 +261,7 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
         return;
       }
       toast.success(`Rate plan "${plan.name}" deleted`);
+      void queueChannelRatesSync(plan.property_id, "rate_plan_delete");
       fetchData();
     };
 
