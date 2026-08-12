@@ -144,6 +144,20 @@ export function useRuApiLog(filters: RuApiLogFilters) {
           const merged = new Set([...prev, ...list.map((r) => r.action).filter(Boolean)]);
           return Array.from(merged).sort();
         });
+        // Operations are grouped by their prefix (channel-cleanup, channel-reconcile…)
+        // so the picker stays short as new sub-steps are added.
+        setOperations((prev) => {
+          const merged = new Set([
+            ...prev,
+            ...list.map((r) => (r.parent_action || "").split(":")[0]).filter(Boolean),
+          ]);
+          return Array.from(merged).sort();
+        });
+        setOwners((prev) => {
+          const merged = new Set([...prev, ...list.map((r) => r.ru_owner_id || "").filter(Boolean)]);
+          return Array.from(merged).sort();
+        });
+
       } catch (err) {
         if (seq !== requestSeq.current) return;
         setError(err instanceof Error ? err.message : "Could not load the exchange log");
