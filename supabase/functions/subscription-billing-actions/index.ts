@@ -927,6 +927,53 @@ Deno.serve(async (req) => {
 
 
     if (action === "send_due_reminder") {
+      // A reminder is only ever sent for money that is genuinely still open.
+      // Anything already settled must never reappear as "due".
+      const testRecipient = isStaff ? String(body.test_recipient || "").trim() : "";
+      const paidThrough = cfg.current_period_end ? String(cfg.current_period_end).slice(0, 10) : null;
+      const subscriptionCovered = !!paidThrough && paidThrough >= today();
+      const setupDue = openSetup ? Number(openSetup.amount) || 0 : setupBalance;
+      let monthlyDue = openSubscription
+        ? Number(openSubscription.amount) || 0
+        : subscriptionCovered
+        ? 0
+        : fee;
+      if (monthlyDue > 0 && !openSubscription && !canStart && !testRecipient) monthlyDue = 0;
+
+      if (setupDue <= 0 && monthlyDue <= 0)
+        return json({ success: true, skipped: "nothing_outstanding" });
+
+      // Make sure the owner always has a working payment link: raise the
+      // outstanding invoice when it has not been raised yet.
+      let payInvoice: any = openSetup ?? null;
+      if (setupDue > 0 && !payInvoice) payInvoice = await ensureSetupInvoice();
+      if (!payInvoice && openSubscription) payInvoice = openSubscription;
+      if (!payInvoice && monthlyDue > 0 && paidStart && fee > 0) {
+        const periodStart = today() > paidStart ? today() : paidStart;
+        const periodEnd = addMonth(periodStart);
+        const insert: any = {
+          amount: fee,
+          currency,
+          subscription_amount: fee,
+          once_off_amount: 0,
+          line_items: [
+            { kind: "monthly_subscription", description: `Monthly subscription (${periodStart} - ${periodEnd})`, amount: fee },
+          ],
+          period_start: periodStart,
+          period_end: periodEnd,
+          status: "pending",
+          invoice_kind: "activation",
+          owner_id: ownerId,
+        };
+        insert[entityCol] = entityId;
+        const { data: created } = await supabase
+          .from("subscription_invoices")
+          .insert(insert)
+          .select("id, invoice_number, amount, payfast_token")
+          .maybeSingle();
+        payInvoice = created ?? null;
+      }
+
       const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
       // Staff copies: admin / fearless leader / dev
       const { data: staffRoles } = await supabase
@@ -941,15 +988,17 @@ Deno.serve(async (req) => {
 
       const html = reminderHtml({
         entityName,
-        setupAmount: openSetup ? Number(openSetup.amount) : setupTotal,
-        setupUrl: payUrl(openSetup?.payfast_token),
-        monthlyAmount: openSubscription ? Number(openSubscription.amount) : fee,
-        dueBy: paidStart,
-        subscriptionUrl: payUrl(openSubscription?.payfast_token),
+        setupAmount: setupDue,
+        monthlyAmount: monthlyDue,
+        dueBy: monthlyDue > 0 ? nextDue : null,
+        payUrl: payUrl(payInvoice?.payfast_token),
+        accountUrl: `${SITE_URL}/admin/account`,
         currency,
       });
-      const subject = `Setup & subscription payment due${paidStart ? ` by ${paidStart}` : ""} - ${entityName}`;
-      const recipients = [...new Set([ownerEmail, ...staffEmails].filter(Boolean))] as string[];
+      const subject = `A gentle reminder about your ROL'OS payment - ${entityName}`;
+      const recipients = testRecipient
+        ? [testRecipient]
+        : ([...new Set([ownerEmail, ...staffEmails].filter(Boolean))] as string[]);
       if (!recipients.length) return json({ error: "no_recipients" }, 400);
       const res = await resend.emails.send({ from: FROM_EMAIL, to: recipients, subject, html });
       if (res.error) {
@@ -957,14 +1006,15 @@ Deno.serve(async (req) => {
         console.error("[subscription-billing-actions] reminder send failed", msg);
         return json({ error: `email_send_failed: ${msg}` }, 400);
       }
-      if (openSubscription || openSetup) {
+      if (!testRecipient && (openSubscription || openSetup)) {
         await supabase
           .from("subscription_invoices")
           .update({ email_sent_at: new Date().toISOString() })
           .in("id", [openSetup?.id, openSubscription?.id].filter(Boolean) as string[]);
       }
-      return json({ success: true, sent_to: recipients });
+      return json({ success: true, sent_to: recipients, setup_due: setupDue, monthly_due: monthlyDue });
     }
+
 
     if (action === "deliver_invoice") {
       const invoiceId = String(body.invoice_id || "");
