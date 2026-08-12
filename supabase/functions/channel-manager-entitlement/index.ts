@@ -841,6 +841,8 @@ Deno.serve(async (req) => {
               detail: unitDetail,
               ari_push_error: unitAri,
               ari_push_retryable: unitAriRetryable,
+              kept_active: keptActive,
+
 
             },
           ],
