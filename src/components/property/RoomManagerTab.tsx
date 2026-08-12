@@ -21,6 +21,15 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { validateImageDimensions, getValidationErrorMessage, MIN_IMAGE_WIDTH, MIN_IMAGE_HEIGHT } from "@/lib/imageValidation";
 import { useImageDimensionAudit } from "@/hooks/useImageDimensionAudit";
+import {
+  BedCapacityHint,
+  CharacterCounterHint,
+  DescriptionShortfallHint,
+  ImageAuditSummary,
+  KitchenHint,
+  RECOMMENDED_DESCRIPTION_CHARS,
+} from "@/components/property/ContentRuleHint";
+import { listDeclaresKitchen } from "@/config/propertyFieldRequirements";
 import { ImageQualityMarker } from "@/components/property/ImageQualityMarker";
 import RuImageTagPicker from "@/components/property/RuImageTagPicker";
 import { normalizeRuImageTagMap } from "@/lib/ruImageTags";
@@ -673,9 +682,11 @@ export function RoomManagerTab({
                   <div className="flex items-center justify-between gap-2">
                     <Label className="text-xs">Description</Label>
                     <div className="flex items-center gap-2">
-                      <span className={cn("text-[10px] tabular-nums", roomDescriptionTooShort ? "text-destructive" : "text-muted-foreground")}>
-                        {roomDescriptionLength} / {MIN_ROOM_DESCRIPTION_CHARS} characters
-                      </span>
+                      <CharacterCounterHint
+                        value={selectedRoom?.description || ""}
+                        required={MIN_ROOM_DESCRIPTION_CHARS}
+                        recommended={RECOMMENDED_DESCRIPTION_CHARS}
+                      />
                       <Button
                         type="button"
                         size="sm"
@@ -698,17 +709,12 @@ export function RoomManagerTab({
                     value={selectedRoom?.description || ""}
                     onChange={(e) => updateRoomTypeField(selectedRoomType, "description", e.target.value)}
                   />
-                  {roomDescriptionTooShort ? (
-                    <p className="flex items-center gap-1 text-[10px] text-destructive">
-                      <AlertTriangle className="h-3 w-3" />
-                      {MIN_ROOM_DESCRIPTION_CHARS - roomDescriptionLength} more characters needed — distribution channels require at least {MIN_ROOM_DESCRIPTION_CHARS} characters.
-                    </p>
-                  ) : (
-                    <p className="flex items-center gap-1 text-[10px] text-emerald-600">
-                      <CheckCircle2 className="h-3 w-3" />
-                      Description meets the {MIN_ROOM_DESCRIPTION_CHARS}-character minimum for channel distribution.
-                    </p>
-                  )}
+                  <DescriptionShortfallHint
+                    value={selectedRoom?.description || ""}
+                    required={MIN_ROOM_DESCRIPTION_CHARS}
+                    recommended={RECOMMENDED_DESCRIPTION_CHARS}
+                    subject="unit"
+                  />
                 </div>
               </div>
             )}
@@ -759,9 +765,11 @@ export function RoomManagerTab({
                       )}
                     </Label>
                     <div className="flex items-center gap-2">
-                      <span className={cn("text-[10px] tabular-nums", roomDescriptionTooShort ? "text-destructive" : "text-muted-foreground")}>
-                        {roomDescriptionLength} / {MIN_ROOM_DESCRIPTION_CHARS} characters
-                      </span>
+                      <CharacterCounterHint
+                        value={selectedRoom?.description || ""}
+                        required={MIN_ROOM_DESCRIPTION_CHARS}
+                        recommended={RECOMMENDED_DESCRIPTION_CHARS}
+                      />
                       <Button
                         type="button"
                         size="sm"
@@ -857,20 +865,23 @@ export function RoomManagerTab({
                               updateRoomTypeField(selectedRoomType, "bedrooms", bedrooms)
                             }
                           />
-                          {!maxSynced && capacity > 0 && (currentRoom?.maxPeople || 0) !== capacity && (
-                            <p className="text-[10px] text-muted-foreground">
-                              Max guests is {currentRoom?.maxPeople || 0}.
-                              <Button
-                                type="button"
-                                variant="link"
-                                size="sm"
-                                className="h-4 px-1 text-[10px]"
-                                onClick={() => updateRoomTypeField(selectedRoomType, "maxPeople", capacity)}
-                              >
-                                Apply beds capacity ({capacity})
-                              </Button>
-                            </p>
-                          )}
+                          <BedCapacityHint
+                            capacity={capacity}
+                            maxGuests={Number(currentRoom?.maxPeople) || 0}
+                            action={
+                              !maxSynced && capacity > 0 ? (
+                                <Button
+                                  type="button"
+                                  variant="link"
+                                  size="sm"
+                                  className="h-4 px-1 text-[10px]"
+                                  onClick={() => updateRoomTypeField(selectedRoomType, "maxPeople", capacity)}
+                                >
+                                  Set max guests to {capacity}
+                                </Button>
+                              ) : undefined
+                            }
+                          />
                         </>
                       );
                     })()}
