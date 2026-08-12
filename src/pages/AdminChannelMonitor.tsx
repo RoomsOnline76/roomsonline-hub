@@ -26,6 +26,8 @@ import { ChannelPropertyTable } from "@/components/admin/channel-monitor/Channel
 import { ChannelArchiveLog } from "@/components/admin/channel-monitor/ChannelArchiveLog";
 import { ArchivePropertyDialog } from "@/components/admin/channel-monitor/ArchivePropertyDialog";
 import { ChannelRuStatusStrip } from "@/components/admin/channel-monitor/ChannelRuStatusStrip";
+import { ChannelReconciliationPanel } from "@/components/admin/channel-monitor/ChannelReconciliationPanel";
+
 
 // Heavy panels only load when their tab is opened, keeping the default cost view fast.
 const PortfolioRuAccountsTab = lazy(() =>
