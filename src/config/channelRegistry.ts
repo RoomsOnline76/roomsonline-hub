@@ -217,9 +217,9 @@ export const RU_CHECK_DEEPLINK: Record<string, { focus: string; tab: string }> =
   // Checks that block a push because a value would otherwise be assumed for the channel.
   payment_methods_authored: { focus: "master_policy", tab: "policies" },
   cancellation_policies_authored: { focus: "master_policy", tab: "policies" },
-  changeover_authored: { focus: "master_policy", tab: "policies" },
+  changeover_authored: { focus: "changeover_rules", tab: "policies" },
   currency_authored: { focus: "banking", tab: "billing" },
-  object_type_authored: { focus: "property_type", tab: "general" },
+  object_type_authored: { focus: "channel_property_type", tab: "rooms" },
   beds_authored: { focus: "rooms", tab: "rooms" },
   ru_location_authored: { focus: "address", tab: "general" },
   ru_location_selected: { focus: "address", tab: "general" },

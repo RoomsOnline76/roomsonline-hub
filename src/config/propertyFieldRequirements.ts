@@ -1,4 +1,8 @@
 import type { PropertySectionKey } from "@/config/propertySectionOrder";
+import {
+  isChangeoverAuthored,
+  isMappedChannelPropertyType,
+} from "@/config/channelPropertyTypes";
 import { calculateBedCapacity, type BedEntry } from "@/lib/bedConfig";
 import { checkChannelName } from "@/lib/channelFieldRules";
 import { MIN_IMAGE_HEIGHT, MIN_IMAGE_WIDTH } from "@/lib/imageValidation";
@@ -133,6 +137,11 @@ type RoomRequirementRow = {
   bed_configuration?: unknown;
   images?: unknown;
   amenities?: unknown;
+  /** Channel Manager property type (ObjectTypeID source). */
+  channelPropertyType?: string | null;
+  property_type?: string | null;
+  /** Per-unit changeover override; falls back to the property master rule. */
+  changeover?: number | string | null;
 };
 
 const roomRows = (subject: RequirementSubject): RoomRequirementRow[] => {
@@ -501,6 +510,19 @@ export const PROPERTY_FIELD_REQUIREMENTS: FieldRequirement[] = [
     isSatisfied: (s) => roomRows(s).length > 0 && roomRows(s).every((room) => numericAtLeast(room.toilets, 1)),
   },
   {
+    key: "room_channel_type",
+    label: "Channel property type per unit",
+    tier: "mandatory",
+    section: "rooms",
+    target: ['[data-field="channel_property_type"]'],
+    hint: "An unmapped type would publish as an assumed Chalet — pick a supported channel type.",
+    isSatisfied: (s) =>
+      roomRows(s).length > 0 &&
+      roomRows(s).every((room) =>
+        isMappedChannelPropertyType(room.channelPropertyType ?? room.property_type),
+      ),
+  },
+  {
     key: "room_beds",
     label: "Beds cover maximum occupancy",
     tier: "mandatory",
@@ -560,6 +582,19 @@ export const PROPERTY_FIELD_REQUIREMENTS: FieldRequirement[] = [
       s.cancellation_master_mode === "none" ||
       filled(amenity(s, "master_cancellation_policy_id")) ||
       filled(amenity(s, "cancellation_policy")),
+  },
+  {
+    key: "changeover_rules",
+    label: "Changeover (arrival / departure) rule",
+    tier: "mandatory",
+    section: "policies",
+    target: ['[data-field="changeover_rules"]', "#changeover_rules"],
+    hint: "Without a rule the channel receives an assumed 'arrival and departure any day'.",
+    isSatisfied: (s) =>
+      isChangeoverAuthored(amenity(s, "changeover"), amenity(s, "changeover_rules")) ||
+      // A per-unit override on every unit is equally authored.
+      (roomRows(s).length > 0 &&
+        roomRows(s).every((room) => isChangeoverAuthored(room.changeover, null))),
   },
   {
     key: "check_times",
@@ -706,7 +741,7 @@ export const CHECK_TO_FIELD_KEYS: Record<string, string[]> = {
   location: ["address", "city", "country", "geo", "postal_code"],
   contact: ["contact_email", "contact_phone", "emergency_contact"],
   rooms: ["rooms", "room_descriptions", "room_floors", "room_size", "room_bathrooms", "room_toilets", "room_beds"],
-  policies: ["master_policy", "payment_methods"],
+  policies: ["master_policy", "payment_methods", "changeover_rules"],
   rentalsunited_geo: ["geo"],
   rentalsunited_location_currency: ["ru_currency"],
   // Channel gate check ids (see supabase/functions/_shared/ruReadiness.ts)
@@ -738,5 +773,7 @@ export const CHECK_TO_FIELD_KEYS: Record<string, string[]> = {
   has_kitchen: ["room_kitchen"],
   bookable_window: ["bookable_window"],
   min_stay_set: ["min_stay_set"],
+  object_type_authored: ["room_channel_type"],
+  changeover_authored: ["changeover_rules"],
 };
 
