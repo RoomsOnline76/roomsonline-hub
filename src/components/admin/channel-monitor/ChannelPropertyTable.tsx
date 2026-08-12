@@ -246,11 +246,13 @@ export function ChannelPropertyTable({
                                     variant="ghost"
                                     className="h-6 px-1.5 text-[10px]"
                                     disabled={busyUnitId === u.id}
+                                    title="Removes the channel listing and stops it billing. A unit still listed on the property's Rooms tab stays active and sellable in ROL'OS."
                                     onClick={() => onToggleUnit(row, u, false)}
                                   >
                                     <Archive className="mr-1 h-3 w-3" />
-                                    Deactivate
+                                    Delist from channel
                                   </Button>
+
                                 </span>
                               </div>
                             ))}
