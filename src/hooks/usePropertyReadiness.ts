@@ -76,6 +76,12 @@ export interface ReadinessItem {
 export interface SectionReadinessCounts {
   mandatory: number;
   recommended: number;
+  /**
+   * Labels of the outstanding items, so a count badge can NAME what is missing
+   * instead of only showing a number the owner cannot act on.
+   */
+  mandatoryLabels: string[];
+  recommendedLabels: string[];
 }
 
 export function usePropertyReadiness(propertyId?: string | null) {
