@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,6 +25,8 @@ import { ACCOMMODATION_LABEL_OPTIONS } from "@/lib/accommodationLabels";
 import { getPMSFieldClass, getPMSDisplayName, isFieldPopulatedByPMS } from "@/lib/pmsFieldConfig";
 import { isPMSFullyIntegrated, getPMSIntegrationLevel, getPMSIcon } from "@/hooks/usePMSSync";
 import { channelMandatoryClass, CHANNEL_MANDATORY_LEGEND } from "@/lib/channelMandatoryFields";
+import { ChannelFieldHint } from "@/components/property/ChannelFieldHint";
+import { checkChannelCoordinates, checkChannelName, checkChannelPlace, checkChannelPostalCode, checkChannelStreet } from "@/lib/channelFieldRules";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -201,6 +203,13 @@ export function GeneralTab(props: GeneralTabProps) {
 
   const [linkedOwnerSearch, setLinkedOwnerSearch] = useState("");
   const [placeSearchOpen, setPlaceSearchOpen] = useState(false);
+
+  // Live channel-constraint feedback for the channel-mandatory inputs on this tab.
+  const nameFeedback = useMemo(() => checkChannelName(formData.name), [formData.name]);
+  const streetFeedback = useMemo(() => checkChannelStreet(formData.address), [formData.address]);
+  const cityFeedback = useMemo(() => checkChannelPlace(formData.city, "City"), [formData.city]);
+  const postalFeedback = useMemo(() => checkChannelPostalCode(formData.postal_code), [formData.postal_code]);
+  const coordsFeedback = useMemo(() => checkChannelCoordinates(latitude, longitude), [latitude, longitude]);
 
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
