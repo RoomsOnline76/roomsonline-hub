@@ -261,10 +261,28 @@ export function NightsBridgeBookingImport({ propertyId, propertyName }: Props) {
             <AlertTriangle className="h-4 w-4" />
             <AlertTitle>Unmatched room names</AlertTitle>
             <AlertDescription className="space-y-2">
-              <p className="text-xs">
-                These NightsBridge room names don't match a ROL'OS room. Map them below, then validate again — or
-                import as-is and the bookings will be created without a room assignment.
-              </p>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs">
+                  Mapping is optional. These NightsBridge room names don't match a ROL'OS room — map the ones you
+                  care about, or skip them and the bookings import without a room assignment.
+                </p>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 shrink-0 text-xs"
+                  onClick={() =>
+                    setOverrides((prev) => {
+                      const next = { ...prev };
+                      unmapped.forEach((name) => {
+                        if (!next[name]) next[name] = SKIP;
+                      });
+                      return next;
+                    })
+                  }
+                >
+                  Skip all
+                </Button>
+              </div>
               <div className="space-y-2">
                 {unmapped.map((name) => (
                   <div key={name} className="flex items-center gap-2">
@@ -274,9 +292,12 @@ export function NightsBridgeBookingImport({ propertyId, propertyName }: Props) {
                       onValueChange={(v) => setOverrides((prev) => ({ ...prev, [name]: v }))}
                     >
                       <SelectTrigger className="h-8 w-64 text-xs">
-                        <SelectValue placeholder="Choose a ROL'OS room" />
+                        <SelectValue placeholder="Choose a ROL'OS room, or skip" />
                       </SelectTrigger>
                       <SelectContent>
+                        <SelectItem value={SKIP} className="text-xs">
+                          Skip — import without a room
+                        </SelectItem>
                         {rooms.map((r) => (
                           <SelectItem key={r.id} value={r.id} className="text-xs">
                             {r.label}
@@ -284,6 +305,25 @@ export function NightsBridgeBookingImport({ propertyId, propertyName }: Props) {
                         ))}
                       </SelectContent>
                     </Select>
+                    {overrides[name] === SKIP && (
+                      <span className="text-[10px] text-muted-foreground">will import unassigned</span>
+                    )}
+                    {overrides[name] && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 text-xs text-muted-foreground"
+                        onClick={() =>
+                          setOverrides((prev) => {
+                            const next = { ...prev };
+                            delete next[name];
+                            return next;
+                          })
+                        }
+                      >
+                        Clear
+                      </Button>
+                    )}
                   </div>
                 ))}
               </div>
