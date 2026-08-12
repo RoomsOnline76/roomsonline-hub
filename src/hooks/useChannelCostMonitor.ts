@@ -437,7 +437,7 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
       activeProperties: properties.filter((r) => r.state === "live" && r.isTrading).length,
       pausedProperties: properties.filter((r) => r.state === "paused").length,
       archivedProperties: properties.filter((r) => r.state === "archived").length,
-      archivedUnits: properties.reduce((sum, r) => sum + r.archivedUnits, 0),
+      duplicateListings: properties.reduce((sum, r) => sum + r.duplicateListings, 0),
       unitsArchivedThisMonth,
       forecast,
       schedule,
