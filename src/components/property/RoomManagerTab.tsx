@@ -19,7 +19,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { validateImageDimensions, getValidationErrorMessage } from "@/lib/imageValidation";
+import { validateImageDimensions, getValidationErrorMessage, MIN_IMAGE_WIDTH, MIN_IMAGE_HEIGHT } from "@/lib/imageValidation";
 import { useImageDimensionAudit } from "@/hooks/useImageDimensionAudit";
 import { ImageQualityMarker } from "@/components/property/ImageQualityMarker";
 import RuImageTagPicker from "@/components/property/RuImageTagPicker";
