@@ -658,6 +658,15 @@ function buildValidation(payload: Record<string, any>): Record<string, unknown> 
     name_issues: nameCheck.reasons,
     name_issue_detail: nameCheck.detail,
     has_object_type_id: ((payload.object_type_id ?? payload.property_type_id) || 0) > 0,
+    // Guessed values that used to publish silently. Each is now a blocker in the scorer.
+    object_type_is_default: payload.object_type_is_default === true,
+    object_type_source: payload.object_type_source ?? null,
+    currency_is_default: payload.currency_is_default === true,
+    currency_iso: payload.currency_iso ?? null,
+    beds_unmapped: payload.unmapped_bed_labels ?? [],
+    beds_are_default: payload.beds_are_default === true,
+    changeover_is_default: payload.changeover_is_default === true,
+
     can_sleep_max_ok: maxGuests >= 1,
     // Presence is mandatory, 100+ chars advisory, 700+ chars required for certification.
     description_length: descriptionText.length,
