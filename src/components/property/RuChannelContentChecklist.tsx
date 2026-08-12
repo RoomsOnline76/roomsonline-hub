@@ -1,14 +1,23 @@
-import React from "react";
+import React, { useCallback, useMemo } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle, AlertTriangle, XCircle } from "lucide-react";
+import { CheckCircle, AlertTriangle, XCircle, Clock, Loader2 } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { getSectionLabel } from "@/config/propertySectionOrder";
+import { focusRequirementField } from "@/lib/requirementFocus";
+import { usePropertyReadiness, type ReadinessItem } from "@/hooks/usePropertyReadiness";
 
 /**
- * The 15 minimum content requirements Rentals United enforces before a property
- * can be connected to sales channels. Each row resolves to one of three states:
+ * Channel content checklist.
  *
- *  - ok        the value is authored and pushed
- *  - default   a value is pushed, but it is a system fallback — confirm it
- *  - missing   nothing is pushed; channels can reject or hide the listing
+ * Rows are NOT authored here — they are rendered from the unified readiness model
+ * (`evaluateRequirements`), the same truth that drives the score badge, the pink
+ * field borders and the server-side push gate. That means this card can never
+ * report "All confirmed" while a real blocker is outstanding.
+ *
+ * The push dry-run flags below are an OVERLAY only: they can turn a satisfied row
+ * amber ("a fallback value is being pushed — confirm it"), never turn an
+ * unsatisfied row green.
  */
 export interface RuContentFlags {
   has_name?: boolean;
@@ -40,187 +49,209 @@ export interface RuContentFlags {
   cancellation_policies_is_default?: boolean;
 }
 
-type State = "ok" | "default" | "missing";
+type State = "ok" | "fallback" | "pending" | "missing";
 
-interface Row {
-  label: string;
-  field: string;
-  where: string;
-  state: State;
-  detail?: string;
+/**
+ * Push-time fallbacks mapped to the requirement keys they stand in for. When the
+ * push reports a fallback, the (satisfied) row is flagged for confirmation.
+ */
+const FALLBACK_OVERLAY: Array<{ flag: keyof RuContentFlags; keys: string[]; note: string }> = [
+  { flag: "floor_is_default", keys: ["property_floor", "room_floors"], note: "Fallback 0 (ground) pushed — confirm" },
+  { flag: "space_is_default", keys: ["property_size_sqm", "room_size"], note: "Fallback 50 m² pushed — confirm" },
+  { flag: "amenities_padded", keys: ["facilities"], note: "Auto-filled to reach 10 — confirm" },
+  { flag: "payment_methods_is_default", keys: ["payment_methods"], note: "Cash + card assumed — confirm" },
+  {
+    flag: "cancellation_policies_is_default",
+    keys: ["master_policy"],
+    note: "Standard default assumed — confirm",
+  },
+];
+
+/** Rows the browser cannot compute; they wait on the channel report. */
+const CHANNEL_REPORTED_KEYS = new Set(["bookable_window", "min_stay_set", "room_kitchen"]);
+
+/** Sections that live only in the admin property editor. */
+const ADMIN_ONLY_SECTIONS = new Set(["admin", "integrations", "branding", "rol-spec"]);
+
+interface Props {
+  propertyId: string;
+  /** Optional dry-run flags from the last push attempt (overlay only). */
+  validation?: RuContentFlags | null;
+  /** Switches the local editor section when a row is clicked. */
+  onNavigateSection?: (section: string) => void;
 }
 
-function buildRows(v: RuContentFlags): Row[] {
-  const state = (ok: boolean | undefined, isDefault?: boolean): State =>
-    ok === false ? "missing" : isDefault ? "default" : "ok";
+export const RuChannelContentChecklist: React.FC<Props> = ({
+  propertyId,
+  validation,
+  onNavigateSection,
+}) => {
+  const navigate = useNavigate();
+  const [, setSearchParams] = useSearchParams();
+  const { items, subject, isLoading, hasData } = usePropertyReadiness(propertyId);
 
-  return [
-    { label: "Property name", field: "Property/Name", where: "General", state: state(v.has_name) },
-    {
-      label: "Property type",
-      field: "Property/ObjectTypeID",
-      where: "General",
-      state: state(v.has_object_type_id),
-    },
-    {
-      label: "Maximum guests (min 1)",
-      field: "Property/CanSleepMax",
-      where: "Rooms",
-      state: state(v.can_sleep_max_ok),
-      detail: v.max_guests ? `${v.max_guests} guests` : undefined,
-    },
-    {
-      label: "Floor number",
-      field: "Property/Floor",
-      where: "Info & Facilities → Property Info",
-      state: state(v.has_floor, v.floor_is_default),
-      detail: v.floor_is_default ? "Fallback 0 (ground) used" : undefined,
-    },
-    {
-      label: "Property size",
-      field: "Property/Space",
-      where: "Info & Facilities → Property Info",
-      state: state(v.has_space, v.space_is_default),
-      detail: v.space_is_default ? "Fallback 50 m² used" : undefined,
-    },
-    {
-      label: "Street address",
-      field: "Property/Street",
-      where: "Identity & Location",
-      state: state(v.has_street),
-    },
-    {
-      label: "Detailed location",
-      field: "Properties/Property/DetailedLocationID",
-      where: "Identity & Location → Channel Manager location",
-      state: state(v.has_detailed_location_id),
-    },
-    {
-      label: "ZIP / postal code",
-      field: "Property/ZipCode",
-      where: "Identity & Location",
-      state: state(v.has_zip_code),
-    },
-    {
-      label: "Geo-coordinates",
-      field: "Property/Coordinates",
-      where: "Identity & Location → Map",
-      state: state(v.has_coordinates),
-    },
-    {
-      label: "Amenities (min 10)",
-      field: "Property/Amenities",
-      where: "Info & Facilities",
-      state: v.meets_minimum_amenities === false ? "missing" : v.amenities_padded ? "default" : "ok",
-      detail:
-        v.meets_minimum_amenities === false
-          ? `${v.amenities_count ?? 0} of 10`
-          : v.amenities_padded
-            ? "Auto-filled to reach 10 — confirm"
-            : `${v.amenities_count ?? 0} amenities`,
-    },
-    {
-      label: "Rooms provided",
-      field: "CompositionRoomsAmenities@CompositionRoomID",
-      where: "Rooms",
-      state: (v.rooms_count ?? 0) > 0 ? "ok" : "missing",
-      detail: `${v.rooms_count ?? 0} rooms`,
-    },
-    {
-      label: "Sleeping places cover max guests",
-      field: "CompositionRoomAmenities/Amenities",
-      where: "Rooms → Beds",
-      state: v.beds_meet_max_guests === false ? "default" : "ok",
-      detail: `sleeps ${v.total_bed_capacity ?? v.total_beds ?? 0} / ${v.max_guests ?? 0} guests`,
-    },
-    {
-      label: "Description",
-      field: "Property/Descriptions",
-      where: "Info & Facilities",
-      state: state(v.has_description),
-    },
-    {
-      label: "Photos (10+ at 1024×768, one main)",
-      field: "Property/Images",
-      where: "Images",
-      state:
-        v.meets_minimum_images === false ? "missing" : v.has_main_image === false ? "default" : "ok",
-      detail:
-        v.meets_minimum_images === false
-          ? `${v.images_count ?? 0} of 10 verified`
-          : v.has_main_image === false
-            ? "No main photo flagged"
-            : `${v.images_count ?? 0} images`,
-    },
-    {
-      label: "Payment methods (min 1)",
-      field: "Property/PaymentMethods",
-      where: "Policies → Accepted payment methods",
-      state: state(v.has_payment_methods, v.payment_methods_is_default),
-      detail: v.payment_methods_is_default ? "Cash + card assumed — confirm" : undefined,
-    },
-    {
-      label: "Cancellation policy (min 1)",
-      field: "Property/CancellationPolicies",
-      where: "Policies → Cancellation",
-      state: state(v.has_cancellation_policies, v.cancellation_policies_is_default),
-      detail: v.cancellation_policies_is_default ? "Standard default assumed — confirm" : undefined,
-    },
-  ];
-}
+  /** Requirement key → confirmation note, from the push dry-run flags. */
+  const fallbackNotes = useMemo(() => {
+    const map = new Map<string, string>();
+    if (!validation) return map;
+    for (const entry of FALLBACK_OVERLAY) {
+      if (validation[entry.flag] !== true) continue;
+      for (const key of entry.keys) map.set(key, entry.note);
+    }
+    return map;
+  }, [validation]);
 
-export const RuChannelContentChecklist: React.FC<{ validation: RuContentFlags }> = ({ validation }) => {
-  const rows = buildRows(validation);
-  const missing = rows.filter((r) => r.state === "missing").length;
-  const defaults = rows.filter((r) => r.state === "default").length;
+  const channelReportPending = useMemo(
+    () => !subject?.channel_checks || Object.keys(subject.channel_checks).length === 0,
+    [subject],
+  );
+
+  const rows = useMemo(() => {
+    const stateFor = (item: ReadinessItem): State => {
+      if (!item.satisfied) return "missing";
+      if (channelReportPending && CHANNEL_REPORTED_KEYS.has(item.key)) return "pending";
+      if (fallbackNotes.has(item.key)) return "fallback";
+      return "ok";
+    };
+    const decorate = (list: ReadinessItem[]) =>
+      list
+        .map((item) => ({ item, state: stateFor(item) }))
+        .sort((a, b) => {
+          const rank = (s: State) => (s === "missing" ? 0 : s === "fallback" ? 1 : s === "pending" ? 2 : 3);
+          return rank(a.state) - rank(b.state);
+        });
+    return {
+      mandatory: decorate(items.filter((i) => i.tier === "mandatory")),
+      recommended: decorate(items.filter((i) => i.tier === "recommended")),
+    };
+  }, [channelReportPending, fallbackNotes, items]);
+
+  const all = [...rows.mandatory, ...rows.recommended];
+  const missingMandatory = rows.mandatory.filter((r) => r.state === "missing").length;
+  const missingRecommended = rows.recommended.filter((r) => r.state === "missing").length;
+  const fallbacks = all.filter((r) => r.state === "fallback").length;
+  const pending = all.filter((r) => r.state === "pending").length;
+
+  const goToFix = useCallback(
+    (item: ReadinessItem) => {
+      const section = item.section;
+      if (!section) return;
+      const focusKey = item.paintable ? item.key : undefined;
+      if (item.surface === "admin" || ADMIN_ONLY_SECTIONS.has(section)) {
+        navigate(`/admin/properties/${propertyId}?tab=${section}${focusKey ? `&focus=${focusKey}` : ""}`);
+        return;
+      }
+      if (onNavigateSection) {
+        onNavigateSection(section);
+      } else {
+        setSearchParams(
+          (prev) => {
+            const next = new URLSearchParams(prev);
+            next.set("section", section);
+            if (focusKey) next.set("focus", focusKey);
+            return next;
+          },
+          { replace: true },
+        );
+      }
+      if (focusKey) window.setTimeout(() => focusRequirementField(focusKey), 350);
+    },
+    [navigate, onNavigateSection, propertyId, setSearchParams],
+  );
+
+  if (isLoading || !hasData) {
+    return (
+      <div className="rounded-md border border-border px-3 py-3 flex items-center gap-2 text-xs text-muted-foreground">
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        Scoring channel content requirements…
+      </div>
+    );
+  }
+
+  const renderRow = ({ item, state }: { item: ReadinessItem; state: State }) => {
+    const note =
+      state === "fallback"
+        ? fallbackNotes.get(item.key)
+        : state === "pending"
+          ? "Awaiting channel report"
+          : undefined;
+    return (
+      <button
+        key={item.key}
+        type="button"
+        onClick={() => goToFix(item)}
+        className="w-full text-left flex items-start justify-between gap-2 px-3 py-1.5 hover:bg-muted/50 transition-colors"
+      >
+        <div className="flex items-start gap-2 min-w-0">
+          {state === "ok" && <CheckCircle className="h-3.5 w-3.5 mt-0.5 shrink-0 text-foreground" />}
+          {state === "fallback" && <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0 text-primary" />}
+          {state === "pending" && <Clock className="h-3.5 w-3.5 mt-0.5 shrink-0 text-muted-foreground" />}
+          {state === "missing" && <XCircle className="h-3.5 w-3.5 mt-0.5 shrink-0 text-destructive" />}
+          <div className="min-w-0">
+            <p className={cn("text-xs font-medium truncate", state === "missing" && "text-destructive")}>
+              {item.label}
+            </p>
+            <p className="text-[10px] text-muted-foreground truncate">
+              {item.sectionLabel ?? getSectionLabel(item.section)}
+              {state === "missing" && (item.hint || item.message)
+                ? ` · ${item.hint ?? item.message}`
+                : ""}
+            </p>
+          </div>
+        </div>
+        {note && (
+          <span className="text-[10px] text-muted-foreground text-right shrink-0 max-w-[40%]">{note}</span>
+        )}
+      </button>
+    );
+  };
 
   return (
     <div className="rounded-md border border-border">
-      <div className="flex items-center justify-between px-3 py-2 border-b border-border">
+      <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-border">
         <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
-          Channel-connection content ({rows.length} requirements)
+          Channel-connection content ({all.length} requirements)
         </p>
-        <div className="flex items-center gap-1">
-          {missing > 0 && (
+        <div className="flex items-center gap-1 flex-wrap justify-end">
+          {missingMandatory > 0 && (
             <Badge variant="destructive" className="text-[10px] h-5">
-              {missing} missing
+              {missingMandatory} blocking
             </Badge>
           )}
-          {defaults > 0 && (
+          {missingRecommended > 0 && (
+            <Badge variant="outline" className="text-[10px] h-5">
+              {missingRecommended} nice-to-have
+            </Badge>
+          )}
+          {fallbacks > 0 && (
             <Badge variant="outline" className="text-[10px] h-5 border-primary text-primary">
-              {defaults} unconfirmed
+              {fallbacks} unconfirmed
             </Badge>
           )}
-          {missing === 0 && defaults === 0 && (
+          {pending > 0 && (
+            <Badge variant="outline" className="text-[10px] h-5">
+              {pending} pending
+            </Badge>
+          )}
+          {missingMandatory === 0 && missingRecommended === 0 && fallbacks === 0 && pending === 0 && (
             <Badge variant="secondary" className="text-[10px] h-5">
               All confirmed
             </Badge>
           )}
         </div>
       </div>
+
       <div className="divide-y divide-border">
-        {rows.map((r) => (
-          <div key={r.field} className="flex items-start justify-between gap-2 px-3 py-1.5">
-            <div className="flex items-start gap-2 min-w-0">
-              {r.state === "ok" && <CheckCircle className="h-3.5 w-3.5 mt-0.5 shrink-0 text-foreground" />}
-              {r.state === "default" && (
-                <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0 text-primary" />
-              )}
-              {r.state === "missing" && (
-                <XCircle className="h-3.5 w-3.5 mt-0.5 shrink-0 text-destructive" />
-              )}
-              <div className="min-w-0">
-                <p className="text-xs font-medium truncate">{r.label}</p>
-                <p className="text-[10px] text-muted-foreground truncate">
-                  {r.where} · {r.field}
-                </p>
-              </div>
-            </div>
-            {r.detail && (
-              <span className="text-[10px] text-muted-foreground text-right shrink-0">{r.detail}</span>
-            )}
-          </div>
-        ))}
+        <p className="px-3 py-1 text-[10px] uppercase tracking-wider text-muted-foreground bg-muted/40">
+          Required by the channel ({rows.mandatory.length})
+        </p>
+        {rows.mandatory.map(renderRow)}
+        {rows.recommended.length > 0 && (
+          <p className="px-3 py-1 text-[10px] uppercase tracking-wider text-muted-foreground bg-muted/40">
+            Recommended ({rows.recommended.length})
+          </p>
+        )}
+        {rows.recommended.map(renderRow)}
       </div>
     </div>
   );
