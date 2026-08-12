@@ -12,6 +12,7 @@ import { MasterPolicyPanel } from "@/components/property/policies/MasterPolicyPa
 import { PolicyLibraryTable, type PolicyMetric } from "@/components/property/policies/PolicyLibraryTable";
 import { PortfolioPolicyLibrary } from "@/components/property/policies/PortfolioPolicyLibrary";
 import { ArrivalPolicyPanel } from "@/components/property/policies/ArrivalPolicyPanel";
+import { useArrivalPolicy, MIN_ARRIVAL_CHARS, TARGET_ARRIVAL_CHARS } from "@/hooks/useArrivalPolicy";
 import { FormSection } from "@/components/property/form/DenseForm";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -43,12 +44,22 @@ export const PoliciesTab: React.FC<PoliciesTabProps> = ({ propertyId, onOpenSpec
   const { portfolioPolicies, loading: loadingPortfolio } = usePortfolioPolicies(propertyId, siblingIds);
   const { mode, saving, setMasterMode } = useMasterPolicyMode(propertyId);
   const { specials } = usePolicySpecialUsage(propertyId);
+  const arrival = useArrivalPolicy(propertyId);
+  const arrivalSectionRef = React.useRef<HTMLDivElement>(null);
 
   const [editorOpen, setEditorOpen] = useState(false);
   const [editing, setEditing] = useState<ReservationPolicy | null>(null);
   const [applyingFrom, setApplyingFrom] = useState<ReservationPolicy | null>(null);
   const [metrics, setMetrics] = useState<Record<string, PolicyMetric>>({});
   const [activating, setActivating] = useState<string | null>(null);
+
+  const focusArrivalSection = React.useCallback(() => {
+    const container = arrivalSectionRef.current;
+    if (!container) return;
+    container.scrollIntoView({ behavior: "smooth", block: "start" });
+    const editor = container.querySelector("textarea");
+    if (editor instanceof HTMLTextAreaElement) window.setTimeout(() => editor.focus(), 350);
+  }, []);
 
   const siblingName = (id: string) => siblings.find((s) => s.id === id)?.name ?? "portfolio";
 
@@ -135,6 +146,46 @@ export const PoliciesTab: React.FC<PoliciesTabProps> = ({ propertyId, onOpenSpec
   return (
     <div className="space-y-5">
       <FormSection
+        title="Policy library"
+        description={
+          reportRange
+            ? `Every policy this property publishes — the arrival policy plus the cancellation and prepayment terms specials and rate plans draw from. Performance for ${reportRange}.`
+            : "Every policy this property publishes — the arrival policy plus the cancellation and prepayment terms specials and rate plans draw from."
+        }
+        actions={
+          <Button type="button" size="sm" variant="outline" onClick={openCreate} className="h-7 text-xs">
+            <Plus className="h-3.5 w-3.5 mr-1" /> New policy
+          </Button>
+        }
+      >
+        <PolicyLibraryTable
+          policies={policies}
+          links={links}
+          metrics={metrics}
+          specials={specials}
+          reportRange={reportRange}
+          arrival={{
+            chars: arrival.chars,
+            unitCount: arrival.unitCount,
+            overrideCount: arrival.overrideCount,
+            minChars: MIN_ARRIVAL_CHARS,
+            targetChars: TARGET_ARRIVAL_CHARS,
+            onEdit: focusArrivalSection,
+          }}
+          onEdit={(p) => {
+            setEditing(p);
+            setEditorOpen(true);
+          }}
+          onSetMaster={handleSetMaster}
+          onSetDefault={setDefault}
+          onDelete={deletePolicy}
+          onApplyToProperties={setApplyingFrom}
+          onPushToLinked={propagateToLinked}
+          onOpenSpecials={onOpenSpecials}
+        />
+      </FormSection>
+
+      <FormSection
         title="Master policy"
         description="The property-wide fallback used whenever a special or rate plan carries no terms of its own."
       >
@@ -156,50 +207,19 @@ export const PoliciesTab: React.FC<PoliciesTabProps> = ({ propertyId, onOpenSpec
 
       </FormSection>
 
-      <FormSection
-        title="Arrival policy"
-        description={
-          siblings.length > 0
-            ? "One arrival policy for this property — pushed to channels, guest confirmations and invoices. Apply it across the portfolio to keep a single source."
-            : "One arrival policy for this property — pushed to channels, guest confirmations and invoices."
-        }
-      >
-        <ArrivalPolicyPanel propertyId={propertyId} siblings={siblings} />
-      </FormSection>
+      <div ref={arrivalSectionRef} className="scroll-mt-4">
+        <FormSection
+          title="Arrival policy"
+          description={
+            siblings.length > 0
+              ? "One arrival policy for this property — pushed to channels, guest confirmations and invoices. Apply it across the portfolio to keep a single source."
+              : "One arrival policy for this property — pushed to channels, guest confirmations and invoices."
+          }
+        >
+          <ArrivalPolicyPanel propertyId={propertyId} siblings={siblings} onChanged={arrival.refetch} />
+        </FormSection>
+      </div>
 
-
-
-      <FormSection
-        title="Policy library"
-        description={
-          reportRange
-            ? `Cancellation and prepayment policies specials and rate plans draw from. Performance for ${reportRange}.`
-            : "Cancellation and prepayment policies that specials and rate plans draw from."
-        }
-        actions={
-          <Button type="button" size="sm" variant="outline" onClick={openCreate} className="h-7 text-xs">
-            <Plus className="h-3.5 w-3.5 mr-1" /> New policy
-          </Button>
-        }
-      >
-        <PolicyLibraryTable
-          policies={policies}
-          links={links}
-          metrics={metrics}
-          specials={specials}
-          reportRange={reportRange}
-          onEdit={(p) => {
-            setEditing(p);
-            setEditorOpen(true);
-          }}
-          onSetMaster={handleSetMaster}
-          onSetDefault={setDefault}
-          onDelete={deletePolicy}
-          onApplyToProperties={setApplyingFrom}
-          onPushToLinked={propagateToLinked}
-          onOpenSpecials={onOpenSpecials}
-        />
-      </FormSection>
 
       {specials.length > 0 && (
         <FormSection
