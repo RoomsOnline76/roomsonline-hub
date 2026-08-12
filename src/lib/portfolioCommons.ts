@@ -773,7 +773,7 @@ export async function shareCommonsToSiblings(
   options: ApplyOptions = {},
 ): Promise<CommonsWriteResult> {
   if (targetIds.length === 0 || groupKeys.length === 0)
-    return { updatedProperties: 0, updatedGroups: [], contactsWritten: 0 };
+    return { updatedProperties: 0, updatedGroups: [], contactsWritten: 0, rowsWritten: 0, rowsWritten: 0 };
   const snapshots = await fetchSnapshots([propertyId, ...targetIds]);
   const source = snapshots.find((s) => s.id === propertyId);
   if (!source) throw new Error("Source property not found");
@@ -791,13 +791,13 @@ export async function backfillCommonsFromPortfolio(
   const portfolioIds = await fetchPortfolioIds(propertyId);
   const siblingIds = await fetchSiblingIds(propertyId, portfolioIds);
   if (siblingIds.length === 0 || groupKeys.length === 0)
-    return { updatedProperties: 0, updatedGroups: [], contactsWritten: 0 };
+    return { updatedProperties: 0, updatedGroups: [], contactsWritten: 0, rowsWritten: 0, rowsWritten: 0 };
 
   const snapshots = await fetchSnapshots([propertyId, ...siblingIds]);
   const self = snapshots.find((s) => s.id === propertyId);
   if (!self) throw new Error("Property not found");
 
-  const result: CommonsWriteResult = { updatedProperties: 0, updatedGroups: [], contactsWritten: 0 };
+  const result: CommonsWriteResult = { updatedProperties: 0, updatedGroups: [], contactsWritten: 0, rowsWritten: 0, rowsWritten: 0 };
   const touched = new Set<string>();
 
   for (const groupKey of groupKeys) {
