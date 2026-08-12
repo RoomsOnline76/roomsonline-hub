@@ -88,16 +88,9 @@ export default function AdminChannelMonitor() {
     [data],
   );
 
-  const handlePurgeDuplicate = useCallback(
+  const runPurgeDuplicate = useCallback(
     async (row: ChannelPropertyRow, unit?: ChannelUnitRow) => {
-      const label = unit ? unit.name : `${row.duplicateListings} duplicate listings`;
-      if (
-        !window.confirm(
-          `Remove ${label} from the channel manager? The listing is archived upstream and the link is cleared permanently.`,
-        )
-      ) {
-        return;
-      }
+      setPurgeTarget(null);
       if (unit) setBusyUnitId(unit.id);
       else setBusyId(row.id);
       try {
