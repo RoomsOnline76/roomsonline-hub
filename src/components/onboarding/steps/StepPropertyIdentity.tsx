@@ -11,6 +11,8 @@ import { StepProps } from "./types";
 import { cn } from "@/lib/utils";
 import { useState, useMemo } from "react";
 import { VISIBLE_PMS_SYSTEMS } from "@/lib/pmsSystemsConfig";
+import { CHANNEL_REGISTRY } from "@/config/channelRegistry";
+
 import { Badge } from "@/components/ui/badge";
 import {
   RU_TIME_ZONES,
@@ -18,9 +20,22 @@ import {
   normalizeRuTimeZone,
 } from "@/lib/ruTimeZones";
 
-// Separate PMS vs Channel Manager systems
-const PMS_OPTIONS = VISIBLE_PMS_SYSTEMS.filter(s => !s.isInternal && !['siteminder', 'rentalsunited'].includes(s.key));
-const CHANNEL_MANAGER_OPTIONS = VISIBLE_PMS_SYSTEMS.filter(s => ['siteminder', 'rentalsunited', 'profitroom'].includes(s.key));
+// PMS options: only systems that are actually live in ROL'OS today.
+const ACTIVE_PMS_KEYS = ["benson", "hostfully", "checkfront", "nightsbridge", "wetu"];
+const PMS_OPTIONS = ACTIVE_PMS_KEYS
+  .map(key => VISIBLE_PMS_SYSTEMS.find(s => s.key === key))
+  .filter((s): s is NonNullable<typeof s> => Boolean(s));
+
+// Channel Manager options: the channels distributed through our channel-manager account.
+const CHANNEL_MANAGER_OPTIONS = CHANNEL_REGISTRY
+  .filter(c => !["nightsbridge"].includes(c.key))
+  .map(c => ({
+    key: c.key,
+    name:
+      VISIBLE_PMS_SYSTEMS.find(s => s.key === c.key)?.name ??
+      c.key.replace(/_/g, " ").replace(/\b\w/g, m => m.toUpperCase()),
+  }));
+
 
 const PROPERTY_TYPE_LABELS: Record<string, string> = {
   apartment: "Apartments",
@@ -439,10 +454,11 @@ export function StepPropertyIdentity({
             {channelManagers.length > 0 && (
               <div className="flex flex-wrap gap-1.5 mb-1">
                 {channelManagers.map(key => {
-                  const sys = VISIBLE_PMS_SYSTEMS.find(s => s.key === key);
+                  const sys = CHANNEL_MANAGER_OPTIONS.find(s => s.key === key);
                   return (
                     <Badge key={key} variant="secondary" className="gap-1 pr-1">
                       {sys?.name || key}
+
                       <button type="button" onClick={() => toggleChannelManager(key)} className="ml-0.5 rounded-full hover:bg-muted p-0.5">
                         <X className="h-3 w-3" />
                       </button>
