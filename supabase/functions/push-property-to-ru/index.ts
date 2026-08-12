@@ -3789,6 +3789,15 @@ Deno.serve(async (req) => {
               rooms_meet_min_amenities: everyFlag('rooms_meet_min_amenities'),
               has_name: everyFlag('has_name'),
               has_object_type_id: everyFlag('has_object_type_id'),
+              // Guessed-value flags aggregate pessimistically: one guessing unit blocks the push.
+              object_type_is_default: units.some(u => (u.validation as any).object_type_is_default === true),
+              object_type_source: units.map(u => (u.validation as any).object_type_source).find(Boolean) ?? null,
+              currency_is_default: units.some(u => (u.validation as any).currency_is_default === true),
+              currency_iso: units.map(u => (u.validation as any).currency_iso).find(Boolean) ?? null,
+              beds_unmapped: Array.from(new Set(units.flatMap(u => ((u.validation as any).beds_unmapped || []) as string[]))),
+              beds_are_default: units.some(u => (u.validation as any).beds_are_default === true),
+              changeover_is_default: units.some(u => (u.validation as any).changeover_is_default === true),
+
               can_sleep_max_ok: everyFlag('can_sleep_max_ok'),
               has_description: everyFlag('has_description'),
               description_meets_recommended: everyFlag('description_meets_recommended'),
