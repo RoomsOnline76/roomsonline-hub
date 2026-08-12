@@ -77,6 +77,7 @@ import { useToast } from "@/hooks/use-toast";
 import { validateImageDimensions, getValidationErrorMessage } from "@/lib/imageValidation";
 import { useImageDimensionAudit } from "@/hooks/useImageDimensionAudit";
 import { ImageQualityMarker } from "@/components/property/ImageQualityMarker";
+import { ImageAuditSummary } from "@/components/property/ContentRuleHint";
 import { z } from "zod";
 import { getRoomUrl } from "@/lib/config";
 import { parseBedConfiguration, BED_TYPES, BedEntry, authoredBedroomCount } from "@/lib/bedConfig";
@@ -6387,6 +6388,12 @@ export default function PropertyForm({
 
                   {/* Image Grid */}
                   <div className="lg:col-span-4">
+                    <ImageAuditSummary
+                      className="mb-2"
+                      urls={uploadedImages}
+                      results={propertyImageAudit.results}
+                      hasMainImage={uploadedImages.length > 0}
+                    />
                     <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
                       {uploadedImages.map((imageUrl, index) => (
                         <div key={index} className="space-y-1">
