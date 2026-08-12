@@ -3,7 +3,7 @@ import {
   isChangeoverAuthored,
   isMappedChannelPropertyType,
 } from "@/config/channelPropertyTypes";
-import { calculateBedCapacity, type BedEntry } from "@/lib/bedConfig";
+import { areBedsDistributed, calculateBedCapacity, type BedEntry } from "@/lib/bedConfig";
 import { checkChannelName } from "@/lib/channelFieldRules";
 import { MIN_IMAGE_HEIGHT, MIN_IMAGE_WIDTH } from "@/lib/imageValidation";
 
