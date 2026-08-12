@@ -192,6 +192,12 @@ export const PoliciesTab: React.FC<PoliciesTabProps> = ({ propertyId, onOpenSpec
       <FormSection
         title="Master policy"
         description="The property-wide fallback used whenever a special or rate plan carries no terms of its own."
+        satisfied={mode === "none" ? true : !!masterPolicy}
+        collapsedSummary={
+          mode === "none"
+            ? "No cancellation terms published — set by choice."
+            : `Master policy: ${masterPolicy?.name ?? ""}.`
+        }
       >
         <div data-field="master_policy" className={channelMandatoryClass("cancellation_policy")} {...markerFlags(policies.length > 0)}>
         <MasterPolicyPanel
@@ -219,10 +225,15 @@ export const PoliciesTab: React.FC<PoliciesTabProps> = ({ propertyId, onOpenSpec
               ? "One arrival policy for this property — pushed to channels, guest confirmations and invoices. Apply it across the portfolio to keep a single source."
               : "One arrival policy for this property — pushed to channels, guest confirmations and invoices."
           }
+          satisfied={arrival.chars >= MIN_ARRIVAL_CHARS}
+          collapsedSummary={`Arrival instructions authored — ${arrival.chars} characters${
+            arrival.overrideCount > 0 ? `, ${arrival.overrideCount} unit override${arrival.overrideCount === 1 ? "" : "s"}` : ""
+          }.`}
         >
           <ArrivalPolicyPanel propertyId={propertyId} siblings={siblings} onChanged={arrival.refetch} onDirty={onDirty} />
         </FormSection>
       </div>
+
 
 
       {specials.length > 0 && (
