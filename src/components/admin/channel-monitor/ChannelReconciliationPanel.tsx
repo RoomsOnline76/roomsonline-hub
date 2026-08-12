@@ -24,7 +24,7 @@ interface Props {
 }
 
 export function ChannelReconciliationPanel({ billableListings, onChanged }: Props) {
-  const { result, running, error, reconcile, purgeOrphan, clearStale, cleanupAll, cleanup, failures } =
+  const { result, running, error, reconcile, purgeListing, clearStale, cleanupAll, cleanup, failures, refused } =
     useChannelReconciliation();
   const [busyId, setBusyId] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -35,18 +35,29 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
     [result],
   );
 
-  const cleanableOrphans = useMemo(
-    () => (result?.orphans || []).filter((o) => !erroredOwners.has(o.owner_id)),
+  // Archived listings still exist on the account, so a cleanup has to delete
+  // them too — hiding them is what left 24 ghosts behind last time.
+  const cleanableListings = useMemo(
+    () =>
+      [...(result?.orphans || []), ...(result?.archived_orphans || [])].filter(
+        (o) => !erroredOwners.has(o.owner_id),
+      ),
     [result, erroredOwners],
   );
-  const cleanableTotal = cleanableOrphans.length + (result?.stale.length || 0);
+  const cleanableTotal = cleanableListings.length + (result?.stale.length || 0);
 
   const handlePurge = useCallback(
-    async (orphan: ReconOrphan) => {
-      setBusyId(orphan.listing_id);
+    async (listing: { listing_id: string; owner_id: string; name: string }) => {
+      setBusyId(listing.listing_id);
       try {
-        await purgeOrphan(orphan);
-        toast.success(`Listing #${orphan.listing_id} removed from the channel`);
+        const outcome = await purgeListing(listing);
+        if (outcome === "refused") {
+          toast.error(`The channel account still returns listing #${listing.listing_id}`);
+        } else if (outcome === "already_gone") {
+          toast.success(`Listing #${listing.listing_id} was already gone — local id cleared`);
+        } else {
+          toast.success(`Listing #${listing.listing_id} confirmed removed from the channel`);
+        }
         await onChanged();
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Could not remove the listing");
@@ -54,7 +65,7 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
         setBusyId(null);
       }
     },
-    [purgeOrphan, onChanged],
+    [purgeListing, onChanged],
   );
 
   const handleClear = useCallback(
@@ -76,11 +87,12 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
   const handleCleanupAll = useCallback(async () => {
     setConfirmOpen(false);
     const outcome = await cleanupAll();
-    if (outcome.failures.length === 0) {
+    const problems = outcome.failures.length + outcome.refused;
+    if (problems === 0) {
       toast.success(`Cleaned ${outcome.cleaned} of ${outcome.total}`);
     } else {
       toast.error(
-        `Cleaned ${outcome.cleaned} of ${outcome.total} — ${outcome.failures.length} could not be removed`,
+        `Cleaned ${outcome.cleaned} of ${outcome.total} — ${outcome.refused} refused by the channel, ${outcome.failures.length} failed`,
       );
     }
     await onChanged();
@@ -88,6 +100,7 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
 
   const gap = result ? result.channel_listing_count - billableListings : 0;
   const cleaning = cleanup !== null;
+
 
   return (
     <Card>
