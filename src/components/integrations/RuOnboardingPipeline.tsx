@@ -17,6 +17,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { extractFunctionError } from "@/lib/functionError";
+import { pushPropertyToRu } from "@/lib/ruPushDriver";
 import {
   CheckCircle2,
   CircleDashed,
@@ -251,32 +252,51 @@ export function RuOnboardingPipeline({ propertyId, readOnly = false, standalone 
 
   const pushToRu = useCallback(async () => {
     setBusy("p3_push");
-    const { data, error: fnError } = await supabase.functions.invoke("push-property-to-ru", {
-      body: { property_id: propertyId },
-    });
+    // Resumable batches: a 9-unit property cannot be pushed in a single invocation.
+    let data: Awaited<ReturnType<typeof pushPropertyToRu>> | null = null;
+    let fnError: Error | null = null;
+    try {
+      data = await pushPropertyToRu(propertyId);
+    } catch (err) {
+      fnError = err instanceof Error ? err : new Error("Push failed");
+    }
     setBusy(null);
     if (fnError || !data?.success) {
       // PHASE_BLOCKED returns `blockers`; NOT_READY returns `gaps` — show either.
-      const reasons: string[] = [...(data?.blockers ?? []), ...(data?.gaps ?? [])].map(String);
+      const gaps = (Array.isArray(data?.gaps) ? data.gaps : []) as unknown[];
+      const blockers = (Array.isArray(data?.blockers) ? data.blockers : []) as unknown[];
+      const reasons: string[] = [...blockers, ...gaps].map(String);
       // Keep them on screen: a toast alone left the blocking phase looking clean.
       setPushBlock(
         reasons.length
-          ? { phase: (data?.phase as PhaseKey) ?? ((data?.gaps ?? []).length ? "p2_readiness" : "p3_push"), reasons }
+          ? { phase: (data?.phase as PhaseKey) ?? (gaps.length ? "p2_readiness" : "p3_push"), reasons }
           : null,
 
       );
+      // Unit-level rejections carry their reason per unit — surface those instead of the generic
+      // "one or more units failed" so the owner knows which unit needs work.
+      const unitFailures = (data?.units ?? [])
+        .filter((u) => u.success === false)
+        .map((u) => `${u.name ?? "Unit"} — ${u.error ?? "failed"}`);
       toast.error(
         reasons.length
           ? `${data?.error?.message ?? "Push blocked"} — ${reasons.slice(0, 3).join(" · ")}`
-          : fnError
-            ? await extractFunctionError(fnError, "Push failed")
-            : data?.error?.message ?? "Push failed",
+          : unitFailures.length
+            ? `${data?.error?.message ?? "Push failed"} — ${unitFailures.slice(0, 3).join(" · ")}`
+            : fnError
+              ? fnError.message
+              : data?.error?.message ?? "Push failed",
         { duration: 12000 },
       );
 
     } else {
       setPushBlock(null);
-      toast.success("Property, inventory and rates pushed to Rentals United");
+      const pushed = (data?.units ?? []).filter((u) => u.success).length;
+      toast.success(
+        pushed > 0
+          ? `Property, ${pushed} unit(s) and rates pushed to Rentals United`
+          : "Property, inventory and rates pushed to Rentals United",
+      );
     }
 
     await load();

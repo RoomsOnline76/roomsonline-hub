@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowRight, Loader2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { pushPropertyToRu } from "@/lib/ruPushDriver";
 import { usePropertyReadiness } from "@/hooks/usePropertyReadiness";
 
 interface RuPushContinueButtonProps {
@@ -22,6 +23,7 @@ export function RuPushContinueButton({ propertyId, className }: RuPushContinueBu
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [pushing, setPushing] = useState(false);
+  const [progress, setProgress] = useState<string | null>(null);
   // The push gate uses the shared model with the channel report on: a field-only
   // "100%" must never be enough to publish.
   const { mandatoryScore, mandatoryOutstanding, hasData } = usePropertyReadiness(propertyId, {
@@ -56,17 +58,17 @@ export function RuPushContinueButton({ propertyId, className }: RuPushContinueBu
 
     setPushing(true);
     try {
-      const { data, error } = await supabase.functions.invoke("push-property-to-ru", {
-        body: { property_id: propertyId },
+      // Walks the resumable batches so large multi-unit properties finish in one click.
+      const data = await pushPropertyToRu(propertyId, {
+        onProgress: ({ pushed, total }) => setProgress(`${pushed}/${total}`),
       });
-      if (error) throw new Error(error.message);
       if (!data?.success) {
         throw new Error(data?.error?.message || "Publish to Channel Manager failed");
       }
 
       if (data.multi_unit) {
-        const successCount = (data.units || []).filter((u: { success?: boolean }) => u.success).length;
-        toast.success(`Building + ${successCount}/${(data.units || []).length} units published to the Channel Manager`);
+        const successCount = (data.units || []).filter((u) => u.success).length;
+        toast.success(`${successCount}/${(data.units || []).length} units published to the Channel Manager`);
       } else {
         toast.success(`Property pushed to Rentals United (ID: ${data.rentalsunited_property_id})`);
       }
@@ -77,6 +79,7 @@ export function RuPushContinueButton({ propertyId, className }: RuPushContinueBu
       toast.error(err instanceof Error ? err.message : "Publish to Channel Manager failed");
     } finally {
       setPushing(false);
+      setProgress(null);
     }
   }, [alreadyPushed, goToSetup, propertyId, queryClient]);
 
@@ -96,7 +99,7 @@ export function RuPushContinueButton({ propertyId, className }: RuPushContinueBu
         <Button type="button" size="sm" className="h-7 gap-1 text-xs ml-auto" onClick={handleClick} disabled={pushing}>
           {pushing ? (
             <>
-              <Loader2 className="h-3 w-3 animate-spin" /> Publishing…
+              <Loader2 className="h-3 w-3 animate-spin" /> Publishing{progress ? ` ${progress}` : ""}…
             </>
           ) : alreadyPushed ? (
             <>
