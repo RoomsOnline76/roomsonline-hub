@@ -537,6 +537,11 @@ export function RoomManagerTab({
           </div>
         ))}
       </div>
+            {(roomTypes.find((r) => r.id === selectedRoomType)?.images || []).length < 10 && (
+              <p className="text-[10px] text-destructive">
+                Add at least 10 measured images at 1024×768px or larger. Property-gallery images may supplement this unit during channel validation.
+              </p>
+            )}
 
       {/* Main Content - Room Type Details */}
       <div className="flex-1 overflow-auto">

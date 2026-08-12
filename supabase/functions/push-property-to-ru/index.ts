@@ -627,7 +627,7 @@ function buildValidation(payload: Record<string, any>): Record<string, unknown> 
     total_beds: totalBeds,
     // Sleeping places implied by the bed configuration (a double sleeps 2).
     total_bed_capacity: totalBedCapacity,
-    // RU White-Label minimum: sleeping places must cover >= 50% of CanSleepMax.
+    // Certification requires authored sleeping places to cover CanSleepMax.
     beds_cover_half: totalBedCapacity >= Math.ceil(Math.max(1, maxGuests) * RU_BED_COVERAGE),
     // Advisory only: sleeping places cover every guest.
     beds_meet_max_guests: totalBedCapacity === Math.max(1, maxGuests),
