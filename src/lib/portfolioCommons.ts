@@ -242,6 +242,25 @@ const isBlank = (value: unknown): boolean => {
 const asRecord = (value: unknown): Record<string, unknown> =>
   value && typeof value === "object" && !Array.isArray(value) ? { ...(value as Record<string, unknown>) } : {};
 
+/**
+ * Additive union of two lists. Facilities, meal plans and payment methods are
+ * offerings — a share may add what the portfolio has in common but must never
+ * remove something a property already offers.
+ */
+const unionValues = (source: unknown, target: unknown): unknown[] => {
+  const toList = (value: unknown): unknown[] => (Array.isArray(value) ? value : isBlank(value) ? [] : [value]);
+  const out = [...toList(target)];
+  const seen = new Set(out.map((entry) => JSON.stringify(entry)));
+  for (const entry of toList(source)) {
+    const key = JSON.stringify(entry);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(entry);
+  }
+  return out;
+};
+
+
 const getPath = (root: unknown, path: string): unknown => {
   let cursor: unknown = root;
   for (const part of path.split(".")) {
