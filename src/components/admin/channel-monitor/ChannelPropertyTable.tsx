@@ -1,5 +1,5 @@
 import { Fragment, useMemo, useState } from "react";
-import { ChevronDown, ChevronRight, Archive, RotateCcw, Search, Play } from "lucide-react";
+import { ChevronDown, ChevronRight, Archive, RotateCcw, Search, Play, Trash2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -18,7 +18,8 @@ interface Props {
   onArchive: (row: ChannelPropertyRow) => void;
   onReactivate: (row: ChannelPropertyRow) => void;
   onToggleUnit: (row: ChannelPropertyRow, unit: ChannelUnitRow, activate: boolean) => void;
-
+  /** Remove one duplicate listing (or all of them when unit is omitted) from the channel manager. */
+  onPurgeDuplicate: (row: ChannelPropertyRow, unit?: ChannelUnitRow) => void;
 }
 
 const STATE_LABELS: Record<ChannelSyncState, string> = {
@@ -27,7 +28,16 @@ const STATE_LABELS: Record<ChannelSyncState, string> = {
   archived: "Archived",
 };
 
-export function ChannelPropertyTable({ rows, fx, busyPropertyId, busyUnitId, onArchive, onReactivate, onToggleUnit }: Props) {
+export function ChannelPropertyTable({
+  rows,
+  fx,
+  busyPropertyId,
+  busyUnitId,
+  onArchive,
+  onReactivate,
+  onToggleUnit,
+  onPurgeDuplicate,
+}: Props) {
   const [search, setSearch] = useState("");
   const [stateFilter, setStateFilter] = useState<"all" | ChannelSyncState>("all");
   const [portfolioFilter, setPortfolioFilter] = useState<string>("all");
@@ -105,7 +115,7 @@ export function ChannelPropertyTable({ rows, fx, busyPropertyId, busyUnitId, onA
               <TableHead>Portfolio</TableHead>
               <TableHead>State</TableHead>
               <TableHead className="text-right">Listings</TableHead>
-              <TableHead className="text-right">Archived units</TableHead>
+              <TableHead className="text-right">Duplicates</TableHead>
               <TableHead className="text-right">Monthly cost</TableHead>
               <TableHead>Last push</TableHead>
               <TableHead className="text-right">Action</TableHead>
@@ -165,7 +175,13 @@ export function ChannelPropertyTable({ rows, fx, busyPropertyId, busyUnitId, onA
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right tabular-nums">{row.listings}</TableCell>
-                    <TableCell className="text-right tabular-nums text-muted-foreground">{row.archivedUnits}</TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {row.duplicateListings > 0 ? (
+                        <span className="font-medium text-destructive">{row.duplicateListings}</span>
+                      ) : (
+                        <span className="text-muted-foreground">0</span>
+                      )}
+                    </TableCell>
                     <TableCell className="text-right tabular-nums">
                       {formatEur(row.monthlyCostEur)}
                       {fx && (
@@ -222,37 +238,66 @@ export function ChannelPropertyTable({ rows, fx, busyPropertyId, busyUnitId, onA
                                 <span className="truncate">{u.name}</span>
                                 <span className="flex items-center gap-2">
                                   <span className="font-mono text-muted-foreground">{u.listingId}</span>
-                                  <Badge
-                                    variant={u.isActive ? "default" : "outline"}
-                                    className="h-4 px-1.5 text-[9px]"
-                                  >
-                                    {u.isActive ? "Billing" : "Inactive"}
+                                  <Badge variant="default" className="h-4 px-1.5 text-[9px]">
+                                    Billing
                                   </Badge>
                                   <Button
                                     size="sm"
                                     variant="ghost"
                                     className="h-6 px-1.5 text-[10px]"
                                     disabled={busyUnitId === u.id}
-                                    onClick={() => onToggleUnit(row, u, !u.isActive)}
+                                    onClick={() => onToggleUnit(row, u, false)}
                                   >
-                                    {u.isActive ? (
-                                      <>
-                                        <Archive className="mr-1 h-3 w-3" />
-                                        Deactivate
-                                      </>
-                                    ) : (
-                                      <>
-                                        <RotateCcw className="mr-1 h-3 w-3" />
-                                        Re-activate
-                                      </>
-                                    )}
+                                    <Archive className="mr-1 h-3 w-3" />
+                                    Deactivate
                                   </Button>
                                 </span>
                               </div>
                             ))}
-
                           </div>
                         )}
+
+                        {row.duplicates.length > 0 && (
+                          <div className="mt-3 rounded-md border border-destructive/40 bg-destructive/5 p-2.5">
+                            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                              <p className="text-[11px] font-medium text-destructive">
+                                {row.duplicates.length} duplicate listing{row.duplicates.length === 1 ? "" : "s"} still
+                                exist at the channel manager — these are deleted units and can still bill.
+                              </p>
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                className="h-6 px-2 text-[10px]"
+                                disabled={busy}
+                                onClick={() => onPurgeDuplicate(row)}
+                              >
+                                <Trash2 className="mr-1 h-3 w-3" />
+                                Remove all duplicates
+                              </Button>
+                            </div>
+                            <div className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
+                              {row.duplicates.map((u) => (
+                                <div key={u.id} className="flex items-center justify-between gap-2 text-xs">
+                                  <span className="truncate text-muted-foreground">{u.name}</span>
+                                  <span className="flex items-center gap-2">
+                                    <span className="font-mono text-muted-foreground">{u.listingId}</span>
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      className="h-6 px-1.5 text-[10px] text-destructive hover:text-destructive"
+                                      disabled={busyUnitId === u.id || busy}
+                                      onClick={() => onPurgeDuplicate(row, u)}
+                                    >
+                                      <Trash2 className="mr-1 h-3 w-3" />
+                                      Remove from channel
+                                    </Button>
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
                         {row.archivedAt && (
                           <p className="mt-2 text-[11px] text-muted-foreground">
                             Archived {new Date(row.archivedAt).toLocaleString()}
