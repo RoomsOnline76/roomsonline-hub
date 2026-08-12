@@ -56,17 +56,17 @@ export function RuPushContinueButton({ propertyId, className }: RuPushContinueBu
 
     setPushing(true);
     try {
-      const { data, error } = await supabase.functions.invoke("push-property-to-ru", {
-        body: { property_id: propertyId },
+      // Walks the resumable batches so large multi-unit properties finish in one click.
+      const data = await pushPropertyToRu(propertyId, {
+        onProgress: ({ pushed, total }) => setProgress(`${pushed}/${total}`),
       });
-      if (error) throw new Error(error.message);
       if (!data?.success) {
         throw new Error(data?.error?.message || "Publish to Channel Manager failed");
       }
 
       if (data.multi_unit) {
-        const successCount = (data.units || []).filter((u: { success?: boolean }) => u.success).length;
-        toast.success(`Building + ${successCount}/${(data.units || []).length} units published to the Channel Manager`);
+        const successCount = (data.units || []).filter((u) => u.success).length;
+        toast.success(`${successCount}/${(data.units || []).length} units published to the Channel Manager`);
       } else {
         toast.success(`Property pushed to Rentals United (ID: ${data.rentalsunited_property_id})`);
       }
