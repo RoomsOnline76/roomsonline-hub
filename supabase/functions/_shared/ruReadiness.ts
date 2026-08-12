@@ -277,6 +277,22 @@ export function evaluateUnitChecks(
   add("beds_distributed", "Rooms & beds", "Beds distributed between bedrooms", v.beds_distributed !== false,
     `${v.bedrooms_with_beds ?? 0} of ${v.bedroom_blocks ?? 0} bedrooms carry beds — spread the bed configuration across the bedrooms`,
     "Rooms → Unit → Bed configuration");
+  // Unmapped bed labels used to publish as a double bed, and a missing configuration used to
+  // be derived from bedroom counts. Both are assumptions about sleeping arrangements.
+  add("beds_authored", "Rooms & beds", "Every bed type maps to a channel bed",
+    (v.beds_unmapped ?? []).length === 0 && v.beds_are_default !== true,
+    (v.beds_unmapped ?? []).length > 0
+      ? `Bed type(s) ${(v.beds_unmapped ?? []).join(", ")} do not map to a Channel Manager bed — the channel would receive a double bed instead. Re-select them from the bed list`
+      : "The bed blocks were derived from the bedroom count instead of an authored bed configuration — capture the real beds per bedroom",
+    "Rooms → Unit → Bed configuration");
+  // Changeover rules ship with availability; an assumed code decides which days guests may
+  // arrive or depart, so it must be authored.
+  add("changeover_authored", "Availability 365d", "Changeover rule is authored (not assumed)",
+    v.changeover_is_default !== true,
+    "No changeover rule is set on this unit or the property — the channel would receive an assumed 'arrival and departure any day'. Set the rule in Rate Manager",
+    "Rate Manager → Rules → Changeover");
+
+
 
   // ── Photos ──
   add("meets_minimum_images", "Photos", `Photos (≥ ${RU_MIN_IMAGES})`, !!v.meets_minimum_images,
