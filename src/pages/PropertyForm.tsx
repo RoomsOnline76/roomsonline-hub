@@ -3692,6 +3692,7 @@ export default function PropertyForm({
       // Readiness (score badge, checksheet, field borders, stepper) must reflect
       // the values we just saved without a page refresh.
       void queryClient.invalidateQueries({ queryKey: ["property-readiness"] });
+      void queryClient.invalidateQueries({ queryKey: ["rolos-onboarding-distribution", savedPropertyId] });
 
       // Portfolio commons: when the portfolio has auto-share enabled, propagate the
       // shared data sets (entity, banking, contacts, house rules, locale, RU defaults)

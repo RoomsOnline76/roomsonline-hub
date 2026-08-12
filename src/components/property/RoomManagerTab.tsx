@@ -570,9 +570,11 @@ export function RoomManagerTab({
                   )}
                 </Label>
                 <Input
+                  data-field="room_name"
                   value={roomTypes.find((r) => r.id === selectedRoomType)?.name || ""}
                   onChange={(e) => updateRoomTypeName(selectedRoomType, e.target.value)}
-                  className={cn("h-7 text-xs", getRoomPmsFieldClass(selectedRoomType, "name"))}
+                  className={cn("h-7 text-xs", channelMandatoryClass("room_name"), getRoomPmsFieldClass(selectedRoomType, "name"))}
+                  data-channel-satisfied={checkChannelName(roomTypes.find((r) => r.id === selectedRoomType)?.name || "").status === "ok" ? "1" : "0"}
                   disabled={isRoomFieldPmsSynced(selectedRoomType, "name")}
                 />
                 <ChannelFieldHint
@@ -1393,10 +1395,19 @@ export function RoomManagerTab({
                 TOBI amenity check
               </Button>
             </div>
-            <RUAmenityPicker
-              value={ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.amenities) as string[]}
-              onChange={(next) => updateRoomTypeField(selectedRoomType, "amenities", next)}
-            />
+            <div
+              data-field="room_amenities"
+              className={channelMandatoryClass("room_amenities")}
+              data-channel-satisfied={ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.amenities).length >= 10 ? "1" : "0"}
+            >
+              <RUAmenityPicker
+                value={ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.amenities) as string[]}
+                onChange={(next) => updateRoomTypeField(selectedRoomType, "amenities", next)}
+              />
+              {ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.amenities).length < 10 && (
+                <p className="mt-2 text-[10px] text-destructive">At least 10 mapped amenities are required.</p>
+              )}
+            </div>
 
             {propertyId && selectedRoomType && (
               <AiAmenityDialog
@@ -1472,7 +1483,11 @@ export function RoomManagerTab({
                 </>
               );
             })()}
-            <div className="grid grid-cols-6 gap-4">
+            <div
+              data-field="room_images"
+              className={cn("grid grid-cols-6 gap-4", channelMandatoryClass("room_images"))}
+              data-channel-satisfied={(roomTypes.find((r) => r.id === selectedRoomType)?.images || []).length >= 10 ? "1" : "0"}
+            >
               {/* Upload slot */}
               <div
                 className="aspect-video border-2 border-dashed border-primary/50 rounded-lg flex flex-col items-center justify-center bg-primary/5 cursor-pointer hover:bg-primary/10 transition-colors"
