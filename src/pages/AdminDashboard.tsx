@@ -189,7 +189,7 @@ export default function AdminDashboard() {
           value={`${stats?.activeProperties || 0} / ${stats?.totalProperties || 0}`}
           icon={Building2}
           description="Trading now vs total inventory"
-          onClick={() => navigate('/admin/all-properties')}
+          onClick={() => navigate(scopedPropertyIds.length ? '/admin/property-overview' : '/admin/all-properties')}
         />
         <StatCard
           title="Access Requests"
