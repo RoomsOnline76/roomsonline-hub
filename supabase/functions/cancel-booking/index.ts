@@ -357,6 +357,22 @@ Deno.serve(async (req) => {
             .in("status", ["pending", "approved", "processed"])
             .limit(1);
           if (!existing || existing.length === 0) {
+            // Never request more than the guest actually paid — a deposit-only
+            // booking would otherwise be rejected by refunds-api (400).
+            const { data: txns } = await supabase
+              .from("payment_transactions")
+              .select("amount, status")
+              .eq("booking_id", booking_id);
+            const receivedAmount = (txns ?? [])
+              .filter((t: { status?: string | null }) =>
+                ["complete", "completed", "paid", "success"].includes(
+                  String(t.status || "").toLowerCase(),
+                ),
+              )
+              .reduce((s: number, t: { amount?: number | null }) => s + Number(t.amount || 0), 0);
+            const requestAmount = receivedAmount > 0
+              ? receivedAmount
+              : Number(booking.total_price) || 0;
             const res = await fetch(
               `${Deno.env.get("SUPABASE_URL")}/functions/v1/refunds-api`,
               {
@@ -369,8 +385,9 @@ Deno.serve(async (req) => {
                   action: "request_refund",
                   booking_id,
                   // The policy entitlement is resolved inside refunds-api; the
-                  // request starts at the entitled amount where one exists.
-                  amount: Number(booking.total_price) || 0,
+                  // request starts at the amount received from the guest.
+                  amount: requestAmount,
+
                   reason: `Cancellation: ${reason}`.slice(0, 500),
                   reason_category: updateData.cancellation_reason_category === "guest_request"
                     ? "guest_request"
