@@ -183,30 +183,30 @@ export const PropertySectionRail: React.FC<PropertySectionRailProps> = ({
                     <span className={cn("font-medium", collapsed && "lg:hidden")}>{s.label}</span>
                     {counts && (counts.mandatory > 0 || counts.recommended > 0) && (
                       <span className={cn("ml-auto flex items-center gap-1", collapsed && "lg:hidden")}>
-                        {counts.mandatory > 0 && (
-                          <span
-                            title={
-                              counts.mandatoryLabels && counts.mandatoryLabels.length > 0
-                                ? `Outstanding: ${counts.mandatoryLabels.join(" · ")}`
-                                : `${counts.mandatory} mandatory field(s) outstanding`
-                            }
-                            className="pf-req-count-mandatory rounded border px-1 text-[9px] font-semibold leading-4"
-                          >
-                            {counts.mandatory}
-                          </span>
-                        )}
-                        {counts.recommended > 0 && (
-                          <span
-                            title={
-                              counts.recommendedLabels && counts.recommendedLabels.length > 0
-                                ? `Nice to have: ${counts.recommendedLabels.join(" · ")}`
-                                : `${counts.recommended} nice-to-have field(s) outstanding`
-                            }
-                            className="pf-req-count-recommended rounded border px-1 text-[9px] font-semibold leading-4"
-                          >
-                            {counts.recommended}
-                          </span>
-                        )}
+                        {counts.mandatory > 0 &&
+                          renderCountBadge(
+                            s.key,
+                            "mandatory",
+                            counts.mandatory,
+                            counts.mandatoryItems ??
+                              (counts.mandatoryLabels ?? []).map((label) => ({
+                                key: label,
+                                label,
+                                paintable: false,
+                              })),
+                          )}
+                        {counts.recommended > 0 &&
+                          renderCountBadge(
+                            s.key,
+                            "recommended",
+                            counts.recommended,
+                            counts.recommendedItems ??
+                              (counts.recommendedLabels ?? []).map((label) => ({
+                                key: label,
+                                label,
+                                paintable: false,
+                              })),
+                          )}
                       </span>
                     )}
                   </div>
