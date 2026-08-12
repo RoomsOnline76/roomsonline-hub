@@ -8,6 +8,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
+import { channelMandatoryClass } from "@/lib/channelMandatoryFields";
 
 /**
  * Property-level Floor and Space (size in m²).
