@@ -361,32 +361,51 @@ export interface CommonsState {
 /* Reads                                                               */
 /* ------------------------------------------------------------------ */
 
-const PROPERTY_COLUMNS = "id, name, slug, amenities, country, timezone, ru_location_id";
+const PROPERTY_COLUMNS =
+  "id, name, slug, amenities, country, timezone, ru_location_id, property_type, ru_push_enabled, payment_mode, payment_provider, payment_providers, allow_custom_payment_provider";
 
 async function fetchSnapshots(ids: string[]): Promise<PropertySnapshot[]> {
   if (ids.length === 0) return [];
-  const [{ data: rows, error }, { data: contacts, error: contactError }] = await Promise.all([
+  const [
+    { data: rows, error },
+    { data: contacts, error: contactError },
+    { data: policies, error: policyError },
+    { data: brandKits, error: brandKitError },
+  ] = await Promise.all([
     supabase.from("properties").select(PROPERTY_COLUMNS).in("id", ids),
     supabase
       .from("property_contact_details")
       .select("id, property_id, role, name, email, phone, hours, is_public, sort_order")
       .in("property_id", ids),
+    supabase.from("rolos_policies").select("id, property_id, policy_type, rule").in("property_id", ids),
+    supabase
+      .from("rolos_experience_configs")
+      .select("id, property_id, config")
+      .eq("experience_type", "brand_kit")
+      .in("property_id", ids),
   ]);
   if (error) throw error;
   if (contactError) throw contactError;
+  if (policyError) throw policyError;
+  if (brandKitError) throw brandKitError;
 
   return (rows ?? []).map((row) => {
     const record = row as unknown as Record<string, unknown>;
+    const id = String(record.id);
+    const kit = ((brandKits ?? []) as unknown as BrandKitRow[]).find((k) => k.property_id === id);
     return {
-      id: String(record.id),
+      id,
       name: (record.name as string) ?? "Unnamed property",
       slug: (record.slug as string) ?? null,
       row: record,
       amenities: asRecord(record.amenities),
-      contacts: ((contacts ?? []) as unknown as ContactRow[]).filter((c) => c.property_id === row.id),
+      contacts: ((contacts ?? []) as unknown as ContactRow[]).filter((c) => c.property_id === id),
+      policies: ((policies ?? []) as unknown as PolicyRow[]).filter((p) => p.property_id === id),
+      brandKit: kit ? { id: kit.id, property_id: kit.property_id, config: asRecord(kit.config) } : null,
     };
   });
 }
+
 
 function readGroupValues(snapshot: PropertySnapshot, groupKey: string): Record<string, unknown> {
   const out: Record<string, unknown> = {};
