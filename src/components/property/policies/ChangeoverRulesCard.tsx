@@ -42,6 +42,12 @@ export function ChangeoverRulesCard({
   unitOverrides = [],
 }: ChangeoverRulesCardProps) {
   const authored = master !== null && master !== undefined;
+  // Collapsed once the mandatory master rule is set, so the tab only shows open work.
+  const [openOverride, setOpenOverride] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (!authored) setOpenOverride(null);
+  }, [authored]);
+  const open = openOverride ?? !authored;
 
   const setDay = (day: ChangeoverDowKey, value: string) => {
     const next = { ...rules };
@@ -53,17 +59,23 @@ export function ChangeoverRulesCard({
   return (
     <Card id="changeover_rules">
       <CardHeader className="p-3 pb-2">
-        <CardTitle className="flex items-center gap-2 text-sm">
-          <CalendarClock className="h-4 w-4 text-primary" />
-          Changeover — arrival &amp; departure rules
-        </CardTitle>
+        <button type="button" onClick={() => setOpenOverride(!open)} aria-expanded={open} className="w-full text-left">
+          <CardTitle className="flex items-center gap-2 text-sm">
+            <CalendarClock className="h-4 w-4 text-primary" />
+            Changeover — arrival &amp; departure rules
+            {authored && (
+              <span className="ml-auto flex items-center gap-1 text-[10px] font-normal text-muted-foreground">
+                <CheckCircle2 className="h-3 w-3 text-emerald-600" />
+                {changeoverCodeLabel(master)}
+                <ChevronRight className={cn("h-3.5 w-3.5 transition-transform", open && "rotate-90")} />
+              </span>
+            )}
+          </CardTitle>
+        </button>
       </CardHeader>
+      {open && (
       <CardContent className="space-y-3 p-3 pt-0">
-        <p className="text-[11px] leading-snug text-muted-foreground">
-          Tells distribution channels which days a stay may start or end. Required before
-          channel onboarding — without it the channel receives an assumed “arrival and
-          departure any day”.
-        </p>
+
 
         <div className="space-y-1">
           <Label className="text-xs">Property master rule</Label>
