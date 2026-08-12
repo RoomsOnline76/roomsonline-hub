@@ -37,6 +37,9 @@ interface Body {
   unit_id?: string;
   /** purge_listing: RU OwnerID that owns the listing. */
   owner_id?: string | null;
+  /** purge_listing: the channel already reports it archived — skip the push. */
+  already_archived?: boolean;
+
   /** clear_local_listing: "property" | "unit" record kind holding the stale id. */
   record_kind?: "property" | "unit";
 }
@@ -258,9 +261,15 @@ Deno.serve(async (req) => {
         owner_email: string | null;
         listing_count: number;
         error: string | null;
+        is_master: boolean;
       }> = [];
+      // The master/parent account may never hold listings in a white-label
+      // integration, so flag it explicitly rather than assume it is clean.
+      const masterOwnerId = (Deno.env.get("RU_OWNER_ID") || "").trim();
       const seenOnChannel = new Set<string>();
+      const archivedOnChannel = new Set<string>();
       const orphans: Array<{ listing_id: string; name: string; owner_id: string; is_archived: boolean }> = [];
+      const archivedOrphans: Array<{ listing_id: string; name: string; owner_id: string }> = [];
       const matched: Array<{
         listing_id: string;
         name: string;
@@ -293,28 +302,41 @@ Deno.serve(async (req) => {
             owner_email: account?.owner_email ?? null,
             listing_count: 0,
             error: message,
+            is_master: masterOwnerId !== "" && masterOwnerId === ownerId,
           });
           continue;
         }
 
         const listings = res.properties || [];
+        const liveListings = listings.filter((l) => l.is_archived !== true);
         accountResults.push({
           owner_id: ownerId,
           owner_email: account?.owner_email ?? null,
-          listing_count: listings.length,
+          listing_count: liveListings.length,
           error: null,
+          is_master: masterOwnerId !== "" && masterOwnerId === ownerId,
         });
 
         for (const l of listings) {
           const id = String(l.id);
-          seenOnChannel.add(id);
           const local = localByListing.get(id);
+          // Archived listings stay in the channel property feed forever (they are
+          // only hidden in the channel portal) and never bill, so they are counted
+          // and listed apart from anything actionable.
+          if (l.is_archived === true) {
+            archivedOnChannel.add(id);
+            if (!local) {
+              archivedOrphans.push({ listing_id: id, name: l.name || "Unnamed listing", owner_id: ownerId });
+              continue;
+            }
+          }
+          seenOnChannel.add(id);
           if (!local) {
             orphans.push({
               listing_id: id,
               name: l.name || "Unnamed listing",
               owner_id: ownerId,
-              is_archived: l.is_archived === true,
+              is_archived: false,
             });
             continue;
           }
@@ -335,7 +357,7 @@ Deno.serve(async (req) => {
       const anyRead = accountResults.some((a) => a.error === null);
       const stale = anyRead
         ? Array.from(localByListing.values())
-            .filter((l) => !seenOnChannel.has(l.listingId))
+            .filter((l) => !seenOnChannel.has(l.listingId) && !archivedOnChannel.has(l.listingId))
             .map((l) => ({
               listing_id: l.listingId,
               label: l.label,
@@ -351,7 +373,10 @@ Deno.serve(async (req) => {
           success: true,
           reconciled_at: new Date().toISOString(),
           accounts: accountResults,
+          // Live listings only — archived ones are reported separately.
           channel_listing_count: seenOnChannel.size,
+          archived_count: archivedOnChannel.size,
+          archived_orphans: archivedOrphans,
           matched,
           orphans,
           stale,
@@ -379,13 +404,18 @@ Deno.serve(async (req) => {
         .select("id")
         .eq("rentalsunited_property_id", listingId)
         .maybeSingle();
-      const failure = await pushListingStatus(admin, {
-        propertyId: ownerProp?.id ?? "",
-        ruPropertyId: listingId,
-        archive: true,
-        ownerId,
-      });
-      if (failure) return bad(failure, 502);
+      // Re-archiving something the channel already reports as archived is a
+      // wasted call that looks like a failed clean-up, so honour the caller's
+      // "already archived" flag and only clear the local id.
+      if (raw.already_archived !== true) {
+        const failure = await pushListingStatus(admin, {
+          propertyId: ownerProp?.id ?? "",
+          ruPropertyId: listingId,
+          archive: true,
+          ownerId,
+        });
+        if (failure) return bad(failure, 502);
+      }
 
       await admin.from("properties").update({ rentalsunited_property_id: null }).eq("rentalsunited_property_id", listingId);
       await admin

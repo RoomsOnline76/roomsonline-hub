@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import { RefreshCw, AlertTriangle, CheckCircle2, Trash2, Eraser, Sparkles, Loader2 } from "lucide-react";
+import { RefreshCw, AlertTriangle, CheckCircle2, ChevronDown, Trash2, Eraser, Sparkles, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -28,6 +28,7 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
     useChannelReconciliation();
   const [busyId, setBusyId] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
 
   const erroredOwners = useMemo(
     () => new Set((result?.accounts || []).filter((a) => a.error).map((a) => a.owner_id)),
@@ -137,14 +138,15 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
         {result && (
           <>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <Stat label="On the channel" value={result.channel_listing_count} />
+              <Stat label="Live on the channel" value={result.channel_listing_count} />
               <Stat label="Matched locally" value={result.matched.length} />
               <Stat label="Orphans on channel" value={result.orphans.length} tone={result.orphans.length ? "warn" : undefined} />
-              <Stat label="Stale local ids" value={result.stale.length} tone={result.stale.length ? "warn" : undefined} />
+              <Stat label="Archived — not billable" value={result.archived_count} />
             </div>
 
             <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
               <span>Reconciled {new Date(result.reconciled_at).toLocaleString()}</span>
+              <span>{result.stale.length} stale local id{result.stale.length === 1 ? "" : "s"}</span>
               {gap > 0 ? (
                 <Badge variant="destructive" className="gap-1">
                   <AlertTriangle className="h-3 w-3" />
@@ -168,6 +170,42 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
                     </p>
                   ))}
               </div>
+            )}
+
+            {result.accounts.some((a) => a.is_master) && (
+              <p className="rounded-md border border-destructive/40 p-3 text-sm text-destructive">
+                Listings were returned for the master channel account. White-label rules do not allow properties
+                there — these must be archived and re-pushed under a linked sub-account.
+              </p>
+            )}
+
+            {result.archived_orphans.length > 0 && (
+              <section className="space-y-2">
+                <button
+                  type="button"
+                  className="flex w-full items-center justify-between gap-2 text-sm font-medium"
+                  onClick={() => setShowArchived((v) => !v)}
+                >
+                  <span>
+                    Archived on the channel — {result.archived_orphans.length} listing
+                    {result.archived_orphans.length === 1 ? "" : "s"}, not billable
+                  </span>
+                  <ChevronDown className={`h-4 w-4 transition-transform ${showArchived ? "rotate-180" : ""}`} />
+                </button>
+                <p className="text-xs text-muted-foreground">
+                  The channel keeps archived listings in its data feed and only hides them in its own portal. They
+                  carry no cost and need no action.
+                </p>
+                {showArchived && (
+                  <ul className="divide-y rounded-md border">
+                    {result.archived_orphans.map((a) => (
+                      <li key={a.listing_id} className="px-3 py-2 text-sm">
+                        {a.name} <span className="text-muted-foreground">#{a.listing_id} · archived</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
             )}
 
             {result.orphans.length > 0 && (
