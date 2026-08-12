@@ -306,6 +306,35 @@ export default function AdminChannelMonitor() {
         onCancel={() => setTarget(null)}
         onConfirm={handleConfirm}
       />
+
+      <AlertDialog open={!!purgeTarget} onOpenChange={(open) => !open && setPurgeTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove duplicate listings?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {purgeTarget?.unit
+                ? `"${purgeTarget.unit.name}" will be archived at the channel manager and its listing link cleared permanently.`
+                : `${purgeTarget?.row.duplicateListings ?? 0} duplicate listing${
+                    (purgeTarget?.row.duplicateListings ?? 0) === 1 ? "" : "s"
+                  } for ${purgeTarget?.row.name ?? ""} will be archived at the channel manager and their listing links cleared permanently. Live listings are not affected.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={!!busyId || !!busyUnitId}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={!!busyId || !!busyUnitId}
+              onClick={(e) => {
+                e.preventDefault();
+                if (purgeTarget) void runPurgeDuplicate(purgeTarget.row, purgeTarget.unit);
+              }}
+            >
+              Remove from channel
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
     </AppLayout>
   );
 }
