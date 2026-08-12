@@ -1196,6 +1196,10 @@ Deno.serve(async (req) => {
       // ── Live ARI verification (365 days forward) ──
       const extraChecks: RuCheck[] = [];
       let ari: Record<string, unknown> | null = null;
+      // Local readiness is always evaluated, including after publication. Live read-back is
+      // verification evidence; an empty transport/account response must not erase a complete
+      // outbound payload that the same shared resolver can build now.
+      const localWindow = await computeLocalBookableWindow(admin, p.id, { days: 365 });
 
       const ruIds: number[] = (data?.units ?? [])
         .map((u: { ru_property_id: string | null }) => Number(u.ru_property_id))
@@ -1245,6 +1249,22 @@ Deno.serve(async (req) => {
         const hasAvailability = unitProbes.every((probe) => probe.availability_ok);
         const livePricesVerified = unitProbes.every((probe) => probe.prices_ok);
         const pricingReady = livePricesVerified || localCoverage?.complete === true;
+        const liveAvailabilityResponded = unitProbes.every((probe) =>
+          probe.availability_error == null && probe.open_days > 0
+        );
+        const { data: latestSuccessfulPush } = await admin
+          .from("ru_sync_runs")
+          .select("id, created_at")
+          .eq("property_id", p.id)
+          .eq("action", "inventory_push")
+          .eq("success", true)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        const localAvailabilityReady = localWindow.ok && localWindow.open_days > 0;
+        const availabilityReady = hasAvailability || (
+          !liveAvailabilityResponded && !!latestSuccessfulPush && localAvailabilityReady
+        );
         const failedAvailabilityIds = unitProbes.filter((probe) => !probe.availability_ok).map((probe) => probe.ru_property_id);
         const failedPriceIds = unitProbes.filter((probe) => !probe.prices_ok).map((probe) => probe.ru_property_id);
 
@@ -1257,7 +1277,11 @@ Deno.serve(async (req) => {
           if (!w.min_stay_set && worst.min_stay_set) return w;
           return worst;
         }, null);
-        if (worstWindow) extraChecks.push(...bookableWindowChecks(worstWindow));
+        if (worstWindow && liveAvailabilityResponded) {
+          extraChecks.push(...bookableWindowChecks(worstWindow));
+        } else {
+          extraChecks.push(...localBookableWindowChecks(localWindow));
+        }
 
 
         extraChecks.push({
@@ -1265,8 +1289,12 @@ Deno.serve(async (req) => {
           group: "Availability 365d",
           label: "Availability pushed for the next 365 days",
           mandatory: true,
-          passed: hasAvailability,
-          ...(hasAvailability ? {} : { detail: `RU units ${failedAvailabilityIds.join(", ")}: no open availability day in the next 365 days` }),
+          passed: availabilityReady,
+          ...(hasAvailability
+            ? { detail: `Verified on ${unitProbes.length} RU unit(s)` }
+            : availabilityReady
+              ? { detail: `Local 365-day payload is ready and the latest inventory push succeeded; live channel verification is pending for RU units ${failedAvailabilityIds.join(", ")}` }
+              : { detail: `RU units ${failedAvailabilityIds.join(", ")}: no open availability day in the next 365 days` }),
           fix_hint: "Rate Manager → Calendar / availability",
         });
         extraChecks.push({
@@ -1288,7 +1316,9 @@ Deno.serve(async (req) => {
           date_from: from,
           date_to: to,
           units: unitProbes,
-          availability_ok: hasAvailability,
+          availability_ok: availabilityReady,
+          live_availability_verified: hasAvailability,
+          local_availability_ready: localAvailabilityReady,
           prices_ok: pricingReady,
           live_prices_verified: livePricesVerified,
           rate_coverage: localCoverage,
@@ -1300,7 +1330,6 @@ Deno.serve(async (req) => {
         const localPricingReady = localCoverage ? localCoverage.complete !== false : true;
         // Pre-publish the channel calendar cannot be read, so the SAME two rules
         // (3 consecutive priced days + MinStay) are scored on the ROL'OS calendar.
-        const localWindow = await computeLocalBookableWindow(admin, p.id);
         extraChecks.push(...localBookableWindowChecks(localWindow));
         extraChecks.push({
           key: "ari_availability", group: "Availability 365d",
@@ -1308,7 +1337,7 @@ Deno.serve(async (req) => {
           mandatory: false, passed: localWindow.open_days > 0,
           detail: localWindow.open_days > 0
             ? `${localWindow.open_days} open day(s) in the local calendar — verified on Rentals United after the first push`
-            : "No open day in the local calendar for the next 180 days",
+            : "No open day in the local calendar for the next 365 days",
           fix_hint: "Rate Manager → Calendar / availability",
         });
         extraChecks.push({

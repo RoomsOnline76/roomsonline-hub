@@ -25,6 +25,9 @@ export interface RuLocalWindow {
   window_from: string;
   window_to: string;
   unit_count: number;
+  /** Unit fields are the primary stay-authoring surface in the property editor. */
+  units_with_min_stay: number;
+  units_with_max_stay: number;
 }
 
 const EMPTY = (from: string, to: string): RuLocalWindow => ({
@@ -39,6 +42,8 @@ const EMPTY = (from: string, to: string): RuLocalWindow => ({
   window_from: from,
   window_to: to,
   unit_count: 0,
+  units_with_min_stay: 0,
+  units_with_max_stay: 0,
 });
 
 /**
@@ -50,7 +55,7 @@ export async function computeLocalBookableWindow(
   propertyId: string,
   opts: { days?: number } = {},
 ): Promise<RuLocalWindow> {
-  const days = opts.days ?? 180;
+  const days = opts.days ?? 365;
   const from = new Date().toISOString().slice(0, 10);
   const to = addDays(from, days);
   const result = EMPTY(from, to);
@@ -83,8 +88,22 @@ export async function computeLocalBookableWindow(
       if (Number(row.minimum_stay ?? 0) > 0) minStayDates.add(date);
     }
 
-    // ── MinStay authored anywhere that reaches the channel payload ──
+    // ── Min/Max Stay authored anywhere that reaches the channel payload ──
+    // Rooms → Room Type is the primary authoring surface. It persists these values on the
+    // active mirror rows, so readiness must inspect them before dated/plan fallbacks.
+    const { data: stayRows } = await admin
+      .from("hostfully_room_types")
+      .select("id, min_stay, max_stay, is_active")
+      .eq("property_id", propertyId)
+      .eq("is_active", true);
+    const activeStayRows = (stayRows ?? []) as Array<{ min_stay?: unknown; max_stay?: unknown }>;
+    result.units_with_min_stay = activeStayRows.filter((row) => Number(row.min_stay ?? 0) > 0).length;
+    result.units_with_max_stay = activeStayRows.filter((row) => Number(row.max_stay ?? 0) > 0).length;
+
     let minStaySet = minStayDates.size > 0;
+    if (!minStaySet && activeStayRows.length > 0) {
+      minStaySet = activeStayRows.every((row) => Number(row.min_stay ?? 0) > 0);
+    }
     if (!minStaySet) {
       const { data: restrictions } = await admin
         .from("rolos_stay_restrictions")
@@ -112,10 +131,12 @@ export async function computeLocalBookableWindow(
       window: { from, to },
       audience: "channels",
     });
-    const units: UnitRateContext[] = resolver.units.length > 0
-      ? resolver.units
-      : [{ id: propertyId, name: "" }];
+    const units: UnitRateContext[] = resolver.units;
     result.unit_count = units.length;
+
+    // Do not disguise a missing canonical unit as a closed synthetic property. The caller can
+    // now distinguish "no active room type" from valid units with no sellable dates.
+    if (units.length === 0) return result;
 
     const allDates = eachDate(from, to);
     let bestRun = 0;

@@ -3,7 +3,7 @@
  * Manages room type CRUD, bed configuration, facilities, amenities, images, and agreements.
  */
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { RoomTypeDataViewer, RateTypeItem } from "@/components/ExpandableDataViewer";
 import RUAmenityPicker from "@/components/property/RUAmenityPicker";
 
@@ -111,10 +111,18 @@ export function RoomManagerTab({
   handleNewMealType,
 }: RoomManagerTabProps) {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const [isRoomImageUploading, setIsRoomImageUploading] = useState(false);
   const [aiUnitAmenityOpen, setAiUnitAmenityOpen] = useState(false);
   const channelTypes = useChannelPropertyTypes();
+
+  useEffect(() => {
+    const requestedRoom = searchParams.get("room")?.trim().toLowerCase();
+    if (!requestedRoom) return;
+    const match = roomTypes.find((room) => String(room.name ?? "").trim().toLowerCase() === requestedRoom);
+    if (match?.id) setSelectedRoomType(String(match.id));
+  }, [roomTypes, searchParams, setSelectedRoomType]);
 
   const roomImageAudit = useImageDimensionAudit(
     (roomTypes.find((r) => r.id === selectedRoomType)?.images || []) as string[],
@@ -1309,16 +1317,18 @@ export function RoomManagerTab({
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs whitespace-nowrap">Min Stay</Label>
-                    <Input type="number" className="h-7 w-full text-xs"
+                    <Input type="number" data-field="min_stay" className={cn("h-7 w-full text-xs", channelMandatoryClass("min_stay_set"))}
                       value={roomTypes.find((r) => r.id === selectedRoomType)?.minStay || 1}
                       onChange={(e) => updateRoomTypeField(selectedRoomType, "minStay", parseInt(e.target.value) || 1)}
+                      {...markerFlags(UNIT_ROW_RULES.minStay(roomTypes.find((r) => r.id === selectedRoomType) ?? {}))}
                     />
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs whitespace-nowrap">Max Stay</Label>
-                    <Input type="number" className="h-7 w-full text-xs"
+                    <Input type="number" data-field="max_stay" className="h-7 w-full text-xs channel-recommended"
                       value={roomTypes.find((r) => r.id === selectedRoomType)?.maxStay || 0}
                       onChange={(e) => updateRoomTypeField(selectedRoomType, "maxStay", parseInt(e.target.value) || 0)}
+                      {...markerFlags(UNIT_ROW_RULES.maxStay(roomTypes.find((r) => r.id === selectedRoomType) ?? {}))}
                     />
                   </div>
                 </div>

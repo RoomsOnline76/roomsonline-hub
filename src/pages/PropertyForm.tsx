@@ -3695,8 +3695,10 @@ export default function PropertyForm({
                 .eq("id", existingPlan.id);
               if (updateErr) console.warn("[ROL Sync] Rate plan update error:", updateErr);
             } else {
-              const { error: insertErr } = await supabase.from("rolos_rate_plans").insert(ratePlanData);
-              if (insertErr) console.warn("[ROL Sync] Rate plan insert error:", insertErr);
+              // Rate Plans is the sole creator of commercial plans. Property Overview is a
+              // compatibility mirror and may update an existing plan, but must never race the
+              // database mirror/configurator by creating another one.
+              console.warn(`[ROL Sync] Skipped missing mirrored rate plan "${rateType.name}"; create it in Rate Plans`);
             }
           }
           console.log(`[ROL Sync] Synced ${pmsRateTypes.length} rate types to rolos_rate_plans`);
