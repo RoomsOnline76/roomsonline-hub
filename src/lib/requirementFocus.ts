@@ -85,7 +85,7 @@ export function clearRequirementDecoration(root: ParentNode = document) {
   root.querySelectorAll<HTMLElement>(`[${REQ_ATTR}]`).forEach((el) => {
     el.classList.remove(...CLASSES);
     el.removeAttribute(REQ_ATTR);
-    el.removeAttribute("data-req-tier");
+    if (el.getAttribute("data-req-live") !== "1") el.removeAttribute("data-req-tier");
     el.removeAttribute("data-req-satisfied");
   });
 }
@@ -105,8 +105,17 @@ export function decorateRequirements(statuses: RequirementStatus[], root: Parent
     seen.add(el);
 
     el.setAttribute(REQ_ATTR, status.key);
-    el.setAttribute("data-req-tier", status.tier);
     el.setAttribute("data-req-satisfied", status.satisfied ? "1" : "0");
+
+    // The control marks itself live from the values on screen — tag it so
+    // "Show me" can walk to it, but leave its border alone.
+    if (el.getAttribute("data-req-live") === "1") {
+      el.classList.remove("pf-req-mandatory", "pf-req-recommended", "pf-req-satisfied");
+      el.classList.add("pf-req-field");
+      continue;
+    }
+
+    el.setAttribute("data-req-tier", status.tier);
     el.classList.add("pf-req-field");
     el.classList.toggle("pf-req-mandatory", status.tier === "mandatory");
     el.classList.toggle("pf-req-recommended", status.tier === "recommended");
