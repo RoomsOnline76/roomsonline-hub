@@ -171,3 +171,41 @@ export function focusRequirementField(key: string, attempt = 0): void {
   if (focusable && isVisible(focusable)) focusable.focus({ preventScroll: true });
 }
 
+/**
+ * Same behaviour as `focusRequirementField`, but for controls that are not in the
+ * requirement registry: pass the selector(s) directly. Used by cards that own
+ * their own mandatory set (e.g. Company Information) so their "outstanding"
+ * lines can walk the owner to the exact input.
+ */
+export function focusFieldTargets(targets: string[], attempt = 0): void {
+  const el = resolveRequirementElement(targets);
+  if (!el) {
+    if (attempt < 12) window.setTimeout(() => focusFieldTargets(targets, attempt + 1), 250);
+    return;
+  }
+
+  if (!isVisible(el)) {
+    revealAncestors(el);
+    if (!isVisible(el) && attempt < 8) {
+      window.setTimeout(() => focusFieldTargets(targets, attempt + 1), 250);
+      return;
+    }
+  }
+
+  let paint: HTMLElement = el;
+  while (!isVisible(paint) && paint.parentElement) paint = paint.parentElement;
+
+  paint.classList.add("pf-req-field", "pf-req-mandatory");
+  paint.scrollIntoView({ behavior: "smooth", block: "center" });
+  paint.classList.remove("pf-req-pulse");
+  void paint.offsetWidth;
+  paint.classList.add("pf-req-pulse");
+  window.setTimeout(() => paint.classList.remove("pf-req-pulse"), 2400);
+
+  const focusable = el.matches("input, textarea, select, button")
+    ? el
+    : el.querySelector<HTMLElement>("input, textarea, select, button, [tabindex]");
+  if (focusable && isVisible(focusable)) focusable.focus({ preventScroll: true });
+}
+
+
