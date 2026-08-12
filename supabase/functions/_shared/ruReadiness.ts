@@ -191,8 +191,9 @@ export function evaluateUnitChecks(
     "Property → House rules → Check-in / Check-out", false);
   add("has_arrival_instructions", "Content", "Arrival instructions populated",
     v.has_arrival_instructions !== false,
-    `Arrival instructions are ${v.arrival_instructions_length ?? 0} characters — at least ${RU_MIN_ARRIVAL_INSTRUCTIONS} are required`,
-    "Property → House rules → Check-in instructions");
+    `Arrival instructions are ${v.arrival_instructions_length ?? 0} characters — at least ${RU_MIN_ARRIVAL_INSTRUCTIONS} are required. Units without their own instructions use the master property arrival policy, so save that policy to clear every unit at once`,
+    "Property → Policies → Arrival policy");
+
   // Space stays advisory (RU accepts an estimate), but Floor is authored data the
   // channel review checks — a blank Floor must block the push instead of silently
   // shipping the ground-floor default.
