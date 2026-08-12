@@ -40,6 +40,9 @@ export const ArrivalPolicyPanel: React.FC<ArrivalPolicyPanelProps> = ({ property
   const [text, setText] = useState("");
   const [saved, setSaved] = useState("");
   const [overrides, setOverrides] = useState<RoomOverride[]>([]);
+  const [unitDrafts, setUnitDrafts] = useState<Record<string, string>>({});
+  const [savingUnit, setSavingUnit] = useState<string | null>(null);
+
 
 
   const load = useCallback(async () => {
@@ -57,9 +60,12 @@ export const ArrivalPolicyPanel: React.FC<ArrivalPolicyPanelProps> = ({ property
       const current = String(amenities?.house_rules?.check_in_instructions ?? "");
       setText(current);
       setSaved(current);
+      // Every unit is listed: a blank value means "inherit the property arrival policy".
       setOverrides(
-        ((rooms ?? []) as RoomOverride[]).filter((r) => String(r.check_in_instructions ?? "").trim().length > 0),
+        ((rooms ?? []) as RoomOverride[]).sort((a, b) => (a.name ?? "").localeCompare(b.name ?? "")),
       );
+      setUnitDrafts({});
+
     } catch (e) {
       console.warn("[ArrivalPolicyPanel] load failed:", e);
     } finally {
@@ -187,16 +193,52 @@ export const ArrivalPolicyPanel: React.FC<ArrivalPolicyPanelProps> = ({ property
       const { error } = await supabase
         .from("hostfully_room_types")
         .update({ check_in_instructions: null })
-        .in("id", overrides.map((o) => o.id));
+        .in("id", overrides.filter((o) => String(o.check_in_instructions ?? "").trim().length > 0).map((o) => o.id));
       if (error) throw error;
-      setOverrides([]);
-      toast.success("Room-level arrival instructions cleared — the property policy is now the only source");
+      setOverrides((prev) => prev.map((o) => ({ ...o, check_in_instructions: null })));
+      setUnitDrafts({});
+      toast.success("Unit arrival instructions cleared — every unit now inherits the property policy");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Could not clear room overrides");
+      toast.error(e instanceof Error ? e.message : "Could not clear unit instructions");
     } finally {
       setClearing(false);
     }
   };
+
+  /** Per-unit save. An empty value stores NULL, which makes the unit inherit the master policy. */
+  const handleSaveUnit = async (unit: RoomOverride) => {
+    const value = String(unitDrafts[unit.id] ?? "").trim();
+    if (value.length > 0 && value.length < MIN_ARRIVAL_CHARS) {
+      toast.error(`At least ${MIN_ARRIVAL_CHARS} characters are required — or clear the field to inherit the property policy`);
+      return;
+    }
+    setSavingUnit(unit.id);
+    try {
+      const { error } = await supabase
+        .from("hostfully_room_types")
+        .update({ check_in_instructions: value.length ? value : null })
+        .eq("id", unit.id);
+      if (error) throw error;
+      setOverrides((prev) =>
+        prev.map((o) => (o.id === unit.id ? { ...o, check_in_instructions: value.length ? value : null } : o)),
+      );
+      setUnitDrafts((prev) => {
+        const next = { ...prev };
+        delete next[unit.id];
+        return next;
+      });
+      toast.success(
+        value.length
+          ? `${unit.name ?? "Unit"} now uses its own arrival instructions`
+          : `${unit.name ?? "Unit"} inherits the property arrival policy`,
+      );
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not save the unit arrival instructions");
+    } finally {
+      setSavingUnit(null);
+    }
+  };
+
 
   if (loading) {
     return (
@@ -294,31 +336,102 @@ export const ArrivalPolicyPanel: React.FC<ArrivalPolicyPanelProps> = ({ property
       </div>
 
       {overrides.length > 0 && (
-        <div className="rounded border border-amber-500/40 bg-amber-500/5 p-2 space-y-1.5">
-          <p className="text-[10px] text-amber-700">
-            {overrides.length} room{overrides.length === 1 ? "" : "s"} carry their own arrival instructions and will
-            ignore this policy on channels and guest emails.
-          </p>
-          <div className="flex flex-wrap gap-1">
-            {overrides.map((o) => (
-              <Badge key={o.id} variant="outline" className="text-[10px]">
-                {o.name ?? "Unnamed room"}
-              </Badge>
-            ))}
+        <div className="rounded border border-border bg-muted/30 p-2 space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-[10px] font-medium">
+              Per-unit arrival instructions ({overrides.length})
+            </p>
+            <span className="text-[10px] text-muted-foreground">
+              Leave a unit blank to inherit the property policy above — that is what channels and guest emails will send.
+            </span>
+            {overrides.some((o) => String(o.check_in_instructions ?? "").trim().length > 0) && (
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="ml-auto h-6 text-[10px]"
+                disabled={clearing}
+                onClick={handleClearOverrides}
+              >
+                {clearing ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : null}
+                Reset all units to the property policy
+              </Button>
+            )}
           </div>
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            className="h-6 text-[10px]"
-            disabled={clearing}
-            onClick={handleClearOverrides}
-          >
-            {clearing ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : null}
-            Clear room overrides and use this policy everywhere
-          </Button>
+
+          {overrides.map((unit) => {
+            const stored = String(unit.check_in_instructions ?? "");
+            const draft = unitDrafts[unit.id] ?? stored;
+            const draftTrimmed = draft.trim();
+            const unitDirty = draft !== stored;
+            const unitTooShort = draftTrimmed.length > 0 && draftTrimmed.length < MIN_ARRIVAL_CHARS;
+            const inherits = draftTrimmed.length === 0;
+            const effectiveLength = inherits ? trimmed.length : draftTrimmed.length;
+
+            return (
+              <div key={unit.id} className="rounded border border-border/60 bg-background p-2 space-y-1.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[11px] font-medium">{unit.name ?? "Unnamed unit"}</span>
+                  <Badge variant="outline" className="text-[10px]">
+                    {inherits ? "Inherits property policy" : "Own instructions"}
+                  </Badge>
+                  {effectiveLength < MIN_ARRIVAL_CHARS ? (
+                    <span className="flex items-center gap-1 text-[10px] text-destructive">
+                      <AlertTriangle className="h-3 w-3" /> Effective instructions are {effectiveLength} characters —{" "}
+                      {MIN_ARRIVAL_CHARS} required for channels
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1 text-[10px] text-emerald-600">
+                      <CheckCircle2 className="h-3 w-3" /> {effectiveLength} characters will be sent
+                    </span>
+                  )}
+                  <div className="ml-auto flex items-center gap-1">
+                    {!inherits && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="h-6 text-[10px]"
+                        onClick={() => setUnitDrafts((prev) => ({ ...prev, [unit.id]: "" }))}
+                      >
+                        Use property policy
+                      </Button>
+                    )}
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-6 text-[10px]"
+                      disabled={!unitDirty || savingUnit === unit.id || unitTooShort}
+                      onClick={() => void handleSaveUnit(unit)}
+                    >
+                      {savingUnit === unit.id ? (
+                        <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                      ) : (
+                        <Save className="h-3 w-3 mr-1" />
+                      )}
+                      Save
+                    </Button>
+                  </div>
+                </div>
+                <Textarea
+                  value={draft}
+                  onChange={(e) => setUnitDrafts((prev) => ({ ...prev, [unit.id]: e.target.value }))}
+                  rows={3}
+                  placeholder="Blank = use the property arrival policy. Add unit-specific access here (gate code, key box, which chalet door)."
+                  className={`text-xs ${unitTooShort ? "border-destructive focus-visible:ring-destructive" : ""}`}
+                />
+                {unitTooShort && (
+                  <p className="text-[10px] text-destructive">
+                    At least {MIN_ARRIVAL_CHARS} characters — or clear the field to inherit the property policy.
+                  </p>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
+
     </div>
   );
 };
