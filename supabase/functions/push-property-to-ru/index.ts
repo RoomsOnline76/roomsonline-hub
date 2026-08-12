@@ -3910,10 +3910,21 @@ Deno.serve(async (req) => {
       // create duplicate building containers in the white-label portal.
       if (!useBuilding) {
         // Optional filter: only_unit_ids restricts the push to specific room_type ids
-        const filteredUnits = Array.isArray(only_unit_ids) && only_unit_ids.length > 0
+        const requestedUnits = Array.isArray(only_unit_ids) && only_unit_ids.length > 0
           ? activeRoomTypes.filter(rt => only_unit_ids.includes(rt.id))
           : activeRoomTypes;
-        console.log(`[push-property-to-ru] Standalone-units mode: pushing ${filteredUnits.length}/${activeRoomTypes.length} units without building`);
+
+        // Resumable chunking: each unit costs a content push plus availability/price pushes and
+        // both read-backs, so a large property never fits in one invocation's budget — the last
+        // units used to die with "Failed to send a request to the Edge Function". Push a slice
+        // per invocation and hand the caller the ids still outstanding.
+        const chunkSize = Number.isFinite(Number(batch_size)) && Number(batch_size) > 0
+          ? Math.min(Math.floor(Number(batch_size)), requestedUnits.length || 1)
+          : 3;
+        const filteredUnits = requestedUnits.slice(0, chunkSize);
+        const remainingUnits = requestedUnits.slice(chunkSize);
+        const sequenceBatchId = typeof incomingBatchId === 'string' && incomingBatchId ? incomingBatchId : crypto.randomUUID();
+        console.log(`[push-property-to-ru] Standalone-units mode: pushing ${filteredUnits.length} of ${requestedUnits.length} requested unit(s) (${activeRoomTypes.length} active, chunk ${chunkSize}, batch ${sequenceBatchId})`);
         const unitResults: any[] = [];
 
         for (const unit of filteredUnits) {
