@@ -18,6 +18,8 @@ import { FormSection } from "@/components/property/form/DenseForm";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { channelMandatoryClass } from "@/lib/channelMandatoryFields";
+import { markerFlags } from "@/lib/fieldMarkers";
 
 interface PoliciesTabProps {
   propertyId: string;
@@ -191,7 +193,7 @@ export const PoliciesTab: React.FC<PoliciesTabProps> = ({ propertyId, onOpenSpec
         title="Master policy"
         description="The property-wide fallback used whenever a special or rate plan carries no terms of its own."
       >
-        <div data-field="master_policy">
+        <div data-field="master_policy" className={channelMandatoryClass("cancellation_policy")} {...markerFlags(policies.length > 0)}>
         <MasterPolicyPanel
 
           policies={policies}
