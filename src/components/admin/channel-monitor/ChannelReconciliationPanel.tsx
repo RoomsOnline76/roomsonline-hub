@@ -35,16 +35,19 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
     [result],
   );
 
-  // Archived listings still exist on the account, so a cleanup has to delete
-  // them too — hiding them is what left 24 ghosts behind last time.
+  // Only real discrepancies are cleanable: live listings on the account with no
+  // local match, plus stale local ids. Archived listings are already gone from
+  // the portal and carry no cost, so a matched account has nothing to clean up.
   const cleanableListings = useMemo(
-    () =>
-      [...(result?.orphans || []), ...(result?.archived_orphans || [])].filter(
-        (o) => !erroredOwners.has(o.owner_id),
-      ),
+    () => (result?.orphans || []).filter((o) => !erroredOwners.has(o.owner_id)),
     [result, erroredOwners],
   );
   const cleanableTotal = cleanableListings.length + (result?.stale.length || 0);
+  const archivedCleanable = useMemo(
+    () => (result?.archived_orphans || []).filter((a) => !erroredOwners.has(a.owner_id)),
+    [result, erroredOwners],
+  );
+
 
   const handlePurge = useCallback(
     async (listing: { listing_id: string; owner_id: string; name: string }) => {
@@ -84,19 +87,28 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
     [clearStale, onChanged],
   );
 
-  const handleCleanupAll = useCallback(async () => {
-    setConfirmOpen(false);
-    const outcome = await cleanupAll();
-    const problems = outcome.failures.length + outcome.refused;
-    if (problems === 0) {
-      toast.success(`Cleaned ${outcome.cleaned} of ${outcome.total}`);
-    } else {
-      toast.error(
-        `Cleaned ${outcome.cleaned} of ${outcome.total} — ${outcome.refused} refused by the channel, ${outcome.failures.length} failed`,
-      );
-    }
-    await onChanged();
-  }, [cleanupAll, onChanged]);
+  const runCleanup = useCallback(
+    async (scope: "actionable" | "archived") => {
+      setConfirmOpen(false);
+      const outcome = await cleanupAll(scope);
+      const problems = outcome.failures.length + outcome.refused;
+      if (outcome.total === 0) {
+        toast.success("Nothing to clean up — the account already matches");
+      } else if (problems === 0) {
+        toast.success(`Cleaned ${outcome.cleaned} of ${outcome.total}`);
+      } else {
+        toast.error(
+          `Cleaned ${outcome.cleaned} of ${outcome.total} — ${outcome.refused} refused by the channel, ${outcome.failures.length} failed`,
+        );
+      }
+      await onChanged();
+    },
+    [cleanupAll, onChanged],
+  );
+
+  const handleCleanupAll = useCallback(() => runCleanup("actionable"), [runCleanup]);
+  const handleDeleteArchived = useCallback(() => runCleanup("archived"), [runCleanup]);
+
 
   const gap = result ? result.channel_listing_count - billableListings : 0;
   const cleaning = cleanup !== null;
@@ -113,11 +125,11 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
           </CardDescription>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          {result && (
+          {result && (cleanableTotal > 0 || cleaning) && (
             <Button
               variant="default"
               size="sm"
-              disabled={running || cleaning || cleanableTotal === 0}
+              disabled={running || cleaning}
               onClick={() => setConfirmOpen(true)}
             >
               {cleaning ? (
@@ -133,6 +145,13 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
               )}
             </Button>
           )}
+          {result && cleanableTotal === 0 && !cleaning && (
+            <Badge variant="secondary" className="gap-1.5">
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              Nothing to clean up
+            </Badge>
+          )}
+
           <Button variant="outline" size="sm" onClick={() => void reconcile()} disabled={running || cleaning}>
             <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${running ? "animate-spin" : ""}`} />
             Reconcile with channel
@@ -207,8 +226,20 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
                 </button>
                 <p className="text-xs text-muted-foreground">
                   The channel keeps archived listings in its data feed and only hides them in its own portal. They
-                  carry no cost, but cleanup still deletes them and verifies they are gone.
+                  carry no cost and are not part of a cleanup — delete them only if you want the feed tidy.
                 </p>
+                {showArchived && archivedCleanable.length > 0 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={running || cleaning}
+                    onClick={() => void handleDeleteArchived()}
+                  >
+                    <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                    Delete archived ({archivedCleanable.length})
+                  </Button>
+                )}
+
                 {showArchived && (
                   <ul className="divide-y rounded-md border">
                     {result.archived_orphans.map((a) => (
@@ -308,15 +339,18 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
             <AlertDialogDescription asChild>
               <div className="space-y-2 text-sm">
                 <p>
-                  {cleanableListings.length} channel listing{cleanableListings.length === 1 ? "" : "s"} (live and
-                  archived) will be deleted upstream, then re-read to confirm the account no longer returns them.
+                  {cleanableListings.length} live channel listing{cleanableListings.length === 1 ? "" : "s"} with no
+                  local match will be deleted upstream, then re-read to confirm the account no longer returns them.
                 </p>
 
                 <p>
                   {result?.stale.length || 0} stale local id{(result?.stale.length || 0) === 1 ? "" : "s"} will be
                   cleared — no channel call needed.
                 </p>
-                <p>Billable matched listings are not touched. Every removal is logged for audit.</p>
+                <p>
+                  Matched billable listings and archived listings are not touched. Every removal is logged for audit.
+                </p>
+
                 {erroredOwners.size > 0 && (
                   <p className="text-destructive">
                     {erroredOwners.size} account{erroredOwners.size === 1 ? "" : "s"} did not answer, so the picture is

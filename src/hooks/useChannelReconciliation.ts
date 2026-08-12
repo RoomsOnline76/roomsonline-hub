@@ -214,23 +214,25 @@ export function useChannelReconciliation() {
   }, []);
 
   /**
-   * Resolves everything the last pass classified as orphan (live or archived) or
-   * stale, one row at a time so a single failure never aborts the rest. Matched
-   * (billable) listings are never touched.
+   * Resolves the discrepancies the last pass found, one row at a time so a single
+   * failure never aborts the rest. Matched (billable) listings are never touched.
+   *
+   * Default scope is "actionable": live orphans on the account plus stale local
+   * ids. Archived listings cost nothing, so they are only deleted when the
+   * caller explicitly asks for the "archived" scope.
    */
-  const cleanupAll = useCallback(async (): Promise<CleanupOutcome> => {
+  const cleanupAll = useCallback(async (scope: "actionable" | "archived" = "actionable"): Promise<CleanupOutcome> => {
     const snapshot = result;
     if (!snapshot) return { cleaned: 0, total: 0, refused: 0, failures: [] };
 
     const erroredOwners = new Set(snapshot.accounts.filter((a) => a.error).map((a) => a.owner_id));
-    const listings: Array<{ listing_id: string; owner_id: string; name: string }> = [
-      ...snapshot.orphans,
-      ...snapshot.archived_orphans,
-    ]
+    const source = scope === "archived" ? snapshot.archived_orphans : snapshot.orphans;
+    const listings: Array<{ listing_id: string; owner_id: string; name: string }> = source
       .filter((o) => !erroredOwners.has(o.owner_id))
       .map((o) => ({ listing_id: o.listing_id, owner_id: o.owner_id, name: o.name }));
-    const stale = snapshot.stale;
+    const stale = scope === "archived" ? [] : snapshot.stale;
     const total = listings.length + stale.length;
+
 
     const failed: CleanupOutcome["failures"] = [];
     const failMap: Record<string, string> = {};
