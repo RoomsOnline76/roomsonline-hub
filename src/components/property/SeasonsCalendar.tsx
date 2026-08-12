@@ -10,6 +10,7 @@ import { ChevronLeft, ChevronRight, Plus, Trash2, X, Lock, CalendarPlus, Buildin
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { isSeasonExpired } from "@/lib/seasonLifecycle";
+import { computeSeasonCoverage } from "@/lib/seasonCoverage";
 
 const SEASON_COLORS = [
   { name: "Red", value: "red", bg: "bg-red-200", border: "border-danger-border", text: "text-destructive", cell: "bg-danger-surface" },
@@ -159,6 +160,16 @@ export default function SeasonsCalendar({
     [seasons, expiredSeasonIds, showPastSeasons],
   );
 
+
+  /**
+   * Coverage of the rolling 365-day window, derived from the authored season
+   * periods already in memory. Informational: it never feeds the mandatory
+   * readiness counters.
+   */
+  const coverage = useMemo(
+    () => computeSeasonCoverage(seasons.flatMap((s) => getSeasonPeriods(s))),
+    [seasons],
+  );
 
   // Normalize legacy seasons that don't have periods array on first render
   React.useEffect(() => {
@@ -366,6 +377,41 @@ export default function SeasonsCalendar({
           Seasons define <span className="font-medium">when</span> only. Nightly pricing for each season is set in Rate
           Plans.
         </p>
+
+        {/* Coverage over the rolling 365-day selling window — informational only. */}
+        <div
+          className={cn(
+            "rounded-md border px-2.5 py-1.5 text-[11px]",
+            coverage.fullyCovered ? "border-success-border bg-success-surface" : "border-warning-border bg-warning-surface",
+          )}
+        >
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span className="font-medium">Season coverage</span>
+            <span>
+              {coverage.coveredDays} of {coverage.windowDays} days covered ({coverage.windowStart} to{" "}
+              {coverage.windowEnd})
+            </span>
+            {coverage.earliest && coverage.latest && (
+              <span className="text-muted-foreground">
+                Authored {coverage.earliest} to {coverage.latest}
+              </span>
+            )}
+          </div>
+          {coverage.fullyCovered ? (
+            <p className="mt-0.5 text-muted-foreground">
+              The full rolling year is covered — no season gaps block selling.
+            </p>
+          ) : (
+            <p className="mt-0.5">
+              Gaps with no season:{" "}
+              {coverage.gaps
+                .slice(0, 4)
+                .map((g) => (g.from === g.to ? g.from : `${g.from} to ${g.to}`))
+                .join(" · ")}
+              {coverage.gaps.length > 4 ? ` +${coverage.gaps.length - 4} more` : ""}
+            </p>
+          )}
+        </div>
 
 
         {/* Year nav + Add Season */}

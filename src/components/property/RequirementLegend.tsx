@@ -3,6 +3,7 @@ import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useRolosOnboardingProgress } from "@/hooks/useRolosOnboardingProgress";
 import { Loader2 } from "lucide-react";
+import { focusRequirementField } from "@/lib/requirementFocus";
 
 interface RequirementLegendProps {
   mandatoryOutstanding: number;
@@ -89,7 +90,31 @@ export const RequirementLegend: React.FC<RequirementLegendProps> = ({
     };
   }, [macros, mandatoryOutstanding, mandatoryTotal, propertyId, recommendedOutstanding, recommendedTotal]);
 
+  /**
+   * A bare count ("1 outstanding") is unactionable, so the legend also names the
+   * outstanding mandatory fields. Each chip routes to the control that owns it.
+   */
+  const outstandingFields = useMemo(() => {
+    const seen = new Set<string>();
+    const out: { key: string; label: string; hint?: string; section?: string }[] = [];
+    for (const m of macros) {
+      for (const item of m.fieldItems) {
+        if (item.tier !== "mandatory" || item.satisfied) continue;
+        if (seen.has(item.key)) continue;
+        seen.add(item.key);
+        out.push({
+          key: item.key,
+          label: item.label,
+          hint: item.requirement?.hint ?? item.fix ?? item.message,
+          section: item.sectionLabel ?? item.section,
+        });
+      }
+    }
+    return out;
+  }, [macros]);
+
   if (counts.mandatoryTotal === 0 && counts.recommendedTotal === 0 && !channel) return null;
+
 
   return (
     <div
@@ -110,6 +135,29 @@ export const RequirementLegend: React.FC<RequirementLegendProps> = ({
               : `${counts.mandatoryOutstanding} of ${counts.mandatoryTotal} outstanding`}
         </span>
       </span>
+      {!isLoading && outstandingFields.length > 0 && (
+        <TooltipProvider delayDuration={100}>
+          <span className="flex flex-wrap items-center gap-1">
+            {outstandingFields.map((f) => (
+              <Tooltip key={f.key}>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={() => focusRequirementField(f.key)}
+                    className="pf-req-count-mandatory rounded border px-1.5 text-[10px] font-medium leading-4 hover:opacity-80"
+                  >
+                    {f.label}
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="max-w-[280px] text-[11px]">
+                  {f.section && <p className="font-medium">{f.section}</p>}
+                  <p className="text-muted-foreground">{f.hint ?? "Click to jump to this field."}</p>
+                </TooltipContent>
+              </Tooltip>
+            ))}
+          </span>
+        </TooltipProvider>
+      )}
       <span className="flex items-center gap-1.5">
         <span className="pf-req-legend-dot pf-req-legend-recommended" aria-hidden />
         <span className="font-medium">Nice to have</span>
