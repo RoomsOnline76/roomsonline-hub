@@ -802,15 +802,21 @@ export function CompanyInformationCard({
                   className="min-h-[50px] text-xs"
                 />
               </div>
-              <div className="flex flex-col gap-1">
-                <Label className="text-xs">Describe your business</Label>
+              <div className="flex flex-col gap-1" data-field="company.describe_your_business">
+                <Label className="text-xs">
+                  Describe your business<Req />
+                </Label>
                 <Textarea
                   value={str(companyProfile.describe_your_business)}
                   onChange={(e) => setField("describe_your_business", e.target.value)}
                   placeholder="Short description of the business as it should appear on channel profiles"
-                  className="min-h-[50px] text-xs"
+                  className="min-h-[50px] text-xs channel-required"
+                  data-channel-satisfied={
+                    str(companyProfile.describe_your_business).trim() ? "1" : "0"
+                  }
                 />
               </div>
+
             </div>
 
             {/* ── Banking (contract / payouts) ── */}
