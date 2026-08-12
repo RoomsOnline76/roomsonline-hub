@@ -60,9 +60,12 @@ export const ArrivalPolicyPanel: React.FC<ArrivalPolicyPanelProps> = ({ property
       const current = String(amenities?.house_rules?.check_in_instructions ?? "");
       setText(current);
       setSaved(current);
+      // Every unit is listed: a blank value means "inherit the property arrival policy".
       setOverrides(
-        ((rooms ?? []) as RoomOverride[]).filter((r) => String(r.check_in_instructions ?? "").trim().length > 0),
+        ((rooms ?? []) as RoomOverride[]).sort((a, b) => (a.name ?? "").localeCompare(b.name ?? "")),
       );
+      setUnitDrafts({});
+
     } catch (e) {
       console.warn("[ArrivalPolicyPanel] load failed:", e);
     } finally {
