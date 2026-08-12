@@ -67,10 +67,10 @@ export function useChannelReconciliation() {
   const [cleanup, setCleanup] = useState<CleanupProgress | null>(null);
   const [failures, setFailures] = useState<Record<string, string>>({});
 
-  const reconcile = useCallback(async () => {
+  const reconcile = useCallback(async (opts?: { keepFailures?: boolean }) => {
     setRunning(true);
     setError(null);
-    setFailures({});
+    if (!opts?.keepFailures) setFailures({});
     try {
       const { data, error: fnError } = await supabase.functions.invoke("channel-manager-entitlement", {
         body: { scope: "reconcile", entity_id: "all" },
@@ -107,8 +107,22 @@ export function useChannelReconciliation() {
     if (fnError) throw fnError;
     const payload = (data || {}) as { success?: boolean; error?: string };
     if (payload.success === false) throw new Error(payload.error || "Could not remove the listing");
+    // The listing is gone upstream, so the channel counter (and the account it
+    // belonged to) must drop with it — otherwise the footer keeps reporting a
+    // billing gap that no longer exists.
     setResult((prev) =>
-      prev ? { ...prev, orphans: prev.orphans.filter((o) => o.listing_id !== orphan.listing_id) } : prev,
+      prev
+        ? {
+            ...prev,
+            channel_listing_count: Math.max(0, prev.channel_listing_count - 1),
+            accounts: prev.accounts.map((a) =>
+              a.owner_id === orphan.owner_id
+                ? { ...a, listing_count: Math.max(0, a.listing_count - 1) }
+                : a,
+            ),
+            orphans: prev.orphans.filter((o) => o.listing_id !== orphan.listing_id),
+          }
+        : prev,
     );
   }, []);
 
@@ -172,8 +186,11 @@ export function useChannelReconciliation() {
 
     setFailures(failMap);
     setCleanup(null);
+    // Re-read the channel so every counter (and the billing-gap footer) reflects
+    // the post-cleanup truth rather than our optimistic local decrements.
+    if (cleaned > 0) await reconcile({ keepFailures: true });
     return { cleaned, total, failures: failed };
-  }, [result, purgeOrphan, clearStale]);
+  }, [result, purgeOrphan, clearStale, reconcile]);
 
   return { result, running, error, reconcile, purgeOrphan, clearStale, cleanupAll, cleanup, failures };
 }
