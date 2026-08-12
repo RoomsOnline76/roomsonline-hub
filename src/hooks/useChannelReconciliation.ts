@@ -70,6 +70,7 @@ export function useChannelReconciliation() {
   const reconcile = useCallback(async () => {
     setRunning(true);
     setError(null);
+    setFailures({});
     try {
       const { data, error: fnError } = await supabase.functions.invoke("channel-manager-entitlement", {
         body: { scope: "reconcile", entity_id: "all" },
