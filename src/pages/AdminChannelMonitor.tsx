@@ -276,8 +276,12 @@ export default function AdminChannelMonitor() {
                   onReactivate={(row) => void runPropertyToggle(row, "reactivate")}
                   onPurgeDuplicate={(row, unit) => setPurgeTarget({ row, unit })}
                 />
+                <ChannelReconciliationPanel
+                  billableListings={data.billableListings}
+                  onChanged={() => data.refresh()}
+                />
                 <ChannelArchiveLog events={data.events} />
-              </>
+
             )}
           </TabsContent>
 
