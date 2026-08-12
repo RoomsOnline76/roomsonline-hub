@@ -263,11 +263,13 @@ export function RuOnboardingPipeline({ propertyId, readOnly = false, standalone 
     setBusy(null);
     if (fnError || !data?.success) {
       // PHASE_BLOCKED returns `blockers`; NOT_READY returns `gaps` — show either.
-      const reasons: string[] = [...(data?.blockers ?? []), ...(data?.gaps ?? [])].map(String);
+      const gaps = (Array.isArray(data?.gaps) ? data.gaps : []) as unknown[];
+      const blockers = (Array.isArray(data?.blockers) ? data.blockers : []) as unknown[];
+      const reasons: string[] = [...blockers, ...gaps].map(String);
       // Keep them on screen: a toast alone left the blocking phase looking clean.
       setPushBlock(
         reasons.length
-          ? { phase: (data?.phase as PhaseKey) ?? ((data?.gaps ?? []).length ? "p2_readiness" : "p3_push"), reasons }
+          ? { phase: (data?.phase as PhaseKey) ?? (gaps.length ? "p2_readiness" : "p3_push"), reasons }
           : null,
 
       );
