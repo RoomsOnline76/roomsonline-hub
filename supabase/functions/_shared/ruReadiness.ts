@@ -93,7 +93,12 @@ export interface RuUnitValidation {
   has_bedroom?: boolean;
   has_kitchen?: boolean;
   has_bathroom_room?: boolean;
+  has_bathrooms?: boolean;
+  has_toilets?: boolean;
+  bathrooms_count?: number;
+  toilets_count?: number;
   beds_distributed?: boolean;
+
   arrival_instructions_length?: number;
   has_arrival_instructions?: boolean;
   ru_location_authored?: boolean;
