@@ -4012,8 +4012,18 @@ Deno.serve(async (req) => {
           });
         }
 
-        const inventorySuccess = unitResults.length === filteredUnits.length && unitResults.every((u: any) => u.success);
-        const inventoryVerified = inventorySuccess && unitResults.every((u: any) => {
+        // Transport exhaustion (worker recycle / cold boot) is not a content, availability or
+        // price rejection — label it so the caller can simply retry those units.
+        const TRANSPORT_RE = /failed to send a request|fetch failed|network|timeout|timed out|shutdown|worker|boot|connection|non-2xx/i;
+        for (const u of unitResults) {
+          if (!u.success && TRANSPORT_RE.test(String(u.error || ''))) {
+            u.transport_failure = true;
+            u.error = `Not pushed yet — the run ran out of time (${u.error}). Retry this unit.`;
+          }
+        }
+
+        const chunkSuccess = unitResults.length === filteredUnits.length && unitResults.every((u: any) => u.success);
+        const chunkVerified = chunkSuccess && unitResults.every((u: any) => {
           const ari = u.ari ?? u;
           return ari.availability_pushed === true
             && ari.prices_pushed === true
@@ -4023,6 +4033,13 @@ Deno.serve(async (req) => {
             && (ari.prices_verification?.mismatches?.length ?? 0) === 0
             && (ari.prices_verification?.missing_dates?.length ?? 0) === 0;
         });
+
+        const failedUnitIds = unitResults.filter((u: any) => !u.success).map((u: any) => u.room_type_id);
+        const retryableUnitIds = unitResults.filter((u: any) => u.transport_failure).map((u: any) => u.room_type_id);
+        const remainingUnitIds = [...remainingUnits.map(u => u.id), ...retryableUnitIds];
+        // The whole inventory is only pushed when this chunk finished the sequence cleanly.
+        const inventorySuccess = chunkSuccess && remainingUnitIds.length === 0;
+        const inventoryVerified = chunkVerified && remainingUnitIds.length === 0;
 
         // Once every unit lives standalone at RU, drop the stale building link so no future
         // run (cron, cert suite, manual) can re-enter the building flow and spawn duplicates.
@@ -4035,24 +4052,50 @@ Deno.serve(async (req) => {
           console.log(`[push-property-to-ru] Cleared stale building link ${property.rentalsunited_building_id} for "${property.name}"`);
         }
 
+        const hardFailures = unitResults.filter((u: any) => !u.success && !u.transport_failure);
+        const chunkErrorCode = chunkSuccess
+          ? null
+          : hardFailures.length > 0 ? 'RU_INVENTORY_INCOMPLETE' : 'RU_PUSH_INTERRUPTED';
+        const chunkErrorMessage = chunkSuccess
+          ? null
+          : hardFailures.length > 0
+            ? `Rentals United rejected ${hardFailures.length} unit(s): ${hardFailures.map((u: any) => `${u.name} — ${u.error}`).join('; ')}`
+            : 'The run ran out of time before every unit was pushed — retry the outstanding units.';
+
         await supabase.from('ru_sync_runs').insert({
-          batch_id: crypto.randomUUID(),
+          batch_id: sequenceBatchId,
           property_id,
           action: 'inventory_push',
           success: inventorySuccess,
-          error_code: inventorySuccess ? null : 'RU_INVENTORY_INCOMPLETE',
-          error_message: inventorySuccess ? null : 'One or more standalone units failed content, availability, or price sync',
-          details: { ru_owner_id: ruOwnerId, owner_scope: phaseGate.owner_scope, verified: inventoryVerified, units: unitResults },
+          error_code: chunkErrorCode,
+          error_message: chunkErrorMessage,
+          details: {
+            ru_owner_id: ruOwnerId,
+            owner_scope: phaseGate.owner_scope,
+            verified: inventoryVerified,
+            units: unitResults,
+            chunk: { size: chunkSize, pushed: filteredUnits.length, requested: requestedUnits.length, remaining_unit_ids: remainingUnitIds },
+          },
         });
         return new Response(
           JSON.stringify({
             success: inventorySuccess,
-            ...(!inventorySuccess ? { error: { code: 'RU_INVENTORY_INCOMPLETE', message: 'One or more units failed content, availability, or price sync' } } : {}),
+            ...(chunkErrorCode ? { error: { code: chunkErrorCode, message: chunkErrorMessage } } : {}),
             multi_unit: true,
             standalone_units: true,
             property_id,
             units: unitResults,
-            message: `${unitResults.filter(u => u.success).length}/${activeRoomTypes.length} standalone units pushed to Rentals United`,
+            batch_id: sequenceBatchId,
+            chunked: true,
+            chunk_size: chunkSize,
+            pushed_unit_ids: unitResults.filter((u: any) => u.success).map((u: any) => u.room_type_id),
+            failed_unit_ids: failedUnitIds,
+            retryable_unit_ids: retryableUnitIds,
+            remaining_unit_ids: remainingUnitIds,
+            resume: remainingUnitIds.length > 0,
+            message: remainingUnitIds.length > 0
+              ? `${unitResults.filter(u => u.success).length}/${requestedUnits.length} units pushed — ${remainingUnitIds.length} still to go`
+              : `${unitResults.filter(u => u.success).length}/${requestedUnits.length} standalone units pushed to Rentals United`,
           }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
