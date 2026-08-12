@@ -3,7 +3,12 @@ import {
   isChangeoverAuthored,
   isMappedChannelPropertyType,
 } from "@/config/channelPropertyTypes";
-import { areBedsDistributed, calculateBedCapacity, type BedEntry } from "@/lib/bedConfig";
+import {
+  areBedsDistributed,
+  authoredBedroomCount,
+  calculateBedCapacity,
+  type BedEntry,
+} from "@/lib/bedConfig";
 import { checkChannelName } from "@/lib/channelFieldRules";
 import { MIN_IMAGE_HEIGHT, MIN_IMAGE_WIDTH } from "@/lib/imageValidation";
 
@@ -70,6 +75,11 @@ export interface FieldRequirement {
   isSatisfied: (subject: RequirementSubject) => boolean;
   /** Only evaluate/paint when this returns true (e.g. RU-only fields). */
   appliesTo?: (subject: RequirementSubject) => boolean;
+  /**
+   * Optional measured explanation of the shortfall, used when the requirement fails.
+   * Falls back to `REQUIREMENT_SHORTFALLS[key]` when not defined here.
+   */
+  describeShortfall?: (subject: RequirementSubject) => string | undefined;
 }
 
 const str = (v: unknown): string => (typeof v === "string" ? v.trim() : v == null ? "" : String(v).trim());
@@ -875,7 +885,7 @@ export const REQUIREMENT_SHORTFALLS: Record<
   string,
   (subject: RequirementSubject) => string | undefined
 > = {
-  name_hygiene: (s) => checkChannelName(str(s.name)).message || undefined,
+  name_hygiene: (s) => checkChannelName(str(s.name)).issue || undefined,
   description: (s) => `${str(s.description).length} of 700 characters`,
   geo: (s) =>
     !filled(s.latitude) && !filled(s.longitude)
