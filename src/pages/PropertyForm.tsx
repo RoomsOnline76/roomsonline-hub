@@ -3335,6 +3335,8 @@ export default function PropertyForm({
             check_out_from: formData.check_out_from,
             check_out_to: formData.check_out_to,
             children_policy: formData.children_policy,
+            // Authored in the Policies tab → Arrival policy; preserved verbatim here.
+            check_in_instructions: storedArrivalInstructions,
             infant_age_from: formData.infant_age_from,
             infant_age_to: formData.infant_age_to,
             children_age_from: formData.children_age_from,
