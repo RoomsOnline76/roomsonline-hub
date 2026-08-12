@@ -100,8 +100,6 @@ const imageDimensionCache = new Map<string, MeasuredImageDims>();
 const measuring = new Set<string>();
 
 /** Channel-report checks a browser cannot compute; keyed by RU check id. */
-const CHANNEL_CHECK_KEYS = ["bookable_window", "min_stay_set", "has_kitchen"] as const;
-
 const channelChecksQueryKey = (propertyId?: string | null) => ["property-channel-checks", propertyId];
 
 type ChannelCheckMap = Record<string, boolean | undefined>;
@@ -189,8 +187,9 @@ export function usePropertyReadiness(
   const backend = query.data?.backend ?? null;
 
   /**
-   * Channel-reported checks. `probe_ari: false` keeps this a cheap local scoring
-   * pass — the wizard already owns the live probe.
+   * Channel-reported checks. Pre-publish the function scores the ROL'OS calendar; once
+   * the listing is live it verifies the channel calendar. Either way this is the same
+   * truth the wizard uses, so the editor and the wizard cannot disagree.
    */
   const channelQuery = useQuery({
     queryKey: channelChecksQueryKey(propertyId),
@@ -199,16 +198,20 @@ export function usePropertyReadiness(
     refetchOnWindowFocus: false,
     queryFn: async (): Promise<ChannelCheckMap> => {
       const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
-        body: { action: "property_readiness", property_id: propertyId, probe_ari: false },
+        body: { action: "property_readiness", property_id: propertyId },
       });
       if (error || !data?.success) return {};
-      const checks = (data.property?.checks ?? []) as Array<{ key?: string; passed?: boolean }>;
+      const readiness = data.readiness as
+        | { checks?: Array<{ key?: string; passed?: boolean }>; content_quality?: { units?: Array<Record<string, unknown>> } }
+        | null;
       const map: ChannelCheckMap = {};
-      for (const key of CHANNEL_CHECK_KEYS) {
-        const rows = checks.filter((c) => c.key === key);
+      for (const key of ["bookable_window", "min_stay_set"] as const) {
+        const rows = (readiness?.checks ?? []).filter((c) => c.key === key);
         // Multi-unit reports repeat a check per unit — the weakest unit decides.
         if (rows.length > 0) map[key] = rows.every((r) => r.passed === true);
       }
+      const units = readiness?.content_quality?.units ?? [];
+      if (units.length > 0) map.has_kitchen = units.every((u) => u.has_kitchen === true);
       return map;
     },
   });
