@@ -354,15 +354,31 @@ function extractStatusId(xml: string): { id: string; message: string } {
   };
 }
 
-function extractPropertyIds(xml: string): { id: string; name: string }[] {
-  const regex = /<Property\s+ID="(\d+)"[^>]*>[\s\S]*?<Name>(.*?)<\/Name>/g;
-  const results: { id: string; name: string }[] = [];
+/**
+ * Pull_ListOwnerProp_RS carries the listing state as attributes on <Property>:
+ * `IsActive` and `IsArchived`. Reconciliation needs those, so they are surfaced
+ * alongside the id/name pair (additive — existing callers ignore them).
+ */
+function extractPropertyIds(xml: string): { id: string; name: string; is_active: boolean; is_archived: boolean }[] {
+  const regex = /<Property\s+([^>]*)>[\s\S]*?<Name>(.*?)<\/Name>/g;
+  const results: { id: string; name: string; is_active: boolean; is_archived: boolean }[] = [];
   let match;
   while ((match = regex.exec(xml)) !== null) {
-    results.push({ id: match[1], name: match[2].trim() });
+    const attrs = match[1] || '';
+    const id = attrs.match(/\bID="(\d+)"/i)?.[1];
+    if (!id) continue;
+    const active = attrs.match(/\bIsActive="([^"]+)"/i)?.[1];
+    const archived = attrs.match(/\bIsArchived="([^"]+)"/i)?.[1];
+    results.push({
+      id,
+      name: match[2].trim(),
+      is_active: active == null ? true : /^(true|1)$/i.test(active),
+      is_archived: archived == null ? false : /^(true|1)$/i.test(archived),
+    });
   }
   return results;
 }
+
 
 function compactXml(xml: string): string {
   return xml.replace(/<\?xml[^?]*\?>\s*/gi, '').replace(/>\s+</g, '><').trim();
