@@ -35,7 +35,6 @@ const SCOPED_ADMIN_ROUTE_PREFIXES = [
   "/admin/bookings",
   "/admin/all-bookings",
   "/admin/onboarding",
-  "/dashboard/reports",
   "/admin/channel-monitor",
   "/admin/property-overview",
   "/admin/properties/",
