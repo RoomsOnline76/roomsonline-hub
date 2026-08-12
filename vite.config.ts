@@ -14,17 +14,32 @@ const BUILD_SEQ_EPOCH_MS = Date.UTC(2026, 7, 12, 20, 0, 0); // 2026-08-12T20:00Z
 const buildSeq =
   BUILD_SEQ_BASE + Math.max(0, Math.floor((Date.now() - BUILD_SEQ_EPOCH_MS) / 3_600_000));
 
+/**
+ * Serve the build stamp as a virtual module rather than a `define`: `define` is not applied to
+ * bare identifiers in the dev transform, so the preview would keep showing the fallback.
+ */
+const buildInfoPlugin = () => {
+  const id = "virtual:app-build-info";
+  const resolved = "\0" + id;
+  return {
+    name: "rol-build-info",
+    resolveId(source: string) {
+      return source === id ? resolved : null;
+    },
+    load(loadedId: string) {
+      if (loadedId !== resolved) return null;
+      return `export const BUILD_SEQ = ${buildSeq};\nexport const BUILD_TIME = ${JSON.stringify(new Date().toISOString())};\n`;
+    },
+  };
+};
+
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
-  define: {
-    __APP_BUILD_SEQ__: JSON.stringify(buildSeq),
-    __APP_BUILD_TIME__: JSON.stringify(new Date().toISOString()),
-  },
   server: {
     host: "::",
     port: 8080,
   },
-  plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
+  plugins: [react(), buildInfoPlugin(), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

@@ -1,3 +1,5 @@
+import { BUILD_SEQ, BUILD_TIME as VITE_BUILD_TIME } from "virtual:app-build-info";
+
 /**
  * Application version / build numbering.
  *
@@ -9,16 +11,14 @@
 /**
  * Internal sequential build number — never displayed.
  *
- * Injected by `vite.config.ts` (`__APP_BUILD_SEQ__`) so it advances with every build instead
+ * Supplied by the `virtual:app-build-info` module from `vite.config.ts`, so it advances with every build instead
  * of being a constant someone has to remember to bump. The literal is only a fallback for
  * environments without the define (unit tests, plain `tsx` scripts).
  */
-export const SEQUENTIAL_BUILD =
-  typeof __APP_BUILD_SEQ__ === "number" && Number.isFinite(__APP_BUILD_SEQ__) ? __APP_BUILD_SEQ__ : 961;
+export const SEQUENTIAL_BUILD = Number.isFinite(BUILD_SEQ) ? BUILD_SEQ : 961;
 
 /** ISO timestamp of the running build, for tooltips and diagnostics. */
-export const BUILD_TIME =
-  typeof __APP_BUILD_TIME__ === "string" ? __APP_BUILD_TIME__ : new Date(0).toISOString();
+export const BUILD_TIME = VITE_BUILD_TIME;
 
 /** Major version — bumped manually for milestone releases. */
 export const VERSION_MAJOR = 1;

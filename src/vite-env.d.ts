@@ -1,5 +1,9 @@
 /// <reference types="vite/client" />
 
-/** Build sequence + timestamp injected by vite.config.ts at build time. */
-declare const __APP_BUILD_SEQ__: number;
-declare const __APP_BUILD_TIME__: string;
+/** Build stamp supplied by the `rol-build-info` plugin in vite.config.ts. */
+declare module "virtual:app-build-info" {
+  /** Internal sequential build number — advances with every build. Never displayed raw. */
+  export const BUILD_SEQ: number;
+  /** ISO timestamp of the running build. */
+  export const BUILD_TIME: string;
+}
