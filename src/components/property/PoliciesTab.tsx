@@ -23,9 +23,11 @@ interface PoliciesTabProps {
   propertyId: string;
   /** Optional hook so the tab can send the user to the Specials tab. */
   onOpenSpecials?: () => void;
+  /** Marks the property form dirty when the arrival policy is edited or drafted by TOBI. */
+  onDirty?: () => void;
 }
 
-export const PoliciesTab: React.FC<PoliciesTabProps> = ({ propertyId, onOpenSpecials }) => {
+export const PoliciesTab: React.FC<PoliciesTabProps> = ({ propertyId, onOpenSpecials, onDirty }) => {
   const {
     policies,
     links,
