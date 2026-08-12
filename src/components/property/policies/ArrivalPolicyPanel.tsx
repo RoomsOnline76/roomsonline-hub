@@ -120,7 +120,7 @@ export const ArrivalPolicyPanel: React.FC<ArrivalPolicyPanelProps> = ({ property
     try {
       const { data: prop, error } = await supabase
         .from("properties")
-        .select("name, property_type, address, city, suburb, postal_code, country, amenities")
+        .select("name, property_type, address, city, postal_code, country, amenities")
         .eq("id", propertyId)
         .maybeSingle();
       if (error) throw error;
@@ -137,7 +137,7 @@ export const ArrivalPolicyPanel: React.FC<ArrivalPolicyPanelProps> = ({ property
             name: prop?.name,
             property_type: prop?.property_type,
             street_address: prop?.address,
-            suburb: (prop as Record<string, any>)?.suburb,
+            suburb: amenities.suburb ?? null,
             city: prop?.city,
             postal_code: prop?.postal_code,
             country: prop?.country,
