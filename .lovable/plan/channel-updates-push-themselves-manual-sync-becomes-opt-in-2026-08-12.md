@@ -18,6 +18,7 @@ Verified today: auto-push fires from the property save, onboarding save, cancell
 - A delta on a property that is already listed and still passes the gate pushes silently — no operator step, no toast demanding action.
 - If the delta arrives while a gate blocker exists, it is recorded as pending (not discarded) with the blocking reason, and re-fires automatically as soon as readiness scores clean again — so fixing the blocker publishes the change instead of requiring a manual repush.
 - Content and ARI deltas stay separate, keep their fingerprint + debounce behaviour, and continue to never fail a save.
+- add toast that uplaod to channel manager compelted (or something like that)
 
 **3. Manual sync becomes an explicit opt-in**
 
