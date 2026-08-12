@@ -450,7 +450,7 @@ export function localBookableWindowChecks(
       mandatory: true,
       passed: window.ok,
       unit,
-      fix_hint: "Rate Manager → Calendar (availability) and Rates",
+      fix_hint: "Rate Manager → Calendar (seasons) and Rate Plans",
       ...(window.ok
         ? { detail: `Longest sellable run is ${window.longest_run} day(s) from ${window.start ?? "today"}` }
         : {
@@ -464,10 +464,10 @@ export function localBookableWindowChecks(
       mandatory: true,
       passed: window.min_stay_set,
       unit,
-      fix_hint: "Rate Manager → Stay restrictions → Minimum stay",
+      fix_hint: "Edit Property → Rooms → Room Type → Min Stay",
       ...(window.min_stay_set
         ? {}
-        : { detail: "No minimum stay is authored on the calendar, stay restrictions or active rate plans" }),
+        : { detail: "No minimum stay is authored on the affected Room Type or its dated/Rate Plan fallback" }),
     },
   ];
 }
@@ -510,10 +510,10 @@ export function bookableWindowChecks(
       mandatory: true,
       passed: window.min_stay_set,
       unit,
-      fix_hint: "Rate Manager → Stay restrictions → Minimum stay",
+      fix_hint: "Edit Property → Rooms → Room Type → Min Stay",
       ...(window.min_stay_set
         ? {}
-        : { detail: `No MinStay value on any of the ${window.open_days} open day(s)` }),
+        : { detail: `No MinStay value reached the channel for the affected unit; set it in Rooms → Room Type → Min Stay` }),
     },
   ];
 }

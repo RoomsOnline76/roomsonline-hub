@@ -142,6 +142,10 @@ type RoomRequirementRow = {
   property_type?: string | null;
   /** Per-unit changeover override; falls back to the property master rule. */
   changeover?: number | string | null;
+  minStay?: number | null;
+  min_stay?: number | null;
+  maxStay?: number | null;
+  max_stay?: number | null;
 };
 
 const roomRows = (subject: RequirementSubject): RoomRequirementRow[] => {
@@ -192,6 +196,11 @@ export const UNIT_ROW_RULES = {
   images: (room: RoomRequirementRow) => (Array.isArray(room.images) ? room.images.length : 0) >= 10,
   amenities: (room: RoomRequirementRow) =>
     (Array.isArray(room.amenities) ? room.amenities.length : 0) >= 10,
+  minStay: (room: RoomRequirementRow) => numericAtLeast(room.minStay ?? room.min_stay, 1),
+  maxStay: (room: RoomRequirementRow) => {
+    const value = Number(room.maxStay ?? room.max_stay ?? 0);
+    return Number.isFinite(value) && value >= 0;
+  },
 } as const;
 
 export type UnitRowRuleKey = keyof typeof UNIT_ROW_RULES;
@@ -593,10 +602,22 @@ export const PROPERTY_FIELD_REQUIREMENTS: FieldRequirement[] = [
     key: "min_stay_set",
     label: "Minimum stay authored",
     tier: "mandatory",
-    section: "rate-plans",
+    section: "rooms",
     target: ['[data-field="min_stay"]', "#min_stay"],
-    hint: "Authored on the calendar, stay restrictions or an active rate plan.",
-    isSatisfied: (s) => channelCheck(s, "min_stay_set") !== false,
+    hint: "Set Min Stay on each Room Type; dated restrictions and Rate Plans remain fallbacks.",
+    isSatisfied: (s) =>
+      roomRows(s).length > 0 && roomRows(s).every(UNIT_ROW_RULES.minStay)
+        ? true
+        : channelCheck(s, "min_stay_set") !== false,
+  },
+  {
+    key: "max_stay_set",
+    label: "Maximum stay reviewed",
+    tier: "recommended",
+    section: "rooms",
+    target: ['[data-field="max_stay"]', "#max_stay"],
+    hint: "Use 0 for no maximum, or set the maximum stay allowed for each Room Type.",
+    isSatisfied: (s) => roomRows(s).length > 0 && roomRows(s).every(UNIT_ROW_RULES.maxStay),
   },
 
   /* ---------- Rates & Policies ---------- */

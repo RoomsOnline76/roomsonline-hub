@@ -1309,16 +1309,18 @@ export function RoomManagerTab({
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs whitespace-nowrap">Min Stay</Label>
-                    <Input type="number" className="h-7 w-full text-xs"
+                    <Input type="number" data-field="min_stay" className={cn("h-7 w-full text-xs", channelMandatoryClass("min_stay_set"))}
                       value={roomTypes.find((r) => r.id === selectedRoomType)?.minStay || 1}
                       onChange={(e) => updateRoomTypeField(selectedRoomType, "minStay", parseInt(e.target.value) || 1)}
+                      {...markerFlags(UNIT_ROW_RULES.minStay(roomTypes.find((r) => r.id === selectedRoomType) ?? {}))}
                     />
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs whitespace-nowrap">Max Stay</Label>
-                    <Input type="number" className="h-7 w-full text-xs"
+                    <Input type="number" data-field="max_stay" className="h-7 w-full text-xs channel-recommended"
                       value={roomTypes.find((r) => r.id === selectedRoomType)?.maxStay || 0}
                       onChange={(e) => updateRoomTypeField(selectedRoomType, "maxStay", parseInt(e.target.value) || 0)}
+                      {...markerFlags(UNIT_ROW_RULES.maxStay(roomTypes.find((r) => r.id === selectedRoomType) ?? {}))}
                     />
                   </div>
                 </div>
