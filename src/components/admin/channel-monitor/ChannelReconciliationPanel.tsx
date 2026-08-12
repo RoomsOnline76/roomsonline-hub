@@ -207,13 +207,29 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
                 </button>
                 <p className="text-xs text-muted-foreground">
                   The channel keeps archived listings in its data feed and only hides them in its own portal. They
-                  carry no cost and need no action.
+                  carry no cost, but cleanup still deletes them and verifies they are gone.
                 </p>
                 {showArchived && (
                   <ul className="divide-y rounded-md border">
                     {result.archived_orphans.map((a) => (
-                      <li key={a.listing_id} className="px-3 py-2 text-sm">
-                        {a.name} <span className="text-muted-foreground">#{a.listing_id} · archived</span>
+                      <li key={a.listing_id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+                        <span className="min-w-0 truncate">
+                          {a.name} <span className="text-muted-foreground">#{a.listing_id} · archived</span>
+                          {(refused[a.listing_id] || failures[a.listing_id]) && (
+                            <span className="block text-xs text-destructive">
+                              {refused[a.listing_id] || failures[a.listing_id]}
+                            </span>
+                          )}
+                        </span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={busyId === a.listing_id || cleaning}
+                          onClick={() => void handlePurge(a)}
+                        >
+                          <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                          Delete from channel
+                        </Button>
                       </li>
                     ))}
                   </ul>
@@ -233,8 +249,10 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
                           #{o.listing_id}
                           {o.is_archived ? " · archived upstream" : ""}
                         </span>
-                        {failures[o.listing_id] && (
-                          <span className="block text-xs text-destructive">{failures[o.listing_id]}</span>
+                        {(refused[o.listing_id] || failures[o.listing_id]) && (
+                          <span className="block text-xs text-destructive">
+                            {refused[o.listing_id] || failures[o.listing_id]}
+                          </span>
                         )}
                       </span>
                       <Button
@@ -244,8 +262,9 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
                         onClick={() => void handlePurge(o)}
                       >
                         <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-                        Remove from channel
+                        Delete from channel
                       </Button>
+
                     </li>
                   ))}
                 </ul>
