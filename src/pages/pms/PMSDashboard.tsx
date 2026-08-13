@@ -3352,6 +3352,10 @@ function BookingDetail({
       } else if (action === "no_show") {
         await supabase.from("bookings").update({ status: "no_show" }).eq("id", booking.id);
       }
+      /* Cancellations and no-shows drop out of the guest's history — refresh their totals. */
+      if (["cancel", "no_show", "mark_paid"].includes(action) && booking.rolos_guest_id) {
+        await rebuildGuestStats([booking.rolos_guest_id]);
+      }
       toast.success(`Action "${action.replace("_", " ")}" completed`);
       onSaved();
     } catch (e: any) {
