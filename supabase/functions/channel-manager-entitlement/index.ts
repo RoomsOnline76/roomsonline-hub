@@ -219,7 +219,11 @@ async function verifyListingPresence(
   const { listings, error } = await pullOwnerListings(admin, args.ownerId, args.ctx);
   if (error) return { present: null, archived: false, error };
   const hit = listings.find((l) => String(l.id) === args.listingId);
-  return { present: !!hit, archived: hit?.is_archived === true, error: null };
+  // RU never hard-deletes: a removed listing stays in the feed either flagged
+  // archived (NLA) or simply switched inactive (Active="false"). Both mean it
+  // no longer sells or bills, so both count as the terminal removed state.
+  const notSellable = hit ? hit.is_archived === true || hit.is_active === false : false;
+  return { present: !!hit, archived: notSellable, error: null };
 }
 
 /**
