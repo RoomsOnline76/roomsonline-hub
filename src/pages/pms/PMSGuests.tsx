@@ -330,7 +330,8 @@ export default function PMSGuests() {
                 <option value="recent">Most recent stay</option>
                 <option value="name">Name A–Z</option>
                 <option value="stays">Most stays</option>
-                <option value="spent">Highest spend</option>
+                <option value="spent">Highest received</option>
+                <option value="owing">Most owing</option>
               </select>
               <Button variant="outline" size="sm" className="h-9" onClick={exportCsv} disabled={!visibleGuests.length}>
                 <Download className="h-4 w-4 mr-2" />Export CSV
