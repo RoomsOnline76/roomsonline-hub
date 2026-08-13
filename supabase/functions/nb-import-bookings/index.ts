@@ -148,9 +148,81 @@ function nbRoomFromNotes(notes: string | null): string | null {
   return value || null;
 }
 
+/** Occupancy index: room id → set of occupied night dates (ISO). */
+async function loadRoomOccupancy(
+  // deno-lint-ignore no-explicit-any
+  sb: any,
+  propertyId: string,
+): Promise<Map<string, Set<string>>> {
+  const occupied = new Map<string, Set<string>>();
+  const { data } = await sb
+    .from("bookings")
+    .select("rolos_room_ids, check_in_date, check_out_date, status")
+    .eq("property_id", propertyId)
+    .not("rolos_room_ids", "is", null);
+  for (const row of (data ?? []) as Record<string, unknown>[]) {
+    if (String(row.status ?? "") === "cancelled") continue;
+    const ids = (row.rolos_room_ids as string[] | null) ?? [];
+    for (const date of nightsBetween(String(row.check_in_date ?? ""), String(row.check_out_date ?? ""))) {
+      for (const id of ids) {
+        const set = occupied.get(id) ?? new Set<string>();
+        set.add(date);
+        occupied.set(id, set);
+      }
+    }
+  }
+  return occupied;
+}
+
+/** Every night occupied by a stay (check-out night excluded). */
+function nightsBetween(from: string, to: string): string[] {
+  const start = new Date(from);
+  const end = new Date(to);
+  if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime())) return [];
+  const out: string[] = [];
+  for (let d = new Date(start); d < end && out.length < 400; d.setUTCDate(d.getUTCDate() + 1)) {
+    out.push(d.toISOString().slice(0, 10));
+  }
+  return out;
+}
+
+function isFree(occupied: Map<string, Set<string>>, roomId: string, nights: string[]): boolean {
+  const set = occupied.get(roomId);
+  if (!set) return true;
+  return nights.every((n) => !set.has(n));
+}
+
+function markOccupied(occupied: Map<string, Set<string>>, roomId: string, nights: string[]): void {
+  const set = occupied.get(roomId) ?? new Set<string>();
+  for (const n of nights) set.add(n);
+  occupied.set(roomId, set);
+}
+
+interface UnmappedBooking {
+  id: string;
+  room_name: string | null;
+  key: string | null;
+  status: string;
+  source: string;
+  check_in_date: string;
+  check_out_date: string;
+  nights: number;
+  future: boolean;
+  total_price: number;
+  adults: number;
+  children: number;
+}
+
 /**
- * Re-map imported NightsBridge bookings that carry no unit / room type. Dry run reports the
- * outstanding groups; a live run writes `rolos_room_ids`, `room_type_id` and room lines.
+ * Re-map bookings that carry no unit / room type — imported or native.
+ *
+ * Dry run reports the outstanding groups plus the per-booking list, split into the
+ * blocking set (a check-out still ahead: these owe the channel nights) and the
+ * informational historical set (past stays, no channel impact).
+ *
+ * A live run applies, in order: operator overrides per NightsBridge room name, then —
+ * when `autoAssign` is on — a canonical name match, then any canonical room that is free
+ * for the whole stay.
  */
 async function repairUnmappedBookings(
   // deno-lint-ignore no-explicit-any
@@ -158,15 +230,19 @@ async function repairUnmappedBookings(
   propertyId: string,
   overrides: Record<string, string>,
   dryRun: boolean,
+  autoAssign = false,
 ) {
-  const [registry, { data: bookingRows }] = await Promise.all([
+  const today = todayIso();
+  const [registry, { data: bookingRows }, occupied] = await Promise.all([
     loadCanonicalRooms(sb, propertyId),
     sb
       .from("bookings")
-      .select("id, internal_notes, total_price, adults, children, check_in_date, check_out_date, rolos_room_ids, room_type_id")
+      .select(
+        "id, internal_notes, total_price, adults, children, check_in_date, check_out_date, rolos_room_ids, room_type_id, status, integration_type",
+      )
       .eq("property_id", propertyId)
-      .eq("integration_type", "nightsbridge")
       .is("rolos_room_ids", null),
+    loadRoomOccupancy(sb, propertyId),
   ]);
 
   // Only canonical rooms may be offered or accepted — retired twins are invisible here.
@@ -174,86 +250,148 @@ async function repairUnmappedBookings(
     .filter((c) => c.roomId)
     .map((c) => ({
       id: c.roomId as string,
-      room_name: c.roomLabel,
+      key: c.key,
+      room_name: c.roomLabel || c.name,
       room_number: null as string | null,
       room_type_id: c.roomTypeId,
     }));
   const byId = new Map(rooms.map((r) => [r.id, r]));
+  const byKey = new Map(rooms.map((r) => [r.key, r]));
 
-
-  interface Group {
-    room_name: string;
-    bookings: { id: string; total_price: number; adults: number; children: number; nights: number }[];
-  }
-  const groups = new Map<string, Group>();
-  let unnamed = 0;
+  const all: UnmappedBooking[] = [];
   const suspectDates: { id: string; check_in_date: string; check_out_date: string; nights: number }[] = [];
 
   for (const b of (bookingRows ?? []) as Record<string, unknown>[]) {
+    if (String(b.status ?? "") === "cancelled") continue;
     const inDate = String(b.check_in_date ?? "");
     const outDate = String(b.check_out_date ?? "");
-    const nights = Math.round(
-      (new Date(outDate).getTime() - new Date(inDate).getTime()) / 86_400_000,
-    );
+    const nights = Math.round((new Date(outDate).getTime() - new Date(inDate).getTime()) / 86_400_000);
     if (!Number.isFinite(nights) || nights <= 0 || nights > 60) {
       suspectDates.push({ id: String(b.id), check_in_date: inDate, check_out_date: outDate, nights });
     }
     const name = nbRoomFromNotes(b.internal_notes as string | null);
-    if (!name) {
-      unnamed++;
-      continue;
-    }
-    const key = normaliseRoomKey(name) || name;
-    const group = groups.get(key) ?? { room_name: name, bookings: [] };
-    group.bookings.push({
+    all.push({
       id: String(b.id),
+      room_name: name,
+      key: name ? normaliseRoomKey(name) || name : null,
+      status: String(b.status ?? ""),
+      source: String(b.integration_type ?? "native"),
+      check_in_date: inDate,
+      check_out_date: outDate,
+      nights: Number.isFinite(nights) && nights > 0 ? nights : 1,
+      future: Boolean(outDate) && outDate >= today,
       total_price: Number(b.total_price ?? 0),
       adults: Number(b.adults ?? 1),
       children: Number(b.children ?? 0),
-      nights: Number.isFinite(nights) && nights > 0 ? nights : 1,
     });
-    groups.set(key, group);
   }
 
-  const groupList = [...groups.entries()].map(([key, g]) => ({
+  const blocking = all.filter((b) => b.future);
+  const historical = all.filter((b) => !b.future);
+  const unnamed = all.filter((b) => !b.room_name).length;
+
+  const groupMap = new Map<string, { room_name: string; count: number; future: number }>();
+  for (const b of all) {
+    if (!b.key || !b.room_name) continue;
+    const g = groupMap.get(b.key) ?? { room_name: b.room_name, count: 0, future: 0 };
+    g.count += 1;
+    if (b.future) g.future += 1;
+    groupMap.set(b.key, g);
+  }
+  const groupList = [...groupMap.entries()].map(([key, g]) => ({
     key,
     room_name: g.room_name,
-    count: g.bookings.length,
+    count: g.count,
+    future: g.future,
   }));
 
-  if (dryRun) {
-    return {
-      mode: "repair",
-      dry_run: true,
-      unmapped_total: (bookingRows ?? []).length,
-      unnamed,
-      groups: groupList,
-      suspect_dates: suspectDates,
-      rooms: rooms.map((r) => ({ id: r.id, label: r.room_name || r.room_number || r.id })),
-      repaired: 0,
-    };
+  const roomPayload = rooms.map((r) => ({ id: r.id, label: r.room_name || r.room_number || r.id }));
+  const bookingPayload = (list: UnmappedBooking[]) =>
+    list
+      .sort((a, b) => a.check_in_date.localeCompare(b.check_in_date))
+      .slice(0, 200)
+      .map((b) => ({
+        id: b.id,
+        room_name: b.room_name,
+        status: b.status,
+        source: b.source,
+        check_in_date: b.check_in_date,
+        check_out_date: b.check_out_date,
+        nights: b.nights,
+      }));
+
+  const baseReport = {
+    mode: "repair",
+    unmapped_total: all.length,
+    blocking_total: blocking.length,
+    historical_total: historical.length,
+    unnamed,
+    groups: groupList,
+    blocking_bookings: bookingPayload(blocking),
+    historical_bookings: bookingPayload(historical),
+    suspect_dates: suspectDates,
+    rooms: roomPayload,
+  };
+
+  if (dryRun) return { ...baseReport, dry_run: true, repaired: 0, auto_assigned: 0, unresolved: 0 };
+
+  /* --------------------------------------------------------------- live pass */
+
+  const decisions = new Map<string, { roomId: string; roomTypeId: string | null }>();
+  let autoAssigned = 0;
+  let unresolved = 0;
+
+  for (const b of [...blocking, ...historical]) {
+    const nights = nightsBetween(b.check_in_date, b.check_out_date);
+
+    // 1. explicit operator override for the NightsBridge room name
+    const override = b.room_name ? overrides[b.room_name] ?? (b.key ? overrides[b.key] : null) : null;
+    if (override === EXCLUDE_SENTINEL || override === UNASSIGNED_SENTINEL) continue;
+    let room = override ? byId.get(override) ?? null : null;
+
+    // 2. canonical name match
+    if (!room && autoAssign && b.key) room = byKey.get(b.key) ?? null;
+
+    // 3. any canonical room free for the whole stay
+    if (!room && autoAssign) {
+      room = rooms.find((r) => isFree(occupied, r.id, nights)) ?? null;
+      if (room) autoAssigned += 1;
+    }
+
+    if (!room) {
+      if (autoAssign) unresolved += 1;
+      continue;
+    }
+    decisions.set(b.id, { roomId: room.id, roomTypeId: room.room_type_id });
+    markOccupied(occupied, room.id, nights);
   }
 
+  const byBooking = new Map(all.map((b) => [b.id, b]));
   let repaired = 0;
   const lines: Record<string, unknown>[] = [];
-  for (const [key, group] of groups) {
-    const decision = overrides[group.room_name] ?? overrides[key] ?? null;
-    if (!decision || decision === EXCLUDE_SENTINEL || decision === UNASSIGNED_SENTINEL) continue;
-    const room = byId.get(decision);
-    if (!room) continue;
-    for (let i = 0; i < group.bookings.length; i += BATCH) {
-      const chunk = group.bookings.slice(i, i + BATCH);
+  const grouped = new Map<string, string[]>();
+  for (const [bookingId, d] of decisions) {
+    const bucket = `${d.roomId}|${d.roomTypeId ?? ""}`;
+    grouped.set(bucket, [...(grouped.get(bucket) ?? []), bookingId]);
+  }
+
+  for (const [bucket, ids] of grouped) {
+    const [roomId, roomTypeId] = bucket.split("|");
+    for (let i = 0; i < ids.length; i += BATCH) {
+      const chunk = ids.slice(i, i + BATCH);
       const { error } = await sb
         .from("bookings")
-        .update({ rolos_room_ids: [room.id], room_type_id: room.room_type_id })
-        .in("id", chunk.map((b) => b.id));
+        .update({ rolos_room_ids: [roomId], room_type_id: roomTypeId || null })
+        .in("id", chunk);
       if (error) continue;
       repaired += chunk.length;
-      for (const b of chunk) {
+      for (const id of chunk) {
+        const b = byBooking.get(id);
+        if (!b) continue;
         lines.push({
-          booking_id: b.id,
-          room_id: room.id,
-          room_type_id: room.room_type_id,
+          booking_id: id,
+          room_id: roomId,
+          room_type_id: roomTypeId || null,
           rate_charged: b.total_price,
           nightly_rate: b.nights > 0 ? Number((b.total_price / b.nights).toFixed(2)) : b.total_price,
           adults: b.adults,
@@ -270,17 +408,76 @@ async function repairUnmappedBookings(
     await sb.from("rolos_booking_rooms").insert(chunk);
   }
 
-  return {
-    mode: "repair",
-    dry_run: false,
-    repaired,
-    unmapped_total: (bookingRows ?? []).length,
-    unnamed,
-    groups: groupList,
-    suspect_dates: suspectDates,
-    rooms: rooms.map((r) => ({ id: r.id, label: r.room_name || r.room_number || r.id })),
-  };
+  return { ...baseReport, dry_run: false, repaired, auto_assigned: autoAssigned, unresolved };
 }
+
+/**
+ * Manual, per-booking assignment from the repair panel. Only canonical rooms are accepted.
+ */
+async function assignUnmappedBookings(
+  // deno-lint-ignore no-explicit-any
+  sb: any,
+  propertyId: string,
+  assignments: { booking_id: string; room_id: string }[],
+) {
+  const registry = await loadCanonicalRooms(sb, propertyId);
+  const canonical = new Map(
+    [...registry.byKey.values()]
+      .filter((c) => c.roomId)
+      .map((c) => [c.roomId as string, c.roomTypeId]),
+  );
+
+  let assigned = 0;
+  const rejected: { booking_id: string; reason: string }[] = [];
+
+  for (const a of assignments) {
+    const roomTypeId = canonical.get(a.room_id);
+    if (!roomTypeId) {
+      rejected.push({ booking_id: a.booking_id, reason: "Room is not a current (canonical) room" });
+      continue;
+    }
+    const { data: booking } = await sb
+      .from("bookings")
+      .select("id, total_price, adults, children, check_in_date, check_out_date")
+      .eq("id", a.booking_id)
+      .eq("property_id", propertyId)
+      .maybeSingle();
+    if (!booking) {
+      rejected.push({ booking_id: a.booking_id, reason: "Booking not found on this property" });
+      continue;
+    }
+    const { error } = await sb
+      .from("bookings")
+      .update({ rolos_room_ids: [a.room_id], room_type_id: roomTypeId })
+      .eq("id", a.booking_id);
+    if (error) {
+      rejected.push({ booking_id: a.booking_id, reason: error.message });
+      continue;
+    }
+    const nights = Math.max(
+      1,
+      Math.round(
+        (new Date(String(booking.check_out_date)).getTime() - new Date(String(booking.check_in_date)).getTime()) /
+          86_400_000,
+      ),
+    );
+    const total = Number(booking.total_price ?? 0);
+    await sb.from("rolos_booking_rooms").delete().eq("booking_id", a.booking_id);
+    await sb.from("rolos_booking_rooms").insert({
+      booking_id: a.booking_id,
+      room_id: a.room_id,
+      room_type_id: roomTypeId,
+      rate_charged: total,
+      nightly_rate: Number((total / nights).toFixed(2)),
+      adults: Number(booking.adults ?? 1),
+      children: Number(booking.children ?? 0),
+    });
+    assigned += 1;
+  }
+
+  return { mode: "assign_unmapped", assigned, rejected };
+}
+
 
 /**
  * Repair superseded (retired) room inventory for one property.
