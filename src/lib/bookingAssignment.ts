@@ -17,7 +17,10 @@ export interface AssignableBooking {
   property_id?: string | null;
   room_type_id?: string | null;
   rolos_room_ids?: string[] | null;
+  /** Room types of the booking's per-unit lines — a 3-room stay needs 3 units. */
+  line_room_type_ids?: string[] | null;
 }
+
 
 export interface AssignableRoom {
   id: string;
