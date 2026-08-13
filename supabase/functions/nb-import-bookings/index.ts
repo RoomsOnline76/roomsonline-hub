@@ -426,6 +426,8 @@ Deno.serve(async (req) => {
         created,
         updated,
         skipped: skipped.length,
+        excluded: excludedByOperator,
+
         errors: errors.length,
         unmapped_rooms: [...unmappedRooms],
       },
