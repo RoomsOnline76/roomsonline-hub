@@ -140,29 +140,35 @@ export function buildRoomTypePlan(
     const cells: PlanCell[] = dates.map((date) => {
       const nightBookings = typeBookings.filter((b) => occupiesNight(b, date));
       let used = 0;
-      const seenRooms = new Set<string>();
       for (const b of nightBookings) {
         const assigned = (b.rolos_room_ids || []).filter((id) => typeRoomIds.has(id));
-        if (assigned.length > 0) {
-          for (const id of assigned) {
-            if (!seenRooms.has(id)) {
-              seenRooms.add(id);
-              used += 1;
-            }
-          }
-        } else {
-          used += 1;
-        }
+        // Every reservation consumes inventory, even when two land on the same
+        // unit — deduplicating by room id would hide real double bookings.
+        used += assigned.length > 0 ? assigned.length : 1;
       }
-      return { date, free: Math.max(0, sellable - used), sellable, bookings: nightBookings };
+      return {
+        date,
+        free: Math.max(0, sellable - used),
+        sellable,
+        used,
+        overbooked: Math.max(0, used - sellable),
+        bookings: nightBookings,
+      };
     });
 
     return { roomType, units: typeRooms.length, blocked, cells };
   });
 }
 
+/** Nights in the visible window where this type is sold beyond capacity. */
+export function overbookedNights(row: PlanRow): PlanCell[] {
+  return row.cells.filter((cell) => cell.overbooked > 0);
+}
+
 /** Tailwind classes for a cell based on how tight availability is. */
 export function cellHeatClass(cell: PlanCell): string {
+  // Oversold nights outrank everything else — they need action, not just a "0".
+  if (cell.overbooked > 0) return "bg-destructive text-destructive-foreground font-bold";
   if (cell.sellable === 0) return "bg-muted/40 text-muted-foreground";
   if (cell.free <= 0) return "bg-destructive/15 text-destructive font-semibold";
   if (cell.free === 1) return "bg-amber-500/20 text-amber-700 dark:text-amber-300 font-semibold";
