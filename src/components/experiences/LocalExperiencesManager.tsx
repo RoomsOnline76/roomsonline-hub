@@ -18,6 +18,8 @@ import {
   Heart
 } from 'lucide-react';
 import { queueChannelContentSync } from '@/lib/channelContentSync';
+import { AttractionPlaceSearch, type PickedPlace } from '@/components/experiences/AttractionPlaceSearch';
+
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
