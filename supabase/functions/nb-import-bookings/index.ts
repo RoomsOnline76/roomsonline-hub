@@ -52,6 +52,18 @@ async function countFutureImportedStays(sb: any, propertyId: string): Promise<nu
   return count ?? 0;
 }
 
+/** Any current/future stay on the property, whatever its origin (used after a repair pass). */
+async function countFutureStays(sb: any, propertyId: string): Promise<number> {
+  const today = new Date().toISOString().slice(0, 10);
+  const { count } = await sb
+    .from("bookings")
+    .select("id", { count: "exact", head: true })
+    .eq("property_id", propertyId)
+    .neq("status", "cancelled")
+    .gte("check_out_date", today);
+  return count ?? 0;
+}
+
 async function queueImportedOccupancyDelta(
   sb: any,
   propertyId: string,
