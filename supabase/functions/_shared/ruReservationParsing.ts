@@ -230,7 +230,8 @@ export async function applyRuAvailabilityBlock(
  *  - `LNM_PutCancelation_RQ` / `LNM_PutCancellation` → cancelled
  *  - `LNM_PutUnconfirmedReservation_RQ` / request / lead envelopes → request (3-day hold)
  *
- * Numeric StatusID map: 1/6 confirmed, 3/5 modified, 2/4/7/8 cancelled, anything else a request.
+ * Numeric StatusID map: 1/6 confirmed, 3/5 modified, 2/7/8 cancelled, 4 request (pending),
+ * anything else a request. StatusID 4 is RU's "request/pending" state — never a cancellation.
  */
 export type RuNotificationKind = 'confirmed' | 'modified' | 'cancelled' | 'request';
 
@@ -240,20 +241,21 @@ export function classifyRuNotification(xml: string, statusId: string | null): Ru
   const envelope = detectRuEnvelopeKind(lower);
   if (envelope === 'cancelled' || envelope === 'modified') return envelope;
   if (envelope === 'request') {
-    // Unconfirmed/lead envelopes carry StatusID 4 ("request"), which the numeric map below
-    // would read as a cancellation. The envelope name is the stronger signal.
     if (statusId && ['2', '7', '8'].includes(statusId)) return 'cancelled';
     return 'request';
   }
   if (envelope === 'confirmed') {
-    return statusId && ['2', '4', '7', '8'].includes(statusId) ? 'cancelled' : 'confirmed';
+    if (statusId && ['2', '7', '8'].includes(statusId)) return 'cancelled';
+    // A confirmed envelope carrying the pending status is still a live hold, not a booking.
+    return statusId === '4' ? 'request' : 'confirmed';
   }
 
-  if (statusId && ['2', '4', '7', '8'].includes(statusId)) return 'cancelled';
+  if (statusId && ['2', '7', '8'].includes(statusId)) return 'cancelled';
   if (statusId && ['1', '6'].includes(statusId)) return 'confirmed';
   if (statusId && ['3', '5'].includes(statusId)) return 'modified';
   return 'request';
 }
+
 
 /**
  * Envelope-name detection only (no numeric status). Returns null when the XML fragment
