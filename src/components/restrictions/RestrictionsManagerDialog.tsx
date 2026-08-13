@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { addMonths, format, parseISO, startOfDay } from "date-fns";
+import { addMonths, format, startOfDay } from "date-fns";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -121,8 +121,11 @@ export function RestrictionsManagerDialog({
   );
 
   // Calendar right-click deep-link: open the matching span's editor once loaded.
-  const focused = focusSpanKey ? spans.find((s) => s.key === focusSpanKey) : undefined;
-  if (focused && !editing) setEditing(focused);
+  useEffect(() => {
+    if (!open || !focusSpanKey) return;
+    const match = spans.find((s) => s.key === focusSpanKey);
+    if (match) setEditing((current) => current ?? match);
+  }, [open, focusSpanKey, spans]);
 
   const handleChanged = async (span: RestrictionSpan) => {
     await refetch();
