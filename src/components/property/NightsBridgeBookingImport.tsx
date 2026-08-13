@@ -194,6 +194,10 @@ export function NightsBridgeBookingImport({ propertyId, propertyName }: Props) {
   const [supersededBusy, setSupersededBusy] = useState(false);
 
   const [repairOverrides, setRepairOverrides] = useState<Record<string, string>>({});
+  /** Manual per-booking room picks in the unmapped list. */
+  const [bookingPicks, setBookingPicks] = useState<Record<string, string>>({});
+  const [showHistorical, setShowHistorical] = useState(false);
+
   /** Persistent outcome of the last live import — stays until dismissed. */
   const [outcome, setOutcome] = useState<
     | { kind: "saved"; created: number; updated: number; skipped: number; excluded: number; errors: number; future: number }
