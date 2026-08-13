@@ -50,7 +50,9 @@ export function RefundRegisterPanel({ propertyId }: RefundRegisterPanelProps) {
   const visible = useMemo(() => {
     if (filter === "all") return refunds;
     if (filter === "open")
-      return refunds.filter((r) => ["pending", "approved", "failed"].includes(r.status));
+      return refunds.filter((r) =>
+        ["awaiting_guest_choice", "pending", "approved", "failed"].includes(r.status),
+      );
     return refunds.filter((r) => r.status === filter);
   }, [refunds, filter]);
 
@@ -60,11 +62,13 @@ export function RefundRegisterPanel({ propertyId }: RefundRegisterPanelProps) {
         .filter((r) => statuses.includes(r.status))
         .reduce((s, r) => s + Number(r.amount || 0), 0);
     return {
+      guestChoice: sum(["awaiting_guest_choice"]),
       pending: sum(["pending"]),
       approved: sum(["approved", "failed"]),
       processed: sum(["processed"]),
     };
   }, [refunds]);
+
 
   return (
     <div className="space-y-4">
