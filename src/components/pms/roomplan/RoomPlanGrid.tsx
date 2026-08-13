@@ -14,6 +14,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { formatBlockedTooltip, type BlockDetail } from "@/lib/blockAttribution";
 import { RoomPlanBar, RoomPlanBooking } from "./RoomPlanBar";
 import {
   ROOM_PLAN_COL_W,
@@ -83,8 +84,12 @@ interface RoomPlanGridProps {
   /** Disable both drag interactions (touch / read-only contexts). */
   dragDisabled?: boolean;
   getRateForDate?: (roomTypeId: string, date: Date) => number | null;
-  /** Stop-sell / blocked nights per room type — hatched and refused for new stays. */
-  isBlocked?: (roomTypeId: string, date: Date) => boolean;
+  /**
+   * Stop-sell / blocked nights per room type — hatched and refused for new stays.
+   * May return attribution details (who blocked it) for the tooltip; any truthy
+   * value means "blocked".
+   */
+  isBlocked?: (roomTypeId: string, date: Date) => BlockDetail | boolean | null;
   isHoliday?: (date: Date) => string | null;
   onSelectBooking: (booking: RoomPlanBooking) => void;
   onQuickAction?: (booking: RoomPlanBooking, action: "check_in" | "check_out") => void;
@@ -477,13 +482,15 @@ export function RoomPlanGrid({
                     {dates.map((date) => {
                       const rate = getRateForDate?.(group.type.id, date) ?? null;
                       const held = heldOn(group.type, date);
-                      const blocked = isBlocked?.(group.type.id, date) ?? false;
+                      const block = isBlocked?.(group.type.id, date) ?? null;
+                      const blocked = !!block;
+                      const blockDetail = typeof block === "object" ? block : null;
                       return (
                         <div
                           key={date.toISOString()}
                           title={
                             blocked
-                              ? `${group.type.name} is blocked on ${format(date, "d MMM yyyy")}`
+                              ? `${group.type.name}\n${formatBlockedTooltip(date, blockDetail)}`
                               : held
                                 ? `${held.rooms} room${held.rooms === 1 ? "" : "s"} held — ${held.labels}`
                                 : undefined
@@ -569,11 +576,16 @@ export function RoomPlanGrid({
                           }}
                         >
                           {dates.map((date, index) => {
-                            const blocked = isBlocked?.(row.roomTypeId, date) ?? false;
+                            const block = isBlocked?.(row.roomTypeId, date) ?? null;
+                            const blocked = !!block;
                             return (
                               <div
                                 key={date.toISOString()}
-                                title={blocked ? `Blocked — ${format(date, "d MMM yyyy")}` : undefined}
+                                title={
+                                  blocked
+                                    ? formatBlockedTooltip(date, typeof block === "object" ? block : null)
+                                    : undefined
+                                }
                                 className={cn(
                                   "shrink-0 border-r last:border-r-0",
                                   isWeekend(date) && "bg-muted/30",

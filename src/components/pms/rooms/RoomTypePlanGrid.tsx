@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { systemBlockLabel, type BlockDetail } from "@/lib/blockAttribution";
 import { getSaHolidayName, isWeekendDay } from "@/lib/saPublicHolidays";
 import { MC_COL_W, MC_LABEL_W } from "@/components/pms/calendar/MultiCalendarSurface";
 import {
@@ -14,6 +15,7 @@ import {
   overbookedNights,
   paxLabel,
   stayNights,
+  stopSellKey,
   type PlanRoom,
   type PlanRoomType,
   type RoomsBooking,
@@ -34,6 +36,8 @@ interface Props {
   onEditRoom?: (room: PlanRoom) => void;
   /** Blocked (stop-sell) nights keyed by `stopSellKey(roomTypeName, date)`. */
   stopSellNights?: Set<string>;
+  /** Attribution for blocked nights, keyed by the same `stopSellKey`. */
+  blockDetails?: Map<string, BlockDetail>;
   colW?: number;
   labelW?: number;
 }
@@ -83,6 +87,7 @@ export function RoomTypePlanRows({
   onStatusChange,
   onEditRoom,
   stopSellNights,
+  blockDetails,
   colW = MC_COL_W,
   labelW = MC_LABEL_W,
 }: Props) {
@@ -182,12 +187,27 @@ export function RoomTypePlanRows({
                         {cell.sellable === 1 ? "" : "s"}
                       </p>
                     )}
-                    {cell.stopSell && (
-                      <p className="mt-0.5 flex items-center gap-1 text-[11px] font-semibold text-foreground">
-                        <Ban className="h-3 w-3" />
-                        Blocked — not sellable on this night
-                      </p>
-                    )}
+                    {cell.stopSell && (() => {
+                      const detail = blockDetails?.get(
+                        stopSellKey(row.roomType.property_id, row.roomType.name, cell.date),
+                      );
+                      const who = detail?.label || systemBlockLabel(detail?.source);
+                      return (
+                        <>
+                          <p className="mt-0.5 flex items-center gap-1 text-[11px] font-semibold text-foreground">
+                            <Ban className="h-3 w-3" />
+                            Blocked — not sellable on this night
+                          </p>
+                          <p className="text-[11px] text-muted-foreground">
+                            {who ? `By ${who}` : "Source unknown"}
+                            {detail?.at ? ` · ${format(new Date(detail.at), "d MMM yyyy HH:mm")}` : ""}
+                          </p>
+                          {detail?.reason && (
+                            <p className="text-[11px] italic text-muted-foreground">{detail.reason}</p>
+                          )}
+                        </>
+                      );
+                    })()}
                     <p className="text-[11px] text-muted-foreground">
                       {format(cell.date, "EEE d MMM yyyy")} · {cell.free} of {cell.sellable} free
                       {row.blocked > 0 && ` · ${row.blocked} blocked`}

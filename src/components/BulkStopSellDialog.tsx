@@ -12,6 +12,7 @@ import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { syncRestrictionsToChannels } from "@/lib/restrictionSync";
+import { currentBlockAttribution } from "@/lib/blockAttribution";
 import { format, eachDayOfInterval, getDay } from "date-fns";
 import {
   PropertyScopeSelector,
@@ -49,6 +50,7 @@ export function BulkStopSellDialog({
   const [fromDate, setFromDate] = useState(() => format(new Date(), "yyyy-MM-dd"));
   const [toDate, setToDate] = useState(() => format(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), "yyyy-MM-dd"));
   const [isStopSell, setIsStopSell] = useState(true);
+  const [blockReason, setBlockReason] = useState("");
   const [saving, setSaving] = useState(false);
   const [scope, setScope] = useState<PropertyScopeValue>({ mode: "single", specificIds: [] });
   const [selectedDays, setSelectedDays] = useState({
@@ -61,6 +63,7 @@ export function BulkStopSellDialog({
       setSelectedRoomTypes([]);
       setSelectedRatePlanIds([]);
       setIsStopSell(true);
+      setBlockReason("");
       setApplyMode("rooms");
       setScope({ mode: "single", specificIds: [] });
     }
@@ -137,11 +140,12 @@ export function BulkStopSellDialog({
 
       if (applyMode === "rooms") {
         if (isStopSell) {
+          const attribution = await currentBlockAttribution(blockReason);
           const records: any[] = [];
           for (const pid of targetPropertyIds) {
             for (const roomType of selectedRoomTypes) {
               for (const ds of dates) {
-                records.push({ property_id: pid, room_type: roomType, date: ds, is_stop_sell: true, available_units: 0, external_system: "manual" });
+                records.push({ property_id: pid, room_type: roomType, date: ds, is_stop_sell: true, available_units: 0, external_system: "manual", ...attribution });
               }
             }
           }
@@ -315,6 +319,22 @@ export function BulkStopSellDialog({
                   <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="flex-1" />
                 </div>
               </div>
+
+              {isStopSell && (
+                <div className="space-y-2">
+                  <Label htmlFor="stopsell-reason">Reason (optional)</Label>
+                  <Input
+                    id="stopsell-reason"
+                    value={blockReason}
+                    onChange={(e) => setBlockReason(e.target.value)}
+                    placeholder="e.g. Owner stay, Maintenance"
+                    maxLength={120}
+                  />
+                  <p className="text-xs text-muted-foreground">Shown on the calendar tooltip together with your name.</p>
+                </div>
+              )}
+
+
 
               <div className="space-y-2">
                 <Label>Apply to Days</Label>

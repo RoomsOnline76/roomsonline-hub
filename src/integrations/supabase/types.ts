@@ -5490,6 +5490,10 @@ export type Database = {
       property_availability: {
         Row: {
           available_units: number
+          blocked_at: string | null
+          blocked_by: string | null
+          blocked_by_label: string | null
+          blocked_reason: string | null
           created_at: string | null
           date: string
           external_system: string
@@ -5505,6 +5509,10 @@ export type Database = {
         }
         Insert: {
           available_units?: number
+          blocked_at?: string | null
+          blocked_by?: string | null
+          blocked_by_label?: string | null
+          blocked_reason?: string | null
           created_at?: string | null
           date: string
           external_system: string
@@ -5520,6 +5528,10 @@ export type Database = {
         }
         Update: {
           available_units?: number
+          blocked_at?: string | null
+          blocked_by?: string | null
+          blocked_by_label?: string | null
+          blocked_reason?: string | null
           created_at?: string | null
           date?: string
           external_system?: string
