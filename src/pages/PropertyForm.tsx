@@ -6314,7 +6314,20 @@ export default function PropertyForm({
                           />
                         </div>
                       </div>
+
+                      {/* Nearby attractions — geolocation search + channel destination mapping */}
+                      <div className="border-t pt-3">
+                        <NearbyAttractionsPanel
+                          propertyId={propertyId ?? undefined}
+                          propertyName={formData.name}
+                          propertyCity={formData.city}
+                          propertyCountry={formData.country}
+                          latitude={latitude}
+                          longitude={longitude}
+                        />
+                      </div>
                     </CardContent>
+
                   </CollapsibleContent>
                 </Card>
               </Collapsible>
