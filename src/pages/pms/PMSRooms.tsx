@@ -599,46 +599,58 @@ export default function PMSRooms() {
         {loading ? (
           <PmsPageSkeleton rows={4} />
         ) : (
-          <div className="space-y-8">
-            {propertySections.map(({ property, rooms: pRooms, roomTypes: pTypes, bookings: pBookings }) => {
+          <div className="space-y-4">
+            {/* One continuous multi-calendar: every property stacked, nights running sideways */}
+            <MultiCalendarSurface
+              dates={dates}
+              weeks={weeks}
+              title="Room type plan"
+              subtitle={planTitle}
+              labelHeader={<RoomTypePlanLabelHeader />}
+              onShiftWindow={shiftWindow}
+              onToday={goToday}
+              onExtend={extendWindow}
+              emptyMessage="No room types configured yet — add them in Property Overview to see the plan."
+              groups={propertySections.map(({ property, rooms: pRooms, roomTypes: pTypes, bookings: pBookings }) => ({
+                id: property.id,
+                name: isPortfolio ? property.name : undefined,
+                meta: isPortfolio ? `${pRooms.length} room${pRooms.length !== 1 ? "s" : ""}` : undefined,
+                action: isPortfolio ? (
+                  <Button variant="ghost" size="sm" className="h-5 px-2 text-[10px]" onClick={() => selectSingleProperty(property.id)}>
+                    Manage →
+                  </Button>
+                ) : undefined,
+                rows: (
+                  <RoomTypePlanRows
+                    dates={dates}
+                    roomTypes={typeFilter === "all" ? pTypes : pTypes.filter((t) => t.id === typeFilter)}
+                    rooms={pRooms.filter(matchesFilters)}
+                    bookings={pBookings}
+                    onSelectBooking={setSelectedBooking}
+                    displayStatusFor={displayStatusForRoom}
+                    onStatusChange={handleStatusChange}
+                    onEditRoom={openEditDialog}
+                  />
+                ),
+              }))}
+            />
+            <RoomTypePlanLegend />
+
+            {propertySections.map(({ property, rooms: pRooms, roomTypes: pTypes }) => {
               const filteredRooms = pRooms.filter(matchesFilters);
-              const planTypes = typeFilter === "all" ? pTypes : pTypes.filter((t) => t.id === typeFilter);
               const grouped = new Map<string, number>();
               for (const rt of pTypes) {
                 const count = pRooms.filter((r) => r.room_type_id === rt.id).length;
                 grouped.set(rt.name, (grouped.get(rt.name) || 0) + count);
               }
-
               return (
                 <section key={property.id} className="space-y-3">
-                  {isPortfolio && (
-                    <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 border-b border-border pb-2">
-                      <h2 className="text-base sm:text-lg font-semibold flex min-w-0 flex-wrap items-center gap-2">
-                        <Building2 className="h-4 w-4 shrink-0 text-muted-foreground" />
-                        <span className="min-w-0 break-words">{property.name}</span>
-                        <span className="whitespace-nowrap text-xs font-normal text-muted-foreground">
-                          ({pRooms.length} room{pRooms.length !== 1 ? "s" : ""})
-                        </span>
-                      </h2>
-                      <Button variant="ghost" size="sm" className="shrink-0" onClick={() => { switchProperty(property.id); setViewMode("single"); }}>
-                        Manage →
-                      </Button>
-                    </div>
+                  {isPortfolio && (pTypes.length > 0 || showCards) && (
+                    <h2 className="flex min-w-0 flex-wrap items-center gap-2 border-b border-border pb-1 text-sm font-semibold">
+                      <Building2 className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      <span className="min-w-0 break-words">{property.name}</span>
+                    </h2>
                   )}
-
-                  <RoomTypePlanGrid
-                    dates={dates}
-                    roomTypes={planTypes}
-                    rooms={pRooms.filter(matchesFilters)}
-                    bookings={pBookings}
-                    onSelectBooking={setSelectedBooking}
-                    onShiftWindow={shiftWindow}
-                    onToday={goToday}
-                    title={isPortfolio ? `${property.name} · ${planTitle}` : planTitle}
-                    displayStatusFor={displayStatusForRoom}
-                    onStatusChange={handleStatusChange}
-                    onEditRoom={openEditDialog}
-                  />
 
                   {pTypes.length > 0 && (
                     <div className="flex flex-wrap items-center gap-2">
@@ -669,7 +681,6 @@ export default function PMSRooms() {
                     </Card>
                   ) : (
                     renderRoomGrid(filteredRooms)
-
                   )}
                 </section>
               );
