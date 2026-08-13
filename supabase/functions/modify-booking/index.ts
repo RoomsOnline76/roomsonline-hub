@@ -1,7 +1,7 @@
 import { canonicalPricingModel, stayTotalForModel } from "../_shared/ratePricing.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { isRuBooking, modifyRuStay } from "../_shared/ruBookingSync.ts";
-import { queueRuAriDelta } from "../_shared/ruAriDelta.ts";
+import { enqueueJobs, kickWorker } from "../_shared/jobQueue.ts";
 import { addDays, createRateResolver } from "../_shared/rateResolution.ts";
 import {
   getRateResolutionMode,
@@ -588,52 +588,41 @@ Deno.serve(async (req) => {
       modifications.teens !== undefined ||
       modifications.infants !== undefined;
 
-    if (priceAffected) {
-      try {
-        await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/calculate-commission`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-          },
-          body: JSON.stringify({ booking_id }),
-        });
-      } catch (commissionErr) {
-        console.error("Commission recalculation failed (non-critical):", commissionErr);
-      }
-    }
-
-    // S9: Update sync status
-    if (externalSystem !== "none") {
-      await supabase.from("booking_sync_status").upsert(
-        {
+    // The booking row and the availability blocks are now correct, so the operator can be
+    // released. Commission, the channel ARI delta, the sync-status write and the guest email
+    // only have to *follow* — they go onto the durable background queue and the worker is kicked
+    // immediately, so the dialog no longer waits on a multi-second channel round-trip.
+    await enqueueJobs(supabase, [
+      ...(priceAffected
+        ? [{
+            type: "recalculate_commission" as const,
+            payload: { booking_id },
+            options: { dedupeKey: `commission:${booking_id}` },
+          }]
+        : []),
+      ...(externalSystem !== "none"
+        ? [{
+            type: "booking_sync_status" as const,
+            payload: {
+              booking_id,
+              external_system: externalSystem,
+              sync_status: "synced",
+              last_action: "modify",
+            },
+            options: { dedupeKey: `sync:${booking_id}:${externalSystem}:modify` },
+          }]
+        : []),
+      {
+        // Shifted dates change both the old and the new nights: the channel window must be
+        // refreshed. One job per property collapses a burst of edits into a single push.
+        type: "channel_ari_delta" as const,
+        payload: { property_id: booking.property_id, trigger: "booking_modified", force: true },
+        options: { dedupeKey: `ari:${booking.property_id}` },
+      },
+      {
+        type: "booking_email" as const,
+        payload: {
           booking_id,
-          external_system: externalSystem,
-          sync_status: "synced",
-          last_action: "modify",
-          last_action_at: new Date().toISOString(),
-          error_message: null,
-          last_error_message: null,
-        },
-        { onConflict: "booking_id,external_system" }
-      );
-    }
-
-    // Shifted dates change both the old and new nights: refresh the RU window now.
-    await queueRuAriDelta(supabase, booking.property_id, "booking_modified", { force: true });
-
-
-    // S10: Send modification email
-    try {
-      await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-booking-email`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-        },
-        body: JSON.stringify({
-          booking_id,
-          bookingId: booking_id,
           type: "modification_confirmation",
           old_data: {
             check_in: booking.check_in_date,
@@ -647,11 +636,12 @@ Deno.serve(async (req) => {
             total_price: newTotalPrice ?? booking.total_price,
           },
           note: modifications.note,
-        }),
-      });
-    } catch (emailErr) {
-      console.error("Email send failed (non-critical):", emailErr);
-    }
+        },
+        options: { dedupeKey: `email:modification:${booking_id}` },
+      },
+    ]);
+    kickWorker();
+
 
     return new Response(
       JSON.stringify({

@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 import { BookingQuickViewSheet } from "@/components/pms/BookingQuickViewSheet";
 import { OverbookingAlertCard } from "@/components/pms/OverbookingAlertCard";
 import { ChannelRequestBacklogCard } from "@/components/pms/ChannelRequestBacklogCard";
+import { BackgroundWorkCard } from "@/components/pms/BackgroundWorkCard";
 import { usePortfolioOverbookings } from "@/hooks/usePortfolioOverbookings";
 import { getBookingStatusColor, bookingHasSpecialIndicator, type CalendarBookingRow } from "@/components/pms/bookingCalendarHelpers";
 
@@ -930,6 +931,9 @@ export default function PMSCommandCentre() {
 
       {/* Channel requests that never became a stay */}
       <ChannelRequestBacklogCard propertyIds={clashPropertyIds} propertyNames={clashPropertyNames} />
+
+      {/* Follow-up work queued by booking changes */}
+      <BackgroundWorkCard />
 
       {/* Overbooking alerts — clashes need attention before anything else */}
       <OverbookingAlertCard

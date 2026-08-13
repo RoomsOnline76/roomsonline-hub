@@ -1,6 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { cancelRuReservation, isRuBooking, isRuLead } from "../_shared/ruBookingSync.ts";
-import { queueRuAriDelta } from "../_shared/ruAriDelta.ts";
+import { enqueueJobs, kickWorker } from "../_shared/jobQueue.ts";
 import { CANCELLATION_REASON_CATEGORIES } from "../_shared/revenueStatuses.ts";
 
 const corsHeaders = {
@@ -319,24 +319,29 @@ Deno.serve(async (req) => {
         .eq("external_reservation_id", booking.external_reservation_id);
     }
 
-    // S8: Update sync status
-    if (externalSystem !== "none") {
-      await supabase.from("booking_sync_status").upsert(
-        {
-          booking_id,
-          external_system: externalSystem,
-          sync_status: "synced",
-          last_action: "cancel",
-          last_action_at: new Date().toISOString(),
-          error_message: null,
-          last_error_message: null,
-        },
-        { onConflict: "booking_id,external_system" }
-      );
-    }
+    // S8: Sync-status bookkeeping and the freed-nights channel push are follow-up work: the
+    // local cancellation and the released availability are already committed, so both go onto the
+    // background queue (kicked immediately below) instead of blocking the response.
+    await enqueueJobs(supabase, [
+      ...(externalSystem !== "none"
+        ? [{
+            type: "booking_sync_status" as const,
+            payload: {
+              booking_id,
+              external_system: externalSystem,
+              sync_status: "synced",
+              last_action: "cancel",
+            },
+            options: { dedupeKey: `sync:${booking_id}:${externalSystem}:cancel` },
+          }]
+        : []),
+      {
+        type: "channel_ari_delta" as const,
+        payload: { property_id: booking.property_id, trigger: "booking_cancelled", force: true },
+        options: { dedupeKey: `ari:${booking.property_id}` },
+      },
+    ]);
 
-    // Freed nights must reach RU immediately, not on the next cron tick.
-    await queueRuAriDelta(supabase, booking.property_id, "booking_cancelled", { force: true });
 
 
     // S8b: Raise a refund request when the guest has actually paid, so the money
@@ -413,26 +418,22 @@ Deno.serve(async (req) => {
       }
     }
 
-    // S9: Send cancellation email
-    try {
-      await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-booking-email`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-        },
-        body: JSON.stringify({
+    // S9: Cancellation email — queued, so the operator is not held up by the mail round-trip.
+    await enqueueJobs(supabase, [
+      {
+        type: "booking_email" as const,
+        payload: {
           booking_id,
-          bookingId: booking_id,
           type: "cancellation_confirmation",
           reason,
           partial: isPartialCancel,
           cancelled_rooms: cancel_rooms,
-        }),
-      });
-    } catch (emailErr) {
-      console.error("Email send failed (non-critical):", emailErr);
-    }
+        },
+        options: { dedupeKey: `email:cancellation:${booking_id}` },
+      },
+    ]);
+    kickWorker();
+
 
     return new Response(
       JSON.stringify({

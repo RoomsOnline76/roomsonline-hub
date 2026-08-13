@@ -15,11 +15,13 @@ The channel push alone is many seconds. The save itself is finished long before 
 ### 1. Split each function into "must be correct now" and "can follow"
 
 Stays in the request path (unchanged, because correctness depends on it):
+
 - auth, validation, capability gate
 - the Channel Manager push that must accept first (RU `modify_stay` / cancel / reject, and the existing external-PMS push) — channel-first stays intact
 - price recalculation, the booking row update, availability re-block
 
 Moves out of the request path:
+
 - commission recalculation
 - rates & availability delta (`queueRuAriDelta`)
 - guest/owner email
@@ -37,6 +39,8 @@ New table `background_jobs` (job type, payload, status, attempts, run_after, las
 - A minute cron calls the worker so anything the in-request kick missed still drains.
 
 Handlers registered for: `recalculate_commission`, `channel_ari_delta`, `booking_email`, `booking_sync_status`. Jobs are keyed so duplicate enqueues for the same booking/property collapse into one — a burst of edits becomes one channel push, matching the existing per-property debounce.
+
+Should work for :new booking manually made in ROLOS, edited, updated, cancelled, marked paid, moved to another unit ect. All possible actions that bookings/reservations ect are capable of being done to
 
 ### 3. UI stops blocking on the tail
 

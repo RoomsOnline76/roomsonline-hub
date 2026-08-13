@@ -64,7 +64,9 @@ export function BookingCancelDialog({
       if (error) throw new Error(await extractFunctionError(error, "Cancellation failed"));
       if (data && data.success === false) throw new Error(data.message || "Cancellation failed");
 
-      toast.success(data?.message || "Booking cancelled");
+      toast.success(data?.message || "Booking cancelled", {
+        description: "Released nights and emails are updating in the background.",
+      });
       onOpenChange(false);
       setReason("");
       onDone();

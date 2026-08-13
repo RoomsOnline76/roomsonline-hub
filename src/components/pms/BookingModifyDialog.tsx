@@ -72,7 +72,9 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
       if (error) throw new Error(await extractFunctionError(error, "Modification failed"));
       if (data && data.success === false) throw new Error(data.message || "Modification failed");
 
-      toast.success(data?.message || "Booking modified");
+      toast.success(data?.message || "Booking modified", {
+        description: "The Channel Manager and emails are updating in the background.",
+      });
       onOpenChange(false);
       onDone();
     } catch (err) {

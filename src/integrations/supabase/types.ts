@@ -325,6 +325,54 @@ export type Database = {
         }
         Relationships: []
       }
+      background_jobs: {
+        Row: {
+          attempts: number
+          completed_at: string | null
+          created_at: string
+          dedupe_key: string | null
+          id: string
+          job_type: string
+          last_error: string | null
+          max_attempts: number
+          payload: Json
+          run_after: string
+          started_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          completed_at?: string | null
+          created_at?: string
+          dedupe_key?: string | null
+          id?: string
+          job_type: string
+          last_error?: string | null
+          max_attempts?: number
+          payload?: Json
+          run_after?: string
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          completed_at?: string | null
+          created_at?: string
+          dedupe_key?: string | null
+          id?: string
+          job_type?: string
+          last_error?: string | null
+          max_attempts?: number
+          payload?: Json
+          run_after?: string
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       billing_config_change_log: {
         Row: {
           after_snapshot: Json
