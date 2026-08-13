@@ -227,13 +227,31 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
       for (let i = 0; i < nights; i++) {
         const d = new Date(form.check_in);
         d.setDate(d.getDate() + i);
-        const resolved = getRateForDate ? getRateForDate(roomTypeId, d) : null;
+        // In portfolio scope the calendar's single-property resolver knows nothing
+        // about the chosen property, so prefer the property-aware one.
+        const resolved = (portfolioMode && getRateForPropertyDate && effectivePropertyId)
+          ? getRateForPropertyDate(effectivePropertyId, roomTypeId, d)
+          : (getRateForDate ? getRateForDate(roomTypeId, d) : null);
         out.push((resolved && resolved > 0) ? resolved : (planRate ?? defaultRate ?? 0));
       }
       return out;
     },
-    [nights, form.check_in, activeRoomTypes, ratePlans, getRateForDate]
+    [nights, form.check_in, activeRoomTypes, ratePlans, getRateForDate, getRateForPropertyDate, portfolioMode, effectivePropertyId]
   );
+
+  /** Per-line occupancy vs the unit's sleeping capacity. */
+  const lineCapacity = useMemo(() => {
+    const map = new Map<string, { max: number | null; guests: number; over: boolean }>();
+    for (const l of lines) {
+      const rt = activeRoomTypes.find(t => t.id === l.room_type_id);
+      const max = rt?.max_occupancy && rt.max_occupancy > 0 ? rt.max_occupancy : null;
+      // Infants (0–2) don't consume a sleeping slot.
+      const guests = (parseInt(l.adults) || 0) + (parseInt(l.teens) || 0) + (parseInt(l.children) || 0);
+      map.set(l.key, { max, guests, over: !!max && guests > max });
+    }
+    return map;
+  }, [lines, activeRoomTypes]);
+
 
   /** Per-line pricing summary. */
   const linePricing = useMemo(() => {
