@@ -100,6 +100,7 @@ export default function PMSGuests() {
     (portfolioProperties && portfolioProperties.length > 1) ? "portfolio" : "single"
   );
   const [guests, setGuests] = useState<Guest[]>([]);
+  const [editGuest, setEditGuest] = useState<Guest | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
