@@ -1575,6 +1575,30 @@ export default function PMSDashboard() {
         if (roomTypeChanged && roomTypeId) update.room_type_id = roomTypeId;
         const { error } = await supabase.from("bookings").update(update).eq("id", booking.id);
         if (error) throw error;
+
+        // The stay's room line has to follow, or the vacated unit keeps showing the
+        // stay (reads as a duplicate) and keeps closing nights upstream.
+        if (roomId) {
+          const { data: lines } = await supabase
+            .from("rolos_booking_rooms")
+            .select("id, room_id")
+            .eq("booking_id", booking.id);
+          const rows = (lines || []) as { id: string; room_id: string | null }[];
+          const originRoomId = currentRooms[0] || null;
+          const targetLine =
+            rows.length === 1
+              ? rows[0]
+              : rows.find((r) => originRoomId && r.room_id === originRoomId);
+          if (targetLine) {
+            const lineUpdate: Record<string, unknown> = { room_id: roomId };
+            if (roomTypeId) lineUpdate.room_type_id = roomTypeId;
+            const { error: lineError } = await supabase
+              .from("rolos_booking_rooms")
+              .update(lineUpdate)
+              .eq("id", targetLine.id);
+            if (lineError) throw lineError;
+          }
+        }
       }
       toast.success("Reservation moved");
       refreshBookingQueries();
