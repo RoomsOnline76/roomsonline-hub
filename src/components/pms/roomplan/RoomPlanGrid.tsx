@@ -24,7 +24,7 @@ import {
   bookingNights,
   getBarGeometry,
 } from "./roomPlanLayout";
-import { RoomPlanMoveDrag, useRoomPlanDrag } from "./useRoomPlanDrag";
+import { RoomPlanMoveDrag, RoomPlanMoveVerdict, useRoomPlanDrag } from "./useRoomPlanDrag";
 
 interface RoomPlanRoomType {
   id: string;
