@@ -5766,106 +5766,6 @@ export default function PropertyForm({
                 </div>
               </div>
 
-              {/* Property Surroundings — collapsible secondary (Phase 2 density) */}
-              <Collapsible defaultOpen={false}>
-                <Card>
-                  <CollapsibleTrigger asChild>
-                    <CardHeader className="py-2 px-4 cursor-pointer hover:bg-muted/50 transition-colors">
-                      <CardTitle className="text-sm flex items-center justify-between">
-                        <span>Property Surroundings</span>
-                        <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-                      </CardTitle>
-                    </CardHeader>
-                  </CollapsibleTrigger>
-                  <CollapsibleContent>
-                    <CardContent className="py-2 px-4 space-y-3">
-                      {/* Restaurants & Cafes */}
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="flex flex-col gap-1">
-                          <Label htmlFor="restaurants_cafes" className="text-xs text-muted-foreground">
-                            Restaurants & Cafes
-                          </Label>
-                          <Input
-                            id="restaurants_cafes"
-                            value={formData.restaurants_cafes}
-                            onChange={(e) => handleInputChange("restaurants_cafes", e.target.value)}
-                            placeholder="e.g., Local restaurants, cafes"
-                            className="h-7 text-xs"
-                          />
-                        </div>
-                        <div className="flex flex-col gap-1">
-                          <Label htmlFor="restaurants_cafes_distance" className="text-xs text-muted-foreground">
-                            Distance
-                          </Label>
-                          <Input
-                            id="restaurants_cafes_distance"
-                            value={formData.restaurants_cafes_distance}
-                            onChange={(e) => handleInputChange("restaurants_cafes_distance", e.target.value)}
-                            placeholder="e.g., 2 km"
-                            className="h-7 text-xs"
-                          />
-                        </div>
-                      </div>
-
-                      {/* Public Transport */}
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="flex flex-col gap-1">
-                          <Label htmlFor="public_transport" className="text-xs text-muted-foreground">
-                            Public Transport
-                          </Label>
-                          <Input
-                            id="public_transport"
-                            value={formData.public_transport}
-                            onChange={(e) => handleInputChange("public_transport", e.target.value)}
-                            placeholder="e.g., Bus stop, Train station"
-                            className="h-7 text-xs"
-                          />
-                        </div>
-                        <div className="flex flex-col gap-1">
-                          <Label htmlFor="public_transport_distance" className="text-xs text-muted-foreground">
-                            Distance
-                          </Label>
-                          <Input
-                            id="public_transport_distance"
-                            value={formData.public_transport_distance}
-                            onChange={(e) => handleInputChange("public_transport_distance", e.target.value)}
-                            placeholder="e.g., 500 m"
-                            className="h-7 text-xs"
-                          />
-                        </div>
-                      </div>
-
-                      {/* Closest Airport */}
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="flex flex-col gap-1">
-                          <Label htmlFor="closest_airport" className="text-xs text-muted-foreground">
-                            Closest Airport
-                          </Label>
-                          <Input
-                            id="closest_airport"
-                            value={formData.closest_airport}
-                            onChange={(e) => handleInputChange("closest_airport", e.target.value)}
-                            placeholder="e.g., Hoedspruit Eastgate Airport"
-                            className="h-7 text-xs"
-                          />
-                        </div>
-                        <div className="flex flex-col gap-1">
-                          <Label htmlFor="closest_airport_distance" className="text-xs text-muted-foreground">
-                            Distance
-                          </Label>
-                          <Input
-                            id="closest_airport_distance"
-                            value={formData.closest_airport_distance}
-                            onChange={(e) => handleInputChange("closest_airport_distance", e.target.value)}
-                            placeholder="e.g., 52 km"
-                            className="h-7 text-xs"
-                          />
-                        </div>
-                      </div>
-                    </CardContent>
-                  </CollapsibleContent>
-                </Card>
-              </Collapsible>
 
               {/* Contract Management - Only show for existing properties */}
 
@@ -6317,23 +6217,108 @@ export default function PropertyForm({
                 </CardContent>
               </Card>
 
-              <div className="flex justify-end gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-7 text-xs"
-                  onClick={() => handleNavigate("/admin/property-overview")}
-                >
-                  Cancel
-                </Button>
-                {isDirty && (
-                  <Button type="submit" size="sm" className="h-7 text-xs" disabled={loading}>
-                    <Save className="mr-1 h-3 w-3" />
-                    {loading ? "Saving..." : "Save Property"}
-                  </Button>
-                )}
-              </div>
+
+              {/* Property Surroundings — moved from Identity & Location */}
+              <Collapsible defaultOpen={false}>
+                <Card>
+                  <CollapsibleTrigger asChild>
+                    <CardHeader className="py-2 px-4 cursor-pointer hover:bg-muted/50 transition-colors">
+                      <CardTitle className="text-sm flex items-center justify-between">
+                        <span>Property Surroundings</span>
+                        <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                      </CardTitle>
+                    </CardHeader>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <CardContent className="py-2 px-4 space-y-3">
+                      {/* Restaurants & Cafes */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="flex flex-col gap-1">
+                          <Label htmlFor="restaurants_cafes" className="text-xs text-muted-foreground">
+                            Restaurants & Cafes
+                          </Label>
+                          <Input
+                            id="restaurants_cafes"
+                            value={formData.restaurants_cafes}
+                            onChange={(e) => handleInputChange("restaurants_cafes", e.target.value)}
+                            placeholder="e.g., Local restaurants, cafes"
+                            className="h-7 text-xs"
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <Label htmlFor="restaurants_cafes_distance" className="text-xs text-muted-foreground">
+                            Distance
+                          </Label>
+                          <Input
+                            id="restaurants_cafes_distance"
+                            value={formData.restaurants_cafes_distance}
+                            onChange={(e) => handleInputChange("restaurants_cafes_distance", e.target.value)}
+                            placeholder="e.g., 2 km"
+                            className="h-7 text-xs"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Public Transport */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="flex flex-col gap-1">
+                          <Label htmlFor="public_transport" className="text-xs text-muted-foreground">
+                            Public Transport
+                          </Label>
+                          <Input
+                            id="public_transport"
+                            value={formData.public_transport}
+                            onChange={(e) => handleInputChange("public_transport", e.target.value)}
+                            placeholder="e.g., Bus stop, Train station"
+                            className="h-7 text-xs"
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <Label htmlFor="public_transport_distance" className="text-xs text-muted-foreground">
+                            Distance
+                          </Label>
+                          <Input
+                            id="public_transport_distance"
+                            value={formData.public_transport_distance}
+                            onChange={(e) => handleInputChange("public_transport_distance", e.target.value)}
+                            placeholder="e.g., 500 m"
+                            className="h-7 text-xs"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Closest Airport */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="flex flex-col gap-1">
+                          <Label htmlFor="closest_airport" className="text-xs text-muted-foreground">
+                            Closest Airport
+                          </Label>
+                          <Input
+                            id="closest_airport"
+                            value={formData.closest_airport}
+                            onChange={(e) => handleInputChange("closest_airport", e.target.value)}
+                            placeholder="e.g., Hoedspruit Eastgate Airport"
+                            className="h-7 text-xs"
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <Label htmlFor="closest_airport_distance" className="text-xs text-muted-foreground">
+                            Distance
+                          </Label>
+                          <Input
+                            id="closest_airport_distance"
+                            value={formData.closest_airport_distance}
+                            onChange={(e) => handleInputChange("closest_airport_distance", e.target.value)}
+                            placeholder="e.g., 52 km"
+                            className="h-7 text-xs"
+                          />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </CollapsibleContent>
+                </Card>
+              </Collapsible>
+
             </form>
           </TabsContent>
 
