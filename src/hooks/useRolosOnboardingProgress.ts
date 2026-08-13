@@ -551,6 +551,10 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
     currentMacro,
     overall,
     channelsConnected,
+    publishedOk,
+    blockingMacros,
+    gateSignature,
+
     signoff,
     recordSignoff,
     recordSignoffCheck,
