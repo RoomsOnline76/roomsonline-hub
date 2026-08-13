@@ -161,7 +161,7 @@ export async function loadPropertyDistances(
     const [{ data: experiences }, { data: destinations }] = await Promise.all([
       supabase
         .from("local_experiences")
-        .select("title, category, distance_km, is_active")
+        .select("title, category, distance_km, is_active, ru_destination_id")
         .eq("property_id", propertyId)
         .eq("is_active", true),
       supabase.from("ru_destinations").select("ru_destination_id, name").eq("is_generic", true),
