@@ -51,7 +51,7 @@ export function usePortfolioOverbookings({
     try {
       const from = isoDay(0);
       const to = isoDay(horizonDays);
-      const [typesRes, roomsRes, bookingsRes, seasonRes] = await Promise.all([
+      const [typesRes, roomsRes, bookingsRes] = await Promise.all([
         supabase
           .from("rolos_room_types")
           .select("id, property_id, name, max_occupancy, default_rate, is_active")
@@ -67,11 +67,6 @@ export function usePortfolioOverbookings({
           .not("status", "in", "(cancelled,no_show)")
           .lt("check_in_date", to)
           .gt("check_out_date", from),
-        supabase
-          .from("rolos_rate_plan_season_rates")
-          .select("room_type_id, base_rate, is_active, deleted_at")
-          .in("room_type_id", []) // filled after types resolve
-          .limit(1),
       ]);
 
       const types = typesRes.data || [];
@@ -104,8 +99,6 @@ export function usePortfolioOverbookings({
           rateByType.set(id, list[Math.floor(list.length / 2)]);
         }
       }
-      void seasonRes;
-
       setRoomTypes(
         types.map((t) => ({
           id: t.id,
