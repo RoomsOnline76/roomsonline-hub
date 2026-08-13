@@ -50,6 +50,53 @@ function decodeBase64(b64: string): Uint8Array {
   return out;
 }
 
+/**
+ * Persist one import run (preview or live) so an upload can never disappear
+ * without a trace. Never throws — logging must not break an import.
+ */
+async function logImportRun(
+  sb: ReturnType<typeof createClient>,
+  run: {
+    property_id: string;
+    created_by: string | null;
+    file_name: string | null;
+    file_bytes: number | null;
+    mode: "preview" | "live";
+    summary: Record<string, unknown>;
+    errors: unknown[];
+    skipped: unknown[];
+    unmapped_rooms: string[];
+    arrivals: string[];
+    future_stays: number;
+  },
+): Promise<string | null> {
+  try {
+    const sorted = [...run.arrivals].filter(Boolean).sort();
+    const { data } = await sb
+      .from("nb_import_runs")
+      .insert({
+        property_id: run.property_id,
+        created_by: run.created_by,
+        file_name: run.file_name || null,
+        file_bytes: run.file_bytes,
+        mode: run.mode,
+        summary: run.summary,
+        errors: run.errors.slice(0, 200),
+        skipped: run.skipped.slice(0, 200),
+        unmapped_rooms: run.unmapped_rooms,
+        min_arrival: sorted[0] ?? null,
+        max_arrival: sorted[sorted.length - 1] ?? null,
+        future_stays: run.future_stays,
+      })
+      .select("id")
+      .maybeSingle();
+    return (data?.id as string) ?? null;
+  } catch (e) {
+    console.error("nb-import-bookings: could not log run", e);
+    return null;
+  }
+}
+
 interface RoomRef {
   id: string;
   room_type_id: string | null;
@@ -356,11 +403,21 @@ Deno.serve(async (req) => {
       mapped.push(m);
     }
 
+    /* Chunked live writes: the client may walk a large export in slices so a single
+     * invocation can never time out mid-write. Preview always sees the whole file. */
+    const totalMapped = mapped.length;
+    const chunkFrom = Math.max(0, Number(body?.row_from ?? 0) || 0);
+    const chunkSize = Number(body?.row_limit ?? 0) || 0;
+    const chunkedWrite = !dryRun && chunkSize > 0;
+    const writeSlice = chunkedWrite ? mapped.slice(chunkFrom, chunkFrom + chunkSize) : mapped;
+
+
+
 
     // Existing NightsBridge bookings for this property, keyed by external id.
     const existing = new Map<string, string>();
     {
-      const ids = mapped.map((m) => m.external_id);
+      const ids = writeSlice.map((m) => m.external_id);
       for (let i = 0; i < ids.length; i += 400) {
         const chunk = ids.slice(i, i + 400);
         const { data } = await sb
@@ -412,24 +469,47 @@ Deno.serve(async (req) => {
 
     const willCreate = mapped.filter((m) => !existing.has(m.external_id)).length;
     const willUpdate = mapped.length - willCreate;
+    const arrivals = mapped.map((m) => m.check_in_date);
+    const futureStays = mapped.filter((m) => m.check_out_date >= today).length;
+    const arrivalSpan = (() => {
+      const sorted = [...arrivals].filter(Boolean).sort();
+      return { min: sorted[0] ?? null, max: sorted[sorted.length - 1] ?? null };
+    })();
 
     if (dryRun) {
+      const summary = {
+        total_rows: rows.length,
+        parsed: mapped.length,
+        created: willCreate,
+        updated: willUpdate,
+        skipped: skipped.length,
+        excluded: excludedByOperator,
+        errors: errors.length,
+        unmapped_rooms: [...unmappedRooms],
+        future_stays: futureStays,
+        min_arrival: arrivalSpan.min,
+        max_arrival: arrivalSpan.max,
+      };
+
+      const runId = await logImportRun(sb, {
+        property_id: propertyId,
+        created_by: userId,
+        file_name: fileName,
+        file_bytes: bytes.byteLength,
+        mode: "preview",
+        summary,
+        errors,
+        skipped,
+        unmapped_rooms: [...unmappedRooms],
+        arrivals,
+        future_stays: futureStays,
+      });
+
       return json({
         ok: true,
         dry_run: true,
-        summary: {
-          total_rows: rows.length,
-          parsed: mapped.length,
-          created: willCreate,
-          updated: willUpdate,
-          skipped: skipped.length,
-          excluded: excludedByOperator,
-          errors: errors.length,
-          unmapped_rooms: [...unmappedRooms],
-          future_stays: mapped.filter((m) => m.check_out_date >= today).length,
-
-        },
-
+        run_id: runId,
+        summary,
         errors,
         skipped,
         rooms: (roomRows ?? []).map((r) => ({
@@ -446,7 +526,7 @@ Deno.serve(async (req) => {
     let updated = 0;
 
     // Guest profiles by full name (NB exports carry no email).
-    const nameSet = [...new Set(mapped.map((m) => m.guest_name).filter(Boolean))];
+    const nameSet = [...new Set(writeSlice.map((m) => m.guest_name).filter(Boolean))];
     const guestIdByName = new Map<string, string>();
     for (let i = 0; i < nameSet.length; i += 200) {
       const chunk = nameSet.slice(i, i + 200);
@@ -470,8 +550,8 @@ Deno.serve(async (req) => {
 
     const roomLines: Record<string, unknown>[] = [];
 
-    for (let i = 0; i < mapped.length; i += BATCH) {
-      const chunk = mapped.slice(i, i + BATCH);
+    for (let i = 0; i < writeSlice.length; i += BATCH) {
+      const chunk = writeSlice.slice(i, i + BATCH);
 
       const inserts: Record<string, unknown>[] = [];
       for (const m of chunk) {
@@ -577,26 +657,49 @@ Deno.serve(async (req) => {
       if (error) errors.push({ row: 0, nbid: null, message: `Room lines: ${error.message}` });
     }
 
+    const chunkDone = chunkedWrite ? chunkFrom + writeSlice.length : totalMapped;
+    const liveSummary = {
+      total_rows: rows.length,
+      parsed: totalMapped,
+      /** Rows written by this call (a chunked run reports its own slice). */
+      written: writeSlice.length,
+      row_from: chunkFrom,
+      row_done: chunkDone,
+      has_more: chunkDone < totalMapped,
+      created,
+      updated,
+      skipped: skipped.length,
+      excluded: excludedByOperator,
+      errors: errors.length,
+      unmapped_rooms: [...unmappedRooms],
+      /** Stays that still lie ahead — these must block channel availability upstream. */
+      future_stays: futureStays,
+      min_arrival: arrivalSpan.min,
+      max_arrival: arrivalSpan.max,
+    };
+
+    const liveRunId = await logImportRun(sb, {
+      property_id: propertyId,
+      created_by: userId,
+      file_name: fileName,
+      file_bytes: bytes.byteLength,
+      mode: "live",
+      summary: liveSummary,
+      errors,
+      skipped,
+      unmapped_rooms: [...unmappedRooms],
+      arrivals,
+      future_stays: futureStays,
+    });
+
     return json({
       ok: true,
       dry_run: false,
-      summary: {
-        total_rows: rows.length,
-        parsed: mapped.length,
-        created,
-        updated,
-        skipped: skipped.length,
-        excluded: excludedByOperator,
-
-        errors: errors.length,
-        unmapped_rooms: [...unmappedRooms],
-        /** Stays that still lie ahead — these must block channel availability upstream. */
-        future_stays: mapped.filter((m) => m.check_out_date >= today).length,
-      },
+      run_id: liveRunId,
+      summary: liveSummary,
       errors,
       skipped,
       preview: [],
-
     });
   } catch (e) {
     console.error("nb-import-bookings failed", e);

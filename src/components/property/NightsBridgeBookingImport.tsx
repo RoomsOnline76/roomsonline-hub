@@ -6,7 +6,7 @@
  * only handles file selection, the dry-run preview and the result log.
  */
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -59,7 +59,28 @@ interface ImportSummary {
   unmapped_rooms: string[];
   /** Stays still ahead of today — these must also block availability on the channel. */
   future_stays?: number;
+  /** Arrival span of the file, so a history-only export is obvious before importing. */
+  min_arrival?: string | null;
+  max_arrival?: string | null;
+  /** Chunked live writes. */
+  written?: number;
+  row_done?: number;
+  has_more?: boolean;
 }
+
+/** One recorded import run (preview or live) for this property. */
+interface ImportRun {
+  id: string;
+  created_at: string;
+  file_name: string | null;
+  mode: string;
+  summary: Partial<ImportSummary> | null;
+  min_arrival: string | null;
+  max_arrival: string | null;
+  future_stays: number | null;
+  unmapped_rooms: string[] | null;
+}
+
 
 /** Result of the post-import repair pass over bookings that never matched a unit. */
 interface RepairResponse {
@@ -110,6 +131,9 @@ const EXCLUDE = "__exclude__";
 const UNASSIGNED = "__unassigned__";
 
 
+/** Rows written per live call — keeps a large export well inside the function timeout. */
+const WRITE_CHUNK = 250;
+
 export function NightsBridgeBookingImport({ propertyId, propertyName }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
@@ -121,10 +145,36 @@ export function NightsBridgeBookingImport({ propertyId, propertyName }: Props) {
   const [repair, setRepair] = useState<RepairResponse | null>(null);
   const [repairBusy, setRepairBusy] = useState(false);
   const [repairOverrides, setRepairOverrides] = useState<Record<string, string>>({});
+  /** Persistent outcome of the last live import — stays until dismissed. */
+  const [outcome, setOutcome] = useState<
+    | { kind: "saved"; created: number; updated: number; skipped: number; excluded: number; errors: number; future: number }
+    | { kind: "failed"; message: string; written: number }
+    | null
+  >(null);
+  const [history, setHistory] = useState<ImportRun[]>([]);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   const rooms = useMemo(() => result?.rooms ?? [], [result]);
   const unmapped = useMemo(() => result?.summary?.unmapped_rooms ?? [], [result]);
   const validated = Boolean(result?.dry_run && result.ok);
+
+  const loadHistory = useCallback(async () => {
+    const { data } = await supabase
+      .from("nb_import_runs")
+      .select("id, created_at, file_name, mode, summary, min_arrival, max_arrival, future_stays, unmapped_rooms")
+      .eq("property_id", propertyId)
+      .order("created_at", { ascending: false })
+      .limit(12);
+    setHistory((data ?? []) as unknown as ImportRun[]);
+  }, [propertyId]);
+
+  useEffect(() => {
+    void loadHistory();
+  }, [loadHistory]);
+
+  /** True when the newest recorded action was a preview that was never followed by a live import. */
+  const previewOnly = useMemo(() => history.length > 0 && history[0].mode === "preview", [history]);
+
 
   const pickFile = useCallback((next: File | null) => {
     if (!next) return;
@@ -191,57 +241,105 @@ export function NightsBridgeBookingImport({ propertyId, propertyName }: Props) {
     async (dryRun: boolean, overrideMap?: Record<string, string>) => {
       if (!file) return;
       const effective = overrideMap ?? overrides;
+      const roomOverrides = Object.fromEntries(Object.entries(effective).filter(([, v]) => Boolean(v)));
       setBusy(dryRun ? "dry" : "import");
-      setProgress(8);
-      const tick = window.setInterval(() => setProgress((p) => (p < 88 ? p + 4 : p)), 500);
+      setOutcome(null);
+      setProgress(6);
+      const tick = window.setInterval(() => setProgress((p) => (p < 88 ? p + 3 : p)), 600);
+      let writtenSoFar = 0;
       try {
         const fileBase64 = await toBase64(file);
-        setProgress(30);
-        const { data, error } = await supabase.functions.invoke<ImportResponse>("nb-import-bookings", {
-          body: {
-            property_id: propertyId,
-            file_name: file.name,
-            file_base64: fileBase64,
-            dry_run: dryRun,
-            room_overrides: Object.fromEntries(Object.entries(effective).filter(([, v]) => Boolean(v))),
-          },
-        });
-        if (error) throw new Error(error.message);
-        if (!data?.ok) throw new Error(data?.error || "Import failed");
-        setProgress(100);
-        setResult(data);
-        const excluded = data.summary.excluded ?? 0;
+        setProgress(dryRun ? 30 : 12);
+
+        const call = (extra: Record<string, unknown> = {}) =>
+          supabase.functions.invoke<ImportResponse>("nb-import-bookings", {
+            body: {
+              property_id: propertyId,
+              file_name: file.name,
+              file_base64: fileBase64,
+              dry_run: dryRun,
+              room_overrides: roomOverrides,
+              ...extra,
+            },
+          });
+
         if (dryRun) {
+          const { data, error } = await call();
+          if (error) throw new Error(error.message);
+          if (!data?.ok) throw new Error(data?.error || "Validation failed");
+          setProgress(100);
+          setResult(data);
+          const excluded = data.summary.excluded ?? 0;
           toast.success(
             `Validated ${data.summary.parsed} of ${data.summary.total_rows} rows — ${data.summary.created} new, ${data.summary.updated} updates` +
               (excluded ? `, ${excluded} excluded` : ""),
           );
-        } else {
-          toast.success(
-            `Imported: ${data.summary.created} created, ${data.summary.updated} updated` +
-              (excluded ? `, ${excluded} excluded` : ""),
-          );
-          // Imported future stays are real occupancy — push availability so the channel stops selling them.
-          if ((data.summary.future_stays ?? 0) > 0) {
-            void queueChannelRatesSync(propertyId, "nb_import").then((outcome) => {
-              if (outcome?.queued || outcome?.accepted) {
-                toast.success("Availability update sent to the channel manager");
-              }
-            });
-          }
-          void refreshRepair();
+          void loadHistory();
+          return;
         }
 
+        /* Live import: walk the file in slices so a big export cannot time out mid-write. */
+        const totals = { created: 0, updated: 0, skipped: 0, excluded: 0, errors: 0, future: 0 };
+        const allErrors: ImportResponse["errors"] = [];
+        const allSkipped: ImportResponse["skipped"] = [];
+        let from = 0;
+        let parsed = result?.summary?.parsed ?? 0;
+        let last: ImportResponse | null = null;
+
+        for (let guard = 0; guard < 200; guard++) {
+          const { data, error } = await call({ row_from: from, row_limit: WRITE_CHUNK });
+          if (error) throw new Error(error.message);
+          if (!data?.ok) throw new Error(data?.error || "Import failed");
+          last = data;
+          parsed = data.summary.parsed ?? parsed;
+          totals.created += data.summary.created ?? 0;
+          totals.updated += data.summary.updated ?? 0;
+          totals.excluded = data.summary.excluded ?? totals.excluded;
+          totals.skipped = data.summary.skipped ?? totals.skipped;
+          totals.future = data.summary.future_stays ?? totals.future;
+          allErrors.push(...(data.errors ?? []));
+          allSkipped.push(...(data.skipped ?? []));
+          writtenSoFar = data.summary.row_done ?? from + WRITE_CHUNK;
+          if (parsed > 0) setProgress(Math.min(96, Math.round((writtenSoFar / parsed) * 100)));
+          if (!data.summary.has_more) break;
+          from = writtenSoFar;
+        }
+
+        totals.errors = allErrors.length;
+        setProgress(100);
+        if (last) {
+          setResult({
+            ...last,
+            errors: allErrors,
+            skipped: allSkipped,
+            summary: { ...last.summary, created: totals.created, updated: totals.updated, errors: totals.errors },
+          });
+        }
+        setOutcome({ kind: "saved", ...totals });
+        toast.success(`Saved ${totals.created} bookings, updated ${totals.updated}`);
+
+        // Imported future stays are real occupancy — push availability so the channel stops selling them.
+        if (totals.future > 0) {
+          void queueChannelRatesSync(propertyId, "nb_import").then((sync) => {
+            if (sync?.queued || sync?.accepted) toast.success("Availability update sent to the channel manager");
+          });
+        }
+        void refreshRepair();
+        void loadHistory();
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Import failed");
+        const message = e instanceof Error ? e.message : "Import failed";
+        if (!dryRun) setOutcome({ kind: "failed", message, written: writtenSoFar });
+        toast.error(message);
+        void loadHistory();
       } finally {
         window.clearInterval(tick);
         setBusy(null);
         window.setTimeout(() => setProgress(0), 800);
       }
     },
-    [file, overrides, propertyId],
+    [file, overrides, propertyId, refreshRepair, loadHistory, result],
   );
+
 
   /**
    * Applying a decision invalidates the previous dry run, so re-validate immediately with
@@ -424,6 +522,118 @@ export function NightsBridgeBookingImport({ propertyId, propertyName }: Props) {
             )}
           </div>
         )}
+
+        {/* Arrival span of the file — makes a history-only export obvious before importing */}
+        {result?.summary?.min_arrival && (
+          <p className="text-xs text-muted-foreground">
+            File covers <span className="font-medium text-foreground">{result.summary.min_arrival}</span> →{" "}
+            <span className="font-medium text-foreground">{result.summary.max_arrival}</span> ·{" "}
+            {result.summary.future_stays ?? 0} future stay{(result.summary.future_stays ?? 0) === 1 ? "" : "s"}
+            {(result.summary.future_stays ?? 0) === 0 && " — this export is history only"}
+          </p>
+        )}
+
+        {/* Persistent outcome of the last live import */}
+        {outcome && (
+          <Alert variant={outcome.kind === "failed" ? "destructive" : "default"}>
+            {outcome.kind === "failed" ? <AlertTriangle className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
+            <AlertTitle>
+              {outcome.kind === "saved"
+                ? `Saved ${outcome.created} bookings, updated ${outcome.updated}`
+                : "Import did not finish"}
+            </AlertTitle>
+            <AlertDescription className="space-y-2 text-xs">
+              {outcome.kind === "saved" ? (
+                <p>
+                  {outcome.skipped} skipped
+                  {outcome.excluded ? `, ${outcome.excluded} excluded` : ""}
+                  {outcome.errors ? `, ${outcome.errors} row errors` : ", no row errors"} ·{" "}
+                  {outcome.future} future stay{outcome.future === 1 ? "" : "s"} now block channel availability.
+                </p>
+              ) : (
+                <p>
+                  {outcome.message}
+                  {outcome.written > 0 ? ` — ${outcome.written} rows were already saved; retrying is safe (rows are keyed by NBID).` : ""}
+                </p>
+              )}
+              <div className="flex flex-wrap gap-2">
+                {outcome.kind === "failed" && (
+                  <Button size="sm" variant="outline" className="h-7 text-xs" disabled={!file || busy !== null} onClick={() => void run(false)}>
+                    Retry import
+                  </Button>
+                )}
+                <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setOutcome(null)}>
+                  Dismiss
+                </Button>
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Preview-only warning — a validation that was never committed saves nothing */}
+        {!outcome && previewOnly && (
+          <Alert>
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Last action was a preview — nothing was saved</AlertTitle>
+            <AlertDescription className="text-xs">
+              The most recent run for this property was a validation only. Attach the export again and press
+              Import to commit it.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Recent imports */}
+        <div className="rounded-lg border border-border p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-sm font-medium">Recent imports</p>
+              <p className="text-xs text-muted-foreground">
+                Every upload is recorded — previews included — so nothing can disappear without a trace.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => void loadHistory()}>
+                Refresh
+              </Button>
+              <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setHistoryOpen((v) => !v)}>
+                {historyOpen ? "Hide" : `Show (${history.length})`}
+              </Button>
+            </div>
+          </div>
+
+          {historyOpen && (
+            <div className="mt-3 space-y-2">
+              {history.length === 0 ? (
+                <p className="text-xs text-muted-foreground">No imports recorded for this property yet.</p>
+              ) : (
+                history.map((h) => (
+                  <div key={h.id} className="flex flex-wrap items-center gap-2 rounded-md border border-border/60 p-2 text-xs">
+                    <Badge variant={h.mode === "live" ? "default" : "outline"} className="text-[10px]">
+                      {h.mode === "live" ? "imported" : "preview only"}
+                    </Badge>
+                    <span className="text-muted-foreground">{new Date(h.created_at).toLocaleString()}</span>
+                    <span className="font-medium">{h.file_name ?? "(no file name)"}</span>
+                    <span className="text-muted-foreground">
+                      {h.summary?.created ?? 0} created · {h.summary?.updated ?? 0} updated ·{" "}
+                      {h.summary?.skipped ?? 0} skipped · {h.summary?.errors ?? 0} errors
+                    </span>
+                    {h.min_arrival && (
+                      <span className="text-muted-foreground">
+                        arrivals {h.min_arrival} → {h.max_arrival} ({h.future_stays ?? 0} future)
+                      </span>
+                    )}
+                    {(h.unmapped_rooms?.length ?? 0) > 0 && (
+                      <Badge variant="outline" className="text-[10px]">
+                        {h.unmapped_rooms!.length} unmatched room names
+                      </Badge>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </div>
+
 
         {/* Unmapped rooms */}
         {validated && unmapped.length > 0 && (
