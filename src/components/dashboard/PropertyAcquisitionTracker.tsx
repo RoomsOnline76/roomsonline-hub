@@ -117,8 +117,8 @@ export function PropertyAcquisitionTracker() {
     const totalProperties = properties.length;
     // Pipeline view is the one place stale inventory stays visible, so we surface
     // trading vs stale side by side instead of hiding the non-trading rows.
-    const tradingProperties = properties.filter((p: any) => p.is_trading === true && p.is_sandbox !== true).length;
-    const staleProperties = properties.filter((p: any) => p.is_trading !== true && p.is_sandbox !== true).length;
+    const tradingProperties = properties.filter((p: any) => p.is_trading === true).length;
+    const staleProperties = properties.filter((p: any) => p.is_trading !== true).length;
     const connectedToPMS = properties.filter(p => p.external_system && p.external_system !== 'none').length;
     const momGrowth = lastMonthAdded > 0 ? ((thisMonthAdded - lastMonthAdded) / lastMonthAdded) * 100 : (thisMonthAdded > 0 ? 100 : 0);
     

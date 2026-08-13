@@ -28,8 +28,7 @@ export function PortfolioDemandForecast() {
       const { data } = await supabase
         .from("properties")
         .select("id")
-        .eq("is_trading", true)
-        .eq("is_sandbox", false);
+        .eq("is_trading", true);
       return (data || []).map((p: any) => p.id as string);
     },
   });

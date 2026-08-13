@@ -75,8 +75,7 @@ export default function DevOverview() {
         // Adapter "live properties" means trading properties — stale inventory is
         // connected but not processing anything.
         .eq('is_active', true)
-        .eq('is_trading', true)
-        .eq('is_sandbox', false);
+        .eq('is_trading', true);
 
       // Count properties per PMS type
       const propertyCountByPms = new Map<string, number>();

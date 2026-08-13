@@ -739,7 +739,6 @@ export function PortfolioRuAccountsTab() {
         (p) =>
           p.ru_push_enabled &&
           p.is_trading === true &&
-          p.is_sandbox !== true &&
           footprintLinkedIds.has(p.id)
       ).length,
     [properties, footprintLinkedIds]

@@ -3283,7 +3283,7 @@ export default function PropertyForm({
         is_rol_property: isRolProperty,
         is_test_property: isTestProperty,
         is_trading: isTrading,
-        is_sandbox: isSandbox || isTestProperty,
+        is_sandbox: isSandbox,
         is_active: true,
         images: uploadedImages,
         ru_image_tags: pruneRuImageTagMap(imageTags, uploadedImages),
@@ -5026,12 +5026,16 @@ export default function PropertyForm({
                                   id="is_test_property"
                                   checked={isTestProperty}
                                   onCheckedChange={(checked) => {
+                                    // Marker only — it must never change trading or channel behaviour.
                                     setIsTestProperty(checked as boolean);
-                                    setIsSandbox(checked as boolean);
                                     setIsDirty(true);
                                   }}
                                 />
-                                <Label htmlFor="is_test_property" className="cursor-pointer whitespace-nowrap text-xs text-orange-600">
+                                <Label
+                                  htmlFor="is_test_property"
+                                  className="cursor-pointer whitespace-nowrap text-xs text-orange-600"
+                                  title="Marker only: the property behaves normally everywhere, including channel and Rentals United syncs."
+                                >
                                   ⚠ Test
                                 </Label>
                               </div>
@@ -5056,11 +5060,9 @@ export default function PropertyForm({
                                   Trading — include in counts and metrics
                                 </Label>
                                 <p className="text-[11px] leading-snug text-muted-foreground">
-                                  {isSandbox
-                                    ? "Test / sandbox property: fully editable and connectable, but never counted in dashboards."
-                                    : isTrading
-                                      ? "Counted in dashboards, occupancy, forecasts and revenue reporting."
-                                      : "Stale inventory: fully editable and connectable, but excluded from all dashboards and metrics until it genuinely trades."}
+                                  {isTrading
+                                    ? "Counted in dashboards, occupancy, forecasts and revenue reporting."
+                                    : "Stale inventory: fully editable and connectable, but excluded from all dashboards and metrics until it genuinely trades."}
                                 </p>
                               </div>
                             </div>

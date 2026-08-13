@@ -4666,7 +4666,6 @@ Deno.serve(async (req) => {
         .from("properties")
         .select("id, name, owner_email, is_active, is_sandbox, rentalsunited_property_id")
         .eq("is_active", true)
-        .neq("is_sandbox", true)
         .order("name");
 
       type BulkTarget = { property_id: string; property_name: string; ru_property_id: string; label: string };
@@ -4748,7 +4747,6 @@ Deno.serve(async (req) => {
         .from("properties")
         .select("id, name, is_active, is_sandbox, rentalsunited_property_id")
         .eq("is_active", true)
-        .neq("is_sandbox", true)
         .order("name");
 
       const { data: orders } = await admin
