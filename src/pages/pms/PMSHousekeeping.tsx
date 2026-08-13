@@ -222,9 +222,11 @@ export default function PMSHousekeeping() {
       : fetchedRooms;
     const assignedInHouseBookings = autoAssignBookings(
       rawInHouseBookings.map((booking) => {
+        // Booking row wins; room lines only fill in stays with no unit of their own.
+        const ownIds = booking.rolos_room_ids || [];
+        if (ownIds.length) return booking;
         const linkedIds = linkedRoomIdsByBooking.get(booking.id) || [];
-        const mergedIds = Array.from(new Set([...(booking.rolos_room_ids || []), ...linkedIds]));
-        return { ...booking, rolos_room_ids: mergedIds.length ? mergedIds : booking.rolos_room_ids };
+        return linkedIds.length ? { ...booking, rolos_room_ids: linkedIds } : booking;
       }),
       visibleRooms,
       allFetchedRoomTypes
