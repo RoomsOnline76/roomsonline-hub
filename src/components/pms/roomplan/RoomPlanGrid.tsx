@@ -105,8 +105,11 @@ interface PlanRow {
 
 const bookingBelongsToType = (booking: RoomPlanBooking, type: RoomPlanRoomType, typeRooms: RoomPlanRoom[]) => {
   if (booking.room_type_id && (booking.room_type_id === type.id || booking.room_type_id === type.linked_overview_id)) return true;
+  // Multi-room stays carry one line per unit; each line's room type gets a bar.
+  if (booking.line_room_type_ids?.some((id) => id === type.id || id === type.linked_overview_id)) return true;
   return !!booking.rolos_room_ids?.some((roomId) => typeRooms.some((room) => room.id === roomId));
 };
+
 
 const shiftDate = (value: string, days: number) => format(addDays(parseISO(value), days), "yyyy-MM-dd");
 
