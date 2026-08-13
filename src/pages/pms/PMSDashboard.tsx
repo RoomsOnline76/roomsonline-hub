@@ -22,7 +22,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import type { BlockDetail } from "@/lib/blockAttribution";
+import { formatBlockedTooltip, type BlockDetail } from "@/lib/blockAttribution";
 import { usePMSBrand } from "@/contexts/PMSBrandContext";
 import { BulkStopSellDialog } from "@/components/BulkStopSellDialog";
 import { RestrictionsManagerDialog } from "@/components/restrictions/RestrictionsManagerDialog";
@@ -223,6 +223,18 @@ interface AvailabilityOverride {
 }
 
 const normalizeRoomTypeName = (value: string | null | undefined) => value?.trim().toLowerCase() || "";
+
+/** Single source of truth for "this night is blocked" — stop-sell flag OR zero units.
+ * Room plan, week and month grids all read this so they cannot drift apart. */
+const isBlockedOverride = (o: AvailabilityOverride | undefined | null): boolean =>
+  !!o && (o.is_stop_sell === true || o.available_units === 0);
+
+const blockDetailOf = (o: AvailabilityOverride | undefined | null): BlockDetail => ({
+  label: o?.blocked_by_label ?? null,
+  at: o?.blocked_at ?? null,
+  reason: o?.blocked_reason ?? null,
+  source: o?.external_system ?? null,
+});
 
 function normalizeRoomsToCanonicalRoomTypes<T extends Room>(
   rawRooms: T[],
@@ -1616,13 +1628,8 @@ export default function PMSDashboard() {
         if (!name) return null;
         const o = oMap.get(`${name}-${format(date, "yyyy-MM-dd")}`);
         if (!o) return null;
-        if (!(o.is_stop_sell === true || o.available_units === 0)) return null;
-        return {
-          label: o.blocked_by_label ?? null,
-          at: o.blocked_at ?? null,
-          reason: o.blocked_reason ?? null,
-          source: o.external_system ?? null,
-        };
+        if (!isBlockedOverride(o)) return null;
+        return blockDetailOf(o);
       };
     },
     [],
@@ -2286,6 +2293,7 @@ export default function PMSDashboard() {
                           getSeasonForDate={getSeasonForDate}
                           getRestriction={propGetRestriction}
                           onSelectBooking={openBookingSheet}
+                          onEditBlock={openBlockEditor(propRoomTypes, prop.id)}
                           bookingsLoading={false}
                         />
                       </div>
@@ -2340,6 +2348,7 @@ export default function PMSDashboard() {
                           getSeasonForDate={getSeasonForDate}
                           getRestriction={propGetRestriction}
                           onSelectBooking={openBookingSheet}
+                          onEditBlock={openBlockEditor(propRoomTypes, prop.id)}
                           bookingsLoading={false}
                         />
                       </div>
@@ -2367,6 +2376,7 @@ export default function PMSDashboard() {
                 getSeasonForDate={getSeasonForDate}
                 getRestriction={getRestriction}
                 onSelectBooking={openBookingSheet}
+                onEditBlock={openBlockEditor(visibleRoomTypes, propertyId)}
                 bookingsLoading={bookingsLoading}
               />
               )
@@ -2388,6 +2398,7 @@ export default function PMSDashboard() {
                 getSeasonForDate={getSeasonForDate}
                 getRestriction={getRestriction}
                 onSelectBooking={openBookingSheet}
+                onEditBlock={openBlockEditor(visibleRoomTypes, propertyId)}
                 bookingsLoading={bookingsLoading}
               />
             )}
@@ -2534,6 +2545,8 @@ interface CalendarGridProps {
   getSeasonForDate: (date: Date) => RateSeason | null;
   getRestriction: (roomTypeName: string, date: Date) => AvailabilityOverride | undefined;
   onSelectBooking: (b: BookingRow, tab?: BookingDetailTab) => void;
+  /** Right-click a blocked night → open the restriction editor for that span. */
+  onEditBlock?: (roomTypeId: string, date: Date) => void;
   bookingsLoading: boolean;
 }
 
@@ -2582,10 +2595,11 @@ function DateHeaderCell({ date, season, className: extraClass }: { date: Date; s
 }
 
 // ──────────── Shared: Restriction colored lines ────────────
-function RestrictionLines({ restriction, prevRestriction, nextRestriction }: {
+function RestrictionLines({ restriction, prevRestriction, nextRestriction, date }: {
   restriction: AvailabilityOverride | undefined;
   prevRestriction?: AvailabilityOverride | undefined;
   nextRestriction?: AvailabilityOverride | undefined;
+  date?: Date;
 }) {
   if (!restriction) return null;
   const lines: JSX.Element[] = [];
@@ -2595,13 +2609,20 @@ function RestrictionLines({ restriction, prevRestriction, nextRestriction }: {
     return `h-1 flex-1 ${baseColor} ${rounded}`;
   };
 
-  if (restriction.is_stop_sell) {
+  if (isBlockedOverride(restriction)) {
+    const tooltip = date
+      ? formatBlockedTooltip(date, blockDetailOf(restriction))
+      : "Blocked — not sellable on this night";
     lines.push(
       <Tooltip key="ss">
         <TooltipTrigger asChild>
-          <div className={getLineClass(!!prevRestriction?.is_stop_sell, !!nextRestriction?.is_stop_sell, "bg-red-500")} />
+          <div className={getLineClass(isBlockedOverride(prevRestriction), isBlockedOverride(nextRestriction), "bg-red-500")} />
         </TooltipTrigger>
-        <TooltipContent><p className="text-xs font-medium">Stop Sell Active</p></TooltipContent>
+        <TooltipContent>
+          {tooltip.split("\n").map((line, i) => (
+            <p key={i} className={cn("text-xs", i === 0 ? "font-medium" : "text-muted-foreground")}>{line}</p>
+          ))}
+        </TooltipContent>
       </Tooltip>
     );
   }
@@ -2663,15 +2684,21 @@ function dateCellBg(date: Date, extraStop?: boolean) {
   const today = isToday(date);
   const holiday = !!getHolidayName(date);
   const weekend = isWeekendDay(date);
+  if (extraStop) {
+    return cn(
+      "bg-red-500/5",
+      "blocked-night-hatch",
+      today && "ring-1 ring-inset ring-primary/40",
+    );
+  }
   if (today) return "bg-primary/5";
-  if (extraStop) return "bg-red-500/5";
   if (holiday) return "bg-green-50/50 dark:bg-green-950/10";
   if (weekend) return "bg-red-50/30 dark:bg-red-950/10";
   return "";
 }
 
 function WeekCalendarGrid(props: CalendarGridProps) {
-  const { dates = [], roomTypes, roomsByType, bookings, rooms, getRateForDate, getPricingSuffix, getSeasonForDate, getRestriction, onSelectBooking, bookingsLoading } = props;
+  const { dates = [], roomTypes, roomsByType, bookings, rooms, getRateForDate, getPricingSuffix, getSeasonForDate, getRestriction, onSelectBooking, onEditBlock, bookingsLoading } = props;
 
   const dailyOccupancy = useMemo(() => {
     const totalRooms = rooms.filter(r => r.status !== "out_of_service").length;
@@ -2719,7 +2746,7 @@ function WeekCalendarGrid(props: CalendarGridProps) {
             </thead>
             <tbody>
               {roomTypes.map((rt) => (
-                <RoomTypeSection key={rt.id} rt={rt} dates={dates} roomsByType={roomsByType} bookings={bookings} getRateForDate={getRateForDate} getPricingSuffix={getPricingSuffix} getRestriction={getRestriction} onSelectBooking={onSelectBooking} cellW={WEEK_CELL_W} labelW={WEEK_LABEL_W} />
+                <RoomTypeSection key={rt.id} rt={rt} dates={dates} roomsByType={roomsByType} bookings={bookings} getRateForDate={getRateForDate} getPricingSuffix={getPricingSuffix} getRestriction={getRestriction} onSelectBooking={onSelectBooking} onEditBlock={onEditBlock} cellW={WEEK_CELL_W} labelW={WEEK_LABEL_W} />
               ))}
             </tbody>
           </table>
@@ -2740,7 +2767,7 @@ function WeekCalendarGrid(props: CalendarGridProps) {
 
 // ──────────── Month Calendar (stacked weekly rows) ────────────
 function MonthCalendarGrid(props: CalendarGridProps) {
-  const { weekChunks = [], roomTypes, roomsByType, bookings, getRateForDate, getPricingSuffix, getSeasonForDate, getRestriction, onSelectBooking, bookingsLoading } = props;
+  const { weekChunks = [], roomTypes, roomsByType, bookings, getRateForDate, getPricingSuffix, getSeasonForDate, getRestriction, onSelectBooking, onEditBlock, bookingsLoading } = props;
   // One continuous horizontal axis — travel sideways instead of stacking week blocks.
   const monthDates = useMemo(() => weekChunks.flat(), [weekChunks]);
 
@@ -2790,6 +2817,7 @@ function MonthCalendarGrid(props: CalendarGridProps) {
                     getRestriction={getRestriction}
                     getMonthAvail={getMonthAvail}
                     onSelectBooking={onSelectBooking}
+                    onEditBlock={onEditBlock}
                   />
                 );
               })}
@@ -2811,7 +2839,7 @@ function MonthCalendarGrid(props: CalendarGridProps) {
   );
 }
 
-function MonthRoomTypeRows({ rt, weekDates, typeRooms, bookings, getRateForDate, getPricingSuffix, getRestriction, getMonthAvail, onSelectBooking }: {
+function MonthRoomTypeRows({ rt, weekDates, typeRooms, bookings, getRateForDate, getPricingSuffix, getRestriction, getMonthAvail, onSelectBooking, onEditBlock }: {
   rt: RoomType;
   weekDates: Date[];
   typeRooms: Room[];
@@ -2821,6 +2849,7 @@ function MonthRoomTypeRows({ rt, weekDates, typeRooms, bookings, getRateForDate,
   getRestriction: (roomTypeName: string, date: Date) => AvailabilityOverride | undefined;
   getMonthAvail: (date: Date) => { booked: number; avail: number };
   onSelectBooking: (b: BookingRow, tab?: BookingDetailTab) => void;
+  onEditBlock?: (roomTypeId: string, date: Date) => void;
 }) {
   const isSingleRoom = typeRooms.length <= 1;
   const singleRoom = typeRooms.length === 1 ? typeRooms[0] : null;
@@ -2853,7 +2882,15 @@ function MonthRoomTypeRows({ rt, weekDates, typeRooms, bookings, getRateForDate,
             : [];
 
           return (
-            <td key={i} className={cn("border p-0 text-center relative", isSingleRoom ? "h-8" : "p-1", dateCellBg(date, !!restriction?.is_stop_sell))}>
+            <td
+              key={i}
+              className={cn("border p-0 text-center relative", isSingleRoom ? "h-8" : "p-1", dateCellBg(date, isBlockedOverride(restriction)))}
+              onContextMenu={(event) => {
+                if (!onEditBlock || !isBlockedOverride(restriction)) return;
+                event.preventDefault();
+                onEditBlock(rt.id, date);
+              }}
+            >
               {isSingleRoom && singleRoomOOS ? (
                 <div className="flex items-center justify-center h-full"><Ban className="h-3 w-3 text-muted-foreground/30" /></div>
               ) : (
@@ -2871,7 +2908,7 @@ function MonthRoomTypeRows({ rt, weekDates, typeRooms, bookings, getRateForDate,
                           {booked > 0 && <span className="text-muted-foreground"> / {booked}b</span>}
                         </div>
                       )}
-                      <RestrictionLines restriction={restriction} prevRestriction={prevRestriction} nextRestriction={nextRestriction} />
+                      <RestrictionLines restriction={restriction} prevRestriction={prevRestriction} nextRestriction={nextRestriction} date={date} />
                     </div>
                   )}
                   {/* Booking bars for single-room types */}
@@ -3014,7 +3051,7 @@ function MonthRoomRow({ room, dates, bookings, onSelectBooking }: {
 }
 
 // ──────────── Room Type Section (for week view — table rows) ────────────
-function RoomTypeSection({ rt, dates, roomsByType, bookings, getRateForDate, getPricingSuffix, getRestriction, onSelectBooking, cellW, labelW }: {
+function RoomTypeSection({ rt, dates, roomsByType, bookings, getRateForDate, getPricingSuffix, getRestriction, onSelectBooking, onEditBlock, cellW, labelW }: {
   rt: RoomType;
   dates: Date[];
   roomsByType: Map<string, Room[]>;
@@ -3023,6 +3060,7 @@ function RoomTypeSection({ rt, dates, roomsByType, bookings, getRateForDate, get
   getPricingSuffix: (roomTypeId: string) => string;
   getRestriction: (roomTypeName: string, date: Date) => AvailabilityOverride | undefined;
   onSelectBooking: (b: BookingRow, tab?: BookingDetailTab) => void;
+  onEditBlock?: (roomTypeId: string, date: Date) => void;
   cellW: string;
   labelW: string;
 }) {
@@ -3070,7 +3108,15 @@ function RoomTypeSection({ rt, dates, roomsByType, bookings, getRateForDate, get
             : [];
 
           return (
-            <td key={i} className={cn("border p-0 text-center relative min-w-[80px]", isSingleRoom ? "h-8" : "p-1", dateCellBg(date, !!restriction?.is_stop_sell))}>
+            <td
+              key={i}
+              className={cn("border p-0 text-center relative min-w-[80px]", isSingleRoom ? "h-8" : "p-1", dateCellBg(date, isBlockedOverride(restriction)))}
+              onContextMenu={(event) => {
+                if (!onEditBlock || !isBlockedOverride(restriction)) return;
+                event.preventDefault();
+                onEditBlock(rt.id, date);
+              }}
+            >
               {isSingleRoom && singleRoomOOS ? (
                 <div className="flex items-center justify-center h-full"><Ban className="h-3 w-3 text-muted-foreground/30" /></div>
               ) : (
@@ -3088,7 +3134,7 @@ function RoomTypeSection({ rt, dates, roomsByType, bookings, getRateForDate, get
                           {booked > 0 && <span className="text-muted-foreground"> / {booked}b</span>}
                         </div>
                       )}
-                      <RestrictionLines restriction={restriction} prevRestriction={prevRestriction} nextRestriction={nextRestriction} />
+                      <RestrictionLines restriction={restriction} prevRestriction={prevRestriction} nextRestriction={nextRestriction} date={date} />
                     </div>
                   )}
                   {dayBookings.map(b => {
