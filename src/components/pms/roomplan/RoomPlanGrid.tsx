@@ -43,10 +43,14 @@ interface RoomPlanRoom {
 export interface RoomPlanMovePayload {
   booking: RoomPlanBooking;
   roomId: string | null;
+  /** Room type of the target unit — differs from the booking's when moved across types. */
+  roomTypeId: string;
+  roomTypeChanged: boolean;
   checkIn: string;
   checkOut: string;
   datesChanged: boolean;
 }
+
 
 export interface RoomPlanCreatePayload {
   roomTypeId: string;
