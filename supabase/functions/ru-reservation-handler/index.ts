@@ -68,6 +68,51 @@ Deno.serve(async (req) => {
       return ok();
     }
 
+    // ── Operator retry path: JSON body { notification_id? , reservation_id? } re-runs the
+    // detail pull + ingest for a single stuck notification (see the Reservations panel).
+    if (rawXml.trimStart().startsWith('{')) {
+      const body = JSON.parse(rawXml) as { notification_id?: string; reservation_id?: string };
+      let reservationId = body.reservation_id ?? null;
+      let propertyId: string | null = null;
+      if (body.notification_id) {
+        const { data: row } = await supabase
+          .from('ru_notifications')
+          .select('ru_reservation_id, property_id')
+          .eq('id', body.notification_id)
+          .maybeSingle();
+        reservationId = reservationId ?? (row?.ru_reservation_id ? String(row.ru_reservation_id) : null);
+        propertyId = row?.property_id ?? null;
+      }
+      if (!reservationId) {
+        return new Response(JSON.stringify({ success: false, error: 'No reservation id to retry' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const retried = await refreshRuReservationById(supabase, reservationId, {
+        propertyId,
+        logPrefix: '[ru-reservation-handler][retry]',
+      });
+      const resolved = retried.outcome !== 'failed' && retried.outcome !== 'unmatched';
+      if (body.notification_id) {
+        await supabase
+          .from('ru_notifications')
+          .update({
+            processed: resolved,
+            resolution_state: resolved ? 'resolved' : 'failed',
+            error_message: resolved ? null : retried.error ?? `Ingest outcome: ${retried.outcome}`,
+            last_attempt_at: new Date().toISOString(),
+          })
+          .eq('id', body.notification_id);
+      }
+      return new Response(
+        JSON.stringify({ success: resolved, outcome: retried.outcome, booking_id: retried.bookingId, error: retried.error ?? null }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
+
+
+
     // Keep each block's own XML: a multi-reservation envelope can mix confirmations and
     // cancellations, so classification has to happen per block (falling back to the envelope).
     const blocks = extractAllBlocks(rawXml, 'Reservation');
