@@ -449,6 +449,7 @@ Deno.serve(async (req) => {
             }
           }
           seenOnChannel.add(id);
+          liveRows.push({ listing_id: id, name: l.name || local?.label || "Unnamed listing", owner_id: ownerId, matched: !!local });
           if (!local) {
             orphans.push({
               listing_id: id,
@@ -458,6 +459,7 @@ Deno.serve(async (req) => {
             });
             continue;
           }
+
           matched.push({
             listing_id: id,
             name: l.name || local.label,
