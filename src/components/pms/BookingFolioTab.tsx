@@ -81,12 +81,13 @@ export function BookingFolioTab({ bookingId, propertyId }: BookingFolioTabProps)
     setLoading(true);
     try {
       const [folioRes, chargesRes] = await Promise.all([
-        callPmsApi<{ transactions: Transaction[]; status: string }>("get_folio", { booking_id: bookingId }),
+        callPmsApi<{ transactions: Transaction[]; status: string; external_settlement?: boolean }>("get_folio", { booking_id: bookingId }),
         callPmsApi<{ charges: BookingCharge[] }>("get_booking_charges", { booking_id: bookingId }),
       ]);
       if (folioRes.success && folioRes.data) {
         setTransactions(folioRes.data.transactions || []);
         setFolioStatus(folioRes.data.status || "open");
+        setExternalSettlement(!!folioRes.data.external_settlement);
       }
       if (chargesRes.success && chargesRes.data) {
         setBookingCharges(chargesRes.data.charges || []);
@@ -96,6 +97,7 @@ export function BookingFolioTab({ bookingId, propertyId }: BookingFolioTabProps)
   };
 
   useEffect(() => { fetchFolio(); }, [bookingId]);
+
 
   const totalCharges = transactions.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0);
   const totalPayments = transactions.filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0);
