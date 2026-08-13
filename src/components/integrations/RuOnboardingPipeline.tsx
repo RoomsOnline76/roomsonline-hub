@@ -178,6 +178,15 @@ export function RuOnboardingPipeline({ propertyId, readOnly = false, standalone 
 
   const phases = gate?.phases ?? [];
   const completed = useMemo(() => phases.filter((p) => p.status === "passed").length, [phases]);
+  /** Passed phases are folded away unless the operator expands, or a refused push points at them. */
+  const [showAll, setShowAll] = useState(false);
+  const isExpanded = useCallback(
+    (p: Phase) => showAll || p.status !== "passed" || pushBlock?.phase === p.key,
+    [showAll, pushBlock],
+  );
+  const visiblePhases = useMemo(() => phases.filter(isExpanded), [phases, isExpanded]);
+  const hiddenPhases = useMemo(() => phases.filter((p) => !isExpanded(p)), [phases, isExpanded]);
+
 
   const runAction = useCallback(
     async (phase: PhaseKey, body: Record<string, unknown>, successMsg: string) => {
