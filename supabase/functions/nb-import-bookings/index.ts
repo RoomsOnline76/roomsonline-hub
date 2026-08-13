@@ -417,7 +417,7 @@ Deno.serve(async (req) => {
     // Existing NightsBridge bookings for this property, keyed by external id.
     const existing = new Map<string, string>();
     {
-      const ids = mapped.map((m) => m.external_id);
+      const ids = writeSlice.map((m) => m.external_id);
       for (let i = 0; i < ids.length; i += 400) {
         const chunk = ids.slice(i, i + 400);
         const { data } = await sb
@@ -526,7 +526,7 @@ Deno.serve(async (req) => {
     let updated = 0;
 
     // Guest profiles by full name (NB exports carry no email).
-    const nameSet = [...new Set(mapped.map((m) => m.guest_name).filter(Boolean))];
+    const nameSet = [...new Set(writeSlice.map((m) => m.guest_name).filter(Boolean))];
     const guestIdByName = new Map<string, string>();
     for (let i = 0; i < nameSet.length; i += 200) {
       const chunk = nameSet.slice(i, i + 200);
@@ -550,8 +550,8 @@ Deno.serve(async (req) => {
 
     const roomLines: Record<string, unknown>[] = [];
 
-    for (let i = 0; i < mapped.length; i += BATCH) {
-      const chunk = mapped.slice(i, i + BATCH);
+    for (let i = 0; i < writeSlice.length; i += BATCH) {
+      const chunk = writeSlice.slice(i, i + BATCH);
 
       const inserts: Record<string, unknown>[] = [];
       for (const m of chunk) {
