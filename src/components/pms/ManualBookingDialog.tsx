@@ -935,24 +935,59 @@ function GuestNameAutocomplete({
     setLoading(true);
     const handle = setTimeout(async () => {
       const like = `%${term}%`;
-      const { data, error } = await supabase
-        .from("rolos_guest_profiles")
-        .select("id, full_name, email, phone, total_stays, last_stay_date")
-        .eq("property_id", propertyId)
-        .or(`full_name.ilike.${like},email.ilike.${like},phone.ilike.${like}`)
-        .order("last_stay_date", { ascending: false, nullsFirst: false })
-        .limit(8);
+      const [profileRes, bookingRes] = await Promise.all([
+        supabase
+          .from("rolos_guest_profiles")
+          .select("id, full_name, email, phone, total_stays, last_stay_date")
+          .eq("property_id", propertyId)
+          .or(`full_name.ilike.${like},email.ilike.${like},phone.ilike.${like}`)
+          .order("last_stay_date", { ascending: false, nullsFirst: false })
+          .limit(8),
+        // Imported guests (e.g. NightsBridge history) have no CRM profile yet, so
+        // search the booking history too and offer those names.
+        supabase
+          .from("bookings")
+          .select("id, guest_name, guest_email, guest_phone, check_in_date")
+          .eq("property_id", propertyId)
+          .or(`guest_name.ilike.${like},guest_email.ilike.${like},guest_phone.ilike.${like}`)
+          .order("check_in_date", { ascending: false })
+          .limit(25),
+      ]);
 
       if (cancelled) return;
-      if (error) {
-        console.warn("guest search failed:", error);
-        setSuggestions([]);
-      } else {
-        setSuggestions((data || []) as GuestSuggestion[]);
-        setOpen((data?.length ?? 0) > 0);
+      if (profileRes.error) console.warn("guest search failed:", profileRes.error);
+      if (bookingRes.error) console.warn("booking guest search failed:", bookingRes.error);
+
+      const profiles = (profileRes.data || []) as GuestSuggestion[];
+      const seen = new Set(
+        profiles.flatMap((p) => [p.email?.toLowerCase(), p.full_name?.trim().toLowerCase()].filter(Boolean) as string[]),
+      );
+
+      const fromBookings: GuestSuggestion[] = [];
+      for (const b of bookingRes.data || []) {
+        const name = (b.guest_name || "").trim();
+        if (!name) continue;
+        const emailKey = b.guest_email?.toLowerCase();
+        const nameKey = name.toLowerCase();
+        if (seen.has(nameKey) || (emailKey && seen.has(emailKey))) continue;
+        seen.add(nameKey);
+        if (emailKey) seen.add(emailKey);
+        fromBookings.push({
+          id: `booking:${b.id}`,
+          full_name: name,
+          email: b.guest_email || null,
+          phone: b.guest_phone || null,
+          total_stays: null,
+          last_stay_date: b.check_in_date || null,
+        } as GuestSuggestion);
       }
+
+      const merged = [...profiles, ...fromBookings].slice(0, 10);
+      setSuggestions(merged);
+      setOpen(merged.length > 0);
       setLoading(false);
     }, 220);
+
 
     return () => {
       cancelled = true;
