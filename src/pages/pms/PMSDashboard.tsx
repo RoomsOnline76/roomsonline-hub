@@ -89,6 +89,7 @@ import {
 
 } from "lucide-react";
 import { toast } from "sonner";
+import { useRealtimeBookings } from "@/hooks/useRealtimeBookings";
 import { displayBookingReference } from "@/lib/bookingReference";
 
 // ──────────── SA Public Holidays ────────────
@@ -954,6 +955,22 @@ export default function PMSDashboard() {
     [isPortfolioMode, portfolioPropertyIds, propertyId],
   );
   const { data: bookingCoverage } = useBookingCoverage(coverageIds);
+
+  // Live booking feed — channel requests are written by an edge function, so without this
+  // the calendar only learns about them on the next manual reload.
+  useRealtimeBookings({
+    propertyIds: coverageIds,
+    onChange: (event) => {
+      queryClient.invalidateQueries({ queryKey: ["pms-cal-bookings"] });
+      queryClient.invalidateQueries({ queryKey: ["pms-portfolio-bookings"] });
+      queryClient.invalidateQueries({ queryKey: ["pms-arrivals"] });
+      queryClient.invalidateQueries({ queryKey: ["pms-departures"] });
+      if (event?.isNew) {
+        const stay = event.checkIn && event.checkOut ? ` ${event.checkIn} → ${event.checkOut}` : "";
+        toast.info(`New reservation${stay}`, { description: event.guestName || undefined });
+      }
+    },
+  });
   const visibleBookingCount = isPortfolioMode ? portfolioBookingsRaw.length : bookingsRaw.length;
   const outsideWindowNotice = useMemo(() => {
     if (bookingsLoading || visibleBookingCount > 0) return null;

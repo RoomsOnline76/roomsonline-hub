@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { addDays, format, startOfDay } from "date-fns";
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
+import { useRealtimeBookings } from "@/hooks/useRealtimeBookings";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -285,6 +286,18 @@ export default function PMSRooms() {
   }, [activePropertyIds, syncRoomTypesFromOverview, windowStart, windowEnd]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  // Live channel requests: repaint the grid the moment a booking lands, no refresh needed.
+  useRealtimeBookings({
+    propertyIds: activePropertyIds,
+    onChange: (event) => {
+      fetchData();
+      if (event?.isNew) {
+        const stay = event.checkIn && event.checkOut ? ` ${event.checkIn} → ${event.checkOut}` : "";
+        toast.info(`New reservation${stay}`, { description: event.guestName || undefined });
+      }
+    },
+  });
 
   // Room types offered in the create/edit dialog: scoped to the room being
   // edited (portfolio view can mix properties) and always including the room's
