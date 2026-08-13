@@ -2274,6 +2274,42 @@ export default function PMSDashboard() {
         </SheetContent>
       </Sheet>
 
+      {/* Hover-card actions from the room plan: modify / cancel without opening the sheet */}
+      {modifyTarget && (
+        <BookingModifyDialog
+          key={`modify-${modifyTarget.id}`}
+          open={!!modifyTarget}
+          onOpenChange={(open) => { if (!open) setModifyTarget(null); }}
+          booking={{
+            id: modifyTarget.id,
+            guest_name: modifyTarget.guest_name,
+            check_in_date: modifyTarget.check_in_date,
+            check_out_date: modifyTarget.check_out_date,
+            adults: modifyTarget.adults,
+            children: modifyTarget.children,
+            teens: modifyTarget.teens,
+            infants: modifyTarget.infants,
+            total_price: modifyTarget.total_price,
+            property_id: modifyTarget.property_id ?? null,
+            room_type_id: modifyTarget.room_type_id ?? null,
+          }}
+          isRuBooking={isRuSourcedBooking(modifyTarget)}
+          onDone={() => { setModifyTarget(null); refreshBookingQueries(); }}
+        />
+      )}
+      {cancelTarget && (
+        <BookingCancelDialog
+          key={`cancel-${cancelTarget.id}`}
+          open={!!cancelTarget}
+          onOpenChange={(open) => { if (!open) setCancelTarget(null); }}
+          bookingId={cancelTarget.id}
+          guestName={cancelTarget.guest_name}
+          isRuBooking={isRuSourcedBooking(cancelTarget)}
+          isRuLead={isRuLeadOrigin(cancelTarget)}
+          onDone={() => { setCancelTarget(null); refreshBookingQueries(); }}
+        />
+      )}
+
       {/* Manual Booking Dialog */}
       <ManualBookingDialog
         open={manualBookingOpen}
