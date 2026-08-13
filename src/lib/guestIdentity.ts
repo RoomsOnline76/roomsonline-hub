@@ -50,15 +50,22 @@ export async function ensureGuestProfile(opts: {
       existingId = data?.id ?? null;
     }
     if (!existingId && norm) {
-      const { data } = await supabase
+      // Generated column is not in the generated types yet — untyped client for this filter.
+      const { data } = await (supabase as unknown as {
+        from: (t: string) => {
+          select: (c: string) => {
+            eq: (c: string, v: unknown) => { eq: (c: string, v: unknown) => { maybeSingle: () => Promise<{ data: { id: string } | null }> } };
+          };
+        };
+      })
         .from("rolos_guest_profiles")
         .select("id")
         .eq("property_id", opts.propertyId)
-        // deno-lint-ignore no-explicit-any
-        .eq("normalised_name" as any, norm)
+        .eq("normalised_name", norm)
         .maybeSingle();
       existingId = data?.id ?? null;
     }
+
     if (existingId) {
       await supabase
         .from("rolos_guest_profiles")
