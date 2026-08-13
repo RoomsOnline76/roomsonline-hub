@@ -344,8 +344,11 @@ export default function PMSGuests() {
                 { key: "all", label: "All guests", icon: Users },
                 { key: "repeat", label: "Repeat", icon: Repeat },
                 { key: "vip", label: "VIP", icon: Star },
+                { key: "owing", label: "Owing", icon: Wallet },
+                { key: "never_paid", label: "Never paid", icon: AlertCircle },
                 { key: "blacklisted", label: "Blacklisted", icon: Ban },
                 { key: "no_contact", label: "No contact details", icon: AlertCircle },
+                { key: "archived", label: "Archived", icon: Archive },
               ] as { key: Segment; label: string; icon: typeof Users }[]).map(({ key, label, icon: Icon }) => (
                 <Button
                   key={key}
