@@ -1803,7 +1803,9 @@ async function loadBookingBlocks(
     };
 
     const bookingRoomIds: string[] = Array.isArray(b.rolos_room_ids) ? b.rolos_room_ids.map(String) : [];
-    const lines = linesByBooking.get(String(b.id)) ?? [];
+    // The booking row is the truth for placement: room lines are only a fallback
+    // for imported stays with no unit, or they resurrect a vacated unit after a move.
+    const lines = bookingRoomIds.length > 0 ? [] : (linesByBooking.get(String(b.id)) ?? []);
     const bookingMatches =
       matchesUnit(b.room_type_id, null, null) ||
       bookingRoomIds.some((id) => matchesUnit(null, null, id)) ||

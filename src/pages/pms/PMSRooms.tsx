@@ -263,9 +263,12 @@ export default function PMSRooms() {
 
     const assignedBookings = autoAssignBookings(
       rawBookings.map((booking) => {
+        // The booking's own unit ids win: room lines only fill in stays that have
+        // none, otherwise a stale line places a moved stay in two units at once.
+        const ownIds = booking.rolos_room_ids || [];
+        if (ownIds.length) return booking;
         const linkedIds = linkedRoomIdsByBooking.get(booking.id) || [];
-        const mergedIds = Array.from(new Set([...(booking.rolos_room_ids || []), ...linkedIds]));
-        return { ...booking, rolos_room_ids: mergedIds.length ? mergedIds : booking.rolos_room_ids };
+        return linkedIds.length ? { ...booking, rolos_room_ids: linkedIds } : booking;
       }),
       visibleRooms,
       (allTypes.length ? allTypes : types)
