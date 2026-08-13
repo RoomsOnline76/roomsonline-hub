@@ -325,6 +325,16 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
       toast.error("Add at least one room line with a room type");
       return;
     }
+    for (let i = 0; i < validLines.length; i++) {
+      const cap = lineCapacity.get(validLines[i].key);
+      if (cap?.over) {
+        const name = activeRoomTypes.find(t => t.id === validLines[i].room_type_id)?.name || `Room ${i + 1}`;
+        toast.error(`${name} sleeps ${cap.max} — ${cap.guests} guests on room ${i + 1}. Add another room or reduce the guests.`);
+        return;
+      }
+    }
+
+
 
     const totalPrice = form.total_price ? parseFloat(form.total_price) : autoTotal;
     if (!totalPrice || totalPrice <= 0) {
