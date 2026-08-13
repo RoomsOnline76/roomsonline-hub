@@ -598,15 +598,21 @@ Deno.serve(async (req) => {
         });
         if (after.error) return bad(after.error, 502);
 
-        if (after.present) {
+        // The channel does not hard-delete listings: an archived listing stays in
+        // the owner list flagged as archived. That is the terminal removed state —
+        // it stops selling and billing — so it counts as success. Only a listing
+        // that is still live (present and not archived) is a refusal.
+        if (after.present && !after.archived) {
           outcome = "refused";
-          detail = `listing ${listingId} is still returned by the channel account after a ${method} request${
-            after.archived ? " (archived, not removed)" : ""
-          }`;
+          detail = `listing ${listingId} is still live on the channel account after a ${method} request`;
+        } else if (after.present && after.archived) {
+          outcome = "deleted";
+          detail = `listing ${listingId} confirmed archived on the channel account (no longer sellable)`;
         } else {
           outcome = "deleted";
           detail = `listing ${listingId} confirmed removed from the channel account (${method})`;
         }
+
       }
 
       // The local id is only released on a confirmed absence.
