@@ -1,14 +1,16 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { differenceInDays, parseISO } from "date-fns";
-import { CalendarClock, Loader2 } from "lucide-react";
+import { CalendarClock, Loader2, Undo2, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { extractFunctionError } from "@/lib/functionError";
+
 
 interface Props {
   open: boolean;
@@ -37,6 +39,31 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
   const [totalPrice, setTotalPrice] = useState(String(booking.total_price ?? 0));
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
+  /** What has actually been received — drives the refund / balance preview. */
+  const [amountPaid, setAmountPaid] = useState<number | null>(null);
+  const [raiseRefund, setRaiseRefund] = useState(true);
+  const [requestBalance, setRequestBalance] = useState(true);
+
+  useEffect(() => {
+    if (!open) return;
+    let mounted = true;
+    (async () => {
+      const { data } = await supabase
+        .from("bookings")
+        .select("amount_paid, payment_status, total_price")
+        .eq("id", booking.id)
+        .maybeSingle();
+      if (!mounted || !data) return;
+      const stored = Number(data.amount_paid ?? 0);
+      const paidFlag = ["paid", "complete", "completed", "success"].includes(
+        String(data.payment_status ?? "").toLowerCase(),
+      );
+      setAmountPaid(stored > 0 ? stored : paidFlag ? Number(data.total_price ?? 0) : 0);
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [open, booking.id]);
 
   let nights = 0;
   try {
@@ -44,6 +71,16 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
   } catch {
     nights = 0;
   }
+
+  /** Positive = guest still owes, negative = guest overpaid. */
+  const delta = useMemo(() => {
+    if (amountPaid === null) return 0;
+    return Math.round((Number(totalPrice || 0) - amountPaid) * 100) / 100;
+  }, [amountPaid, totalPrice]);
+
+  const money = (n: number) => `R${Math.abs(n).toLocaleString("en-ZA", { minimumFractionDigits: 2 })}`;
+
+
 
   const submit = async () => {
     if (nights <= 0) {
@@ -67,8 +104,13 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
       }
 
       const { data, error } = await supabase.functions.invoke("modify-booking", {
-        body: { booking_id: booking.id, modifications },
+        body: {
+          booking_id: booking.id,
+          modifications,
+          settlement: { raise_refund: raiseRefund, request_balance: requestBalance },
+        },
       });
+
       if (error) throw new Error(await extractFunctionError(error, "Modification failed"));
       if (data && data.success === false) throw new Error(data.message || "Modification failed");
 
@@ -132,6 +174,54 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
               Current: R{Number(booking.total_price || 0).toLocaleString()}
             </p>
           </div>
+
+          {amountPaid !== null && amountPaid > 0 && (
+            <div className="rounded-md border p-3 space-y-2.5">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">Already received</span>
+                <span className="tabular-nums">{money(amountPaid)}</span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">New total</span>
+                <span className="tabular-nums">{money(Number(totalPrice || 0))}</span>
+              </div>
+              {Math.abs(delta) < 0.01 ? (
+                <p className="text-[11px] text-muted-foreground">Fully settled — no money changes hands.</p>
+              ) : delta < 0 ? (
+                <>
+                  <div className="flex items-center justify-between text-sm font-medium">
+                    <span className="flex items-center gap-1.5">
+                      <Undo2 className="h-3.5 w-3.5" />Guest overpaid
+                    </span>
+                    <span className="tabular-nums text-primary">{money(delta)}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <Label className="text-[11px] font-normal text-muted-foreground leading-snug">
+                      Raise a pending refund for approval in the Refund Register
+                    </Label>
+                    <Switch checked={raiseRefund} onCheckedChange={setRaiseRefund} />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between text-sm font-medium">
+                    <span className="flex items-center gap-1.5">
+                      <Wallet className="h-3.5 w-3.5" />Outstanding
+                    </span>
+                    <span className="tabular-nums text-primary">{money(delta)}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <Label className="text-[11px] font-normal text-muted-foreground leading-snug">
+                      Email the guest a secure link to settle the balance
+                    </Label>
+                    <Switch checked={requestBalance} onCheckedChange={setRequestBalance} />
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+
 
           <div className="space-y-1.5">
             <Label className="text-xs">Note to guest (optional)</Label>

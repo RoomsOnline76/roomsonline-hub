@@ -25,7 +25,11 @@ const InitiatePaymentSchema = z.object({
   booking_id: z.string().uuid(),
   return_url: z.string().url().optional(),
   cancel_url: z.string().url().optional(),
+  /** "balance" collects only the outstanding amount after a modification. */
+  purpose: z.enum(["full", "balance"]).optional(),
+  amount_override: z.number().positive().optional(),
 });
+
 
 const InitiateOnsitePaymentSchema = z.object({
   action: z.literal("initiate_onsite_payment"),
@@ -1152,6 +1156,26 @@ Deno.serve(async (req) => {
         })
         .eq("id", transaction.id);
       
+      // Money received must be reflected on the booking itself: a balance top-up after a
+      // modification adds to what was already received and closes out `balance_due`.
+      let settlementFields: Record<string, unknown> = {};
+      if (newStatus === "paid") {
+        const { data: current } = await supabase
+          .from("bookings")
+          .select("total_price, amount_paid")
+          .eq("id", transaction.booking_id)
+          .maybeSingle();
+        const isTopUp = String((transaction.gateway_response as any)?.purpose ?? "") === "balance";
+        const priorPaid = Number(current?.amount_paid ?? 0);
+        const paid = Math.round(((isTopUp ? priorPaid : 0) + amountGross) * 100) / 100;
+        const total = Number(current?.total_price ?? 0);
+        settlementFields = {
+          amount_paid: paid,
+          amount_paid_source: "gateway",
+          balance_due: Math.max(0, Math.round((total - paid) * 100) / 100),
+        };
+      }
+
       // Update booking - also set status to 'confirmed' when payment is successful
       await supabase
         .from("bookings")
@@ -1161,10 +1185,12 @@ Deno.serve(async (req) => {
           payment_method: "payfast",
           paid_at: newStatus === "paid" ? new Date().toISOString() : null,
           status: newStatus === "paid" ? "confirmed" : undefined,
+          ...settlementFields,
         })
         .eq("id", transaction.booking_id);
       
       console.log(`[PayFast] Updated booking ${transaction.booking_id} to status: ${newStatus}`);
+
       
       // If payment successful, trigger push-booking and send email
       if (newStatus === "paid") {
@@ -1315,7 +1341,9 @@ Deno.serve(async (req) => {
         );
       }
       
-      const { booking_id, return_url, cancel_url } = validation.data;
+      const { booking_id, return_url, cancel_url, purpose, amount_override } = validation.data;
+      const isBalanceTopUp = purpose === "balance";
+
       
       // Fetch booking details
       const { data: booking, error: bookingError } = await supabase
@@ -1343,7 +1371,18 @@ Deno.serve(async (req) => {
 
       const transRef = generateTransRef();
 
-      const amount = booking.total_price.toFixed(2);
+      // A balance top-up collects only what is still outstanding after a modification; a normal
+      // checkout collects the whole stay.
+      const chargeAmount = isBalanceTopUp
+        ? Number(amount_override ?? booking.balance_due ?? 0)
+        : Number(booking.total_price);
+      if (!(chargeAmount > 0)) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Nothing outstanding to pay" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      const amount = chargeAmount.toFixed(2);
       const propertyName = (booking.properties as any)?.name || "RoomsOnline";
       const propertySlug = (booking.properties as any)?.slug || "";
       
@@ -1362,8 +1401,8 @@ Deno.serve(async (req) => {
         notify_url: notifyUrl,
         m_payment_id: transRef,
         amount: amount,
-        item_name: `Booking at ${propertyName}`.substring(0, 100),
-        item_description: `Reservation #${booking_id.substring(0, 8).toUpperCase()}`.substring(0, 255),
+        item_name: (isBalanceTopUp ? `Balance for ${propertyName}` : `Booking at ${propertyName}`).substring(0, 100),
+        item_description: `${isBalanceTopUp ? "Outstanding balance" : "Reservation"} #${booking_id.substring(0, 8).toUpperCase()}`.substring(0, 255),
         email_address: booking.guest_email,
         name_first: booking.guest_name.split(" ")[0] || "",
         name_last: booking.guest_name.split(" ").slice(1).join(" ") || "",
@@ -1374,28 +1413,30 @@ Deno.serve(async (req) => {
       const signature = generateSignature(formFields, passphrase);
       formFields.signature = signature;
       
-      console.log("[PayFast] Payment initiated:", { transRef, amount, booking_id });
+      console.log("[PayFast] Payment initiated:", { transRef, amount, booking_id, purpose: purpose ?? "full" });
       
       // Create/refresh the booking's single pending payment record
       await recordPendingTransaction(supabase, {
         booking_id,
-        amount: booking.total_price,
+        amount: chargeAmount,
         m_payment_id: transRef,
         merchant_id: merchantId,
         credential_source: credentialSource,
-        gateway_response: { trans_ref: transRef, form_fields: formFields },
+        gateway_response: { trans_ref: transRef, form_fields: formFields, purpose: purpose ?? "full" },
       });
 
       
-      // Update booking with payment reference
+      // Update booking with payment reference. A balance top-up must not undo the payment already
+      // received, so its status is left alone until the ITN lands.
       await supabase
         .from("bookings")
-        .update({ 
-          payment_reference: transRef, 
-          payment_status: "pending",
+        .update({
+          payment_reference: transRef,
           payment_method: "payfast",
+          ...(isBalanceTopUp ? {} : { payment_status: "pending" }),
         })
         .eq("id", booking_id);
+
       
       const payfastUrl = isSandbox ? PAYFAST_SANDBOX_URL : PAYFAST_PRODUCTION_URL;
       

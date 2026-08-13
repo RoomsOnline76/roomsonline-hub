@@ -17,7 +17,9 @@ export type JobType =
   | "channel_ari_delta"
   | "channel_content_delta"
   | "booking_email"
+  | "booking_balance_request"
   | "booking_sync_status";
+
 
 export interface EnqueueOptions {
   /** Collapses repeated identical work while the job is still pending. */

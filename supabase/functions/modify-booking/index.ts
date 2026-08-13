@@ -2,6 +2,8 @@ import { canonicalPricingModel, stayTotalForModel } from "../_shared/ratePricing
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { isRuBooking, modifyRuStay } from "../_shared/ruBookingSync.ts";
 import { enqueueJobs, kickWorker } from "../_shared/jobQueue.ts";
+import { applyBookingSettlement } from "../_shared/bookingSettlement.ts";
+
 import { addDays, createRateResolver } from "../_shared/rateResolution.ts";
 import {
   getRateResolutionMode,
@@ -33,7 +35,17 @@ interface ModifyRequest {
     already_paid?: number;
     arrival_time?: string;
   };
+  /**
+   * Money side of the change. A shorter stay leaves the guest overpaid and a longer one leaves a
+   * balance owing — the operator decides in the dialog whether we raise the refund for approval
+   * and whether the guest is asked to settle the shortfall.
+   */
+  settlement?: {
+    raise_refund?: boolean;
+    request_balance?: boolean;
+  };
 }
+
 
 
 // Calculate number of nights between two date strings
@@ -284,7 +296,7 @@ Deno.serve(async (req) => {
     const userId = claimsData.claims.sub;
 
     const body: ModifyRequest = await req.json();
-    const { booking_id, modifications } = body;
+    const { booking_id, modifications, settlement } = body;
 
     if (!booking_id || !modifications) {
       return new Response(
@@ -588,11 +600,26 @@ Deno.serve(async (req) => {
       modifications.teens !== undefined ||
       modifications.infants !== undefined;
 
+    // S8c: Settle the money. The new total is compared with what was actually received, the
+    // difference is written to the booking, and it becomes either a pending refund for approval
+    // or an outstanding balance the guest can be asked to pay.
+    const effectiveTotal = Number(updateData.total_price ?? booking.total_price ?? 0);
+    const settlementOutcome = priceAffected
+      ? await applyBookingSettlement(supabase, booking, {
+          oldTotal: Number(booking.total_price ?? 0),
+          newTotal: effectiveTotal,
+          raiseRefund: settlement?.raise_refund !== false,
+          requestBalance: settlement?.request_balance !== false,
+          reasonNote: modifications.note ?? null,
+        })
+      : null;
+
     // The booking row and the availability blocks are now correct, so the operator can be
     // released. Commission, the channel ARI delta, the sync-status write and the guest email
     // only have to *follow* — they go onto the durable background queue and the worker is kicked
     // immediately, so the dialog no longer waits on a multi-second channel round-trip.
     await enqueueJobs(supabase, [
+
       ...(priceAffected
         ? [{
             type: "recalculate_commission" as const,
@@ -639,6 +666,18 @@ Deno.serve(async (req) => {
         },
         options: { dedupeKey: `email:modification:${booking_id}` },
       },
+      ...(settlementOutcome?.balance_requested && settlementOutcome.balance_token
+        ? [{
+            type: "booking_balance_request" as const,
+            payload: {
+              booking_id,
+              token: settlementOutcome.balance_token,
+              amount: settlementOutcome.balance_due,
+              note: modifications.note ?? null,
+            },
+            options: { dedupeKey: `balance:${booking_id}` },
+          }]
+        : []),
     ]);
     kickWorker();
 
@@ -653,7 +692,9 @@ Deno.serve(async (req) => {
         ru_modified: ruModified,
         new_total_price: updateData.total_price ?? booking.total_price,
         old_total_price: booking.total_price,
+        settlement: settlementOutcome,
       }),
+
 
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

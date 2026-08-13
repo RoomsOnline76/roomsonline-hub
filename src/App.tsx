@@ -49,6 +49,8 @@ const GuestPortal = lazy(() => import("./pages/GuestPortal"));
 const GroupRoomingPortal = lazy(() => import("./pages/GroupRoomingPortal"));
 const SubscriptionPay = lazy(() => import("./pages/SubscriptionPay"));
 const PropertyInvoicePay = lazy(() => import("./pages/PropertyInvoicePay"));
+const BookingBalancePay = lazy(() => import("./pages/BookingBalancePay"));
+
 const RecaptchaBridge = lazy(() => import("./pages/RecaptchaBridge"));
 
 // ─── Lazy — admin pages ──────────────────────────────────────────
@@ -209,6 +211,8 @@ const isBookDomainAllowedPath = (): boolean => {
   if (path.startsWith("/booking-confirmation/")) return true;
   if (path.startsWith("/journey-confirmation/")) return true;
   if (path.startsWith("/guest-portal/")) return true;
+  if (path.startsWith("/booking-balance/")) return true;
+
   // Embed routes used by the booking widget
   if (path.startsWith("/embed/")) return true;
   // Property / room / booking / confirmation paths for allowlisted properties
@@ -317,6 +321,8 @@ const App = () => (
                         <Route path="/recaptcha-bridge" element={<RecaptchaBridge />} />
                         <Route path="/subscribe/pay/:token" element={<SubscriptionPay />} />
                         <Route path="/billing/pay/:token" element={<PropertyInvoicePay />} />
+                        <Route path="/booking-balance/:token" element={<BookingBalancePay />} />
+
 
                         {/* ═══ Journey routes (public) ═══════════════════ */}
                         <Route path="/journey/builder" element={<ItineraryBuilder />} />

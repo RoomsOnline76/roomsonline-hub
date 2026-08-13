@@ -75,6 +75,19 @@ async function runJob(supabase: any, job: BackgroundJob): Promise<void> {
       });
       return;
     }
+    case "booking_balance_request": {
+      const bookingId = payload.booking_id as string | undefined;
+      const token = payload.token as string | undefined;
+      if (!bookingId || !token) return;
+      await callFunction("send-balance-request", {
+        booking_id: bookingId,
+        token,
+        amount: Number(payload.amount ?? 0),
+        note: (payload.note as string | null) ?? null,
+      });
+      return;
+    }
+
     case "booking_sync_status": {
       const bookingId = payload.booking_id as string | undefined;
       const externalSystem = payload.external_system as string | undefined;

@@ -1,0 +1,218 @@
+/**
+ * Settlement of a modified booking.
+ *
+ * A stay that is shortened, lengthened or repriced changes what the guest owes, but the money
+ * already received does not move on its own. This module compares the new total against what was
+ * actually received and turns the difference into a real, reviewable action:
+ *
+ *  - overpaid  → a pending refund in the Refund Register (nothing leaves the account without approval)
+ *  - underpaid → `balance_due` on the booking plus a tokenised payment request the guest can settle
+ *
+ * The amounts are stored on the booking (`amount_paid`, `amount_paid_source`, `balance_due`) so
+ * owners, accounts and the Command Centre all read the same figures.
+ */
+
+// deno-lint-disable-next-line no-explicit-any
+type Db = any;
+
+const SETTLED_STATUSES = ["complete", "completed", "paid", "success"];
+const PAID_PAYMENT_STATUSES = ["paid", "complete", "completed", "success"];
+
+export const round2 = (n: number): number => Math.round((Number(n) || 0) * 100) / 100;
+
+export interface ResolvedPayment {
+  amount: number;
+  source: "gateway" | "channel" | "manual" | "none";
+}
+
+/**
+ * What has actually been received for this booking.
+ *
+ * Gateway transactions are authoritative. Channel reservations (Rentals United and friends) are
+ * paid at the channel, so a booking flagged paid without a local transaction counts its
+ * pre-modification total as received. A previously stored `amount_paid` wins over inference.
+ */
+export async function resolveAmountPaid(
+  supabase: Db,
+  booking: {
+    id: string;
+    amount_paid?: number | null;
+    amount_paid_source?: string | null;
+    payment_status?: string | null;
+    total_price?: number | null;
+    booking_channel?: string | null;
+  },
+  oldTotal: number,
+): Promise<ResolvedPayment> {
+  const { data: rows } = await supabase
+    .from("payment_transactions")
+    .select("amount, status")
+    .eq("booking_id", booking.id);
+
+  const gatewayPaid = round2(
+    ((rows ?? []) as Array<{ amount: number | null; status: string | null }>)
+      .filter((r) => SETTLED_STATUSES.includes(String(r.status ?? "").toLowerCase()))
+      .reduce((sum, r) => sum + (Number(r.amount) || 0), 0),
+  );
+
+  if (gatewayPaid > 0) return { amount: gatewayPaid, source: "gateway" };
+
+  const stored = Number(booking.amount_paid ?? 0);
+  if (stored > 0) {
+    const source = (booking.amount_paid_source as ResolvedPayment["source"]) ?? "manual";
+    return { amount: round2(stored), source };
+  }
+
+  const paidFlag = PAID_PAYMENT_STATUSES.includes(String(booking.payment_status ?? "").toLowerCase());
+  if (paidFlag && oldTotal > 0) return { amount: round2(oldTotal), source: "channel" };
+
+  return { amount: 0, source: "none" };
+}
+
+export interface SettlementResult {
+  amount_paid: number;
+  amount_paid_source: ResolvedPayment["source"];
+  new_total: number;
+  /** Positive = guest still owes, negative = guest overpaid. */
+  delta: number;
+  balance_due: number;
+  refund_amount: number;
+  refund_raised: boolean;
+  refund_error: string | null;
+  balance_requested: boolean;
+  balance_token: string | null;
+}
+
+async function raisePendingRefund(
+  supabase: Db,
+  booking: { id: string; guest_name?: string | null },
+  amount: number,
+  reason: string,
+): Promise<{ ok: boolean; error: string | null }> {
+  try {
+    const url = Deno.env.get("SUPABASE_URL")!;
+    const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const response = await fetch(`${url}/functions/v1/refunds-api`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+      body: JSON.stringify({
+        action: "request_refund",
+        booking_id: booking.id,
+        amount,
+        reason,
+        reason_category: "date_change",
+        internal_notes: "Raised automatically by a booking modification — awaiting approval.",
+      }),
+    });
+    const text = await response.text();
+    if (!response.ok) return { ok: false, error: `refunds-api ${response.status}: ${text.slice(0, 300)}` };
+    const parsed = JSON.parse(text || "{}");
+    if (parsed?.error) return { ok: false, error: JSON.stringify(parsed.error).slice(0, 300) };
+    return { ok: true, error: null };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+/** Fresh 30-day token the guest uses to settle the outstanding balance. */
+async function createBalanceToken(
+  supabase: Db,
+  booking: { id: string; guest_email?: string | null },
+): Promise<string | null> {
+  const email = (booking.guest_email ?? "").trim();
+  if (!email.includes("@")) return null;
+
+  await supabase
+    .from("guest_portal_tokens")
+    .delete()
+    .eq("booking_id", booking.id)
+    .eq("used_for", "balance");
+
+  const { data, error } = await supabase
+    .from("guest_portal_tokens")
+    .insert({
+      booking_id: booking.id,
+      guest_email: email,
+      used_for: "balance",
+      expires_at: new Date(Date.now() + 30 * 86400000).toISOString(),
+    })
+    .select("token")
+    .single();
+
+  if (error) {
+    console.error("[settlement] balance token failed:", error.message);
+    return null;
+  }
+  return (data?.token as string) ?? null;
+}
+
+/**
+ * Compare the new total with what was received and persist the outcome.
+ *
+ * `raiseRefund` / `requestBalance` are the operator's choices from the modify dialog: the money
+ * side of a change is never silently automated beyond raising a record for review.
+ */
+export async function applyBookingSettlement(
+  supabase: Db,
+  booking: {
+    id: string;
+    guest_name?: string | null;
+    guest_email?: string | null;
+    payment_status?: string | null;
+    amount_paid?: number | null;
+    amount_paid_source?: string | null;
+    booking_channel?: string | null;
+  },
+  params: {
+    oldTotal: number;
+    newTotal: number;
+    raiseRefund: boolean;
+    requestBalance: boolean;
+    reasonNote?: string | null;
+  },
+): Promise<SettlementResult> {
+  const newTotal = round2(params.newTotal);
+  const received = await resolveAmountPaid(supabase, { ...booking, total_price: params.oldTotal }, params.oldTotal);
+  const delta = round2(newTotal - received.amount);
+  const balanceDue = delta > 0.01 ? delta : 0;
+  const overpaid = delta < -0.01 ? round2(Math.abs(delta)) : 0;
+
+  const result: SettlementResult = {
+    amount_paid: received.amount,
+    amount_paid_source: received.source,
+    new_total: newTotal,
+    delta,
+    balance_due: balanceDue,
+    refund_amount: overpaid,
+    refund_raised: false,
+    refund_error: null,
+    balance_requested: false,
+    balance_token: null,
+  };
+
+  await supabase
+    .from("bookings")
+    .update({
+      amount_paid: received.amount,
+      amount_paid_source: received.source === "none" ? null : received.source,
+      balance_due: balanceDue,
+    })
+    .eq("id", booking.id);
+
+  if (overpaid > 0 && params.raiseRefund && received.amount > 0) {
+    const reason = params.reasonNote?.trim()
+      ? `Booking modified — ${params.reasonNote.trim()}`
+      : "Booking modified: the new total is lower than the amount received.";
+    const outcome = await raisePendingRefund(supabase, booking, overpaid, reason);
+    result.refund_raised = outcome.ok;
+    result.refund_error = outcome.error;
+  }
+
+  if (balanceDue > 0 && params.requestBalance) {
+    const token = await createBalanceToken(supabase, booking);
+    result.balance_token = token;
+    result.balance_requested = !!token;
+  }
+
+  return result;
+}
