@@ -38,6 +38,13 @@ type SortKey = "recent" | "name" | "stays" | "spent";
 
 const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
 
+/** Nights between two ISO dates — 0 when either is missing. */
+function nightsBetween(from: string | null, to: string | null): number {
+  if (!from || !to) return 0;
+  const ms = new Date(to).getTime() - new Date(from).getTime();
+  return ms > 0 ? Math.round(ms / 86400000) : 0;
+}
+
 /** First letter used by the A–Z rail; anything non-alphabetic lands under "#". */
 function guestInitial(name: string): string {
   const ch = (name || "").trim().charAt(0).toUpperCase();
@@ -480,8 +487,12 @@ export default function PMSGuests() {
                           </div>
                           <div className="flex justify-between mt-1 text-muted-foreground">
                             <span>R{bk.total_price.toLocaleString()}</span>
-                            {bk.booking_channel && <span className="capitalize">{bk.booking_channel}</span>}
+                            <span className="flex items-center gap-2">
+                              <span className="flex items-center gap-1"><Moon className="h-3 w-3" />{nightsBetween(bk.check_in_date, bk.check_out_date)}</span>
+                              {bk.booking_channel && <span className="capitalize">{bk.booking_channel}</span>}
+                            </span>
                           </div>
+                          <p className="mt-1 font-mono text-[10px] text-muted-foreground">{displayBookingReference(bk)}</p>
                           {bk.special_requests && <p className="mt-1 text-muted-foreground italic truncate">{bk.special_requests}</p>}
                         </div>
                       ))}
