@@ -10,25 +10,27 @@ Verified in the database just now:
 
 So the mapping work that mattered for the channel is done. What is left is only historical tidiness plus 4 unrelated stays:
 
-| Property | Future bookings with no room | Source |
-| --- | --- | --- |
-| Fonteinhutte Self-Catering Chalets | 3 | native ROL bookings (Oct/Dec 2026) |
-| Dassiesingel Self-catering Units | 1 | native ROL booking (Oct 2026) |
+
+| Property                           | Future bookings with no room | Source                             |
+| ---------------------------------- | ---------------------------- | ---------------------------------- |
+| Fonteinhutte Self-Catering Chalets | 3                            | native ROL bookings (Oct/Dec 2026) |
+| Dassiesingel Self-catering Units   | 1                            | native ROL booking (Oct 2026)      |
+
 
 These 4 are not NightsBridge imports — they are native ROL bookings created without a room type, so they also don't close nights upstream.
 
 ## Proposed work
 
-### 1. Map the 4 future native bookings (the only ones that affect inventory)
-- Add these to the existing repair tool as a blocking to-do: property, dates, guest, and a room picker limited to canonical rooms.
-- On assignment, write both `room_type_id` and the `rolos_booking_rooms` line, then queue the channel delta for the affected unit and date range.
+### 1. Delete the 4 future native bookings (the only ones that affect inventory)
 
 ### 2. Historical Seesig backlog (189) — non-blocking
+
 - Attempt automatic mapping from the original import row's room name via the canonical resolver; whatever matches gets a room, purely for reporting accuracy.
-- Anything still unmatched is reported as "historical, unmapped — no channel impact" and never queues a delta (past dates are never pushed).
+- Anything still unmatched is assigned to any room in that property that has avavilible units for htat duration of booking. 
 
 ### 3. Prevent recurrence
-- The repair panel gains a permanent counter split into "future unmapped (blocking)" and "historical unmapped (informational)", so a future occurrence is visible immediately rather than discovered by a channel gap.
+
+- The repair panel gains a permanent counter split into "future unmapped (blocking)" and "historical unmapped (informational)", so a future occurrence is visible immediately rather than discovered by a channel gap. And able to assign or correct manul in panel.
 
 ## Technical notes
 
