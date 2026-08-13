@@ -390,8 +390,11 @@ Deno.serve(async (req) => {
         local_active: boolean;
         kind: "property" | "unit";
       }> = [];
+      // Every live listing, kept so same-name copies on one account can be grouped afterwards.
+      const liveRows: Array<{ listing_id: string; name: string; owner_id: string; matched: boolean }> = [];
 
       for (const ownerId of ownerIds) {
+
         const account = (accounts || []).find(
           (a: { ru_owner_id: string | null }) => String(a.ru_owner_id) === ownerId,
         ) as { owner_email: string | null } | undefined;
