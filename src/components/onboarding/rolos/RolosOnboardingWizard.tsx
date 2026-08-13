@@ -163,6 +163,9 @@ export function RolosOnboardingWizard({ propertyId, className }: Props) {
     currentMacro,
     overall,
     channelsConnected,
+    publishedOk,
+    blockingMacros,
+    gateSignature,
 
     signoff,
     recordSignoff,
@@ -181,30 +184,54 @@ export function RolosOnboardingWizard({ propertyId, className }: Props) {
     [soleUnitName, unitNames],
   );
 
-  const [collapsed, setCollapsed] = useState(() => {
-    try {
-      // Collapse is a per-load preference only: a page refresh must always bring
-      // the wizard back so readiness is re-derived and visible.
-      localStorage.removeItem(COLLAPSE_KEY);
-    } catch {
-      /* ignore */
-    }
-    return false;
-  });
+  const prefsKey = `${PREFS_KEY}:${propertyId ?? ""}`;
+
+  const [collapsed, setCollapsed] = useState(false);
   const [dismissed, setDismissed] = useState(false);
+  /** Set when the user opens the quiet pill for this page view. */
+  const [pillOpened, setPillOpened] = useState(false);
   const [openMacro, setOpenMacro] = useState<string | null>(null);
   const [busyAction, setBusyAction] = useState<string | null>(null);
 
-  // "Hide" only lasts for the current page view — refreshing the editor always
-  // re-opens the wizard.
+  // Hide / collapse persist per property, but only while the mandatory gate state
+  // (steps 1-8) is unchanged. A new blocker changes the signature, which discards
+  // the stored preference and brings the wizard back on its own.
   useEffect(() => {
-    setDismissed(false);
+    setPillOpened(false);
+    let stored: StoredPrefs | null = null;
     try {
+      stored = JSON.parse(localStorage.getItem(prefsKey) ?? "null") as StoredPrefs | null;
+      // Legacy per-load keys are no longer used.
+      localStorage.removeItem(COLLAPSE_KEY);
       sessionStorage.removeItem(`${DISMISS_KEY}:${propertyId ?? ""}`);
     } catch {
       /* ignore */
     }
-  }, [propertyId]);
+    const valid = !!stored && stored.signature === gateSignature;
+    setDismissed(valid ? stored!.hidden === true : false);
+    setCollapsed(valid ? stored!.collapsed === true : false);
+  }, [gateSignature, prefsKey, propertyId]);
+
+  const savePrefs = useCallback(
+    (patch: Partial<StoredPrefs>) => {
+      try {
+        const current = JSON.parse(localStorage.getItem(prefsKey) ?? "null") as StoredPrefs | null;
+        localStorage.setItem(
+          prefsKey,
+          JSON.stringify({
+            hidden: false,
+            collapsed: false,
+            ...(current ?? {}),
+            ...patch,
+            signature: gateSignature,
+          }),
+        );
+      } catch {
+        /* ignore */
+      }
+    },
+    [gateSignature, prefsKey],
+  );
 
   // Keep the expanded row on the first incomplete step: a step that reaches
   // 100% collapses itself and hands over to the next outstanding macro.
@@ -218,12 +245,17 @@ export function RolosOnboardingWizard({ propertyId, className }: Props) {
   }, [currentMacro, macros]);
 
   const toggleCollapsed = useCallback(() => {
-    setCollapsed((prev) => !prev);
-  }, []);
+    setCollapsed((prev) => {
+      savePrefs({ collapsed: !prev });
+      return !prev;
+    });
+  }, [savePrefs]);
 
   const dismiss = useCallback(() => {
     setDismissed(true);
-  }, []);
+    savePrefs({ hidden: true });
+  }, [savePrefs]);
+
 
 
   const goToField = useCallback(
