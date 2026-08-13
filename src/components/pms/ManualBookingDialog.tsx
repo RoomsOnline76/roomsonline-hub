@@ -27,7 +27,10 @@ interface RoomType {
   id: string;
   name: string;
   default_rate: number | null;
+  /** Sleeping capacity of one unit of this type — enforced per booking line. */
+  max_occupancy?: number | null;
 }
+
 
 interface Room {
   id: string;
@@ -61,8 +64,11 @@ interface ManualBookingDialogProps {
   onCreated: () => void;
   /** Optional: resolve the nightly rate for a room type on a specific date. */
   getRateForDate?: (roomTypeId: string, date: Date) => number | null;
+  /** Portfolio mode: resolve rates for any property in scope, not just the selected one. */
+  getRateForPropertyDate?: (propertyId: string, roomTypeId: string, date: Date) => number | null;
   /** Optional portfolio scope selector. */
   portfolioOptions?: PortfolioPropertyOption[];
+
   /** Optional prefill, e.g. when the Room Plan opens the dialog from a dragged date span. */
   initialValues?: {
     propertyId?: string | null;
@@ -104,7 +110,7 @@ const newLine = (roomTypeId = "", roomId = ""): RoomLine => ({
   price_override: "",
 });
 
-export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes, rooms, ratePlans, onCreated, getRateForDate, portfolioOptions, initialValues }: ManualBookingDialogProps) {
+export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes, rooms, ratePlans, onCreated, getRateForDate, getRateForPropertyDate, portfolioOptions, initialValues }: ManualBookingDialogProps) {
   const [saving, setSaving] = useState(false);
   const portfolioMode = !!(portfolioOptions && portfolioOptions.length > 0);
   const [selectedPropertyId, setSelectedPropertyId] = useState<string>(propertyId || "");
@@ -221,13 +227,31 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
       for (let i = 0; i < nights; i++) {
         const d = new Date(form.check_in);
         d.setDate(d.getDate() + i);
-        const resolved = getRateForDate ? getRateForDate(roomTypeId, d) : null;
+        // In portfolio scope the calendar's single-property resolver knows nothing
+        // about the chosen property, so prefer the property-aware one.
+        const resolved = (portfolioMode && getRateForPropertyDate && effectivePropertyId)
+          ? getRateForPropertyDate(effectivePropertyId, roomTypeId, d)
+          : (getRateForDate ? getRateForDate(roomTypeId, d) : null);
         out.push((resolved && resolved > 0) ? resolved : (planRate ?? defaultRate ?? 0));
       }
       return out;
     },
-    [nights, form.check_in, activeRoomTypes, ratePlans, getRateForDate]
+    [nights, form.check_in, activeRoomTypes, ratePlans, getRateForDate, getRateForPropertyDate, portfolioMode, effectivePropertyId]
   );
+
+  /** Per-line occupancy vs the unit's sleeping capacity. */
+  const lineCapacity = useMemo(() => {
+    const map = new Map<string, { max: number | null; guests: number; over: boolean }>();
+    for (const l of lines) {
+      const rt = activeRoomTypes.find(t => t.id === l.room_type_id);
+      const max = rt?.max_occupancy && rt.max_occupancy > 0 ? rt.max_occupancy : null;
+      // Infants (0–2) don't consume a sleeping slot.
+      const guests = (parseInt(l.adults) || 0) + (parseInt(l.teens) || 0) + (parseInt(l.children) || 0);
+      map.set(l.key, { max, guests, over: !!max && guests > max });
+    }
+    return map;
+  }, [lines, activeRoomTypes]);
+
 
   /** Per-line pricing summary. */
   const linePricing = useMemo(() => {
@@ -301,6 +325,16 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
       toast.error("Add at least one room line with a room type");
       return;
     }
+    for (let i = 0; i < validLines.length; i++) {
+      const cap = lineCapacity.get(validLines[i].key);
+      if (cap?.over) {
+        const name = activeRoomTypes.find(t => t.id === validLines[i].room_type_id)?.name || `Room ${i + 1}`;
+        toast.error(`${name} sleeps ${cap.max} — ${cap.guests} guests on room ${i + 1}. Add another room or reduce the guests.`);
+        return;
+      }
+    }
+
+
 
     const totalPrice = form.total_price ? parseFloat(form.total_price) : autoTotal;
     if (!totalPrice || totalPrice <= 0) {
@@ -370,7 +404,7 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
       status: autoStatus,
       payment_status: form.payment_status,
       payment_method: form.payment_method || null,
-      deposit_amount: form.deposit_amount ? parseFloat(form.deposit_amount) : null,
+      deposit_amount: (form.payment_status === "paid" || !form.deposit_amount) ? null : parseFloat(form.deposit_amount),
       special_requests: form.special_requests || null,
       internal_notes: form.internal_notes || null,
       booking_channel: form.booking_channel || "direct",
@@ -732,6 +766,17 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
                         <div><Label className="text-[10px]">Teens</Label><Input className="h-8 px-2" type="number" min={0} value={l.teens} onChange={e => updateLine(l.key, { teens: e.target.value })} /></div>
                         <div><Label className="text-[10px]">Pets</Label><Input className="h-8 px-2" type="number" min={0} value={l.pets} onChange={e => updateLine(l.key, { pets: e.target.value })} /></div>
                       </div>
+                      {(() => {
+                        const cap = lineCapacity.get(l.key);
+                        if (!cap?.max) return null;
+                        return (
+                          <p className={cn("text-[10px]", cap.over ? "font-medium text-destructive" : "text-muted-foreground")}>
+                            Sleeps {cap.max} · {cap.guests} guest{cap.guests === 1 ? "" : "s"} on this unit
+                            {cap.over ? " — over capacity" : ""}
+                          </p>
+                        );
+                      })()}
+
 
                       <div className="flex items-end gap-2">
                         <div className="flex-1">
@@ -791,8 +836,20 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
                   </div>
                   <div>
                     <Label className="text-[11px]">Deposit</Label>
-                    <Input className="h-8" type="number" min={0} value={form.deposit_amount} onChange={e => update("deposit_amount", e.target.value)} placeholder="0.00" />
+                    <Input
+                      className="h-8"
+                      type="number"
+                      min={0}
+                      value={form.payment_status === "paid" ? "" : form.deposit_amount}
+                      onChange={e => update("deposit_amount", e.target.value)}
+                      disabled={form.payment_status === "paid"}
+                      placeholder={form.payment_status === "paid" ? "Not applicable" : "0.00"}
+                    />
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      {form.payment_status === "paid" ? "Paid in full — no deposit needed." : "Optional — leave blank if no deposit applies."}
+                    </p>
                   </div>
+
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
@@ -878,24 +935,59 @@ function GuestNameAutocomplete({
     setLoading(true);
     const handle = setTimeout(async () => {
       const like = `%${term}%`;
-      const { data, error } = await supabase
-        .from("rolos_guest_profiles")
-        .select("id, full_name, email, phone, total_stays, last_stay_date")
-        .eq("property_id", propertyId)
-        .or(`full_name.ilike.${like},email.ilike.${like},phone.ilike.${like}`)
-        .order("last_stay_date", { ascending: false, nullsFirst: false })
-        .limit(8);
+      const [profileRes, bookingRes] = await Promise.all([
+        supabase
+          .from("rolos_guest_profiles")
+          .select("id, full_name, email, phone, total_stays, last_stay_date")
+          .eq("property_id", propertyId)
+          .or(`full_name.ilike.${like},email.ilike.${like},phone.ilike.${like}`)
+          .order("last_stay_date", { ascending: false, nullsFirst: false })
+          .limit(8),
+        // Imported guests (e.g. NightsBridge history) have no CRM profile yet, so
+        // search the booking history too and offer those names.
+        supabase
+          .from("bookings")
+          .select("id, guest_name, guest_email, guest_phone, check_in_date")
+          .eq("property_id", propertyId)
+          .or(`guest_name.ilike.${like},guest_email.ilike.${like},guest_phone.ilike.${like}`)
+          .order("check_in_date", { ascending: false })
+          .limit(25),
+      ]);
 
       if (cancelled) return;
-      if (error) {
-        console.warn("guest search failed:", error);
-        setSuggestions([]);
-      } else {
-        setSuggestions((data || []) as GuestSuggestion[]);
-        setOpen((data?.length ?? 0) > 0);
+      if (profileRes.error) console.warn("guest search failed:", profileRes.error);
+      if (bookingRes.error) console.warn("booking guest search failed:", bookingRes.error);
+
+      const profiles = (profileRes.data || []) as GuestSuggestion[];
+      const seen = new Set(
+        profiles.flatMap((p) => [p.email?.toLowerCase(), p.full_name?.trim().toLowerCase()].filter(Boolean) as string[]),
+      );
+
+      const fromBookings: GuestSuggestion[] = [];
+      for (const b of bookingRes.data || []) {
+        const name = (b.guest_name || "").trim();
+        if (!name) continue;
+        const emailKey = b.guest_email?.toLowerCase();
+        const nameKey = name.toLowerCase();
+        if (seen.has(nameKey) || (emailKey && seen.has(emailKey))) continue;
+        seen.add(nameKey);
+        if (emailKey) seen.add(emailKey);
+        fromBookings.push({
+          id: `booking:${b.id}`,
+          full_name: name,
+          email: b.guest_email || null,
+          phone: b.guest_phone || null,
+          total_stays: null,
+          last_stay_date: b.check_in_date || null,
+        } as GuestSuggestion);
       }
+
+      const merged = [...profiles, ...fromBookings].slice(0, 10);
+      setSuggestions(merged);
+      setOpen(merged.length > 0);
       setLoading(false);
     }, 220);
+
 
     return () => {
       cancelled = true;

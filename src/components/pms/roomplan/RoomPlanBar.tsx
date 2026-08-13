@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { CHANNEL_SOURCE_BADGE } from "@/lib/channelVocabulary";
+import { displayBookingReference } from "@/lib/bookingReference";
+
 import { resolveRuSourceChannel, ChannelLogo } from "@/lib/ruChannelDisplay";
 import {
   BarGeometry,
@@ -34,9 +36,15 @@ export interface RoomPlanBooking {
   special_requests?: string | null;
   rolos_room_ids?: string[] | null;
   room_type_id?: string | null;
+  /** Room types referenced by the booking's per-unit lines (multi-room stays). */
+  line_room_type_ids?: string[] | null;
+  rol_reference?: string | null;
+  rol_reference_legacy?: string | null;
+  external_reservation_id?: string | null;
   property_id?: string | null;
   modification_notes?: Record<string, unknown>[] | null;
 }
+
 
 interface RoomPlanBarProps {
   booking: RoomPlanBooking;
@@ -142,6 +150,7 @@ export const RoomPlanBar = memo(function RoomPlanBar({
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold">{booking.guest_name}</p>
+              <p className="truncate font-mono text-[10px] text-slate-300">{displayBookingReference(booking)}</p>
               <p className="text-[11px] text-slate-400">
                 {propertyName ? `${propertyName} · ` : ""}
                 {roomLabel}
@@ -151,6 +160,7 @@ export const RoomPlanBar = memo(function RoomPlanBar({
               {isLead ? "lead" : booking.status.replace(/_/g, " ")}
             </span>
           </div>
+
 
           <div className="space-y-0.5 text-[11px] text-slate-300">
             <p>

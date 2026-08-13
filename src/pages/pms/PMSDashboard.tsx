@@ -90,6 +90,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useRealtimeBookings } from "@/hooks/useRealtimeBookings";
+import { useBookingRoomLines } from "@/hooks/useBookingRoomLines";
+
 import { displayBookingReference } from "@/lib/bookingReference";
 
 // ──────────── SA Public Holidays ────────────
@@ -153,6 +155,10 @@ interface BookingRow {
   rolos_rate_plan_id: string | null;
   modification_notes: Record<string, unknown>[] | null;
   room_type_id: string | null;
+  /** Room types of the booking's per-unit lines (multi-room stays). */
+  line_room_type_ids?: string[] | null;
+  rol_reference?: string | null;
+  external_reservation_id?: string | null;
   rolos_guest_id: string | null;
   property_id: string | null;
   /** e.g. 'rentalsunited_lead' for a channel enquiry holding the dates. */
@@ -161,6 +167,7 @@ interface BookingRow {
   hold_released_at?: string | null;
   hold_expires_at?: string | null;
 }
+
 
 interface RoomType {
   id: string;
@@ -643,7 +650,7 @@ export default function PMSDashboard() {
       if (!propertyId) return { items: [] as BookingRow[], nextOffset: null as number | null };
       const { data, count } = await supabase
         .from("bookings")
-        .select("id, guest_name, guest_email, guest_phone, check_in_date, check_out_date, status, adults, children, infants, pets, teens, total_price, special_requests, special_requests_parsed, requires_intervention, booking_channel, payment_status, payment_method, rolos_check_in_time, rolos_check_out_time, rolos_room_ids, rolos_rate_plan_id, modification_notes, room_type_id, rolos_guest_id, property_id, integration_type, hold_expires_at, hold_released_at, booker_is_guest, booker_name, booker_email, booker_phone, company_account_id, agent_account_id, source_account_id, market_segment, comm_channel, invoice_to_name, invoice_to_vat, invoice_to_address, guest_company, second_guest_name, booking_made_by, internal_notes, deposit_amount, payment_reference, created_at", { count: "exact" })
+        .select("id, guest_name, guest_email, guest_phone, check_in_date, check_out_date, status, adults, children, infants, pets, teens, total_price, special_requests, special_requests_parsed, requires_intervention, rol_reference, external_reservation_id, booking_channel, payment_status, payment_method, rolos_check_in_time, rolos_check_out_time, rolos_room_ids, rolos_rate_plan_id, modification_notes, room_type_id, rolos_guest_id, property_id, integration_type, hold_expires_at, hold_released_at, booker_is_guest, booker_name, booker_email, booker_phone, company_account_id, agent_account_id, source_account_id, market_segment, comm_channel, invoice_to_name, invoice_to_vat, invoice_to_address, guest_company, second_guest_name, booking_made_by, internal_notes, deposit_amount, payment_reference, created_at", { count: "exact" })
         .eq("property_id", propertyId)
         .neq("status", "cancelled")
         .lte("check_in_date", format(dateRange.end, "yyyy-MM-dd"))
@@ -676,15 +683,35 @@ export default function PMSDashboard() {
 
 
 
+  // Per-unit booking lines: needed so a multi-room stay draws one bar per room.
+  const bookingIdsForLines = useMemo(() => bookingsRaw.map((b) => b.id), [bookingsRaw]);
+  const { roomTypeIdsByBooking, roomIdsByBooking } = useBookingRoomLines(bookingIdsForLines);
+
+  const bookingsWithLines: BookingRow[] = useMemo(
+    () => bookingsRaw.map((b) => {
+      const lineTypes = roomTypeIdsByBooking.get(b.id);
+      const lineRooms = roomIdsByBooking.get(b.id);
+      if (!lineTypes?.length && !lineRooms?.length) return b;
+      const existing = b.rolos_room_ids || [];
+      return {
+        ...b,
+        line_room_type_ids: lineTypes || null,
+        rolos_room_ids: existing.length ? existing : (lineRooms?.length ? lineRooms : existing),
+      } as BookingRow;
+    }),
+    [bookingsRaw, roomTypeIdsByBooking, roomIdsByBooking]
+  );
+
   const bookings: BookingRow[] = useMemo(
     () => autoAssignBookings(
-      remapBookingsToCanonicalRoomTypes(bookingsRaw, [...aliasRoomTypes, ...roomTypeNamesForRooms], roomTypes),
+      remapBookingsToCanonicalRoomTypes(bookingsWithLines, [...aliasRoomTypes, ...roomTypeNamesForRooms], roomTypes),
       rooms,
       roomTypes,
       [...aliasRoomTypes, ...roomTypeNamesForRooms],
     ) as BookingRow[],
-    [bookingsRaw, rooms, roomTypes, aliasRoomTypes, roomTypeNamesForRooms]
+    [bookingsWithLines, rooms, roomTypes, aliasRoomTypes, roomTypeNamesForRooms]
   );
+
 
   // Persist resolved unit assignments so folio, housekeeping and check-in all agree
   // with what the grid shows (the matcher itself is presentation-only).
@@ -951,7 +978,7 @@ export default function PMSDashboard() {
       if (!portfolioPropertyIds.length) return [];
       const { data } = await supabase
         .from("bookings")
-        .select("id, guest_name, guest_email, guest_phone, check_in_date, check_out_date, status, adults, children, infants, pets, teens, total_price, special_requests, special_requests_parsed, requires_intervention, booking_channel, payment_status, payment_method, rolos_check_in_time, rolos_check_out_time, rolos_room_ids, rolos_rate_plan_id, modification_notes, room_type_id, rolos_guest_id, property_id, integration_type, hold_expires_at, hold_released_at, booker_is_guest, booker_name, booker_email, booker_phone, company_account_id, agent_account_id, source_account_id, market_segment, comm_channel, invoice_to_name, invoice_to_vat, invoice_to_address, guest_company, second_guest_name, booking_made_by, internal_notes, deposit_amount, payment_reference, created_at")
+        .select("id, guest_name, guest_email, guest_phone, check_in_date, check_out_date, status, adults, children, infants, pets, teens, total_price, special_requests, special_requests_parsed, requires_intervention, rol_reference, external_reservation_id, booking_channel, payment_status, payment_method, rolos_check_in_time, rolos_check_out_time, rolos_room_ids, rolos_rate_plan_id, modification_notes, room_type_id, rolos_guest_id, property_id, integration_type, hold_expires_at, hold_released_at, booker_is_guest, booker_name, booker_email, booker_phone, company_account_id, agent_account_id, source_account_id, market_segment, comm_channel, invoice_to_name, invoice_to_vat, invoice_to_address, guest_company, second_guest_name, booking_made_by, internal_notes, deposit_amount, payment_reference, created_at")
         .in("property_id", portfolioPropertyIds)
         .neq("status", "cancelled")
         .lte("check_in_date", format(dateRange.end, "yyyy-MM-dd"))
@@ -1043,7 +1070,30 @@ export default function PMSDashboard() {
 
 
   // Group portfolio data by property
+  // Portfolio grids need the same per-unit line data so multi-room stays span every unit.
+  const portfolioBookingIds = useMemo(
+    () => (isPortfolioMode ? portfolioBookingsRaw.map((b) => (b as { id: string }).id) : []),
+    [isPortfolioMode, portfolioBookingsRaw],
+  );
+  const portfolioLines = useBookingRoomLines(portfolioBookingIds);
+  const portfolioBookingsWithLines = useMemo(
+    () => portfolioBookingsRaw.map((raw) => {
+      const b = raw as BookingRow;
+      const lineTypes = portfolioLines.roomTypeIdsByBooking.get(b.id);
+      const lineRooms = portfolioLines.roomIdsByBooking.get(b.id);
+      if (!lineTypes?.length && !lineRooms?.length) return b;
+      const existing = b.rolos_room_ids || [];
+      return {
+        ...b,
+        line_room_type_ids: lineTypes || null,
+        rolos_room_ids: existing.length ? existing : (lineRooms?.length ? lineRooms : existing),
+      } as BookingRow;
+    }),
+    [portfolioBookingsRaw, portfolioLines],
+  );
+
   const portfolioDataByProperty = useMemo(() => {
+
     if (!isPortfolioMode) return new Map<string, { roomTypes: RoomType[]; rooms: Room[]; bookings: BookingRow[]; overrideMap: Map<string, AvailabilityOverride>; roomsByType: Map<string, Room[]>; propertyData: any }>();
     const map = new Map<string, { roomTypes: RoomType[]; rooms: Room[]; bookings: BookingRow[]; overrideMap: Map<string, AvailabilityOverride>; roomsByType: Map<string, Room[]>; propertyData: any }>();
 
@@ -1081,7 +1131,7 @@ export default function PMSDashboard() {
       // Keep physical rooms whose legacy/stale room_type_id maps by name to the canonical active type.
       // This prevents valid units like GRYSBOK from disappearing when duplicate type rows exist.
       const propRooms = normalizeRoomsToCanonicalRoomTypes(propRoomsRawForProp, propRoomTypesRaw, propRoomTypes);
-      const propBookingsRaw = portfolioBookingsRaw.filter(b => (b as any).property_id === prop.id) as BookingRow[];
+      const propBookingsRaw = portfolioBookingsWithLines.filter(b => (b as any).property_id === prop.id) as BookingRow[];
       const propAliasTypes = [
         ...portfolioAliasRoomTypes.filter(t => t.property_id === prop.id),
         ...propRoomTypesRaw.map(rt => ({ id: rt.id, name: rt.name, property_id: prop.id })),
@@ -1123,7 +1173,7 @@ export default function PMSDashboard() {
       map.set(prop.id, { roomTypes: propRoomTypes, rooms: propRooms, bookings: propBookings, overrideMap: oMap, roomsByType: rbtMap, propertyData: propData });
     }
     return map;
-  }, [isPortfolioMode, portfolioProperties, portfolioRoomTypesRaw, portfolioRoomsRaw, portfolioBookingsRaw, portfolioOverridesRaw, portfolioPropertiesData, portfolioAliasRoomTypes]);
+  }, [isPortfolioMode, portfolioProperties, portfolioRoomTypesRaw, portfolioRoomsRaw, portfolioBookingsWithLines, portfolioOverridesRaw, portfolioPropertiesData, portfolioAliasRoomTypes]);
 
   // Resolve room names for a booking (single or portfolio mode)
   const getBookingRoomNames = useCallback((b: BookingRow): string[] => {
@@ -2336,6 +2386,8 @@ export default function PMSDashboard() {
         rooms={rooms}
         ratePlans={ratePlansWithRate}
         getRateForDate={getRateForDate}
+        getRateForPropertyDate={getPortfolioRateForDate}
+
         portfolioOptions={isPortfolioMode ? (portfolioProperties || []).map(p => {
           const pd = portfolioDataByProperty.get(p.id);
           return { id: p.id, name: p.name, roomTypes: pd?.roomTypes || [], rooms: pd?.rooms || [] };
