@@ -196,6 +196,8 @@ export async function applyBookingSettlement(
     refund_error: null,
     balance_requested: false,
     balance_token: null,
+    credit_token: null,
+    credit_requested: false,
   };
 
   await supabase
@@ -211,13 +213,19 @@ export async function applyBookingSettlement(
     const reason = params.reasonNote?.trim()
       ? `Booking modified — ${params.reasonNote.trim()}`
       : "Booking modified: the new total is lower than the amount received.";
-    const outcome = await raisePendingRefund(supabase, booking, overpaid, reason);
+
+    // The guest decides: hold the difference as credit for the stay, or take the refund now. The
+    // refund is recorded straight away but held out of the approval queue until they answer.
+    const creditToken = await createGuestToken(supabase, booking, "settlement");
+    const outcome = await raisePendingRefund(supabase, booking, overpaid, reason, !!creditToken);
     result.refund_raised = outcome.ok;
     result.refund_error = outcome.error;
+    result.credit_token = creditToken;
+    result.credit_requested = outcome.ok && !!creditToken;
   }
 
   if (balanceDue > 0 && params.requestBalance) {
-    const token = await createBalanceToken(supabase, booking);
+    const token = await createGuestToken(supabase, booking, "balance");
     result.balance_token = token;
     result.balance_requested = !!token;
   }
