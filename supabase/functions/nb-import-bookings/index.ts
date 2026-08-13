@@ -251,6 +251,198 @@ async function repairUnmappedBookings(
   };
 }
 
+/**
+ * Repair superseded (retired) room inventory for one property.
+ *
+ * 1. Re-points bookings and their room lines from retired room types / rooms to the
+ *    canonical row for the same room name.
+ * 2. Repairs the channel-unit links (`linked_rolos_id`, `linked_overview_id`).
+ * 3. Deletes retired rooms and room types — only when nothing references them.
+ */
+async function repairSupersededRooms(
+  // deno-lint-ignore no-explicit-any
+  sb: any,
+  propertyId: string,
+  dryRun: boolean,
+) {
+  const registry = await loadCanonicalRooms(sb, propertyId);
+
+  const canonicalTypeIds = new Set([...registry.byKey.values()].map((c) => c.roomTypeId));
+  const canonicalRoomIds = new Set(
+    [...registry.byKey.values()].map((c) => c.roomId).filter(Boolean) as string[],
+  );
+
+  const report = {
+    mode: "repair_superseded_rooms",
+    dry_run: dryRun,
+    canonical: [...registry.byKey.values()].map((c) => ({
+      room_name: c.name,
+      room_type_id: c.roomTypeId,
+      room_id: c.roomId,
+      channel_units: c.unitIds.length,
+    })),
+    bookings_repointed: 0,
+    booking_lines_repointed: 0,
+    links_repaired: 0,
+    rooms_deleted: 0,
+    room_types_deleted: 0,
+    retained: [] as { kind: string; id: string; reason: string }[],
+    actions: [] as string[],
+  };
+
+  /* ---------------------------------------------- 1. bookings + room lines */
+
+  const { data: bookingRows } = await sb
+    .from("bookings")
+    .select("id, room_type_id, rolos_room_ids")
+    .eq("property_id", propertyId);
+
+  const moves: { id: string; room_type_id: string; room_id: string | null }[] = [];
+  for (const b of (bookingRows ?? []) as { id: string; room_type_id: string | null; rolos_room_ids: string[] | null }[]) {
+    const roomIds = Array.isArray(b.rolos_room_ids) ? b.rolos_room_ids : [];
+    const typeRetired = b.room_type_id ? registry.supersededTypeIds.has(b.room_type_id) : false;
+    const roomRetired = roomIds.some((id) => registry.supersededRoomIds.has(id));
+    if (!typeRetired && !roomRetired) continue;
+
+    const key =
+      (b.room_type_id ? registry.keyByTypeId.get(b.room_type_id) : null) ??
+      roomIds.map((id) => registry.keyByRoomId.get(id)).find(Boolean) ??
+      null;
+    const canonical = key ? registry.byKey.get(key) : null;
+    if (!canonical) {
+      report.retained.push({ kind: "booking", id: b.id, reason: "no current room with this name" });
+      continue;
+    }
+    moves.push({ id: b.id, room_type_id: canonical.roomTypeId, room_id: canonical.roomId });
+  }
+
+  report.bookings_repointed = moves.length;
+  if (moves.length > 0) report.actions.push(`Re-point ${moves.length} booking(s) to current rooms`);
+
+  if (!dryRun) {
+    for (const move of moves) {
+      const { error } = await sb
+        .from("bookings")
+        .update({
+          room_type_id: move.room_type_id,
+          rolos_room_ids: move.room_id ? [move.room_id] : null,
+        })
+        .eq("id", move.id);
+      if (error) {
+        report.retained.push({ kind: "booking", id: move.id, reason: error.message });
+        continue;
+      }
+      const { error: lineErr, count } = await sb
+        .from("rolos_booking_rooms")
+        .update({ room_type_id: move.room_type_id, room_id: move.room_id }, { count: "exact" })
+        .eq("booking_id", move.id);
+      if (!lineErr) report.booking_lines_repointed += count ?? 0;
+    }
+  }
+
+  /* ----------------------------------------------------- 2. channel links */
+
+  const { data: unitRows } = await sb
+    .from("hostfully_room_types")
+    .select("id, name, is_active, linked_rolos_id, rentalsunited_property_id")
+    .eq("property_id", propertyId);
+
+  for (const u of (unitRows ?? []) as { id: string; name: string | null; linked_rolos_id: string | null; is_active: boolean | null }[]) {
+    if (u.is_active === false) continue;
+    const canonical = registry.canonicalForUnit(u);
+    if (!canonical) {
+      report.retained.push({ kind: "channel_unit", id: u.id, reason: "no ROL'OS room with this name" });
+      continue;
+    }
+    const needsLink = u.linked_rolos_id !== canonical.roomTypeId;
+    if (!needsLink) continue;
+    report.links_repaired += 1;
+    report.actions.push(`Link channel unit "${u.name ?? u.id}" to its current room`);
+    if (!dryRun) {
+      await sb.from("hostfully_room_types").update({ linked_rolos_id: canonical.roomTypeId }).eq("id", u.id);
+      await sb.from("rolos_room_types").update({ linked_overview_id: u.id }).eq("id", canonical.roomTypeId);
+    }
+  }
+
+  /* --------------------------------------- 3. delete unreferenced retirees */
+
+  const referenceTables: { table: string; column: string }[] = [
+    { table: "bookings", column: "room_type_id" },
+    { table: "rolos_booking_rooms", column: "room_type_id" },
+    { table: "rolos_rate_plan_room_types", column: "room_type_id" },
+    { table: "rolos_rate_plan_season_rates", column: "room_type_id" },
+    { table: "rolos_rate_prices", column: "room_type_id" },
+    { table: "rolos_rate_strategies", column: "room_type_id" },
+    { table: "rolos_inventory_calendar", column: "room_type_id" },
+    { table: "rolos_stay_restrictions", column: "room_type_id" },
+    { table: "rolos_reservation_rooms", column: "room_type_id" },
+    { table: "rolos_group_reservations", column: "room_type_id" },
+    { table: "rolos_group_room_blocks", column: "room_type_id" },
+    { table: "rolos_channel_room_mapping", column: "room_type_id" },
+    { table: "rolos_waitlist", column: "room_type_id" },
+    { table: "hostfully_unit_map", column: "room_type_id" },
+  ];
+  const roomReferenceTables: { table: string; column: string }[] = [
+    { table: "rolos_booking_rooms", column: "room_id" },
+    { table: "rolos_reservation_rooms", column: "room_id" },
+    { table: "rolos_housekeeping_tasks", column: "room_id" },
+    { table: "rolos_housekeeping_schedules", column: "room_id" },
+    { table: "rolos_maintenance_requests", column: "room_id" },
+    { table: "rolos_group_reservations", column: "room_id" },
+  ];
+
+  const isReferenced = async (
+    id: string,
+    tables: { table: string; column: string }[],
+  ): Promise<string | null> => {
+    for (const t of tables) {
+      const { count, error } = await sb
+        .from(t.table)
+        .select("id", { count: "exact", head: true })
+        .eq(t.column, id);
+      if (error) continue;
+      if ((count ?? 0) > 0) return `${count} row(s) in ${t.table}`;
+    }
+    return null;
+  };
+
+  // Rooms first — a room type cannot go while its rooms remain.
+  for (const roomId of registry.supersededRoomIds) {
+    if (canonicalRoomIds.has(roomId)) continue;
+    const blocked = await isReferenced(roomId, roomReferenceTables);
+    if (blocked) {
+      report.retained.push({ kind: "room", id: roomId, reason: blocked });
+      continue;
+    }
+    report.rooms_deleted += 1;
+    if (!dryRun) await sb.from("rolos_rooms").delete().eq("id", roomId).eq("property_id", propertyId);
+  }
+
+  for (const typeId of registry.supersededTypeIds) {
+    if (canonicalTypeIds.has(typeId)) continue;
+    const blocked = await isReferenced(typeId, referenceTables);
+    if (blocked) {
+      report.retained.push({ kind: "room_type", id: typeId, reason: blocked });
+      continue;
+    }
+    const { count: roomCount } = await sb
+      .from("rolos_rooms")
+      .select("id", { count: "exact", head: true })
+      .eq("room_type_id", typeId);
+    if ((roomCount ?? 0) > 0 && dryRun === false) {
+      report.retained.push({ kind: "room_type", id: typeId, reason: `${roomCount} room(s) still attached` });
+      continue;
+    }
+    report.room_types_deleted += 1;
+    if (!dryRun) await sb.from("rolos_room_types").delete().eq("id", typeId).eq("property_id", propertyId);
+  }
+
+  if (report.rooms_deleted > 0) report.actions.push(`Remove ${report.rooms_deleted} retired room(s)`);
+  if (report.room_types_deleted > 0) report.actions.push(`Remove ${report.room_types_deleted} retired room type(s)`);
+
+  return report;
+}
+
 
 
 Deno.serve(async (req) => {
