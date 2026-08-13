@@ -93,6 +93,17 @@ interface ImportRun {
 }
 
 
+/** One booking still without a unit. */
+interface UnmappedBookingRow {
+  id: string;
+  room_name: string | null;
+  status: string;
+  source: string;
+  check_in_date: string;
+  check_out_date: string;
+  nights: number;
+}
+
 /** Result of the post-import repair pass over bookings that never matched a unit. */
 interface RepairResponse {
   ok: boolean;
@@ -100,12 +111,21 @@ interface RepairResponse {
   mode: "repair";
   dry_run: boolean;
   repaired: number;
+  auto_assigned?: number;
+  unresolved?: number;
   unmapped_total: number;
+  /** Current/future stays without a unit — these owe the channel nights. */
+  blocking_total: number;
+  /** Past stays without a unit — reporting only, never pushed. */
+  historical_total: number;
   unnamed: number;
-  groups: { key: string; room_name: string; count: number }[];
+  groups: { key: string; room_name: string; count: number; future?: number }[];
+  blocking_bookings?: UnmappedBookingRow[];
+  historical_bookings?: UnmappedBookingRow[];
   suspect_dates: { id: string; check_in_date: string; check_out_date: string; nights: number }[];
   rooms: { id: string; label: string }[];
 }
+
 
 /** Result of the retired-room cleanup: bookings moved off inventory that no longer trades. */
 interface SupersededResponse {
