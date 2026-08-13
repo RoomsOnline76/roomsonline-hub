@@ -585,6 +585,11 @@ export function RoomPlanGrid({
                     Unit: {pendingMove.fromLabel} → {pendingMove.toLabel}
                   </p>
                 )}
+                {pendingMove?.roomTypeChanged && (
+                  <p>
+                    Room type: {pendingMove.fromTypeLabel || "—"} → {pendingMove.toTypeLabel || "—"}
+                  </p>
+                )}
                 {pendingMove?.datesChanged && (
                   <p>
                     Dates: {format(parseISO(pendingMove.booking.check_in_date), "d MMM")} –{" "}
@@ -592,10 +597,17 @@ export function RoomPlanGrid({
                     {format(parseISO(pendingMove.checkIn), "d MMM")} – {format(parseISO(pendingMove.checkOut), "d MMM")}
                   </p>
                 )}
+                {pendingMove?.roomTypeChanged && moveRateNote && (
+                  <p className="text-xs text-status-warning">{moveRateNote}</p>
+                )}
                 <p className="text-xs text-muted-foreground">
                   {pendingMove ? bookingNights(pendingMove.booking) : 0} nights stay length is unchanged.
                   {pendingMove?.datesChanged ? " Availability and any channel push are updated." : ""}
+                  {pendingMove?.roomTypeChanged
+                    ? " The reservation is re-typed to the new unit and both room types are re-pushed to channels."
+                    : ""}
                 </p>
+
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
