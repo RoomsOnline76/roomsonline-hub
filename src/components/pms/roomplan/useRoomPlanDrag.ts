@@ -73,8 +73,18 @@ export function useRoomPlanDrag({
   const dragRef = useRef<RoomPlanDrag>(null);
   const grabColRef = useRef(0);
   const movedRef = useRef(false);
+  const startPointRef = useRef<{ x: number; y: number } | null>(null);
+  /** Set once a gesture became a real drag; read (and cleared) by click handlers. */
+  const gestureDraggedRef = useRef(false);
 
   dragRef.current = drag;
+
+  /** True when the click that just fired is the tail of a drag gesture. */
+  const consumeGestureDrag = useCallback(() => {
+    const dragged = gestureDraggedRef.current;
+    gestureDraggedRef.current = false;
+    return dragged;
+  }, []);
 
   const colFromClientX = useCallback(
     (clientX: number): number => {
