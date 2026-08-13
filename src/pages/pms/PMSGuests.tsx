@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, Search, Users, Mail, Phone, CalendarDays, AlertCircle, Download, Star, Repeat, Ban, Building2, Moon } from "lucide-react";
+import { Plus, Search, Users, Mail, Phone, CalendarDays, AlertCircle, Download, Star, Repeat, Ban, Building2, Moon, Pencil, Archive, Wallet } from "lucide-react";
 import { displayBookingReference } from "@/lib/bookingReference";
 import { callPmsApi } from "@/hooks/usePmsApi";
 import { supabase } from "@/integrations/supabase/client";
@@ -18,14 +18,26 @@ import { PmsPageSkeleton } from "@/components/pms/PmsPageSkeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CrmAccountsTab } from "@/components/pms/crm/CrmAccountsTab";
 import { useCrmAccounts } from "@/hooks/useCrmAccounts";
+import { GuestEditDialog } from "@/components/pms/crm/GuestEditDialog";
 
 interface Guest {
   id: string;
   full_name: string;
   email: string | null;
   phone: string | null;
+  nationality?: string | null;
+  notes?: string | null;
   total_stays: number;
+  /** Legacy alias, kept in sync with total_received. */
   total_spent: number;
+  /** Money actually paid on live bookings. */
+  total_received: number;
+  /** Booked value still owing on live bookings. */
+  total_outstanding: number;
+  /** Value of cancelled / no-show bookings — never counted as spend. */
+  total_cancelled_value: number;
+  cancelled_stays: number;
+  is_archived?: boolean;
   tags: string[];
   is_blacklisted: boolean;
   last_stay_date: string | null;
@@ -33,8 +45,8 @@ interface Guest {
   complaints?: any[];
 }
 
-type Segment = "all" | "repeat" | "vip" | "blacklisted" | "no_contact";
-type SortKey = "recent" | "name" | "stays" | "spent";
+type Segment = "all" | "repeat" | "vip" | "owing" | "never_paid" | "blacklisted" | "no_contact" | "archived";
+type SortKey = "recent" | "name" | "stays" | "spent" | "owing";
 
 const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
 
@@ -51,12 +63,29 @@ function guestInitial(name: string): string {
   return /[A-Z]/.test(ch) ? ch : "#";
 }
 
+/** Rand amounts, no cents — CRM figures are summaries, not invoices. */
+function zar(value: number | null | undefined): string {
+  return `R${Math.round(Number(value) || 0).toLocaleString("en-ZA")}`;
+}
+
+/** Payment state of a single booking, used for the honesty badges. */
+function paymentState(bk: GuestBooking): { label: string; tone: "paid" | "part" | "unpaid" | "cancelled" } {
+  if (["cancelled", "no_show"].includes(bk.status)) return { label: "Cancelled", tone: "cancelled" };
+  const paid = Number(bk.amount_paid) || 0;
+  const total = Number(bk.total_price) || 0;
+  if (paid <= 0) return { label: "Unpaid", tone: "unpaid" };
+  if (paid + 0.01 < total) return { label: "Part paid", tone: "part" };
+  return { label: "Paid", tone: "paid" };
+}
+
 interface GuestBooking {
   id: string;
   check_in_date: string;
   check_out_date: string;
   status: string;
   total_price: number;
+  amount_paid?: number | null;
+  payment_status?: string | null;
   special_requests: string | null;
   booking_channel: string | null;
   rol_reference?: string | null;
@@ -71,6 +100,7 @@ export default function PMSGuests() {
     (portfolioProperties && portfolioProperties.length > 1) ? "portfolio" : "single"
   );
   const [guests, setGuests] = useState<Guest[]>([]);
+  const [editGuest, setEditGuest] = useState<Guest | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -107,7 +137,7 @@ export default function PMSGuests() {
     try {
       let q = supabase
         .from("rolos_guest_profiles")
-        .select("id, full_name, email, phone, total_stays, total_spent, tags, is_blacklisted, last_stay_date, property_id")
+        .select("id, full_name, email, phone, nationality, notes, total_stays, total_spent, total_received, total_outstanding, total_cancelled_value, cancelled_stays, is_archived, tags, is_blacklisted, last_stay_date, property_id")
         .order("last_stay_date", { ascending: false, nullsFirst: false })
         .limit(1000);
 
@@ -148,36 +178,46 @@ export default function PMSGuests() {
     return set;
   }, [guests]);
 
+  /** Archived profiles are hidden everywhere except the Archived segment. */
+  const liveGuests = useMemo(() => guests.filter(g => !g.is_archived), [guests]);
+
   const segmentCounts = useMemo(() => ({
-    all: guests.length,
-    repeat: guests.filter(g => (g.total_stays || 0) > 1).length,
-    vip: guests.filter(g => (g.tags || []).some(t => t.toLowerCase() === "vip")).length,
-    blacklisted: guests.filter(g => g.is_blacklisted).length,
-    no_contact: guests.filter(g => !g.email && !g.phone).length,
-  }), [guests]);
+    all: liveGuests.length,
+    repeat: liveGuests.filter(g => (g.total_stays || 0) > 1).length,
+    vip: liveGuests.filter(g => (g.tags || []).some(t => t.toLowerCase() === "vip")).length,
+    owing: liveGuests.filter(g => (g.total_outstanding || 0) > 0).length,
+    never_paid: liveGuests.filter(g => (g.total_received || 0) <= 0).length,
+    blacklisted: liveGuests.filter(g => g.is_blacklisted).length,
+    no_contact: liveGuests.filter(g => !g.email && !g.phone).length,
+    archived: guests.filter(g => g.is_archived).length,
+  }), [guests, liveGuests]);
 
   const visibleGuests = useMemo(() => {
-    let rows = guests;
+    let rows = segment === "archived" ? guests.filter(g => g.is_archived) : liveGuests;
     if (letter) rows = rows.filter(g => guestInitial(g.full_name) === letter);
     if (segment === "repeat") rows = rows.filter(g => (g.total_stays || 0) > 1);
     if (segment === "vip") rows = rows.filter(g => (g.tags || []).some(t => t.toLowerCase() === "vip"));
+    if (segment === "owing") rows = rows.filter(g => (g.total_outstanding || 0) > 0);
+    if (segment === "never_paid") rows = rows.filter(g => (g.total_received || 0) <= 0);
     if (segment === "blacklisted") rows = rows.filter(g => g.is_blacklisted);
     if (segment === "no_contact") rows = rows.filter(g => !g.email && !g.phone);
     const sorted = [...rows];
     if (sortKey === "name") sorted.sort((a, b) => a.full_name.localeCompare(b.full_name));
     else if (sortKey === "stays") sorted.sort((a, b) => (b.total_stays || 0) - (a.total_stays || 0));
-    else if (sortKey === "spent") sorted.sort((a, b) => (b.total_spent || 0) - (a.total_spent || 0));
+    else if (sortKey === "spent") sorted.sort((a, b) => (b.total_received || 0) - (a.total_received || 0));
+    else if (sortKey === "owing") sorted.sort((a, b) => (b.total_outstanding || 0) - (a.total_outstanding || 0));
     else sorted.sort((a, b) => (b.last_stay_date || "").localeCompare(a.last_stay_date || ""));
     return sorted;
-  }, [guests, letter, segment, sortKey]);
+  }, [guests, liveGuests, letter, segment, sortKey]);
 
   const exportCsv = useCallback(() => {
-    const header = ["Name", "Email", "Phone", "Stays", "Spent", "Last stay", "Property", "Tags", "Blacklisted"];
+    const header = ["Name", "Email", "Phone", "Stays", "Received", "Outstanding", "Cancelled value", "Last stay", "Property", "Tags", "Blacklisted"];
     const esc = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
     const lines = [header.map(esc).join(",")];
     for (const g of visibleGuests) {
       lines.push([
-        g.full_name, g.email || "", g.phone || "", g.total_stays || 0, g.total_spent || 0,
+        g.full_name, g.email || "", g.phone || "", g.total_stays || 0,
+        g.total_received || 0, g.total_outstanding || 0, g.total_cancelled_value || 0,
         g.last_stay_date || "", (g.property_id && propertyNameById.get(g.property_id)) || "",
         (g.tags || []).join(" | "), g.is_blacklisted ? "yes" : "no",
       ].map(esc).join(","));
@@ -208,7 +248,7 @@ export default function PMSGuests() {
     setLoadingHistory(true);
     // Fetch bookings for this guest
     const { data } = await supabase.from("bookings")
-      .select("id, check_in_date, check_out_date, status, total_price, special_requests, booking_channel, rol_reference, external_reservation_id, property_id")
+      .select("id, check_in_date, check_out_date, status, total_price, amount_paid, payment_status, special_requests, booking_channel, rol_reference, external_reservation_id, property_id")
       .eq("rolos_guest_id", guest.id)
       .order("check_in_date", { ascending: false })
       .limit(50);
@@ -291,7 +331,8 @@ export default function PMSGuests() {
                 <option value="recent">Most recent stay</option>
                 <option value="name">Name A–Z</option>
                 <option value="stays">Most stays</option>
-                <option value="spent">Highest spend</option>
+                <option value="spent">Highest received</option>
+                <option value="owing">Most owing</option>
               </select>
               <Button variant="outline" size="sm" className="h-9" onClick={exportCsv} disabled={!visibleGuests.length}>
                 <Download className="h-4 w-4 mr-2" />Export CSV
@@ -304,8 +345,11 @@ export default function PMSGuests() {
                 { key: "all", label: "All guests", icon: Users },
                 { key: "repeat", label: "Repeat", icon: Repeat },
                 { key: "vip", label: "VIP", icon: Star },
+                { key: "owing", label: "Owing", icon: Wallet },
+                { key: "never_paid", label: "Never paid", icon: AlertCircle },
                 { key: "blacklisted", label: "Blacklisted", icon: Ban },
                 { key: "no_contact", label: "No contact details", icon: AlertCircle },
+                { key: "archived", label: "Archived", icon: Archive },
               ] as { key: Segment; label: string; icon: typeof Users }[]).map(({ key, label, icon: Icon }) => (
                 <Button
                   key={key}
@@ -387,14 +431,36 @@ export default function PMSGuests() {
                               </div>
                             </div>
                           </div>
-                          <div className="flex items-center gap-3 shrink-0">
+                          <div className="flex items-center gap-2 shrink-0">
                             <div className="text-right text-sm">
                               <p className="font-medium">{guest.total_stays || 0} stay{(guest.total_stays || 0) === 1 ? "" : "s"}</p>
-                              <p className="text-xs text-muted-foreground">R{(guest.total_spent || 0).toLocaleString()}</p>
+                              <p className="text-xs text-muted-foreground">{zar(guest.total_received)} received</p>
+                            </div>
+                            <div className="flex flex-col items-end gap-1">
+                              {(guest.total_outstanding || 0) > 0 && (
+                                <Badge variant="outline" className="text-[10px] border-amber-500 text-amber-600 dark:text-amber-400">
+                                  {zar(guest.total_outstanding)} owing
+                                </Badge>
+                              )}
+                              {(guest.total_cancelled_value || 0) > 0 && (
+                                <Badge variant="outline" className="text-[10px] text-muted-foreground line-through">
+                                  {zar(guest.total_cancelled_value)} cancelled
+                                </Badge>
+                              )}
                             </div>
                             {(guest.total_stays || 0) > 1 && <Badge variant="secondary" className="text-xs">Repeat</Badge>}
                             {guest.tags?.map(tag => <Badge key={tag} variant="outline" className="text-xs">{tag}</Badge>)}
                             {guest.is_blacklisted && <Badge variant="destructive" className="text-xs">Blacklisted</Badge>}
+                            {guest.is_archived && <Badge variant="outline" className="text-xs text-muted-foreground">Archived</Badge>}
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              aria-label={`Edit ${guest.full_name}`}
+                              onClick={(e) => { e.stopPropagation(); setEditGuest(guest); }}
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
                           </div>
                         </CardContent>
                       </Card>
@@ -437,21 +503,41 @@ export default function PMSGuests() {
               </SheetHeader>
 
               <div className="space-y-4 mt-4">
-                {/* Stats */}
-                <div className="grid grid-cols-3 gap-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-muted-foreground">Figures below are derived from bookings.</p>
+                  <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setEditGuest(selectedGuest)}>
+                    <Pencil className="h-3 w-3 mr-1.5" />Edit
+                  </Button>
+                </div>
+
+                {/* Stats — received / owing / cancelled kept apart */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="bg-muted/50 rounded-md p-3 text-center">
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Received</p>
+                    <p className="text-sm font-semibold">{zar(selectedGuest.total_received)}</p>
+                  </div>
+                  <div className="bg-muted/50 rounded-md p-3 text-center">
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Outstanding</p>
+                    <p className={`text-sm font-semibold ${(selectedGuest.total_outstanding || 0) > 0 ? "text-amber-600 dark:text-amber-400" : ""}`}>
+                      {zar(selectedGuest.total_outstanding)}
+                    </p>
+                  </div>
+                  <div className="bg-muted/50 rounded-md p-3 text-center">
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Cancelled</p>
+                    <p className="text-sm font-semibold text-muted-foreground">
+                      {zar(selectedGuest.total_cancelled_value)}
+                      {(selectedGuest.cancelled_stays || 0) > 0 && (
+                        <span className="ml-1 text-[10px]">({selectedGuest.cancelled_stays})</span>
+                      )}
+                    </p>
+                  </div>
                   <div className="bg-muted/50 rounded-md p-3 text-center">
                     <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Stays</p>
-                    <p className="text-lg font-bold">{selectedGuest.total_stays}</p>
-                  </div>
-                  <div className="bg-muted/50 rounded-md p-3 text-center">
-                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Spent</p>
-                    <p className="text-sm font-semibold">R{selectedGuest.total_spent.toLocaleString()}</p>
-                  </div>
-                  <div className="bg-muted/50 rounded-md p-3 text-center">
-                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Last Stay</p>
-                    <p className="text-xs font-medium">{selectedGuest.last_stay_date || "—"}</p>
+                    <p className="text-sm font-semibold">{selectedGuest.total_stays || 0}</p>
+                    <p className="text-[10px] text-muted-foreground">Last {selectedGuest.last_stay_date || "—"}</p>
                   </div>
                 </div>
+
 
                 {selectedGuest.phone && (
                   <div className="flex items-center gap-2 text-sm"><Phone className="h-3.5 w-3.5 text-muted-foreground" />{selectedGuest.phone}</div>
@@ -479,15 +565,31 @@ export default function PMSGuests() {
                     <p className="text-xs text-muted-foreground">No bookings found.</p>
                   ) : (
                     <div className="space-y-1.5">
-                      {guestBookings.map(bk => (
+                      {guestBookings.map(bk => {
+                        const pay = paymentState(bk);
+                        return (
                         <div key={bk.id} className="text-xs bg-muted/30 p-2 rounded border border-border">
                           <div className="flex items-center justify-between">
                             <span className="font-medium">{bk.check_in_date} → {bk.check_out_date}</span>
                             <Badge variant={bk.status === "checked_out" ? "outline" : bk.status === "cancelled" ? "destructive" : "secondary"} className="text-[10px] capitalize">{bk.status.replace("_", " ")}</Badge>
                           </div>
                           <div className="flex justify-between mt-1 text-muted-foreground">
-                            <span>R{bk.total_price.toLocaleString()}</span>
+                            <span className={pay.tone === "cancelled" ? "line-through" : ""}>
+                              {zar(bk.total_price)}
+                              {pay.tone === "part" && <span className="ml-1">({zar(bk.amount_paid)} paid)</span>}
+                            </span>
                             <span className="flex items-center gap-2">
+                              <Badge
+                                variant="outline"
+                                className={`text-[10px] ${
+                                  pay.tone === "paid" ? "border-emerald-500 text-emerald-600 dark:text-emerald-400"
+                                  : pay.tone === "part" ? "border-amber-500 text-amber-600 dark:text-amber-400"
+                                  : pay.tone === "unpaid" ? "border-destructive text-destructive"
+                                  : "text-muted-foreground"
+                                }`}
+                              >
+                                {pay.label}
+                              </Badge>
                               <span className="flex items-center gap-1"><Moon className="h-3 w-3" />{nightsBetween(bk.check_in_date, bk.check_out_date)}</span>
                               {bk.booking_channel && <span className="capitalize">{bk.booking_channel}</span>}
                             </span>
@@ -495,7 +597,8 @@ export default function PMSGuests() {
                           <p className="mt-1 font-mono text-[10px] text-muted-foreground">{displayBookingReference(bk)}</p>
                           {bk.special_requests && <p className="mt-1 text-muted-foreground italic truncate">{bk.special_requests}</p>}
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -528,6 +631,18 @@ export default function PMSGuests() {
           )}
         </SheetContent>
       </Sheet>
+
+      <GuestEditDialog
+        guest={editGuest}
+        open={!!editGuest}
+        onOpenChange={(open) => !open && setEditGuest(null)}
+        onSaved={() => { setEditGuest(null); fetchGuests(); }}
+        onDeleted={(id) => {
+          setEditGuest(null);
+          setSelectedGuest(prev => (prev?.id === id ? null : prev));
+          fetchGuests();
+        }}
+      />
     </>
   );
 }
