@@ -17,6 +17,7 @@ import {
 } from '../_shared/ruContentQuality.ts';
 import { evaluatePhases, phaseBlockedResponse, findOwnerAccount } from '../_shared/ruPhaseGate.ts';
 import { computeLocalBookableWindow } from '../_shared/ruLocalWindow.ts';
+import { loadCanonicalRooms } from '../_shared/canonicalRooms.ts';
 import { resolveMcqChannelId } from '../_shared/ruMcq.ts';
 import { resolveRuAmenityIds } from '../_shared/ruAmenityMap.ts';
 import {
@@ -2182,7 +2183,7 @@ async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRo
       // Manual dashboard restrictions win over season-derived values.
       const manual = await loadManualRestrictions(supabase, property.id, todayStr, oneYearStr, unit?.name ?? null, unitUnits);
       // Sold nights close inventory even when the manual stop-sell rows are missing.
-      const sold = await loadBookingBlocks(supabase, property.id, todayStr, oneYearStr, unit?.id ?? null, unit?.name ?? null);
+      const sold = await loadBookingBlocks(supabase, property.id, todayStr, oneYearStr, unit ? { id: unit.id, name: unit.name ?? null, linked_rolos_id: (unit as any).linked_rolos_id ?? null } : null);
       for (const day of sold.dates) {
         const existing = manual.overrides.get(day) ?? {};
         const remaining = unit ? 0 : Math.max(0, Math.min(existing.units ?? unitUnits, unitUnits) - 1);
@@ -3668,7 +3669,7 @@ Deno.serve(async (req) => {
 
       const report: Record<string, unknown>[] = [];
       for (const u of scoped) {
-        const sold = await loadBookingBlocks(supabase, property.id, from, to, u.unit_id, u.label);
+        const sold = await loadBookingBlocks(supabase, property.id, from, to, u.unit_id ? { id: u.unit_id, name: u.label ?? null, linked_rolos_id: null } : null);
         const { data: calData, error: calErr } = await supabase.functions.invoke('rentalsunited-api', {
           body: { action: 'get_availability', ru_property_id: u.ru_id, date_from: from, date_to: to, ...childAuthPayload },
         });
