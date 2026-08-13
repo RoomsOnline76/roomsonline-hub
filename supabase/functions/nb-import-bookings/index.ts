@@ -657,9 +657,15 @@ Deno.serve(async (req) => {
       if (error) errors.push({ row: 0, nbid: null, message: `Room lines: ${error.message}` });
     }
 
+    const chunkDone = chunkedWrite ? chunkFrom + writeSlice.length : totalMapped;
     const liveSummary = {
       total_rows: rows.length,
-      parsed: mapped.length,
+      parsed: totalMapped,
+      /** Rows written by this call (a chunked run reports its own slice). */
+      written: writeSlice.length,
+      row_from: chunkFrom,
+      row_done: chunkDone,
+      has_more: chunkDone < totalMapped,
       created,
       updated,
       skipped: skipped.length,
