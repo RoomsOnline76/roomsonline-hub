@@ -796,6 +796,19 @@ export default function PMSRooms() {
         onOpenChange={(open) => { if (!open) setSelectedBooking(null); }}
       />
 
+      {/* Edit / move / remove existing restrictions */}
+      <RestrictionsManagerDialog
+        open={manageRestrictionsOpen}
+        onOpenChange={(v) => { setManageRestrictionsOpen(v); if (!v) setFocusBlock(null); }}
+        propertyIds={activePropertyIds}
+        propertyNames={Object.fromEntries(properties.map((p) => [p.id, p.name]))}
+        windowStart={dates[0]}
+        focusBlock={focusBlock}
+        onChanged={() => { refetchStopSell(); fetchData(); }}
+      />
+
+
+
       {/* Create/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) { setEditingRoom(null); setForm(emptyForm); } }}>
         <DialogContent>
