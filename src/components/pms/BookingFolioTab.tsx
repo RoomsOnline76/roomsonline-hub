@@ -224,10 +224,17 @@ export function BookingFolioTab({ bookingId, propertyId }: BookingFolioTabProps)
           <p className="text-sm font-semibold text-success">R{totalPayments.toLocaleString()}</p>
         </div>
         <div className={`rounded-md p-3 text-center ${balance > 0 ? "bg-destructive/10" : "bg-green-500/10"}`}>
-          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Balance</p>
-          <p className={`text-sm font-bold ${balance > 0 ? "text-destructive" : "text-success"}`}>R{balance.toLocaleString()}</p>
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{balance < 0 ? "Credit" : "Balance"}</p>
+          <p className={`text-sm font-bold ${balance > 0 ? "text-destructive" : "text-success"}`}>R{Math.abs(balance).toLocaleString()}</p>
         </div>
       </div>
+
+      {externalSettlement && (
+        <p className="text-[11px] text-muted-foreground">
+          Settled externally via the channel — nothing to collect{balance > 0 ? " beyond the outstanding extras below" : ""}.
+        </p>
+      )}
+
 
       {/* Applied Service Charges */}
       {hasChargesApplied && (
